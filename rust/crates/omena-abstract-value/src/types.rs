@@ -1051,6 +1051,76 @@ pub struct ClassValueFlowIncrementalAnalysisV0 {
     pub analysis: ClassValueFlowAnalysisV0,
 }
 
+/// Snapshot and analysis sealed under one read-set digest.
+///
+/// The payload fields are crate-private so external callers cannot construct a
+/// snapshot/analysis pair that bypasses artifact validation. Callers can inspect
+/// the bound values through the read-only accessors below.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SealedClassValueFlowAnalysisArtifactV0 {
+    pub(crate) schema_version: &'static str,
+    pub(crate) product: &'static str,
+    pub(crate) read_set_digest: String,
+    pub(crate) snapshot: IncrementalSnapshotV0,
+    pub(crate) analysis: ClassValueFlowAnalysisV0,
+}
+
+impl SealedClassValueFlowAnalysisArtifactV0 {
+    pub fn schema_version(&self) -> &'static str {
+        self.schema_version
+    }
+
+    pub fn product(&self) -> &'static str {
+        self.product
+    }
+
+    pub fn read_set_digest(&self) -> &str {
+        self.read_set_digest.as_str()
+    }
+
+    pub fn snapshot(&self) -> &IncrementalSnapshotV0 {
+        &self.snapshot
+    }
+
+    pub fn analysis(&self) -> &ClassValueFlowAnalysisV0 {
+        &self.analysis
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum ClassValueFlowArtifactRefusalCauseV0 {
+    SnapshotDoesNotMatchGraph,
+    AnalysisDoesNotMatchGraph,
+    ArtifactDigestMismatch,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClassValueFlowArtifactRefusalV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub cause: ClassValueFlowArtifactRefusalCauseV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClassValueFlowSealedIncrementalAnalysisV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub reused_previous_analysis: bool,
+    pub read_set_digest_check_count: usize,
+    pub read_set_digest_node_count: usize,
+    pub analysis_rebuild_count: usize,
+    pub dirty_node_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub incremental_plan: Option<IncrementalComputationPlanV0>,
+    pub analysis: ClassValueFlowAnalysisV0,
+    pub next_artifact: SealedClassValueFlowAnalysisArtifactV0,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClassValueFlowIncrementalBatchAnalysisV0 {

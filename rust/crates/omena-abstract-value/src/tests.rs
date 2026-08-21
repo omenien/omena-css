@@ -14,9 +14,10 @@ use super::{
     AbstractPropertyValueCandidateV0, AbstractPropertyValueV0, AbstractStringAutomatonTransitionV0,
     AbstractStringAutomatonV0, BoundedJoinFixpointNodeV0, CascadeContextV0,
     CascadeRestrictionMapV0, CascadeValueFamilyMemberV0, ClassBoundaryEffectV0,
-    ClassValueControlFlowBlockV0, ClassValueControlFlowGraphV0, ClassValueFlowGraphV0,
-    ClassValueFlowNodeV0, ClassValueFlowTransferV0, CompositeClassValueInputV0,
-    DeclaredNumericTypeV0, ExternalStringTypeFactsV0, FactPrecision, KLimitedCallSiteFlowInputV0,
+    ClassValueControlFlowBlockV0, ClassValueControlFlowGraphV0,
+    ClassValueFlowArtifactRefusalCauseV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0,
+    ClassValueFlowTransferV0, CompositeClassValueInputV0, DeclaredNumericTypeV0,
+    ExternalStringTypeFactsV0, FactPrecision, KLimitedCallSiteFlowInputV0,
     Lin01ProvenanceSemiringV0, LinearProvenancePathV0, LinearProvenanceV0, MAX_FINITE_CLASS_VALUES,
     MAX_FLOW_ANALYSIS_ITERATIONS, MAX_STRING_AUTOMATON_LANGUAGE_CARDINALITY,
     MAX_STRING_AUTOMATON_MATERIALIZED_BYTES, MAX_STRING_AUTOMATON_STATES,
@@ -29,6 +30,7 @@ use super::{
     abstract_css_values_canonically_equal, analyze_bounded_join_fixpoint,
     analyze_class_value_control_flow_graph, analyze_class_value_flow,
     analyze_class_value_flow_incremental, analyze_class_value_flow_incremental_batch_with_reuse,
+    analyze_class_value_flow_incremental_with_artifact,
     analyze_class_value_flow_incremental_with_database,
     analyze_class_value_flow_incremental_with_reuse, analyze_k_limited_call_site_flows,
     analyze_one_cfa_call_site_flows, automaton_key, bottom_class_value,
@@ -49,13 +51,13 @@ use super::{
     project_abstract_value_selectors, reduce_class_value_product,
     reduced_abstract_class_value_from_facts, reduced_class_value_derivation_from_facts,
     reduced_class_value_product_is_subset, reduced_class_value_product_matches_string,
-    reduced_value_domain_kind_from_facts, selector_certainty_from_facts,
-    selector_certainty_shape_kind_from_facts, selector_certainty_shape_label_from_facts,
-    suffix_class_value, summarize_abstract_class_value_provenance_tree,
-    summarize_cascade_restriction_cycles_v0, summarize_context_indexed_cascade_value_family_v0,
-    summarize_omena_abstract_value_domain, summarize_omena_abstract_value_flow_analysis,
-    summarize_polynomial_provenance_from_linear_v0, summarize_reduced_class_value_product,
-    summarize_reduced_product_constraint_graph_v0,
+    reduced_value_domain_kind_from_facts, seal_class_value_flow_analysis_artifact_v0,
+    selector_certainty_from_facts, selector_certainty_shape_kind_from_facts,
+    selector_certainty_shape_label_from_facts, suffix_class_value,
+    summarize_abstract_class_value_provenance_tree, summarize_cascade_restriction_cycles_v0,
+    summarize_context_indexed_cascade_value_family_v0, summarize_omena_abstract_value_domain,
+    summarize_omena_abstract_value_flow_analysis, summarize_polynomial_provenance_from_linear_v0,
+    summarize_reduced_class_value_product, summarize_reduced_product_constraint_graph_v0,
     summarize_reduced_product_constraint_propagation_v0, top_class_value,
     value_certainty_from_facts, value_certainty_shape_kind_from_facts,
     value_certainty_shape_label_from_facts,
@@ -178,7 +180,7 @@ fn summarizes_domain_boundary_contract() {
     assert!(flow_summary.analysis_scopes.contains(&"controlFlowGraph"));
     assert_eq!(
         flow_summary.reuse_policy,
-        "reuse previous context analysis only when its omena-incremental plan is clean and deterministic fresh-equivalence verification matches"
+        "prefer sealed snapshot-analysis artifacts with read-set digest verification; legacy separate-pair entry points retain deterministic fresh-equivalence verification"
     );
     assert!(flow_summary.transfer_kinds.contains(&"join"));
     assert!(flow_summary.transfer_kinds.contains(&"concatFacts"));
@@ -1778,6 +1780,103 @@ fn incremental_flow_rejects_a_snapshot_analysis_pair_from_different_inputs() {
     assert!(!mixed.reused_previous_analysis);
     assert_eq!(mixed.analysis, analyze_class_value_flow(&graph_b));
     assert_ne!(mixed.analysis, analysis_a.analysis);
+}
+
+#[test]
+fn sealed_flow_artifact_refuses_a_mixed_snapshot_analysis_pair() -> Result<(), String> {
+    let graph_a = flow_exit_graph("a");
+    let graph_b = flow_exit_graph("b");
+    let analysis_a = analyze_class_value_flow_incremental(&graph_a, None, 1);
+    let analysis_b = analyze_class_value_flow_incremental(&graph_b, None, 1);
+
+    let refusal = match seal_class_value_flow_analysis_artifact_v0(
+        &graph_b,
+        &analysis_b.next_snapshot,
+        &analysis_a.analysis,
+    ) {
+        Err(refusal) => refusal,
+        Ok(_) => return Err("a mixed snapshot/analysis pair must not be sealable".to_string()),
+    };
+
+    assert_eq!(
+        refusal.cause,
+        ClassValueFlowArtifactRefusalCauseV0::AnalysisDoesNotMatchGraph
+    );
+    Ok(())
+}
+
+#[test]
+fn sealed_flow_artifact_reuses_by_digest_without_rebuilding_the_analysis() -> Result<(), String> {
+    let graph = flow_exit_graph("stable");
+    let first = analyze_class_value_flow_incremental_with_artifact(&graph, None, 1)
+        .map_err(|refusal| format!("initial sealed analysis refused: {refusal:?}"))?;
+    let second =
+        analyze_class_value_flow_incremental_with_artifact(&graph, Some(&first.next_artifact), 2)
+            .map_err(|refusal| format!("clean sealed analysis refused reuse: {refusal:?}"))?;
+
+    assert_eq!(first.analysis_rebuild_count, 1);
+    assert_eq!(first.read_set_digest_check_count, 0);
+    assert!(second.reused_previous_analysis);
+    assert_eq!(second.read_set_digest_check_count, 1);
+    assert_eq!(second.read_set_digest_node_count, graph.nodes.len());
+    assert_eq!(second.analysis_rebuild_count, 0);
+    assert_eq!(second.dirty_node_count, 0);
+    assert!(second.incremental_plan.is_none());
+    assert_eq!(second.analysis, analyze_class_value_flow(&graph));
+    assert_eq!(second.analysis, first.analysis);
+    Ok(())
+}
+
+#[test]
+fn sealed_flow_artifact_rebuilds_for_a_member_change_but_ignores_non_members() -> Result<(), String>
+{
+    let graph = flow_exit_graph("before");
+    let first = analyze_class_value_flow_incremental_with_artifact(&graph, None, 1)
+        .map_err(|refusal| format!("initial sealed analysis refused: {refusal:?}"))?;
+
+    let unrelated = flow_exit_graph("unrelated");
+    analyze_class_value_flow_incremental_with_artifact(&unrelated, None, 2)
+        .map_err(|refusal| format!("unrelated analysis refused: {refusal:?}"))?;
+    let unchanged =
+        analyze_class_value_flow_incremental_with_artifact(&graph, Some(&first.next_artifact), 3)
+            .map_err(|refusal| format!("non-member work invalidated the artifact: {refusal:?}"))?;
+    assert!(unchanged.reused_previous_analysis);
+    assert_eq!(unchanged.analysis_rebuild_count, 0);
+
+    let changed_graph = flow_exit_graph("after");
+    let changed = analyze_class_value_flow_incremental_with_artifact(
+        &changed_graph,
+        Some(&unchanged.next_artifact),
+        4,
+    )
+    .map_err(|refusal| format!("member change refused instead of rebuilding: {refusal:?}"))?;
+    assert!(!changed.reused_previous_analysis);
+    assert!(changed.dirty_node_count > 0);
+    assert!(changed.incremental_plan.is_some());
+    assert_eq!(changed.analysis_rebuild_count, 1);
+    assert_eq!(changed.analysis, analyze_class_value_flow(&changed_graph));
+    Ok(())
+}
+
+#[test]
+fn sealed_flow_artifact_detects_a_seeded_digest_drop() -> Result<(), String> {
+    let graph = flow_exit_graph("stable");
+    let first = analyze_class_value_flow_incremental_with_artifact(&graph, None, 1)
+        .map_err(|refusal| format!("initial sealed analysis refused: {refusal:?}"))?;
+    let mut tampered = first.next_artifact;
+    tampered.read_set_digest.clear();
+
+    let refusal =
+        match analyze_class_value_flow_incremental_with_artifact(&graph, Some(&tampered), 2) {
+            Err(refusal) => refusal,
+            Ok(_) => return Err("a missing artifact digest must fail closed".to_string()),
+        };
+
+    assert_eq!(
+        refusal.cause,
+        ClassValueFlowArtifactRefusalCauseV0::ArtifactDigestMismatch
+    );
+    Ok(())
 }
 
 #[test]

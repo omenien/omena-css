@@ -5,6 +5,7 @@ use omena_incremental::{
     OmenaIncrementalDatabaseV0,
 };
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 
 use crate::automaton::finite_language_values;
 use crate::*;
@@ -30,7 +31,7 @@ pub fn summarize_omena_abstract_value_flow_analysis() -> AbstractValueFlowAnalys
             "kLimitedCallSiteBatch",
             "controlFlowGraph",
         ],
-        reuse_policy: "reuse previous context analysis only when its omena-incremental plan is clean and deterministic fresh-equivalence verification matches",
+        reuse_policy: "prefer sealed snapshot-analysis artifacts with read-set digest verification; legacy separate-pair entry points retain deterministic fresh-equivalence verification",
         transfer_kinds: vec!["assignFacts", "refineFacts", "concatFacts", "join"],
         max_iterations: MAX_FLOW_ANALYSIS_ITERATIONS,
     }
@@ -985,6 +986,194 @@ pub fn analyze_class_value_flow_incremental_with_database(
         incremental_plan: update.incremental_plan,
         next_snapshot: update.next_snapshot,
         analysis,
+    }
+}
+
+/// Validates a legacy caller-supplied snapshot/analysis pair and seals it into
+/// the artifact contract used by the cheap reuse path.
+///
+/// This import path intentionally pays one fresh analysis: separate values do
+/// not carry provenance. Analyses produced by
+/// [`analyze_class_value_flow_incremental_with_artifact`] are sealed directly
+/// and do not pay that migration cost.
+pub fn seal_class_value_flow_analysis_artifact_v0(
+    graph: &ClassValueFlowGraphV0,
+    snapshot: &IncrementalSnapshotV0,
+    analysis: &ClassValueFlowAnalysisV0,
+) -> Result<SealedClassValueFlowAnalysisArtifactV0, ClassValueFlowArtifactRefusalV0> {
+    if !incremental_snapshot_matches_flow_graph(snapshot, graph) {
+        return Err(class_value_flow_artifact_refusal(
+            ClassValueFlowArtifactRefusalCauseV0::SnapshotDoesNotMatchGraph,
+        ));
+    }
+    if &analyze_class_value_flow(graph) != analysis {
+        return Err(class_value_flow_artifact_refusal(
+            ClassValueFlowArtifactRefusalCauseV0::AnalysisDoesNotMatchGraph,
+        ));
+    }
+    Ok(sealed_class_value_flow_analysis_artifact(
+        snapshot.clone(),
+        analysis.clone(),
+    ))
+}
+
+/// Runs incremental flow analysis with snapshot provenance carried by a sealed
+/// artifact. Reuse validates the read-set digest and graph identity instead of
+/// recomputing a deterministic fresh analysis.
+pub fn analyze_class_value_flow_incremental_with_artifact(
+    graph: &ClassValueFlowGraphV0,
+    previous_artifact: Option<&SealedClassValueFlowAnalysisArtifactV0>,
+    revision: u64,
+) -> Result<ClassValueFlowSealedIncrementalAnalysisV0, ClassValueFlowArtifactRefusalV0> {
+    let incremental_input = class_value_flow_incremental_input(graph, revision);
+    let current_read_set_digest = class_value_flow_input_read_set_digest(&incremental_input);
+    if let Some(artifact) = previous_artifact {
+        let observed_digest = class_value_flow_snapshot_read_set_digest(&artifact.snapshot);
+        if observed_digest != artifact.read_set_digest {
+            return Err(class_value_flow_artifact_refusal(
+                ClassValueFlowArtifactRefusalCauseV0::ArtifactDigestMismatch,
+            ));
+        }
+        if current_read_set_digest == artifact.read_set_digest
+            && previous_analysis_matches_flow_graph_identity(&artifact.analysis, graph)
+        {
+            let mut next_snapshot = artifact.snapshot.clone();
+            next_snapshot.revision = IncrementalRevisionV0 { value: revision };
+            let next_artifact =
+                sealed_class_value_flow_analysis_artifact(next_snapshot, artifact.analysis.clone());
+            return Ok(ClassValueFlowSealedIncrementalAnalysisV0 {
+                schema_version: "0",
+                product: "omena-abstract-value.sealed-incremental-flow-analysis",
+                reused_previous_analysis: true,
+                read_set_digest_check_count: 1,
+                read_set_digest_node_count: artifact.snapshot.nodes.len(),
+                analysis_rebuild_count: 0,
+                dirty_node_count: 0,
+                incremental_plan: None,
+                analysis: artifact.analysis.clone(),
+                next_artifact,
+            });
+        }
+    }
+
+    let mut incremental_database = OmenaIncrementalDatabaseV0::default();
+    if let Some(artifact) = previous_artifact {
+        incremental_database.restore_snapshot(&artifact.snapshot);
+    }
+    let update = incremental_database.plan_and_upsert_graph_input(&incremental_input);
+    let next_read_set_digest = class_value_flow_snapshot_read_set_digest(&update.next_snapshot);
+    let dirty_node_count = update.incremental_plan.dirty_node_count;
+    let analysis = analyze_class_value_flow(graph);
+    let read_set_digest_check_count = usize::from(previous_artifact.is_some());
+    let read_set_digest_node_count = previous_artifact
+        .map(|artifact| artifact.snapshot.nodes.len())
+        .unwrap_or(0);
+    let next_artifact = SealedClassValueFlowAnalysisArtifactV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.sealed-flow-analysis-artifact",
+        read_set_digest: next_read_set_digest,
+        snapshot: update.next_snapshot,
+        analysis: analysis.clone(),
+    };
+
+    Ok(ClassValueFlowSealedIncrementalAnalysisV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.sealed-incremental-flow-analysis",
+        reused_previous_analysis: false,
+        read_set_digest_check_count,
+        read_set_digest_node_count,
+        analysis_rebuild_count: 1,
+        dirty_node_count,
+        incremental_plan: Some(update.incremental_plan),
+        analysis,
+        next_artifact,
+    })
+}
+
+fn sealed_class_value_flow_analysis_artifact(
+    snapshot: IncrementalSnapshotV0,
+    analysis: ClassValueFlowAnalysisV0,
+) -> SealedClassValueFlowAnalysisArtifactV0 {
+    SealedClassValueFlowAnalysisArtifactV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.sealed-flow-analysis-artifact",
+        read_set_digest: class_value_flow_snapshot_read_set_digest(&snapshot),
+        snapshot,
+        analysis,
+    }
+}
+
+fn incremental_snapshot_matches_flow_graph(
+    snapshot: &IncrementalSnapshotV0,
+    graph: &ClassValueFlowGraphV0,
+) -> bool {
+    let mut database = OmenaIncrementalDatabaseV0::default();
+    database.restore_snapshot(snapshot);
+    let expected = class_value_flow_incremental_input(graph, snapshot.revision.value);
+    let update = database.plan_and_upsert_graph_input(&expected);
+    update.incremental_plan.dirty_node_count == 0
+        && update.incremental_plan.new_node_count == 0
+        && update.incremental_plan.removed_node_count == 0
+}
+
+fn class_value_flow_snapshot_read_set_digest(snapshot: &IncrementalSnapshotV0) -> String {
+    class_value_flow_read_set_digest(
+        snapshot
+            .nodes
+            .iter()
+            .map(|node| (&node.id, &node.digest, &node.dependency_ids)),
+    )
+}
+
+fn class_value_flow_input_read_set_digest(input: &IncrementalGraphInputV0) -> String {
+    class_value_flow_read_set_digest(
+        input
+            .nodes
+            .iter()
+            .map(|node| (&node.id, &node.digest, &node.dependency_ids)),
+    )
+}
+
+fn class_value_flow_read_set_digest<'a>(
+    nodes: impl Iterator<Item = (&'a String, &'a String, &'a Vec<String>)>,
+) -> String {
+    let mut canonical_nodes = nodes
+        .map(|(id, digest, dependency_ids)| {
+            let mut dependency_ids = dependency_ids.clone();
+            dependency_ids.sort();
+            dependency_ids.dedup();
+            (id.clone(), digest.clone(), dependency_ids)
+        })
+        .collect::<Vec<_>>();
+    canonical_nodes.sort_by(|left, right| left.0.cmp(&right.0));
+    let mut digest = Sha256::new();
+    for (id, node_digest, dependency_ids) in canonical_nodes {
+        update_length_prefixed_digest(&mut digest, id.as_bytes());
+        update_length_prefixed_digest(&mut digest, node_digest.as_bytes());
+        digest.update((dependency_ids.len() as u64).to_be_bytes());
+        for dependency_id in dependency_ids {
+            update_length_prefixed_digest(&mut digest, dependency_id.as_bytes());
+        }
+    }
+    digest
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn update_length_prefixed_digest(digest: &mut Sha256, value: &[u8]) {
+    digest.update((value.len() as u64).to_be_bytes());
+    digest.update(value);
+}
+
+fn class_value_flow_artifact_refusal(
+    cause: ClassValueFlowArtifactRefusalCauseV0,
+) -> ClassValueFlowArtifactRefusalV0 {
+    ClassValueFlowArtifactRefusalV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.flow-analysis-artifact-refusal",
+        cause,
     }
 }
 
