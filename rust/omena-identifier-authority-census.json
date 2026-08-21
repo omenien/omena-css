@@ -334,7 +334,7 @@
       },
       {
         "path": "rust/crates/omena-diff-test/src/linked_emission.rs",
-        "line": 2525,
+        "line": 2508,
         "function": "validate_authored_liveness_expectations_v0",
         "operation": "contains",
         "evidence": ".contains(expectation.class_name);",
@@ -343,7 +343,7 @@
       },
       {
         "path": "rust/crates/omena-diff-test/src/linked_emission.rs",
-        "line": 2535,
+        "line": 2518,
         "function": "validate_authored_liveness_expectations_v0",
         "operation": "contains",
         "evidence": ".is_some_and(|names| names.contains(expectation.class_name));",
@@ -352,7 +352,7 @@
       },
       {
         "path": "rust/crates/omena-diff-test/src/linked_emission.rs",
-        "line": 2612,
+        "line": 2595,
         "function": "rule_declaration_counts_for_class_v0",
         "operation": "str-eq",
         "evidence": "&& selector.name == class_name",
@@ -801,7 +801,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:48b07b2350022cca53502a475e90dc0eb3d9823de6d5f489f99b278976674fe6"
+    "siteDigest": "sha256:ffba4fbd391ee633b02786023c7ad20de02090ce42740f378583dff808fb3625"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
