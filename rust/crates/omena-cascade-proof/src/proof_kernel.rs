@@ -27,7 +27,6 @@ use serde::{Deserialize, Serialize};
 pub const REWRITE_CERTIFICATE_SCHEMA_VERSION_V0: &str = "0";
 pub const REWRITE_RULE_CATALOG_SCHEMA_VERSION_V0: &str = "0";
 pub const REWRITE_RULE_CATALOG_SCHEMA_ID_V0: &str = "omena-cascade-proof.rewrite-rule-catalog.v0";
-pub const CANONICAL_REWRITE_ASSUMPTIONS_SCHEMA_VERSION_V0: &str = "0";
 pub const REWRITE_CERTIFICATE_MAX_DEPTH_V0: usize = 64;
 pub const REWRITE_CERTIFICATE_MAX_NODES_V0: usize = 4_096;
 pub const REWRITE_RULE_CATALOG_MAX_RULES_V0: usize = 256;
@@ -477,29 +476,6 @@ pub struct RewriteCertificateEnvelopeV0 {
     pub certificate: RewriteCertificateV0,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CanonicalRewriteAssumptionV0 {
-    pub name: String,
-    pub value: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CanonicalRewriteAssumptionsV0 {
-    pub schema_version: String,
-    pub entries: Vec<CanonicalRewriteAssumptionV0>,
-}
-
-impl Default for CanonicalRewriteAssumptionsV0 {
-    fn default() -> Self {
-        Self {
-            schema_version: CANONICAL_REWRITE_ASSUMPTIONS_SCHEMA_VERSION_V0.to_owned(),
-            entries: Vec::new(),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[non_exhaustive]
 #[serde(rename_all = "camelCase")]
@@ -508,7 +484,6 @@ pub enum RewriteCheckInputV0 {
     AfterTerm,
     RuleCatalog,
     Certificate,
-    Assumptions,
     SerializedCertificate,
 }
 
@@ -592,9 +567,6 @@ pub enum CertificateRejectionKindV0 {
         observed: usize,
     },
     EmptyVariable,
-    DuplicateAssumption {
-        name: String,
-    },
     DuplicateSubstitutionVariable {
         variable: String,
     },

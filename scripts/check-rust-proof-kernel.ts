@@ -61,18 +61,21 @@ if (injectModuleExportTokenBypass) {
   );
 }
 if (injectRewriteAssumptionParameter) {
-  const assumptionFreeSignature =
-    "    certificate: &RewriteCertificateEnvelopeV0,\n) -> Result<RewriteIssuanceTokenV0, CertificateRejectionV0> {";
-  const assumptionCarryingSignature =
-    "    certificate: &RewriteCertificateEnvelopeV0,\n    assumptions: &CanonicalRewriteAssumptionsV0,\n) -> Result<RewriteIssuanceTokenV0, CertificateRejectionV0> {";
-  assert.ok(
-    proofKernelSource.includes(assumptionFreeSignature),
-    "rewrite-assumption injection target is absent",
-  );
-  proofKernelSource = proofKernelSource.replace(
-    assumptionFreeSignature,
-    assumptionCarryingSignature,
-  );
+  proofKernelSource += [
+    "",
+    "pub struct ExternalProofDataProbeV0;",
+    "",
+    "pub fn evaluate_external_rewrite_context_probe_v0(",
+    "    before: &RewriteTermV0,",
+    "    after: &RewriteTermV0,",
+    "    rule_catalog: &RewriteRuleCatalogV0,",
+    "    certificate: &RewriteCertificateEnvelopeV0,",
+    "    external_data: &ExternalProofDataProbeV0,",
+    ") -> Result<RewriteIssuanceTokenV0, CertificateRejectionV0> {",
+    "    check_rewrite_certificate_v0(before, after, rule_catalog, certificate)",
+    "}",
+    "",
+  ].join("\n");
 }
 if (injectDependentPair) {
   const dependent = injectedIndependenceData.entries.find(
@@ -122,6 +125,44 @@ const rewriteCheckerCallers = rewriteCheckerApis.flatMap((api) =>
       expectedArgumentCount: api.argumentCount,
     })),
   ),
+);
+const publicFunctionContracts = scanPublicFunctionContracts(proofKernelSource);
+const publicFunctionInputs = publicFunctionContracts.flatMap((contract) =>
+  contract.parameters.map((parameter) => ({
+    functionName: contract.functionName,
+    parameterName: parameter.name,
+    parameterType: parameter.type,
+    consumed: parameterIsConsumed(parameter.name, contract.body),
+  })),
+);
+const nonConsumedPublicInputs = publicFunctionInputs.filter((input) => !input.consumed);
+assert.equal(
+  nonConsumedPublicInputs.length,
+  0,
+  "public proof-kernel inputs must be consumed independent of identifier spelling: " +
+    JSON.stringify(nonConsumedPublicInputs),
+);
+const assumptionShapedInputs = publicFunctionContracts.flatMap((contract) =>
+  contract.parameters
+    .filter((parameter) => assumptionShapedParameter(parameter))
+    .map((parameter) => ({
+      functionName: contract.functionName,
+      parameterName: parameter.name,
+      parameterType: parameter.type,
+      consumed: parameterIsConsumed(parameter.name, contract.body),
+    })),
+);
+const nonConsumedAssumptionInputs = assumptionShapedInputs.filter((input) => !input.consumed);
+assert.equal(
+  nonConsumedAssumptionInputs.length,
+  0,
+  "public assumption-shaped inputs must be semantically consumed: " +
+    JSON.stringify(nonConsumedAssumptionInputs),
+);
+assert.doesNotMatch(
+  proofKernelSource,
+  /CanonicalRewriteAssumptions?V0|CANONICAL_REWRITE_ASSUMPTIONS_SCHEMA_VERSION_V0|RewriteCheckInputV0::Assumptions|DuplicateAssumption/u,
+  "orphan rewrite-assumption vocabulary must stay removed from the public kernel surface",
 );
 
 for (const api of rewriteCheckerApis) {
@@ -306,7 +347,15 @@ process.stdout.write(
     "o1Consumer=closed_world_admission_o1_reasons+require_dual_o1_tokens_v0",
     `rewriteCheckerApis=${rewriteCheckerApis.length} rewriteCheckerCallers=${rewriteCheckerCallers.length} trackedRustSourceFiles=${trackedRustSources.length}`,
     `rewriteCheckerCallerCensus=${rewriteCheckerCallers.map((caller) => `${caller.api}@${caller.sourcePath}:${caller.line}`).join(",")}`,
-    "meaningfulRewriteAssumptionCallers=0 removedHelper=validate_assumptions",
+    "publicFunctionContracts=" +
+      publicFunctionContracts.length +
+      " publicFunctionInputs=" +
+      publicFunctionInputs.length +
+      " nonConsumedPublicInputs=0" +
+      " assumptionShapedInputs=" +
+      assumptionShapedInputs.length +
+      " nonConsumedAssumptionInputs=0",
+    "orphanRewriteAssumptionVocabulary=0 removedHelper=validate_assumptions",
     "",
   ].join("\n"),
 );
@@ -346,6 +395,128 @@ interface FunctionCallSite {
   readonly line: number;
   readonly argumentCount: number;
   readonly argumentsText: string;
+}
+
+interface PublicFunctionParameter {
+  readonly name: string;
+  readonly type: string;
+}
+
+interface PublicFunctionContract {
+  readonly functionName: string;
+  readonly parameters: readonly PublicFunctionParameter[];
+  readonly body: string;
+}
+
+function scanPublicFunctionContracts(source: string): readonly PublicFunctionContract[] {
+  const masked = maskRustCommentsAndStrings(source);
+  const pattern =
+    /\bpub(?:\s*\([^)]*\))?\s+(?:async\s+)?(?:unsafe\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)/gu;
+  const contracts: PublicFunctionContract[] = [];
+  for (const match of masked.matchAll(pattern)) {
+    const functionName = match[1];
+    const anchor = match.index ?? 0;
+    const openParen = masked.indexOf("(", anchor + match[0].length);
+    assert.notEqual(openParen, -1, "missing parameter list for public function " + functionName);
+    const closeParen = matchingDelimiterEnd(masked, openParen, "(", ")");
+    const openBrace = masked.indexOf("{", closeParen + 1);
+    assert.notEqual(openBrace, -1, "missing body for public function " + functionName);
+    const closeBrace = matchingDelimiterEnd(masked, openBrace, "{", "}");
+    const parameters = splitTopLevel(masked.slice(openParen + 1, closeParen), ",")
+      .map((parameter) => parameter.trim())
+      .filter(Boolean)
+      .filter((parameter) => !/^(?:&\s*(?:mut\s+)?|mut\s+)?self$/u.test(parameter))
+      .map((parameter) => {
+        const colon = topLevelSeparatorIndex(parameter, ":");
+        assert.notEqual(
+          colon,
+          -1,
+          "unsupported public parameter shape in " + functionName + ": " + parameter,
+        );
+        const name = parameter
+          .slice(0, colon)
+          .trim()
+          .replace(/^mut\s+/u, "")
+          .replace(/^ref\s+/u, "");
+        return { name, type: parameter.slice(colon + 1).trim() };
+      });
+    contracts.push({
+      functionName,
+      parameters,
+      body: source.slice(openBrace + 1, closeBrace),
+    });
+  }
+  assert.ok(contracts.length > 0, "public proof-kernel function census is empty");
+  return contracts;
+}
+
+function assumptionShapedParameter(parameter: PublicFunctionParameter): boolean {
+  return /assum|premis|hypothes|side_?condition|context/iu.test(
+    parameter.name + " " + parameter.type,
+  );
+}
+
+function parameterIsConsumed(parameterName: string, body: string): boolean {
+  const maskedBody = maskRustCommentsAndStrings(body);
+  return new RegExp("\\b" + escapeRegExp(parameterName) + "\\b", "u").test(maskedBody);
+}
+
+function splitTopLevel(source: string, separator: string): readonly string[] {
+  const parts: string[] = [];
+  let start = 0;
+  let parentheses = 0;
+  let brackets = 0;
+  let braces = 0;
+  let angles = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    if (character === "(") parentheses += 1;
+    if (character === ")") parentheses -= 1;
+    if (character === "[") brackets += 1;
+    if (character === "]") brackets -= 1;
+    if (character === "{") braces += 1;
+    if (character === "}") braces -= 1;
+    if (character === "<") angles += 1;
+    if (character === ">") angles = Math.max(0, angles - 1);
+    if (
+      character === separator &&
+      parentheses === 0 &&
+      brackets === 0 &&
+      braces === 0 &&
+      angles === 0
+    ) {
+      parts.push(source.slice(start, index));
+      start = index + 1;
+    }
+  }
+  parts.push(source.slice(start));
+  return parts;
+}
+
+function topLevelSeparatorIndex(source: string, separator: string): number {
+  const parts = splitTopLevel(source, separator);
+  return parts.length > 1 ? parts[0].length : -1;
+}
+
+function matchingDelimiterEnd(
+  source: string,
+  open: number,
+  openCharacter: string,
+  closeCharacter: string,
+): number {
+  let depth = 0;
+  for (let index = open; index < source.length; index += 1) {
+    if (source[index] === openCharacter) depth += 1;
+    if (source[index] === closeCharacter) {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  assert.fail("unterminated " + openCharacter + closeCharacter + " delimiter");
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[|\\{}()[\]^$+*?.-]/gu, "\\$&");
 }
 
 function trackedRustSourceFiles(): readonly RustSourceFile[] {
