@@ -18,6 +18,7 @@ const injectDependentPair = args.has("--inject-dependent-pair");
 const injectEmptyIndependence = args.has("--inject-empty-independence");
 const injectModuleExportTokenBypass = args.has("--inject-module-export-token-bypass");
 const injectRewriteAssumptionParameter = args.has("--inject-rewrite-assumption-parameter");
+const injectDiscardedProofInput = args.has("--inject-discarded-proof-input");
 
 assert.ok(
   [
@@ -27,6 +28,7 @@ assert.ok(
     injectEmptyIndependence,
     injectModuleExportTokenBypass,
     injectRewriteAssumptionParameter,
+    injectDiscardedProofInput,
   ].filter(Boolean).length <= 1,
   "only one proof-kernel falsifier may run at once",
 );
@@ -60,7 +62,7 @@ if (injectModuleExportTokenBypass) {
     "bypass_module_export_token_v0(",
   );
 }
-if (injectRewriteAssumptionParameter) {
+if (injectRewriteAssumptionParameter || injectDiscardedProofInput) {
   proofKernelSource += [
     "",
     "pub struct ExternalProofDataProbeV0;",
@@ -72,6 +74,7 @@ if (injectRewriteAssumptionParameter) {
     "    certificate: &RewriteCertificateEnvelopeV0,",
     "    external_data: &ExternalProofDataProbeV0,",
     ") -> Result<RewriteIssuanceTokenV0, CertificateRejectionV0> {",
+    ...(injectDiscardedProofInput ? ["    let _ = external_data;"] : []),
     "    check_rewrite_certificate_v0(before, after, rule_catalog, certificate)",
     "}",
     "",
@@ -128,36 +131,48 @@ const rewriteCheckerCallers = rewriteCheckerApis.flatMap((api) =>
 );
 const publicFunctionContracts = scanPublicFunctionContracts(proofKernelSource);
 const publicFunctionInputs = publicFunctionContracts.flatMap((contract) =>
-  contract.parameters.map((parameter) => ({
-    functionName: contract.functionName,
-    parameterName: parameter.name,
-    parameterType: parameter.type,
-    consumed: parameterIsConsumed(parameter.name, contract.body),
-  })),
+  contract.parameters.map((parameter) => {
+    const useSummary = parameterUseSummary(parameter.name, contract.body);
+    return {
+      functionName: contract.functionName,
+      parameterName: parameter.name,
+      parameterType: parameter.type,
+      ...useSummary,
+      materiallyConsumed: useSummary.materialReferenceCount > 0,
+    };
+  }),
 );
-const nonConsumedPublicInputs = publicFunctionInputs.filter((input) => !input.consumed);
+const nonMateriallyConsumedPublicInputs = publicFunctionInputs.filter(
+  (input) => !input.materiallyConsumed,
+);
 assert.equal(
-  nonConsumedPublicInputs.length,
+  nonMateriallyConsumedPublicInputs.length,
   0,
-  "public proof-kernel inputs must be consumed independent of identifier spelling: " +
-    JSON.stringify(nonConsumedPublicInputs),
+  "public proof-kernel inputs must have a material source use; discard-only bindings do not count: " +
+    JSON.stringify(nonMateriallyConsumedPublicInputs),
 );
 const assumptionShapedInputs = publicFunctionContracts.flatMap((contract) =>
   contract.parameters
     .filter((parameter) => assumptionShapedParameter(parameter))
-    .map((parameter) => ({
-      functionName: contract.functionName,
-      parameterName: parameter.name,
-      parameterType: parameter.type,
-      consumed: parameterIsConsumed(parameter.name, contract.body),
-    })),
+    .map((parameter) => {
+      const useSummary = parameterUseSummary(parameter.name, contract.body);
+      return {
+        functionName: contract.functionName,
+        parameterName: parameter.name,
+        parameterType: parameter.type,
+        ...useSummary,
+        materiallyConsumed: useSummary.materialReferenceCount > 0,
+      };
+    }),
 );
-const nonConsumedAssumptionInputs = assumptionShapedInputs.filter((input) => !input.consumed);
+const nonMateriallyConsumedAssumptionInputs = assumptionShapedInputs.filter(
+  (input) => !input.materiallyConsumed,
+);
 assert.equal(
-  nonConsumedAssumptionInputs.length,
+  nonMateriallyConsumedAssumptionInputs.length,
   0,
-  "public assumption-shaped inputs must be semantically consumed: " +
-    JSON.stringify(nonConsumedAssumptionInputs),
+  "public assumption-shaped inputs must have a material source use: " +
+    JSON.stringify(nonMateriallyConsumedAssumptionInputs),
 );
 assert.doesNotMatch(
   proofKernelSource,
@@ -351,10 +366,13 @@ process.stdout.write(
       publicFunctionContracts.length +
       " publicFunctionInputs=" +
       publicFunctionInputs.length +
-      " nonConsumedPublicInputs=0" +
+      " nonMateriallyConsumedPublicInputs=0" +
+      " discardOnlyPublicInputReferences=" +
+      publicFunctionInputs.reduce((count, input) => count + input.discardOnlyReferenceCount, 0) +
       " assumptionShapedInputs=" +
       assumptionShapedInputs.length +
-      " nonConsumedAssumptionInputs=0",
+      " nonMateriallyConsumedAssumptionInputs=0",
+    "parameterUseClassifierCases=5 materialUseBound=sourceReferenceExcludingDirectDiscard",
     "orphanRewriteAssumptionVocabulary=0 removedHelper=validate_assumptions",
     "",
   ].join("\n"),
@@ -456,10 +474,85 @@ function assumptionShapedParameter(parameter: PublicFunctionParameter): boolean 
   );
 }
 
-function parameterIsConsumed(parameterName: string, body: string): boolean {
-  const maskedBody = maskRustCommentsAndStrings(body);
-  return new RegExp("\\b" + escapeRegExp(parameterName) + "\\b", "u").test(maskedBody);
+interface ParameterUseSummary {
+  readonly totalReferenceCount: number;
+  readonly discardOnlyReferenceCount: number;
+  readonly materialReferenceCount: number;
 }
+
+function parameterUseSummary(parameterName: string, body: string): ParameterUseSummary {
+  const maskedBody = maskRustCommentsAndStrings(body);
+  const parameterPattern = new RegExp("\\b" + escapeRegExp(parameterName) + "\\b", "gu");
+  const referenceOffsets = [...maskedBody.matchAll(parameterPattern)].map(
+    (match) => match.index ?? 0,
+  );
+  const discardOnlySpans = directDiscardOnlySpans(maskedBody, parameterName);
+  const discardOnlyReferenceCount = referenceOffsets.filter((offset) =>
+    discardOnlySpans.some(([start, end]) => offset >= start && offset < end),
+  ).length;
+  return {
+    totalReferenceCount: referenceOffsets.length,
+    discardOnlyReferenceCount,
+    materialReferenceCount: referenceOffsets.length - discardOnlyReferenceCount,
+  };
+}
+
+function directDiscardOnlySpans(
+  maskedBody: string,
+  parameterName: string,
+): readonly (readonly [number, number])[] {
+  const spans: Array<readonly [number, number]> = [];
+  const escapedParameter = escapeRegExp(parameterName);
+  const directValue = String.raw`(?:&\s*(?:mut\s+)?)?\(*\s*${escapedParameter}\s*\)*`;
+  const letPattern = new RegExp(
+    String.raw`\blet\s+(?:mut\s+)?(_[A-Za-z0-9_]*)\s*(?::[^=;]+)?=\s*(${directValue})\s*;`,
+    "gu",
+  );
+  for (const match of maskedBody.matchAll(letPattern)) {
+    const binding = match[1];
+    const start = match.index ?? 0;
+    const end = start + match[0].length;
+    const bindingUsedLater =
+      binding !== "_" &&
+      new RegExp("\\b" + escapeRegExp(binding) + "\\b", "u").test(maskedBody.slice(end));
+    if (!bindingUsedLater) spans.push([start, end]);
+  }
+  const dropPattern = new RegExp(
+    String.raw`\b(?:(?:std|core)::mem::)?drop\s*\(\s*${directValue}\s*\)\s*;`,
+    "gu",
+  );
+  for (const match of maskedBody.matchAll(dropPattern)) {
+    const start = match.index ?? 0;
+    spans.push([start, start + match[0].length]);
+  }
+  return spans;
+}
+
+assert.deepEqual(parameterUseSummary("value", "let _ = value;"), {
+  totalReferenceCount: 1,
+  discardOnlyReferenceCount: 1,
+  materialReferenceCount: 0,
+});
+assert.deepEqual(parameterUseSummary("value", "let _unused = &value;"), {
+  totalReferenceCount: 1,
+  discardOnlyReferenceCount: 1,
+  materialReferenceCount: 0,
+});
+assert.deepEqual(parameterUseSummary("value", "drop(value);"), {
+  totalReferenceCount: 1,
+  discardOnlyReferenceCount: 1,
+  materialReferenceCount: 0,
+});
+assert.deepEqual(parameterUseSummary("value", "verify(value);"), {
+  totalReferenceCount: 1,
+  discardOnlyReferenceCount: 0,
+  materialReferenceCount: 1,
+});
+assert.deepEqual(parameterUseSummary("value", "let _forwarded = value; verify(_forwarded);"), {
+  totalReferenceCount: 1,
+  discardOnlyReferenceCount: 0,
+  materialReferenceCount: 1,
+});
 
 function splitTopLevel(source: string, separator: string): readonly string[] {
   const parts: string[] = [];
