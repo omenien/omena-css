@@ -8,12 +8,18 @@ on:
   # between weekly crons — CI-hardening 3b).
   pull_request:
     paths:
+      - "**/package.json"
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
       - rust/Cargo.lock
       - rust/**/Cargo.toml
       - rust/deny.toml
   push:
     branches: [master, next]
     paths:
+      - "**/package.json"
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
       - rust/Cargo.lock
       - rust/**/Cargo.toml
       - rust/deny.toml
@@ -27,6 +33,28 @@ permissions:
   issues: write
 
 jobs:
+  npm-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+        with:
+          install: "false"
+      - run: pnpm audit --audit-level=low
+      - name: Escalate scheduled npm audit failure
+        if: ${{ failure() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+        uses: ./.github/actions/escalate-ci-failure
+        with:
+          title: "CI failure: security-audit / npm-audit"
+          body: |
+            The scheduled npm dependency audit failed.
+          workflow-name: Security Audit
+          job-name: npm-audit
+          run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   audit:
     runs-on: ubuntu-latest
     timeout-minutes: 20
