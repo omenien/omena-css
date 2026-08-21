@@ -18,6 +18,11 @@
       "firedSiteIds": ["linked-source-map-ambiguous-window"]
     },
     {
+      "perturbation": "--inject-analyzed-empty-reachability-collapse",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-closed-world-admission-tier.ts --inject-analyzed-empty-reachability-collapse",
+      "firedSiteIds": ["closed-world-admission-reachability-corpus"]
+    },
+    {
       "perturbation": "--inject-authored-liveness-flip",
       "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-authored-liveness-flip",
       "firedSiteIds": ["linked-emission-product-run-status"]

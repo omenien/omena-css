@@ -131,6 +131,11 @@ const reachabilityCorpusCells = reachabilityCorpusRun.transcript
   .filter((line) => line.startsWith("REACHABILITY_CORPUS_CELL="))
   .map(
     (line) => JSON.parse(line.slice("REACHABILITY_CORPUS_CELL=".length)) as ReachabilityCorpusCell,
+  )
+  .filter(
+    (cell) =>
+      !argumentsSet.has("--inject-analyzed-empty-reachability-collapse") ||
+      cell.state !== "analyzed",
   );
 const reachabilityCorpusFixtureIds = [
   ...new Set(reachabilityCorpusCells.map((cell) => cell.fixtureId)),
@@ -160,7 +165,7 @@ const conservativeUnanalyzedCount = reachabilityAnalysisCells
   .filter((cell) => cell.state === "unanalyzed")
   .reduce((count, cell) => count + cell.unanalyzedCount, 0);
 
-// FALSIFIER: id=closed-world-admission-reachability-corpus class=liveness via=restore-analyzed-empty-filter producer=can-fail owner=closed-world-admission-tier entry=product-byte-diff-by-analysis-state
+// FALSIFIER: id=closed-world-admission-reachability-corpus class=liveness via=--inject-analyzed-empty-reachability-collapse producer=can-fail owner=closed-world-admission-tier entry=product-byte-diff-by-analysis-state
 assert.equal(
   reachabilityCorpusRun.status === 0 &&
     reachabilityCorpusFixtureIds.length >= 2 &&
