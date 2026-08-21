@@ -41,7 +41,7 @@ quote = "1.0.45"
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
-syn = { version = "2.0.117", features = ["full", "visit"] }
+syn = { version = "3.0.3", features = ["full", "visit"] }
 toml.workspace = true
 
 [dev-dependencies]
