@@ -157,5 +157,21 @@ describe("product-test CI structure (registry-anchored classguard, g131-S0)", ()
     expect(findProductTestCiStructureErrors(noInstaller, EXPECTED).join(";")).toContain(
       "pinned prebuilt tool installer",
     );
+
+    const floatingInstaller = realJobs().map((job) =>
+      job.name === "rust-product-test-contracts"
+        ? {
+            ...job,
+            block: job.block.map((line) =>
+              line.includes("taiki-e/install-action")
+                ? "        uses: taiki-e/install-action@v2"
+                : line,
+            ),
+          }
+        : job,
+    );
+    expect(findProductTestCiStructureErrors(floatingInstaller, EXPECTED).join(";")).toContain(
+      "pinned prebuilt tool installer",
+    );
   });
 });

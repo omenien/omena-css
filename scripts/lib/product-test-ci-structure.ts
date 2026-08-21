@@ -163,7 +163,7 @@ export function findProductTestCiStructureErrors(
     }
     if (
       !contractJob.block.some((line) =>
-        /taiki-e\/install-action@7f4eb899022d8fe70b20c4f3de697aa85c309026/u.test(line),
+        /taiki-e\/install-action@[0-9a-f]{40}(?:\s+#\s+v\d+\.\d+\.\d+)?\s*$/u.test(line),
       )
     ) {
       errors.push(`job "${CONTRACT_JOB}" must retain the pinned prebuilt tool installer`);
