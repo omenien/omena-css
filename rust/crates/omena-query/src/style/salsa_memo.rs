@@ -97,6 +97,30 @@ mod module_interface_projection_probe {
     }
 }
 
+#[cfg(test)]
+mod package_manifest_projection_probe {
+    use std::cell::RefCell;
+    use std::collections::BTreeSet;
+
+    thread_local! {
+        static RUN_PATHS: RefCell<BTreeSet<String>> = const { RefCell::new(BTreeSet::new()) };
+    }
+
+    pub(super) fn record(package_json_path: &str) {
+        RUN_PATHS.with(|paths| {
+            paths.borrow_mut().insert(package_json_path.to_string());
+        });
+    }
+
+    pub(super) fn reset() {
+        RUN_PATHS.with(|paths| paths.borrow_mut().clear());
+    }
+
+    pub(super) fn read() -> BTreeSet<String> {
+        RUN_PATHS.with(|paths| paths.borrow().clone())
+    }
+}
+
 #[cfg(any(test, feature = "test-support"))]
 #[allow(dead_code)]
 mod source_workspace_projection_probe {
@@ -382,6 +406,17 @@ pub struct OmenaQuerySourceFileInputV0 {
     pub has_unresolved_style_import: bool,
 }
 
+/// One path-stable package manifest. The workspace keeps stable entity ids so
+/// changing one manifest source invalidates only that manifest's projection.
+#[salsa::input]
+#[doc(hidden)]
+pub struct OmenaQueryStylePackageManifestInputV0 {
+    #[returns(ref)]
+    package_json_path: String,
+    #[returns(ref)]
+    package_json_source: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum OmenaQueryElementComputedValueStatusV0 {
@@ -428,6 +463,27 @@ pub struct OmenaQueryStyleWorkspaceInputV0 {
     pub external_sifs: Vec<OmenaQueryExternalSifInputV0>,
     #[returns(ref)]
     pub resolution_inputs: OmenaQueryStyleResolutionInputsV0,
+    #[default]
+    #[returns(ref)]
+    package_manifest_inputs: Vec<OmenaQueryStylePackageManifestInputV0>,
+    #[default]
+    #[returns(ref)]
+    resolution_package_manifest_inputs: Vec<OmenaQueryStylePackageManifestInputV0>,
+    #[default]
+    #[returns(ref)]
+    resolution_tsconfig_path_mappings: Vec<OmenaQueryTsconfigPathMappingV0>,
+    #[default]
+    #[returns(ref)]
+    resolution_bundler_path_mappings: Vec<OmenaQueryBundlerPathAliasMappingV0>,
+    #[default]
+    #[returns(ref)]
+    resolution_disk_style_path_identities: Vec<OmenaQueryStyleModuleDiskCandidateIdentityV0>,
+    #[default]
+    #[returns(ref)]
+    resolution_external_sif_cache_fingerprint: Option<String>,
+    #[default]
+    #[returns(copy)]
+    granular_inputs_initialized: bool,
 }
 
 /// One committed selector, many worker-side read views. Produced by
@@ -529,11 +585,12 @@ impl OmenaQueryStyleRevisionSelectorV0 {
     ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
         let target = self.files_by_path.get(target_style_path).copied()?;
         let unused_selector_shared = self.unused_selector_shared.get_or_init(|| {
-            let resolution_inputs = self.workspace.resolution_inputs(&self.db);
+            let resolution_inputs = style_resolution_inputs_for_workspace(&self.db, self.workspace);
+            let package_manifests = package_manifests_for_workspace(&self.db, self.workspace);
             crate::style::diagnostics::collect_omena_query_unused_selector_shared(
                 self.committed_graph.style_fact_entries.as_slice(),
                 self.workspace.source_documents(&self.db).as_slice(),
-                self.workspace.package_manifests(&self.db).as_slice(),
+                package_manifests.as_slice(),
                 None,
                 resolution_inputs.bundler_path_mappings.as_slice(),
                 resolution_inputs.tsconfig_path_mappings.as_slice(),
@@ -630,12 +687,14 @@ impl OmenaQueryStyleRevisionSelectorV0 {
             })
             .collect::<Vec<_>>();
         let substrate = self.style_cascade_narrowing_substrate();
+        let package_manifests = package_manifests_for_workspace(&self.db, self.workspace);
+        let resolution_inputs = style_resolution_inputs_for_workspace(&self.db, self.workspace);
         summarize_omena_query_style_completion_for_workspace_file_with_substrate(
             target_style_path,
             style_sources.as_slice(),
-            self.workspace.package_manifests(&self.db).as_slice(),
+            package_manifests.as_slice(),
             self.workspace.external_sifs(&self.db).as_slice(),
-            self.workspace.resolution_inputs(&self.db),
+            &resolution_inputs,
             &substrate,
             position,
         )
@@ -658,7 +717,7 @@ impl OmenaQueryStyleRevisionSelectorV0 {
             style_sources.as_slice(),
             input,
             package_manifests,
-            self.workspace.resolution_inputs(&self.db),
+            &style_resolution_inputs_for_workspace(&self.db, self.workspace),
             OmenaQueryStyleSemanticGraphCommittedParts {
                 style_fact_entries: self.committed_graph.style_fact_entries.as_slice(),
                 cross_file_summary: self.committed_graph.style_cross_file_summary.clone(),
@@ -892,8 +951,8 @@ pub fn prepare_committed_workspace_wave_substrate(
     // wrapper does) and the same resolution inputs and identity index the
     // targets will resolve with.
     let source_documents = workspace.source_documents(db);
-    let package_manifests = workspace.package_manifests(db);
-    let resolution_inputs = workspace.resolution_inputs(db);
+    let package_manifests = package_manifests_for_workspace(db, workspace);
+    let resolution_inputs = style_resolution_inputs_for_workspace(db, workspace);
     let shared_passes = crate::style::diagnostics::OmenaQueryWorkspaceSharedPassProductsV0 {
         unused_selector: crate::style::diagnostics::collect_omena_query_unused_selector_shared(
             &substrate.style_fact_entries,
@@ -910,7 +969,7 @@ pub fn prepare_committed_workspace_wave_substrate(
             crate::style::diagnostics::collect_omena_query_inline_style_runtime_overrides_by_style(
                 corpus.as_slice(),
                 source_documents.as_slice(),
-                resolution_inputs,
+                &resolution_inputs,
                 resolver_identity_index,
             ),
         ),
@@ -920,7 +979,7 @@ pub fn prepare_committed_workspace_wave_substrate(
                 corpus.as_slice(),
                 source_documents.as_slice(),
                 package_manifests.as_slice(),
-                resolution_inputs,
+                &resolution_inputs,
                 &substrate,
             ),
         ),
@@ -941,9 +1000,9 @@ pub fn resolve_committed_workspace_style_diagnostics_from_view_with_identity_ind
 ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
     let target_style_path = target.style_path(db);
     let source_documents = workspace.source_documents(db);
-    let package_manifests = workspace.package_manifests(db);
+    let package_manifests = package_manifests_for_workspace(db, workspace);
     let external_sifs = workspace.external_sifs(db);
-    let resolution_inputs = workspace.resolution_inputs(db);
+    let resolution_inputs = style_resolution_inputs_for_workspace(db, workspace);
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared(
         target_style_path.as_str(),
         wave_substrate.corpus.as_slice(),
@@ -952,7 +1011,7 @@ pub fn resolve_committed_workspace_style_diagnostics_from_view_with_identity_ind
         None,
         OmenaQueryExternalModuleModeV0::Auto,
         external_sifs.as_slice(),
-        resolution_inputs,
+        &resolution_inputs,
         OmenaQueryDiagnosticSuppressionModeV0::Apply,
         &wave_substrate.substrate,
         Some(resolver_identity_index),
@@ -1072,9 +1131,9 @@ fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_an
         })
         .collect::<Vec<_>>();
     let source_documents = workspace.source_documents(db);
-    let package_manifests = workspace.package_manifests(db);
+    let package_manifests = package_manifests_for_workspace(db, workspace);
     let external_sifs = workspace.external_sifs(db);
-    let resolution_inputs = workspace.resolution_inputs(db);
+    let resolution_inputs = style_resolution_inputs_for_workspace(db, workspace);
     let substrate = collect_omena_query_workspace_diagnostics_substrate_from_committed_graph(
         committed_graph.style_fact_entries.clone(),
         &committed_graph.css_modules_resolution,
@@ -1098,7 +1157,7 @@ fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_an
         classname_transform,
         external_mode,
         external_sifs.as_slice(),
-        resolution_inputs,
+        &resolution_inputs,
         suppression_mode,
         &substrate,
         resolver_identity_index,
@@ -1196,15 +1255,14 @@ fn memo_workspace_unused_selector_shared(
         .iter()
         .map(|file| memo_style_fact_entry(db, *file))
         .collect::<Vec<_>>();
-    let resolution_inputs = workspace.resolution_inputs(db);
     crate::style::diagnostics::collect_omena_query_unused_selector_shared(
         style_fact_entries.as_slice(),
         source_workspace_projections(db, workspace).as_slice(),
-        workspace.package_manifests(db).as_slice(),
+        package_manifests_for_workspace(db, workspace).as_slice(),
         None,
-        resolution_inputs.bundler_path_mappings.as_slice(),
-        resolution_inputs.tsconfig_path_mappings.as_slice(),
-        resolution_inputs.disk_style_path_identities.as_slice(),
+        resolution_bundler_path_mappings_for_workspace(db, workspace),
+        resolution_tsconfig_path_mappings_for_workspace(db, workspace),
+        resolution_disk_style_path_identities_for_workspace(db, workspace),
         None,
         source_corpus_complete,
     )
@@ -1225,13 +1283,12 @@ fn memo_workspace_diagnostics_substrate(
         .iter()
         .map(|file| memo_style_fact_entry(db, *file))
         .collect::<Vec<_>>();
-    let resolution_inputs = workspace.resolution_inputs(db);
     collect_omena_query_workspace_diagnostics_substrate_from_entries(
         style_fact_entries,
-        workspace.package_manifests(db).as_slice(),
+        package_manifests_for_workspace(db, workspace).as_slice(),
         workspace.external_sifs(db).as_slice(),
-        resolution_inputs.bundler_path_mappings.as_slice(),
-        resolution_inputs.tsconfig_path_mappings.as_slice(),
+        resolution_bundler_path_mappings_for_workspace(db, workspace),
+        resolution_tsconfig_path_mappings_for_workspace(db, workspace),
     )
 }
 
@@ -1288,6 +1345,112 @@ pub fn memo_module_interface_projection(
     memo_module_interface_change_projection(db, file).module_interface
 }
 
+fn package_manifests_for_workspace(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> Vec<OmenaQueryStylePackageManifestV0> {
+    if !workspace.granular_inputs_initialized(db) {
+        return workspace.package_manifests(db).clone();
+    }
+    workspace
+        .package_manifest_inputs(db)
+        .iter()
+        .map(|manifest| memo_package_manifest_projection(db, *manifest))
+        .collect()
+}
+
+#[salsa::tracked(returns(clone))]
+fn memo_package_manifest_projection(
+    db: &dyn salsa::Database,
+    manifest: OmenaQueryStylePackageManifestInputV0,
+) -> OmenaQueryStylePackageManifestV0 {
+    #[cfg(test)]
+    package_manifest_projection_probe::record(manifest.package_json_path(db));
+    OmenaQueryStylePackageManifestV0 {
+        package_json_path: manifest.package_json_path(db).clone(),
+        package_json_source: manifest.package_json_source(db).clone(),
+    }
+}
+
+fn resolution_package_manifests_for_workspace(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> Vec<OmenaQueryStylePackageManifestV0> {
+    if !workspace.granular_inputs_initialized(db) {
+        return workspace.resolution_inputs(db).package_manifests.clone();
+    }
+    workspace
+        .resolution_package_manifest_inputs(db)
+        .iter()
+        .map(|manifest| memo_package_manifest_projection(db, *manifest))
+        .collect()
+}
+
+/// Resolution consumers in the memo graph do not read the external-SIF cache
+/// freshness token. Reconstructing only the four fields they use prevents a
+/// cache-freshness change from invalidating semantic resolution queries.
+fn style_resolution_inputs_for_workspace(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> OmenaQueryStyleResolutionInputsV0 {
+    if !workspace.granular_inputs_initialized(db) {
+        let mut resolution_inputs = workspace.resolution_inputs(db).clone();
+        resolution_inputs.external_sif_cache_fingerprint = None;
+        return resolution_inputs;
+    }
+    OmenaQueryStyleResolutionInputsV0 {
+        package_manifests: resolution_package_manifests_for_workspace(db, workspace),
+        tsconfig_path_mappings: workspace.resolution_tsconfig_path_mappings(db).clone(),
+        bundler_path_mappings: workspace.resolution_bundler_path_mappings(db).clone(),
+        disk_style_path_identities: workspace.resolution_disk_style_path_identities(db).clone(),
+        external_sif_cache_fingerprint: None,
+    }
+}
+
+fn resolution_tsconfig_path_mappings_for_workspace(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> &[OmenaQueryTsconfigPathMappingV0] {
+    if workspace.granular_inputs_initialized(db) {
+        workspace.resolution_tsconfig_path_mappings(db).as_slice()
+    } else {
+        workspace
+            .resolution_inputs(db)
+            .tsconfig_path_mappings
+            .as_slice()
+    }
+}
+
+fn resolution_bundler_path_mappings_for_workspace(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> &[OmenaQueryBundlerPathAliasMappingV0] {
+    if workspace.granular_inputs_initialized(db) {
+        workspace.resolution_bundler_path_mappings(db).as_slice()
+    } else {
+        workspace
+            .resolution_inputs(db)
+            .bundler_path_mappings
+            .as_slice()
+    }
+}
+
+fn resolution_disk_style_path_identities_for_workspace(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> &[OmenaQueryStyleModuleDiskCandidateIdentityV0] {
+    if workspace.granular_inputs_initialized(db) {
+        workspace
+            .resolution_disk_style_path_identities(db)
+            .as_slice()
+    } else {
+        workspace
+            .resolution_inputs(db)
+            .disk_style_path_identities
+            .as_slice()
+    }
+}
+
 #[salsa::tracked(returns(clone))]
 fn memo_module_interface_change_projection(
     db: &dyn salsa::Database,
@@ -1316,7 +1479,7 @@ pub fn memo_css_modules_cross_file_resolution_from_module_interfaces(
         .collect::<Vec<_>>();
     summarize_css_modules_cross_file_resolution_from_module_interfaces_and_import_edges(
         module_interfaces.as_slice(),
-        workspace.package_manifests(db).as_slice(),
+        package_manifests_for_workspace(db, workspace).as_slice(),
         edges,
     )
 }
@@ -1350,8 +1513,8 @@ fn memo_css_modules_import_edge_resolutions_for_origin_from_module_interfaces(
     let Some(origin_file) = file_for_style_path(db, workspace, origin_style_path.as_str()) else {
         return Vec::new();
     };
-    let package_manifests = workspace.package_manifests(db);
-    let resolution_inputs = workspace.resolution_inputs(db);
+    let package_manifests = package_manifests_for_workspace(db, workspace);
+    let resolution_inputs = style_resolution_inputs_for_workspace(db, workspace);
     let origin = memo_module_interface_projection(db, origin_file);
     let available_style_paths = style_paths_for_workspace(db, workspace);
     let available_style_path_refs = available_style_paths
@@ -1368,7 +1531,7 @@ fn memo_css_modules_import_edge_resolutions_for_origin_from_module_interfaces(
                 source,
                 &available_style_path_refs,
                 package_manifests.as_slice(),
-                resolution_inputs,
+                &resolution_inputs,
                 None,
             )
         })
@@ -1383,7 +1546,7 @@ fn memo_css_modules_import_edge_resolutions_for_origin_from_module_interfaces(
         &available_style_path_refs,
         style_import_edges.as_slice(),
         package_manifests.as_slice(),
-        resolution_inputs,
+        &resolution_inputs,
         None,
     )
 }
@@ -1423,8 +1586,7 @@ fn memo_sass_configurable_variable_names_from_module_interface(
         .iter()
         .map(String::as_str)
         .collect::<BTreeSet<_>>();
-    let package_manifests = workspace.package_manifests(db);
-    let resolution_inputs = workspace.resolution_inputs(db);
+    let package_manifests = package_manifests_for_workspace(db, workspace);
     let mut visiting = BTreeSet::new();
     sass_configurable_variable_names_for_module_interface_tracked(
         db,
@@ -1432,9 +1594,9 @@ fn memo_sass_configurable_variable_names_from_module_interface(
         style_path.as_str(),
         &available_style_path_refs,
         package_manifests.as_slice(),
-        resolution_inputs.bundler_path_mappings.as_slice(),
-        resolution_inputs.tsconfig_path_mappings.as_slice(),
-        resolution_inputs.disk_style_path_identities.as_slice(),
+        resolution_bundler_path_mappings_for_workspace(db, workspace),
+        resolution_tsconfig_path_mappings_for_workspace(db, workspace),
+        resolution_disk_style_path_identities_for_workspace(db, workspace),
         None,
         &mut visiting,
     )
@@ -1451,7 +1613,6 @@ fn memo_sass_configurable_variable_names_without_manifests_from_module_interface
         .iter()
         .map(String::as_str)
         .collect::<BTreeSet<_>>();
-    let resolution_inputs = workspace.resolution_inputs(db);
     let mut visiting = BTreeSet::new();
     sass_configurable_variable_names_for_module_interface_tracked(
         db,
@@ -1459,9 +1620,9 @@ fn memo_sass_configurable_variable_names_without_manifests_from_module_interface
         style_path.as_str(),
         &available_style_path_refs,
         &[],
-        resolution_inputs.bundler_path_mappings.as_slice(),
-        resolution_inputs.tsconfig_path_mappings.as_slice(),
-        resolution_inputs.disk_style_path_identities.as_slice(),
+        resolution_bundler_path_mappings_for_workspace(db, workspace),
+        resolution_tsconfig_path_mappings_for_workspace(db, workspace),
+        resolution_disk_style_path_identities_for_workspace(db, workspace),
         None,
         &mut visiting,
     )
@@ -1478,7 +1639,7 @@ fn memo_sass_configurable_variable_names_without_path_mappings_from_module_inter
         .iter()
         .map(String::as_str)
         .collect::<BTreeSet<_>>();
-    let package_manifests = workspace.package_manifests(db);
+    let package_manifests = package_manifests_for_workspace(db, workspace);
     let mut visiting = BTreeSet::new();
     sass_configurable_variable_names_for_module_interface_tracked(
         db,
@@ -1505,8 +1666,7 @@ fn memo_sass_module_edge_resolutions_for_origin_from_module_interfaces(
     let Some(origin_file) = file_for_style_path(db, workspace, origin_style_path.as_str()) else {
         return Vec::new();
     };
-    let package_manifests = workspace.package_manifests(db);
-    let resolution_inputs = workspace.resolution_inputs(db);
+    let package_manifests = package_manifests_for_workspace(db, workspace);
     let origin = memo_module_interface_projection(db, origin_file);
     let available_style_paths = style_paths_for_workspace(db, workspace);
     let available_style_path_refs = available_style_paths
@@ -1523,8 +1683,8 @@ fn memo_sass_module_edge_resolutions_for_origin_from_module_interfaces(
         &available_style_path_refs,
         &resolver_available_style_path_refs,
         package_manifests.as_slice(),
-        resolution_inputs.bundler_path_mappings.as_slice(),
-        resolution_inputs.tsconfig_path_mappings.as_slice(),
+        resolution_bundler_path_mappings_for_workspace(db, workspace),
+        resolution_tsconfig_path_mappings_for_workspace(db, workspace),
         None,
         |target_style_path| {
             memo_sass_configurable_variable_names_from_module_interface(
@@ -1547,7 +1707,6 @@ fn memo_sass_module_edge_resolutions_without_manifests_for_origin_from_module_in
     let Some(origin_file) = file_for_style_path(db, workspace, origin_style_path.as_str()) else {
         return Vec::new();
     };
-    let resolution_inputs = workspace.resolution_inputs(db);
     let origin = memo_module_interface_projection(db, origin_file);
     let available_style_paths = style_paths_for_workspace(db, workspace);
     let available_style_path_refs = available_style_paths
@@ -1564,8 +1723,8 @@ fn memo_sass_module_edge_resolutions_without_manifests_for_origin_from_module_in
         &available_style_path_refs,
         &resolver_available_style_path_refs,
         &[],
-        resolution_inputs.bundler_path_mappings.as_slice(),
-        resolution_inputs.tsconfig_path_mappings.as_slice(),
+        resolution_bundler_path_mappings_for_workspace(db, workspace),
+        resolution_tsconfig_path_mappings_for_workspace(db, workspace),
         None,
         |target_style_path| {
             memo_sass_configurable_variable_names_without_manifests_from_module_interface(
@@ -1588,7 +1747,7 @@ fn memo_sass_module_edge_resolutions_without_path_mappings_for_origin_from_modul
     let Some(origin_file) = file_for_style_path(db, workspace, origin_style_path.as_str()) else {
         return Vec::new();
     };
-    let package_manifests = workspace.package_manifests(db);
+    let package_manifests = package_manifests_for_workspace(db, workspace);
     let origin = memo_module_interface_projection(db, origin_file);
     let available_style_paths = style_paths_for_workspace(db, workspace);
     let available_style_path_refs = available_style_paths
@@ -1675,13 +1834,12 @@ pub fn memo_sass_module_cross_file_resolution_with_external_sifs_from_module_int
 ) -> OmenaQuerySassModuleCrossFileResolutionV0 {
     let mut resolution =
         memo_sass_module_cross_file_resolution_from_module_interfaces(db, workspace);
-    let resolution_inputs = workspace.resolution_inputs(db);
     promote_sif_backed_external_edges(
         &mut resolution,
         OmenaQueryExternalSifResolutionContext {
-            package_manifests: workspace.package_manifests(db).as_slice(),
-            bundler_path_mappings: resolution_inputs.bundler_path_mappings.as_slice(),
-            tsconfig_path_mappings: resolution_inputs.tsconfig_path_mappings.as_slice(),
+            package_manifests: package_manifests_for_workspace(db, workspace).as_slice(),
+            bundler_path_mappings: resolution_bundler_path_mappings_for_workspace(db, workspace),
+            tsconfig_path_mappings: resolution_tsconfig_path_mappings_for_workspace(db, workspace),
             external_sifs: workspace.external_sifs(db).as_slice(),
         },
     );
@@ -1718,9 +1876,9 @@ fn memo_workspace_cross_file_summary_from_module_interfaces(
     summarize_omena_query_workspace_cross_file_summary_from_module_interfaces(
         module_interfaces.as_slice(),
         source_workspace_projections(db, workspace).as_slice(),
-        workspace.package_manifests(db).as_slice(),
+        package_manifests_for_workspace(db, workspace).as_slice(),
         style_cross_file_summary,
-        workspace.resolution_inputs(db),
+        &style_resolution_inputs_for_workspace(db, workspace),
     )
 }
 
@@ -1858,8 +2016,8 @@ fn memo_style_import_reachability_edges(
     style_import_reachability_edges_from_dependency_surfaces(
         module_dependency_surfaces_for_workspace(db, workspace).as_slice(),
         &available_style_paths,
-        workspace.package_manifests(db).as_slice(),
-        workspace.resolution_inputs(db),
+        package_manifests_for_workspace(db, workspace).as_slice(),
+        &style_resolution_inputs_for_workspace(db, workspace),
         None,
     )
 }
@@ -2098,6 +2256,10 @@ pub struct OmenaQueryStyleMemoHostV0 {
     db: OmenaQueryStyleMemoDatabaseV0,
     files_by_path: BTreeMap<String, OmenaQueryStyleFileInputV0>,
     source_files_by_path: BTreeMap<String, OmenaQuerySourceFileInputV0>,
+    package_manifest_inputs_by_identity:
+        BTreeMap<(String, usize), OmenaQueryStylePackageManifestInputV0>,
+    resolution_package_manifest_inputs_by_identity:
+        BTreeMap<(String, usize), OmenaQueryStylePackageManifestInputV0>,
     registered_style_paths: BTreeSet<String>,
     workspace: Option<OmenaQueryStyleWorkspaceInputV0>,
     committed_revision: IncrementalRevisionV0,
@@ -2133,12 +2295,51 @@ impl Default for OmenaQueryStyleMemoHostV0 {
     }
 }
 
+fn sync_package_manifest_inputs(
+    db: &mut OmenaQueryStyleMemoDatabaseV0,
+    inputs_by_identity: &mut BTreeMap<(String, usize), OmenaQueryStylePackageManifestInputV0>,
+    manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<OmenaQueryStylePackageManifestInputV0> {
+    let mut occurrence_by_path = BTreeMap::<String, usize>::new();
+    manifests
+        .iter()
+        .map(|manifest| {
+            let occurrence = occurrence_by_path
+                .entry(manifest.package_json_path.clone())
+                .or_default();
+            let identity = (manifest.package_json_path.clone(), *occurrence);
+            *occurrence += 1;
+            match inputs_by_identity.get(&identity).copied() {
+                Some(input) => {
+                    if input.package_json_source(db) != &manifest.package_json_source {
+                        input
+                            .set_package_json_source(db)
+                            .to(manifest.package_json_source.clone());
+                    }
+                    input
+                }
+                None => {
+                    let input = OmenaQueryStylePackageManifestInputV0::new(
+                        db,
+                        manifest.package_json_path.clone(),
+                        manifest.package_json_source.clone(),
+                    );
+                    inputs_by_identity.insert(identity, input);
+                    input
+                }
+            }
+        })
+        .collect()
+}
+
 impl OmenaQueryStyleMemoHostV0 {
     pub fn new() -> Self {
         Self {
             db: OmenaQueryStyleMemoDatabaseV0::new(),
             files_by_path: BTreeMap::new(),
             source_files_by_path: BTreeMap::new(),
+            package_manifest_inputs_by_identity: BTreeMap::new(),
+            resolution_package_manifest_inputs_by_identity: BTreeMap::new(),
             registered_style_paths: BTreeSet::new(),
             workspace: None,
             committed_revision: IncrementalRevisionV0 { value: 0 },
@@ -2676,6 +2877,16 @@ impl OmenaQueryStyleMemoHostV0 {
             )
             .collect::<Vec<_>>();
         let source_files = self.sync_source_file_inputs(source_documents);
+        let package_manifest_inputs = sync_package_manifest_inputs(
+            &mut self.db,
+            &mut self.package_manifest_inputs_by_identity,
+            package_manifests,
+        );
+        let resolution_package_manifest_inputs = sync_package_manifest_inputs(
+            &mut self.db,
+            &mut self.resolution_package_manifest_inputs_by_identity,
+            resolution_inputs.package_manifests.as_slice(),
+        );
 
         match self.workspace {
             Some(workspace) => {
@@ -2695,6 +2906,11 @@ impl OmenaQueryStyleMemoHostV0 {
                         .set_package_manifests(&mut self.db)
                         .to(package_manifests.to_vec());
                 }
+                if workspace.package_manifest_inputs(&self.db) != &package_manifest_inputs {
+                    workspace
+                        .set_package_manifest_inputs(&mut self.db)
+                        .to(package_manifest_inputs);
+                }
                 if workspace.external_sifs(&self.db).as_slice() != external_sifs {
                     workspace
                         .set_external_sifs(&mut self.db)
@@ -2704,6 +2920,46 @@ impl OmenaQueryStyleMemoHostV0 {
                     workspace
                         .set_resolution_inputs(&mut self.db)
                         .to(resolution_inputs.clone());
+                }
+                if workspace.resolution_package_manifest_inputs(&self.db)
+                    != &resolution_package_manifest_inputs
+                {
+                    workspace
+                        .set_resolution_package_manifest_inputs(&mut self.db)
+                        .to(resolution_package_manifest_inputs);
+                }
+                if workspace.resolution_tsconfig_path_mappings(&self.db)
+                    != &resolution_inputs.tsconfig_path_mappings
+                {
+                    workspace
+                        .set_resolution_tsconfig_path_mappings(&mut self.db)
+                        .to(resolution_inputs.tsconfig_path_mappings.clone());
+                }
+                if workspace.resolution_bundler_path_mappings(&self.db)
+                    != &resolution_inputs.bundler_path_mappings
+                {
+                    workspace
+                        .set_resolution_bundler_path_mappings(&mut self.db)
+                        .to(resolution_inputs.bundler_path_mappings.clone());
+                }
+                if workspace.resolution_disk_style_path_identities(&self.db)
+                    != &resolution_inputs.disk_style_path_identities
+                {
+                    workspace
+                        .set_resolution_disk_style_path_identities(&mut self.db)
+                        .to(resolution_inputs.disk_style_path_identities.clone());
+                }
+                if workspace.resolution_external_sif_cache_fingerprint(&self.db)
+                    != &resolution_inputs.external_sif_cache_fingerprint
+                {
+                    workspace
+                        .set_resolution_external_sif_cache_fingerprint(&mut self.db)
+                        .to(resolution_inputs.external_sif_cache_fingerprint.clone());
+                }
+                if !workspace.granular_inputs_initialized(&self.db) {
+                    workspace
+                        .set_granular_inputs_initialized(&mut self.db)
+                        .to(true);
                 }
                 workspace
             }
@@ -2717,6 +2973,27 @@ impl OmenaQueryStyleMemoHostV0 {
                     external_sifs.to_vec(),
                     resolution_inputs.clone(),
                 );
+                workspace
+                    .set_package_manifest_inputs(&mut self.db)
+                    .to(package_manifest_inputs);
+                workspace
+                    .set_resolution_package_manifest_inputs(&mut self.db)
+                    .to(resolution_package_manifest_inputs);
+                workspace
+                    .set_resolution_tsconfig_path_mappings(&mut self.db)
+                    .to(resolution_inputs.tsconfig_path_mappings.clone());
+                workspace
+                    .set_resolution_bundler_path_mappings(&mut self.db)
+                    .to(resolution_inputs.bundler_path_mappings.clone());
+                workspace
+                    .set_resolution_disk_style_path_identities(&mut self.db)
+                    .to(resolution_inputs.disk_style_path_identities.clone());
+                workspace
+                    .set_resolution_external_sif_cache_fingerprint(&mut self.db)
+                    .to(resolution_inputs.external_sif_cache_fingerprint.clone());
+                workspace
+                    .set_granular_inputs_initialized(&mut self.db)
+                    .to(true);
                 self.workspace = Some(workspace);
                 workspace
             }
@@ -2814,6 +3091,8 @@ fn build_revision_selector(
         db,
         files_by_path,
         source_files_by_path: _,
+        package_manifest_inputs_by_identity: _,
+        resolution_package_manifest_inputs_by_identity: _,
         registered_style_paths: _,
         workspace: _,
         committed_revision: _,
@@ -6764,6 +7043,153 @@ $_private-token: changed;
             consumer_recompute_counts,
             (1, 1),
             "the current zero-recompute guarantee is limited to byte-length-preserving edits"
+        );
+    }
+
+    #[test]
+    fn package_manifest_projection_revalidates_only_the_changed_entity() {
+        let corpus = parallel_probe_corpus();
+        let manifests = vec![
+            OmenaQueryStylePackageManifestV0 {
+                package_json_path: "/workspace/packages/alpha/package.json".to_string(),
+                package_json_source: r#"{"name":"alpha","style":"./alpha.css"}"#.to_string(),
+            },
+            OmenaQueryStylePackageManifestV0 {
+                package_json_path: "/workspace/packages/beta/package.json".to_string(),
+                package_json_source: r#"{"name":"beta","style":"./beta.css"}"#.to_string(),
+            },
+        ];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(
+            corpus.as_slice(),
+            &[],
+            manifests.as_slice(),
+            &[],
+            &resolution_inputs,
+        );
+        let _ = memo_css_modules_cross_file_resolution_from_module_interfaces(&host.db, workspace);
+
+        let mut edited_manifests = manifests;
+        edited_manifests[1].package_json_source =
+            r#"{"name":"beta","style":"./beta-updated.css"}"#.to_string();
+        let workspace = host.sync_workspace(
+            corpus.as_slice(),
+            &[],
+            edited_manifests.as_slice(),
+            &[],
+            &resolution_inputs,
+        );
+        package_manifest_projection_probe::reset();
+        let _ = memo_css_modules_cross_file_resolution_from_module_interfaces(&host.db, workspace);
+
+        assert_eq!(
+            package_manifest_projection_probe::read(),
+            set_of(["/workspace/packages/beta/package.json"]),
+            "a same-field edit must not revalidate unchanged manifest projections"
+        );
+        let memo_graph = build_committed_style_semantic_graph(
+            &host.db,
+            workspace,
+            &[],
+            edited_manifests.as_slice(),
+            &[],
+            &resolution_inputs,
+        );
+        let straight_line_graph = build_committed_style_semantic_graph_monolith(
+            &host.db,
+            workspace,
+            &[],
+            edited_manifests.as_slice(),
+            &[],
+            &resolution_inputs,
+        );
+        assert_eq!(
+            memo_graph, straight_line_graph,
+            "entity-granular and straight-line graph bytes must remain identical"
+        );
+    }
+
+    #[test]
+    fn cache_freshness_field_does_not_revalidate_semantic_resolution() {
+        let corpus = parallel_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let baseline =
+            memo_css_modules_cross_file_resolution_from_module_interfaces(&host.db, workspace);
+
+        let changed_resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+            external_sif_cache_fingerprint: Some("fresh-cache-generation".to_string()),
+            ..resolution_inputs
+        };
+        let workspace =
+            host.sync_workspace(corpus.as_slice(), &[], &[], &[], &changed_resolution_inputs);
+        reset_css_modules_cross_file_resolution_compute_count_for_test();
+        let after =
+            memo_css_modules_cross_file_resolution_from_module_interfaces(&host.db, workspace);
+
+        assert_eq!(
+            read_css_modules_cross_file_resolution_compute_count_for_test(),
+            0,
+            "a cache-only field outside the semantic read set must not revalidate resolution"
+        );
+        assert_eq!(after, baseline, "the narrowed read set must preserve bytes");
+    }
+
+    #[test]
+    fn public_workspace_constructor_retains_legacy_input_semantics() {
+        let db = OmenaQueryStyleMemoDatabaseV0::new();
+        let corpus = parallel_probe_corpus();
+        let files = corpus
+            .iter()
+            .map(|source| {
+                OmenaQueryStyleFileInputV0::new(
+                    &db,
+                    source.style_path.clone(),
+                    source.style_source.clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let manifests = vec![OmenaQueryStylePackageManifestV0 {
+            package_json_path: "/workspace/node_modules/theme/package.json".to_string(),
+            package_json_source:
+                r#"{"name":"theme","exports":{"./tokens":{"style":"./tokens.css"}}}"#.to_string(),
+        }];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+            package_manifests: manifests.clone(),
+            external_sif_cache_fingerprint: Some("cache-only".to_string()),
+            ..OmenaQueryStyleResolutionInputsV0::default()
+        };
+        let workspace = OmenaQueryStyleWorkspaceInputV0::new(
+            &db,
+            files,
+            Vec::new(),
+            Vec::new(),
+            manifests.clone(),
+            Vec::new(),
+            resolution_inputs.clone(),
+        );
+
+        let memo_graph = build_committed_style_semantic_graph(
+            &db,
+            workspace,
+            &[],
+            manifests.as_slice(),
+            &[],
+            &resolution_inputs,
+        );
+        let straight_line_graph = build_committed_style_semantic_graph_monolith(
+            &db,
+            workspace,
+            &[],
+            manifests.as_slice(),
+            &[],
+            &resolution_inputs,
+        );
+        assert_eq!(
+            memo_graph, straight_line_graph,
+            "defaulted granular fields must fall back to the constructor's legacy values"
         );
     }
 }
