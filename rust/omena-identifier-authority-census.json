@@ -226,7 +226,7 @@
       },
       {
         "path": "rust/crates/omena-bridge/src/source_syntax.rs",
-        "line": 4212,
+        "line": 4214,
         "function": "collect_computed_member_expression",
         "operation": "insert",
         "evidence": "self.style_property_access_selector_names.insert(",
@@ -235,7 +235,7 @@
       },
       {
         "path": "rust/crates/omena-bridge/src/source_syntax.rs",
-        "line": 4272,
+        "line": 4274,
         "function": "static_string_expression_class_name",
         "operation": "str-eq",
         "evidence": "&& class_selector_name_end(selector_name.as_str(), 0) == Some(selector_name.len()))",
@@ -244,7 +244,7 @@
       },
       {
         "path": "rust/crates/omena-bridge/src/source_syntax.rs",
-        "line": 5934,
+        "line": 5936,
         "function": "retire_template_prefix_reference",
         "operation": "str-eq",
         "evidence": "|| reference.selector_name.as_deref() != Some(prefix)",
@@ -801,7 +801,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:0573684821c8c4fe785965f4405fcd0355c9e64bae79406d09832e44c1e748ea"
+    "siteDigest": "sha256:f9d0c0996d48b48259931b19a0532966c6972db58e5e0743c54b42b8bf6bb3ce"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
