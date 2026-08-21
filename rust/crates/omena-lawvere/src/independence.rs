@@ -4,12 +4,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use omena_cascade_proof::{
-    CanonicalRewriteAssumptionsV0, REWRITE_CERTIFICATE_SCHEMA_VERSION_V0,
-    REWRITE_RULE_CATALOG_SCHEMA_VERSION_V0, RewriteCertificateEnvelopeV0, RewriteCertificateV0,
-    RewriteIssuanceTokenV0, RewriteOperatorV0, RewritePatternV0, RewriteRuleCatalogV0,
-    RewriteRuleV0, RewriteSideConditionKindV0, RewriteSubstitutionEntryV0, RewriteTermV0,
-    SideConditionCertV0, TransformIndependenceCertV0, TransformIndependenceObservationCertRowV0,
-    check_rewrite_certificate_v0,
+    REWRITE_CERTIFICATE_SCHEMA_VERSION_V0, REWRITE_RULE_CATALOG_SCHEMA_VERSION_V0,
+    RewriteCertificateEnvelopeV0, RewriteCertificateV0, RewriteIssuanceTokenV0, RewriteOperatorV0,
+    RewritePatternV0, RewriteRuleCatalogV0, RewriteRuleV0, RewriteSideConditionKindV0,
+    RewriteSubstitutionEntryV0, RewriteTermV0, SideConditionCertV0, TransformIndependenceCertV0,
+    TransformIndependenceObservationCertRowV0, check_rewrite_certificate_v0,
 };
 use omena_transform_cst::{
     ObservationKindV0, PassAssumptionKindV0, PassObservationSurfaceV0, TransformObserverV0,
@@ -633,29 +632,23 @@ pub(crate) fn checked_adjacent_swap_token_v0(
             },
         },
     };
-    check_rewrite_certificate_v0(
-        &before,
-        &after,
-        &catalog,
-        &certificate,
-        &CanonicalRewriteAssumptionsV0::default(),
-    )
-    .map_err(|rejection| {
-        pair_error(
-            entry,
-            format!("S1 checker rejected reorder certificate: {rejection:?}"),
-        )
-    })
-    .and_then(|token| {
-        if token.matches_endpoints_v0(&before, &after) && token.matches_catalog_v0(&catalog) {
-            Ok(token)
-        } else {
-            Err(pair_error(
+    check_rewrite_certificate_v0(&before, &after, &catalog, &certificate)
+        .map_err(|rejection| {
+            pair_error(
                 entry,
-                "S1 checker token is not bound to the adjacent swap endpoints",
-            ))
-        }
-    })
+                format!("S1 checker rejected reorder certificate: {rejection:?}"),
+            )
+        })
+        .and_then(|token| {
+            if token.matches_endpoints_v0(&before, &after) && token.matches_catalog_v0(&catalog) {
+                Ok(token)
+            } else {
+                Err(pair_error(
+                    entry,
+                    "S1 checker token is not bound to the adjacent swap endpoints",
+                ))
+            }
+        })
 }
 
 pub(crate) fn adjacent_schedule_pair_term_v0(

@@ -11,10 +11,9 @@ use egg::{
     Symbol, Var, define_language, rewrite as egg_rewrite,
 };
 use omena_cascade_proof::{
-    CanonicalRewriteAssumptionsV0, REWRITE_CERTIFICATE_SCHEMA_VERSION_V0,
-    RewriteCertificateEnvelopeV0, RewriteCertificateV0, RewriteIssuanceTokenV0,
-    RewriteSubstitutionEntryV0, RewriteTermV0, SideConditionCertV0, check_rewrite_certificate_v0,
-    selector_rewrite_rule_catalog_v0,
+    REWRITE_CERTIFICATE_SCHEMA_VERSION_V0, RewriteCertificateEnvelopeV0, RewriteCertificateV0,
+    RewriteIssuanceTokenV0, RewriteSubstitutionEntryV0, RewriteTermV0, SideConditionCertV0,
+    check_rewrite_certificate_v0, selector_rewrite_rule_catalog_v0,
 };
 use omena_evidence_graph::ObligationFamilyIdV0;
 use omena_parser::StyleDialect;
@@ -876,7 +875,6 @@ fn selector_rewrite_issuance_token_v0(before: &str, after: &str) -> Option<Rewri
         &after_term,
         &selector_rewrite_rule_catalog_v0(),
         &certificate,
-        &CanonicalRewriteAssumptionsV0::default(),
     )
     .ok()
 }
@@ -1690,7 +1688,6 @@ mod tests {
             &RewriteTermV0::atom("ready"),
             &spoofed_catalog,
             &certificate,
-            &CanonicalRewriteAssumptionsV0::default(),
         );
         assert!(
             token.is_ok(),

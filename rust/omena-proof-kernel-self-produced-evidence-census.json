@@ -612,7 +612,7 @@
   },
   "exit": {
     "sourceRef": "WORKTREE",
-    "sourceFileSha256": "5a6d16a9b7f6d31da194862b1eb13adc506954371e547e250c71da400248a56e",
+    "sourceFileSha256": "efb889b9e24dc31075713623b8a5156198150abcdd68dd72379159ebd3dd38b8",
     "rowCount": 17,
     "planeCounts": {
       "cascadeObligation": 12,
@@ -805,7 +805,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-transform-egg/src/lib.rs",
           "symbol": "calc_rewrite_witnesses",
-          "lineHint": 770,
+          "lineHint": 769,
           "lineSha256": "e313c582aafb10184fc7ae26b8a8fce5c1bd0aeb733626eae0cf9ef525f48c08"
         },
         "plane": "eGraph",
@@ -820,7 +820,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/proof_kernel.rs",
           "symbol": "check_rewrite_certificate_v0 -> RewriteIssuanceTokenV0::issue",
-          "lineHint": 828,
+          "lineHint": 826,
           "lineSha256": "a10ba8c32c6d98a971d80a6885175be0dfa0eea458ae36b37471476ccae95f0d"
         },
         "plane": "eGraph",
@@ -835,7 +835,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-transform-egg/src/lib.rs",
           "symbol": "selector_rewrite_witnesses",
-          "lineHint": 725,
+          "lineHint": 724,
           "lineSha256": "a48e10cb67c41b3f739c1051eaba71cecf5aa3aed7ca1e4a99cd6f7615e4e76b"
         },
         "plane": "eGraph",
@@ -850,7 +850,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-transform-egg/src/lib.rs",
           "symbol": "stale_prefix_removal_witnesses",
-          "lineHint": 825,
+          "lineHint": 824,
           "lineSha256": "e313c582aafb10184fc7ae26b8a8fce5c1bd0aeb733626eae0cf9ef525f48c08"
         },
         "plane": "eGraph",

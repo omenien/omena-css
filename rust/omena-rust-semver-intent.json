@@ -132,13 +132,9 @@
         },
         {
           "lint": "enum_variant_added",
-          "evidenceNeedles": [
-            "variant TransformBundleLinkErrorV0:UnsupportedDialectEmissionCycle"
-          ],
+          "evidenceNeedles": ["variant TransformBundleLinkErrorV0:UnsupportedDialectEmissionCycle"],
           "witnessLinePrefix": "  variant ",
-          "expectedWitnesses": [
-            "TransformBundleLinkErrorV0:UnsupportedDialectEmissionCycle"
-          ]
+          "expectedWitnesses": ["TransformBundleLinkErrorV0:UnsupportedDialectEmissionCycle"]
         }
       ],
       "expectedRuntimeValueChanges": [
@@ -196,8 +192,20 @@
     {
       "crate": "omena-cascade-proof",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor adds an identity-keyed, catalog-sealed module-export preservation certificate and typed checker rejection vocabulary.",
-      "expectedFailures": [],
+      "reason": "The next pre-1.0 minor adds an identity-keyed, catalog-sealed module-export preservation certificate and removes arbitrary assumption parameters that were validated but never constrained any proof derivation.",
+      "expectedFailures": [
+        {
+          "lint": "function_parameter_count_changed",
+          "evidenceNeedles": [
+            "omena_cascade_proof::proof_kernel::check_optional_rewrite_certificate_v0 now takes 4 parameters instead of 5",
+            "omena_cascade_proof::check_optional_rewrite_certificate_v0 now takes 4 parameters instead of 5",
+            "omena_cascade_proof::proof_kernel::check_serialized_rewrite_certificate_v0 now takes 4 parameters instead of 5",
+            "omena_cascade_proof::check_serialized_rewrite_certificate_v0 now takes 4 parameters instead of 5",
+            "omena_cascade_proof::proof_kernel::check_rewrite_certificate_v0 now takes 4 parameters instead of 5",
+            "omena_cascade_proof::check_rewrite_certificate_v0 now takes 4 parameters instead of 5"
+          ]
+        }
+      ],
       "expectedRuntimeValueChanges": [
         {
           "id": "module-export-preservation-certificate-wire",

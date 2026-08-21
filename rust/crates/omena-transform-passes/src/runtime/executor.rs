@@ -9,8 +9,8 @@ use std::collections::BTreeSet;
 use omena_abstract_value::FactPrecision;
 use omena_cascade::StaticSupportsAssumptionV0;
 use omena_cascade_proof::{
-    CanonicalRewriteAssumptionsV0, DischargeLedgerLookupStatusV0, ModuleExportKeyV0,
-    ModuleExportObservationV0, ModuleExportPreservationCertV0, ModuleExportRenameDeltaV0,
+    DischargeLedgerLookupStatusV0, ModuleExportKeyV0, ModuleExportObservationV0,
+    ModuleExportPreservationCertV0, ModuleExportRenameDeltaV0,
     REWRITE_CERTIFICATE_SCHEMA_VERSION_V0, REWRITE_RULE_CATALOG_SCHEMA_VERSION_V0,
     RewriteCertificateEnvelopeV0, RewriteCertificateV0, RewriteIssuanceTokenV0, RewriteOperatorV0,
     RewritePatternV0, RewriteRuleCatalogV0, RewriteRuleV0, RewriteSideConditionKindV0,
@@ -3237,14 +3237,8 @@ fn checked_module_export_preservation_admission_v0(
             side_condition: SideConditionCertV0::ModuleExportPreservation { certificate },
         },
     };
-    let token = check_rewrite_certificate_v0(
-        &before,
-        &after,
-        &catalog,
-        &envelope,
-        &CanonicalRewriteAssumptionsV0::default(),
-    )
-    .map_err(|rejection| format!("{:?}", rejection.rejection))?;
+    let token = check_rewrite_certificate_v0(&before, &after, &catalog, &envelope)
+        .map_err(|rejection| format!("{:?}", rejection.rejection))?;
     if !token.matches_endpoints_v0(&before, &after) || !token.matches_catalog_v0(&catalog) {
         return Err(
             "issued preservation token did not re-bind to trusted endpoints and catalog".to_owned(),
@@ -3475,17 +3469,11 @@ fn checked_token_ownership_admission_v0(
             },
         },
     };
-    check_rewrite_certificate_v0(
-        &before,
-        &after,
-        &catalog,
-        &certificate,
-        &CanonicalRewriteAssumptionsV0::default(),
-    )
-    .ok()
-    .filter(|token| {
-        token.matches_endpoints_v0(&before, &after) && token.matches_catalog_v0(&catalog)
-    })
+    check_rewrite_certificate_v0(&before, &after, &catalog, &certificate)
+        .ok()
+        .filter(|token| {
+            token.matches_endpoints_v0(&before, &after) && token.matches_catalog_v0(&catalog)
+        })
 }
 
 struct ClosedWorldAdmissionO3V0<'a> {

@@ -771,7 +771,6 @@ pub fn check_rewrite_certificate_v0(
     after: &RewriteTermV0,
     rule_catalog: &RewriteRuleCatalogV0,
     certificate: &RewriteCertificateEnvelopeV0,
-    assumptions: &CanonicalRewriteAssumptionsV0,
 ) -> Result<RewriteIssuanceTokenV0, CertificateRejectionV0> {
     validate_schema(
         &certificate.schema_version,
@@ -780,7 +779,6 @@ pub fn check_rewrite_certificate_v0(
     )?;
     validate_certificate_bounds(certificate)?;
     let catalog = validate_catalog(rule_catalog)?;
-    validate_assumptions(assumptions)?;
     validate_term(
         before,
         RewriteCheckInputV0::BeforeTerm,
@@ -838,7 +836,6 @@ pub fn check_optional_rewrite_certificate_v0(
     after: &RewriteTermV0,
     rule_catalog: &RewriteRuleCatalogV0,
     certificate: Option<&RewriteCertificateEnvelopeV0>,
-    assumptions: &CanonicalRewriteAssumptionsV0,
 ) -> Result<RewriteIssuanceTokenV0, CertificateRejectionV0> {
     let Some(certificate) = certificate else {
         return Err(CertificateRejectionV0::new(
@@ -846,7 +843,7 @@ pub fn check_optional_rewrite_certificate_v0(
             CertificateRejectionKindV0::MissingCertificate,
         ));
     };
-    check_rewrite_certificate_v0(before, after, rule_catalog, certificate, assumptions)
+    check_rewrite_certificate_v0(before, after, rule_catalog, certificate)
 }
 
 pub fn check_serialized_rewrite_certificate_v0(
@@ -854,7 +851,6 @@ pub fn check_serialized_rewrite_certificate_v0(
     after: &RewriteTermV0,
     rule_catalog: &RewriteRuleCatalogV0,
     certificate_json: &str,
-    assumptions: &CanonicalRewriteAssumptionsV0,
 ) -> Result<RewriteIssuanceTokenV0, CertificateRejectionV0> {
     let certificate = serde_json::from_str::<RewriteCertificateEnvelopeV0>(certificate_json)
         .map_err(|error| {
@@ -865,7 +861,7 @@ pub fn check_serialized_rewrite_certificate_v0(
                 },
             )
         })?;
-    check_rewrite_certificate_v0(before, after, rule_catalog, &certificate, assumptions)
+    check_rewrite_certificate_v0(before, after, rule_catalog, &certificate)
 }
 
 pub fn selector_rewrite_rule_catalog_v0() -> RewriteRuleCatalogV0 {
@@ -1192,31 +1188,6 @@ fn validate_pattern(
         }
     }
     Ok(())
-}
-
-fn validate_assumptions(
-    assumptions: &CanonicalRewriteAssumptionsV0,
-) -> Result<BTreeMap<&str, &str>, CertificateRejectionV0> {
-    validate_schema(
-        &assumptions.schema_version,
-        CANONICAL_REWRITE_ASSUMPTIONS_SCHEMA_VERSION_V0,
-        RewriteCheckInputV0::Assumptions,
-    )?;
-    let mut canonical = BTreeMap::new();
-    for assumption in &assumptions.entries {
-        if canonical
-            .insert(assumption.name.as_str(), assumption.value.as_str())
-            .is_some()
-        {
-            return Err(CertificateRejectionV0::new(
-                RewriteFailureSiteV0::root(RewriteCheckInputV0::Assumptions),
-                CertificateRejectionKindV0::DuplicateAssumption {
-                    name: assumption.name.clone(),
-                },
-            ));
-        }
-    }
-    Ok(canonical)
 }
 
 fn validate_term(
@@ -2621,13 +2592,7 @@ mod tests {
         certificate: &RewriteCertificateEnvelopeV0,
     ) -> Result<RewriteIssuanceTokenV0, CertificateRejectionV0> {
         let (before, after) = selector_terms();
-        check_rewrite_certificate_v0(
-            &before,
-            &after,
-            catalog,
-            certificate,
-            &CanonicalRewriteAssumptionsV0::default(),
-        )
+        check_rewrite_certificate_v0(&before, &after, catalog, certificate)
     }
 
     #[test]
@@ -2696,13 +2661,7 @@ mod tests {
                 certificate: computed_value_certificate("8px"),
             },
         );
-        let accepted_result = check_rewrite_certificate_v0(
-            &before,
-            &after,
-            &catalog,
-            &accepted,
-            &CanonicalRewriteAssumptionsV0::default(),
-        );
+        let accepted_result = check_rewrite_certificate_v0(&before, &after, &catalog, &accepted);
         assert!(
             accepted_result.is_ok(),
             "computed-value cert rejected: {accepted_result:?}"
@@ -2714,13 +2673,7 @@ mod tests {
                 certificate: computed_value_certificate("9px"),
             },
         );
-        let rejected_result = check_rewrite_certificate_v0(
-            &before,
-            &after,
-            &catalog,
-            &rejected,
-            &CanonicalRewriteAssumptionsV0::default(),
-        );
+        let rejected_result = check_rewrite_certificate_v0(&before, &after, &catalog, &rejected);
         assert!(
             rejected_result.is_err(),
             "computed-value perturbation accepted"
@@ -2754,13 +2707,7 @@ mod tests {
                 certificate: source_map_certificate(),
             },
         );
-        let accepted_result = check_rewrite_certificate_v0(
-            &before,
-            &after,
-            &catalog,
-            &accepted,
-            &CanonicalRewriteAssumptionsV0::default(),
-        );
+        let accepted_result = check_rewrite_certificate_v0(&before, &after, &catalog, &accepted);
         assert!(
             accepted_result.is_ok(),
             "source-map cert rejected: {accepted_result:?}"
@@ -2774,13 +2721,7 @@ mod tests {
                 certificate: perturbed_trace,
             },
         );
-        let rejected_result = check_rewrite_certificate_v0(
-            &before,
-            &after,
-            &catalog,
-            &rejected,
-            &CanonicalRewriteAssumptionsV0::default(),
-        );
+        let rejected_result = check_rewrite_certificate_v0(&before, &after, &catalog, &rejected);
         assert!(rejected_result.is_err(), "source-map perturbation accepted");
         let Err(rejection) = rejected_result else {
             return;
@@ -2886,13 +2827,7 @@ mod tests {
         )];
         let after = before.clone();
         let check = |certificate: RewriteCertificateEnvelopeV0| {
-            check_rewrite_certificate_v0(
-                &before_term,
-                &after_term,
-                &catalog,
-                &certificate,
-                &CanonicalRewriteAssumptionsV0::default(),
-            )
+            check_rewrite_certificate_v0(&before_term, &after_term, &catalog, &certificate)
         };
 
         let accepted = check(module_export_certificate(
@@ -3019,13 +2954,7 @@ mod tests {
             },
         ];
         let check = |certificate: RewriteCertificateEnvelopeV0| {
-            check_rewrite_certificate_v0(
-                &before_term,
-                &after_term,
-                &catalog,
-                &certificate,
-                &CanonicalRewriteAssumptionsV0::default(),
-            )
+            check_rewrite_certificate_v0(&before_term, &after_term, &catalog, &certificate)
         };
         let accepted = check(module_export_certificate(
             pass_id,
@@ -3112,7 +3041,6 @@ mod tests {
             &after,
             &catalog,
             &certificate(vec!["src/one.module.css".to_owned()], 1),
-            &CanonicalRewriteAssumptionsV0::default(),
         );
         assert!(accepted.is_ok(), "unique ownership rejected: {accepted:?}");
 
@@ -3127,7 +3055,6 @@ mod tests {
                 ],
                 2,
             ),
-            &CanonicalRewriteAssumptionsV0::default(),
         );
         assert!(rejected.is_err(), "ambiguous ownership accepted");
         let Err(rejection) = rejected else {
@@ -3182,7 +3109,6 @@ mod tests {
             &after,
             &catalog,
             &envelope(independence.clone()),
-            &CanonicalRewriteAssumptionsV0::default(),
         );
         assert!(accepted.is_ok(), "independence cert rejected: {accepted:?}");
 
@@ -3190,13 +3116,8 @@ mod tests {
         dependent
             .disqualifying_descriptor_edges
             .push("conflictsWith:color-mix-lowering:color-function-lowering".to_owned());
-        let rejected = check_rewrite_certificate_v0(
-            &before,
-            &after,
-            &catalog,
-            &envelope(dependent),
-            &CanonicalRewriteAssumptionsV0::default(),
-        );
+        let rejected =
+            check_rewrite_certificate_v0(&before, &after, &catalog, &envelope(dependent));
         assert!(matches!(
             rejected,
             Err(CertificateRejectionV0 {
@@ -3305,7 +3226,6 @@ mod tests {
             &after,
             &selector_rewrite_rule_catalog_v0(),
             None,
-            &CanonicalRewriteAssumptionsV0::default(),
         );
         assert!(result.is_err(), "missing certificate minted a token");
         let Err(rejection) = result else {
@@ -3390,13 +3310,7 @@ mod tests {
         let mut observed = Vec::new();
         for (name, certificate, expected_kind) in typed_cases {
             let outcome = catch_unwind(AssertUnwindSafe(|| {
-                check_rewrite_certificate_v0(
-                    &before,
-                    &after,
-                    &catalog,
-                    &certificate,
-                    &CanonicalRewriteAssumptionsV0::default(),
-                )
+                check_rewrite_certificate_v0(&before, &after, &catalog, &certificate)
             }));
             assert!(outcome.is_ok(), "{name} panicked");
             let Some(result) = outcome.ok() else {
@@ -3426,7 +3340,6 @@ mod tests {
                 &after,
                 &catalog,
                 r#"{"schemaVersion":"0","certificate":{"kind":"trans""#,
-                &CanonicalRewriteAssumptionsV0::default(),
             )
         }));
         assert!(malformed.is_ok(), "malformed serde input panicked");

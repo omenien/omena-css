@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -17,6 +17,7 @@ const injectO1Bypass = args.has("--inject-o1-bypass");
 const injectDependentPair = args.has("--inject-dependent-pair");
 const injectEmptyIndependence = args.has("--inject-empty-independence");
 const injectModuleExportTokenBypass = args.has("--inject-module-export-token-bypass");
+const injectRewriteAssumptionParameter = args.has("--inject-rewrite-assumption-parameter");
 
 assert.ok(
   [
@@ -25,12 +26,13 @@ assert.ok(
     injectDependentPair,
     injectEmptyIndependence,
     injectModuleExportTokenBypass,
+    injectRewriteAssumptionParameter,
   ].filter(Boolean).length <= 1,
   "only one proof-kernel falsifier may run at once",
 );
 
 let catalogSource = read(catalogPath);
-const proofKernelSource = read(proofKernelPath);
+let proofKernelSource = read(proofKernelPath);
 let executorSource = read(executorPath);
 const eggSource = read(eggPath);
 const independenceSource = read(independencePath);
@@ -56,6 +58,20 @@ if (injectModuleExportTokenBypass) {
   executorSource = executorSource.replace(
     "require_dual_o1_tokens_v0(",
     "bypass_module_export_token_v0(",
+  );
+}
+if (injectRewriteAssumptionParameter) {
+  const assumptionFreeSignature =
+    "    certificate: &RewriteCertificateEnvelopeV0,\n) -> Result<RewriteIssuanceTokenV0, CertificateRejectionV0> {";
+  const assumptionCarryingSignature =
+    "    certificate: &RewriteCertificateEnvelopeV0,\n    assumptions: &CanonicalRewriteAssumptionsV0,\n) -> Result<RewriteIssuanceTokenV0, CertificateRejectionV0> {";
+  assert.ok(
+    proofKernelSource.includes(assumptionFreeSignature),
+    "rewrite-assumption injection target is absent",
+  );
+  proofKernelSource = proofKernelSource.replace(
+    assumptionFreeSignature,
+    assumptionCarryingSignature,
   );
 }
 if (injectDependentPair) {
@@ -88,6 +104,52 @@ const moduleExportCheckerBody = functionBody(
   "check_module_export_preservation_v0",
 );
 const selectorDecisionBody = functionBody(eggSource, "decide_checked_egg_rewrite");
+const rewriteCheckerApis = [
+  { name: "check_rewrite_certificate_v0", argumentCount: 4 },
+  { name: "check_optional_rewrite_certificate_v0", argumentCount: 4 },
+  { name: "check_serialized_rewrite_certificate_v0", argumentCount: 4 },
+] as const;
+const trackedRustSources = trackedRustSourceFiles().map((sourceFile) =>
+  sourceFile.sourcePath === proofKernelPath
+    ? { ...sourceFile, source: proofKernelSource }
+    : sourceFile,
+);
+const rewriteCheckerCallers = rewriteCheckerApis.flatMap((api) =>
+  trackedRustSources.flatMap((sourceFile) =>
+    scanFunctionCalls(sourceFile.sourcePath, sourceFile.source, api.name).map((call) => ({
+      ...call,
+      api: api.name,
+      expectedArgumentCount: api.argumentCount,
+    })),
+  ),
+);
+
+for (const api of rewriteCheckerApis) {
+  const signature = functionSignature(proofKernelSource, api.name);
+  assert.doesNotMatch(
+    signature,
+    /CanonicalRewriteAssumptionsV0|\bassumptions?\b/u,
+    `${api.name} must not imply that arbitrary assumptions constrain its verdict`,
+  );
+}
+assert.doesNotMatch(
+  proofKernelSource,
+  /\bfn\s+validate_assumptions\s*\(/u,
+  "the inert rewrite-assumption validation helper must stay removed",
+);
+for (const caller of rewriteCheckerCallers) {
+  assert.equal(
+    caller.argumentCount,
+    caller.expectedArgumentCount,
+    `${caller.api} caller ${caller.sourcePath}:${caller.line} has an undeclared argument`,
+  );
+  assert.doesNotMatch(
+    caller.argumentsText,
+    /CanonicalRewriteAssumptionsV0|\bassumptions?\b/u,
+    `${caller.api} caller ${caller.sourcePath}:${caller.line} passes a semantically inert assumption`,
+  );
+}
+assert.ok(rewriteCheckerCallers.length > 0, "rewrite-checker caller census is empty");
 
 assert.match(planBody, /transform_catalog_independence_clusters_v0\(requested\)/);
 assert.doesNotMatch(planBody, /transform_catalog_equation_clusters_v0/);
@@ -242,6 +304,9 @@ process.stdout.write(
     "scheduleOracleBound=4 schedulePermutations=24",
     "executorConsumesPlan=false nonConsumptionReason=executorKeepsValidatedSerialDagUntilParallelApplicationSemanticsLand",
     "o1Consumer=closed_world_admission_o1_reasons+require_dual_o1_tokens_v0",
+    `rewriteCheckerApis=${rewriteCheckerApis.length} rewriteCheckerCallers=${rewriteCheckerCallers.length} trackedRustSourceFiles=${trackedRustSources.length}`,
+    `rewriteCheckerCallerCensus=${rewriteCheckerCallers.map((caller) => `${caller.api}@${caller.sourcePath}:${caller.line}`).join(",")}`,
+    "meaningfulRewriteAssumptionCallers=0 removedHelper=validate_assumptions",
     "",
   ].join("\n"),
 );
@@ -269,6 +334,157 @@ function cargoTest(
 
 function read(sourcePath: string): string {
   return fs.readFileSync(path.join(repoRoot, sourcePath), "utf8");
+}
+
+interface RustSourceFile {
+  readonly sourcePath: string;
+  readonly source: string;
+}
+
+interface FunctionCallSite {
+  readonly sourcePath: string;
+  readonly line: number;
+  readonly argumentCount: number;
+  readonly argumentsText: string;
+}
+
+function trackedRustSourceFiles(): readonly RustSourceFile[] {
+  const sourcePaths = execFileSync("git", ["ls-files", ":(glob)rust/crates/**/*.rs"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  })
+    .trim()
+    .split("\n")
+    .filter(Boolean);
+  assert.ok(sourcePaths.length > 0, "tracked Rust source census is empty");
+  return sourcePaths.map((sourcePath) => ({ sourcePath, source: read(sourcePath) }));
+}
+
+function functionSignature(source: string, functionName: string): string {
+  const anchor = source.indexOf(`fn ${functionName}`);
+  assert.notEqual(anchor, -1, `missing function ${functionName}`);
+  const brace = source.indexOf("{", anchor);
+  assert.notEqual(brace, -1, `missing signature terminator for ${functionName}`);
+  return source.slice(anchor, brace);
+}
+
+function scanFunctionCalls(
+  sourcePath: string,
+  source: string,
+  functionName: string,
+): readonly FunctionCallSite[] {
+  const masked = maskRustCommentsAndStrings(source);
+  const pattern = new RegExp(`\\b${functionName}\\s*\\(`, "gu");
+  const calls: FunctionCallSite[] = [];
+  for (const match of masked.matchAll(pattern)) {
+    const anchor = match.index ?? 0;
+    const prefix = masked.slice(Math.max(0, anchor - 24), anchor);
+    if (/\bfn\s*$/u.test(prefix)) continue;
+    const openParen = masked.indexOf("(", anchor + functionName.length);
+    const parsed = parseCallArguments(source, masked, openParen);
+    calls.push({
+      sourcePath,
+      line: source.slice(0, anchor).split("\n").length,
+      argumentCount: parsed.argumentCount,
+      argumentsText: parsed.argumentsText,
+    });
+  }
+  return calls;
+}
+
+function parseCallArguments(
+  source: string,
+  masked: string,
+  openParen: number,
+): { readonly argumentCount: number; readonly argumentsText: string } {
+  assert.notEqual(openParen, -1, "function call has no opening parenthesis");
+  let parentheses = 0;
+  let brackets = 0;
+  let braces = 0;
+  const commaOffsets: number[] = [];
+  for (let index = openParen + 1; index < masked.length; index += 1) {
+    const character = masked[index];
+    if (character === "(") parentheses += 1;
+    if (character === ")") {
+      if (parentheses === 0 && brackets === 0 && braces === 0) {
+        const argumentsText = source.slice(openParen + 1, index);
+        const trailingArgumentStart = (commaOffsets.at(-1) ?? openParen) + 1;
+        const hasTrailingArgument = masked.slice(trailingArgumentStart, index).trim().length > 0;
+        const argumentCount =
+          argumentsText.trim().length === 0 ? 0 : commaOffsets.length + Number(hasTrailingArgument);
+        return { argumentCount, argumentsText };
+      }
+      parentheses -= 1;
+    }
+    if (character === "[") brackets += 1;
+    if (character === "]") brackets -= 1;
+    if (character === "{") braces += 1;
+    if (character === "}") braces -= 1;
+    if (character === "," && parentheses === 0 && brackets === 0 && braces === 0) {
+      commaOffsets.push(index);
+    }
+  }
+  assert.fail("unterminated function call");
+}
+
+function maskRustCommentsAndStrings(source: string): string {
+  const masked = [...source];
+  let blockCommentDepth = 0;
+  let inLineComment = false;
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    const next = source[index + 1];
+    if (inLineComment) {
+      if (character === "\n") inLineComment = false;
+      else masked[index] = " ";
+      continue;
+    }
+    if (blockCommentDepth > 0) {
+      if (character === "/" && next === "*") {
+        masked[index] = " ";
+        masked[index + 1] = " ";
+        blockCommentDepth += 1;
+        index += 1;
+      } else if (character === "*" && next === "/") {
+        masked[index] = " ";
+        masked[index + 1] = " ";
+        blockCommentDepth -= 1;
+        index += 1;
+      } else if (character !== "\n") {
+        masked[index] = " ";
+      }
+      continue;
+    }
+    if (inString) {
+      if (character !== "\n") masked[index] = " ";
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === '"') inString = false;
+      continue;
+    }
+    if (character === "/" && next === "/") {
+      masked[index] = " ";
+      masked[index + 1] = " ";
+      inLineComment = true;
+      index += 1;
+      continue;
+    }
+    if (character === "/" && next === "*") {
+      masked[index] = " ";
+      masked[index + 1] = " ";
+      blockCommentDepth = 1;
+      index += 1;
+      continue;
+    }
+    if (character === '"') {
+      masked[index] = " ";
+      inString = true;
+    }
+  }
+  return masked.join("");
 }
 
 function functionBody(source: string, functionName: string): string {
