@@ -114,13 +114,31 @@
     {
       "crate": "omena-bundler",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor distinguishes an analyzed empty module reachability set from unavailable analysis and exposes the typed state on bundle reachability carriers and projections.",
+      "reason": "The next pre-1.0 minor distinguishes analyzed-empty reachability from unavailable analysis and binds source dialect to emission-cycle admission so unsupported import cycles fail closed with typed evidence.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
-          "evidenceNeedles": ["field TransformBundleSemanticReachabilityInputV0.analysis"],
+          "evidenceNeedles": [
+            "field EmissionCycleGroupV0.dialect",
+            "field TransformBundleSemanticReachabilityInputV0.analysis",
+            "field LinkerInputV0.dialect"
+          ],
           "witnessLinePrefix": "  field ",
-          "expectedWitnesses": ["TransformBundleSemanticReachabilityInputV0.analysis"]
+          "expectedWitnesses": [
+            "EmissionCycleGroupV0.dialect",
+            "TransformBundleSemanticReachabilityInputV0.analysis",
+            "LinkerInputV0.dialect"
+          ]
+        },
+        {
+          "lint": "enum_variant_added",
+          "evidenceNeedles": [
+            "variant TransformBundleLinkErrorV0:UnsupportedDialectEmissionCycle"
+          ],
+          "witnessLinePrefix": "  variant ",
+          "expectedWitnesses": [
+            "TransformBundleLinkErrorV0:UnsupportedDialectEmissionCycle"
+          ]
         }
       ],
       "expectedRuntimeValueChanges": [
@@ -145,6 +163,30 @@
               "needles": [
                 "fn analyzed_empty_semantic_reachability_narrows_the_module_to_no_symbols()",
                 "fn missing_semantic_reachability_preserves_symbols_with_typed_absence()"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "dialect-import-cycle-admission",
+          "kind": "selection-outcome-changing",
+          "surface": "bundle linker emission-cycle admission and query closed-world blocker projection",
+          "reason": "Import and mixed dependency SCCs now return a typed dialect-and-edge error instead of receiving a deterministic module-identity order; external composition-only cycles remain admitted.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-bundler/src/emission_order.rs",
+              "needles": [
+                "pub enum EmissionCycleDialectV0",
+                "TransformBundleLinkErrorV0::UnsupportedDialectEmissionCycle",
+                "EmissionCycleClassV0::Import | EmissionCycleClassV0::Mixed"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
+              "needles": [
+                "fn dialect_import_cycles_fail_closed_with_typed_classification()",
+                "fn dialect_import_acyclic_chains_remain_linkable()",
+                "fn external_composition_cycles_are_recorded_with_an_explicit_policy()"
               ]
             }
           ]

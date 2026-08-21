@@ -6,9 +6,9 @@ use serde::Serialize;
 
 use crate::{
     BundleResolutionAuthorityV0, GlobalRuleOrderV0, LinkedStylesheetRuleV0, LinkerInputV0,
-    TransformBundleEdgeKind, TransformBundleLinkErrorV0, TransformBundleResolvedDependencyV0,
-    module_instances_by_linker_path, resolve_imported_module_instance_for_edge,
-    selector_kind_label,
+    StyleDialect, TransformBundleEdgeKind, TransformBundleLinkErrorV0,
+    TransformBundleResolvedDependencyV0, module_instances_by_linker_path,
+    resolve_imported_module_instance_for_edge, selector_kind_label,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -38,6 +38,27 @@ pub enum EmissionCycleClassV0 {
     Import,
     Composition,
     Mixed,
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+/// Identifies the source-language family represented by an emission cycle.
+pub enum EmissionCycleDialectV0 {
+    Css,
+    Scss,
+    Sass,
+    Less,
+    Mixed,
+}
+
+fn emission_cycle_dialect(dialect: StyleDialect) -> EmissionCycleDialectV0 {
+    match dialect {
+        StyleDialect::Css => EmissionCycleDialectV0::Css,
+        StyleDialect::Scss => EmissionCycleDialectV0::Scss,
+        StyleDialect::Sass => EmissionCycleDialectV0::Sass,
+        StyleDialect::Less => EmissionCycleDialectV0::Less,
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -73,6 +94,7 @@ pub struct EmissionCycleGroupV0 {
     pub members: Vec<ModuleInstanceKeyV0>,
     pub chosen_order: Vec<ModuleInstanceKeyV0>,
     pub class: EmissionCycleClassV0,
+    pub dialect: EmissionCycleDialectV0,
     pub policy: EmissionCyclePolicyV0,
 }
 
@@ -126,7 +148,7 @@ pub(crate) fn build_emission_module_plan(
         resolved_dependencies,
         resolution_authority,
     )?;
-    let cycle_groups = build_cycle_groups(linked_modules, &dependency_facts)?;
+    let cycle_groups = build_cycle_groups(inputs, linked_modules, &dependency_facts)?;
     let module_order = match policy {
         EmissionOrderingPolicyV0::ModuleIdLegacy => linked_modules.to_vec(),
         EmissionOrderingPolicyV0::ImportOrderPreserving => import_ordered_modules(
@@ -356,9 +378,14 @@ fn collect_emission_dependency_facts(
 }
 
 fn build_cycle_groups(
+    inputs: &[LinkerInputV0],
     linked_modules: &[ModuleInstanceKeyV0],
     dependency_facts: &[EmissionDependencyFactV0],
 ) -> Result<Vec<EmissionCycleGroupV0>, TransformBundleLinkErrorV0> {
+    let dialects_by_instance = inputs
+        .iter()
+        .map(|input| (input.instance.clone(), input.dialect))
+        .collect::<BTreeMap<_, _>>();
     let mut adjacency = linked_modules
         .iter()
         .cloned()
@@ -406,9 +433,13 @@ fn build_cycle_groups(
         let member_set = members.iter().cloned().collect::<BTreeSet<_>>();
         let mut has_import = false;
         let mut has_composition = false;
+        let mut edge_kinds = Vec::new();
         for fact in dependency_facts.iter().filter(|fact| {
             member_set.contains(&fact.from_module) && member_set.contains(&fact.to_module)
         }) {
+            if !edge_kinds.contains(&fact.edge_kind) {
+                edge_kinds.push(fact.edge_kind);
+            }
             match fact.edge_kind {
                 TransformBundleEdgeKind::CssModuleComposesExternal => has_composition = true,
                 TransformBundleEdgeKind::CssModuleComposesLocal => {
@@ -435,10 +466,47 @@ fn build_cycle_groups(
                 });
             }
         };
+        edge_kinds.sort_by_key(|edge_kind| edge_kind.as_wire_label());
+        let cycle_dialects = members
+            .iter()
+            .map(|member| {
+                dialects_by_instance.get(member).copied().ok_or_else(|| {
+                    TransformBundleLinkErrorV0::InvalidEmissionPlan {
+                        reason: format!(
+                            "cycle member {} has no source dialect",
+                            member.module().as_str()
+                        ),
+                    }
+                })
+            })
+            .collect::<Result<BTreeSet<_>, _>>()?;
+        let dialect = if cycle_dialects.len() == 1 {
+            let source_dialect = cycle_dialects.first().copied().ok_or_else(|| {
+                TransformBundleLinkErrorV0::InvalidEmissionPlan {
+                    reason: "cycle group has no source dialect".to_string(),
+                }
+            })?;
+            emission_cycle_dialect(source_dialect)
+        } else {
+            EmissionCycleDialectV0::Mixed
+        };
+        if matches!(
+            class,
+            EmissionCycleClassV0::Import | EmissionCycleClassV0::Mixed
+        ) {
+            return Err(
+                TransformBundleLinkErrorV0::UnsupportedDialectEmissionCycle {
+                    dialect,
+                    class,
+                    edge_kinds,
+                },
+            );
+        }
         groups.push(EmissionCycleGroupV0 {
             chosen_order: members.clone(),
             members,
             class,
+            dialect,
             policy: EmissionCyclePolicyV0::ModuleIdentity,
         });
     }

@@ -5014,7 +5014,8 @@ fn closed_world_blocker_from_link_error(
             }
         },
         TransformBundleLinkErrorV0::InvalidEmissionPlan { .. }
-        | TransformBundleLinkErrorV0::UnsupportedEmissionCycle { .. } => {
+        | TransformBundleLinkErrorV0::UnsupportedEmissionCycle { .. }
+        | TransformBundleLinkErrorV0::UnsupportedDialectEmissionCycle { .. } => {
             OmenaQueryClosedWorldBlockerV0::ClosedWorldPassUnavailable {
                 requested_pass_ids: requested_pass_ids.to_vec(),
             }
@@ -6708,7 +6709,10 @@ mod dependency_resolution_tests {
 mod closed_world_link_error_tests {
     use super::closed_world_blocker_from_link_error;
     use crate::OmenaQueryClosedWorldBlockerV0;
-    use omena_query_transform_runner::{TransformBundleEdgeKind, TransformBundleLinkErrorV0};
+    use omena_query_transform_runner::{
+        EmissionCycleClassV0, EmissionCycleDialectV0, TransformBundleEdgeKind,
+        TransformBundleLinkErrorV0,
+    };
 
     #[test]
     fn engine_only_emission_failures_preserve_the_sdk_blocker_contract() {
@@ -6723,6 +6727,11 @@ mod closed_world_link_error_tests {
             },
             TransformBundleLinkErrorV0::UnsupportedEmissionCycle {
                 edge_kind: TransformBundleEdgeKind::SassUse,
+            },
+            TransformBundleLinkErrorV0::UnsupportedDialectEmissionCycle {
+                dialect: EmissionCycleDialectV0::Scss,
+                class: EmissionCycleClassV0::Import,
+                edge_kinds: vec![TransformBundleEdgeKind::SassUse],
             },
         ] {
             assert_eq!(

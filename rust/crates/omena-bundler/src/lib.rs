@@ -18,8 +18,8 @@ pub use emission_items::{
     LinkedEmissionItemOrderV0, LinkedEmissionItemV0, TransformBundleEmissionItemProjectionV0,
 };
 pub use emission_order::{
-    EmissionCycleClassV0, EmissionCycleGroupV0, EmissionCyclePolicyV0, EmissionDependencyFactV0,
-    EmissionOrderKeyV0, EmissionOrderingPolicyV0, EmissionPlanV0,
+    EmissionCycleClassV0, EmissionCycleDialectV0, EmissionCycleGroupV0, EmissionCyclePolicyV0,
+    EmissionDependencyFactV0, EmissionOrderKeyV0, EmissionOrderingPolicyV0, EmissionPlanV0,
 };
 
 use omena_cascade::{
@@ -479,6 +479,8 @@ pub struct LinkerRuleV0 {
 #[serde(rename_all = "camelCase")]
 pub struct LinkerInputV0 {
     pub source_path: String,
+    #[serde(serialize_with = "serialize_style_dialect")]
+    pub dialect: StyleDialect,
     pub instance: ModuleInstanceKeyV0,
     pub dependency_edges: Vec<LinkerDependencyEdgeV0>,
     pub class_names: Vec<String>,
@@ -919,6 +921,11 @@ pub enum TransformBundleLinkErrorV0 {
     UnsupportedEmissionCycle {
         edge_kind: TransformBundleEdgeKind,
     },
+    UnsupportedDialectEmissionCycle {
+        dialect: EmissionCycleDialectV0,
+        class: EmissionCycleClassV0,
+        edge_kinds: Vec<TransformBundleEdgeKind>,
+    },
 }
 
 pub fn summarize_omena_transform_bundle_from_source(
@@ -1106,6 +1113,7 @@ pub fn project_omena_transform_bundle_linker_inputs_from_parsed_modules_with_ins
         for instance in module.module_instance_keys() {
             inputs.push(linker_input_from_module_facts(
                 source_path.as_str(),
+                module.dialect,
                 instance,
                 &module.facts,
                 bundle_edges.as_slice(),
@@ -1908,12 +1916,14 @@ pub fn rewrite_omena_transform_bundle_asset_urls_in_source(
 
 fn linker_input_from_module_facts(
     source_path: &str,
+    dialect: StyleDialect,
     instance: ModuleInstanceKeyV0,
     facts: &ParsedStyleFacts,
     bundle_edges: &[TransformBundleEdgeV0],
 ) -> LinkerInputV0 {
     LinkerInputV0 {
         source_path: source_path.to_string(),
+        dialect,
         instance,
         dependency_edges: bundle_edges
             .iter()
@@ -2572,6 +2582,13 @@ where
     S: serde::Serializer,
 {
     serializer.serialize_str(selector_kind_label(*kind))
+}
+
+fn serialize_style_dialect<S>(dialect: &StyleDialect, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(dialect_label(*dialect))
 }
 
 fn dedupe_names(names: impl IntoIterator<Item = String>) -> Vec<String> {
@@ -3493,6 +3510,7 @@ mod tests {
         let inputs = [
             LinkerInputV0 {
                 source_path: "a.css".to_string(),
+                dialect: StyleDialect::Css,
                 instance: first.clone(),
                 dependency_edges: Vec::new(),
                 class_names: vec!["first".to_string()],
@@ -3508,6 +3526,7 @@ mod tests {
             },
             LinkerInputV0 {
                 source_path: "b.css".to_string(),
+                dialect: StyleDialect::Css,
                 instance: second.clone(),
                 dependency_edges: Vec::new(),
                 class_names: vec!["second".to_string()],
@@ -3815,7 +3834,7 @@ mod tests {
     }
 
     #[test]
-    fn dependency_cycles_are_recorded_with_an_explicit_policy() -> Result<(), String> {
+    fn external_composition_cycles_are_recorded_with_an_explicit_policy() -> Result<(), String> {
         let first = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("a.css"));
         let second = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("b.css"));
         let input = |source_path: &str,
@@ -3823,9 +3842,10 @@ mod tests {
                      import_source: &str,
                      selector: &str| LinkerInputV0 {
             source_path: source_path.to_string(),
+            dialect: StyleDialect::Css,
             instance,
             dependency_edges: vec![LinkerDependencyEdgeV0 {
-                kind: TransformBundleEdgeKind::CssImport,
+                kind: TransformBundleEdgeKind::CssModuleComposesExternal,
                 import_source: import_source.to_string(),
                 import_ordinal: Some(0),
                 local_names: Vec::new(),
@@ -3853,9 +3873,133 @@ mod tests {
 
         assert_eq!(linked.emission_plan.cycle_groups.len(), 1);
         let group = &linked.emission_plan.cycle_groups[0];
-        assert_eq!(group.class, super::EmissionCycleClassV0::Import);
+        assert_eq!(group.class, super::EmissionCycleClassV0::Composition);
+        assert_eq!(group.dialect, super::EmissionCycleDialectV0::Css);
         assert_eq!(group.policy, super::EmissionCyclePolicyV0::ModuleIdentity);
         assert_eq!(group.members, group.chosen_order);
+        Ok(())
+    }
+
+    #[test]
+    fn dialect_import_cycles_fail_closed_with_typed_classification() {
+        let fixtures = [
+            (
+                "css",
+                StyleDialect::Css,
+                super::EmissionCycleDialectV0::Css,
+                TransformBundleEdgeKind::CssImport,
+                "a.css",
+                "b.css",
+                "@import \"./b.css\"; .a { color: red; }",
+                "@import \"./a.css\"; .b { color: blue; }",
+            ),
+            (
+                "scss",
+                StyleDialect::Scss,
+                super::EmissionCycleDialectV0::Scss,
+                TransformBundleEdgeKind::SassUse,
+                "a.scss",
+                "b.scss",
+                "@use \"./b.scss\"; .a { color: red; }",
+                "@use \"./a.scss\"; .b { color: blue; }",
+            ),
+            (
+                "sass",
+                StyleDialect::Sass,
+                super::EmissionCycleDialectV0::Sass,
+                TransformBundleEdgeKind::SassForward,
+                "a.sass",
+                "b.sass",
+                "@forward \"./b.sass\"\n.a\n  color: red",
+                "@forward \"./a.sass\"\n.b\n  color: blue",
+            ),
+            (
+                "less",
+                StyleDialect::Less,
+                super::EmissionCycleDialectV0::Less,
+                TransformBundleEdgeKind::LessImport,
+                "a.less",
+                "b.less",
+                "@import \"./b.less\"; .a { color: red; }",
+                "@import \"./a.less\"; .b { color: blue; }",
+            ),
+        ];
+
+        for (
+            label,
+            dialect,
+            expected_dialect,
+            expected_edge_kind,
+            first_path,
+            second_path,
+            first_source,
+            second_source,
+        ) in fixtures
+        {
+            let modules = vec![
+                TransformBundleModuleInputV0::new(first_path, first_source, dialect),
+                TransformBundleModuleInputV0::new(second_path, second_source, dialect),
+            ];
+            let error = link_omena_transform_bundle_modules(&[first_path], modules.as_slice())
+                .expect_err("dialect import cycle must fail closed");
+            assert_eq!(
+                error,
+                TransformBundleLinkErrorV0::UnsupportedDialectEmissionCycle {
+                    dialect: expected_dialect,
+                    class: super::EmissionCycleClassV0::Import,
+                    edge_kinds: vec![expected_edge_kind],
+                },
+                "{label} import cycle must preserve its dialect and edge classification"
+            );
+            eprintln!(
+                "EMISSION_DIALECT_CYCLE_ERROR={}",
+                serde_json::to_string(&error).expect("cycle error must serialize")
+            );
+        }
+    }
+
+    #[test]
+    fn dialect_import_acyclic_chains_remain_linkable() -> Result<(), String> {
+        let fixtures = [
+            (
+                StyleDialect::Css,
+                "a.css",
+                "b.css",
+                "@import \"./b.css\"; .a { color: red; }",
+                ".b { color: blue; }",
+            ),
+            (
+                StyleDialect::Scss,
+                "a.scss",
+                "b.scss",
+                "@use \"./b.scss\"; .a { color: red; }",
+                ".b { color: blue; }",
+            ),
+            (
+                StyleDialect::Sass,
+                "a.sass",
+                "b.sass",
+                "@forward \"./b.sass\"\n.a\n  color: red",
+                ".b\n  color: blue",
+            ),
+            (
+                StyleDialect::Less,
+                "a.less",
+                "b.less",
+                "@import \"./b.less\"; .a { color: red; }",
+                ".b { color: blue; }",
+            ),
+        ];
+
+        for (dialect, first_path, second_path, first_source, second_source) in fixtures {
+            let modules = vec![
+                TransformBundleModuleInputV0::new(first_path, first_source, dialect),
+                TransformBundleModuleInputV0::new(second_path, second_source, dialect),
+            ];
+            let linked = link_omena_transform_bundle_modules(&[first_path], modules.as_slice())
+                .map_err(|error| format!("{dialect:?} acyclic chain: {error:?}"))?;
+            assert!(linked.emission_plan.cycle_groups.is_empty());
+        }
         Ok(())
     }
 
@@ -3866,6 +4010,7 @@ mod tests {
         let input =
             |source_path: &str, instance: ModuleInstanceKeyV0, import_source: &str| LinkerInputV0 {
                 source_path: source_path.to_string(),
+                dialect: StyleDialect::Css,
                 instance,
                 dependency_edges: vec![LinkerDependencyEdgeV0 {
                     kind: TransformBundleEdgeKind::CssModuleComposesLocal,
@@ -4343,6 +4488,7 @@ mod tests {
         let mut inputs = vec![
             LinkerInputV0 {
                 source_path: "shared.module.css".to_string(),
+                dialect: StyleDialect::Css,
                 instance: red.clone(),
                 dependency_edges: Vec::new(),
                 class_names: vec!["alpha".to_string(), "beta".to_string()],
@@ -4353,6 +4499,7 @@ mod tests {
             },
             LinkerInputV0 {
                 source_path: "shared.module.css".to_string(),
+                dialect: StyleDialect::Css,
                 instance: blue.clone(),
                 dependency_edges: Vec::new(),
                 class_names: vec!["alpha".to_string(), "beta".to_string()],
@@ -4392,6 +4539,7 @@ mod tests {
         let instance = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("shared.module.css"));
         let mut inputs = vec![LinkerInputV0 {
             source_path: "shared.module.css".to_string(),
+            dialect: StyleDialect::Css,
             instance: instance.clone(),
             dependency_edges: Vec::new(),
             class_names: vec!["alpha".to_string(), "beta".to_string()],
@@ -4461,6 +4609,7 @@ mod tests {
         let mut inputs = vec![
             LinkerInputV0 {
                 source_path: "entry.module.css".to_string(),
+                dialect: StyleDialect::Css,
                 instance: source.clone(),
                 dependency_edges: vec![LinkerDependencyEdgeV0 {
                     kind: TransformBundleEdgeKind::CssModuleComposesExternal,
@@ -4477,6 +4626,7 @@ mod tests {
             },
             LinkerInputV0 {
                 source_path: "base.module.css".to_string(),
+                dialect: StyleDialect::Css,
                 instance: target.clone(),
                 dependency_edges: Vec::new(),
                 class_names: vec!["base".to_string(), "other".to_string()],
@@ -4615,6 +4765,7 @@ mod tests {
             &[
                 LinkerInputV0 {
                     source_path: "src/app.module.css".to_string(),
+                    dialect: StyleDialect::Css,
                     instance: app.clone(),
                     dependency_edges: vec![LinkerDependencyEdgeV0 {
                         kind: TransformBundleEdgeKind::CssImport,
@@ -4636,6 +4787,7 @@ mod tests {
                 },
                 LinkerInputV0 {
                     source_path: "src/theme.css".to_string(),
+                    dialect: StyleDialect::Css,
                     instance: theme,
                     dependency_edges: Vec::new(),
                     class_names: vec!["theme".to_string()],
