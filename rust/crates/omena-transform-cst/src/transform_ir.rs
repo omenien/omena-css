@@ -22,6 +22,33 @@ pub struct TransformIrMetadataTelemetryV0 {
     pub ir_mutation_count: u64,
 }
 
+/// Structural cost counters for IR transactions. Timings remain contextual;
+/// these counts expose the clone/share and validation slopes directly.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct TransformIrTransactionCostTelemetryV0 {
+    pub transaction_count: u64,
+    pub input_node_count: u64,
+    pub snapshotted_node_count: u64,
+    pub shifted_global_order_node_count: u64,
+    pub whole_validation_pass_count: u64,
+    pub whole_validation_outer_node_visit_count: u64,
+    pub delta_validation_pass_count: u64,
+    pub delta_validation_node_visit_count: u64,
+}
+
+impl TransformIrTransactionCostTelemetryV0 {
+    pub fn shared_node_fraction(self) -> f64 {
+        if self.input_node_count == 0 {
+            return 1.0;
+        }
+        self.input_node_count
+            .saturating_sub(self.snapshotted_node_count) as f64
+            / self.input_node_count as f64
+    }
+}
+
 impl TransformIrMetadataTelemetryV0 {
     pub const fn refresh_conservation_holds(self) -> bool {
         self.ir_metadata_refresh_count
@@ -40,6 +67,18 @@ thread_local! {
                 ir_materialization_count: 0,
                 ir_mutation_count: 0,
             }) };
+    static TRANSFORM_IR_TRANSACTION_COST_TELEMETRY:
+        Cell<TransformIrTransactionCostTelemetryV0> =
+            const { Cell::new(TransformIrTransactionCostTelemetryV0 {
+                transaction_count: 0,
+                input_node_count: 0,
+                snapshotted_node_count: 0,
+                shifted_global_order_node_count: 0,
+                whole_validation_pass_count: 0,
+                whole_validation_outer_node_visit_count: 0,
+                delta_validation_pass_count: 0,
+                delta_validation_node_visit_count: 0,
+            }) };
 }
 
 pub fn reset_transform_ir_metadata_telemetry() {
@@ -50,6 +89,64 @@ pub fn reset_transform_ir_metadata_telemetry() {
 
 pub fn transform_ir_metadata_telemetry_snapshot() -> TransformIrMetadataTelemetryV0 {
     TRANSFORM_IR_METADATA_TELEMETRY.with(Cell::get)
+}
+
+pub fn reset_transform_ir_transaction_cost_telemetry() {
+    TRANSFORM_IR_TRANSACTION_COST_TELEMETRY.with(|telemetry| {
+        telemetry.set(TransformIrTransactionCostTelemetryV0::default());
+    });
+}
+
+pub fn transform_ir_transaction_cost_telemetry_snapshot() -> TransformIrTransactionCostTelemetryV0 {
+    TRANSFORM_IR_TRANSACTION_COST_TELEMETRY.with(Cell::get)
+}
+
+fn record_transform_ir_transaction_start(node_count: usize) {
+    TRANSFORM_IR_TRANSACTION_COST_TELEMETRY.with(|telemetry| {
+        let mut snapshot = telemetry.get();
+        snapshot.transaction_count = snapshot.transaction_count.saturating_add(1);
+        snapshot.input_node_count = snapshot.input_node_count.saturating_add(node_count as u64);
+        telemetry.set(snapshot);
+    });
+}
+
+fn record_transform_ir_node_snapshot() {
+    TRANSFORM_IR_TRANSACTION_COST_TELEMETRY.with(|telemetry| {
+        let mut snapshot = telemetry.get();
+        snapshot.snapshotted_node_count = snapshot.snapshotted_node_count.saturating_add(1);
+        telemetry.set(snapshot);
+    });
+}
+
+fn record_transform_ir_global_order_shift() {
+    TRANSFORM_IR_TRANSACTION_COST_TELEMETRY.with(|telemetry| {
+        let mut snapshot = telemetry.get();
+        snapshot.shifted_global_order_node_count =
+            snapshot.shifted_global_order_node_count.saturating_add(1);
+        telemetry.set(snapshot);
+    });
+}
+
+fn record_transform_ir_validation_cost(node_count: usize, changed_node_count: usize) {
+    const WHOLE_VALIDATION_PASS_COUNT: u64 = 5;
+    const DELTA_VALIDATION_PASS_COUNT: u64 = 2;
+    TRANSFORM_IR_TRANSACTION_COST_TELEMETRY.with(|telemetry| {
+        let mut snapshot = telemetry.get();
+        snapshot.whole_validation_pass_count = snapshot
+            .whole_validation_pass_count
+            .saturating_add(WHOLE_VALIDATION_PASS_COUNT);
+        snapshot.whole_validation_outer_node_visit_count = snapshot
+            .whole_validation_outer_node_visit_count
+            .saturating_add((node_count as u64).saturating_mul(WHOLE_VALIDATION_PASS_COUNT));
+        snapshot.delta_validation_pass_count = snapshot
+            .delta_validation_pass_count
+            .saturating_add(DELTA_VALIDATION_PASS_COUNT);
+        snapshot.delta_validation_node_visit_count =
+            snapshot.delta_validation_node_visit_count.saturating_add(
+                (changed_node_count as u64).saturating_mul(DELTA_VALIDATION_PASS_COUNT),
+            );
+        telemetry.set(snapshot);
+    });
 }
 
 fn record_transform_ir_metadata_refresh() {
@@ -425,11 +522,16 @@ pub enum IrTransactionErrorV0 {
 }
 
 pub struct IrTransactionV0<'ir> {
-    ir: &'ir mut TransformIrV0,
-    working: TransformIrV0,
+    working: &'ir mut TransformIrV0,
     pass_id: String,
     declared_region: IrEditRegionV0,
     changed_node_ids: Vec<IrNodeIdV0>,
+    original_nodes_len: usize,
+    original_origins_len: usize,
+    original_root_nodes: Option<Vec<IrNodeIdV0>>,
+    original_nodes: BTreeMap<usize, IrNodeV0>,
+    original_global_orders: BTreeMap<usize, usize>,
+    committed: bool,
 }
 
 struct IrSubtreeCopyStateV0<'inserted, 'mapping, 'copied> {
@@ -833,13 +935,65 @@ impl<'ir> IrTransactionV0<'ir> {
         pass_id: impl Into<String>,
         declared_region: IrEditRegionV0,
     ) -> Self {
+        record_transform_ir_transaction_start(ir.nodes.len());
         Self {
-            working: ir.clone(),
-            ir,
+            original_nodes_len: ir.nodes.len(),
+            original_origins_len: ir.origins.len(),
+            working: ir,
             pass_id: pass_id.into(),
             declared_region,
             changed_node_ids: Vec::new(),
+            original_root_nodes: None,
+            original_nodes: BTreeMap::new(),
+            original_global_orders: BTreeMap::new(),
+            committed: false,
         }
+    }
+
+    fn record_node_before_mutation(&mut self, node_id: IrNodeIdV0) {
+        let node_index = node_id.index();
+        if node_index >= self.original_nodes_len || self.original_nodes.contains_key(&node_index) {
+            return;
+        }
+        let mut original = self.working.nodes[node_index].clone();
+        if let Some(global_order) = self.original_global_orders.get(&node_index) {
+            original.global_order = *global_order;
+        }
+        self.original_nodes.insert(node_index, original);
+        record_transform_ir_node_snapshot();
+    }
+
+    fn record_global_order_before_mutation(&mut self, node_id: IrNodeIdV0) {
+        let node_index = node_id.index();
+        if node_index >= self.original_nodes_len || self.original_nodes.contains_key(&node_index) {
+            return;
+        }
+        self.original_global_orders
+            .entry(node_index)
+            .or_insert(self.working.nodes[node_index].global_order);
+    }
+
+    fn record_root_nodes_before_mutation(&mut self) {
+        if self.original_root_nodes.is_none() {
+            self.original_root_nodes = Some(self.working.root_nodes.clone());
+        }
+    }
+
+    fn rollback(&mut self) {
+        self.working.nodes.truncate(self.original_nodes_len);
+        self.working.origins.truncate(self.original_origins_len);
+        for (node_index, original) in std::mem::take(&mut self.original_nodes) {
+            self.working.nodes[node_index] = original;
+        }
+        for (node_index, global_order) in std::mem::take(&mut self.original_global_orders) {
+            if node_index < self.working.nodes.len() {
+                self.working.nodes[node_index].global_order = global_order;
+            }
+        }
+        if let Some(root_nodes) = self.original_root_nodes.take() {
+            self.working.root_nodes = root_nodes;
+        }
+        self.working.indexes.take();
     }
 
     pub fn replace_node(
@@ -884,6 +1038,7 @@ impl<'ir> IrTransactionV0<'ir> {
         self.mark_node_synthesized(node_id, String::new(), true)?;
         self.working.nodes[node_id.index()].children = retained_children;
         for child_id in &promoted_children {
+            self.record_node_before_mutation(*child_id);
             self.working.nodes[child_id.index()].parent = node.parent;
         }
         self.promote_nodes_after_anchor(node_id, &promoted_children);
@@ -902,10 +1057,17 @@ impl<'ir> IrTransactionV0<'ir> {
             });
         };
         let anchor_order = anchor.global_order;
-        for node in &mut self.working.nodes {
-            if node.global_order >= anchor_order {
-                node.global_order += 1;
-            }
+        let shifted_node_ids = self
+            .working
+            .nodes
+            .iter()
+            .filter(|node| node.global_order >= anchor_order)
+            .map(|node| node.node_id)
+            .collect::<Vec<_>>();
+        for shifted_node_id in shifted_node_ids {
+            self.record_global_order_before_mutation(shifted_node_id);
+            self.working.nodes[shifted_node_id.index()].global_order += 1;
+            record_transform_ir_global_order_shift();
         }
         let node_id = IrNodeIdV0(self.working.nodes.len());
         let origin_index = self.push_synthesized_origin([anchor_id]);
@@ -954,10 +1116,17 @@ impl<'ir> IrTransactionV0<'ir> {
             .iter()
             .map(|root_id| active_subtree_node_count(inserted_ir, *root_id))
             .sum::<usize>();
-        for node in &mut self.working.nodes {
-            if node.global_order >= anchor.global_order {
-                node.global_order += insertion_count;
-            }
+        let shifted_node_ids = self
+            .working
+            .nodes
+            .iter()
+            .filter(|node| node.global_order >= anchor.global_order)
+            .map(|node| node.node_id)
+            .collect::<Vec<_>>();
+        for shifted_node_id in shifted_node_ids {
+            self.record_global_order_before_mutation(shifted_node_id);
+            self.working.nodes[shifted_node_id.index()].global_order += insertion_count;
+            record_transform_ir_global_order_shift();
         }
 
         let mut copied_roots = Vec::with_capacity(root_ids.len());
@@ -1019,6 +1188,7 @@ impl<'ir> IrTransactionV0<'ir> {
                 node_index: node_id.index(),
             });
         }
+        self.record_node_before_mutation(node_id);
         let origin_index = self.push_synthesized_origin([node_id]);
         let node = &mut self.working.nodes[node_id.index()];
         node.origin_index = origin_index;
@@ -1140,17 +1310,27 @@ impl<'ir> IrTransactionV0<'ir> {
     fn insert_node_in_parent(&mut self, anchor_id: IrNodeIdV0, node_id: IrNodeIdV0) {
         let parent = self.working.nodes[node_id.index()].parent;
         match parent {
-            Some(parent_id) => insert_before_in_list(
-                &mut self.working.nodes[parent_id.index()].children,
-                anchor_id,
-                node_id,
-            ),
-            None => insert_before_in_list(&mut self.working.root_nodes, anchor_id, node_id),
+            Some(parent_id) => {
+                self.record_node_before_mutation(parent_id);
+                insert_before_in_list(
+                    &mut self.working.nodes[parent_id.index()].children,
+                    anchor_id,
+                    node_id,
+                )
+            }
+            None => {
+                self.record_root_nodes_before_mutation();
+                insert_before_in_list(&mut self.working.root_nodes, anchor_id, node_id)
+            }
         }
     }
 
     fn promote_nodes_after_anchor(&mut self, anchor_id: IrNodeIdV0, node_ids: &[IrNodeIdV0]) {
         let parent = self.working.nodes[anchor_id.index()].parent;
+        match parent {
+            Some(parent_id) => self.record_node_before_mutation(parent_id),
+            None => self.record_root_nodes_before_mutation(),
+        }
         let list = match parent {
             Some(parent_id) => &mut self.working.nodes[parent_id.index()].children,
             None => &mut self.working.root_nodes,
@@ -1175,6 +1355,14 @@ impl<'ir> IrTransactionV0<'ir> {
     ) -> bool {
         wrapper_kind != IrNodeKindV0::StyleRule
             || self.working.nodes[child_id.index()].kind != IrNodeKindV0::Selector
+    }
+}
+
+impl Drop for IrTransactionV0<'_> {
+    fn drop(&mut self) {
+        if !self.committed {
+            self.rollback();
+        }
     }
 }
 
@@ -1447,16 +1635,16 @@ mod sealed_metadata_refresh {
 
     impl IrTransactionV0<'_> {
         pub fn commit(mut self) -> Result<(), IrTransactionErrorV0> {
-            validate_transaction_commit(
-                &self.working,
-                &self.changed_node_ids,
-                self.declared_region,
-            )
-            .map_err(IrTransactionErrorV0::Validation)?;
+            record_transform_ir_validation_cost(
+                self.working.nodes.len(),
+                self.changed_node_ids.len(),
+            );
+            validate_transaction_commit(self.working, &self.changed_node_ids, self.declared_region)
+                .map_err(IrTransactionErrorV0::Validation)?;
             record_transform_ir_transaction_commit();
-            refresh_transform_ir_metadata(&mut self.working);
-            self.working.ir_epoch = self.ir.ir_epoch.saturating_add(1);
-            *self.ir = self.working;
+            refresh_transform_ir_metadata(self.working);
+            self.working.ir_epoch = self.working.ir_epoch.saturating_add(1);
+            self.committed = true;
             Ok(())
         }
     }
@@ -3364,8 +3552,9 @@ mod tests {
         IrTransactionValidationErrorV0, NodeTextOriginV0, TransformIrParseErrorSpanV0,
         TransformIrPrintErrorV0, build_indexes, has_less_mixin_declaration_owner,
         lower_transform_ir_from_source, materialize_transform_ir_printed_source,
-        print_transform_ir_css, summarize_transform_ir_identity_round_trip,
-        validate_transaction_commit,
+        print_transform_ir_css, reset_transform_ir_transaction_cost_telemetry,
+        summarize_transform_ir_identity_round_trip,
+        transform_ir_transaction_cost_telemetry_snapshot, validate_transaction_commit,
     };
     use omena_parser::StyleDialect;
     use std::collections::{BTreeMap, BTreeSet};
@@ -3392,6 +3581,143 @@ mod tests {
         assert_eq!(summary.synthesized_node_count, 0);
         assert_eq!(summary.printed_css, source);
         assert!(summary.node_count >= 5);
+        Ok(())
+    }
+
+    #[test]
+    fn ir_transaction_edit_log_snapshots_only_changed_nodes() -> Result<(), String> {
+        let source = (0..96)
+            .map(|index| format!(".rule-{index} {{ color: red; margin: {index}px; }}\n"))
+            .collect::<String>();
+        let mut ir = lower_transform_ir_from_source(
+            source.as_str(),
+            StyleDialect::Css,
+            "transaction-cost.css",
+        );
+        let value = ir
+            .nodes
+            .iter()
+            .find(|node| {
+                node.kind == IrNodeKindV0::Value
+                    && ir
+                        .source_text()
+                        .get(node.source_span_start..node.source_span_end)
+                        .is_some_and(|text| text.trim() == "red")
+            })
+            .map(|node| node.node_id)
+            .ok_or_else(|| "fixture must contain a value node".to_string())?;
+        let node_count = ir.nodes.len();
+        let source_byte_len = ir.source_byte_len;
+        reset_transform_ir_transaction_cost_telemetry();
+
+        let mut transaction = IrTransactionV0::new(
+            &mut ir,
+            "single-value",
+            IrEditRegionV0::full(source_byte_len),
+        );
+        transaction
+            .rewrite_value(value, "blue")
+            .map_err(|error| format!("rewrite should succeed: {error:?}"))?;
+        transaction
+            .commit()
+            .map_err(|error| format!("commit should succeed: {error:?}"))?;
+
+        let telemetry = transform_ir_transaction_cost_telemetry_snapshot();
+        assert_eq!(telemetry.transaction_count, 1);
+        assert_eq!(telemetry.input_node_count, node_count as u64);
+        assert_eq!(telemetry.snapshotted_node_count, 1);
+        assert!(
+            telemetry.shared_node_fraction() >= 0.99,
+            "a one-node rewrite should preserve at least 99% of the arena without snapshots"
+        );
+        assert_eq!(telemetry.shifted_global_order_node_count, 0);
+        assert_eq!(telemetry.whole_validation_pass_count, 5);
+        assert_eq!(
+            telemetry.whole_validation_outer_node_visit_count,
+            (node_count as u64) * 5
+        );
+        assert_eq!(telemetry.delta_validation_pass_count, 2);
+        assert_eq!(telemetry.delta_validation_node_visit_count, 2);
+        let printed = print_transform_ir_css(&ir)
+            .map_err(|error| format!("edited IR should print: {error:?}"))?;
+        assert!(printed.contains("blue"), "printed={printed:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn dropped_ir_transaction_rolls_back_mutate_through_share() -> Result<(), String> {
+        let source = ".card { color: red; }";
+        let mut ir = lower_transform_ir_from_source(source, StyleDialect::Css, "rollback.css");
+        let before = ir.clone();
+        let value = ir
+            .nodes
+            .iter()
+            .find(|node| node.kind == IrNodeKindV0::Value)
+            .map(|node| node.node_id)
+            .ok_or_else(|| "fixture must contain a value node".to_string())?;
+        let source_byte_len = ir.source_byte_len;
+        {
+            let mut transaction = IrTransactionV0::new(
+                &mut ir,
+                "uncommitted",
+                IrEditRegionV0::full(source_byte_len),
+            );
+            transaction
+                .rewrite_value(value, "poisoned")
+                .map_err(|error| format!("seed mutation should succeed: {error:?}"))?;
+        }
+
+        assert_eq!(ir, before, "dropping an edit log must restore the base IR");
+        assert_eq!(
+            print_transform_ir_css(&ir)
+                .map_err(|error| format!("rolled-back IR should print: {error:?}"))?,
+            source
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn ir_transaction_reports_the_remaining_global_order_suffix_cost() -> Result<(), String> {
+        let source = (0..32)
+            .map(|index| format!(".rule-{index} {{ color: red; }}\n"))
+            .collect::<String>();
+        let mut ir =
+            lower_transform_ir_from_source(source.as_str(), StyleDialect::Css, "order-cost.css");
+        let anchor = *ir
+            .root_nodes
+            .first()
+            .ok_or_else(|| "fixture must contain a root".to_string())?;
+        let original_node_count = ir.nodes.len();
+        let source_byte_len = ir.source_byte_len;
+        reset_transform_ir_transaction_cost_telemetry();
+
+        let mut transaction = IrTransactionV0::new(
+            &mut ir,
+            "insert-root",
+            IrEditRegionV0::full(source_byte_len),
+        );
+        transaction
+            .insert_before(anchor, IrNodeKindV0::AtRule, "@charset \"UTF-8\";")
+            .map_err(|error| format!("insert should succeed: {error:?}"))?;
+        transaction
+            .commit()
+            .map_err(|error| format!("insert commit should succeed: {error:?}"))?;
+
+        let telemetry = transform_ir_transaction_cost_telemetry_snapshot();
+        assert_eq!(telemetry.snapshotted_node_count, 0);
+        assert_eq!(
+            telemetry.shifted_global_order_node_count, original_node_count as u64,
+            "inserting at the first observable order slot still shifts the whole suffix"
+        );
+        assert_eq!(
+            telemetry.whole_validation_outer_node_visit_count,
+            ((original_node_count + 1) as u64) * 5
+        );
+        assert!(
+            print_transform_ir_css(&ir)
+                .map_err(|error| format!("inserted IR should print: {error:?}"))?
+                .starts_with("@charset \"UTF-8\";")
+        );
         Ok(())
     }
 
@@ -4750,7 +5076,7 @@ mod tests {
             .delete_node(value_id)
             .map_err(|error| format!("delete should succeed: {error:?}"))?;
 
-        assert_transform_ir_indexes_partition_active_nodes(&transaction.working);
+        assert_transform_ir_indexes_partition_active_nodes(transaction.working);
         Ok(())
     }
 
@@ -4778,7 +5104,7 @@ mod tests {
             .insert_ir_roots_before(anchor, &inserted_ir)
             .map_err(|error| format!("IR-root insertion should succeed: {error:?}"))?;
 
-        assert_transform_ir_indexes_partition_active_nodes(&transaction.working);
+        assert_transform_ir_indexes_partition_active_nodes(transaction.working);
         Ok(())
     }
 

@@ -53,10 +53,12 @@ pub use transform_ir::{
     IrTransactionErrorV0, IrTransactionV0, IrTransactionValidationErrorV0, NodeTextOriginV0,
     TransformIrIdentityRoundTripV0, TransformIrIndexesV0, TransformIrKindIndexV0,
     TransformIrMetadataTelemetryV0, TransformIrParentIndexV0, TransformIrParseErrorSpanV0,
-    TransformIrPrintErrorV0, TransformIrV0, lower_transform_ir_from_source,
-    materialize_transform_ir_printed_source, print_transform_ir_css,
-    reset_transform_ir_metadata_telemetry, structural_block_spans_for_source,
+    TransformIrPrintErrorV0, TransformIrTransactionCostTelemetryV0, TransformIrV0,
+    lower_transform_ir_from_source, materialize_transform_ir_printed_source,
+    print_transform_ir_css, reset_transform_ir_metadata_telemetry,
+    reset_transform_ir_transaction_cost_telemetry, structural_block_spans_for_source,
     summarize_transform_ir_identity_round_trip, transform_ir_metadata_telemetry_snapshot,
+    transform_ir_transaction_cost_telemetry_snapshot,
 };
 
 use std::cell::RefCell;
