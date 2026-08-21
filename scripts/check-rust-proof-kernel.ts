@@ -350,6 +350,35 @@ assert.match(r19CheckerOutput, /S1 checker rejected reorder certificate/);
 assert.match(r20Output, /entries=0 layers=2 maxParallelWidth=1/);
 assert.match(injectedDataOutput, /injectedDataValidation=Ok independentPairs=1 maxParallelWidth=2/);
 
+const parameterUseClassifierSelfCases: readonly {
+  readonly body: string;
+  readonly expected: ParameterUseSummary;
+}[] = [
+  {
+    body: "let _ = value;",
+    expected: { totalReferenceCount: 1, discardOnlyReferenceCount: 1, materialReferenceCount: 0 },
+  },
+  {
+    body: "let _unused = &value;",
+    expected: { totalReferenceCount: 1, discardOnlyReferenceCount: 1, materialReferenceCount: 0 },
+  },
+  {
+    body: "drop(value);",
+    expected: { totalReferenceCount: 1, discardOnlyReferenceCount: 1, materialReferenceCount: 0 },
+  },
+  {
+    body: "verify(value);",
+    expected: { totalReferenceCount: 1, discardOnlyReferenceCount: 0, materialReferenceCount: 1 },
+  },
+  {
+    body: "let _forwarded = value; verify(_forwarded);",
+    expected: { totalReferenceCount: 1, discardOnlyReferenceCount: 0, materialReferenceCount: 1 },
+  },
+];
+for (const selfCase of parameterUseClassifierSelfCases) {
+  assert.deepEqual(parameterUseSummary("value", selfCase.body), selfCase.expected);
+}
+
 process.stdout.write(
   [
     "proof-kernel gate: ok",
@@ -372,7 +401,7 @@ process.stdout.write(
       " assumptionShapedInputs=" +
       assumptionShapedInputs.length +
       " nonMateriallyConsumedAssumptionInputs=0",
-    "parameterUseClassifierCases=5 materialUseBound=sourceReferenceExcludingDirectDiscard",
+    `parameterUseClassifierCases=${parameterUseClassifierSelfCases.length} materialUseBound=sourceReferenceExcludingDirectDiscard`,
     "orphanRewriteAssumptionVocabulary=0 removedHelper=validate_assumptions",
     "",
   ].join("\n"),
@@ -527,32 +556,6 @@ function directDiscardOnlySpans(
   }
   return spans;
 }
-
-assert.deepEqual(parameterUseSummary("value", "let _ = value;"), {
-  totalReferenceCount: 1,
-  discardOnlyReferenceCount: 1,
-  materialReferenceCount: 0,
-});
-assert.deepEqual(parameterUseSummary("value", "let _unused = &value;"), {
-  totalReferenceCount: 1,
-  discardOnlyReferenceCount: 1,
-  materialReferenceCount: 0,
-});
-assert.deepEqual(parameterUseSummary("value", "drop(value);"), {
-  totalReferenceCount: 1,
-  discardOnlyReferenceCount: 1,
-  materialReferenceCount: 0,
-});
-assert.deepEqual(parameterUseSummary("value", "verify(value);"), {
-  totalReferenceCount: 1,
-  discardOnlyReferenceCount: 0,
-  materialReferenceCount: 1,
-});
-assert.deepEqual(parameterUseSummary("value", "let _forwarded = value; verify(_forwarded);"), {
-  totalReferenceCount: 1,
-  discardOnlyReferenceCount: 0,
-  materialReferenceCount: 1,
-});
 
 function splitTopLevel(source: string, separator: string): readonly string[] {
   const parts: string[] = [];
