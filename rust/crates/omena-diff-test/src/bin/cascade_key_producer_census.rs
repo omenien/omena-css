@@ -1407,7 +1407,7 @@ fn protected_owner_name(name: &str) -> bool {
 
 fn impl_owner_label(item: &syn::ItemImpl) -> String {
     let self_ty = item.self_ty.to_token_stream().to_string().replace(' ', "");
-    if let Some((_, trait_path, _)) = &item.trait_ {
+    if let Some((trait_path, _)) = &item.trait_ {
         let trait_name = trait_path.to_token_stream().to_string().replace(' ', "");
         format!("<{self_ty}as{trait_name}>")
     } else {
