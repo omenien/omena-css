@@ -31,9 +31,10 @@ use engine_input_producers::{
     summarize_selector_usage_query_fragments_input,
 };
 use omena_abstract_value::{
-    AbstractClassValueProvenanceV0, analyze_class_value_flow_incremental_with_database,
-    project_abstract_value_selectors, summarize_omena_abstract_value_domain,
-    summarize_reduced_class_value_product,
+    AbstractClassValueProvenanceV0, ClassValueFlowSealedIncrementalAnalysisV0,
+    SealedClassValueFlowAnalysisArtifactV0, analyze_class_value_flow_incremental_with_artifact,
+    class_value_flow_incremental_input, project_abstract_value_selectors,
+    summarize_omena_abstract_value_domain, summarize_reduced_class_value_product,
 };
 pub use omena_abstract_value::{
     AbstractClassValueV0, AbstractPropertyValueCandidateV0, AbstractPropertyValueNarrowingV0,
@@ -241,8 +242,10 @@ struct ExpressionDomainSelectorCertaintyFlowHedgeV0 {
 #[derive(Default)]
 pub struct OmenaQueryExpressionDomainFlowRuntimeV0 {
     revision: u64,
-    databases_by_graph_id: BTreeMap<String, OmenaIncrementalDatabaseV0>,
-    previous_analyses_by_graph_id: BTreeMap<String, ClassValueFlowAnalysisV0>,
+    artifacts_by_graph_id: BTreeMap<String, SealedClassValueFlowAnalysisArtifactV0>,
+    read_set_digest_check_count: usize,
+    analysis_rebuild_count: usize,
+    artifact_refusal_count: usize,
 }
 
 impl OmenaQueryExpressionDomainFlowRuntimeV0 {
@@ -251,7 +254,23 @@ impl OmenaQueryExpressionDomainFlowRuntimeV0 {
     }
 
     pub fn graph_count(&self) -> usize {
-        self.databases_by_graph_id.len()
+        self.artifacts_by_graph_id.len()
+    }
+
+    /// Number of sealed read-set digest checks performed by the product
+    /// runtime across all revisions.
+    pub fn read_set_digest_check_count(&self) -> usize {
+        self.read_set_digest_check_count
+    }
+
+    /// Number of analyses rebuilt by the product runtime across all revisions.
+    pub fn analysis_rebuild_count(&self) -> usize {
+        self.analysis_rebuild_count
+    }
+
+    /// Number of internally retained artifacts refused before a safe rebuild.
+    pub fn artifact_refusal_count(&self) -> usize {
+        self.artifact_refusal_count
     }
 
     pub fn analyze_input(
@@ -266,27 +285,33 @@ impl OmenaQueryExpressionDomainFlowRuntimeV0 {
             .map(|entry| entry.graph_id.clone())
             .collect::<BTreeSet<_>>();
 
-        self.databases_by_graph_id
-            .retain(|graph_id, _| live_graph_ids.contains(graph_id));
-        self.previous_analyses_by_graph_id
+        self.artifacts_by_graph_id
             .retain(|graph_id, _| live_graph_ids.contains(graph_id));
 
         let analyses = flow_graphs
             .into_iter()
             .map(|entry| {
-                let database = self
-                    .databases_by_graph_id
-                    .entry(entry.graph_id.clone())
-                    .or_default();
-                let previous_analysis = self.previous_analyses_by_graph_id.get(&entry.graph_id);
-                let analysis = analyze_class_value_flow_incremental_with_database(
+                let previous_artifact = self.artifacts_by_graph_id.get(&entry.graph_id);
+                let sealed_analysis = analyze_class_value_flow_incremental_with_artifact(
                     &entry.graph,
-                    database,
-                    previous_analysis,
+                    previous_artifact,
                     revision,
-                );
-                self.previous_analyses_by_graph_id
-                    .insert(entry.graph_id.clone(), analysis.analysis.clone());
+                )
+                .unwrap_or_else(|_| {
+                    self.artifact_refusal_count = self.artifact_refusal_count.saturating_add(1);
+                    analyze_class_value_flow_incremental_with_artifact(&entry.graph, None, revision)
+                        .expect("a fresh flow analysis cannot refuse an absent artifact")
+                });
+                self.read_set_digest_check_count = self
+                    .read_set_digest_check_count
+                    .saturating_add(sealed_analysis.read_set_digest_check_count);
+                self.analysis_rebuild_count = self
+                    .analysis_rebuild_count
+                    .saturating_add(sealed_analysis.analysis_rebuild_count);
+                let (analysis, next_artifact) =
+                    legacy_flow_analysis_from_sealed(&entry.graph, revision, sealed_analysis);
+                self.artifacts_by_graph_id
+                    .insert(entry.graph_id.clone(), next_artifact);
 
                 OmenaQueryExpressionDomainIncrementalFlowAnalysisEntryV0 {
                     graph_id: entry.graph_id,
@@ -316,6 +341,46 @@ impl OmenaQueryExpressionDomainFlowRuntimeV0 {
             analyses,
         }
     }
+}
+
+fn legacy_flow_analysis_from_sealed(
+    graph: &omena_abstract_value::ClassValueFlowGraphV0,
+    revision: u64,
+    sealed: ClassValueFlowSealedIncrementalAnalysisV0,
+) -> (
+    ClassValueFlowIncrementalAnalysisV0,
+    SealedClassValueFlowAnalysisArtifactV0,
+) {
+    let ClassValueFlowSealedIncrementalAnalysisV0 {
+        reused_previous_analysis,
+        incremental_plan,
+        analysis,
+        next_artifact,
+        ..
+    } = sealed;
+    let next_snapshot = next_artifact.snapshot().clone();
+    let incremental_plan = incremental_plan.unwrap_or_else(|| {
+        // The public query product retains its established plan/snapshot JSON
+        // shape. Reconstructing a clean plan from the verified snapshot pays
+        // no flow-analysis rebuild; provenance remains owned by the sealed
+        // artifact path above.
+        let mut database = OmenaIncrementalDatabaseV0::default();
+        database.restore_snapshot(&next_snapshot);
+        database
+            .plan_and_upsert_graph_input(&class_value_flow_incremental_input(graph, revision))
+            .incremental_plan
+    });
+    (
+        ClassValueFlowIncrementalAnalysisV0 {
+            schema_version: "0",
+            product: "omena-abstract-value.incremental-flow-analysis",
+            reused_previous_analysis,
+            incremental_plan,
+            next_snapshot,
+            analysis,
+        },
+        next_artifact,
+    )
 }
 
 pub fn summarize_omena_query_core_abstract_value_domain() -> AbstractValueDomainSummaryV0 {
@@ -888,6 +953,39 @@ mod tests {
         assert_eq!(first.revision, 1);
         assert_eq!(second.revision, 2);
         assert_eq!(runtime.revision(), 2);
+    }
+
+    #[test]
+    fn expression_domain_runtime_checks_sealed_artifacts_before_product_reuse() {
+        let input = selector_certainty_product_input();
+        let mut runtime = OmenaQueryExpressionDomainFlowRuntimeV0::default();
+
+        let first =
+            summarize_omena_query_expression_domain_incremental_flow_analysis(&input, &mut runtime);
+        assert!(
+            first.graph_count > 0,
+            "fixture must exercise product flow graphs"
+        );
+        assert_eq!(runtime.read_set_digest_check_count(), 0);
+        assert_eq!(runtime.analysis_rebuild_count(), first.graph_count);
+
+        let second =
+            summarize_omena_query_expression_domain_incremental_flow_analysis(&input, &mut runtime);
+        eprintln!(
+            "productFlowArtifactCounters graphs={} digestChecks={} rebuilds={} refusals={}",
+            second.graph_count,
+            runtime.read_set_digest_check_count(),
+            runtime.analysis_rebuild_count(),
+            runtime.artifact_refusal_count(),
+        );
+        assert_eq!(second.reused_graph_count, second.graph_count);
+        assert_eq!(runtime.read_set_digest_check_count(), second.graph_count);
+        assert_eq!(
+            runtime.analysis_rebuild_count(),
+            first.graph_count,
+            "verified reuse must not rebuild the flow analysis"
+        );
+        assert_eq!(runtime.artifact_refusal_count(), 0);
     }
 
     #[test]
