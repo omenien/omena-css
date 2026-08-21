@@ -382,9 +382,14 @@
         {
           "lint": "constructible_struct_adds_field",
           "evidenceNeedles": [
+            "field ExternalCssSemanticDiffV0.semantic_change_accounting_complete",
             "field ExternalCssSemanticDiffV0.cst_coverage",
             "field TransformExecutionSummaryV0.module_export_preservation_telemetry"
           ]
+        },
+        {
+          "lint": "struct_pub_field_missing",
+          "evidenceNeedles": ["field all_changes_classified of struct ExternalCssSemanticDiffV0"]
         },
         {
           "lint": "enum_variant_added",
@@ -446,15 +451,17 @@
         {
           "id": "external-css-full-cst-adoption-boundary",
           "kind": "selection-outcome-changing",
-          "surface": "ExternalCssSemanticDiffV0 cstCoverage and external CSS adoption totality",
-          "reason": "The external CSS comparator now proves that every non-whitespace input syntax unit remains in order and permits only independently understood vendor-prefix declaration insertions; changes on disclosed but semantically unobserved axes therefore fail closed.",
+          "surface": "ExternalCssSemanticDiffV0 semanticChangeAccountingComplete, cstCoverage, and external CSS adoption totality",
+          "reason": "The external CSS comparator now separates semantic-change accounting from non-whitespace CST coverage. Every non-whitespace input syntax unit must remain in order and only independently understood vendor-prefix declaration insertions are permitted; ASCII whitespace is outside the CST layer, so whitespace-sensitive selector changes remain governed by the semantic classifier and fail closed as passthrough changes.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
               "needles": [
                 "pub struct ExternalCssCstCoverageV0",
+                "pub semantic_change_accounting_complete: bool",
                 "pub fn external_css_adoption_boundary_is_complete_v0(",
-                "fn external_css_cst_coverage("
+                "fn external_css_cst_coverage(",
+                "external_css_cst_coverage_is_whitespace_modulo_but_selector_semantics_are_not"
               ]
             },
             {

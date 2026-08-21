@@ -143,12 +143,15 @@ pub struct ExternalCssSemanticChangeV0 {
     pub after: Option<ExternalCssSemanticEntryV0>,
 }
 
-/// Independent full-CST coverage evidence for an external CSS candidate.
+/// Independent non-whitespace CST coverage evidence for an external CSS candidate.
 ///
 /// The input's non-whitespace syntax units must remain an ordered subsequence
 /// of the output. The only output-only units admitted by this boundary are
 /// declarations independently classified as understood vendor-prefix
-/// additions. Everything else is counted as uncovered and fails closed.
+/// additions. Everything else is counted as uncovered and fails closed. This
+/// layer is deliberately modulo ASCII whitespace: it does not independently
+/// prove preservation of whitespace-sensitive selector combinators, so
+/// adoption also requires the semantic-change classifier.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalCssCstCoverageV0 {
@@ -168,7 +171,9 @@ pub struct ExternalCssSemanticDiffV0 {
     pub total_change_count: usize,
     pub understood_change_count: usize,
     pub passthrough_change_count: usize,
-    pub all_changes_classified: bool,
+    /// True when the per-change classification counts account for every
+    /// semantic change. CST coverage is reported separately in `cst_coverage`.
+    pub semantic_change_accounting_complete: bool,
     pub cst_coverage: ExternalCssCstCoverageV0,
     pub changes: Vec<ExternalCssSemanticChangeV0>,
 }
@@ -238,7 +243,7 @@ pub fn compare_external_css_semantic_changes_v0(
 }
 
 pub fn external_css_adoption_boundary_is_complete_v0(report: &ExternalCssSemanticDiffV0) -> bool {
-    report.all_changes_classified
+    report.semantic_change_accounting_complete
         && report.cst_coverage.complete
         && report.cst_coverage.uncovered_input_unit_count == 0
         && report.cst_coverage.uncovered_output_unit_count == 0
@@ -281,16 +286,15 @@ fn external_css_semantic_diff_from_changes(
         })
         .count();
     let passthrough_change_count = changes.len().saturating_sub(understood_change_count);
-    let all_changes_classified = understood_change_count + passthrough_change_count
-        == changes.len()
-        && cst_coverage.complete;
+    let semantic_change_accounting_complete =
+        understood_change_count + passthrough_change_count == changes.len();
     ExternalCssSemanticDiffV0 {
         input_entry_count,
         output_entry_count,
         total_change_count: changes.len(),
         understood_change_count,
         passthrough_change_count,
-        all_changes_classified,
+        semantic_change_accounting_complete,
         cst_coverage,
         changes,
     }
@@ -3007,7 +3011,7 @@ mod tests {
         let output = ".input { -webkit-appearance: none; appearance: none; } ::-moz-placeholder { color: gray; } ::placeholder { color: gray; }";
         let report = compare_external_css_semantic_changes_v0(input, output, StyleDialect::Css);
 
-        assert!(!report.all_changes_classified);
+        assert!(report.semantic_change_accounting_complete);
         assert!(report.understood_change_count >= 1);
         assert!(report.passthrough_change_count >= 1);
         assert_eq!(
@@ -3031,13 +3035,30 @@ mod tests {
     }
 
     #[test]
+    fn external_css_cst_coverage_is_whitespace_modulo_but_selector_semantics_are_not() {
+        let report = compare_external_css_semantic_changes_v0(
+            ".a .b { color: red; }",
+            ".a.b { color: red; }",
+            StyleDialect::Css,
+        );
+
+        assert!(report.cst_coverage.complete);
+        assert_eq!(report.cst_coverage.uncovered_input_unit_count, 0);
+        assert_eq!(report.cst_coverage.uncovered_output_unit_count, 0);
+        assert!(report.semantic_change_accounting_complete);
+        assert_eq!(report.understood_change_count, 0);
+        assert!(report.passthrough_change_count > 0);
+        assert_eq!(report.passthrough_change_count, report.total_change_count);
+    }
+
+    #[test]
     fn external_css_diff_totality_rejects_an_unreported_change() {
         let mut report = compare_external_css_semantic_changes_v0(
             ".input { appearance: none; }",
             ".input { -webkit-appearance: none; appearance: none; }",
             StyleDialect::Css,
         );
-        assert!(report.all_changes_classified);
+        assert!(report.semantic_change_accounting_complete);
         assert!(external_css_adoption_boundary_is_complete_v0(&report));
 
         report.changes.clear();
@@ -3054,7 +3075,7 @@ mod tests {
 
         assert_eq!(report.understood_change_count, 0);
         assert_eq!(report.passthrough_change_count, 1);
-        assert!(!report.all_changes_classified);
+        assert!(report.semantic_change_accounting_complete);
     }
 
     #[test]

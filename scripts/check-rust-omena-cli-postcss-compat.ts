@@ -51,7 +51,7 @@ interface BuildEnvelope {
         readonly totalChangeCount: number;
         readonly understoodChangeCount: number;
         readonly passthroughChangeCount: number;
-        readonly allChangesClassified: boolean;
+        readonly semanticChangeAccountingComplete: boolean;
         readonly cstCoverage: {
           readonly inputUnitCount: number;
           readonly outputUnitCount: number;
@@ -78,7 +78,7 @@ interface BuildEnvelope {
         readonly totalChangeCount: number;
         readonly understoodChangeCount: number;
         readonly passthroughChangeCount: number;
-        readonly allChangesClassified: boolean;
+        readonly semanticChangeAccountingComplete: boolean;
         readonly cstCoverage: { readonly complete: boolean };
       };
     };
@@ -187,7 +187,7 @@ assert.equal(
   semantic.totalChangeCount,
 );
 assert.equal(observedChanges.length, semantic.totalChangeCount);
-assert.equal(semantic.allChangesClassified, false);
+assert.equal(semantic.semanticChangeAccountingComplete, true);
 assert.equal(semantic.cstCoverage.complete, false);
 assert.ok(semantic.cstCoverage.uncoveredOutputUnitCount > 0);
 assert.ok(envelope.payload.readySurfaces.includes("postcssCompatibilityRunner"));
@@ -269,7 +269,14 @@ try {
   assert.deepEqual(classifications, ["equivalent", "nativeConservative", "investigationRequired"]);
   assert.deepEqual(
     cases.map(
-      (candidate) => candidate.payload.postcssNativeDifferential?.semanticDiff.allChangesClassified,
+      (candidate) =>
+        candidate.payload.postcssNativeDifferential?.semanticDiff.semanticChangeAccountingComplete,
+    ),
+    [true, true, true],
+  );
+  assert.deepEqual(
+    cases.map(
+      (candidate) => candidate.payload.postcssNativeDifferential?.semanticDiff.cstCoverage.complete,
     ),
     [true, true, false],
   );
