@@ -16,10 +16,16 @@ const injectRankHint = args.has("--inject-rank-hint");
 const injectO1Bypass = args.has("--inject-o1-bypass");
 const injectDependentPair = args.has("--inject-dependent-pair");
 const injectEmptyIndependence = args.has("--inject-empty-independence");
+const injectModuleExportTokenBypass = args.has("--inject-module-export-token-bypass");
 
 assert.ok(
-  [injectRankHint, injectO1Bypass, injectDependentPair, injectEmptyIndependence].filter(Boolean)
-    .length <= 1,
+  [
+    injectRankHint,
+    injectO1Bypass,
+    injectDependentPair,
+    injectEmptyIndependence,
+    injectModuleExportTokenBypass,
+  ].filter(Boolean).length <= 1,
   "only one proof-kernel falsifier may run at once",
 );
 
@@ -46,6 +52,12 @@ if (injectO1Bypass) {
     "false",
   );
 }
+if (injectModuleExportTokenBypass) {
+  executorSource = executorSource.replace(
+    "require_dual_o1_tokens_v0(",
+    "bypass_module_export_token_v0(",
+  );
+}
 if (injectDependentPair) {
   const dependent = injectedIndependenceData.entries.find(
     (entry) =>
@@ -62,6 +74,19 @@ const planBody = functionBody(catalogSource, "plan_transform_catalog_parallel_la
 const layerBody = functionBody(catalogSource, "transform_catalog_independence_clusters_v0");
 const o1Body = functionBody(executorSource, "closed_world_admission_o1_reasons");
 const tokenConsumerBody = functionBody(executorSource, "checked_token_ownership_admission_v0");
+const executionBody = functionBody(
+  executorSource,
+  "execute_transform_passes_on_source_with_active_lex_cache",
+);
+const moduleExportConsumerBody = functionBody(
+  executorSource,
+  "checked_module_export_preservation_admission_v0",
+);
+const dualTokenConsumerBody = functionBody(executorSource, "require_dual_o1_tokens_v0");
+const moduleExportCheckerBody = functionBody(
+  proofKernelSource,
+  "check_module_export_preservation_v0",
+);
 const selectorDecisionBody = functionBody(eggSource, "decide_checked_egg_rewrite");
 
 assert.match(planBody, /transform_catalog_independence_clusters_v0\(requested\)/);
@@ -80,6 +105,17 @@ assert.match(o1Body, /proofKernelToken:/);
 assert.match(tokenConsumerBody, /check_rewrite_certificate_v0/);
 assert.match(tokenConsumerBody, /matches_endpoints_v0/);
 assert.match(tokenConsumerBody, /matches_catalog_v0/);
+assert.match(executionBody, /checked_module_export_preservation_admission_v0/);
+assert.match(executionBody, /require_dual_o1_tokens_v0/);
+assert.match(moduleExportConsumerBody, /ModuleExportPreservationCertV0::new/);
+assert.match(moduleExportConsumerBody, /matches_endpoints_v0/);
+assert.match(moduleExportConsumerBody, /matches_catalog_v0/);
+assert.match(dualTokenConsumerBody, /ownership_token/);
+assert.match(dualTokenConsumerBody, /preservation/);
+assert.match(moduleExportCheckerBody, /module_export_token_support_v0/);
+assert.match(proofKernelSource, /OrderedTokenWordV0/);
+assert.match(proofKernelSource, /TokenSupportV0/);
+assert.match(proofKernelSource, /token_support_v0/);
 assert.match(selectorDecisionBody, /selector_rewrite_rule_catalog_v0/);
 assert.match(selectorDecisionBody, /matches_catalog_v0/);
 assert.match(proofKernelSource, /catalog_content_digest:\s*\[u8; 32\]/);
@@ -108,6 +144,22 @@ const ownershipOutput = cargoTest(
   "omena-transform-passes",
   "tests::runtime_boundary::proof_kernel_token_closes_favourable_ownership_count_bypass",
   true,
+);
+const moduleExportForgeOutput = cargoTest(
+  "omena-cascade-proof",
+  "proof_kernel::tests::module_export_preservation_rejects_drop_identity_swap_and_digest_tamper",
+);
+const moduleExportProductionOutput = cargoTest(
+  "omena-transform-passes",
+  "tests::runtime_boundary::four_export_preserving_passes_construct_checked_tokens_on_the_production_path",
+);
+const moduleExportHashingOutput = cargoTest(
+  "omena-transform-passes",
+  "tests::runtime_boundary::class_hashing_rolls_back_a_non_bijective_module_export_rotation",
+);
+const dualO1Output = cargoTest(
+  "omena-transform-passes",
+  "runtime::executor::dispatch_table_tests::destructive_o1_admission_requires_ownership_and_preservation_tokens",
 );
 const r15ObservationOutput = cargoTest(
   "omena-transform-passes",
@@ -159,6 +211,10 @@ assert.match(kernelOutput, /test result: ok/);
 assert.match(catalogDigestOutput, /test result: ok/);
 assert.match(spoofedCatalogOutput, /test result: ok/);
 assert.match(ownershipOutput, /test result: ok/);
+assert.match(moduleExportForgeOutput, /test result: ok/);
+assert.match(moduleExportProductionOutput, /test result: ok/);
+assert.match(moduleExportHashingOutput, /test result: ok/);
+assert.match(dualO1Output, /test result: ok/);
 assert.match(
   r15ObservationOutput,
   /selectorProjection passExecuted=true pass=whitespace-strip selectorMatching=true rawBytes=false/,
@@ -179,13 +235,13 @@ assert.match(injectedDataOutput, /injectedDataValidation=Ok independentPairs=1 m
 process.stdout.write(
   [
     "proof-kernel gate: ok",
-    "checkerSideConditions=tokenOwnershipSeparability,transformIndependence",
+    "checkerSideConditions=tokenOwnershipSeparability,transformIndependence,moduleExportPreservation",
     "catalogBinding=schemaId+contentDigest trustedCatalogSelectedByConsumer",
     "observationProfiles=1 independentPairs=1 dependentPairs=1",
     "executableObservationKinds=selectorMatching,cascadeWinner",
     "scheduleOracleBound=4 schedulePermutations=24",
     "executorConsumesPlan=false nonConsumptionReason=executorKeepsValidatedSerialDagUntilParallelApplicationSemanticsLand",
-    "o1Consumer=closed_world_admission_o1_reasons",
+    "o1Consumer=closed_world_admission_o1_reasons+require_dual_o1_tokens_v0",
     "",
   ].join("\n"),
 );

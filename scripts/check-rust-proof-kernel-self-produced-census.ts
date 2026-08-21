@@ -49,6 +49,7 @@ interface Snapshot {
   readonly certificateConstructionCounts: Readonly<
     Record<string, { readonly production: number; readonly test: number }>
   >;
+  readonly moduleExportPreservationClaimingPasses: readonly string[];
 }
 
 interface Artifact {
@@ -70,6 +71,7 @@ const cascadeProducerPath = "rust/crates/omena-transform-passes/src/runtime/casc
 const executorPath = "rust/crates/omena-transform-passes/src/runtime/executor.rs";
 const eggProducerPath = "rust/crates/omena-transform-egg/src/lib.rs";
 const evidenceGraphPath = "rust/crates/omena-evidence-graph/src/lib.rs";
+const passDescriptorPath = "rust/crates/omena-transform-cst/src/pass_descriptor.rs";
 const sourcePaths = [
   cascadeProofLibPath,
   proofKernelPath,
@@ -77,6 +79,7 @@ const sourcePaths = [
   executorPath,
   eggProducerPath,
   evidenceGraphPath,
+  passDescriptorPath,
 ] as const;
 const cannotCheck = [
   "rule catalog soundness",
@@ -95,6 +98,9 @@ const injectClassificationFlip = args.has("--inject-classification-flip");
 const injectArtifactHandEdit = args.has("--inject-artifact-hand-edit");
 const injectRecheckCallDeletion = args.has("--inject-recheck-call-deletion");
 const injectNewSelfProducedSite = args.has("--inject-new-self-produced-site");
+const injectModuleExportConstructorDeletion = args.has(
+  "--inject-module-export-constructor-deletion",
+);
 assert.ok(
   [
     assertEntryUnresolved,
@@ -102,6 +108,7 @@ assert.ok(
     injectArtifactHandEdit,
     injectRecheckCallDeletion,
     injectNewSelfProducedSite,
+    injectModuleExportConstructorDeletion,
   ].filter(Boolean).length <= 1,
   "only one falsifier mode may run at once",
 );
@@ -133,6 +140,9 @@ if (injectRecheckCallDeletion) {
 }
 if (injectNewSelfProducedSite) {
   exitFiles = mutateNewSelfProducedSite(exitFiles);
+}
+if (injectModuleExportConstructorDeletion) {
+  exitFiles = mutateModuleExportConstructorDeletion(exitFiles);
 }
 const exit = buildSnapshot(exitFiles, "WORKTREE", false);
 const generated: Artifact = {
@@ -193,6 +203,9 @@ if (injectNewSelfProducedSite) {
     "new self-produced constructor site was discovered; run the official updater",
   );
 }
+if (injectModuleExportConstructorDeletion) {
+  validateExit(generated.exit);
+}
 assert.deepEqual(observed, generated, "self-produced evidence census is stale or hand-edited");
 validateExit(generated.exit);
 process.stdout.write(renderReceipt(generated));
@@ -208,6 +221,7 @@ function buildSnapshot(
   const executor = requiredSource(byPath, executorPath);
   const egg = requiredSource(byPath, eggProducerPath);
   const evidence = requiredSource(byPath, evidenceGraphPath);
+  const passDescriptors = requiredSource(byPath, passDescriptorPath);
   const rows = [
     ...scanKernelIssuanceRows(proofKernel, entryMode),
     ...scanCascadeObligationRows(cascade, executor, entryMode),
@@ -231,6 +245,15 @@ function buildSnapshot(
     requirements.map((row) => row.classification),
     ["IR_COMPUTED", "PRODUCER_PASS_THROUGH", "UNCLASSIFIED"],
   );
+  const descriptorClaims = scanExportPreservationDescriptorClaims(passDescriptors);
+  if (!entryMode) {
+    const producerClaims = scanExportPreservationProducerClaims(executor);
+    assert.deepEqual(
+      producerClaims,
+      descriptorClaims,
+      "exportedClassNames descriptor claims and preservation-token producer scope diverged",
+    );
+  }
   assert.deepEqual(requirementCountsByConstructor, {
     canonical_box_shorthand_combination_input_v0: 5,
     canonical_layer_flatten_candidate_input_v0: 4,
@@ -253,7 +276,11 @@ function buildSnapshot(
     requirementCountsByConstructor,
     requirementClassificationCounts,
     requirements,
-    certificateConstructionCounts: scanCertificateConstructionCounts(proofKernel),
+    certificateConstructionCounts: scanCertificateConstructionCounts([
+      { sourcePath: proofKernelPath, source: proofKernel },
+      { sourcePath: executorPath, source: executor },
+    ]),
+    moduleExportPreservationClaimingPasses: descriptorClaims,
   };
 }
 
@@ -515,12 +542,22 @@ function validateExit(snapshot: Snapshot): void {
     "selector witness producer lost its independently rechecked call path",
   );
   for (const [certificate, counts] of Object.entries(snapshot.certificateConstructionCounts)) {
-    assert.equal(
-      counts.production,
-      0,
-      `${certificate} unexpectedly acquired a production construction site`,
-    );
+    if (certificate === "ModuleExportPreservationCertV0") {
+      assert.ok(counts.production > 0, `${certificate} lost every production construction site`);
+    } else {
+      assert.equal(
+        counts.production,
+        0,
+        `${certificate} unexpectedly acquired a production construction site`,
+      );
+    }
   }
+  assert.deepEqual(snapshot.moduleExportPreservationClaimingPasses, [
+    "HashCssModuleClassNames",
+    "ResolveCssModulesComposes",
+    "SelectorMerging",
+    "TreeShakeClass",
+  ]);
 }
 
 function discoverCascadeProducerHelpers(source: string): string[] {
@@ -556,24 +593,67 @@ function functionCallClosureContains(source: string, root: string, target: strin
 }
 
 function scanCertificateConstructionCounts(
-  source: string,
+  files: readonly SourceFile[],
 ): Record<string, { production: number; test: number }> {
-  const testStart = testModuleStart(source);
-  const sections = {
-    production: source.slice(0, testStart),
-    test: source.slice(testStart),
-  };
+  const sections = files.map((file) => {
+    const testStart = testModuleStart(file.source);
+    return {
+      production: file.source.slice(0, testStart),
+      test: file.source.slice(testStart),
+    };
+  });
   return Object.fromEntries(
-    ["CascadeWinnerEqualityCertV0", "ComputedValueEqualityCertV0", "SourceMapTraceCertV0"].map(
-      (certificate) => [
-        certificate,
-        {
-          production: countStructConstructions(sections.production, certificate),
-          test: countStructConstructions(sections.test, certificate),
-        },
-      ],
-    ),
+    [
+      "CascadeWinnerEqualityCertV0",
+      "ComputedValueEqualityCertV0",
+      "ModuleExportPreservationCertV0",
+      "SourceMapTraceCertV0",
+    ].map((certificate) => [
+      certificate,
+      {
+        production: sections.reduce(
+          (count, section) =>
+            count + countCertificateConstructions(section.production, certificate),
+          0,
+        ),
+        test: sections.reduce(
+          (count, section) => count + countCertificateConstructions(section.test, certificate),
+          0,
+        ),
+      },
+    ]),
   );
+}
+
+function countCertificateConstructions(source: string, typeName: string): number {
+  if (typeName === "ModuleExportPreservationCertV0") {
+    return [...source.matchAll(/\bModuleExportPreservationCertV0::new\s*\(/gu)].length;
+  }
+  return countStructConstructions(source, typeName);
+}
+
+function scanExportPreservationDescriptorClaims(source: string): string[] {
+  const span = functionSpan(source, "pass_observation_contract");
+  const armPattern = /^        TransformPassKind::/gmu;
+  const starts = [...span.body.matchAll(armPattern)].map((match) => match.index ?? 0);
+  const claims = new Set<string>();
+  for (const [index, start] of starts.entries()) {
+    const end = starts[index + 1] ?? span.body.length;
+    const arm = span.body.slice(start, end);
+    if (!arm.includes("ObservationKindV0::ExportedClassNames")) continue;
+    const header = arm.slice(0, arm.indexOf("=>"));
+    for (const variant of header.matchAll(/TransformPassKind::([A-Za-z0-9_]+)/gu)) {
+      claims.add(variant[1]);
+    }
+  }
+  return [...claims].sort(compareText);
+}
+
+function scanExportPreservationProducerClaims(source: string): string[] {
+  const span = functionSpan(source, "pass_claims_module_export_preservation_v0");
+  return [...span.body.matchAll(/TransformPassKind::([A-Za-z0-9_]+)/gu)]
+    .map((match) => match[1])
+    .sort(compareText);
 }
 
 function countStructConstructions(source: string, typeName: string): number {
@@ -724,6 +804,22 @@ function mutateNewSelfProducedSite(files: readonly SourceFile[]): SourceFile[] {
     return {
       sourcePath: file.sourcePath,
       source: `${file.source.slice(0, offset)}${insertion}${file.source.slice(offset)}`,
+    };
+  });
+}
+
+function mutateModuleExportConstructorDeletion(files: readonly SourceFile[]): SourceFile[] {
+  return files.map((file) => {
+    if (file.sourcePath !== executorPath) return file;
+    const needle = "ModuleExportPreservationCertV0::new(";
+    const offset = file.source.indexOf(needle);
+    assert.ok(offset >= 0, "module-export constructor deletion injection found no constructor");
+    return {
+      sourcePath: file.sourcePath,
+      source:
+        file.source.slice(0, offset) +
+        "removed_module_export_preservation_constructor_v0(" +
+        file.source.slice(offset + needle.length),
     };
   });
 }

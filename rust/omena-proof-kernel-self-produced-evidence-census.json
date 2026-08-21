@@ -7,7 +7,8 @@
     "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
     "rust/crates/omena-transform-passes/src/runtime/executor.rs",
     "rust/crates/omena-transform-egg/src/lib.rs",
-    "rust/crates/omena-evidence-graph/src/lib.rs"
+    "rust/crates/omena-evidence-graph/src/lib.rs",
+    "rust/crates/omena-transform-cst/src/pass_descriptor.rs"
   ],
   "cannotCheck": [
     "rule catalog soundness",
@@ -19,7 +20,7 @@
   "defaultBackendDisposition": "StubSmtBackendV0 re-reads require:<name>=<bool>; non-require audit labels are satisfied by unwrap_or(true) and do not contribute a checked formula.",
   "entry": {
     "sourceRef": "0749a00707b07070ec0fed3342c836a674facd14",
-    "sourceFileSha256": "6c55d2982c0fc8307c24e6a956f7a1d92596bad9499c77859d04f8e4fc17da48",
+    "sourceFileSha256": "bbc020663767b3daa48ac19e03d5868286b833b7d95467e26b3a96ecec3980a1",
     "rowCount": 17,
     "planeCounts": {
       "cascadeObligation": 12,
@@ -593,15 +594,25 @@
         "production": 0,
         "test": 2
       },
+      "ModuleExportPreservationCertV0": {
+        "production": 0,
+        "test": 0
+      },
       "SourceMapTraceCertV0": {
         "production": 0,
         "test": 2
       }
-    }
+    },
+    "moduleExportPreservationClaimingPasses": [
+      "HashCssModuleClassNames",
+      "ResolveCssModulesComposes",
+      "SelectorMerging",
+      "TreeShakeClass"
+    ]
   },
   "exit": {
     "sourceRef": "WORKTREE",
-    "sourceFileSha256": "042db73b7d6204eca9d402b393a32d3469f1f10aba1736ceab8d276fb41106f7",
+    "sourceFileSha256": "5a3c714fbf9acf0c74a60f0ba2d2fc90a92678b41c10339ff860a0adc99c0804",
     "rowCount": 17,
     "planeCounts": {
       "cascadeObligation": 12,
@@ -809,7 +820,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/proof_kernel.rs",
           "symbol": "check_rewrite_certificate_v0 -> RewriteIssuanceTokenV0::issue",
-          "lineHint": 750,
+          "lineHint": 828,
           "lineSha256": "a10ba8c32c6d98a971d80a6885175be0dfa0eea458ae36b37471476ccae95f0d"
         },
         "plane": "eGraph",
@@ -1175,10 +1186,20 @@
         "production": 0,
         "test": 2
       },
+      "ModuleExportPreservationCertV0": {
+        "production": 1,
+        "test": 2
+      },
       "SourceMapTraceCertV0": {
         "production": 0,
         "test": 2
       }
-    }
+    },
+    "moduleExportPreservationClaimingPasses": [
+      "HashCssModuleClassNames",
+      "ResolveCssModulesComposes",
+      "SelectorMerging",
+      "TreeShakeClass"
+    ]
   }
 }
