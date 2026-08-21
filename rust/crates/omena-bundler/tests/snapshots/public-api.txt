@@ -129,6 +129,18 @@ pub omena_bundler::TransformBundleLinkErrorV0::UnresolvedDependencyEdge::import_
 pub omena_bundler::TransformBundleLinkErrorV0::UnresolvedDependencyEdge::source_path: alloc::string::String
 pub omena_bundler::TransformBundleLinkErrorV0::UnsupportedEmissionCycle
 pub omena_bundler::TransformBundleLinkErrorV0::UnsupportedEmissionCycle::edge_kind: omena_bundler::TransformBundleEdgeKind
+#[non_exhaustive] pub enum omena_bundler::TransformBundleReachabilityAnalysisV0
+pub omena_bundler::TransformBundleReachabilityAnalysisV0::Analyzed
+pub omena_bundler::TransformBundleReachabilityAnalysisV0::Unanalyzed
+pub omena_bundler::TransformBundleReachabilityAnalysisV0::Unanalyzed::cause: omena_bundler::TransformBundleReachabilityUnanalyzedCauseV0
+impl omena_bundler::TransformBundleReachabilityAnalysisV0
+pub fn omena_bundler::TransformBundleReachabilityAnalysisV0::is_analyzed(self) -> bool
+impl core::default::Default for omena_bundler::TransformBundleReachabilityAnalysisV0
+pub fn omena_bundler::TransformBundleReachabilityAnalysisV0::default() -> Self
+#[non_exhaustive] pub enum omena_bundler::TransformBundleReachabilityUnanalyzedCauseV0
+pub omena_bundler::TransformBundleReachabilityUnanalyzedCauseV0::AnalysisNotAttempted
+pub omena_bundler::TransformBundleReachabilityUnanalyzedCauseV0::AnalysisResultUnavailable
+pub omena_bundler::TransformBundleReachabilityUnanalyzedCauseV0::InputNotProvided
 #[non_exhaustive] pub struct omena_bundler::BundleDependencyResolutionDisclosureV0
 pub omena_bundler::BundleDependencyResolutionDisclosureV0::authority: omena_bundler::BundleResolutionAuthorityV0
 pub omena_bundler::BundleDependencyResolutionDisclosureV0::import_ordinal: core::option::Option<u32>
@@ -315,6 +327,7 @@ pub fn omena_bundler::TransformBundleEmissionAdmissionV0::requested_policy_resul
 impl omena_bundler::TransformBundleEmissionItemProjectionV0
 pub fn omena_bundler::TransformBundleEmissionItemProjectionV0::inputs(&self) -> &[omena_bundler::EmissionItemInputV0]
 #[non_exhaustive] pub struct omena_bundler::TransformBundleInstanceReachabilityInputV0
+pub omena_bundler::TransformBundleInstanceReachabilityInputV0::analysis: omena_bundler::TransformBundleReachabilityAnalysisV0
 pub omena_bundler::TransformBundleInstanceReachabilityInputV0::class_names: alloc::vec::Vec<alloc::string::String>
 pub omena_bundler::TransformBundleInstanceReachabilityInputV0::custom_property_names: alloc::vec::Vec<alloc::string::String>
 pub omena_bundler::TransformBundleInstanceReachabilityInputV0::derivation: omena_bundler::InstanceReachabilityDerivationV0
@@ -324,6 +337,7 @@ pub omena_bundler::TransformBundleInstanceReachabilityInputV0::value_names: allo
 impl omena_bundler::TransformBundleInstanceReachabilityInputV0
 pub fn omena_bundler::TransformBundleInstanceReachabilityInputV0::has_reachable_symbols(&self) -> bool
 pub fn omena_bundler::TransformBundleInstanceReachabilityInputV0::new(omena_parser::closed_world::contract::ModuleInstanceKeyV0, omena_bundler::InstanceReachabilityDerivationV0) -> Self
+pub fn omena_bundler::TransformBundleInstanceReachabilityInputV0::unanalyzed(omena_parser::closed_world::contract::ModuleInstanceKeyV0, omena_bundler::InstanceReachabilityDerivationV0, omena_bundler::TransformBundleReachabilityUnanalyzedCauseV0) -> Self
 #[non_exhaustive] pub struct omena_bundler::TransformBundleLinkOptionsV0
 pub omena_bundler::TransformBundleLinkOptionsV0::dependency_resolution_authority: omena_bundler::BundleResolutionAuthorityV0
 pub omena_bundler::TransformBundleLinkOptionsV0::emission_ordering_policy: omena_bundler::EmissionOrderingPolicyV0
@@ -336,9 +350,12 @@ pub fn omena_bundler::TransformBundleLinkProjectionSetV0::emission_item_projecti
 pub fn omena_bundler::TransformBundleLinkProjectionSetV0::linker_projection(&self) -> &omena_bundler::TransformBundleLinkerProjectionV0
 #[non_exhaustive] pub struct omena_bundler::TransformBundleLinkerProjectionV0
 impl omena_bundler::TransformBundleLinkerProjectionV0
+pub fn omena_bundler::TransformBundleLinkerProjectionV0::analyzed_empty_reachability_input_count(&self) -> usize
 pub fn omena_bundler::TransformBundleLinkerProjectionV0::inputs(&self) -> &[omena_bundler::LinkerInputV0]
+pub fn omena_bundler::TransformBundleLinkerProjectionV0::module_reachability_analysis(&self, &omena_parser::closed_world::contract::ModuleInstanceKeyV0) -> omena_bundler::TransformBundleReachabilityAnalysisV0
 pub fn omena_bundler::TransformBundleLinkerProjectionV0::module_reachability_derivation(&self, &omena_parser::closed_world::contract::ModuleInstanceKeyV0) -> core::option::Option<omena_bundler::InstanceReachabilityDerivationV0>
 pub fn omena_bundler::TransformBundleLinkerProjectionV0::module_reachability_evidence(&self, &omena_parser::closed_world::contract::ModuleInstanceKeyV0) -> omena_parser::closed_world::contract::ClosedWorldModuleReachabilityEvidenceV0
+pub fn omena_bundler::TransformBundleLinkerProjectionV0::unanalyzed_reachability_input_count(&self) -> usize
 pub struct omena_bundler::TransformBundleModuleInputV0
 pub omena_bundler::TransformBundleModuleInputV0::configuration_hash: omena_parser::closed_world::contract::ConfigurationHashV0
 pub omena_bundler::TransformBundleModuleInputV0::dialect: omena_syntax::StyleDialect
@@ -365,6 +382,7 @@ pub omena_bundler::TransformBundleResolvedDependencyV0::source_instance: omena_p
 impl omena_bundler::TransformBundleResolvedDependencyV0
 pub fn omena_bundler::TransformBundleResolvedDependencyV0::new(omena_parser::closed_world::contract::ModuleInstanceKeyV0, omena_bundler::TransformBundleEdgeKind, impl core::convert::Into<alloc::string::String>, core::option::Option<u32>, omena_bundler::TransformBundleDependencyResolutionV0) -> Self
 pub struct omena_bundler::TransformBundleSemanticReachabilityInputV0
+pub omena_bundler::TransformBundleSemanticReachabilityInputV0::analysis: omena_bundler::TransformBundleReachabilityAnalysisV0
 pub omena_bundler::TransformBundleSemanticReachabilityInputV0::class_names: alloc::vec::Vec<alloc::string::String>
 pub omena_bundler::TransformBundleSemanticReachabilityInputV0::custom_property_names: alloc::vec::Vec<alloc::string::String>
 pub omena_bundler::TransformBundleSemanticReachabilityInputV0::keyframe_names: alloc::vec::Vec<alloc::string::String>
@@ -373,6 +391,7 @@ pub omena_bundler::TransformBundleSemanticReachabilityInputV0::value_names: allo
 impl omena_bundler::TransformBundleSemanticReachabilityInputV0
 pub fn omena_bundler::TransformBundleSemanticReachabilityInputV0::has_reachable_symbols(&self) -> bool
 pub fn omena_bundler::TransformBundleSemanticReachabilityInputV0::new(impl core::convert::Into<alloc::string::String>) -> Self
+pub fn omena_bundler::TransformBundleSemanticReachabilityInputV0::unanalyzed(impl core::convert::Into<alloc::string::String>, omena_bundler::TransformBundleReachabilityUnanalyzedCauseV0) -> Self
 pub struct omena_bundler::TransformBundleSourceSummaryV0
 pub omena_bundler::TransformBundleSourceSummaryV0::asset_urls: alloc::vec::Vec<omena_bundler::TransformBundleAssetUrlV0>
 pub omena_bundler::TransformBundleSourceSummaryV0::bundle_edges: alloc::vec::Vec<omena_bundler::TransformBundleEdgeV0>

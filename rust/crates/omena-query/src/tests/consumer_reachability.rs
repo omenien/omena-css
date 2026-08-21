@@ -15,6 +15,7 @@ use crate::{
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context, explain_omena_query,
     explain_omena_query_tree_shake_for_module,
+    run_omena_query_bundle_with_execution_scope_evidence_and_options,
     run_omena_query_bundle_with_module_reachability_and_execution_scope_evidence_and_options,
     run_omena_query_bundle_with_module_reachability_and_options,
     summarize_omena_query_expression_domain_selector_projection_with_precision,
@@ -1295,28 +1296,41 @@ fn ambiguous_relative_style_path_fans_out_instead_of_choosing_an_owner() {
 }
 
 #[test]
-fn attributed_empty_projection_keeps_parse_derived_names() -> Result<(), String> {
-    let style_path = "src/retained.module.css";
-    let style_source = ".retained { color: red; }";
-    let input = module_reachability_input(
-        &[("missing-ref", style_path, "missing")],
-        &[(style_path, style_source, &["retained"])],
-    );
-    let reachability =
-        derive_omena_query_module_reachability_from_engine_input(&input, style_path, true);
-    let attribution = reachability.module_attribution(style_path);
-    assert!(attribution.was_attempted());
-    assert!(attribution.class_names().is_empty());
+fn attributed_empty_projection_removes_unreachable_parse_derived_names() -> Result<(), String> {
+    let fixtures: &[(&str, &str, &str, &[&str])] = &[
+        (
+            "single-class",
+            "src/retained.module.css",
+            ".retained { color: red; }",
+            &["retained"],
+        ),
+        (
+            "two-classes",
+            "src/pair.module.css",
+            ".first { color: red; } .second { color: blue; }",
+            &["first", "second"],
+        ),
+    ];
 
-    let style_sources = vec![OmenaQueryStyleSourceInputV0 {
-        style_path: style_path.to_string(),
-        style_source: style_source.to_string(),
-    }];
-    let passes = vec!["tree-shake-class".to_string()];
-    let context = OmenaQueryTransformExecutionContextV0::default();
-    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
-    let result = run_omena_query_bundle_with_module_reachability_and_options(
-        OmenaQueryBundlePlanInputV0 {
+    for (fixture_id, style_path, style_source, selector_names) in fixtures {
+        let input = module_reachability_input(
+            &[("missing-ref", style_path, "missing")],
+            &[(style_path, style_source, selector_names)],
+        );
+        let reachability =
+            derive_omena_query_module_reachability_from_engine_input(&input, style_path, true);
+        let attribution = reachability.module_attribution(style_path);
+        assert!(attribution.was_attempted());
+        assert!(attribution.class_names().is_empty());
+
+        let style_sources = vec![OmenaQueryStyleSourceInputV0 {
+            style_path: (*style_path).to_string(),
+            style_source: (*style_source).to_string(),
+        }];
+        let passes = vec!["tree-shake-class".to_string()];
+        let context = OmenaQueryTransformExecutionContextV0::default();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let input = || OmenaQueryBundlePlanInputV0 {
             target_style_path: style_path,
             style_sources: &style_sources,
             source_map_sources: &style_sources,
@@ -1325,28 +1339,105 @@ fn attributed_empty_projection_keeps_parse_derived_names() -> Result<(), String>
             resolution_inputs: &resolution_inputs,
             asset_rewrites: Vec::new(),
             bundle_entry_style_paths: &[],
-        },
-        &[],
-        &OmenaQueryConsumerBuildOptionsV0 {
+        };
+        let options = OmenaQueryConsumerBuildOptionsV0 {
             bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
             ..OmenaQueryConsumerBuildOptionsV0::default()
-        },
-        &reachability,
-    )?;
+        };
+        let conservative = run_omena_query_bundle_with_execution_scope_evidence_and_options(
+            input(),
+            &[],
+            &options,
+        )?;
+        let analyzed = run_omena_query_bundle_with_module_reachability_and_options(
+            input(),
+            &[],
+            &options,
+            &reachability,
+        )?;
+        let conservative_css = &conservative.bundle_result.artifact.output_css;
+        let analyzed_css = &analyzed.bundle_result().artifact.output_css;
 
-    assert_eq!(
-        result
-            .reachability_attribution()
-            .attributed_empty_module_count(),
-        1
-    );
-    assert!(
-        result
-            .bundle_result()
-            .artifact
-            .output_css
-            .contains(".retained")
-    );
+        assert_eq!(
+            analyzed
+                .reachability_attribution()
+                .attributed_empty_module_count(),
+            1
+        );
+        assert!(
+            analyzed
+                .bundle_result()
+                .closed_world_outcome
+                .bundle()
+                .is_some()
+        );
+        assert!(
+            conservative
+                .bundle_result
+                .closed_world_outcome
+                .bundle()
+                .is_some()
+        );
+        assert_eq!(conservative_css, style_source);
+        assert_ne!(analyzed_css, conservative_css);
+        assert!(
+            selector_names
+                .iter()
+                .all(|name| !analyzed_css.contains(name))
+        );
+        assert!(
+            analyzed
+                .bundle_result()
+                .artifact
+                .execution
+                .semantic_removals
+                .len()
+                >= selector_names.len()
+        );
+        assert!(
+            conservative
+                .bundle_result
+                .artifact
+                .execution
+                .semantic_removals
+                .is_empty()
+        );
+
+        eprintln!(
+            "REACHABILITY_CORPUS_CELL={}",
+            serde_json::json!({
+                "fixtureId": fixture_id,
+                "state": "analyzed",
+                "cause": null,
+                "closedWorldOutcome": "closed",
+                "semanticRemovalCount": analyzed
+                    .bundle_result()
+                    .artifact
+                    .execution
+                    .semantic_removals
+                    .len(),
+                "outputCss": analyzed_css,
+                "productBytesEqualToConservative": analyzed_css == conservative_css,
+            })
+        );
+        eprintln!(
+            "REACHABILITY_CORPUS_CELL={}",
+            serde_json::json!({
+                "fixtureId": fixture_id,
+                "state": "unanalyzed",
+                "cause": "inputNotProvided",
+                "closedWorldOutcome": "closed",
+                "semanticRemovalCount": conservative
+                    .bundle_result
+                    .artifact
+                    .execution
+                    .semantic_removals
+                    .len(),
+                "outputCss": conservative_css,
+                "productBytesEqualToConservative": true,
+            })
+        );
+    }
     Ok(())
 }
 

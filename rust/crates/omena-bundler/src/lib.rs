@@ -328,6 +328,44 @@ pub struct TransformBundleSemanticReachabilityInputV0 {
     pub keyframe_names: Vec<String>,
     pub value_names: Vec<String>,
     pub custom_property_names: Vec<String>,
+    pub analysis: TransformBundleReachabilityAnalysisV0,
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TransformBundleReachabilityUnanalyzedCauseV0 {
+    InputNotProvided,
+    AnalysisNotAttempted,
+    AnalysisResultUnavailable,
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "state",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum TransformBundleReachabilityAnalysisV0 {
+    Analyzed,
+    Unanalyzed {
+        cause: TransformBundleReachabilityUnanalyzedCauseV0,
+    },
+}
+
+impl Default for TransformBundleReachabilityAnalysisV0 {
+    fn default() -> Self {
+        Self::Unanalyzed {
+            cause: TransformBundleReachabilityUnanalyzedCauseV0::InputNotProvided,
+        }
+    }
+}
+
+impl TransformBundleReachabilityAnalysisV0 {
+    pub fn is_analyzed(self) -> bool {
+        matches!(self, Self::Analyzed)
+    }
 }
 
 #[non_exhaustive]
@@ -350,6 +388,7 @@ pub struct TransformBundleInstanceReachabilityInputV0 {
     pub value_names: Vec<String>,
     pub custom_property_names: Vec<String>,
     pub derivation: InstanceReachabilityDerivationV0,
+    pub analysis: TransformBundleReachabilityAnalysisV0,
 }
 
 impl TransformBundleInstanceReachabilityInputV0 {
@@ -364,6 +403,18 @@ impl TransformBundleInstanceReachabilityInputV0 {
             value_names: Vec::new(),
             custom_property_names: Vec::new(),
             derivation,
+            analysis: TransformBundleReachabilityAnalysisV0::Analyzed,
+        }
+    }
+
+    pub fn unanalyzed(
+        module_instance: ModuleInstanceKeyV0,
+        derivation: InstanceReachabilityDerivationV0,
+        cause: TransformBundleReachabilityUnanalyzedCauseV0,
+    ) -> Self {
+        Self {
+            analysis: TransformBundleReachabilityAnalysisV0::Unanalyzed { cause },
+            ..Self::new(module_instance, derivation)
         }
     }
 
@@ -380,6 +431,18 @@ impl TransformBundleSemanticReachabilityInputV0 {
     pub fn new(source_path: impl Into<String>) -> Self {
         Self {
             source_path: source_path.into(),
+            analysis: TransformBundleReachabilityAnalysisV0::Analyzed,
+            ..Self::default()
+        }
+    }
+
+    pub fn unanalyzed(
+        source_path: impl Into<String>,
+        cause: TransformBundleReachabilityUnanalyzedCauseV0,
+    ) -> Self {
+        Self {
+            source_path: source_path.into(),
+            analysis: TransformBundleReachabilityAnalysisV0::Unanalyzed { cause },
             ..Self::default()
         }
     }
@@ -433,6 +496,8 @@ pub struct TransformBundleLinkerProjectionV0 {
         BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleReachabilityEvidenceV0>,
     module_reachability_derivations:
         BTreeMap<ModuleInstanceKeyV0, InstanceReachabilityDerivationV0>,
+    module_reachability_analysis:
+        BTreeMap<ModuleInstanceKeyV0, TransformBundleReachabilityAnalysisV0>,
 }
 
 #[non_exhaustive]
@@ -474,6 +539,41 @@ impl TransformBundleLinkerProjectionV0 {
         self.module_reachability_derivations
             .get(module_instance)
             .copied()
+    }
+
+    pub fn module_reachability_analysis(
+        &self,
+        module_instance: &ModuleInstanceKeyV0,
+    ) -> TransformBundleReachabilityAnalysisV0 {
+        self.module_reachability_analysis
+            .get(module_instance)
+            .copied()
+            .unwrap_or_default()
+    }
+
+    pub fn analyzed_empty_reachability_input_count(&self) -> usize {
+        self.inputs
+            .iter()
+            .filter(|input| {
+                self.module_reachability_analysis(&input.instance)
+                    .is_analyzed()
+                    && input.class_names.is_empty()
+                    && input.keyframe_names.is_empty()
+                    && input.value_names.is_empty()
+                    && input.custom_property_names.is_empty()
+            })
+            .count()
+    }
+
+    pub fn unanalyzed_reachability_input_count(&self) -> usize {
+        self.inputs
+            .iter()
+            .filter(|input| {
+                !self
+                    .module_reachability_analysis(&input.instance)
+                    .is_analyzed()
+            })
+            .count()
     }
 }
 
@@ -1012,12 +1112,16 @@ pub fn project_omena_transform_bundle_linker_inputs_from_parsed_modules_with_ins
             ));
         }
     }
-    let (module_reachability_evidence, module_reachability_derivations) =
-        apply_semantic_reachability_to_linker_inputs(inputs.as_mut_slice(), reachability_inputs);
+    let (
+        module_reachability_evidence,
+        module_reachability_derivations,
+        module_reachability_analysis,
+    ) = apply_semantic_reachability_to_linker_inputs(inputs.as_mut_slice(), reachability_inputs);
     TransformBundleLinkerProjectionV0 {
         inputs,
         module_reachability_evidence,
         module_reachability_derivations,
+        module_reachability_analysis,
     }
 }
 
@@ -1898,14 +2002,12 @@ fn fan_out_path_reachability_to_instances(
     );
     let mut reachability_by_path =
         BTreeMap::<String, TransformBundleSemanticReachabilityInputV0>::new();
-    for input in reachability_inputs
-        .iter()
-        .filter(|input| input.has_reachable_symbols())
-    {
+    for input in reachability_inputs {
         let normalized_path = normalize_bundle_path(PathBuf::from(&input.source_path));
         let merged = reachability_by_path
             .entry(normalized_path.clone())
             .or_insert_with(|| TransformBundleSemanticReachabilityInputV0::new(normalized_path));
+        merged.analysis = merge_reachability_analysis(merged.analysis, input.analysis);
         merged.class_names.extend(input.class_names.iter().cloned());
         merged
             .keyframe_names
@@ -1940,6 +2042,7 @@ fn fan_out_path_reachability_to_instances(
                     input
                         .custom_property_names
                         .clone_from(&reachability.custom_property_names);
+                    input.analysis = reachability.analysis;
                     input
                 })
         })
@@ -1952,6 +2055,7 @@ fn apply_semantic_reachability_to_linker_inputs(
 ) -> (
     BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleReachabilityEvidenceV0>,
     BTreeMap<ModuleInstanceKeyV0, InstanceReachabilityDerivationV0>,
+    BTreeMap<ModuleInstanceKeyV0, TransformBundleReachabilityAnalysisV0>,
 ) {
     let (reachability_inputs, incomplete_composes_target_instances) =
         instance_reachability_inputs_closed_over_composes(inputs, reachability_inputs);
@@ -1970,6 +2074,15 @@ fn apply_semantic_reachability_to_linker_inputs(
         })
         .collect::<BTreeMap<_, _>>();
     let mut derivation_by_instance = BTreeMap::new();
+    let mut analysis_by_instance = inputs
+        .iter()
+        .map(|input| {
+            (
+                input.instance.clone(),
+                TransformBundleReachabilityAnalysisV0::default(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
 
     for input in reachability_inputs.values() {
         let Some(index) = module_index_by_instance
@@ -1979,9 +2092,19 @@ fn apply_semantic_reachability_to_linker_inputs(
             continue;
         };
         derivation_by_instance.insert(input.module_instance.clone(), input.derivation);
+        analysis_by_instance.insert(input.module_instance.clone(), input.analysis);
         if incomplete_composes_target_instances.contains(&input.module_instance) {
             // A composed-name carrier with a missing side cannot justify filtering its closure
             // target. Typed absence is attached to the module whose declarations could be lost.
+            analysis_by_instance.insert(
+                input.module_instance.clone(),
+                TransformBundleReachabilityAnalysisV0::Unanalyzed {
+                    cause: TransformBundleReachabilityUnanalyzedCauseV0::AnalysisResultUnavailable,
+                },
+            );
+            continue;
+        }
+        if !input.analysis.is_analyzed() {
             continue;
         }
         evidence_by_instance.insert(
@@ -2010,7 +2133,11 @@ fn apply_semantic_reachability_to_linker_inputs(
         inputs[index].custom_property_names =
             dedupe_names(inputs[index].custom_property_names.drain(..));
     }
-    (evidence_by_instance, derivation_by_instance)
+    (
+        evidence_by_instance,
+        derivation_by_instance,
+        analysis_by_instance,
+    )
 }
 
 fn instance_reachability_inputs_closed_over_composes(
@@ -2024,10 +2151,7 @@ fn instance_reachability_inputs_closed_over_composes(
     let mut by_instance =
         BTreeMap::<ModuleInstanceKeyV0, TransformBundleInstanceReachabilityInputV0>::new();
     let mut incomplete_composes_target_instances = BTreeSet::new();
-    for input in reachability_inputs
-        .iter()
-        .filter(|input| input.has_reachable_symbols())
-    {
+    for input in reachability_inputs {
         let merged = by_instance
             .entry(input.module_instance.clone())
             .or_insert_with(|| {
@@ -2039,6 +2163,7 @@ fn instance_reachability_inputs_closed_over_composes(
         if input.derivation == InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator {
             merged.derivation = InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator;
         }
+        merged.analysis = merge_reachability_analysis(merged.analysis, input.analysis);
         merged.class_names.extend(input.class_names.iter().cloned());
         merged
             .keyframe_names
@@ -2060,6 +2185,9 @@ fn instance_reachability_inputs_closed_over_composes(
             let Some(source_reachability) = snapshot.get(&input.instance) else {
                 continue;
             };
+            if !source_reachability.analysis.is_analyzed() {
+                continue;
+            }
             for edge in input
                 .dependency_edges
                 .iter()
@@ -2119,6 +2247,16 @@ fn instance_reachability_inputs_closed_over_composes(
         }
     }
     (by_instance, incomplete_composes_target_instances)
+}
+
+fn merge_reachability_analysis(
+    current: TransformBundleReachabilityAnalysisV0,
+    incoming: TransformBundleReachabilityAnalysisV0,
+) -> TransformBundleReachabilityAnalysisV0 {
+    match (current, incoming) {
+        (TransformBundleReachabilityAnalysisV0::Analyzed, next) => next,
+        (unavailable @ TransformBundleReachabilityAnalysisV0::Unanalyzed { .. }, _) => unavailable,
+    }
 }
 
 fn module_metadata_with_reachability_evidence(
@@ -2932,6 +3070,7 @@ mod tests {
         TransformBundleDependencyResolutionV0, TransformBundleEdgeKind,
         TransformBundleInstanceReachabilityInputV0, TransformBundleLinkErrorV0,
         TransformBundleLinkOptionsV0, TransformBundleModuleInputV0,
+        TransformBundleReachabilityAnalysisV0, TransformBundleReachabilityUnanalyzedCauseV0,
         TransformBundleResolvedDependencyV0, TransformBundleSemanticReachabilityInputV0,
         TransformBundleTransformedModuleV0, apply_semantic_reachability_to_linker_inputs,
         bundle_edge_is_module_dependency, bundle_edge_module_dependency_reason,
@@ -4095,14 +4234,32 @@ mod tests {
     }
 
     #[test]
-    fn empty_semantic_reachability_records_module_input_absence_without_narrowing()
-    -> Result<(), String> {
+    fn analyzed_empty_semantic_reachability_narrows_the_module_to_no_symbols() -> Result<(), String>
+    {
         let modules = vec![TransformBundleModuleInputV0::new(
             "Button.module.css",
             ".used { color: blue; } .dead { color: red; }",
             StyleDialect::Css,
         )];
         let reachability = TransformBundleSemanticReachabilityInputV0::new("Button.module.css");
+        let projection = project_omena_transform_bundle_linker_inputs(
+            modules.as_slice(),
+            std::slice::from_ref(&reachability),
+        );
+        let instance = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("Button.module.css"));
+
+        assert_eq!(
+            projection.module_reachability_analysis(&instance),
+            TransformBundleReachabilityAnalysisV0::Analyzed
+        );
+        assert_eq!(projection.analyzed_empty_reachability_input_count(), 1);
+        assert_eq!(projection.unanalyzed_reachability_input_count(), 0);
+        eprintln!(
+            "REACHABILITY_ANALYSIS_CELL={{\"state\":\"analyzed\",\"cause\":null,\"analyzedEmptyCount\":{},\"unanalyzedCount\":{},\"projectedClassNameCount\":{}}}",
+            projection.analyzed_empty_reachability_input_count(),
+            projection.unanalyzed_reachability_input_count(),
+            projection.inputs()[0].class_names.len(),
+        );
 
         let linked = link_omena_transform_bundle_modules_with_semantic_reachability(
             &["Button.module.css"],
@@ -4110,12 +4267,59 @@ mod tests {
             &[reachability],
         )
         .map_err(|err| format!("semantic reachability bundle should link: {err:?}"))?;
+
+        assert!(
+            linked
+                .closed_world_bundle
+                .reachability()
+                .class_names()
+                .is_empty(),
+            "an analyzed empty set must not be collapsed into missing analysis"
+        );
+        assert_eq!(
+            linked
+                .closed_world_bundle
+                .module_reachability_evidence(&instance),
+            ClosedWorldModuleReachabilityEvidenceV0::Supplied
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn missing_semantic_reachability_preserves_symbols_with_typed_absence() -> Result<(), String> {
+        let modules = vec![TransformBundleModuleInputV0::new(
+            "Button.module.css",
+            ".used { color: blue; } .dead { color: red; }",
+            StyleDialect::Css,
+        )];
+        let projection = project_omena_transform_bundle_linker_inputs(modules.as_slice(), &[]);
         let instance = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("Button.module.css"));
 
         assert_eq!(
+            projection.module_reachability_analysis(&instance),
+            TransformBundleReachabilityAnalysisV0::Unanalyzed {
+                cause: TransformBundleReachabilityUnanalyzedCauseV0::InputNotProvided,
+            }
+        );
+        assert_eq!(projection.analyzed_empty_reachability_input_count(), 0);
+        assert_eq!(projection.unanalyzed_reachability_input_count(), 1);
+        eprintln!(
+            "REACHABILITY_ANALYSIS_CELL={{\"state\":\"unanalyzed\",\"cause\":\"inputNotProvided\",\"analyzedEmptyCount\":{},\"unanalyzedCount\":{},\"projectedClassNameCount\":{}}}",
+            projection.analyzed_empty_reachability_input_count(),
+            projection.unanalyzed_reachability_input_count(),
+            projection.inputs()[0].class_names.len(),
+        );
+
+        let linked = link_omena_transform_bundle_modules_with_semantic_reachability(
+            &["Button.module.css"],
+            &modules,
+            &[],
+        )
+        .map_err(|err| format!("semantic reachability bundle should link: {err:?}"))?;
+
+        assert_eq!(
             linked.closed_world_bundle.reachability().class_names(),
-            &["dead".to_string(), "used".to_string()],
-            "recording absent evidence must preserve the prior fail-open byte behavior"
+            &["dead".to_string(), "used".to_string()]
         );
         assert_eq!(
             linked
@@ -4169,7 +4373,7 @@ mod tests {
         );
         blue_reachability.class_names.push("beta".to_string());
 
-        let (evidence, _) = apply_semantic_reachability_to_linker_inputs(
+        let (evidence, _, _) = apply_semantic_reachability_to_linker_inputs(
             inputs.as_mut_slice(),
             &[red_reachability, blue_reachability],
         );
@@ -4293,7 +4497,7 @@ mod tests {
         );
         target_reachability.class_names.push("base".to_string());
 
-        let (evidence, _) = apply_semantic_reachability_to_linker_inputs(
+        let (evidence, _, _) = apply_semantic_reachability_to_linker_inputs(
             inputs.as_mut_slice(),
             &[source_reachability, target_reachability],
         );

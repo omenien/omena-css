@@ -112,6 +112,46 @@
       ]
     },
     {
+      "crate": "omena-bundler",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor distinguishes an analyzed empty module reachability set from unavailable analysis and exposes the typed state on bundle reachability carriers and projections.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": ["field TransformBundleSemanticReachabilityInputV0.analysis"],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": ["TransformBundleSemanticReachabilityInputV0.analysis"]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "analyzed-empty-module-reachability",
+          "kind": "selection-outcome-changing",
+          "surface": "bundle linker reachability projection and closed-world module symbol set",
+          "reason": "An explicitly analyzed empty set now narrows the module to no reachable symbols, while an unavailable analysis retains parse-derived symbols and reports its typed cause and count.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
+              "needles": [
+                "pub analysis: TransformBundleReachabilityAnalysisV0",
+                "pub fn analyzed_empty_reachability_input_count(&self) -> usize",
+                "pub fn unanalyzed_reachability_input_count(&self) -> usize",
+                "if !input.analysis.is_analyzed()",
+                "inputs[index].class_names.clear()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
+              "needles": [
+                "fn analyzed_empty_semantic_reachability_narrows_the_module_to_no_symbols()",
+                "fn missing_semantic_reachability_preserves_symbols_with_typed_absence()"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
       "crate": "omena-cascade-proof",
       "releaseClass": "pre1MinorBreaking",
       "reason": "The next pre-1.0 minor adds an identity-keyed, catalog-sealed module-export preservation certificate and typed checker rejection vocabulary.",
@@ -159,9 +199,7 @@
             },
             {
               "sourcePath": "rust/crates/omena-cli/src/build.rs",
-              "needles": [
-                "summary.execution.output_css = execution.output_css.clone()"
-              ]
+              "needles": ["summary.execution.output_css = execution.output_css.clone()"]
             }
           ]
         }
@@ -170,7 +208,7 @@
     {
       "crate": "omena-query",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints from query source-index entry points and requires exact Rust-authored declaration identities for style resolution.",
+      "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints, requires exact Rust-authored declaration identities for style resolution, and preserves analyzed-empty reachability as a closed-world result instead of treating it as missing analysis.",
       "expectedFailures": [
         {
           "lint": "function_parameter_count_changed",
@@ -202,6 +240,29 @@
             {
               "sourcePath": "rust/crates/omena-query/src/tests/source_surfaces.rs",
               "needles": ["import_summary.imports[0].style_resolution(style_uri.as_str())"]
+            }
+          ]
+        },
+        {
+          "id": "query-analyzed-empty-module-reachability",
+          "kind": "selection-outcome-changing",
+          "surface": "module-attributed bundle tree-shake output",
+          "reason": "A module whose reachability analysis was attempted and produced an empty set now removes its unreachable parse-derived declarations; inputs without an attempted analysis still downgrade conservatively.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
+              "needles": [
+                "attribution.is_some_and(|entry| entry.was_attempted())",
+                "TransformBundleReachabilityAnalysisV0::Analyzed",
+                "closed_world_source_precision_summary(context)"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/tests/consumer_reachability.rs",
+              "needles": [
+                "fn attributed_empty_projection_removes_unreachable_parse_derived_names()",
+                "fn closed_world_request_open_world_downgrades_and_skips_tree_shake()"
+              ]
             }
           ]
         }

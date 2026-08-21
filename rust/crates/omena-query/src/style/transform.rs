@@ -22,7 +22,8 @@ use omena_query_transform_runner::{
     TransformBundleEdgeKind, TransformBundleEmissionAdmissionV0,
     TransformBundleEmissionItemProjectionV0, TransformBundleInstanceReachabilityInputV0,
     TransformBundleLinkErrorV0, TransformBundleLinkOptionsV0, TransformBundleLinkerProjectionV0,
-    TransformBundleParsedModuleInputV0, TransformBundleResolvedDependencyV0,
+    TransformBundleParsedModuleInputV0, TransformBundleReachabilityAnalysisV0,
+    TransformBundleReachabilityUnanalyzedCauseV0, TransformBundleResolvedDependencyV0,
     TransformBundleSemanticReachabilityInputV0, TransformBundleTransformedModuleV0,
     TransformModuleQualifiedExecutionErrorV0, bundle_edge_is_module_dependency,
     classify_transform_reachability_precision,
@@ -3705,7 +3706,7 @@ fn link_closed_world_stylesheet_for_style_sources(
         request
             .style_sources
             .iter()
-            .filter_map(|source| {
+            .map(|source| {
                 transform_bundle_semantic_reachability_input_from_context_and_attribution(
                     source.style_path.as_str(),
                     request.reachability_context,
@@ -3767,14 +3768,12 @@ fn fan_out_reachability_to_instances(
 ) -> (Vec<TransformBundleInstanceReachabilityInputV0>, usize) {
     let mut reachability_by_path =
         BTreeMap::<String, TransformBundleSemanticReachabilityInputV0>::new();
-    for input in reachability_inputs
-        .iter()
-        .filter(|input| input.has_reachable_symbols())
-    {
+    for input in reachability_inputs {
         let source_path = normalize_omena_transform_bundle_path(&input.source_path);
         let merged = reachability_by_path
             .entry(source_path.clone())
             .or_insert_with(|| TransformBundleSemanticReachabilityInputV0::new(source_path));
+        merged.analysis = merge_query_reachability_analysis(merged.analysis, input.analysis);
         merged.class_names.extend(input.class_names.iter().cloned());
         merged
             .keyframe_names
@@ -3821,6 +3820,7 @@ fn fan_out_reachability_to_instances(
                     input
                         .custom_property_names
                         .clone_from(&reachability.custom_property_names);
+                    input.analysis = reachability.analysis;
                     input
                 })
         })
@@ -3830,6 +3830,19 @@ fn fan_out_reachability_to_instances(
         instance_reachability_inputs,
         expected_instance_reachability_count,
     )
+}
+
+fn merge_query_reachability_analysis(
+    current: TransformBundleReachabilityAnalysisV0,
+    incoming: TransformBundleReachabilityAnalysisV0,
+) -> TransformBundleReachabilityAnalysisV0 {
+    match (current, incoming) {
+        (TransformBundleReachabilityAnalysisV0::Analyzed, next) => next,
+        (unavailable @ TransformBundleReachabilityAnalysisV0::Unanalyzed { .. }, _) => unavailable,
+        _ => TransformBundleReachabilityAnalysisV0::Unanalyzed {
+            cause: TransformBundleReachabilityUnanalyzedCauseV0::AnalysisResultUnavailable,
+        },
+    }
 }
 
 #[allow(deprecated)]
@@ -4743,6 +4756,7 @@ pub fn summarize_omena_query_closed_world_outcome_for_style_source(
     )
 }
 
+#[allow(deprecated)]
 fn build_closed_world_outcome_for_single_style_source_context(
     style_path: &str,
     style_source: &str,
@@ -4757,7 +4771,7 @@ fn build_closed_world_outcome_for_single_style_source_context(
     let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
     let reachability_input =
         transform_bundle_semantic_reachability_input_from_context(style_path, context);
-    let reachability_inputs = reachability_input.as_slice();
+    let reachability_inputs = std::slice::from_ref(&reachability_input);
     let prepared = prepare_transform_bundle_linker_projection(
         &[style_path],
         sources,
@@ -4766,7 +4780,7 @@ fn build_closed_world_outcome_for_single_style_source_context(
     );
     let module_metadata =
         style_sources_to_closed_world_metadata(&prepared.projection, context, &[], false);
-    if reachability_input.is_none() {
+    if !reachability_input.analysis.is_analyzed() {
         if requested_pass_ids_include_tree_shake(requested_pass_ids) {
             return OmenaQueryClosedWorldOutcomeV0::Open {
                 blockers: vec![OmenaQueryClosedWorldBlockerV0::ClosedWorldPassUnavailable {
@@ -4828,11 +4842,21 @@ fn style_sources_to_closed_world_metadata(
     external_sifs: &[OmenaQueryExternalSifInputV0],
     source_set_closed: bool,
 ) -> Vec<ClosedWorldModuleMetadataV0> {
-    let source_precision = closed_world_source_precision_summary(context);
     projection
         .inputs()
         .iter()
         .map(|input| {
+            let source_precision = if projection
+                .module_reachability_analysis(&input.instance)
+                .is_analyzed()
+            {
+                ClosedWorldSourcePrecisionSummaryV0 {
+                    conservative_source_count: 1,
+                    ..ClosedWorldSourcePrecisionSummaryV0::default()
+                }
+            } else {
+                closed_world_source_precision_summary(context)
+            };
             let mut metadata = ClosedWorldModuleMetadataV0::new(input.instance.clone())
                 .with_interface_hash(linker_input_interface_hash(
                     input.source_path.as_str(),
@@ -5002,7 +5026,7 @@ fn closed_world_blocker_from_link_error(
 fn transform_bundle_semantic_reachability_input_from_context(
     style_path: &str,
     context: &TransformExecutionContextV0,
-) -> Option<TransformBundleSemanticReachabilityInputV0> {
+) -> TransformBundleSemanticReachabilityInputV0 {
     transform_bundle_semantic_reachability_input_from_context_and_attribution(
         style_path, context, None,
     )
@@ -5013,23 +5037,51 @@ fn transform_bundle_semantic_reachability_input_from_context_and_attribution(
     style_path: &str,
     context: &TransformExecutionContextV0,
     attribution_report: Option<&OmenaQueryModuleReachabilityAttributionReportV0>,
-) -> Option<TransformBundleSemanticReachabilityInputV0> {
+) -> TransformBundleSemanticReachabilityInputV0 {
     let mut class_names = context.reachable_class_names.clone();
-    if let Some(attribution) =
-        attribution_report.and_then(|report| report.entry_for_style_path(style_path))
-    {
+    let attribution = attribution_report.and_then(|report| report.entry_for_style_path(style_path));
+    if let Some(attribution) = attribution {
         class_names.extend(attribution.class_names().iter().cloned());
     }
     class_names.sort();
     class_names.dedup();
-    let input = TransformBundleSemanticReachabilityInputV0 {
-        source_path: style_path.to_string(),
-        class_names,
-        keyframe_names: context.reachable_keyframe_names.clone(),
-        value_names: context.reachable_value_names.clone(),
-        custom_property_names: context.reachable_custom_property_names.clone(),
+    let has_explicit_symbols = !class_names.is_empty()
+        || !context.reachable_keyframe_names.is_empty()
+        || !context.reachable_value_names.is_empty()
+        || !context.reachable_custom_property_names.is_empty();
+    let analysis = if has_explicit_symbols || attribution.is_some_and(|entry| entry.was_attempted())
+    {
+        TransformBundleReachabilityAnalysisV0::Analyzed
+    } else if attribution_report.is_none() {
+        TransformBundleReachabilityAnalysisV0::Unanalyzed {
+            cause: TransformBundleReachabilityUnanalyzedCauseV0::InputNotProvided,
+        }
+    } else if attribution.is_some() {
+        TransformBundleReachabilityAnalysisV0::Unanalyzed {
+            cause: TransformBundleReachabilityUnanalyzedCauseV0::AnalysisNotAttempted,
+        }
+    } else {
+        TransformBundleReachabilityAnalysisV0::Unanalyzed {
+            cause: TransformBundleReachabilityUnanalyzedCauseV0::AnalysisResultUnavailable,
+        }
     };
-    input.has_reachable_symbols().then_some(input)
+    let mut input = match analysis {
+        TransformBundleReachabilityAnalysisV0::Analyzed => {
+            TransformBundleSemanticReachabilityInputV0::new(style_path)
+        }
+        TransformBundleReachabilityAnalysisV0::Unanalyzed { cause } => {
+            TransformBundleSemanticReachabilityInputV0::unanalyzed(style_path, cause)
+        }
+        _ => TransformBundleSemanticReachabilityInputV0::unanalyzed(
+            style_path,
+            TransformBundleReachabilityUnanalyzedCauseV0::AnalysisResultUnavailable,
+        ),
+    };
+    input.class_names = class_names;
+    input.keyframe_names = context.reachable_keyframe_names.clone();
+    input.value_names = context.reachable_value_names.clone();
+    input.custom_property_names = context.reachable_custom_property_names.clone();
+    input
 }
 
 fn transform_pass_kind_from_id(pass_id: &str) -> Option<TransformPassKind> {

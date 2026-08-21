@@ -13,10 +13,32 @@ function cargoTest(testName: string): {
   readonly status: number | null;
   readonly transcript: string;
 } {
-  const run = spawnSync("cargo", ["test", "-p", "omena-bundler", testName, "--", "--exact"], {
-    cwd: rustRoot,
-    encoding: "utf8",
-  });
+  const run = spawnSync(
+    "cargo",
+    ["test", "-p", "omena-bundler", testName, "--", "--exact", "--nocapture"],
+    {
+      cwd: rustRoot,
+      encoding: "utf8",
+    },
+  );
+  return {
+    status: run.status,
+    transcript: `${run.stdout ?? ""}\n${run.stderr ?? ""}`,
+  };
+}
+
+function queryTest(testName: string): {
+  readonly status: number | null;
+  readonly transcript: string;
+} {
+  const run = spawnSync(
+    "cargo",
+    ["test", "-p", "omena-query", testName, "--", "--exact", "--nocapture"],
+    {
+      cwd: rustRoot,
+      encoding: "utf8",
+    },
+  );
   return {
     status: run.status,
     transcript: `${run.stdout ?? ""}\n${run.stderr ?? ""}`,
@@ -42,17 +64,112 @@ function transformPassesTest(testName: string): {
 
 const absenceTestName = argumentsSet.has("--inject-recorded-module-reachability-absence-loss")
   ? "injected_missing_module_reachability_absence_test"
-  : "tests::empty_semantic_reachability_records_module_input_absence_without_narrowing";
+  : "tests::analyzed_empty_semantic_reachability_narrows_the_module_to_no_symbols";
 const absenceRun = cargoTest(absenceTestName);
+const missingRun = cargoTest(
+  "tests::missing_semantic_reachability_preserves_symbols_with_typed_absence",
+);
+interface ReachabilityAnalysisCell {
+  readonly state: "analyzed" | "unanalyzed";
+  readonly cause: "inputNotProvided" | null;
+  readonly analyzedEmptyCount: number;
+  readonly unanalyzedCount: number;
+  readonly projectedClassNameCount: number;
+}
+const reachabilityAnalysisCells = `${absenceRun.transcript}\n${missingRun.transcript}`
+  .split("\n")
+  .filter((line) => line.startsWith("REACHABILITY_ANALYSIS_CELL="))
+  .map(
+    (line) =>
+      JSON.parse(line.slice("REACHABILITY_ANALYSIS_CELL=".length)) as ReachabilityAnalysisCell,
+  );
 
 // FALSIFIER: id=closed-world-admission-reachability-absence class=liveness via=--inject-recorded-module-reachability-absence-loss producer=can-fail owner=closed-world-admission-tier entry=silent-full-module-retention
 assert.equal(
   absenceRun.status === 0 &&
     absenceRun.transcript.includes(
-      "test tests::empty_semantic_reachability_records_module_input_absence_without_narrowing ... ok",
+      "test tests::analyzed_empty_semantic_reachability_narrows_the_module_to_no_symbols ... ok",
+    ) &&
+    missingRun.status === 0 &&
+    missingRun.transcript.includes(
+      "test tests::missing_semantic_reachability_preserves_symbols_with_typed_absence ... ok",
+    ) &&
+    reachabilityAnalysisCells.some(
+      (cell) =>
+        cell.state === "analyzed" &&
+        cell.cause === null &&
+        cell.analyzedEmptyCount === 1 &&
+        cell.unanalyzedCount === 0 &&
+        cell.projectedClassNameCount === 0,
+    ) &&
+    reachabilityAnalysisCells.some(
+      (cell) =>
+        cell.state === "unanalyzed" &&
+        cell.cause === "inputNotProvided" &&
+        cell.analyzedEmptyCount === 0 &&
+        cell.unanalyzedCount === 1 &&
+        cell.projectedClassNameCount === 2,
     ),
   true,
-  `module reachability absence was not recorded by the closed-world bundle:\n${absenceRun.transcript}`,
+  `an analyzed empty reachability set was collapsed into missing analysis:\n${absenceRun.transcript}`,
+);
+
+const reachabilityCorpusRun = queryTest(
+  "tests::consumer_reachability::attributed_empty_projection_removes_unreachable_parse_derived_names",
+);
+interface ReachabilityCorpusCell {
+  readonly fixtureId: string;
+  readonly state: "analyzed" | "unanalyzed";
+  readonly cause: "inputNotProvided" | null;
+  readonly closedWorldOutcome: "closed" | "open";
+  readonly semanticRemovalCount: number;
+  readonly outputCss: string;
+  readonly productBytesEqualToConservative: boolean;
+}
+const reachabilityCorpusCells = reachabilityCorpusRun.transcript
+  .split("\n")
+  .filter((line) => line.startsWith("REACHABILITY_CORPUS_CELL="))
+  .map(
+    (line) => JSON.parse(line.slice("REACHABILITY_CORPUS_CELL=".length)) as ReachabilityCorpusCell,
+  );
+const reachabilityCorpusFixtureIds = [
+  ...new Set(reachabilityCorpusCells.map((cell) => cell.fixtureId)),
+].toSorted();
+const analyzedProductByteDeltaInputIds = reachabilityCorpusCells
+  .filter(
+    (cell) =>
+      cell.state === "analyzed" &&
+      cell.closedWorldOutcome === "closed" &&
+      cell.semanticRemovalCount > 0 &&
+      !cell.productBytesEqualToConservative,
+  )
+  .map((cell) => cell.fixtureId)
+  .toSorted();
+const conservativeByteIdenticalInputIds = reachabilityCorpusCells
+  .filter(
+    (cell) =>
+      cell.state === "unanalyzed" &&
+      cell.cause === "inputNotProvided" &&
+      cell.closedWorldOutcome === "closed" &&
+      cell.semanticRemovalCount === 0 &&
+      cell.productBytesEqualToConservative,
+  )
+  .map((cell) => cell.fixtureId)
+  .toSorted();
+const conservativeUnanalyzedCount = reachabilityAnalysisCells
+  .filter((cell) => cell.state === "unanalyzed")
+  .reduce((count, cell) => count + cell.unanalyzedCount, 0);
+
+// FALSIFIER: id=closed-world-admission-reachability-corpus class=liveness via=restore-analyzed-empty-filter producer=can-fail owner=closed-world-admission-tier entry=product-byte-diff-by-analysis-state
+assert.equal(
+  reachabilityCorpusRun.status === 0 &&
+    reachabilityCorpusFixtureIds.length >= 2 &&
+    reachabilityCorpusCells.length === reachabilityCorpusFixtureIds.length * 2 &&
+    analyzedProductByteDeltaInputIds.length === reachabilityCorpusFixtureIds.length &&
+    conservativeByteIdenticalInputIds.length === reachabilityCorpusFixtureIds.length &&
+    conservativeUnanalyzedCount > 0,
+  true,
+  `the product corpus did not distinguish analyzed-empty from conservative reachability:\n${reachabilityCorpusRun.transcript}`,
 );
 
 const matrixTestName = argumentsSet.has("--inject-composes-admission-matrix-loss")
@@ -623,6 +740,15 @@ process.stdout.write(
     {
       product: "omena.closed-world-admission-tier",
       absenceTest: "1 passed",
+      missingAnalysisTest: "1 passed",
+      reachabilityAnalysisCells,
+      reachabilityCorpusDiff: {
+        fixtureCount: reachabilityCorpusFixtureIds.length,
+        cells: reachabilityCorpusCells,
+        analyzedProductByteDeltaInputIds,
+        conservativeByteIdenticalInputIds,
+        conservativeUnanalyzedCount,
+      },
       composesMatrixTest: "1 passed",
       composesMatrixCommand: matrixRun.command,
       composesMatrixSubprocessRc: matrixRun.status,
