@@ -15,10 +15,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_cascade::{
-    CascadeKey, CascadeLevel, CascadeValue, DomClassTokenizationV0, LayerOrdinal, Specificity,
-    normalized_layer_rank, resolve_custom_property_env_least_fixed_point, token_support_v0,
+    CascadeKey, CascadeLevel, CascadeValue, DomClassTokenizationV0, LayerOrdinal,
+    OrderedTokenWordV0, Specificity, TokenSupportV0, normalized_layer_rank,
+    resolve_custom_property_env_least_fixed_point, token_support_v0,
     tokenize_dom_class_attribute_v0,
 };
+use omena_parser::ModuleInstanceKeyV0;
+use omena_syntax::ident::ClassNameV0;
 use serde::{Deserialize, Serialize};
 
 pub const REWRITE_CERTIFICATE_SCHEMA_VERSION_V0: &str = "0";
@@ -262,6 +265,69 @@ pub struct TokenOwnershipSeparabilityCertV0 {
     pub interface_mismatch_count: usize,
 }
 
+/// Identity of one CSS Module export before and after a transform pass.
+///
+/// The authored name is never a standalone key: it is sealed together with
+/// the module-instance carrier selected by the CSS Modules identity plane.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModuleExportKeyV0 {
+    pub module_instance: ModuleInstanceKeyV0,
+    pub canonical_class_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModuleExportObservationV0 {
+    pub key: ModuleExportKeyV0,
+    pub emitted_token: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModuleExportRenameDeltaV0 {
+    pub key: ModuleExportKeyV0,
+    pub before_token: String,
+    pub after_token: String,
+}
+
+/// Premises for one pass's exported-class-name preservation claim.
+///
+/// The checker re-hashes both premise sets and derives the preservation
+/// relation itself. No producer-owned `preserved` boolean exists.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModuleExportPreservationCertV0 {
+    pub pass_id: String,
+    pub before_exports: Vec<ModuleExportObservationV0>,
+    pub after_exports: Vec<ModuleExportObservationV0>,
+    pub declared_rename_delta: Vec<ModuleExportRenameDeltaV0>,
+    pub before_premise_digest: String,
+    pub after_premise_digest: String,
+}
+
+impl ModuleExportPreservationCertV0 {
+    pub fn new(
+        pass_id: impl Into<String>,
+        before_exports: Vec<ModuleExportObservationV0>,
+        after_exports: Vec<ModuleExportObservationV0>,
+        declared_rename_delta: Vec<ModuleExportRenameDeltaV0>,
+    ) -> Self {
+        let before_premise_digest =
+            module_export_observation_digest_hex_v0(before_exports.as_slice());
+        let after_premise_digest =
+            module_export_observation_digest_hex_v0(after_exports.as_slice());
+        Self {
+            pass_id: pass_id.into(),
+            before_exports,
+            after_exports,
+            declared_rename_delta,
+            before_premise_digest,
+            after_premise_digest,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformIndependenceObservationCertRowV0 {
@@ -296,6 +362,7 @@ pub enum RewriteSideConditionKindV0 {
     SourceMapTrace,
     TokenOwnershipSeparability,
     TransformIndependence,
+    ModuleExportPreservation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -318,6 +385,9 @@ pub enum SideConditionCertV0 {
     TransformIndependence {
         certificate: Box<TransformIndependenceCertV0>,
     },
+    ModuleExportPreservation {
+        certificate: ModuleExportPreservationCertV0,
+    },
 }
 
 impl SideConditionCertV0 {
@@ -329,6 +399,9 @@ impl SideConditionCertV0 {
             Self::SourceMapTrace { .. } => RewriteSideConditionKindV0::SourceMapTrace,
             Self::TokenOwnershipSeparability { .. } => {
                 RewriteSideConditionKindV0::TokenOwnershipSeparability
+            }
+            Self::ModuleExportPreservation { .. } => {
+                RewriteSideConditionKindV0::ModuleExportPreservation
             }
             Self::TransformIndependence { .. } => RewriteSideConditionKindV0::TransformIndependence,
         }
@@ -578,6 +651,11 @@ pub enum CertificateRejectionKindV0 {
         message: String,
     },
     DerivedTermLimitExceeded,
+    ModuleExportPreservationRejected {
+        reason: String,
+        pass_id: String,
+        export_key: Option<ModuleExportKeyV0>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -843,6 +921,71 @@ pub fn selector_rewrite_rule_catalog_with_cascade_winner_equality_v0() -> Rewrit
         rule.side_condition_kind = RewriteSideConditionKindV0::CascadeWinnerEquality;
     }
     catalog
+}
+
+const MODULE_EXPORT_PRESERVATION_RULES_V0: [(&str, &str); 4] = [
+    (
+        "selector-merging",
+        "module-export-preservation-selector-merging-v0",
+    ),
+    (
+        "css-modules-class-hashing",
+        "module-export-preservation-css-modules-class-hashing-v0",
+    ),
+    (
+        "composes-resolution",
+        "module-export-preservation-composes-resolution-v0",
+    ),
+    (
+        "tree-shake-class",
+        "module-export-preservation-tree-shake-class-v0",
+    ),
+];
+
+pub fn module_export_preservation_rule_id_v0(pass_id: &str) -> Option<&'static str> {
+    MODULE_EXPORT_PRESERVATION_RULES_V0
+        .iter()
+        .find_map(|(candidate_pass_id, rule_id)| {
+            (*candidate_pass_id == pass_id).then_some(*rule_id)
+        })
+}
+
+pub fn module_export_preservation_rule_catalog_v0() -> RewriteRuleCatalogV0 {
+    let rules = MODULE_EXPORT_PRESERVATION_RULES_V0
+        .into_iter()
+        .map(|(_pass_id, rule_id)| RewriteRuleV0 {
+            rule_id: rule_id.to_owned(),
+            before_pattern: RewritePatternV0::apply(
+                "moduleExportPreservationRequested",
+                vec![
+                    RewritePatternV0::variable("pass"),
+                    RewritePatternV0::variable("module"),
+                ],
+            ),
+            after_pattern: RewritePatternV0::apply(
+                "moduleExportPreservationGranted",
+                vec![
+                    RewritePatternV0::variable("pass"),
+                    RewritePatternV0::variable("module"),
+                ],
+            ),
+            side_condition_kind: RewriteSideConditionKindV0::ModuleExportPreservation,
+        })
+        .collect();
+    RewriteRuleCatalogV0 {
+        schema_version: REWRITE_RULE_CATALOG_SCHEMA_VERSION_V0.to_owned(),
+        operators: vec![
+            RewriteOperatorV0 {
+                operator: "moduleExportPreservationRequested".to_owned(),
+                arity: 2,
+            },
+            RewriteOperatorV0 {
+                operator: "moduleExportPreservationGranted".to_owned(),
+                arity: 2,
+            },
+        ],
+        rules,
+    }
 }
 
 fn validate_schema(
@@ -1408,6 +1551,9 @@ fn check_side_condition_v0(
         SideConditionCertV0::TokenOwnershipSeparability { certificate } => {
             check_token_ownership_separability_v0(certificate, path, rule_id)
         }
+        SideConditionCertV0::ModuleExportPreservation { certificate } => {
+            check_module_export_preservation_v0(certificate, path, rule_id)
+        }
         SideConditionCertV0::TransformIndependence { certificate } => {
             check_transform_independence_v0(certificate, path, rule_id)
         }
@@ -1568,6 +1714,229 @@ fn check_token_ownership_separability_v0(
         ));
     }
     Ok(())
+}
+
+fn check_module_export_preservation_v0(
+    certificate: &ModuleExportPreservationCertV0,
+    path: &[usize],
+    rule_id: &str,
+) -> Result<(), CertificateRejectionV0> {
+    let reject = |reason: &str, export_key: Option<ModuleExportKeyV0>| {
+        CertificateRejectionV0::new(
+            side_condition_site_v0(path, rule_id),
+            CertificateRejectionKindV0::ModuleExportPreservationRejected {
+                reason: reason.to_owned(),
+                pass_id: certificate.pass_id.clone(),
+                export_key,
+            },
+        )
+    };
+    let Some(expected_rule_id) = module_export_preservation_rule_id_v0(&certificate.pass_id) else {
+        return Err(reject(
+            "pass does not claim exported-class-name preservation",
+            None,
+        ));
+    };
+    if expected_rule_id != rule_id {
+        return Err(reject(
+            "certificate pass does not match the selected catalog rule",
+            None,
+        ));
+    }
+    if certificate.before_premise_digest
+        != module_export_observation_digest_hex_v0(&certificate.before_exports)
+    {
+        return Err(reject(
+            "before export premise digest does not match its rows",
+            None,
+        ));
+    }
+    if certificate.after_premise_digest
+        != module_export_observation_digest_hex_v0(&certificate.after_exports)
+    {
+        return Err(reject(
+            "after export premise digest does not match its rows",
+            None,
+        ));
+    }
+
+    let before = module_export_observation_map_v0(&certificate.before_exports)
+        .map_err(|(reason, key)| reject(reason, Some(key)))?;
+    let after = module_export_observation_map_v0(&certificate.after_exports)
+        .map_err(|(reason, key)| reject(reason, Some(key)))?;
+    let mut deltas = BTreeMap::new();
+    let mut delta_before_tokens = BTreeSet::new();
+    let mut delta_after_tokens = BTreeSet::new();
+    for delta in &certificate.declared_rename_delta {
+        if deltas.insert(delta.key.clone(), delta).is_some() {
+            return Err(reject(
+                "rename delta repeats an identity key",
+                Some(delta.key.clone()),
+            ));
+        }
+        if !delta_before_tokens.insert(delta.before_token.as_str()) {
+            return Err(reject(
+                "rename delta does not form a bijection over before tokens",
+                Some(delta.key.clone()),
+            ));
+        }
+        if !delta_after_tokens.insert(delta.after_token.as_str()) {
+            return Err(reject(
+                "rename delta does not form a bijection over after tokens",
+                Some(delta.key.clone()),
+            ));
+        }
+    }
+    if certificate.pass_id != "css-modules-class-hashing" && !deltas.is_empty() {
+        return Err(reject(
+            "only css-modules-class-hashing may declare an export rename delta",
+            deltas.keys().next().cloned(),
+        ));
+    }
+
+    for (key, before_token) in &before {
+        let Some(after_token) = after.get(key) else {
+            return Err(reject(
+                "after export premise dropped an identity key",
+                Some(key.clone()),
+            ));
+        };
+        let expected_after = if let Some(delta) = deltas.get(key) {
+            if delta.before_token.as_str() != *before_token {
+                return Err(reject(
+                    "rename delta before token does not match the observed premise",
+                    Some(key.clone()),
+                ));
+            }
+            delta.after_token.as_str()
+        } else {
+            *before_token
+        };
+        if expected_after != *after_token {
+            return Err(reject(
+                "after export token is neither preserved nor covered by the declared rename delta",
+                Some(key.clone()),
+            ));
+        }
+    }
+    if let Some(extra) = after.keys().find(|key| !before.contains_key(*key)) {
+        return Err(reject(
+            "after export premise introduced an unmodeled identity key",
+            Some((*extra).clone()),
+        ));
+    }
+    if let Some(unused) = deltas.keys().find(|key| !before.contains_key(*key)) {
+        return Err(reject(
+            "rename delta names an identity key absent from the before premise",
+            Some(unused.clone()),
+        ));
+    }
+
+    let expected_after_tokens = before
+        .iter()
+        .map(|(key, before_token)| {
+            deltas
+                .get(key)
+                .map_or(*before_token, |delta| delta.after_token.as_str())
+        })
+        .collect::<Vec<_>>();
+    let actual_after_tokens = after.values().copied().collect::<Vec<_>>();
+    let (expected_word_len, expected_support) =
+        module_export_token_support_v0(expected_after_tokens.iter().copied());
+    let (actual_word_len, actual_support) =
+        module_export_token_support_v0(actual_after_tokens.iter().copied());
+    if expected_word_len != expected_after_tokens.len()
+        || actual_word_len != actual_after_tokens.len()
+    {
+        return Err(reject(
+            "export tokens collapse under canonical class-token identity",
+            None,
+        ));
+    }
+    if expected_support != actual_support {
+        return Err(reject(
+            "canonical export-token support does not match the declared preservation relation",
+            None,
+        ));
+    }
+    Ok(())
+}
+
+fn module_export_token_support_v0<'a>(
+    tokens: impl IntoIterator<Item = &'a str>,
+) -> (usize, TokenSupportV0) {
+    let word = OrderedTokenWordV0::from_keys(
+        tokens
+            .into_iter()
+            .map(|token| ClassNameV0::new(token).canonical_key()),
+    );
+    let word_len = word.tokens().len();
+    (word_len, token_support_v0(&word))
+}
+
+fn module_export_observation_map_v0(
+    observations: &[ModuleExportObservationV0],
+) -> Result<BTreeMap<ModuleExportKeyV0, &str>, (&'static str, ModuleExportKeyV0)> {
+    let mut result = BTreeMap::new();
+    for observation in observations {
+        if observation.key.canonical_class_name.is_empty()
+            || ClassNameV0::new(observation.key.canonical_class_name.as_str())
+                .canonical_key()
+                .as_str()
+                != observation.key.canonical_class_name
+        {
+            return Err((
+                "export premise contains a non-canonical identity key",
+                observation.key.clone(),
+            ));
+        }
+        if observation.emitted_token.is_empty() {
+            return Err((
+                "export premise contains an empty emitted token",
+                observation.key.clone(),
+            ));
+        }
+        if result
+            .insert(observation.key.clone(), observation.emitted_token.as_str())
+            .is_some()
+        {
+            return Err((
+                "export premise repeats an identity key",
+                observation.key.clone(),
+            ));
+        }
+    }
+    Ok(result)
+}
+
+pub fn module_export_observation_digest_hex_v0(
+    observations: &[ModuleExportObservationV0],
+) -> String {
+    let mut ordered = observations.iter().collect::<Vec<_>>();
+    ordered.sort();
+    let mut hasher = blake3::Hasher::new();
+    update_framed_hash_v0(
+        &mut hasher,
+        b"omena-cascade-proof.module-export-observation.v0",
+    );
+    for observation in ordered {
+        update_framed_hash_v0(
+            &mut hasher,
+            observation.key.module_instance.module().as_str().as_bytes(),
+        );
+        update_framed_hash_v0(
+            &mut hasher,
+            observation
+                .key
+                .module_instance
+                .configuration()
+                .as_str()
+                .as_bytes(),
+        );
+        update_framed_hash_v0(&mut hasher, observation.key.canonical_class_name.as_bytes());
+        update_framed_hash_v0(&mut hasher, observation.emitted_token.as_bytes());
+    }
+    hasher.finalize().to_hex().to_string()
 }
 
 fn side_condition_site_v0(path: &[usize], rule_id: &str) -> RewriteFailureSiteV0 {
@@ -1914,6 +2283,7 @@ fn rewrite_side_condition_kind_id_v0(kind: RewriteSideConditionKindV0) -> &'stat
         RewriteSideConditionKindV0::ComputedValueEquality => "computedValueEquality",
         RewriteSideConditionKindV0::SourceMapTrace => "sourceMapTrace",
         RewriteSideConditionKindV0::TokenOwnershipSeparability => "tokenOwnershipSeparability",
+        RewriteSideConditionKindV0::ModuleExportPreservation => "moduleExportPreservation",
         RewriteSideConditionKindV0::TransformIndependence => "transformIndependence",
     }
 }
@@ -2148,6 +2518,46 @@ mod tests {
                 side_condition,
             },
         }
+    }
+
+    fn module_export_observation(
+        module: &str,
+        authored_name: &str,
+        emitted_token: &str,
+    ) -> ModuleExportObservationV0 {
+        ModuleExportObservationV0 {
+            key: ModuleExportKeyV0 {
+                module_instance: ModuleInstanceKeyV0::unconfigured(omena_parser::ModuleIdV0::new(
+                    module,
+                )),
+                canonical_class_name: ClassNameV0::new(authored_name)
+                    .canonical_key()
+                    .as_str()
+                    .to_owned(),
+            },
+            emitted_token: emitted_token.to_owned(),
+        }
+    }
+
+    fn module_export_certificate(
+        pass_id: &str,
+        before_exports: Vec<ModuleExportObservationV0>,
+        after_exports: Vec<ModuleExportObservationV0>,
+        declared_rename_delta: Vec<ModuleExportRenameDeltaV0>,
+    ) -> RewriteCertificateEnvelopeV0 {
+        let rule_id = module_export_preservation_rule_id_v0(pass_id)
+            .unwrap_or("unknown-module-export-preservation-rule-v0");
+        single_rule_certificate(
+            rule_id,
+            SideConditionCertV0::ModuleExportPreservation {
+                certificate: ModuleExportPreservationCertV0::new(
+                    pass_id,
+                    before_exports,
+                    after_exports,
+                    declared_rename_delta,
+                ),
+            },
+        )
     }
 
     fn literal(value: &str) -> ComputedValueTermV0 {
@@ -2415,6 +2825,22 @@ mod tests {
                     interface_mismatch_count: 0,
                 },
             },
+            SideConditionCertV0::ModuleExportPreservation {
+                certificate: ModuleExportPreservationCertV0::new(
+                    "selector-merging",
+                    vec![module_export_observation(
+                        "src/card.module.css",
+                        "root",
+                        "root",
+                    )],
+                    vec![module_export_observation(
+                        "src/card.module.css",
+                        "root",
+                        "root",
+                    )],
+                    Vec::new(),
+                ),
+            },
             SideConditionCertV0::TransformIndependence {
                 certificate: Box::new(TransformIndependenceCertV0 {
                     left_pass_id: "number-compression".to_owned(),
@@ -2441,6 +2867,218 @@ mod tests {
             assert_eq!(decoded, certificate);
         }
         Ok(())
+    }
+
+    #[test]
+    fn module_export_preservation_rejects_drop_identity_swap_and_digest_tamper() {
+        let pass_id = "selector-merging";
+        let rule_id = "module-export-preservation-selector-merging-v0";
+        let catalog = single_rule_catalog(
+            rule_id,
+            "preservationRequested",
+            "preservationGranted",
+            RewriteSideConditionKindV0::ModuleExportPreservation,
+        );
+        let before_term = RewriteTermV0::atom("preservationRequested");
+        let after_term = RewriteTermV0::atom("preservationGranted");
+        let before = vec![module_export_observation(
+            "src/card.module.css",
+            "root",
+            "root",
+        )];
+        let after = before.clone();
+        let check = |certificate: RewriteCertificateEnvelopeV0| {
+            check_rewrite_certificate_v0(
+                &before_term,
+                &after_term,
+                &catalog,
+                &certificate,
+                &CanonicalRewriteAssumptionsV0::default(),
+            )
+        };
+
+        let accepted = check(module_export_certificate(
+            pass_id,
+            before.clone(),
+            after.clone(),
+            Vec::new(),
+        ));
+        assert!(
+            accepted.is_ok(),
+            "valid preservation rejected: {accepted:?}"
+        );
+
+        let noncanonical_identity = ModuleExportObservationV0 {
+            key: ModuleExportKeyV0 {
+                module_instance: ModuleInstanceKeyV0::unconfigured(omena_parser::ModuleIdV0::new(
+                    "src/card.module.css",
+                )),
+                canonical_class_name: r"\72 oot".to_owned(),
+            },
+            emitted_token: "root".to_owned(),
+        };
+        let noncanonical = check(module_export_certificate(
+            pass_id,
+            vec![noncanonical_identity.clone()],
+            vec![noncanonical_identity],
+            Vec::new(),
+        ));
+        assert!(matches!(
+            noncanonical,
+            Err(CertificateRejectionV0 { rejection, .. }) if matches!(
+                *rejection,
+                CertificateRejectionKindV0::ModuleExportPreservationRejected { ref reason, .. }
+                    if reason.contains("non-canonical identity key")
+            )
+        ));
+
+        let dropped = check(module_export_certificate(
+            pass_id,
+            before.clone(),
+            Vec::new(),
+            Vec::new(),
+        ));
+        assert!(matches!(
+            dropped,
+            Err(CertificateRejectionV0 { rejection, .. }) if matches!(
+                *rejection,
+                CertificateRejectionKindV0::ModuleExportPreservationRejected { ref reason, .. }
+                    if reason.contains("dropped an identity key")
+            )
+        ));
+
+        let swapped = check(module_export_certificate(
+            pass_id,
+            before.clone(),
+            vec![module_export_observation(
+                "src/other.module.css",
+                "root",
+                "root",
+            )],
+            Vec::new(),
+        ));
+        assert!(matches!(
+            swapped,
+            Err(CertificateRejectionV0 { rejection, .. }) if matches!(
+                *rejection,
+                CertificateRejectionKindV0::ModuleExportPreservationRejected { ref reason, .. }
+                    if reason.contains("dropped an identity key")
+            )
+        ));
+
+        let mut tampered = module_export_certificate(pass_id, before, after, Vec::new());
+        let shape_mutated = if let RewriteCertificateV0::Rewrite {
+            side_condition: SideConditionCertV0::ModuleExportPreservation { certificate },
+            ..
+        } = &mut tampered.certificate
+        {
+            certificate.after_premise_digest = "00".repeat(32);
+            true
+        } else {
+            false
+        };
+        assert!(
+            shape_mutated,
+            "single-rule preservation certificate shape changed"
+        );
+        let tampered_result = check(tampered);
+        assert!(matches!(
+            tampered_result,
+            Err(CertificateRejectionV0 { rejection, .. }) if matches!(
+                *rejection,
+                CertificateRejectionKindV0::ModuleExportPreservationRejected { ref reason, .. }
+                    if reason.contains("digest")
+            )
+        ));
+    }
+
+    #[test]
+    fn module_export_hashing_accepts_only_a_bijective_declared_rename_delta() {
+        let pass_id = "css-modules-class-hashing";
+        let rule_id = "module-export-preservation-css-modules-class-hashing-v0";
+        let catalog = single_rule_catalog(
+            rule_id,
+            "preservationRequested",
+            "preservationGranted",
+            RewriteSideConditionKindV0::ModuleExportPreservation,
+        );
+        let before_term = RewriteTermV0::atom("preservationRequested");
+        let after_term = RewriteTermV0::atom("preservationGranted");
+        let before_root = module_export_observation("src/card.module.css", "root", "root");
+        let before_title = module_export_observation("src/card.module.css", "title", "title");
+        let after_root = module_export_observation("src/card.module.css", "root", "_root_a1");
+        let after_title = module_export_observation("src/card.module.css", "title", "_title_b2");
+        let deltas = vec![
+            ModuleExportRenameDeltaV0 {
+                key: before_root.key.clone(),
+                before_token: before_root.emitted_token.clone(),
+                after_token: after_root.emitted_token.clone(),
+            },
+            ModuleExportRenameDeltaV0 {
+                key: before_title.key.clone(),
+                before_token: before_title.emitted_token.clone(),
+                after_token: after_title.emitted_token.clone(),
+            },
+        ];
+        let check = |certificate: RewriteCertificateEnvelopeV0| {
+            check_rewrite_certificate_v0(
+                &before_term,
+                &after_term,
+                &catalog,
+                &certificate,
+                &CanonicalRewriteAssumptionsV0::default(),
+            )
+        };
+        let accepted = check(module_export_certificate(
+            pass_id,
+            vec![before_root.clone(), before_title.clone()],
+            vec![after_root.clone(), after_title.clone()],
+            deltas.clone(),
+        ));
+        assert!(accepted.is_ok(), "bijective rename rejected: {accepted:?}");
+
+        let canonical_before_root =
+            module_export_observation("src/card.module.css", "root", "button");
+        let canonical_before_title =
+            module_export_observation("src/card.module.css", "title", "title");
+        let canonical_after_root = canonical_before_root.clone();
+        let canonical_after_title =
+            module_export_observation("src/card.module.css", "title", r"\62 utton");
+        let canonical_collision = check(module_export_certificate(
+            pass_id,
+            vec![canonical_before_root, canonical_before_title.clone()],
+            vec![canonical_after_root, canonical_after_title.clone()],
+            vec![ModuleExportRenameDeltaV0 {
+                key: canonical_before_title.key,
+                before_token: canonical_before_title.emitted_token,
+                after_token: canonical_after_title.emitted_token,
+            }],
+        ));
+        assert!(matches!(
+            canonical_collision,
+            Err(CertificateRejectionV0 { rejection, .. }) if matches!(
+                *rejection,
+                CertificateRejectionKindV0::ModuleExportPreservationRejected { ref reason, .. }
+                    if reason.contains("collapse under canonical")
+            )
+        ));
+
+        let mut colliding_deltas = deltas;
+        colliding_deltas[1].after_token = after_root.emitted_token.clone();
+        let rejected = check(module_export_certificate(
+            pass_id,
+            vec![before_root, before_title],
+            vec![after_root, after_title],
+            colliding_deltas,
+        ));
+        assert!(matches!(
+            rejected,
+            Err(CertificateRejectionV0 { rejection, .. }) if matches!(
+                *rejection,
+                CertificateRejectionKindV0::ModuleExportPreservationRejected { ref reason, .. }
+                    if reason.contains("bijection")
+            )
+        ));
     }
 
     #[test]

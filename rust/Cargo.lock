@@ -2539,8 +2539,10 @@ dependencies = [
  "blake3",
  "omena-cascade",
  "omena-evidence-graph",
+ "omena-parser",
  "omena-refinement-trait",
  "omena-smt",
+ "omena-syntax",
  "serde",
  "serde_json",
 ]
