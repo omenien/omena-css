@@ -70,6 +70,10 @@ pub fn summarize_omena_transform_passes_boundary() -> TransformPassesBoundarySum
     }
 }
 
+// This compatibility wrapper predates the checked API. The default registry is repository-owned
+// and separately exhaustively probed; an impossible cycle must hard-stop instead of fabricating a
+// plan for legacy callers that cannot receive `TransformPassPlanningErrorV0`.
+#[allow(clippy::panic)]
 pub fn plan_transform_passes(requested: &[TransformPassKind]) -> TransformPassPlanV0 {
     let registry = default_transform_pass_registry();
     let dag_edges = default_transform_dag_edges();
@@ -231,6 +235,9 @@ fn query_family_for_pass(kind: TransformPassKind) -> &'static str {
     }
 }
 
+// Kahn no-progress with a non-empty remainder entails a cycle. The witness walk covers exactly
+// those remaining registry dependencies, so absence would be an internal invariant violation.
+#[allow(clippy::expect_used)]
 fn order_passes_by_registry(
     requested: &[TransformPassKind],
     registry_entries: &[TransformPassRegistryEntryV0],
@@ -258,6 +265,7 @@ fn order_passes_by_registry(
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::items_after_test_module, clippy::panic)]
 mod planner_cycle_tests {
     use super::*;
 

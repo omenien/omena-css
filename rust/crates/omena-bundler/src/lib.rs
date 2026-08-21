@@ -3881,6 +3881,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::expect_used)]
     fn dialect_import_cycles_fail_closed_with_typed_classification() {
         let fixtures = [
             (

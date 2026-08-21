@@ -454,7 +454,7 @@ fn decide_postcss_compat_adoption(
     let input_parse_error_count = postcss_parse_error_count(source_css, dialect);
     let candidate_parse_error_count = postcss_parse_error_count(candidate_output_css, dialect);
     let semantic_diff_total = semantic_diff.all_changes_classified
-        && omena_query_external_css_semantic_diff_is_total_v0(&semantic_diff);
+        && omena_query_external_css_semantic_diff_is_total_v0(semantic_diff);
     let checks = PostcssCompatAdoptionChecksV0 {
         input_parse_error_count,
         candidate_parse_error_count,
