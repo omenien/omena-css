@@ -813,7 +813,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/tests/consumer_reachability.rs",
-      "line": 370,
+      "line": 371,
       "function": "target_query_build_derives_workspace_context_for_bundle_passes",
       "idiom": "contains",
       "keyword": "composes",
@@ -2110,7 +2110,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:902295d857e6fb3d4cf0c46e899f9bd1e6e2e6c5fda14666b19c30ee10ec6999",
+  "siteDigest": "sha256:b11e2754c653e5260cbbde5d652d21162326237e73d8bd1934257f7fcb527ffe",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [

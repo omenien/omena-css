@@ -313,7 +313,7 @@
     },
     {
       "path": "rust/crates/omena-transform-egg/src/lib.rs",
-      "line": 415,
+      "line": 414,
       "idiom": "source-substring-gate",
       "family": "engine-support",
       "disposition": "named-exempt",
@@ -322,7 +322,7 @@
     },
     {
       "path": "rust/crates/omena-transform-egg/src/lib.rs",
-      "line": 416,
+      "line": 415,
       "idiom": "source-substring-gate",
       "family": "engine-support",
       "disposition": "named-exempt",
@@ -1302,7 +1302,7 @@
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
     }
   ],
-  "siteDigest": "sha256:66634db3489508bf5523f4b6c76a782e6c02b70ac6d86369b4ce77fbe6c281ea",
+  "siteDigest": "sha256:1b3930fa055782bdca2ef7125d89f02d658a64f8d84a451c78d40a59a5855322",
   "classSelectorScanner": {
     "policy": "decrease-only",
     "baselineSiteCount": 3,
