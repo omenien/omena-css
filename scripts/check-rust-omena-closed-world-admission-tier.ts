@@ -191,12 +191,14 @@ assert.equal(
 );
 if (injectDialectCycleCorpusMeasurementLoss) {
   const probe = runDialectCycleCorpusMeasurementProbe();
+  // FALSIFIER: id=closed-world-admission-dialect-cycle-exact-target class=liveness via=--inject-dialect-cycle-corpus-measurement-loss producer=can-fail owner=closed-world-admission-tier entry=zero-test-filter
   assert.equal(
     probe.baselineStatus === 0 && probe.exactTargetMatchCount === 1,
     true,
     "dialect-cycle corpus mutation probe did not execute exactly one real producer test: " +
       JSON.stringify(probe),
   );
+  // FALSIFIER: id=closed-world-admission-dialect-cycle-mutation-detection class=accounting via=--inject-dialect-cycle-corpus-measurement-loss producer=can-fail owner=closed-world-admission-tier entry=measurement-loss-survives-producer-test
   assert.equal(
     probe.detected,
     false,

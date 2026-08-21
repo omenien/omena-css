@@ -47,6 +47,13 @@
       "reentry": "a not-equal assertion is added or removed without a falsifier disclosure"
     },
     {
+      "file": "scripts/check-rust-omena-closed-world-admission-tier.ts",
+      "syntax": "assert.equal",
+      "expectedCount": 1,
+      "owner": "dialect-cycle corpus mutation probe",
+      "reentry": "the source-mutation anchor uniqueness assertion is added or removed from the measured mutation path"
+    },
+    {
       "file": "scripts/check-rust-contract-shape-census.ts",
       "syntax": "assert.deepEqual",
       "expectedCount": 2,
