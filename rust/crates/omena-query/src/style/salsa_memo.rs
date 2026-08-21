@@ -7125,14 +7125,16 @@ $_private-token: changed;
         };
         let workspace =
             host.sync_workspace(corpus.as_slice(), &[], &[], &[], &changed_resolution_inputs);
-        reset_css_modules_cross_file_resolution_compute_count_for_test();
+        reset_css_modules_import_edge_resolution_probe_for_test();
         let after =
             memo_css_modules_cross_file_resolution_from_module_interfaces(&host.db, workspace);
+        let recomputed_origins = read_css_modules_import_edge_resolution_probe_for_test();
+        eprintln!("cacheFreshnessPerOriginRecomputeSet={recomputed_origins:?}");
 
         assert_eq!(
-            read_css_modules_cross_file_resolution_compute_count_for_test(),
-            0,
-            "a cache-only field outside the semantic read set must not revalidate resolution"
+            recomputed_origins,
+            BTreeSet::new(),
+            "a cache-only field outside the semantic read set must not re-run either per-origin resolution query"
         );
         assert_eq!(after, baseline, "the narrowed read set must preserve bytes");
     }
