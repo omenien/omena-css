@@ -7,6 +7,21 @@ packages:
   - "server"
   - "shared"
 
+# Keep transitive packages above published security-fix floors even when an
+# upstream tool still admits a vulnerable version through a broad range.
+overrides:
+  "brace-expansion@>=5.0.0 <5.0.9": "5.0.9"
+  "fast-uri@>=3.0.0 <3.1.5": "3.1.5"
+  "form-data@>=4.0.0 <4.0.6": "4.0.6"
+  "js-yaml@>=4.0.0 <4.3.1": "4.3.1"
+  "linkify-it@>=5.0.0 <5.0.2": "5.0.2"
+  "nanoid@>=3.0.0 <3.3.18": "3.3.18"
+  "next@>=16.0.0 <16.3.1": "16.3.1"
+  "postcss@>=8.0.0 <8.5.23": "8.5.26"
+  "sharp@>=0.34.0 <0.35.0": "0.35.3"
+  "undici@>=7.0.0 <7.29.0": "7.29.0"
+  "vite@>=8.0.0 <8.0.16": "8.2.2"
+
 patchedDependencies:
   # Keep static server-function cache requests inside the configured router base path.
   "@tanstack/start-static-server-functions@1.167.29": patches/@tanstack__start-static-server-functions@1.167.29.patch
