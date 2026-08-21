@@ -1369,7 +1369,7 @@
       },
       {
         "path": "rust/crates/omena-parser/src/facts/at_rules.rs",
-        "line": 46,
+        "line": 44,
         "function": "at_rule_fact_from_cst_token",
         "operation": "to_ascii_lowercase",
         "evidence": "source_text.to_ascii_lowercase()",
@@ -1377,7 +1377,7 @@
       },
       {
         "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-        "line": 756,
+        "line": 719,
         "function": "css_module_value_source_looks_like_style_request",
         "operation": "to_ascii_lowercase",
         "evidence": "let lower = source.to_ascii_lowercase();",

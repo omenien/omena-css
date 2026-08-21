@@ -87,7 +87,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/animations.rs",
-      "line": 329,
+      "line": 320,
       "function": "at_keyword_is_keyframes_rule",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "keyframes",
@@ -98,7 +98,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/animations.rs",
-      "line": 336,
+      "line": 327,
       "function": "at_keyword_is_keyframes_rule",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "keyframes",
@@ -109,7 +109,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 78,
+      "line": 69,
       "function": "collect_css_module_value_statement_facts",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "@value",
@@ -120,7 +120,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 86,
+      "line": 77,
       "function": "collect_css_module_value_statement_facts",
       "idiom": "top-level-token-text-index",
       "keyword": "from",
@@ -131,7 +131,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 133,
+      "line": 126,
       "function": "collect_css_module_value_path_aliases_from_statement_tokens",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "@value",
@@ -142,7 +142,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 144,
+      "line": 137,
       "function": "collect_css_module_value_path_aliases_from_statement_tokens",
       "idiom": "top-level-token-text-index",
       "keyword": "from",
@@ -153,7 +153,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 264,
+      "line": 249,
       "function": "collect_css_module_value_import_edge_statement_facts",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "@value",
@@ -164,7 +164,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 272,
+      "line": 257,
       "function": "collect_css_module_value_import_edge_statement_facts",
       "idiom": "top-level-token-text-index",
       "keyword": "from",
@@ -175,7 +175,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 318,
+      "line": 298,
       "function": "collect_css_module_value_definition_edge_statement_facts",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "@value",
@@ -186,7 +186,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 326,
+      "line": 306,
       "function": "collect_css_module_value_definition_edge_statement_facts",
       "idiom": "top-level-token-text-index",
       "keyword": "from",
@@ -197,7 +197,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 471,
+      "line": 434,
       "function": "collect_css_module_value_import_edges",
       "idiom": "equals",
       "keyword": "as",
@@ -208,7 +208,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 480,
+      "line": 443,
       "function": "collect_css_module_value_import_edges",
       "idiom": "equals",
       "keyword": "as",
@@ -219,7 +219,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 515,
+      "line": 478,
       "function": "collect_css_module_value_import_names",
       "idiom": "equals",
       "keyword": "as",
@@ -230,7 +230,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 518,
+      "line": 481,
       "function": "collect_css_module_value_import_names",
       "idiom": "equals",
       "keyword": "as",
@@ -241,7 +241,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 693,
+      "line": 656,
       "function": "css_module_value_name_token_can_define",
       "idiom": "equals",
       "keyword": "as",
@@ -252,7 +252,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 694,
+      "line": 657,
       "function": "css_module_value_name_token_can_define",
       "idiom": "equals",
       "keyword": "from",
@@ -263,7 +263,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 818,
+      "line": 777,
       "function": "collect_css_module_composes_statement_facts",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "composes",
@@ -274,7 +274,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 832,
+      "line": 791,
       "function": "collect_css_module_composes_statement_facts",
       "idiom": "top-level-token-text-index",
       "keyword": "from",
@@ -285,7 +285,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 949,
+      "line": 905,
       "function": "collect_immediate_css_module_composes_edge_facts",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "composes",
@@ -296,7 +296,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 965,
+      "line": 921,
       "function": "collect_immediate_css_module_composes_edge_facts",
       "idiom": "top-level-token-text-index",
       "keyword": "from",
@@ -307,7 +307,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 1096,
+      "line": 1052,
       "function": "push_css_module_composes_target_name",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "from",
@@ -318,7 +318,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 1125,
+      "line": 1081,
       "function": "push_css_module_composes_target_fact",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "from",
@@ -362,7 +362,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 713,
+      "line": 696,
       "function": "sass_module_use_namespace",
       "idiom": "top-level-token-text-index",
       "keyword": "as",
@@ -373,7 +373,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 731,
+      "line": 714,
       "function": "sass_module_forward_prefix",
       "idiom": "top-level-token-text-index",
       "keyword": "as",
@@ -384,7 +384,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 781,
+      "line": 764,
       "function": "sass_module_visibility_filter_names",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "as",
@@ -395,7 +395,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/variables.rs",
-      "line": 300,
+      "line": 296,
       "function": "scss_loop_variable_token_is_binding",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "from",
@@ -791,7 +791,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3771,
+      "line": 4050,
       "function": "committed_css_modules_graph_resolves_alias_targets_and_reachability",
       "idiom": "direct-equality",
       "keyword": "composes",
@@ -802,7 +802,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 5935,
+      "line": 6214,
       "function": "css_modules_import_edges_from_module_interface_projection_recompute_only_import_dependents",
       "idiom": "direct-equality",
       "keyword": "composes",
@@ -1165,7 +1165,7 @@
     },
     {
       "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 3867,
+      "line": 4245,
       "function": "css_module_fact_spans_follow_syntax_across_delimiter_strings",
       "idiom": "starts-with",
       "keyword": "composes",
@@ -2110,7 +2110,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:880a283f876e6650b09af4f8b6dbbebfe4421ce2bcde5fca6403e322926b62a4",
+  "siteDigest": "sha256:b8f8fa20df5f14a549452694e847f0a68039b9c9a956068f30fbd42978c9e41d",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
