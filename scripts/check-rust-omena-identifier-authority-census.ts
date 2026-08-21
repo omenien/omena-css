@@ -187,6 +187,15 @@ const egressExemptions: readonly ExemptionRule[] = [
 
 const idiomExemptions: readonly ExemptionRule[] = [
   {
+    path: "rust/crates/omena-cascade-proof/src/proof_kernel.rs",
+    function: "module_export_observation_map_v0",
+    operation: "str-eq",
+    evidence: "|| canonical_class_name.decoded() != observation.key.canonical_class_name",
+    reason:
+      "The proof kernel compares a certificate identity with the spelling decoded by the shared syntax authority.",
+    disposition: "sanctioned",
+  },
+  {
     path: "rust/crates/omena-bundler/src/lib.rs",
     function: "instance_reachability_inputs_closed_over_composes",
     operation: "str-eq",
@@ -404,6 +413,15 @@ const idiomExemptions: readonly ExemptionRule[] = [
     operation: "contains",
     evidence: ".filter(|(_, names)| names.contains(class_name))",
     reason: "This partitions already-emitted tokens and does not compare source identifiers.",
+  },
+  {
+    path: "rust/crates/omena-transform-passes/src/runtime/executor.rs",
+    function: "module_export_observations_from_emitted_css_v0",
+    operation: "contains",
+    evidence: ".find(|(canonical, _)| observed_class_names.contains(*canonical))",
+    reason:
+      "Both operands are decoded through the shared syntax authority before emitted export observations are admitted.",
+    disposition: "sanctioned",
   },
   {
     path: "rust/crates/omena-transform-passes/src/runtime/executor.rs",

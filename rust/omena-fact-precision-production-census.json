@@ -1,7 +1,7 @@
 {
   "schemaVersion": "0",
   "product": "omena.fact-precision-production-census",
-  "rawReferenceCount": 128,
+  "rawReferenceCount": 131,
   "productionSiteCount": 20,
   "productionOverrideCount": 14,
   "classifiedSites": [
@@ -787,6 +787,36 @@
     },
     {
       "sourcePath": "rust/crates/omena-transform-passes/src/tests/runtime_boundary.rs",
+      "owner": "fn class_hashing_rolls_back_a_non_bijective_module_export_rotation",
+      "lexicalContext": "code",
+      "testOnly": true,
+      "variantCounts": {
+        "Exact": 1,
+        "Conservative": 0,
+        "Heuristic": 0,
+        "Unknown": 0
+      },
+      "occurrenceCount": 1,
+      "disposition": "test",
+      "authority": "test-only precision expectation or mutation fixture"
+    },
+    {
+      "sourcePath": "rust/crates/omena-transform-passes/src/tests/runtime_boundary.rs",
+      "owner": "fn four_export_preserving_passes_construct_checked_tokens_on_the_production_path",
+      "lexicalContext": "code",
+      "testOnly": true,
+      "variantCounts": {
+        "Exact": 1,
+        "Conservative": 0,
+        "Heuristic": 0,
+        "Unknown": 0
+      },
+      "occurrenceCount": 1,
+      "disposition": "test",
+      "authority": "test-only precision expectation or mutation fixture"
+    },
+    {
+      "sourcePath": "rust/crates/omena-transform-passes/src/tests/runtime_boundary.rs",
       "owner": "fn module_qualified_tree_shake_distinguishes_same_name_owners",
       "lexicalContext": "code",
       "testOnly": true,
@@ -833,6 +863,21 @@
     {
       "sourcePath": "rust/crates/omena-transform-passes/src/tests/runtime_boundary.rs",
       "owner": "fn proof_kernel_token_closes_favourable_ownership_count_bypass",
+      "lexicalContext": "code",
+      "testOnly": true,
+      "variantCounts": {
+        "Exact": 1,
+        "Conservative": 0,
+        "Heuristic": 0,
+        "Unknown": 0
+      },
+      "occurrenceCount": 1,
+      "disposition": "test",
+      "authority": "test-only precision expectation or mutation fixture"
+    },
+    {
+      "sourcePath": "rust/crates/omena-transform-passes/src/tests/runtime_boundary.rs",
+      "owner": "fn tree_shake_preservation_premise_keeps_live_exports_without_resurrecting_dead_ones",
       "lexicalContext": "code",
       "testOnly": true,
       "variantCounts": {

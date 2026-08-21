@@ -1879,11 +1879,9 @@ fn module_export_observation_map_v0(
 ) -> Result<BTreeMap<ModuleExportKeyV0, &str>, (&'static str, ModuleExportKeyV0)> {
     let mut result = BTreeMap::new();
     for observation in observations {
+        let canonical_class_name = ClassNameV0::new(observation.key.canonical_class_name.as_str());
         if observation.key.canonical_class_name.is_empty()
-            || ClassNameV0::new(observation.key.canonical_class_name.as_str())
-                .canonical_key()
-                .as_str()
-                != observation.key.canonical_class_name
+            || canonical_class_name.decoded() != observation.key.canonical_class_name
         {
             return Err((
                 "export premise contains a non-canonical identity key",
