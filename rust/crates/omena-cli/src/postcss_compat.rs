@@ -5,9 +5,10 @@ use omena_evidence_graph::{
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryExternalCssSemanticChangeClassificationV0,
     OmenaQueryExternalCssSemanticChangeKindV0, OmenaQueryExternalCssSemanticChangeV0,
-    OmenaQueryExternalCssSemanticDiffV0, OmenaQueryTransformTargetQueryPlanV0,
-    compare_omena_query_external_css_semantic_changes_v0,
+    OmenaQueryExternalCssSemanticDiffV0, OmenaQueryStyleFrameRefreshParseCacheV0,
+    OmenaQueryTransformTargetQueryPlanV0, compare_omena_query_external_css_semantic_changes_v0,
     omena_query_external_css_semantic_diff_is_total_v0,
+    summarize_omena_query_style_frame_refresh_facts_with_reuse,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -112,8 +113,42 @@ pub(crate) struct PostcssCompatExecutionV0 {
     pub(crate) warning_count: usize,
     pub(crate) evidence: EvidenceNodeSeedV0,
     pub(crate) semantic_diff: OmenaQueryExternalCssSemanticDiffV0,
-    pub(crate) adopted: bool,
+    pub(crate) adoption_verdict: PostcssCompatAdoptionVerdictV0,
+    pub(crate) candidate_output_css: String,
     pub(crate) output_css: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) enum PostcssCompatAdoptionRefusalCauseV0 {
+    InputParseErrors,
+    CandidateParseErrors,
+    IncompleteSemanticDiff,
+    UnunderstoodSemanticChanges,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PostcssCompatAdoptionChecksV0 {
+    pub(crate) input_parse_error_count: usize,
+    pub(crate) candidate_parse_error_count: usize,
+    pub(crate) semantic_diff_total: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "status",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub(crate) enum PostcssCompatAdoptionVerdictV0 {
+    Adopted {
+        checks: PostcssCompatAdoptionChecksV0,
+    },
+    Refused {
+        cause: PostcssCompatAdoptionRefusalCauseV0,
+        checks: PostcssCompatAdoptionChecksV0,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -377,17 +412,21 @@ fn run_postcss_compat_plugin_with_timeout(
         response.output_css.as_str(),
         dialect,
     );
-    if !semantic_diff.all_changes_classified
-        || !omena_query_external_css_semantic_diff_is_total_v0(&semantic_diff)
-    {
-        return Err(execution_failure(
-            plugin,
-            input_digest.as_str(),
-            process.exit_status,
-            PostcssCompatFailureKindV0::InvalidOutput,
-            "Omena semantic change classification is incomplete",
-        ));
-    }
+    let adoption_verdict = decide_postcss_compat_adoption(
+        source_css,
+        response.output_css.as_str(),
+        dialect,
+        &semantic_diff,
+    );
+    let candidate_output_css = response.output_css;
+    let output_css = if matches!(
+        adoption_verdict,
+        PostcssCompatAdoptionVerdictV0::Adopted { .. }
+    ) {
+        candidate_output_css.clone()
+    } else {
+        source_css.to_string()
+    };
 
     Ok(PostcssCompatExecutionV0 {
         plugin_id: plugin.id.clone(),
@@ -400,9 +439,53 @@ fn run_postcss_compat_plugin_with_timeout(
         warning_count: response.warning_count,
         evidence: external_tool_evidence(plugin, input_digest.as_str(), process.exit_status),
         semantic_diff,
-        adopted: true,
-        output_css: response.output_css,
+        adoption_verdict,
+        candidate_output_css,
+        output_css,
     })
+}
+
+fn decide_postcss_compat_adoption(
+    source_css: &str,
+    candidate_output_css: &str,
+    dialect: OmenaParserStyleDialect,
+    semantic_diff: &OmenaQueryExternalCssSemanticDiffV0,
+) -> PostcssCompatAdoptionVerdictV0 {
+    let input_parse_error_count = postcss_parse_error_count(source_css, dialect);
+    let candidate_parse_error_count = postcss_parse_error_count(candidate_output_css, dialect);
+    let semantic_diff_total = semantic_diff.all_changes_classified
+        && omena_query_external_css_semantic_diff_is_total_v0(&semantic_diff);
+    let checks = PostcssCompatAdoptionChecksV0 {
+        input_parse_error_count,
+        candidate_parse_error_count,
+        semantic_diff_total,
+    };
+    let refusal_cause = if input_parse_error_count > 0 {
+        Some(PostcssCompatAdoptionRefusalCauseV0::InputParseErrors)
+    } else if candidate_parse_error_count > 0 {
+        Some(PostcssCompatAdoptionRefusalCauseV0::CandidateParseErrors)
+    } else if !semantic_diff_total {
+        Some(PostcssCompatAdoptionRefusalCauseV0::IncompleteSemanticDiff)
+    } else if semantic_diff.passthrough_change_count > 0 {
+        Some(PostcssCompatAdoptionRefusalCauseV0::UnunderstoodSemanticChanges)
+    } else {
+        None
+    };
+    refusal_cause.map_or_else(
+        || PostcssCompatAdoptionVerdictV0::Adopted {
+            checks: checks.clone(),
+        },
+        |cause| PostcssCompatAdoptionVerdictV0::Refused {
+            cause,
+            checks: checks.clone(),
+        },
+    )
+}
+
+fn postcss_parse_error_count(source_css: &str, dialect: OmenaParserStyleDialect) -> usize {
+    let mut cache = OmenaQueryStyleFrameRefreshParseCacheV0::default();
+    summarize_omena_query_style_frame_refresh_facts_with_reuse(source_css, dialect, &mut cache)
+        .error_count
 }
 
 fn parse_manifest(plugin_id: &str) -> Result<PostcssCompatManifestV0, PostcssCompatFailureV0> {
@@ -702,9 +785,16 @@ mod tests {
 
         assert_eq!(outcome.plugin_version, "10.5.4");
         assert_eq!(outcome.configured_targets, legacy_targets());
-        assert_ne!(outcome.output_css, input);
-        assert!(outcome.output_css.contains("-webkit-appearance"));
-        assert!(outcome.adopted);
+        assert_eq!(outcome.output_css, input);
+        assert_ne!(outcome.candidate_output_css, input);
+        assert!(outcome.candidate_output_css.contains("-webkit-appearance"));
+        assert!(matches!(
+            outcome.adoption_verdict,
+            PostcssCompatAdoptionVerdictV0::Refused {
+                cause: PostcssCompatAdoptionRefusalCauseV0::UnunderstoodSemanticChanges,
+                ..
+            }
+        ));
         assert!(outcome.semantic_diff.all_changes_classified);
         assert!(outcome.semantic_diff.understood_change_count >= 1);
         assert!(outcome.semantic_diff.passthrough_change_count >= 1);
@@ -819,6 +909,14 @@ mod tests {
 
         assert_ne!(first.input_digest, second.input_digest);
         assert_ne!(first.evidence.key, second.evidence.key);
+        assert!(matches!(
+            first.adoption_verdict,
+            PostcssCompatAdoptionVerdictV0::Adopted { .. }
+        ));
+        assert!(matches!(
+            second.adoption_verdict,
+            PostcssCompatAdoptionVerdictV0::Adopted { .. }
+        ));
         assert!(
             first
                 .evidence
@@ -834,5 +932,34 @@ mod tests {
                 .ends_with(second.input_digest.as_str())
         );
         Ok(())
+    }
+
+    #[test]
+    fn parse_errors_refuse_candidate_adoption() {
+        let source = ".a { color: red; }";
+        let candidate = ".a { color: red;";
+        let semantic_diff = compare_omena_query_external_css_semantic_changes_v0(
+            source,
+            candidate,
+            OmenaParserStyleDialect::Css,
+        );
+        let verdict = decide_postcss_compat_adoption(
+            source,
+            candidate,
+            OmenaParserStyleDialect::Css,
+            &semantic_diff,
+        );
+
+        assert!(matches!(
+            verdict,
+            PostcssCompatAdoptionVerdictV0::Refused {
+                cause: PostcssCompatAdoptionRefusalCauseV0::CandidateParseErrors,
+                checks: PostcssCompatAdoptionChecksV0 {
+                    input_parse_error_count: 0,
+                    candidate_parse_error_count: 1..,
+                    ..
+                }
+            }
+        ));
     }
 }

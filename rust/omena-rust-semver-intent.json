@@ -137,6 +137,37 @@
       ]
     },
     {
+      "crate": "omena-cli",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor makes PostCSS compatibility output strict-by-default: only parse-clean, total, Omena-understood semantic changes can replace native build bytes, and the build JSON exposes a typed adoption verdict.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "postcss-compat-strict-adoption",
+          "kind": "selection-outcome-changing",
+          "surface": "omena build CSS output and payload.postcssCompat adoptionVerdict",
+          "reason": "A successful external process is no longer sufficient authority to replace native output; parse errors, incomplete semantic diffs, and passthrough changes produce a typed refusal and retain the native bytes.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-cli/src/postcss_compat.rs",
+              "needles": [
+                "pub(crate) adoption_verdict: PostcssCompatAdoptionVerdictV0",
+                "PostcssCompatAdoptionVerdictV0::Refused",
+                "PostcssCompatAdoptionRefusalCauseV0::UnunderstoodSemanticChanges",
+                "source_css.to_string()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cli/src/build.rs",
+              "needles": [
+                "summary.execution.output_css = execution.output_css.clone()"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
       "crate": "omena-query",
       "releaseClass": "pre1MinorBreaking",
       "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints from query source-index entry points and requires exact Rust-authored declaration identities for style resolution.",

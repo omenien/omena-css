@@ -18,7 +18,29 @@ interface BuildEnvelope {
       readonly configuredTargets: readonly string[];
       readonly inputDigest: string;
       readonly exitStatus: number;
-      readonly adopted: boolean;
+      readonly adoptionVerdict:
+        | {
+            readonly status: "adopted";
+            readonly checks: {
+              readonly inputParseErrorCount: number;
+              readonly candidateParseErrorCount: number;
+              readonly semanticDiffTotal: boolean;
+            };
+          }
+        | {
+            readonly status: "refused";
+            readonly cause:
+              | "inputParseErrors"
+              | "candidateParseErrors"
+              | "incompleteSemanticDiff"
+              | "ununderstoodSemanticChanges";
+            readonly checks: {
+              readonly inputParseErrorCount: number;
+              readonly candidateParseErrorCount: number;
+              readonly semanticDiffTotal: boolean;
+            };
+          };
+      readonly candidateOutputCss: string;
       readonly outputCss: string;
       readonly evidence: {
         readonly key: { readonly inputIdentity: string };
@@ -86,6 +108,20 @@ assert.equal(run.status, 0, run.stderr || run.stdout);
 const envelope = JSON.parse(run.stdout) as BuildEnvelope;
 const report = envelope.payload.postcssCompat;
 const semantic = report.semanticDiff;
+const nativeRoot = mkdtempSync(path.join(os.tmpdir(), "omena-postcss-native-output-"));
+let nativeOutputCss = "";
+try {
+  const nativeInput = path.join(nativeRoot, "input.css");
+  writeFileSync(nativeInput, readFileSync(fixture));
+  const nativeRun = spawnSync(executable, ["build", nativeInput, "--json"], {
+    cwd: nativeRoot,
+    encoding: "utf8",
+  });
+  assert.equal(nativeRun.status, 0, nativeRun.stderr || nativeRun.stdout);
+  nativeOutputCss = (JSON.parse(nativeRun.stdout) as BuildEnvelope).payload.execution.outputCss;
+} finally {
+  rmSync(nativeRoot, { recursive: true, force: true });
+}
 const observedChanges =
   process.env.OMENA_POSTCSS_COMPAT_TEST_DROP_CHANGE === "1"
     ? semantic.changes.slice(1)
@@ -101,14 +137,25 @@ assert.deepEqual(report.configuredTargets, ["Firefox 20", "Safari 8"]);
 assert.match(report.configDigest, /^[a-f0-9]{64}$/u);
 assert.match(report.inputDigest, /^[a-f0-9]{64}$/u);
 assert.equal(report.exitStatus, 0);
-assert.equal(report.adopted, true);
-assert.ok(observedEvidence, "adopted external output must carry an invocation witness");
+assert.deepEqual(report.adoptionVerdict, {
+  status: "refused",
+  cause: "ununderstoodSemanticChanges",
+  checks: {
+    inputParseErrorCount: 0,
+    candidateParseErrorCount: 0,
+    semanticDiffTotal: true,
+  },
+});
+assert.ok(observedEvidence, "evaluated external output must carry an invocation witness");
 assert.equal(observedEvidence.earnedVia, "externalTool");
 assert.ok(observedEvidence.key.inputIdentity.endsWith(report.inputDigest));
 assert.ok(observedEvidence.provenance.includes("toolVersion:10.5.4"));
 assert.equal(envelope.payload.execution.outputCss, report.outputCss);
-assert.match(report.outputCss, /-webkit-appearance/u);
-assert.match(report.outputCss, /::-moz-placeholder/u);
+assert.equal(report.outputCss, nativeOutputCss, "refusal must retain the native build bytes");
+assert.doesNotMatch(report.outputCss, /-webkit-appearance/u);
+assert.doesNotMatch(report.outputCss, /::-moz-placeholder/u);
+assert.match(report.candidateOutputCss, /-webkit-appearance/u);
+assert.match(report.candidateOutputCss, /::-moz-placeholder/u);
 assert.ok(semantic.understoodChangeCount > 0);
 assert.ok(semantic.passthroughChangeCount > 0);
 assert.equal(
@@ -118,6 +165,41 @@ assert.equal(
 assert.equal(observedChanges.length, semantic.totalChangeCount);
 assert.equal(semantic.allChangesClassified, true);
 assert.ok(envelope.payload.readySurfaces.includes("postcssCompatibilityRunner"));
+
+const realCorpusPaths = [
+  "apps/docs/src/styles/app.css",
+  "examples/src/app.css",
+  "examples/src/scenarios/08-css-only/CssOnly.module.css",
+  "test/_fixtures/sdk-cross-surface-parity/basic.module.css",
+  "test/_fixtures/stylelint-plugin-smoke/src/App.module.css",
+] as const;
+let realCorpusAdoptedCount = 0;
+let realCorpusRefusedCount = 0;
+const corpusRoot = mkdtempSync(path.join(repoRoot, ".omena-postcss-corpus-"));
+try {
+  for (const [index, relativeSourcePath] of realCorpusPaths.entries()) {
+    const projectRoot = path.join(corpusRoot, `case-${index}`);
+    const input = path.join(projectRoot, "input.css");
+    const config = path.join(projectRoot, "omena.toml");
+    mkdirSync(projectRoot, { recursive: true });
+    writeFileSync(input, readFileSync(path.join(repoRoot, relativeSourcePath)));
+    writeFileSync(config, '[build]\npostcssCompat = "autoprefixer-legacy-browsers"\n');
+    const result = spawnSync(executable, ["build", input, "--json"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const corpusReport = (JSON.parse(result.stdout) as BuildEnvelope).payload.postcssCompat;
+    if (corpusReport.adoptionVerdict.status === "adopted") {
+      realCorpusAdoptedCount += 1;
+    } else {
+      realCorpusRefusedCount += 1;
+    }
+  }
+} finally {
+  rmSync(corpusRoot, { recursive: true, force: true });
+}
+assert.equal(realCorpusAdoptedCount + realCorpusRefusedCount, realCorpusPaths.length);
 
 const differentialRoot = mkdtempSync(path.join(repoRoot, ".omena-postcss-native-"));
 try {
@@ -218,6 +300,10 @@ process.stdout.write(
       totalChangeCount: semantic.totalChangeCount,
       understoodChangeCount: semantic.understoodChangeCount,
       passthroughChangeCount: semantic.passthroughChangeCount,
+      realCorpusInputCount: realCorpusPaths.length,
+      realCorpusAdoptedCount,
+      realCorpusRefusedCount,
+      realCorpusPaths,
       nativeDifferentialClassificationCount: 3,
       witnessCount: 1,
       violations: 0,

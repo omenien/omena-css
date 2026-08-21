@@ -1889,8 +1889,10 @@ fn build_config_runs_the_manifest_bound_postcss_compatibility_stage() -> Result<
 
     run(cli)?;
     let css = fs::read_to_string(&output).map_err(|error| error.to_string())?;
-    assert!(css.contains("-webkit-appearance"));
-    assert!(css.contains("::-moz-placeholder"));
+    assert!(!css.contains("-webkit-appearance"));
+    assert!(!css.contains("::-moz-placeholder"));
+    assert!(css.contains("::placeholder"));
+    assert!(css.contains("appearance:none"));
     cleanup_dir(&output_root);
     Ok(())
 }

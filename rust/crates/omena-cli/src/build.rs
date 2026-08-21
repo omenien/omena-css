@@ -514,7 +514,7 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
                 plugin_id,
                 stage1_reference.configured_targets.as_slice(),
                 native_output_css.as_str(),
-                stage1_reference.output_css.as_str(),
+                stage1_reference.candidate_output_css.as_str(),
                 infer_cli_style_dialect(style_path.as_str()),
             ));
             push_ready_surface(
