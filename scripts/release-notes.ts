@@ -147,6 +147,29 @@ function checkCommand(args: readonly string[]): void {
     `manifest must register Rust train ${rustVersion}`,
   );
 
+  const releasePlanWorkflow = workflowSourceForCheck(".github/workflows/release-plan.yml", args);
+  assert.match(
+    releasePlanWorkflow,
+    /^      - uses: changesets\/action@[0-9a-f]{40} # v2\./mu,
+    "release-plan must pin the Changesets v2 action to a full commit SHA",
+  );
+  for (const input of [
+    "github-token: ${{ secrets.GITHUB_TOKEN }}",
+    "version-script: pnpm omena-check run release/version-packages",
+    'commit-message: "chore(release): version packages"',
+    'pr-title: "chore(release): version packages"',
+  ]) {
+    assert.ok(
+      releasePlanWorkflow.includes(input),
+      `release-plan must use the Changesets v2 input ${input}`,
+    );
+  }
+  assert.doesNotMatch(
+    releasePlanWorkflow,
+    /^          (?:version|commit|title):/mu,
+    "release-plan must not use removed Changesets v1 input names",
+  );
+
   const workflows = [
     ".github/workflows/publish-extension.yml",
     ".github/workflows/release-cli.yml",
