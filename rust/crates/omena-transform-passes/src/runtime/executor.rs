@@ -9,19 +9,22 @@ use std::collections::BTreeSet;
 use omena_abstract_value::FactPrecision;
 use omena_cascade::StaticSupportsAssumptionV0;
 use omena_cascade_proof::{
-    CanonicalRewriteAssumptionsV0, DischargeLedgerLookupStatusV0,
+    CanonicalRewriteAssumptionsV0, DischargeLedgerLookupStatusV0, ModuleExportKeyV0,
+    ModuleExportObservationV0, ModuleExportPreservationCertV0, ModuleExportRenameDeltaV0,
     REWRITE_CERTIFICATE_SCHEMA_VERSION_V0, REWRITE_RULE_CATALOG_SCHEMA_VERSION_V0,
-    RewriteCertificateEnvelopeV0, RewriteCertificateV0, RewriteOperatorV0, RewritePatternV0,
-    RewriteRuleCatalogV0, RewriteRuleV0, RewriteSideConditionKindV0, RewriteSubstitutionEntryV0,
-    RewriteTermV0, SideConditionCertV0, TokenOwnershipCertEntryV0,
+    RewriteCertificateEnvelopeV0, RewriteCertificateV0, RewriteIssuanceTokenV0, RewriteOperatorV0,
+    RewritePatternV0, RewriteRuleCatalogV0, RewriteRuleV0, RewriteSideConditionKindV0,
+    RewriteSubstitutionEntryV0, RewriteTermV0, SideConditionCertV0, TokenOwnershipCertEntryV0,
     TokenOwnershipSeparabilityCertV0, check_rewrite_certificate_v0,
+    module_export_preservation_rule_catalog_v0, module_export_preservation_rule_id_v0,
 };
 use omena_evidence_graph::GuaranteeFamilyV0;
 use omena_parser::{
     ClosedWorldBundleV0, ClosedWorldComposesScanStateV0, ClosedWorldInterfaceHashAvailabilityV0,
     ClosedWorldModuleReachabilityEvidenceV0, ModuleInstanceKeyV0, ModuleQualifiedSymbolSetV0,
-    StyleDialect,
+    ParsedSelectorFactKind, StyleDialect, facts_from_cst, parse_only,
 };
+use omena_syntax::ident::ClassNameV0;
 use omena_transform_cst::{
     IrNodeKindV0, StableTransformIrNodeV0, TransformIrV0, TransformPassClassV0, TransformPassKind,
     build_stable_transform_ir_from_source, lower_transform_ir_from_source,
@@ -59,7 +62,8 @@ use crate::model::{
     TransformDischargeEvidenceV0, TransformDischargeLedgerTelemetryV0,
     TransformEvaluationProfileV0, TransformExecutionContextV0, TransformExecutionPolicyV0,
     TransformExecutionSummaryV0, TransformImportInlineV0, TransformModuleEvaluationNativeEditV0,
-    TransformModuleEvaluationV0, TransformModuleQualifiedExecutionErrorV0,
+    TransformModuleEvaluationV0, TransformModuleExportPreservationEvidenceV0,
+    TransformModuleExportPreservationTelemetryV0, TransformModuleQualifiedExecutionErrorV0,
     TransformModuleQualifiedShakeSummaryV0, TransformNoChangeReasonV0, TransformPassDispatchKindV0,
     TransformPassExecutionOutcomeV0, TransformPassRegistryEntryV0, TransformPassRuntimeStatus,
     TransformPreconditionV0, TransformProvenanceMutationSpanV0, TransformRejectionReasonV0,
@@ -2515,6 +2519,8 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     let mut cascade_proof_obligations = Vec::new();
     let mut winner_equality_obligations = Vec::<TransformWinnerEqualityObligationV0>::new();
     let mut semantic_preservation_telemetry = TransformSemanticPreservationTelemetryV0::default();
+    let mut module_export_preservation_telemetry =
+        TransformModuleExportPreservationTelemetryV0::default();
     let strict_policy = runtime_policy.verification.strict_policy.as_ref();
     let semantic_trust_recording = runtime_policy.semantic_trust_recording;
     let strict_pass_ids = strict_policy
@@ -2544,6 +2550,11 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             .map(|entry| entry.registry_entry.dispatch_kind);
         let input_byte_len = document.current_byte_len();
         let input_content_signature = transform_content_signature(document.current_css());
+        let module_export_preservation_input_css = pass
+            .filter(|kind| pass_claims_module_export_preservation_v0(*kind))
+            .filter(|_| runtime_policy.token_ownership_census.is_some())
+            .filter(|_| runtime_policy.token_ownership_module_instance.is_some())
+            .map(|_| document.current_css().to_owned());
         let semantic_preservation_input_ir = pass
             .filter(|kind| semantic_preservation_applies(*kind))
             .map(|_| document.current_ir.clone());
@@ -2795,6 +2806,65 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 }
             }
         }
+        if let (Some(pass_kind), Some(input_css), Some(census), Some(module_instance)) = (
+            pass,
+            module_export_preservation_input_css.as_deref(),
+            runtime_policy.token_ownership_census,
+            runtime_policy.token_ownership_module_instance,
+        ) && !matches!(
+            dispatch_result.decision,
+            TransformDecisionDraftV0::Blocked { .. } | TransformDecisionDraftV0::Rejected { .. }
+        ) {
+            let candidate_css = dispatch_result
+                .next_textual_css
+                .as_deref()
+                .unwrap_or_else(|| document.current_css());
+            module_export_preservation_telemetry.certificate_construction_count += 1;
+            let checked_preservation = checked_module_export_preservation_admission_v0(
+                pass_kind,
+                module_instance,
+                census,
+                input_css,
+                candidate_css,
+                dialect,
+                (pass_kind == TransformPassKind::TreeShakeClass)
+                    .then_some(module_reachable_class_names.as_deref())
+                    .flatten(),
+            );
+            let admitted = if pass_kind == TransformPassKind::TreeShakeClass {
+                checked_preservation.and_then(|preservation| {
+                    require_dual_o1_tokens_v0(
+                        checked_token_ownership_admission_v0(
+                            census,
+                            Some(module_instance),
+                            pass_kind,
+                        ),
+                        Some(preservation),
+                    )
+                })
+            } else {
+                checked_preservation.map(|checked| checked.evidence)
+            };
+            match admitted {
+                Ok(evidence) => {
+                    module_export_preservation_telemetry.checked_token_count += 1;
+                    module_export_preservation_telemetry.evidence.push(evidence);
+                }
+                Err(reason) => {
+                    module_export_preservation_telemetry.rejected_certificate_count += 1;
+                    document.replace_with_css(input_css.to_owned());
+                    dispatch_result = TransformPassDispatchResultV0::rejected(
+                        pass_id,
+                        input_byte_len,
+                        TransformRejectionReasonV0::ModuleExportPreservation {
+                            pass: pass_kind,
+                            reason,
+                        },
+                        "module export preservation certificate was rejected before commit",
+                    );
+                }
+            }
+        }
         let preserved_output_signature = transform_content_signature(document.current_css());
 
         let TransformPassDispatchResultV0 {
@@ -2959,6 +3029,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         structural_ir_transaction_telemetry,
         semantic_preservation_telemetry,
         discharge_ledger_telemetry,
+        module_export_preservation_telemetry,
         strict_policy: strict_policy_summary,
         closed_world_admission: closed_world_admission_summary,
         decisions,
@@ -2979,6 +3050,229 @@ fn closed_world_admission_module_instance<'a>(
                 _ => None,
             })
         })
+}
+
+fn pass_claims_module_export_preservation_v0(pass_kind: TransformPassKind) -> bool {
+    matches!(
+        pass_kind,
+        TransformPassKind::SelectorMerging
+            | TransformPassKind::HashCssModuleClassNames
+            | TransformPassKind::ResolveCssModulesComposes
+            | TransformPassKind::TreeShakeClass
+    )
+}
+
+struct CheckedModuleExportPreservationAdmissionV0 {
+    token: RewriteIssuanceTokenV0,
+    evidence: TransformModuleExportPreservationEvidenceV0,
+}
+
+#[derive(Clone, Copy)]
+enum ModuleExportObservationPhaseV0 {
+    Before,
+    After,
+}
+
+fn module_export_observations_from_emitted_css_v0(
+    pass_kind: TransformPassKind,
+    phase: ModuleExportObservationPhaseV0,
+    module_instance: &ModuleInstanceKeyV0,
+    census: &CssModuleTokenOwnershipCensusV0,
+    css: &str,
+    dialect: StyleDialect,
+    required_authored_names: Option<&BTreeSet<String>>,
+) -> Vec<ModuleExportObservationV0> {
+    let parsed = parse_only(css, dialect);
+    let observed_class_names = facts_from_cst(css, &parsed)
+        .selectors
+        .into_iter()
+        .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+        .map(|selector| ClassNameV0::new(selector.name).decoded().to_owned())
+        .collect::<BTreeSet<_>>();
+    let prefer_emitted = pass_kind == TransformPassKind::HashCssModuleClassNames
+        && matches!(phase, ModuleExportObservationPhaseV0::After);
+    let mut observations = Vec::new();
+    for ownership in &census.token_ownerships {
+        if !ownership.module_instances.contains(module_instance) {
+            continue;
+        }
+        let emitted = ClassNameV0::new(ownership.emitted_token.as_str())
+            .decoded()
+            .to_owned();
+        for authored_name in &ownership.original_names {
+            let authored = ClassNameV0::new(authored_name.as_str())
+                .decoded()
+                .to_owned();
+            if required_authored_names.is_some_and(|required| !required.contains(&authored)) {
+                continue;
+            }
+            let candidates = if prefer_emitted {
+                [
+                    (emitted.as_str(), ownership.emitted_token.as_str()),
+                    (authored.as_str(), authored_name.as_str()),
+                ]
+            } else {
+                [
+                    (authored.as_str(), authored_name.as_str()),
+                    (emitted.as_str(), ownership.emitted_token.as_str()),
+                ]
+            };
+            let Some((_, observed_token)) = candidates
+                .into_iter()
+                .find(|(canonical, _)| observed_class_names.contains(*canonical))
+            else {
+                continue;
+            };
+            observations.push(ModuleExportObservationV0 {
+                key: ModuleExportKeyV0 {
+                    module_instance: module_instance.clone(),
+                    canonical_class_name: authored,
+                },
+                emitted_token: observed_token.to_owned(),
+            });
+        }
+    }
+    observations.sort();
+    observations
+}
+
+fn checked_module_export_preservation_admission_v0(
+    pass_kind: TransformPassKind,
+    module_instance: &ModuleInstanceKeyV0,
+    census: &CssModuleTokenOwnershipCensusV0,
+    before_css: &str,
+    after_css: &str,
+    dialect: StyleDialect,
+    required_authored_names: Option<&[String]>,
+) -> Result<CheckedModuleExportPreservationAdmissionV0, String> {
+    let required_authored_names = required_authored_names.map(|names| {
+        names
+            .iter()
+            .map(|name| ClassNameV0::new(name).decoded().to_owned())
+            .collect::<BTreeSet<_>>()
+    });
+    let before_exports = module_export_observations_from_emitted_css_v0(
+        pass_kind,
+        ModuleExportObservationPhaseV0::Before,
+        module_instance,
+        census,
+        before_css,
+        dialect,
+        required_authored_names.as_ref(),
+    );
+    let after_exports = module_export_observations_from_emitted_css_v0(
+        pass_kind,
+        ModuleExportObservationPhaseV0::After,
+        module_instance,
+        census,
+        after_css,
+        dialect,
+        required_authored_names.as_ref(),
+    );
+    let after_by_key = after_exports
+        .iter()
+        .map(|observation| (&observation.key, observation))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let declared_rename_delta = if pass_kind == TransformPassKind::HashCssModuleClassNames {
+        before_exports
+            .iter()
+            .filter_map(|before| {
+                let after = after_by_key.get(&before.key)?;
+                (before.emitted_token != after.emitted_token).then(|| ModuleExportRenameDeltaV0 {
+                    key: before.key.clone(),
+                    before_token: before.emitted_token.clone(),
+                    after_token: after.emitted_token.clone(),
+                })
+            })
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+    let certificate = ModuleExportPreservationCertV0::new(
+        pass_kind.id(),
+        before_exports,
+        after_exports,
+        declared_rename_delta,
+    );
+    let module_label = format!(
+        "{}#{}",
+        module_instance.module().as_str(),
+        module_instance.configuration().as_str()
+    );
+    let before = RewriteTermV0::apply(
+        "moduleExportPreservationRequested",
+        vec![
+            RewriteTermV0::atom(pass_kind.id()),
+            RewriteTermV0::atom(module_label.clone()),
+        ],
+    );
+    let after = RewriteTermV0::apply(
+        "moduleExportPreservationGranted",
+        vec![
+            RewriteTermV0::atom(pass_kind.id()),
+            RewriteTermV0::atom(module_label.clone()),
+        ],
+    );
+    let catalog = module_export_preservation_rule_catalog_v0();
+    let rule_id = module_export_preservation_rule_id_v0(pass_kind.id())
+        .ok_or_else(|| format!("pass {} has no preservation catalog rule", pass_kind.id()))?;
+    let before_premise_digest = certificate.before_premise_digest.clone();
+    let after_premise_digest = certificate.after_premise_digest.clone();
+    let envelope = RewriteCertificateEnvelopeV0 {
+        schema_version: REWRITE_CERTIFICATE_SCHEMA_VERSION_V0.to_owned(),
+        max_depth: 1,
+        max_nodes: 1,
+        certificate: RewriteCertificateV0::Rewrite {
+            rule_id: rule_id.to_owned(),
+            substitution: vec![
+                RewriteSubstitutionEntryV0 {
+                    variable: "module".to_owned(),
+                    term: RewriteTermV0::atom(module_label),
+                },
+                RewriteSubstitutionEntryV0 {
+                    variable: "pass".to_owned(),
+                    term: RewriteTermV0::atom(pass_kind.id()),
+                },
+            ],
+            side_condition: SideConditionCertV0::ModuleExportPreservation { certificate },
+        },
+    };
+    let token = check_rewrite_certificate_v0(
+        &before,
+        &after,
+        &catalog,
+        &envelope,
+        &CanonicalRewriteAssumptionsV0::default(),
+    )
+    .map_err(|rejection| format!("{:?}", rejection.rejection))?;
+    if !token.matches_endpoints_v0(&before, &after) || !token.matches_catalog_v0(&catalog) {
+        return Err(
+            "issued preservation token did not re-bind to trusted endpoints and catalog".to_owned(),
+        );
+    }
+    let evidence = TransformModuleExportPreservationEvidenceV0 {
+        pass_id: pass_kind.id(),
+        module_instance: module_instance.clone(),
+        before_premise_digest,
+        after_premise_digest,
+        catalog_schema_id: token.catalog_schema_id_v0(),
+        catalog_content_digest: token.catalog_content_digest_hex_v0(),
+        checked_rule_ids: token.checked_rule_ids_v0().to_vec(),
+    };
+    Ok(CheckedModuleExportPreservationAdmissionV0 { token, evidence })
+}
+
+fn require_dual_o1_tokens_v0(
+    ownership_token: Option<RewriteIssuanceTokenV0>,
+    preservation: Option<CheckedModuleExportPreservationAdmissionV0>,
+) -> Result<TransformModuleExportPreservationEvidenceV0, String> {
+    let _ownership_token = ownership_token
+        .ok_or_else(|| "O1 admission lacks the checked token-ownership token".to_owned())?;
+    let preservation = preservation.ok_or_else(|| {
+        "O1 admission lacks the checked module-export-preservation token".to_owned()
+    })?;
+    let _preservation_token = preservation.token;
+    Ok(preservation.evidence)
 }
 
 fn closed_world_admission_o1_reasons(
@@ -3953,6 +4247,30 @@ mod dispatch_table_tests {
             generated_span_end,
             node_key: None,
         }
+    }
+
+    #[test]
+    fn destructive_o1_admission_requires_ownership_and_preservation_tokens() {
+        let census = CssModuleTokenOwnershipCensusV0::new(
+            "linkedOrder",
+            0,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        );
+        let ownership =
+            checked_token_ownership_admission_v0(&census, None, TransformPassKind::TreeShakeClass);
+        assert!(
+            ownership.is_some(),
+            "ownership control token was not issued"
+        );
+
+        let rejected = require_dual_o1_tokens_v0(ownership, None);
+        assert_eq!(
+            rejected,
+            Err("O1 admission lacks the checked module-export-preservation token".to_owned())
+        );
     }
 
     #[test]

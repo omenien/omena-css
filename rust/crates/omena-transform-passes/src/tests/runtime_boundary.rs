@@ -174,6 +174,29 @@ fn proof_kernel_token_closes_favourable_ownership_count_bypass() -> Result<(), S
     );
     let admitted = execute(&unique)?;
     assert_eq!(admitted.closed_world_admission.refused_count, 0);
+    assert_eq!(
+        admitted
+            .module_export_preservation_telemetry
+            .certificate_construction_count,
+        1
+    );
+    assert_eq!(
+        admitted
+            .module_export_preservation_telemetry
+            .checked_token_count,
+        1
+    );
+    assert_eq!(
+        admitted
+            .module_export_preservation_telemetry
+            .rejected_certificate_count,
+        0
+    );
+    assert!(!admitted.output_css.contains("dead"));
+    assert!(matches!(
+        admitted.decisions.as_slice(),
+        [crate::TransformDecision::Applied { .. }]
+    ));
 
     // FALSIFIER: the legacy producer-owned summaries are deliberately made favourable by
     // omitting the collision row. Only the independently checked one-owner certificate can see
@@ -202,6 +225,226 @@ fn proof_kernel_token_closes_favourable_ownership_count_bypass() -> Result<(), S
             .as_slice(),
         [TransformStrictPolicyReasonV0::ClosedWorldEvidenceIncomplete { missing }]
             if missing == &["proofKernelToken:tree-shake-class".to_string()]
+    ));
+    Ok(())
+}
+
+#[test]
+fn four_export_preserving_passes_construct_checked_tokens_on_the_production_path()
+-> Result<(), String> {
+    let module_instance = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/card.module.css"));
+    let bundle = test_closed_world_bundle(
+        vec![module_instance.clone()],
+        vec![ClosedWorldLinkedModuleV0::new(module_instance.clone()).with_class_name("root")],
+    );
+    let cases = [
+        (
+            TransformPassKind::SelectorMerging,
+            ".root { color: red; } .root { background: blue; }",
+            "root",
+            TransformExecutionContextV0::default(),
+        ),
+        (
+            TransformPassKind::HashCssModuleClassNames,
+            ".root { color: red; }",
+            "_root_a1",
+            TransformExecutionContextV0 {
+                class_name_rewrites: vec![crate::TransformClassNameRewriteV0 {
+                    original_name: "root".to_owned(),
+                    rewritten_name: "_root_a1".to_owned(),
+                }],
+                ..TransformExecutionContextV0::default()
+            },
+        ),
+        (
+            TransformPassKind::ResolveCssModulesComposes,
+            ".root { composes: base; color: red; } .base { color: blue; }",
+            "root",
+            TransformExecutionContextV0 {
+                css_module_composes_resolutions: vec![
+                    crate::TransformCssModuleComposesResolutionV0 {
+                        local_class_name: "root".to_owned(),
+                        exported_class_names: vec!["root".to_owned(), "base".to_owned()],
+                    },
+                ],
+                ..TransformExecutionContextV0::default()
+            },
+        ),
+        (
+            TransformPassKind::TreeShakeClass,
+            ".root { color: red; } .dead { color: gray; }",
+            "root",
+            TransformExecutionContextV0::default(),
+        ),
+    ];
+
+    for (pass, source, emitted_token, context) in cases {
+        let census = CssModuleTokenOwnershipCensusV0::new(
+            "linkedOrder",
+            1,
+            vec![CssModuleTokenOwnershipV0::new(
+                emitted_token,
+                vec![module_instance.clone()],
+                vec!["src/card.module.css".to_owned()],
+                vec!["root".to_owned()],
+            )],
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        );
+        let retained = ["root".to_owned()];
+        let execution = census
+            .execute_module_transform_passes_with_ownership_admission(
+                source,
+                StyleDialect::Css,
+                &[pass],
+                &context,
+                &bundle,
+                &module_instance,
+                FactPrecision::Exact,
+                &TransformExecutionPolicyV0::default(),
+                retained.as_slice(),
+            )
+            .map_err(|error| format!("{pass:?} module should be known: {error:?}"))?;
+        let telemetry = &execution.module_export_preservation_telemetry;
+        assert_eq!(telemetry.certificate_construction_count, 1, "{pass:?}");
+        assert_eq!(telemetry.checked_token_count, 1, "{pass:?}");
+        assert_eq!(telemetry.rejected_certificate_count, 0, "{pass:?}");
+        assert_eq!(telemetry.evidence.len(), 1, "{pass:?}");
+        assert_eq!(telemetry.evidence[0].pass_id, pass.id());
+        assert_eq!(telemetry.evidence[0].module_instance, module_instance);
+        assert_eq!(telemetry.evidence[0].checked_rule_ids.len(), 1);
+    }
+    Ok(())
+}
+
+#[test]
+fn tree_shake_preservation_premise_keeps_live_exports_without_resurrecting_dead_ones()
+-> Result<(), String> {
+    let module_instance = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/card.module.css"));
+    let bundle = test_closed_world_bundle(
+        vec![module_instance.clone()],
+        vec![ClosedWorldLinkedModuleV0::new(module_instance.clone()).with_class_name("root")],
+    );
+    let census = CssModuleTokenOwnershipCensusV0::new(
+        "linkedOrder",
+        2,
+        vec![
+            CssModuleTokenOwnershipV0::new(
+                "root",
+                vec![module_instance.clone()],
+                vec!["src/card.module.css".to_owned()],
+                vec!["root".to_owned()],
+            ),
+            CssModuleTokenOwnershipV0::new(
+                "dead",
+                vec![module_instance.clone()],
+                vec!["src/card.module.css".to_owned()],
+                vec!["dead".to_owned()],
+            ),
+        ],
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+    );
+    let execution = census
+        .execute_module_transform_passes_with_ownership_admission(
+            ".root { color: red; } .dead { color: gray; }",
+            StyleDialect::Css,
+            &[TransformPassKind::TreeShakeClass],
+            &TransformExecutionContextV0::default(),
+            &bundle,
+            &module_instance,
+            FactPrecision::Exact,
+            &TransformExecutionPolicyV0::default(),
+            &["root".to_owned()],
+        )
+        .map_err(|error| format!("tree-shake module should be known: {error:?}"))?;
+
+    assert!(execution.output_css.contains("root"));
+    assert!(!execution.output_css.contains("dead"));
+    assert_eq!(
+        execution
+            .module_export_preservation_telemetry
+            .checked_token_count,
+        1
+    );
+    assert_eq!(
+        execution
+            .module_export_preservation_telemetry
+            .rejected_certificate_count,
+        0
+    );
+    Ok(())
+}
+
+#[test]
+fn class_hashing_rolls_back_a_non_bijective_module_export_rotation() -> Result<(), String> {
+    let module_instance = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/card.module.css"));
+    let bundle = test_closed_world_bundle(
+        vec![module_instance.clone()],
+        vec![
+            ClosedWorldLinkedModuleV0::new(module_instance.clone())
+                .with_class_name("root")
+                .with_class_name("title"),
+        ],
+    );
+    let census = CssModuleTokenOwnershipCensusV0::new(
+        "linkedOrder",
+        2,
+        vec![CssModuleTokenOwnershipV0::new(
+            "_merged_a1",
+            vec![module_instance.clone()],
+            vec!["src/card.module.css".to_owned()],
+            vec!["root".to_owned(), "title".to_owned()],
+        )],
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+    );
+    let source = ".root { color: red; } .title { color: blue; }";
+    let execution = census
+        .execute_module_transform_passes_with_ownership_admission(
+            source,
+            StyleDialect::Css,
+            &[TransformPassKind::HashCssModuleClassNames],
+            &TransformExecutionContextV0 {
+                class_name_rewrites: vec![
+                    crate::TransformClassNameRewriteV0 {
+                        original_name: "root".to_owned(),
+                        rewritten_name: "_merged_a1".to_owned(),
+                    },
+                    crate::TransformClassNameRewriteV0 {
+                        original_name: "title".to_owned(),
+                        rewritten_name: "_merged_a1".to_owned(),
+                    },
+                ],
+                ..TransformExecutionContextV0::default()
+            },
+            &bundle,
+            &module_instance,
+            FactPrecision::Exact,
+            &TransformExecutionPolicyV0::default(),
+            &["root".to_owned(), "title".to_owned()],
+        )
+        .map_err(|error| format!("hashing module should be known: {error:?}"))?;
+
+    assert_eq!(execution.output_css, source);
+    assert_eq!(
+        execution
+            .module_export_preservation_telemetry
+            .rejected_certificate_count,
+        1
+    );
+    assert!(matches!(
+        execution.decisions.as_slice(),
+        [crate::TransformDecision::Rejected {
+            reason: crate::TransformRejectionReasonV0::ModuleExportPreservation {
+                pass: TransformPassKind::HashCssModuleClassNames,
+                reason,
+            },
+            ..
+        }] if reason.contains("bijection")
     ));
     Ok(())
 }

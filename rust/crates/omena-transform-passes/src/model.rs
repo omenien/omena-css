@@ -284,6 +284,10 @@ pub enum TransformRejectionReasonV0 {
     StrictVerification {
         reasons: Vec<TransformStrictPolicyReasonV0>,
     },
+    ModuleExportPreservation {
+        pass: TransformPassKind,
+        reason: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -1216,6 +1220,36 @@ pub struct TransformDischargeLedgerTelemetryV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TransformModuleExportPreservationEvidenceV0 {
+    pub pass_id: &'static str,
+    pub module_instance: ModuleInstanceKeyV0,
+    pub before_premise_digest: String,
+    pub after_premise_digest: String,
+    pub catalog_schema_id: &'static str,
+    pub catalog_content_digest: String,
+    pub checked_rule_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformModuleExportPreservationTelemetryV0 {
+    pub certificate_construction_count: u64,
+    pub checked_token_count: u64,
+    pub rejected_certificate_count: u64,
+    pub evidence: Vec<TransformModuleExportPreservationEvidenceV0>,
+}
+
+impl TransformModuleExportPreservationTelemetryV0 {
+    pub fn is_empty(&self) -> bool {
+        self.certificate_construction_count == 0
+            && self.checked_token_count == 0
+            && self.rejected_certificate_count == 0
+            && self.evidence.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TransformExecutionSummaryV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -1242,6 +1276,8 @@ pub struct TransformExecutionSummaryV0 {
     pub structural_ir_transaction_telemetry: TransformStructuralIrTransactionTelemetryV0,
     pub semantic_preservation_telemetry: TransformSemanticPreservationTelemetryV0,
     pub discharge_ledger_telemetry: TransformDischargeLedgerTelemetryV0,
+    #[serde(skip_serializing_if = "TransformModuleExportPreservationTelemetryV0::is_empty")]
+    pub module_export_preservation_telemetry: TransformModuleExportPreservationTelemetryV0,
     pub strict_policy: TransformStrictPolicySummaryV0,
     pub closed_world_admission: TransformClosedWorldAdmissionSummaryV0,
     pub decisions: Vec<TransformDecision>,
