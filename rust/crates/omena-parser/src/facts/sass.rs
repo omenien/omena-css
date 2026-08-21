@@ -7,16 +7,17 @@ use cstree::text::{TextRange, TextSize};
 use omena_syntax::{StyleDialect, SyntaxKind};
 use std::collections::{BTreeMap, BTreeSet};
 
+#[cfg(test)]
+use crate::ParseResult;
 use crate::{
-    ParseResult, Token, containing_at_rule_header_name, css_module_value_source_name,
+    Token, containing_at_rule_header_name, css_module_value_source_name,
     css_module_value_statement_end, matches_ignore_ascii_case, next_non_trivia_token,
     next_non_trivia_token_index_until, previous_non_trivia_token, previous_non_trivia_token_index,
     skip_trivia_tokens, top_level_token_text_index,
 };
 
 use super::scss_variable_token_is_declaration;
-use super::syntax_node_is_top_level;
-use super::tokens_from_syntax_node;
+use super::{StyleFactNodeEvent, StyleFactSink};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedSassSymbolFact {
@@ -53,11 +54,23 @@ pub enum ParsedSassSymbolFactKind {
     FunctionCall,
 }
 
+#[cfg(test)]
 pub(crate) fn collect_sass_symbol_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedSassSymbolFact> {
-    let statement_tokens = sass_symbol_statement_tokens_from_cst(text, parsed);
+    let sink = StyleFactSink::from_cst(text, parsed);
+    collect_sass_symbol_facts_from_sink(&sink)
+}
+
+pub(crate) fn collect_sass_symbol_facts_from_sink(
+    sink: &StyleFactSink<'_>,
+) -> Vec<ParsedSassSymbolFact> {
+    let statement_tokens = sink
+        .nodes()
+        .filter(|node| node.is_top_level)
+        .map(|node| sink.node_tokens(node))
+        .collect::<Vec<_>>();
     let declared_functions = statement_tokens
         .iter()
         .flat_map(|tokens| collect_sass_callable_declaration_names(tokens, "@function"))
@@ -68,7 +81,7 @@ pub(crate) fn collect_sass_symbol_facts_from_cst(
             sass_symbol_facts_from_token_view_with_declared_functions(tokens, &declared_functions)
         })
         .collect::<Vec<_>>();
-    if !matches!(parsed.dialect(), StyleDialect::Scss | StyleDialect::Sass)
+    if !matches!(sink.dialect(), StyleDialect::Scss | StyleDialect::Sass)
         || !facts.iter().any(|fact| {
             matches!(
                 fact.kind,
@@ -79,7 +92,7 @@ pub(crate) fn collect_sass_symbol_facts_from_cst(
     {
         return facts;
     }
-    let declaration_metadata = sass_callable_declaration_metadata_from_cst(text, parsed);
+    let declaration_metadata = sass_callable_declaration_metadata_from_sink(sink);
     for fact in &mut facts {
         let key = (
             fact.kind,
@@ -92,17 +105,6 @@ pub(crate) fn collect_sass_symbol_facts_from_cst(
         }
     }
     facts
-}
-
-fn sass_symbol_statement_tokens_from_cst<'text>(
-    text: &'text str,
-    parsed: &ParseResult,
-) -> Vec<Vec<Token<'text>>> {
-    parsed
-        .syntax()
-        .children()
-        .map(|node| tokens_from_syntax_node(text, parsed, node))
-        .collect()
 }
 
 fn sass_symbol_facts_from_token_view_with_declared_functions(
@@ -213,30 +215,27 @@ struct SassCallableDeclarationMetadata {
     is_top_level: bool,
 }
 
-fn sass_callable_declaration_metadata_from_cst(
-    text: &str,
-    parsed: &ParseResult,
+fn sass_callable_declaration_metadata_from_sink(
+    sink: &StyleFactSink<'_>,
 ) -> BTreeMap<(ParsedSassSymbolFactKind, u32, u32), SassCallableDeclarationMetadata> {
-    parsed
-        .syntax()
-        .descendants()
+    sink.nodes()
         .filter_map(|node| {
-            let fact_kind = match node.kind() {
+            let fact_kind = match node.kind {
                 SyntaxKind::ScssMixinDeclaration => ParsedSassSymbolFactKind::MixinDeclaration,
                 SyntaxKind::ScssFunctionDeclaration => {
                     ParsedSassSymbolFactKind::FunctionDeclaration
                 }
                 _ => return None,
             };
-            let tokens = tokens_from_syntax_node(text, parsed, node);
+            let tokens = sink.node_tokens(node);
             let at_rule_index = tokens
                 .iter()
                 .position(|token| token.kind == SyntaxKind::AtKeyword)?;
-            let name = sass_callable_name_after_at_rule(&tokens, at_rule_index)?;
+            let name = sass_callable_name_after_at_rule(tokens, at_rule_index)?;
             let signature = ParsedSassCallableSignatureFact {
-                parameters: sass_callable_parameters_from_tokens(&tokens, at_rule_index),
+                parameters: sass_callable_parameters_from_tokens(tokens, at_rule_index),
                 accepts_content: fact_kind == ParsedSassSymbolFactKind::MixinDeclaration
-                    && sass_callable_node_accepts_content(node),
+                    && sass_callable_node_accepts_content(sink, node),
             };
             let key = (
                 fact_kind,
@@ -245,7 +244,7 @@ fn sass_callable_declaration_metadata_from_cst(
             );
             let metadata = SassCallableDeclarationMetadata {
                 signature,
-                is_top_level: syntax_node_is_top_level(node),
+                is_top_level: node.is_top_level,
             };
             Some((key, metadata))
         })
@@ -253,22 +252,25 @@ fn sass_callable_declaration_metadata_from_cst(
 }
 
 fn sass_callable_node_accepts_content(
-    declaration: &cstree::syntax::SyntaxNode<SyntaxKind>,
+    sink: &StyleFactSink<'_>,
+    declaration: &StyleFactNodeEvent,
 ) -> bool {
-    declaration
-        .descendants()
-        .filter(|node| node.kind() == SyntaxKind::ScssContentRule)
+    let declaration_range = declaration.range;
+    sink.nodes()
+        .filter(|node| node.kind == SyntaxKind::ScssContentRule)
+        .filter(|node| {
+            node.range.start() >= declaration_range.start()
+                && node.range.end() <= declaration_range.end()
+        })
         .any(|content| {
-            content
-                .ancestors()
-                .skip(1)
-                .take_while(|ancestor| *ancestor != declaration)
-                .all(|ancestor| {
-                    !matches!(
-                        ancestor.kind(),
-                        SyntaxKind::ScssMixinDeclaration | SyntaxKind::ScssFunctionDeclaration
-                    )
-                })
+            !sink.has_intervening_ancestor_kind(
+                content,
+                declaration,
+                &[
+                    SyntaxKind::ScssMixinDeclaration,
+                    SyntaxKind::ScssFunctionDeclaration,
+                ],
+            )
         })
 }
 
@@ -461,13 +463,15 @@ pub struct ParsedSassIncludeFact {
     pub range: TextRange,
 }
 
-pub(crate) fn collect_sass_include_facts_from_cst(
-    source: &str,
-    parsed: &ParseResult,
+pub(crate) fn collect_sass_include_facts_from_sink(
+    sink: &StyleFactSink<'_>,
 ) -> Vec<ParsedSassIncludeFact> {
     let mut includes = Vec::new();
-    for tokens in scss_include_rule_tokens_from_cst(source, parsed) {
-        collect_sass_include_facts_from_rule_tokens(&tokens, &mut includes);
+    for node in sink
+        .nodes()
+        .filter(|node| node.kind == SyntaxKind::ScssIncludeRule)
+    {
+        collect_sass_include_facts_from_rule_tokens(sink.node_tokens(node), &mut includes);
     }
     includes
 }
@@ -499,18 +503,6 @@ fn collect_sass_include_facts_from_rule_tokens(
             range: TextRange::new(token.range.start(), header_end),
         });
     }
-}
-
-fn scss_include_rule_tokens_from_cst<'text>(
-    text: &'text str,
-    parsed: &ParseResult,
-) -> Vec<Vec<Token<'text>>> {
-    parsed
-        .syntax()
-        .descendants()
-        .filter(|node| node.kind() == SyntaxKind::ScssIncludeRule)
-        .map(|node| tokens_from_syntax_node(text, parsed, node))
-        .collect()
 }
 
 fn token_text_between_offsets(
@@ -553,16 +545,29 @@ pub enum ParsedSassModuleEdgeFactKind {
     Import,
 }
 
+#[cfg(test)]
 pub(crate) fn collect_sass_module_edge_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedSassModuleEdgeFact> {
+    let sink = StyleFactSink::from_cst(text, parsed);
+    collect_sass_module_edge_facts_from_sink(&sink)
+}
+
+pub(crate) fn collect_sass_module_edge_facts_from_sink(
+    sink: &StyleFactSink<'_>,
+) -> Vec<ParsedSassModuleEdgeFact> {
     let mut edges = Vec::new();
     let mut seen = BTreeSet::new();
-    for (tokens, is_top_level) in sass_module_rule_tokens_from_cst(text, parsed) {
+    for node in sink.nodes().filter(|node| {
+        matches!(
+            node.kind,
+            SyntaxKind::ScssUseRule | SyntaxKind::ScssForwardRule | SyntaxKind::ImportRule
+        )
+    }) {
         collect_sass_module_edge_facts_from_rule_tokens(
-            &tokens,
-            is_top_level,
+            sink.node_tokens(node),
+            node.is_top_level,
             &mut edges,
             &mut seen,
         );
@@ -631,28 +636,6 @@ fn collect_sass_module_edge_facts_from_rule_tokens(
             },
         );
     }
-}
-
-fn sass_module_rule_tokens_from_cst<'text>(
-    text: &'text str,
-    parsed: &ParseResult,
-) -> Vec<(Vec<Token<'text>>, bool)> {
-    parsed
-        .syntax()
-        .descendants()
-        .filter(|node| {
-            matches!(
-                node.kind(),
-                SyntaxKind::ScssUseRule | SyntaxKind::ScssForwardRule | SyntaxKind::ImportRule
-            )
-        })
-        .map(|node| {
-            (
-                tokens_from_syntax_node(text, parsed, node),
-                syntax_node_is_top_level(node),
-            )
-        })
-        .collect()
 }
 
 fn sass_module_edge_kind(text: &str) -> Option<ParsedSassModuleEdgeFactKind> {
@@ -825,33 +808,39 @@ pub struct ParsedSassPlaceholderDefinitionFact {
     pub is_top_level: bool,
 }
 
+#[cfg(test)]
 pub(crate) fn collect_sass_placeholder_definition_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedSassPlaceholderDefinitionFact> {
-    if !matches!(parsed.dialect(), StyleDialect::Scss | StyleDialect::Sass)
-        || !parsed
-            .syntax_token_views()
-            .iter()
-            .any(|token| token.kind == SyntaxKind::ScssPlaceholder)
+    let sink = StyleFactSink::from_cst(text, parsed);
+    collect_sass_placeholder_definition_facts_from_sink(&sink)
+}
+
+pub(crate) fn collect_sass_placeholder_definition_facts_from_sink(
+    sink: &StyleFactSink<'_>,
+) -> Vec<ParsedSassPlaceholderDefinitionFact> {
+    if !matches!(sink.dialect(), StyleDialect::Scss | StyleDialect::Sass)
+        || !sink.has_token_kind(SyntaxKind::ScssPlaceholder)
     {
         return Vec::new();
     }
-    parsed
-        .syntax()
-        .descendants()
-        .filter(|node| node.kind() == SyntaxKind::ScssPlaceholderSelector)
+    sink.nodes()
+        .filter(|node| node.kind == SyntaxKind::ScssPlaceholderSelector)
         .filter_map(|node| {
-            let placeholder = tokens_from_syntax_node(text, parsed, node)
-                .into_iter()
+            let placeholder = sink
+                .node_tokens(node)
+                .iter()
+                .copied()
                 .find(|token| token.kind == SyntaxKind::ScssPlaceholder)?;
-            let rule = node
-                .ancestors()
-                .find(|ancestor| ancestor.kind() == SyntaxKind::Rule)?;
+            let rule = sink
+                .ancestors_inclusive(node)
+                .into_iter()
+                .find(|ancestor| ancestor.kind == SyntaxKind::Rule)?;
             Some(ParsedSassPlaceholderDefinitionFact {
                 name: placeholder.text.trim_start_matches('%').to_string(),
                 range: placeholder.range,
-                is_top_level: syntax_node_is_top_level(rule),
+                is_top_level: rule.is_top_level,
             })
         })
         .collect()
@@ -882,13 +871,24 @@ pub enum ParsedExtendTargetFactKind {
 /// `@extend` targets, so the first-simple capture is sufficient for missing-target
 /// checks without over-reporting. Interpolated targets produce no simple token
 /// here and are skipped because they are not statically checkable.
+#[cfg(test)]
 pub(crate) fn collect_extend_target_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedExtendTargetFact> {
+    let sink = StyleFactSink::from_cst(text, parsed);
+    collect_extend_target_facts_from_sink(&sink)
+}
+
+pub(crate) fn collect_extend_target_facts_from_sink(
+    sink: &StyleFactSink<'_>,
+) -> Vec<ParsedExtendTargetFact> {
     let mut targets = Vec::new();
-    for tokens in scss_extend_rule_tokens_from_cst(text, parsed) {
-        collect_extend_target_facts_from_rule_tokens(&tokens, &mut targets);
+    for node in sink
+        .nodes()
+        .filter(|node| node.kind == SyntaxKind::ScssExtendRule)
+    {
+        collect_extend_target_facts_from_rule_tokens(sink.node_tokens(node), &mut targets);
     }
     targets
 }
@@ -943,18 +943,6 @@ fn collect_extend_target_facts_from_rule_tokens(
             targets.push(target);
         }
     }
-}
-
-fn scss_extend_rule_tokens_from_cst<'text>(
-    text: &'text str,
-    parsed: &ParseResult,
-) -> Vec<Vec<Token<'text>>> {
-    parsed
-        .syntax()
-        .descendants()
-        .filter(|node| node.kind() == SyntaxKind::ScssExtendRule)
-        .map(|node| tokens_from_syntax_node(text, parsed, node))
-        .collect()
 }
 
 fn extend_statement_has_optional_flag(tokens: &[Token<'_>], start: usize, end: usize) -> bool {

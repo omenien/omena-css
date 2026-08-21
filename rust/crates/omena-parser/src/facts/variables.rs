@@ -7,12 +7,14 @@ use cstree::text::TextRange;
 use omena_syntax::{StyleDialect, SyntaxKind};
 use std::collections::BTreeMap;
 
+#[cfg(test)]
+use crate::ParseResult;
 use crate::{
-    ParseResult, Token, containing_at_rule_header_name, matches_ignore_ascii_case,
-    next_non_trivia_token, previous_non_trivia_token, previous_non_trivia_token_index,
+    Token, containing_at_rule_header_name, matches_ignore_ascii_case, next_non_trivia_token,
+    previous_non_trivia_token, previous_non_trivia_token_index,
 };
 
-use super::{syntax_node_is_top_level, tokens_from_syntax_node};
+use super::StyleFactSink;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedVariableFact {
@@ -39,25 +41,33 @@ pub enum ParsedVariableFactKind {
     CustomPropertyReference,
 }
 
+#[cfg(test)]
 pub(crate) fn collect_variable_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedVariableFact> {
+    let sink = StyleFactSink::from_cst(text, parsed);
+    collect_variable_facts_from_sink(&sink)
+}
+
+pub(crate) fn collect_variable_facts_from_sink(
+    sink: &StyleFactSink<'_>,
+) -> Vec<ParsedVariableFact> {
     let mut variables = Vec::new();
     let mut seen = std::collections::BTreeSet::new();
-    for tokens in variable_fact_statement_tokens_from_cst(text, parsed) {
-        for fact in variable_facts_from_token_view(&tokens) {
+    for node in sink.nodes().filter(|node| node.is_top_level) {
+        for fact in variable_facts_from_token_view(sink.node_tokens(node)) {
             push_variable_fact(&mut variables, &mut seen, fact);
         }
     }
-    if !matches!(parsed.dialect(), StyleDialect::Scss | StyleDialect::Sass)
+    if !matches!(sink.dialect(), StyleDialect::Scss | StyleDialect::Sass)
         || !variables
             .iter()
             .any(|fact| fact.kind == ParsedVariableFactKind::ScssDeclaration)
     {
         return variables;
     }
-    let declaration_metadata = scss_variable_declaration_metadata_from_cst(text, parsed);
+    let declaration_metadata = scss_variable_declaration_metadata_from_sink(sink);
     for fact in &mut variables {
         let key = (u32::from(fact.range.start()), u32::from(fact.range.end()));
         if let Some(metadata) = declaration_metadata.get(&key) {
@@ -67,17 +77,6 @@ pub(crate) fn collect_variable_facts_from_cst(
         }
     }
     variables
-}
-
-fn variable_fact_statement_tokens_from_cst<'text>(
-    text: &'text str,
-    parsed: &ParseResult,
-) -> Vec<Vec<Token<'text>>> {
-    parsed
-        .syntax()
-        .children()
-        .map(|node| tokens_from_syntax_node(text, parsed, node))
-        .collect()
 }
 
 fn variable_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedVariableFact> {
@@ -144,16 +143,13 @@ struct ScssVariableDeclarationMetadata {
     is_top_level: bool,
 }
 
-fn scss_variable_declaration_metadata_from_cst(
-    text: &str,
-    parsed: &ParseResult,
+fn scss_variable_declaration_metadata_from_sink(
+    sink: &StyleFactSink<'_>,
 ) -> BTreeMap<(u32, u32), ScssVariableDeclarationMetadata> {
-    parsed
-        .syntax()
-        .descendants()
-        .filter(|node| node.kind() == SyntaxKind::ScssVariableDeclaration)
+    sink.nodes()
+        .filter(|node| node.kind == SyntaxKind::ScssVariableDeclaration)
         .filter_map(|node| {
-            let tokens = tokens_from_syntax_node(text, parsed, node);
+            let tokens = sink.node_tokens(node);
             let variable_index = tokens
                 .iter()
                 .position(|token| token.kind == SyntaxKind::ScssVariable)?;
@@ -163,7 +159,7 @@ fn scss_variable_declaration_metadata_from_cst(
                 .skip(variable_index + 1)
                 .find_map(|(index, token)| (token.kind == SyntaxKind::Colon).then_some(index))?;
             let (value_end, defaulted) =
-                scss_variable_value_end_and_default(&tokens, colon_index + 1);
+                scss_variable_value_end_and_default(tokens, colon_index + 1);
             let value_repr = tokens[colon_index + 1..value_end]
                 .iter()
                 .map(|token| token.text)
@@ -178,7 +174,7 @@ fn scss_variable_declaration_metadata_from_cst(
                     value_repr: (!value_repr.trim().is_empty())
                         .then(|| value_repr.trim().to_string().into_boxed_str()),
                     defaulted,
-                    is_top_level: syntax_node_is_top_level(node),
+                    is_top_level: node.is_top_level,
                 },
             ))
         })

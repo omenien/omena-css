@@ -70,14 +70,16 @@ pub(crate) use facts::{
 };
 #[cfg(feature = "test-support")]
 pub(crate) use instrumentation::record_closed_world_bundle_construction_for_test;
+#[cfg(feature = "test-support")]
+pub use instrumentation::{
+    OmenaParserFactCollectionInstrumentationSnapshotV0,
+    closed_world_bundle_construction_count_for_test,
+    reset_closed_world_bundle_construction_count_for_test,
+    with_omena_parser_fact_collection_instrumentation,
+};
 pub use instrumentation::{
     OmenaParserLexInstrumentationSnapshotV0, OmenaParserParseInstrumentationSnapshotV0,
     with_omena_parser_lex_instrumentation, with_omena_parser_parse_instrumentation,
-};
-#[cfg(feature = "test-support")]
-pub use instrumentation::{
-    closed_world_bundle_construction_count_for_test,
-    reset_closed_world_bundle_construction_count_for_test,
 };
 #[cfg(test)]
 pub(crate) use instrumentation::{
@@ -85,8 +87,9 @@ pub(crate) use instrumentation::{
     reset_omena_parser_syntax_root_materialization_count,
 };
 pub(crate) use instrumentation::{
-    record_omena_parser_lex_materialization, record_omena_parser_parse_materialization,
-    record_omena_parser_syntax_root_materialization,
+    record_omena_parser_fact_collection_registrations,
+    record_omena_parser_fact_collection_traversal, record_omena_parser_lex_materialization,
+    record_omena_parser_parse_materialization, record_omena_parser_syntax_root_materialization,
 };
 pub use language::StyleLanguage;
 pub use lex::{LexResult, LexedToken};

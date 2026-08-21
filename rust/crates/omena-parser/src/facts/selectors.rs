@@ -8,12 +8,14 @@ use omena_syntax::SyntaxKind;
 use std::collections::BTreeSet;
 
 use crate::{
-    ParseResult, Token, find_selector_block_after_header, is_selector_combinator_kind,
+    Token, find_selector_block_after_header, is_selector_combinator_kind,
     matching_right_paren_from_range, next_non_trivia_token_after_range,
     next_non_trivia_token_until, previous_non_trivia_token, selector_component_can_end,
     selector_component_can_start, skip_statement_or_unmatched_boundary, skip_trivia_tokens,
     style_wrapper_at_rule, token_index_by_range,
 };
+
+use super::StyleFactSink;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedSelectorFact {
@@ -36,46 +38,22 @@ pub(crate) struct SelectorBranch {
     pub(crate) bare_suffix_base: bool,
 }
 
-pub(crate) fn collect_selector_facts_from_cst(
-    text: &str,
-    parsed: &ParseResult,
+pub(crate) fn collect_selector_facts_from_sink(
+    sink: &StyleFactSink<'_>,
 ) -> Vec<ParsedSelectorFact> {
     let mut selectors = Vec::new();
     let mut seen = BTreeSet::new();
-    for tokens in selector_statement_tokens_from_cst(text, parsed) {
-        collect_selector_facts_in_range(
-            &tokens,
-            0,
-            tokens.len(),
-            &[],
-            None,
-            &mut seen,
-            &mut selectors,
-        );
-    }
+    let tokens = sink.tokens();
+    collect_selector_facts_in_range(
+        tokens,
+        0,
+        tokens.len(),
+        &[],
+        None,
+        &mut seen,
+        &mut selectors,
+    );
     selectors
-}
-
-fn selector_statement_tokens_from_cst<'text>(
-    text: &'text str,
-    parsed: &ParseResult,
-) -> Vec<Vec<Token<'text>>> {
-    vec![
-        parsed
-            .syntax_token_views()
-            .iter()
-            .map(|token| {
-                let range = token.range;
-                let start = u32::from(range.start()) as usize;
-                let end = u32::from(range.end()) as usize;
-                Token {
-                    kind: token.kind,
-                    text: text.get(start..end).unwrap_or_default(),
-                    range,
-                }
-            })
-            .collect(),
-    ]
 }
 
 fn collect_selector_facts_in_range(

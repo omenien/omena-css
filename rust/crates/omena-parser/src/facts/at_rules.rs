@@ -6,7 +6,9 @@
 use cstree::text::TextRange;
 use omena_syntax::{StyleDialect, SyntaxKind};
 
-use crate::{ParseResult, at_rule_spec, scss_at_rule_spec};
+use crate::{at_rule_spec, scss_at_rule_spec};
+
+use super::StyleFactSink;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedAtRuleFact {
@@ -15,15 +17,11 @@ pub struct ParsedAtRuleFact {
     pub range: TextRange,
 }
 
-pub(crate) fn collect_at_rule_facts_from_cst(
-    text: &str,
-    parsed: &ParseResult,
-) -> Vec<ParsedAtRuleFact> {
-    parsed
-        .syntax_token_views()
+pub(crate) fn collect_at_rule_facts_from_sink(sink: &StyleFactSink<'_>) -> Vec<ParsedAtRuleFact> {
+    sink.tokens()
         .iter()
         .filter(|token| token.kind == SyntaxKind::AtKeyword)
-        .map(|token| at_rule_fact_from_cst_token(text, token.range, parsed.dialect()))
+        .map(|token| at_rule_fact_from_cst_token(sink.text(), token.range, sink.dialect()))
         .collect()
 }
 

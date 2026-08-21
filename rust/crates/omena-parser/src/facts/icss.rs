@@ -14,7 +14,7 @@ use crate::{
     next_non_trivia_token_index_until,
 };
 
-use super::tokens_from_syntax_node;
+use super::{StyleFactNodeEvent, StyleFactSink};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedIcssFact {
@@ -50,18 +50,19 @@ pub fn collect_icss_export_values_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<(String, String)> {
+    let sink = StyleFactSink::from_cst(text, parsed);
     let mut values = Vec::new();
-    for tokens in icss_block_tokens_from_cst(text, parsed) {
-        collect_icss_export_values_from_block_tokens(&tokens, &mut values);
+    for node in icss_block_nodes(&sink) {
+        collect_icss_export_values_from_block_tokens(sink.node_tokens(node), &mut values);
     }
     values
 }
 
-pub(crate) fn collect_icss_facts_from_cst(text: &str, parsed: &ParseResult) -> Vec<ParsedIcssFact> {
+pub(crate) fn collect_icss_facts_from_sink(sink: &StyleFactSink<'_>) -> Vec<ParsedIcssFact> {
     let mut icss = Vec::new();
     let mut seen = BTreeSet::new();
-    for tokens in icss_block_tokens_from_cst(text, parsed) {
-        collect_icss_facts_from_block_tokens(&tokens, &mut icss, &mut seen);
+    for node in icss_block_nodes(sink) {
+        collect_icss_facts_from_block_tokens(sink.node_tokens(node), &mut icss, &mut seen);
     }
     icss
 }
@@ -102,13 +103,12 @@ fn collect_icss_facts_from_block_tokens(
     }
 }
 
-pub(crate) fn collect_icss_import_edge_facts_from_cst(
-    text: &str,
-    parsed: &ParseResult,
+pub(crate) fn collect_icss_import_edge_facts_from_sink(
+    sink: &StyleFactSink<'_>,
 ) -> Vec<ParsedIcssImportEdgeFact> {
     let mut edges = Vec::new();
-    for tokens in icss_block_tokens_from_cst(text, parsed) {
-        collect_icss_import_edge_facts_from_block_tokens(&tokens, &mut edges);
+    for node in icss_block_nodes(sink) {
+        collect_icss_import_edge_facts_from_block_tokens(sink.node_tokens(node), &mut edges);
     }
     edges
 }
@@ -139,13 +139,12 @@ fn collect_icss_import_edge_facts_from_block_tokens(
     }
 }
 
-pub(crate) fn collect_icss_export_edge_facts_from_cst(
-    text: &str,
-    parsed: &ParseResult,
+pub(crate) fn collect_icss_export_edge_facts_from_sink(
+    sink: &StyleFactSink<'_>,
 ) -> Vec<ParsedIcssExportEdgeFact> {
     let mut edges = Vec::new();
-    for tokens in icss_block_tokens_from_cst(text, parsed) {
-        collect_icss_export_edge_facts_from_block_tokens(&tokens, &mut edges);
+    for node in icss_block_nodes(sink) {
+        collect_icss_export_edge_facts_from_block_tokens(sink.node_tokens(node), &mut edges);
     }
     edges
 }
@@ -173,21 +172,15 @@ fn collect_icss_export_edge_facts_from_block_tokens(
     }
 }
 
-fn icss_block_tokens_from_cst<'text>(
-    text: &'text str,
-    parsed: &ParseResult,
-) -> Vec<Vec<Token<'text>>> {
-    parsed
-        .syntax()
-        .descendants()
-        .filter(|node| {
-            matches!(
-                node.kind(),
-                SyntaxKind::CssModuleExportBlock | SyntaxKind::CssModuleImportBlock
-            )
-        })
-        .map(|node| tokens_from_syntax_node(text, parsed, node))
-        .collect()
+fn icss_block_nodes<'sink>(
+    sink: &'sink StyleFactSink<'_>,
+) -> impl Iterator<Item = &'sink StyleFactNodeEvent> {
+    sink.nodes().filter(|node| {
+        matches!(
+            node.kind,
+            SyntaxKind::CssModuleExportBlock | SyntaxKind::CssModuleImportBlock
+        )
+    })
 }
 
 fn collect_icss_export_edges(

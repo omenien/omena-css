@@ -4,6 +4,8 @@
 //! consumers do not accidentally rematerialize token streams.
 
 use std::cell::Cell;
+#[cfg(any(test, feature = "test-support"))]
+use std::cell::RefCell;
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -23,6 +25,16 @@ pub struct OmenaParserParseInstrumentationSnapshotV0 {
     pub parse_token_count: u64,
 }
 
+#[cfg(any(test, feature = "test-support"))]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaParserFactCollectionInstrumentationSnapshotV0 {
+    pub traversal_entry_count: u64,
+    pub families: Vec<&'static str>,
+    pub registered_family_count: u64,
+    pub registered_families: Vec<&'static str>,
+}
+
 thread_local! {
     static LEX_INSTRUMENTATION: Cell<Option<OmenaParserLexInstrumentationSnapshotV0>> =
         const { Cell::new(None) };
@@ -33,6 +45,10 @@ thread_local! {
         const { AtomicUsize::new(0) };
     #[cfg(feature = "test-support")]
     static CLOSED_WORLD_BUNDLE_CONSTRUCTION_COUNT: Cell<usize> = const { Cell::new(0) };
+    #[cfg(any(test, feature = "test-support"))]
+    static FACT_COLLECTION_INSTRUMENTATION:
+        RefCell<Option<OmenaParserFactCollectionInstrumentationSnapshotV0>> =
+            const { RefCell::new(None) };
 }
 
 pub fn with_omena_parser_lex_instrumentation<T>(
@@ -82,6 +98,53 @@ pub(crate) fn record_omena_parser_parse_materialization(token_count: usize) {
         }
     });
 }
+
+#[cfg(any(test, feature = "test-support"))]
+pub fn with_omena_parser_fact_collection_instrumentation<T>(
+    operation: impl FnOnce() -> T,
+) -> (T, OmenaParserFactCollectionInstrumentationSnapshotV0) {
+    FACT_COLLECTION_INSTRUMENTATION.with(|instrumentation| {
+        let previous = instrumentation.replace(Some(
+            OmenaParserFactCollectionInstrumentationSnapshotV0::default(),
+        ));
+        let value = operation();
+        let snapshot = instrumentation
+            .replace(previous)
+            .unwrap_or_else(OmenaParserFactCollectionInstrumentationSnapshotV0::default);
+        (value, snapshot)
+    })
+}
+
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn record_omena_parser_fact_collection_traversal(family: &'static str) {
+    FACT_COLLECTION_INSTRUMENTATION.with(|instrumentation| {
+        let mut instrumentation = instrumentation.borrow_mut();
+        if let Some(snapshot) = instrumentation.as_mut() {
+            snapshot.traversal_entry_count += 1;
+            snapshot.families.push(family);
+        }
+    });
+}
+
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn record_omena_parser_fact_collection_registrations(families: &'static [&'static str]) {
+    FACT_COLLECTION_INSTRUMENTATION.with(|instrumentation| {
+        let mut instrumentation = instrumentation.borrow_mut();
+        if let Some(snapshot) = instrumentation.as_mut() {
+            snapshot.registered_family_count = families.len() as u64;
+            snapshot.registered_families = families.to_vec();
+        }
+    });
+}
+
+#[cfg(not(any(test, feature = "test-support")))]
+pub(crate) fn record_omena_parser_fact_collection_registrations(
+    _families: &'static [&'static str],
+) {
+}
+
+#[cfg(not(any(test, feature = "test-support")))]
+pub(crate) fn record_omena_parser_fact_collection_traversal(_family: &'static str) {}
 
 #[cfg(feature = "test-support")]
 pub(crate) fn record_closed_world_bundle_construction_for_test() {

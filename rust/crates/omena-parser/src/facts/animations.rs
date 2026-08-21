@@ -7,9 +7,9 @@ use cstree::text::TextRange;
 use omena_syntax::SyntaxKind;
 use std::collections::BTreeSet;
 
-use crate::{ParseResult, Token, matches_ignore_ascii_case, next_non_trivia_token_index_until};
+use crate::{Token, matches_ignore_ascii_case, next_non_trivia_token_index_until};
 
-use super::tokens_from_syntax_node;
+use super::StyleFactSink;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedAnimationFact {
@@ -24,14 +24,22 @@ pub enum ParsedAnimationFactKind {
     AnimationNameReference,
 }
 
-pub(crate) fn collect_animation_facts_from_cst(
-    text: &str,
-    parsed: &ParseResult,
+pub(crate) fn collect_animation_facts_from_sink(
+    sink: &StyleFactSink<'_>,
 ) -> Vec<ParsedAnimationFact> {
     let mut animations = Vec::new();
     let mut seen = BTreeSet::new();
-    for tokens in animation_fact_tokens_from_cst(text, parsed) {
-        collect_animation_facts_from_syntax_tokens(&tokens, &mut animations, &mut seen);
+    for node in sink.nodes().filter(|node| {
+        matches!(
+            node.kind,
+            SyntaxKind::KeyframesRule | SyntaxKind::Declaration
+        )
+    }) {
+        collect_animation_facts_from_syntax_tokens(
+            sink.node_tokens(node),
+            &mut animations,
+            &mut seen,
+        );
     }
     animations
 }
@@ -76,23 +84,6 @@ fn collect_animation_facts_from_syntax_tokens(
             collect_animation_shorthand_references_until(tokens, colon_index + 1, animations, seen);
         }
     }
-}
-
-fn animation_fact_tokens_from_cst<'text>(
-    text: &'text str,
-    parsed: &ParseResult,
-) -> Vec<Vec<Token<'text>>> {
-    parsed
-        .syntax()
-        .descendants()
-        .filter(|node| {
-            matches!(
-                node.kind(),
-                SyntaxKind::KeyframesRule | SyntaxKind::Declaration
-            )
-        })
-        .map(|node| tokens_from_syntax_node(text, parsed, node))
-        .collect()
 }
 
 fn collect_animation_name_references_until(

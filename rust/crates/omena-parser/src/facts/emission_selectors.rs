@@ -5,6 +5,8 @@ use omena_syntax::SyntaxKind;
 
 use crate::ParseResult;
 
+use super::StyleFactSink;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum ParsedEmissionSelectorFactKindV0 {
@@ -33,11 +35,17 @@ pub fn collect_emission_selector_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> ParsedEmissionSelectorFactsV0 {
-    let mut selectors = parsed
-        .syntax()
-        .descendants()
+    let sink = StyleFactSink::from_cst(text, parsed);
+    collect_emission_selector_facts_from_sink(&sink)
+}
+
+pub(crate) fn collect_emission_selector_facts_from_sink(
+    sink: &StyleFactSink<'_>,
+) -> ParsedEmissionSelectorFactsV0 {
+    let mut selectors = sink
+        .nodes()
         .filter_map(|node| {
-            let kind = match node.kind() {
+            let kind = match node.kind {
                 SyntaxKind::TypeSelector => ParsedEmissionSelectorFactKindV0::Element,
                 SyntaxKind::AttributeSelector => ParsedEmissionSelectorFactKindV0::Attribute,
                 SyntaxKind::UniversalSelector => ParsedEmissionSelectorFactKindV0::Universal,
@@ -47,12 +55,12 @@ pub fn collect_emission_selector_facts_from_cst(
                 }
                 _ => return None,
             };
-            let range = node.text_range();
+            let range = node.range;
             let start = u32::from(range.start()) as usize;
             let end = u32::from(range.end()) as usize;
             Some(ParsedEmissionSelectorFactV0 {
                 kind,
-                name: text.get(start..end).unwrap_or_default().to_string(),
+                name: sink.text().get(start..end).unwrap_or_default().to_string(),
                 range,
             })
         })

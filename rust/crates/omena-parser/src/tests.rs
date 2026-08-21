@@ -131,7 +131,7 @@ fn tokenizes_multibyte_source_without_boundary_errors() {
 }
 
 #[test]
-fn facts_from_cst_materializes_syntax_root_once() {
+fn facts_from_cst_uses_the_green_event_stream_without_materializing_a_syntax_root() {
     let source = r#"@use "./tokens" as t;
 @mixin tone { color: $brand; }
 :export { exported: local; }
@@ -146,7 +146,7 @@ fn facts_from_cst_materializes_syntax_root_once() {
     let actual = facts_from_cst(source, &parsed);
 
     assert_eq!(actual, expected);
-    assert_eq!(omena_parser_syntax_root_materialization_count(), 1);
+    assert_eq!(omena_parser_syntax_root_materialization_count(), 0);
 }
 
 #[test]

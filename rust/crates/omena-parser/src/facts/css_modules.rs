@@ -3,18 +3,17 @@
 //! This module stays syntax-only: it records local edges and references so
 //! query/resolution layers can perform cross-file interpretation later.
 
-use cstree::{syntax::SyntaxNode, text::TextRange};
+use cstree::text::TextRange;
 use omena_syntax::{SyntaxKind, css_keyword};
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    ParseResult, SelectorBranch, Token, css_module_block_scope_marker_in_header,
-    matches_ignore_ascii_case, next_non_trivia_token_index_until, previous_non_trivia_token_index,
-    resolve_selector_header, skip_trivia_tokens, top_level_token_kind_index,
-    top_level_token_text_index,
+    SelectorBranch, Token, css_module_block_scope_marker_in_header, matches_ignore_ascii_case,
+    next_non_trivia_token_index_until, previous_non_trivia_token_index, resolve_selector_header,
+    skip_trivia_tokens, top_level_token_kind_index, top_level_token_text_index,
 };
 
-use super::tokens_from_syntax_node;
+use super::{StyleFactNodeEvent, StyleFactSink};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedCssModuleValueFact {
@@ -30,23 +29,15 @@ pub enum ParsedCssModuleValueFactKind {
     ImportSource,
 }
 
-pub(crate) fn collect_css_module_value_facts_from_cst(
-    text: &str,
-    parsed: &ParseResult,
-) -> Vec<ParsedCssModuleValueFact> {
-    css_module_value_facts_from_cst_nodes(text, parsed)
-}
-
-fn css_module_value_facts_from_cst_nodes(
-    text: &str,
-    parsed: &ParseResult,
+pub(crate) fn collect_css_module_value_facts_from_sink(
+    sink: &StyleFactSink<'_>,
 ) -> Vec<ParsedCssModuleValueFact> {
     let mut values = Vec::new();
     let mut seen = BTreeSet::new();
-    let value_path_aliases = collect_css_module_value_path_aliases_from_cst_nodes(text, parsed);
-    for tokens in css_module_value_statement_tokens_from_cst(text, parsed) {
+    let value_path_aliases = collect_css_module_value_path_aliases_from_sink(sink);
+    for node in css_module_value_statement_nodes(sink) {
         collect_css_module_value_statement_facts(
-            &tokens,
+            sink.node_tokens(node),
             &value_path_aliases,
             &mut values,
             &mut seen,
@@ -57,9 +48,9 @@ fn css_module_value_facts_from_cst_nodes(
         .filter(|value| value.kind == ParsedCssModuleValueFactKind::Definition)
         .map(|value| value.name.clone())
         .collect::<BTreeSet<_>>();
-    for tokens in css_module_value_reference_declaration_tokens_from_cst(text, parsed) {
+    for node in css_module_value_reference_declaration_nodes(sink) {
         collect_css_module_value_declaration_reference_facts_from_declaration_tokens(
-            &tokens,
+            sink.node_tokens(node),
             &local_value_names,
             &mut values,
             &mut seen,
@@ -114,13 +105,15 @@ fn collect_css_module_value_statement_facts(
     }
 }
 
-fn collect_css_module_value_path_aliases_from_cst_nodes(
-    text: &str,
-    parsed: &ParseResult,
+fn collect_css_module_value_path_aliases_from_sink(
+    sink: &StyleFactSink<'_>,
 ) -> BTreeMap<String, String> {
     let mut aliases = BTreeMap::new();
-    for tokens in css_module_value_statement_tokens_from_cst(text, parsed) {
-        collect_css_module_value_path_aliases_from_statement_tokens(&tokens, &mut aliases);
+    for node in css_module_value_statement_nodes(sink) {
+        collect_css_module_value_path_aliases_from_statement_tokens(
+            sink.node_tokens(node),
+            &mut aliases,
+        );
     }
     aliases
 }
@@ -232,22 +225,14 @@ pub struct ParsedCssModuleValueImportEdgeFact {
     pub range: TextRange,
 }
 
-pub(crate) fn collect_css_module_value_import_edge_facts_from_cst(
-    text: &str,
-    parsed: &ParseResult,
-) -> Vec<ParsedCssModuleValueImportEdgeFact> {
-    css_module_value_import_edge_facts_from_cst_nodes(text, parsed)
-}
-
-fn css_module_value_import_edge_facts_from_cst_nodes(
-    text: &str,
-    parsed: &ParseResult,
+pub(crate) fn collect_css_module_value_import_edge_facts_from_sink(
+    sink: &StyleFactSink<'_>,
 ) -> Vec<ParsedCssModuleValueImportEdgeFact> {
     let mut edges = Vec::new();
-    let value_path_aliases = collect_css_module_value_path_aliases_from_cst_nodes(text, parsed);
-    for tokens in css_module_value_statement_tokens_from_cst(text, parsed) {
+    let value_path_aliases = collect_css_module_value_path_aliases_from_sink(sink);
+    for node in css_module_value_statement_nodes(sink) {
         collect_css_module_value_import_edge_statement_facts(
-            &tokens,
+            sink.node_tokens(node),
             &value_path_aliases,
             &mut edges,
         );
@@ -292,20 +277,15 @@ pub struct ParsedCssModuleValueDefinitionEdgeFact {
     pub range: TextRange,
 }
 
-pub(crate) fn collect_css_module_value_definition_edge_facts_from_cst(
-    text: &str,
-    parsed: &ParseResult,
-) -> Vec<ParsedCssModuleValueDefinitionEdgeFact> {
-    css_module_value_definition_edge_facts_from_cst_nodes(text, parsed)
-}
-
-fn css_module_value_definition_edge_facts_from_cst_nodes(
-    text: &str,
-    parsed: &ParseResult,
+pub(crate) fn collect_css_module_value_definition_edge_facts_from_sink(
+    sink: &StyleFactSink<'_>,
 ) -> Vec<ParsedCssModuleValueDefinitionEdgeFact> {
     let mut edges = Vec::new();
-    for tokens in css_module_value_statement_tokens_from_cst(text, parsed) {
-        collect_css_module_value_definition_edge_statement_facts(&tokens, &mut edges);
+    for node in css_module_value_statement_nodes(sink) {
+        collect_css_module_value_definition_edge_statement_facts(
+            sink.node_tokens(node),
+            &mut edges,
+        );
     }
     edges
 }
@@ -378,52 +358,35 @@ pub(crate) fn collect_css_module_value_definition_edge_names(
     names
 }
 
-fn css_module_value_statement_tokens_from_cst<'text>(
-    text: &'text str,
-    parsed: &ParseResult,
-) -> Vec<Vec<Token<'text>>> {
-    parsed
-        .syntax()
-        .descendants()
-        .filter(|node| {
-            matches!(
-                node.kind(),
-                SyntaxKind::CssModuleExportBlock
-                    | SyntaxKind::CssModuleImportBlock
-                    | SyntaxKind::BogusCssModuleBlock
-            )
-        })
-        .map(|node| tokens_from_syntax_node(text, parsed, node))
-        .collect()
+fn css_module_value_statement_nodes<'sink>(
+    sink: &'sink StyleFactSink<'_>,
+) -> impl Iterator<Item = &'sink StyleFactNodeEvent> {
+    sink.nodes().filter(|node| {
+        matches!(
+            node.kind,
+            SyntaxKind::CssModuleExportBlock
+                | SyntaxKind::CssModuleImportBlock
+                | SyntaxKind::BogusCssModuleBlock
+        )
+    })
 }
 
-fn css_module_value_reference_declaration_tokens_from_cst<'text>(
-    text: &'text str,
-    parsed: &ParseResult,
-) -> Vec<Vec<Token<'text>>> {
-    parsed
-        .syntax()
-        .descendants()
-        .filter(|node| {
-            matches!(
-                node.kind(),
-                SyntaxKind::Declaration | SyntaxKind::CssModuleComposesDeclaration
-            )
-        })
-        .map(|node| tokens_from_syntax_node(text, parsed, node))
-        .collect()
+fn css_module_value_reference_declaration_nodes<'sink>(
+    sink: &'sink StyleFactSink<'_>,
+) -> impl Iterator<Item = &'sink StyleFactNodeEvent> {
+    sink.nodes().filter(|node| {
+        matches!(
+            node.kind,
+            SyntaxKind::Declaration | SyntaxKind::CssModuleComposesDeclaration
+        )
+    })
 }
 
-fn css_module_composes_declaration_tokens_from_cst<'text>(
-    text: &'text str,
-    parsed: &ParseResult,
-) -> Vec<Vec<Token<'text>>> {
-    parsed
-        .syntax()
-        .descendants()
-        .filter(|node| node.kind() == SyntaxKind::CssModuleComposesDeclaration)
-        .map(|node| tokens_from_syntax_node(text, parsed, node))
-        .collect()
+fn css_module_composes_declaration_nodes<'sink>(
+    sink: &'sink StyleFactSink<'_>,
+) -> impl Iterator<Item = &'sink StyleFactNodeEvent> {
+    sink.nodes()
+        .filter(|node| node.kind == SyntaxKind::CssModuleComposesDeclaration)
 }
 
 fn css_module_value_import_edge_source(
@@ -790,21 +753,17 @@ pub enum ParsedCssModuleComposesEdgeKind {
     External,
 }
 
-pub(crate) fn collect_css_module_composes_facts_from_cst(
-    text: &str,
-    parsed: &ParseResult,
-) -> Vec<ParsedCssModuleComposesFact> {
-    css_module_composes_facts_from_cst_nodes(text, parsed)
-}
-
-fn css_module_composes_facts_from_cst_nodes(
-    text: &str,
-    parsed: &ParseResult,
+pub(crate) fn collect_css_module_composes_facts_from_sink(
+    sink: &StyleFactSink<'_>,
 ) -> Vec<ParsedCssModuleComposesFact> {
     let mut composes = Vec::new();
     let mut seen = BTreeSet::new();
-    for tokens in css_module_composes_declaration_tokens_from_cst(text, parsed) {
-        collect_css_module_composes_statement_facts(&tokens, &mut composes, &mut seen);
+    for node in css_module_composes_declaration_nodes(sink) {
+        collect_css_module_composes_statement_facts(
+            sink.node_tokens(node),
+            &mut composes,
+            &mut seen,
+        );
     }
     composes
 }
@@ -837,23 +796,21 @@ fn collect_css_module_composes_statement_facts(
     }
 }
 
-pub(crate) fn collect_css_module_composes_edge_facts_from_cst(
-    text: &str,
-    parsed: &ParseResult,
+pub(crate) fn collect_css_module_composes_edge_facts_from_sink(
+    sink: &StyleFactSink<'_>,
 ) -> Vec<ParsedCssModuleComposesEdgeFact> {
     let mut edges = Vec::new();
-    for declaration in parsed
-        .syntax()
-        .descendants()
-        .filter(|node| node.kind() == SyntaxKind::CssModuleComposesDeclaration)
+    for declaration in sink
+        .nodes()
+        .filter(|node| node.kind == SyntaxKind::CssModuleComposesDeclaration)
     {
-        let owner_branches = css_module_composes_owner_branches_from_cst(text, parsed, declaration);
+        let owner_branches = css_module_composes_owner_branches_from_sink(sink, declaration);
         if owner_branches.is_empty() {
             continue;
         }
-        let tokens = tokens_from_syntax_node(text, parsed, declaration);
+        let tokens = sink.node_tokens(declaration);
         collect_immediate_css_module_composes_edge_facts(
-            &tokens,
+            tokens,
             0,
             tokens.len(),
             &owner_branches,
@@ -863,23 +820,22 @@ pub(crate) fn collect_css_module_composes_edge_facts_from_cst(
     edges
 }
 
-fn css_module_composes_owner_branches_from_cst(
-    text: &str,
-    parsed: &ParseResult,
-    declaration: &SyntaxNode<SyntaxKind>,
+fn css_module_composes_owner_branches_from_sink(
+    sink: &StyleFactSink<'_>,
+    declaration: &StyleFactNodeEvent,
 ) -> Vec<SelectorBranch> {
     let mut branches = Vec::new();
     let mut css_module_scope = None;
-    let mut ancestors = declaration.ancestors().collect::<Vec<_>>();
+    let mut ancestors = sink.ancestors_inclusive(declaration);
     ancestors.reverse();
     for ancestor in ancestors {
-        match ancestor.kind() {
+        match ancestor.kind {
             SyntaxKind::Rule | SyntaxKind::NestRule => {
-                let tokens = tokens_from_syntax_node(text, parsed, ancestor);
-                let Some(open) = first_block_open_token_index(&tokens) else {
+                let tokens = sink.node_tokens(ancestor);
+                let Some(open) = first_block_open_token_index(tokens) else {
                     continue;
                 };
-                let header_start = if ancestor.kind() == SyntaxKind::NestRule {
+                let header_start = if ancestor.kind == SyntaxKind::NestRule {
                     tokens
                         .iter()
                         .position(|token| token.kind == SyntaxKind::AtKeyword)
@@ -888,12 +844,12 @@ fn css_module_composes_owner_branches_from_cst(
                     0
                 };
                 let effective_scope = css_module_scope.or_else(|| {
-                    css_module_block_scope_marker_in_header(&tokens, header_start, open)
+                    css_module_block_scope_marker_in_header(tokens, header_start, open)
                 });
                 if effective_scope == Some("global") {
                     branches.clear();
                 } else {
-                    branches = resolve_selector_header(&tokens, header_start, open, &branches);
+                    branches = resolve_selector_header(tokens, header_start, open, &branches);
                 }
                 css_module_scope = effective_scope;
             }
