@@ -1165,7 +1165,7 @@
     },
     {
       "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 4245,
+      "line": 4337,
       "function": "css_module_fact_spans_follow_syntax_across_delimiter_strings",
       "idiom": "starts-with",
       "keyword": "composes",
@@ -2110,7 +2110,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:b8f8fa20df5f14a549452694e847f0a68039b9c9a956068f30fbd42978c9e41d",
+  "siteDigest": "sha256:824667f68745ceecb5f1976ba1ce0814792f63b2ad3c3ebe586f60714974fb8b",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
