@@ -112,6 +112,31 @@
       ]
     },
     {
+      "crate": "omena-cascade-proof",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor adds an identity-keyed, catalog-sealed module-export preservation certificate and typed checker rejection vocabulary.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "module-export-preservation-certificate-wire",
+          "kind": "wire-value-order-preserving",
+          "surface": "ModuleExportPreservationCertV0 and SideConditionCertV0 moduleExportPreservation payloads",
+          "reason": "The proof kernel can now serialize module-instance-keyed before and after observations, an explicit hashing rename delta, and premise digests while preserving every pre-existing side-condition encoding.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-cascade-proof/src/proof_kernel.rs",
+              "needles": [
+                "pub struct ModuleExportPreservationCertV0",
+                "pub canonical_class_name: String",
+                "pub declared_rename_delta: Vec<ModuleExportRenameDeltaV0>",
+                "fn check_module_export_preservation_v0("
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
       "crate": "omena-query",
       "releaseClass": "pre1MinorBreaking",
       "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints from query source-index entry points and requires exact Rust-authored declaration identities for style resolution.",
@@ -146,6 +171,48 @@
             {
               "sourcePath": "rust/crates/omena-query/src/tests/source_surfaces.rs",
               "needles": ["import_summary.imports[0].style_resolution(style_uri.as_str())"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-transform-passes",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor exposes checked module-export preservation evidence and can reject a structural pass candidate whose identity-keyed export observation is not preserved.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field TransformExecutionSummaryV0.module_export_preservation_telemetry"
+          ]
+        },
+        {
+          "lint": "enum_variant_added",
+          "evidenceNeedles": ["variant TransformRejectionReasonV0:ModuleExportPreservation"]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "module-export-preservation-admission-evidence",
+          "kind": "selection-outcome-changing",
+          "surface": "TransformExecutionSummaryV0 moduleExportPreservationTelemetry and structural pass rejection outcome",
+          "reason": "Production module execution now checks emitted-byte observations against module-instance-keyed export premises; a failed certificate rolls the candidate back, while an accepted sealed token is projected into execution evidence.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
+              "needles": [
+                "pub module_export_preservation_telemetry: TransformModuleExportPreservationTelemetryV0",
+                "ModuleExportPreservation {"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/runtime/executor.rs",
+              "needles": [
+                "fn checked_module_export_preservation_admission_v0(",
+                "fn require_dual_o1_tokens_v0(",
+                "module_export_preservation_telemetry.evidence.push(evidence)"
+              ]
             }
           ]
         }
