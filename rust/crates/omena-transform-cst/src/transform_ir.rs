@@ -128,22 +128,22 @@ fn record_transform_ir_global_order_shift() {
 }
 
 fn record_transform_ir_validation_cost(node_count: usize, changed_node_count: usize) {
-    const WHOLE_VALIDATION_PASS_COUNT: u64 = 5;
-    const DELTA_VALIDATION_PASS_COUNT: u64 = 2;
+    let (whole_validation_pass_count, delta_validation_pass_count) =
+        transaction_validation_pass_counts();
     TRANSFORM_IR_TRANSACTION_COST_TELEMETRY.with(|telemetry| {
         let mut snapshot = telemetry.get();
         snapshot.whole_validation_pass_count = snapshot
             .whole_validation_pass_count
-            .saturating_add(WHOLE_VALIDATION_PASS_COUNT);
+            .saturating_add(whole_validation_pass_count);
         snapshot.whole_validation_outer_node_visit_count = snapshot
             .whole_validation_outer_node_visit_count
-            .saturating_add((node_count as u64).saturating_mul(WHOLE_VALIDATION_PASS_COUNT));
+            .saturating_add((node_count as u64).saturating_mul(whole_validation_pass_count));
         snapshot.delta_validation_pass_count = snapshot
             .delta_validation_pass_count
-            .saturating_add(DELTA_VALIDATION_PASS_COUNT);
+            .saturating_add(delta_validation_pass_count);
         snapshot.delta_validation_node_visit_count =
             snapshot.delta_validation_node_visit_count.saturating_add(
-                (changed_node_count as u64).saturating_mul(DELTA_VALIDATION_PASS_COUNT),
+                (changed_node_count as u64).saturating_mul(delta_validation_pass_count),
             );
         telemetry.set(snapshot);
     });
@@ -1753,18 +1753,83 @@ mod sealed_metadata_refresh {
     }
 }
 
+#[derive(Clone, Copy)]
+enum TransactionValidationPassKindV0 {
+    Whole(fn(&TransformIrV0) -> Result<(), IrTransactionValidationErrorV0>),
+    ChangedWithRegion(
+        fn(
+            &TransformIrV0,
+            &[IrNodeIdV0],
+            IrEditRegionV0,
+        ) -> Result<(), IrTransactionValidationErrorV0>,
+    ),
+    Changed(fn(&TransformIrV0, &[IrNodeIdV0]) -> Result<(), IrTransactionValidationErrorV0>),
+}
+
+#[derive(Clone, Copy)]
+struct TransactionValidationPassV0 {
+    name: &'static str,
+    kind: TransactionValidationPassKindV0,
+}
+
+const TRANSACTION_VALIDATION_PASSES_V0: &[TransactionValidationPassV0] = &[
+    TransactionValidationPassV0 {
+        name: "no-dangling-nodes",
+        kind: TransactionValidationPassKindV0::Whole(validate_no_dangling_nodes),
+    },
+    TransactionValidationPassV0 {
+        name: "parent-child-links",
+        kind: TransactionValidationPassKindV0::Whole(validate_parent_child_links),
+    },
+    TransactionValidationPassV0 {
+        name: "declaration-ownership",
+        kind: TransactionValidationPassKindV0::Whole(validate_declaration_ownership),
+    },
+    TransactionValidationPassV0 {
+        name: "global-order-slots",
+        kind: TransactionValidationPassKindV0::Whole(validate_global_order_slots),
+    },
+    TransactionValidationPassV0 {
+        name: "provenance",
+        kind: TransactionValidationPassKindV0::Whole(validate_provenance),
+    },
+    TransactionValidationPassV0 {
+        name: "changed-nodes-inside-region",
+        kind: TransactionValidationPassKindV0::ChangedWithRegion(
+            validate_changed_nodes_inside_region,
+        ),
+    },
+    TransactionValidationPassV0 {
+        name: "changed-nodes-outside-parse-errors",
+        kind: TransactionValidationPassKindV0::Changed(validate_changed_nodes_outside_parse_errors),
+    },
+];
+
+fn transaction_validation_pass_counts() -> (u64, u64) {
+    TRANSACTION_VALIDATION_PASSES_V0
+        .iter()
+        .fold((0_u64, 0_u64), |(whole, delta), pass| match pass.kind {
+            TransactionValidationPassKindV0::Whole(_) => (whole.saturating_add(1), delta),
+            TransactionValidationPassKindV0::ChangedWithRegion(_)
+            | TransactionValidationPassKindV0::Changed(_) => (whole, delta.saturating_add(1)),
+        })
+}
+
 fn validate_transaction_commit(
     ir: &TransformIrV0,
     changed_node_ids: &[IrNodeIdV0],
     declared_region: IrEditRegionV0,
 ) -> Result<(), IrTransactionValidationErrorV0> {
-    validate_no_dangling_nodes(ir)?;
-    validate_parent_child_links(ir)?;
-    validate_declaration_ownership(ir)?;
-    validate_global_order_slots(ir)?;
-    validate_provenance(ir)?;
-    validate_changed_nodes_inside_region(ir, changed_node_ids, declared_region)?;
-    validate_changed_nodes_outside_parse_errors(ir, changed_node_ids)?;
+    for pass in TRANSACTION_VALIDATION_PASSES_V0 {
+        debug_assert!(!pass.name.is_empty());
+        match pass.kind {
+            TransactionValidationPassKindV0::Whole(validate) => validate(ir)?,
+            TransactionValidationPassKindV0::ChangedWithRegion(validate) => {
+                validate(ir, changed_node_ids, declared_region)?
+            }
+            TransactionValidationPassKindV0::Changed(validate) => validate(ir, changed_node_ids)?,
+        }
+    }
     Ok(())
 }
 
@@ -3567,12 +3632,13 @@ const fn kind_order(kind: IrNodeKindV0) -> u8 {
 mod tests {
     use super::{
         IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrTransactionErrorV0, IrTransactionV0,
-        IrTransactionValidationErrorV0, NodeTextOriginV0, TransformIrParseErrorSpanV0,
-        TransformIrPrintErrorV0, build_indexes, has_less_mixin_declaration_owner,
-        lower_transform_ir_from_source, materialize_transform_ir_printed_source,
-        print_transform_ir_css, reset_transform_ir_transaction_cost_telemetry,
-        summarize_transform_ir_identity_round_trip,
-        transform_ir_transaction_cost_telemetry_snapshot, validate_transaction_commit,
+        IrTransactionValidationErrorV0, NodeTextOriginV0, TRANSACTION_VALIDATION_PASSES_V0,
+        TransformIrParseErrorSpanV0, TransformIrPrintErrorV0, build_indexes,
+        has_less_mixin_declaration_owner, lower_transform_ir_from_source,
+        materialize_transform_ir_printed_source, print_transform_ir_css,
+        reset_transform_ir_transaction_cost_telemetry, summarize_transform_ir_identity_round_trip,
+        transaction_validation_pass_counts, transform_ir_transaction_cost_telemetry_snapshot,
+        validate_transaction_commit,
     };
     use omena_parser::StyleDialect;
     use std::collections::{BTreeMap, BTreeSet};
@@ -3634,6 +3700,32 @@ mod tests {
                 "stack and reference disagree for node {index}: {node:?}"
             );
         }
+    }
+
+    #[test]
+    fn transaction_validation_telemetry_is_derived_from_the_executed_registry() {
+        let names = TRANSACTION_VALIDATION_PASSES_V0
+            .iter()
+            .map(|pass| pass.name)
+            .collect::<Vec<_>>();
+        eprintln!(
+            "transactionValidationRegistry names={names:?} counts={:?}",
+            transaction_validation_pass_counts()
+        );
+        assert_eq!(
+            names,
+            vec![
+                "no-dangling-nodes",
+                "parent-child-links",
+                "declaration-ownership",
+                "global-order-slots",
+                "provenance",
+                "changed-nodes-inside-region",
+                "changed-nodes-outside-parse-errors",
+            ],
+            "adding or removing an executed pass must update the cost contract"
+        );
+        assert_eq!(transaction_validation_pass_counts(), (5, 2));
     }
 
     #[test]
