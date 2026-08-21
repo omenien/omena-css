@@ -1583,8 +1583,41 @@ const fn dialect_label(dialect: StyleDialect) -> &'static str {
 }
 
 fn assign_parent_links(nodes: &mut [IrNodeV0]) {
+    // Lowering sorts candidates by start ascending and end descending. CST
+    // ranges are therefore a laminar interval stream, so the nearest strict
+    // container is the top open range instead of an all-nodes search. Keep
+    // only the first representative of an equal range: equal-span candidates
+    // are siblings, while their nested children retain the same deterministic
+    // parent that the former minimum-span scan selected.
+    let mut open_ranges = Vec::<usize>::new();
+    let mut parents = vec![None; nodes.len()];
     for index in 0..nodes.len() {
-        let parent = nearest_parent_index(index, nodes);
+        while open_ranges.last().is_some_and(|candidate_index| {
+            let candidate = &nodes[*candidate_index];
+            let node = &nodes[index];
+            candidate.source_span_start > node.source_span_start
+                || candidate.source_span_end < node.source_span_end
+        }) {
+            open_ranges.pop();
+        }
+
+        let same_range_as_top = open_ranges.last().is_some_and(|candidate_index| {
+            let candidate = &nodes[*candidate_index];
+            let node = &nodes[index];
+            candidate.source_span_start == node.source_span_start
+                && candidate.source_span_end == node.source_span_end
+        });
+        parents[index] = if same_range_as_top {
+            open_ranges.iter().rev().nth(1).copied()
+        } else {
+            open_ranges.last().copied()
+        };
+        if !same_range_as_top {
+            open_ranges.push(index);
+        }
+    }
+
+    for (index, parent) in parents.into_iter().enumerate() {
         nodes[index].parent = parent.map(IrNodeIdV0);
     }
     for index in 0..nodes.len() {
@@ -3440,21 +3473,6 @@ const fn spans_overlap(
     left_start < right_end && right_start < left_end
 }
 
-fn nearest_parent_index(index: usize, nodes: &[IrNodeV0]) -> Option<usize> {
-    let node = &nodes[index];
-    nodes
-        .iter()
-        .enumerate()
-        .filter(|(candidate_index, candidate)| {
-            *candidate_index != index
-                && candidate.source_span_start <= node.source_span_start
-                && candidate.source_span_end >= node.source_span_end
-                && candidate.source_span_len() > node.source_span_len()
-        })
-        .min_by_key(|(_, candidate)| candidate.source_span_len())
-        .map(|(candidate_index, _)| candidate_index)
-}
-
 fn build_indexes(nodes: &[IrNodeV0]) -> TransformIrIndexesV0 {
     let mut nodes_by_kind = BTreeMap::<IrNodeKindV0, Vec<IrNodeIdV0>>::new();
     for node in nodes.iter().filter(|node| !node.deleted) {
@@ -3582,6 +3600,40 @@ mod tests {
         assert_eq!(summary.printed_css, source);
         assert!(summary.node_count >= 5);
         Ok(())
+    }
+
+    #[test]
+    fn transform_ir_parent_stack_matches_the_interval_reference() {
+        let source = r#"
+@media (min-width: 40rem) {
+  .card, .panel {
+    color: rgb(1 2 3);
+    background: url(./card.png);
+  }
+}
+.outside { margin: 0; }
+"#;
+        let ir =
+            lower_transform_ir_from_source(source, StyleDialect::Css, "parent-stack-reference.css");
+
+        for (index, node) in ir.nodes.iter().enumerate() {
+            let expected = ir
+                .nodes
+                .iter()
+                .enumerate()
+                .filter(|(candidate_index, candidate)| {
+                    *candidate_index != index
+                        && candidate.source_span_start <= node.source_span_start
+                        && candidate.source_span_end >= node.source_span_end
+                        && candidate.source_span_len() > node.source_span_len()
+                })
+                .min_by_key(|(_, candidate)| candidate.source_span_len())
+                .map(|(candidate_index, _)| IrNodeIdV0(candidate_index));
+            assert_eq!(
+                node.parent, expected,
+                "stack and reference disagree for node {index}: {node:?}"
+            );
+        }
     }
 
     #[test]
