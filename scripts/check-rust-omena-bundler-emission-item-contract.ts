@@ -28,6 +28,7 @@ const frozenBundlerFields = new Map<string, readonly string[]>([
       "pub omena_bundler::LinkerInputV0::class_names: alloc::vec::Vec<alloc::string::String>",
       "pub omena_bundler::LinkerInputV0::custom_property_names: alloc::vec::Vec<alloc::string::String>",
       "pub omena_bundler::LinkerInputV0::dependency_edges: alloc::vec::Vec<omena_bundler::LinkerDependencyEdgeV0>",
+      "pub omena_bundler::LinkerInputV0::dialect: omena_syntax::StyleDialect",
       "pub omena_bundler::LinkerInputV0::instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0",
       "pub omena_bundler::LinkerInputV0::keyframe_names: alloc::vec::Vec<alloc::string::String>",
       "pub omena_bundler::LinkerInputV0::ordered_rules: alloc::vec::Vec<omena_bundler::LinkerRuleV0>",
