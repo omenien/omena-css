@@ -2649,11 +2649,19 @@ export const app = <div className={styles.card} />;"#
         assert!(first_json.contains("\"revision\":1"));
         assert!(first_json.contains("\"reusedGraphCount\":0"));
 
-        let second_json = runtime.analyze_json(input_json)?;
+        let second_json = runtime.analyze_json(input_json.clone())?;
         assert!(second_json.contains("\"revision\":2"));
         assert!(second_json.contains("\"dirtyGraphCount\":0"));
         assert!(second_json.contains("\"reusedGraphCount\":2"));
         assert!(second_json.contains("\"reusedPreviousAnalysis\":true"));
+        assert!(second_json.contains("\"changedAt\":{\"value\":1}"));
+        assert!(second_json.contains("\"verifiedAt\":{\"value\":2}"));
+
+        let third_json = runtime.analyze_json(input_json)?;
+        assert!(third_json.contains("\"revision\":3"));
+        assert!(third_json.contains("\"reusedGraphCount\":2"));
+        assert!(third_json.contains("\"changedAt\":{\"value\":2}"));
+        assert!(third_json.contains("\"verifiedAt\":{\"value\":3}"));
         Ok(())
     }
 

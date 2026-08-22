@@ -2834,6 +2834,7 @@ dependencies = [
  "omena-resolver",
  "omena-value-lattice",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

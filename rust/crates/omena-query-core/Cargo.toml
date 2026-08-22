@@ -27,3 +27,6 @@ omena-refinement = { path = "../omena-refinement", version = "=0.4.0" }
 omena-resolver = { path = "../omena-resolver", version = "=0.4.0" }
 omena-value-lattice = { path = "../omena-value-lattice", version = "=0.4.0" }
 serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

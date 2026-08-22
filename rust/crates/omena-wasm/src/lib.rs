@@ -2353,6 +2353,17 @@ export const app = <div className={styles.card} />;"#,
                 .iter()
                 .all(|entry| entry.analysis.reused_previous_analysis)
         );
+
+        let third = runtime.analyze_summary(&input);
+        assert_eq!(third.revision, 3);
+        assert_eq!(third.reused_graph_count, 2);
+        assert!(third.analyses.iter().all(|entry| {
+            entry.analysis.incremental_plan.nodes.iter().all(|node| {
+                node.changed_at.value == 2
+                    && node.verified_at.value == 3
+                    && node.value_equal_to_previous
+            })
+        }));
     }
 
     #[test]

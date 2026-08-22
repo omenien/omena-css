@@ -144,6 +144,18 @@ fn reuses_expression_domain_flow_analysis_through_salsa_runtime() {
             .iter()
             .all(|entry| entry.analysis.reused_previous_analysis)
     );
+
+    let third =
+        summarize_omena_query_expression_domain_incremental_flow_analysis(&input, &mut runtime);
+    assert_eq!(third.revision, 3);
+    assert_eq!(third.reused_graph_count, 2);
+    assert!(third.analyses.iter().all(|entry| {
+        entry.analysis.incremental_plan.nodes.iter().all(|node| {
+            node.changed_at.value == 2
+                && node.verified_at.value == 3
+                && node.value_equal_to_previous
+        })
+    }));
 }
 
 #[test]

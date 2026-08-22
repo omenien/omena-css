@@ -278,6 +278,27 @@ impl OmenaQueryExpressionDomainFlowRuntimeV0 {
         &mut self,
         input: &EngineInputV2,
     ) -> OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 {
+        self.analyze_input_with_artifact_analyzer(
+            input,
+            analyze_class_value_flow_incremental_with_artifact,
+        )
+    }
+
+    fn analyze_input_with_artifact_analyzer<F>(
+        &mut self,
+        input: &EngineInputV2,
+        mut analyze_artifact: F,
+    ) -> OmenaQueryExpressionDomainIncrementalFlowAnalysisV0
+    where
+        F: FnMut(
+            &omena_abstract_value::ClassValueFlowGraphV0,
+            Option<&SealedClassValueFlowAnalysisArtifactV0>,
+            u64,
+        ) -> Result<
+            ClassValueFlowSealedIncrementalAnalysisV0,
+            omena_abstract_value::ClassValueFlowArtifactRefusalV0,
+        >,
+    {
         self.revision += 1;
         let revision = self.revision;
         let flow_graphs = collect_expression_domain_flow_graphs(input);
@@ -293,11 +314,7 @@ impl OmenaQueryExpressionDomainFlowRuntimeV0 {
             .into_iter()
             .map(|entry| {
                 let previous_artifact = self.artifacts_by_graph_id.get(&entry.graph_id);
-                let sealed_analysis = analyze_class_value_flow_incremental_with_artifact(
-                    &entry.graph,
-                    previous_artifact,
-                    revision,
-                );
+                let sealed_analysis = analyze_artifact(&entry.graph, previous_artifact, revision);
                 let (analysis, next_artifact) = match sealed_analysis {
                     Ok(sealed_analysis) => {
                         self.read_set_digest_check_count = self
@@ -309,6 +326,7 @@ impl OmenaQueryExpressionDomainFlowRuntimeV0 {
                         let (analysis, next_artifact) = legacy_flow_analysis_from_sealed(
                             &entry.graph,
                             revision,
+                            previous_artifact,
                             sealed_analysis,
                         );
                         (analysis, Some(next_artifact))
@@ -365,6 +383,7 @@ impl OmenaQueryExpressionDomainFlowRuntimeV0 {
 fn legacy_flow_analysis_from_sealed(
     graph: &omena_abstract_value::ClassValueFlowGraphV0,
     revision: u64,
+    previous_artifact: Option<&SealedClassValueFlowAnalysisArtifactV0>,
     sealed: ClassValueFlowSealedIncrementalAnalysisV0,
 ) -> (
     ClassValueFlowIncrementalAnalysisV0,
@@ -377,18 +396,25 @@ fn legacy_flow_analysis_from_sealed(
         next_artifact,
         ..
     } = sealed;
-    let next_snapshot = next_artifact.snapshot().clone();
-    let incremental_plan = incremental_plan.unwrap_or_else(|| {
-        // The public query product retains its established plan/snapshot JSON
-        // shape. Reconstructing a clean plan from the verified snapshot pays
-        // no flow-analysis rebuild; provenance remains owned by the sealed
-        // artifact path above.
-        let mut database = OmenaIncrementalDatabaseV0::default();
-        database.restore_snapshot(&next_snapshot);
-        database
-            .plan_and_upsert_graph_input(&class_value_flow_incremental_input(graph, revision))
-            .incremental_plan
-    });
+    let (incremental_plan, next_snapshot) = match incremental_plan {
+        Some(incremental_plan) => (incremental_plan, next_artifact.snapshot().clone()),
+        None => {
+            // The public query product retains its established plan/snapshot
+            // JSON values. Reconstruct from the prior verified snapshot: the
+            // sealed reuse artifact has already advanced its top-level
+            // revision, which would otherwise re-stamp unchanged nodes at the
+            // current revision instead of preserving the legacy N-1 stamp.
+            // This projection rebuild does not rerun flow analysis; its
+            // residual cost is distinct from the sealed helper benchmark.
+            let mut database = OmenaIncrementalDatabaseV0::default();
+            if let Some(previous_artifact) = previous_artifact {
+                database.restore_snapshot(previous_artifact.snapshot());
+            }
+            let update = database
+                .plan_and_upsert_graph_input(&class_value_flow_incremental_input(graph, revision));
+            (update.incremental_plan, update.next_snapshot)
+        }
+    };
     (
         ClassValueFlowIncrementalAnalysisV0 {
             schema_version: "0",
@@ -808,6 +834,13 @@ pub fn summarize_omena_query_selector_usage_canonical_producer_signal(
 mod tests {
     use super::*;
 
+    fn serialized_json_bytes<T: serde::Serialize>(
+        value: &T,
+        label: &str,
+    ) -> Result<Vec<u8>, String> {
+        serde_json::to_vec(value).map_err(|error| format!("{label} serialization failed: {error}"))
+    }
+
     fn selector_certainty_product_input() -> EngineInputV2 {
         let range = RangeV2 {
             start: PositionV2 {
@@ -1005,6 +1038,180 @@ mod tests {
             "verified reuse must not rebuild the flow analysis"
         );
         assert_eq!(runtime.artifact_refusal_count(), 0);
+    }
+
+    #[test]
+    fn expression_domain_runtime_preserves_legacy_incremental_plan_bytes_across_reuse_revisions()
+    -> Result<(), String> {
+        let input = selector_certainty_product_input();
+        let flow_graphs = collect_expression_domain_flow_graphs(&input);
+        assert_eq!(
+            flow_graphs.len(),
+            1,
+            "fixture must isolate one product graph"
+        );
+        let graph = &flow_graphs[0].graph;
+        let mut runtime = OmenaQueryExpressionDomainFlowRuntimeV0::default();
+        let mut legacy_snapshot = None;
+        let mut legacy_analysis = None;
+
+        for revision in 1..=5 {
+            let product = summarize_omena_query_expression_domain_incremental_flow_analysis(
+                &input,
+                &mut runtime,
+            );
+            let legacy = omena_abstract_value::analyze_class_value_flow_incremental_with_reuse(
+                graph,
+                legacy_snapshot.as_ref(),
+                legacy_analysis.as_ref(),
+                revision,
+            );
+            let product_analysis = &product.analyses[0].analysis;
+            let product_plan_bytes = serialized_json_bytes(
+                &product_analysis.incremental_plan,
+                "product incremental plan",
+            )?;
+            let legacy_plan_bytes =
+                serialized_json_bytes(&legacy.incremental_plan, "legacy incremental plan")?;
+            let product_changed_at = product_analysis
+                .incremental_plan
+                .nodes
+                .iter()
+                .map(|node| node.changed_at.value)
+                .collect::<Vec<_>>();
+            let legacy_changed_at = legacy
+                .incremental_plan
+                .nodes
+                .iter()
+                .map(|node| node.changed_at.value)
+                .collect::<Vec<_>>();
+            assert_eq!(
+                product_changed_at, legacy_changed_at,
+                "unchanged product nodes must preserve the legacy changedAt stamps at revision {revision}"
+            );
+            assert_eq!(
+                product_plan_bytes, legacy_plan_bytes,
+                "incrementalPlan bytes diverged from the independent legacy oracle at revision {revision}"
+            );
+            assert_eq!(
+                serialized_json_bytes(product_analysis, "product incremental analysis")?,
+                serialized_json_bytes(&legacy, "legacy incremental analysis")?,
+                "public incremental analysis bytes diverged at revision {revision}"
+            );
+            if revision > 1 {
+                assert_eq!(product.reused_graph_count, 1);
+                assert!(product_analysis.reused_previous_analysis);
+                assert!(legacy.reused_previous_analysis);
+            }
+            legacy_snapshot = Some(legacy.next_snapshot);
+            legacy_analysis = Some(legacy.analysis);
+        }
+
+        let mut changed_input = selector_certainty_product_input();
+        changed_input.type_facts[0].facts.values = Some(vec!["changed".to_string()]);
+        let changed_graphs = collect_expression_domain_flow_graphs(&changed_input);
+        let changed_product = summarize_omena_query_expression_domain_incremental_flow_analysis(
+            &changed_input,
+            &mut runtime,
+        );
+        let changed_legacy = omena_abstract_value::analyze_class_value_flow_incremental_with_reuse(
+            &changed_graphs[0].graph,
+            legacy_snapshot.as_ref(),
+            legacy_analysis.as_ref(),
+            6,
+        );
+        assert_eq!(changed_product.reused_graph_count, 0);
+        assert!(
+            !changed_product.analyses[0]
+                .analysis
+                .reused_previous_analysis
+        );
+        assert!(!changed_legacy.reused_previous_analysis);
+        assert_eq!(
+            serialized_json_bytes(
+                &changed_product.analyses[0].analysis,
+                "changed product analysis",
+            )?,
+            serialized_json_bytes(&changed_legacy, "changed legacy analysis")?,
+            "a member change after consecutive reuse revisions must match the independent legacy oracle"
+        );
+
+        eprintln!(
+            "productFlowArtifactByteIdentity graphs=1 reuseRevisions=4 memberChanges=1 digestChecks={} rebuilds={} refusals={}",
+            runtime.read_set_digest_check_count(),
+            runtime.analysis_rebuild_count(),
+            runtime.artifact_refusal_count(),
+        );
+        assert_eq!(runtime.read_set_digest_check_count(), 5);
+        assert_eq!(runtime.analysis_rebuild_count(), 2);
+        assert_eq!(runtime.artifact_refusal_count(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn expression_domain_runtime_refusal_fallback_rebuilds_and_recovers() -> Result<(), String> {
+        let input = selector_certainty_product_input();
+        let graph = collect_expression_domain_flow_graphs(&input)
+            .pop()
+            .ok_or_else(|| "fixture must produce one graph".to_string())?
+            .graph;
+        let mut runtime = OmenaQueryExpressionDomainFlowRuntimeV0::default();
+
+        let first = runtime.analyze_input(&input);
+        let second = runtime.analyze_input(&input);
+        assert_eq!(first.graph_count, 1);
+        assert_eq!(second.reused_graph_count, 1);
+
+        let mut injected = false;
+        let third = runtime.analyze_input_with_artifact_analyzer(
+            &input,
+            |graph, previous_artifact, revision| {
+                if revision == 3 && previous_artifact.is_some() && !injected {
+                    injected = true;
+                    return Err(omena_abstract_value::ClassValueFlowArtifactRefusalV0 {
+                        schema_version: "0",
+                        product: "omena-abstract-value.flow-analysis-artifact-refusal",
+                        cause: omena_abstract_value::ClassValueFlowArtifactRefusalCauseV0::ArtifactDigestMismatch,
+                    });
+                }
+                analyze_class_value_flow_incremental_with_artifact(
+                    graph,
+                    previous_artifact,
+                    revision,
+                )
+            },
+        );
+        assert!(injected, "the product refusal seam must be exercised");
+        assert_eq!(third.reused_graph_count, 0);
+        assert_eq!(runtime.artifact_refusal_count(), 1);
+        assert_eq!(runtime.analysis_rebuild_count(), 2);
+        assert_eq!(
+            serialized_json_bytes(&third.analyses[0].analysis, "fallback analysis")?,
+            serialized_json_bytes(
+                &analyze_class_value_flow_incremental(&graph, None, 3),
+                "fresh fallback oracle",
+            )?,
+            "a refused artifact must serve the fresh fallback value"
+        );
+
+        let fourth = runtime.analyze_input(&input);
+        assert_eq!(fourth.reused_graph_count, 0);
+        assert_eq!(runtime.analysis_rebuild_count(), 3);
+        assert_eq!(runtime.artifact_refusal_count(), 1);
+        let fifth = runtime.analyze_input(&input);
+        assert_eq!(fifth.reused_graph_count, 1);
+        assert_eq!(runtime.analysis_rebuild_count(), 3);
+        assert_eq!(runtime.artifact_refusal_count(), 1);
+        assert_eq!(
+            fifth.analyses[0].analysis.analysis,
+            fourth.analyses[0].analysis.analysis
+        );
+        eprintln!(
+            "productFlowArtifactRefusalRecovery graphs=1 refusalRevision=3 fallbackRebuilds=1 reseedRebuilds=1 reuseResumedRevision=5 totalRebuilds={} refusals={}",
+            runtime.analysis_rebuild_count(),
+            runtime.artifact_refusal_count(),
+        );
+        Ok(())
     }
 
     #[test]
