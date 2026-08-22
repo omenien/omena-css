@@ -163,7 +163,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
-        "line": 873,
+        "line": 876,
         "function": "query_selector_class_names",
         "operation": "ClassNameV0::into_raw",
         "evidence": "names.insert(entry.name.into_raw());",
@@ -171,7 +171,7 @@
         "reason": "Cascade diagnostics preserve authored selector spelling after shared lexical extraction."
       }
     ],
-    "siteDigest": "sha256:7a41ab9df5aea1d239410ffce76c5bba87e69c3206271c55814c82a1c1c9866c"
+    "siteDigest": "sha256:af9cf484e467c74c784dd9224d430a715dcccc811d05497f1e12c909e8845f06"
   },
   "idiom": {
     "granularity": "line",
@@ -186,15 +186,15 @@
     ],
     "primitiveIds": ["str-eq", "contains", "insert", "map-get", "cmp"],
     "unlabelledBindingBlindSpot": "Bindings without a class or selector label are intentionally invisible; typed carriers and API egresses are the backstops.",
-    "currentSiteCount": 67,
+    "currentSiteCount": 66,
     "primitiveCounts": {
-      "str-eq": 27,
+      "str-eq": 26,
       "contains": 19,
       "insert": 13,
       "map-get": 6,
       "cmp": 2
     },
-    "sanctionedSiteCount": 45,
+    "sanctionedSiteCount": 44,
     "namedExemptSiteCount": 22,
     "sites": [
       {
@@ -396,15 +396,6 @@
         "reason": "This reads a serialized field name rather than a class-name map key."
       },
       {
-        "path": "rust/crates/omena-lsp-server/src/source_selector_provider.rs",
-        "line": 146,
-        "function": "style_selector_definitions_from_open_documents",
-        "operation": "str-eq",
-        "evidence": "&& (selector_name.is_empty() || candidate.name == selector_name)",
-        "disposition": "sanctioned",
-        "reason": "idiom site reviewed in the initial authored census."
-      },
-      {
         "path": "rust/crates/omena-lsp-server/src/source_type_facts.rs",
         "line": 1255,
         "function": "take_type_fact_prefix_references",
@@ -478,7 +469,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1705,
+        "line": 1706,
         "function": "summarize_omena_query_css_modules_interface_bundle_inner",
         "operation": "insert",
         "evidence": "emitted_class_names.insert(",
@@ -487,7 +478,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3500,
+        "line": 3501,
         "function": "collect_css_modules_composes_adjacency_with_path_mappings",
         "operation": "str-eq",
         "evidence": "let target_class_names = if target_style_path == *style_path {",
@@ -496,7 +487,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3515,
+        "line": 3516,
         "function": "collect_css_modules_composes_adjacency_with_path_mappings",
         "operation": "contains",
         "evidence": "if !class_names.contains(&canonical_class_key(owner_selector_name)) {",
@@ -505,7 +496,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3521,
+        "line": 3522,
         "function": "collect_css_modules_composes_adjacency_with_path_mappings",
         "operation": "contains",
         "evidence": "if !target_class_names.contains(&canonical_class_key(target_selector_name)) {",
@@ -514,7 +505,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3877,
+        "line": 3881,
         "function": "collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts",
         "operation": "insert",
         "evidence": "if seen.insert((range_span.start, range_span.end, selector_name.clone())) {",
@@ -801,7 +792,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:7d104548ace73990c41295f9f3f36a7461f2c3c893421f0173ff084f6d79f6f4"
+    "siteDigest": "sha256:0ea173d29d140be6b95cf95a2bed8a66b58486d0b23e31fa395d8b442c770601"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
@@ -885,7 +876,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 384,
+        "line": 463,
         "function": "is_css_name_continue",
         "operation": "character-predicate-copy",
         "evidence": "fn is_css_name_continue(ch: char) -> bool { is_css_name_start(ch) || ch.is_ascii_digit() }",
@@ -894,7 +885,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 393,
+        "line": 472,
         "function": "is_ascii_word_continue",
         "operation": "character-predicate-copy",
         "evidence": "fn is_ascii_word_continue(ch: char) -> bool { ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-') }",
@@ -911,13 +902,17 @@
         "reason": "omena-transform-cst owns diagnostic context extraction, whose punctuation set is intentionally broader than a CSS identifier."
       }
     ],
-    "siteDigest": "sha256:6eb5d0f69481708c10c2fae9051763ad3c59b73a4f0dc48b522428116c57cd77"
+    "siteDigest": "sha256:928e6904a6e8d6137588ab6f19747b84c75eb5004335ea48dc3f86238b44c4b5"
   },
   "propertyIdentity": {
     "derivation": "authority-token-and-property-key-operation-scan",
     "rawSiteDerivation": "typed-property-operand-and-raw-key-dataflow-scan",
     "typeSeal": {
       "path": "rust/crates/omena-syntax/src/ident.rs",
+      "authoredTextDerives": ["Debug", "Clone", "serde::Serialize"],
+      "authoredTextIdentityDerives": [],
+      "authoredTextFieldVisibility": "private",
+      "authoredTextPresentationMethods": ["as_str", "Display"],
       "propertyNameDerives": ["Debug", "Clone"],
       "propertyNameEqualityDerives": [],
       "standardKeyDerives": ["Debug", "Clone", "PartialEq", "Eq", "PartialOrd", "Ord", "Hash"],
@@ -928,8 +923,16 @@
       "customCanonicalization": "trim-decode-case-preserved",
       "equalityMethod": "PropertyNameV0::same_as"
     },
-    "authoritySiteCount": 602,
+    "authoritySiteCount": 654,
     "sites": [
+      {
+        "path": "rust/crates/engine-shadow-runner/src/main.rs",
+        "line": 3861,
+        "function": "replica_ensemble_definite_outcome",
+        "operation": "PropertyNameV0::standard",
+        "evidence": "property_key: omena_cascade::PropertyNameV0::standard(\"color\").canonical_key(),",
+        "role": "producer"
+      },
       {
         "path": "rust/crates/engine-style-parser/src/lib.rs",
         "line": 3,
@@ -1171,6 +1174,22 @@
         "role": "consumer"
       },
       {
+        "path": "rust/crates/omena-cascade/src/conformance.rs",
+        "line": 75,
+        "function": "run_selector_specificity_seed_case",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "property_key: PropertyNameV0::from_authored(case.property).canonical_key(),",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/conformance.rs",
+        "line": 1086,
+        "function": "conformance_decl",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "property_key: PropertyNameV0::from_authored(property).canonical_key(),",
+        "role": "producer"
+      },
+      {
         "path": "rust/crates/omena-cascade/src/custom_property.rs",
         "line": 7,
         "function": "<module>",
@@ -1199,24 +1218,24 @@
         "line": 8,
         "function": "<module>",
         "operation": "CanonicalCustomPropertyNameV0",
-        "evidence": "use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0};",
+        "evidence": "use omena_syntax::ident::{AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, PropertyNameV0};",
         "role": "carrier"
       },
       {
         "path": "rust/crates/omena-cascade/src/fuzz.rs",
         "line": 26,
         "function": "run_cascade_evaluation_fuzz_case",
-        "operation": "PropertyNameV0::from_authored",
-        "evidence": "PropertyNameV0::from_authored(&declaration.property)",
-        "role": "consumer"
+        "operation": "PropertyNameV0::standard",
+        "evidence": "declaration.property_key == PropertyNameV0::standard(\"color\").canonical_key()",
+        "role": "producer"
       },
       {
         "path": "rust/crates/omena-cascade/src/fuzz.rs",
-        "line": 27,
-        "function": "run_cascade_evaluation_fuzz_case",
-        "operation": "PropertyNameV0::standard",
-        "evidence": ".same_as(&PropertyNameV0::standard(\"color\"))",
-        "role": "consumer"
+        "line": 160,
+        "function": "generated_cascade_fuzz_declarations",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "property_key: PropertyNameV0::from_authored(property).canonical_key(),",
+        "role": "producer"
       },
       {
         "path": "rust/crates/omena-cascade/src/fuzz.rs",
@@ -1235,16 +1254,56 @@
         "role": "producer"
       },
       {
-        "path": "rust/crates/omena-cascade/src/model.rs",
-        "line": 8,
+        "path": "rust/crates/omena-cascade/src/lib.rs",
+        "line": 40,
         "function": "<module>",
-        "operation": "CanonicalCustomPropertyNameV0",
-        "evidence": "use omena_syntax::ident::CanonicalCustomPropertyNameV0;",
+        "operation": "CanonicalPropertyKeyV0",
+        "evidence": "pub use omena_syntax::ident::{AuthoredPropertyTextV0, CanonicalPropertyKeyV0, PropertyNameV0};",
         "role": "carrier"
       },
       {
         "path": "rust/crates/omena-cascade/src/model.rs",
-        "line": 309,
+        "line": 9,
+        "function": "<module>",
+        "operation": "CanonicalPropertyKeyV0",
+        "evidence": "AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0,",
+        "role": "carrier"
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/model.rs",
+        "line": 251,
+        "function": "partial_cmp",
+        "operation": "sealed-property-key",
+        "evidence": "pub property_key: CanonicalPropertyKeyV0,",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/model.rs",
+        "line": 278,
+        "function": "eq",
+        "operation": "sealed-property-key",
+        "evidence": "pub property_key: CanonicalPropertyKeyV0,",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/model.rs",
+        "line": 290,
+        "function": "eq",
+        "operation": "sealed-property-key",
+        "evidence": "&& self.property_key == other.property_key",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/model.rs",
+        "line": 312,
+        "function": "from_declaration",
+        "operation": "sealed-property-key",
+        "evidence": "property_key: declaration.property_key.clone(),",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/model.rs",
+        "line": 342,
         "function": "from_declaration",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "name: CanonicalCustomPropertyNameV0,",
@@ -1252,7 +1311,7 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/model.rs",
-        "line": 1009,
+        "line": 1042,
         "function": "default",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "pub type CustomPropertyEnv = BTreeMap<CanonicalCustomPropertyNameV0, CascadeValue>;",
@@ -1340,15 +1399,15 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/ranking.rs",
-        "line": 27,
+        "line": 26,
         "function": "cascade_property",
-        "operation": "PropertyNameV0::from_authored",
-        "evidence": "PropertyNameV0::from_authored(&declaration.property).canonical_key() == property_key",
-        "role": "producer"
+        "operation": "sealed-property-key",
+        "evidence": ".filter(|declaration| declaration.property_key == property_key)",
+        "role": "consumer"
       },
       {
         "path": "rust/crates/omena-cascade/src/ranking.rs",
-        "line": 55,
+        "line": 53,
         "function": "cascade_property_open_world",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "let property_key = PropertyNameV0::from_authored(property).canonical_key();",
@@ -1356,10 +1415,18 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/ranking.rs",
-        "line": 59,
+        "line": 56,
         "function": "cascade_property_open_world",
-        "operation": "PropertyNameV0::from_authored",
-        "evidence": "PropertyNameV0::from_authored(&declaration.property).canonical_key() == property_key",
+        "operation": "sealed-property-key",
+        "evidence": ".filter(|declaration| declaration.property_key == property_key)",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-categorical/src/lib.rs",
+        "line": 957,
+        "function": "omega_color_declaration",
+        "operation": "PropertyNameV0::standard",
+        "evidence": "property_key: omena_cascade::PropertyNameV0::standard(\"color\").canonical_key(),",
         "role": "producer"
       },
       {
@@ -1604,18 +1671,122 @@
       },
       {
         "path": "rust/crates/omena-lsp-server/src/lib.rs",
-        "line": 1189,
+        "line": 1186,
         "function": "style_hover_trace_definitions",
-        "operation": "PropertyNameV0::from_authored",
-        "evidence": "&& PropertyNameV0::from_authored(&target.name)",
+        "operation": "sealed-property-key",
+        "evidence": "&& candidate.property_key.is_some()",
         "role": "consumer"
       },
       {
         "path": "rust/crates/omena-lsp-server/src/lib.rs",
-        "line": 1190,
+        "line": 1189,
         "function": "style_hover_trace_definitions",
-        "operation": "PropertyNameV0::from_authored",
-        "evidence": ".same_as(&PropertyNameV0::from_authored(&candidate.name))",
+        "operation": "sealed-property-key",
+        "evidence": "&& target.property_key == candidate.property_key",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/query_adapter.rs",
+        "line": 12,
+        "function": "lsp_custom_property_key",
+        "operation": "CanonicalCustomPropertyNameV0",
+        "evidence": ") -> Option<omena_syntax::ident::CanonicalCustomPropertyNameV0> {",
+        "role": "carrier"
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/query_adapter.rs",
+        "line": 14,
+        "function": "lsp_custom_property_key",
+        "operation": "PropertyNameV0::canonical_custom_key",
+        "evidence": ".then(|| PropertyNameV0::canonical_custom_key(name))",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/query_adapter.rs",
+        "line": 55,
+        "function": "lsp_style_hover_candidate_from_query",
+        "operation": "sealed-property-key",
+        "evidence": "property_key: candidate.property_key,",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/query_adapter.rs",
+        "line": 69,
+        "function": "query_style_hover_candidate_from_lsp",
+        "operation": "sealed-property-key",
+        "evidence": "property_key: candidate.property_key.clone(),",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/query_adapter.rs",
+        "line": 102,
+        "function": "lsp_source_selector_candidate_from_query",
+        "operation": "sealed-property-key",
+        "evidence": "property_key: lsp_custom_property_key(candidate.kind, candidate.name.as_str()),",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/source_syntax_index.rs",
+        "line": 158,
+        "function": "source_reference_candidate",
+        "operation": "sealed-property-key",
+        "evidence": "property_key: None,",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/state.rs",
+        "line": 23,
+        "function": "<module>",
+        "operation": "CanonicalCustomPropertyNameV0",
+        "evidence": "use omena_syntax::ident::{AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0};",
+        "role": "carrier"
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/state.rs",
+        "line": 131,
+        "function": "<module>",
+        "operation": "sealed-property-key",
+        "evidence": "pub property_key: Option<CanonicalCustomPropertyNameV0>,",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/state.rs",
+        "line": 142,
+        "function": "<module>",
+        "operation": "CanonicalCustomPropertyNameV0",
+        "evidence": "CustomProperty(Option<&'candidate CanonicalCustomPropertyNameV0>),",
+        "role": "carrier"
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/state.rs",
+        "line": 152,
+        "function": "identity_name",
+        "operation": "sealed-property-key",
+        "evidence": "self.property_key",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/state.rs",
+        "line": 154,
+        "function": "identity_name",
+        "operation": "CanonicalCustomPropertyNameV0",
+        "evidence": ".map(CanonicalCustomPropertyNameV0::as_str)",
+        "role": "carrier"
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/state.rs",
+        "line": 166,
+        "function": "identity",
+        "operation": "sealed-property-key",
+        "evidence": "LspStyleHoverCandidateIdentityRefV0::CustomProperty(self.property_key.as_ref())",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/style_symbol_provider.rs",
+        "line": 542,
+        "function": "private_candidate_for_forwarded_public_candidate",
+        "operation": "sealed-property-key",
+        "evidence": "target.property_key = None;",
         "role": "consumer"
       },
       {
@@ -1782,13 +1953,21 @@
         "path": "rust/crates/omena-query/src/style.rs",
         "line": 8,
         "function": "<module>",
-        "operation": "CanonicalPropertyKeyV0",
-        "evidence": "CanonicalClassKeyV0, CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0, ClassNameV0,",
+        "operation": "CanonicalCustomPropertyNameV0",
+        "evidence": "AuthoredPropertyTextV0, CanonicalClassKeyV0, CanonicalCustomPropertyNameV0,",
         "role": "carrier"
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 631,
+        "line": 9,
+        "function": "<module>",
+        "operation": "CanonicalPropertyKeyV0",
+        "evidence": "CanonicalPropertyKeyV0, ClassNameV0, PropertyNameV0, is_ascii_word_continue,",
+        "role": "carrier"
+      },
+      {
+        "path": "rust/crates/omena-query/src/style.rs",
+        "line": 632,
         "function": "summarize_omena_query_style_hover_render_parts_for_target_with_substrate",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "CanonicalPropertyKeyV0,",
@@ -1796,7 +1975,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 795,
+        "line": 796,
         "function": "selector_property_value_narrowings_from_declarations",
         "operation": "sealed-property-key",
         "evidence": "declaration.property_key.clone(),",
@@ -1804,7 +1983,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 823,
+        "line": 824,
         "function": "selector_property_value_narrowings_from_declarations",
         "operation": "sealed-property-key",
         "evidence": "|(property_key, condition_context, layer_name, layer_order)| {",
@@ -1812,7 +1991,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 826,
+        "line": 827,
         "function": "selector_property_value_narrowings_from_declarations",
         "operation": "sealed-property-key",
         "evidence": ".filter(|declaration| declaration.property_key == property_key)",
@@ -1820,7 +1999,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 840,
+        "line": 841,
         "function": "selector_property_value_narrowings_from_declarations",
         "operation": "sealed-property-key",
         "evidence": "property_key.as_str(),",
@@ -1828,7 +2007,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 939,
+        "line": 940,
         "function": "module_graph_narrowings_from_matching_declarations",
         "operation": "sealed-property-key",
         "evidence": "declaration.property_key.clone(),",
@@ -1836,7 +2015,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 967,
+        "line": 968,
         "function": "module_graph_narrowings_from_matching_declarations",
         "operation": "sealed-property-key",
         "evidence": "|(property_key, condition_context, layer_name, layer_order)| {",
@@ -1844,7 +2023,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 970,
+        "line": 971,
         "function": "module_graph_narrowings_from_matching_declarations",
         "operation": "sealed-property-key",
         "evidence": ".filter(|declaration| declaration.property_key == property_key)",
@@ -1852,7 +2031,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 984,
+        "line": 985,
         "function": "module_graph_narrowings_from_matching_declarations",
         "operation": "sealed-property-key",
         "evidence": "property_key.as_str(),",
@@ -1860,7 +2039,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1494,
+        "line": 1495,
         "function": "parser_materialization_weak",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "pub custom_property_decl_names: BTreeSet<CanonicalCustomPropertyNameV0>,",
@@ -1868,7 +2047,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1495,
+        "line": 1496,
         "function": "parser_materialization_weak",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "pub custom_property_ref_names: BTreeSet<CanonicalCustomPropertyNameV0>,",
@@ -1876,7 +2055,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1817,
+        "line": 1818,
         "function": "custom_property_decl_names_for_query",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": ") -> BTreeSet<CanonicalCustomPropertyNameV0> {",
@@ -1884,7 +2063,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1833,
+        "line": 1834,
         "function": "custom_property_decl_names_for_query",
         "operation": "PropertyNameV0::from_authored",
         "evidence": ".filter_map(|name| PropertyNameV0::from_authored(name).as_custom_key())",
@@ -1892,7 +2071,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1840,
+        "line": 1841,
         "function": "custom_property_ref_names_for_query",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": ") -> BTreeSet<CanonicalCustomPropertyNameV0> {",
@@ -1900,11 +2079,43 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1856,
+        "line": 1857,
         "function": "custom_property_ref_names_for_query",
         "operation": "PropertyNameV0::from_authored",
         "evidence": ".filter_map(|name| PropertyNameV0::from_authored(name).as_custom_key())",
         "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-query/src/style.rs",
+        "line": 3780,
+        "function": "collect_style_selector_hover_candidates_from_omena_parser_facts",
+        "operation": "sealed-property-key",
+        "evidence": "property_key: None,",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-query/src/style.rs",
+        "line": 3811,
+        "function": "collect_custom_property_hover_candidates_from_omena_parser_facts",
+        "operation": "sealed-property-key",
+        "evidence": "property_key: fact.property_key.clone(),",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-query/src/style.rs",
+        "line": 3858,
+        "function": "collect_sass_symbol_hover_candidates_from_omena_parser_facts",
+        "operation": "sealed-property-key",
+        "evidence": "property_key: None,",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-query/src/style.rs",
+        "line": 3885,
+        "function": "collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts",
+        "operation": "sealed-property-key",
+        "evidence": "property_key: None,",
+        "role": "producer"
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_checker.rs",
@@ -1969,6 +2180,14 @@
         "operation": "property_names_same",
         "evidence": "&& property_names_same(&declaration.property, &anchor.property)",
         "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/cascade_checker/diagnostic_render.rs",
+        "line": 107,
+        "function": "summarize_query_cascade_narrowing_for_evaluation",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "property_key: PropertyNameV0::from_authored(&anchor.property).canonical_key(),",
+        "role": "producer"
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_checker/input.rs",
@@ -2099,16 +2318,24 @@
         "role": "consumer"
       },
       {
+        "path": "rust/crates/omena-query/src/style/cascade_checker/input.rs",
+        "line": 698,
+        "function": "one_standard_grammar_verdict_drives_checker_and_computed_value",
+        "operation": "PropertyNameV0::standard",
+        "evidence": "property_key: PropertyNameV0::standard(\"color\").canonical_key(),",
+        "role": "producer"
+      },
+      {
         "path": "rust/crates/omena-query/src/style/cascade_checker/replica_ensemble.rs",
-        "line": 14,
+        "line": 15,
         "function": "<module>",
         "operation": "CanonicalStandardPropertyNameV0",
-        "evidence": "use omena_syntax::ident::CanonicalStandardPropertyNameV0;",
+        "evidence": "AuthoredPropertyTextV0, CanonicalStandardPropertyNameV0, PropertyNameV0,",
         "role": "carrier"
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_checker/replica_ensemble.rs",
-        "line": 43,
+        "line": 45,
         "function": "collect_query_replica_ensemble_site_outcomes",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "let mut by_site: BTreeMap<(String, CanonicalStandardPropertyNameV0), Vec<CascadeDeclaration>> =",
@@ -2116,7 +2343,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_checker/replica_ensemble.rs",
-        "line": 46,
+        "line": 48,
         "function": "collect_query_replica_ensemble_site_outcomes",
         "operation": "sealed-property-key",
         "evidence": "let Some(property_key) = declaration.property_key.as_standard().cloned() else {",
@@ -2124,7 +2351,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_checker/replica_ensemble.rs",
-        "line": 53,
+        "line": 55,
         "function": "collect_query_replica_ensemble_site_outcomes",
         "operation": "sealed-property-key",
         "evidence": "property_key,",
@@ -2132,7 +2359,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_checker/replica_ensemble.rs",
-        "line": 61,
+        "line": 63,
         "function": "collect_query_replica_ensemble_site_outcomes",
         "operation": "sealed-property-key",
         "evidence": ".filter_map(|((selector, property_key), site_declarations)| {",
@@ -2140,15 +2367,23 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_checker/replica_ensemble.rs",
-        "line": 62,
+        "line": 64,
         "function": "collect_query_replica_ensemble_site_outcomes",
         "operation": "sealed-property-key",
         "evidence": "let property = property_key.as_str().to_string();",
         "role": "consumer"
       },
       {
+        "path": "rust/crates/omena-query/src/style/cascade_checker/replica_ensemble.rs",
+        "line": 109,
+        "function": "query_cascade_declaration_from_input",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "property_key: PropertyNameV0::from_authored(&input.property).canonical_key(),",
+        "role": "producer"
+      },
+      {
         "path": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
-        "line": 64,
+        "line": 65,
         "function": "summarize_query_runtime_state_for_evaluation",
         "operation": "property_names_same",
         "evidence": ".filter(|declaration| property_names_same(&declaration.property, &anchor.property))",
@@ -2156,11 +2391,27 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
-        "line": 589,
+        "line": 590,
         "function": "query_runtime_state_scenario_with_inline_override",
         "operation": "property_names_same",
         "evidence": ".filter(|declaration| property_names_same(&declaration.property, property_name))",
         "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+        "line": 779,
+        "function": "query_runtime_inline_style_cascade_declaration",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "property_key: PropertyNameV0::from_authored(property_name).canonical_key(),",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+        "line": 842,
+        "function": "query_runtime_cascade_declaration_from_input",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "property_key: PropertyNameV0::from_authored(&input.property).canonical_key(),",
+        "role": "producer"
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_checker/smt.rs",
@@ -2332,7 +2583,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-        "line": 173,
+        "line": 175,
         "function": "read_omena_query_cascade_at_position_from_graph",
         "operation": "property_names_same",
         "evidence": "property_names_same(&ranking.reference_name, reference.name)",
@@ -2340,7 +2591,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-        "line": 191,
+        "line": 193,
         "function": "read_omena_query_cascade_at_position_from_graph",
         "operation": "property_names_same",
         "evidence": ".find(|entry| property_names_same(&entry.name, reference.name));",
@@ -2348,7 +2599,15 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-        "line": 381,
+        "line": 298,
+        "function": "compute_referenced_declaration_cascade_value_seed",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "property_key: PropertyNameV0::from_authored(&declaration.property).canonical_key(),",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/cascade_position.rs",
+        "line": 384,
         "function": "collect_same_file_custom_property_env_from_graph",
         "operation": "PropertyNameV0::canonical_custom_key",
         "evidence": "let property_key = PropertyNameV0::canonical_custom_key(&declaration.name);",
@@ -2356,7 +2615,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-        "line": 383,
+        "line": 386,
         "function": "collect_same_file_custom_property_env_from_graph",
         "operation": "sealed-property-key",
         "evidence": ".entry(property_key)",
@@ -2364,7 +2623,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-        "line": 410,
+        "line": 413,
         "function": "collect_same_file_custom_property_env_from_graph_for_reference_winner",
         "operation": "PropertyNameV0::custom",
         "evidence": "PropertyNameV0::custom(&declaration.name)",
@@ -2372,7 +2631,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-        "line": 411,
+        "line": 414,
         "function": "collect_same_file_custom_property_env_from_graph_for_reference_winner",
         "operation": "PropertyNameV0::custom",
         "evidence": ".same_as(&PropertyNameV0::custom(reference_name))",
@@ -2380,7 +2639,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-        "line": 420,
+        "line": 423,
         "function": "collect_same_file_custom_property_env_from_graph_for_reference_winner",
         "operation": "PropertyNameV0::canonical_custom_key",
         "evidence": "env.insert(PropertyNameV0::canonical_custom_key(reference_name), value);",
@@ -2550,13 +2809,21 @@
         "path": "rust/crates/omena-query/src/style/diagnostics/cascade_runtime.rs",
         "line": 61,
         "function": "attach_omena_query_module_graph_property_value_narrowing_for_workspace",
-        "operation": "property_names_same",
-        "evidence": "&& property_names_same(",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "&& PropertyNameV0::from_authored(&candidate.property_name).canonical_key()",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/diagnostics/cascade_runtime.rs",
+        "line": 62,
+        "function": "attach_omena_query_module_graph_property_value_narrowing_for_workspace",
+        "operation": "sealed-property-key",
+        "evidence": "== cascade_narrowing.property_key",
         "role": "consumer"
       },
       {
         "path": "rust/crates/omena-query/src/style/diagnostics/cascade_runtime.rs",
-        "line": 199,
+        "line": 197,
         "function": "attach_omena_query_runtime_state_inline_overrides_from_overrides",
         "operation": "property_names_same",
         "evidence": "property_names_same(&override_fact.property_name, &property_name)",
@@ -2566,9 +2833,9 @@
         "path": "rust/crates/omena-query/src/style/diagnostics/single_file.rs",
         "line": 12,
         "function": "summarize_omena_query_missing_custom_property_diagnostics",
-        "operation": "PropertyNameV0::canonical_custom_key",
-        "evidence": ".map(|candidate| PropertyNameV0::canonical_custom_key(&candidate.name))",
-        "role": "producer"
+        "operation": "sealed-property-key",
+        "evidence": ".filter_map(|candidate| candidate.property_key.clone())",
+        "role": "consumer"
       },
       {
         "path": "rust/crates/omena-query/src/style/diagnostics/single_file.rs",
@@ -2580,31 +2847,47 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/diagnostics/single_file.rs",
-        "line": 50,
+        "line": 51,
         "function": "summarize_omena_query_missing_custom_property_diagnostics",
-        "operation": "PropertyNameV0::canonical_custom_key",
-        "evidence": ".contains(&PropertyNameV0::canonical_custom_key(&candidate.name))",
-        "role": "producer"
+        "operation": "sealed-property-key",
+        "evidence": "let property_key = candidate.property_key.as_ref()?;",
+        "role": "consumer"
       },
       {
         "path": "rust/crates/omena-query/src/style/diagnostics/single_file.rs",
         "line": 52,
         "function": "summarize_omena_query_missing_custom_property_diagnostics",
-        "operation": "PropertyNameV0::canonical_custom_key",
-        "evidence": "PropertyNameV0::canonical_custom_key(&candidate.name),",
+        "operation": "sealed-property-key",
+        "evidence": "if declaration_names.contains(property_key)",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/diagnostics/single_file.rs",
+        "line": 53,
+        "function": "summarize_omena_query_missing_custom_property_diagnostics",
+        "operation": "sealed-property-key",
+        "evidence": "|| fallback_ranges.contains(&(property_key.clone(), candidate.range))",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/diagnostics/single_file.rs",
+        "line": 75,
+        "function": "summarize_omena_query_missing_custom_property_diagnostics",
+        "operation": "sealed-property-key",
+        "evidence": "property_key: property_key.clone(),",
         "role": "producer"
       },
       {
         "path": "rust/crates/omena-query/src/style/diagnostics/single_file.rs",
-        "line": 108,
+        "line": 109,
         "function": "summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis",
-        "operation": "PropertyNameV0::canonical_custom_key",
-        "evidence": "PropertyNameV0::canonical_custom_key(&candidate.name),",
-        "role": "producer"
+        "operation": "sealed-property-key",
+        "evidence": ".filter_map(|candidate| Some((candidate.property_key.clone()?, candidate.range)))",
+        "role": "consumer"
       },
       {
         "path": "rust/crates/omena-query/src/style/diagnostics/single_file.rs",
-        "line": 122,
+        "line": 120,
         "function": "summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis",
         "operation": "PropertyNameV0::canonical_custom_key",
         "evidence": ".get(&PropertyNameV0::canonical_custom_key(&entry.name))",
@@ -2708,11 +2991,35 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-        "line": 3432,
+        "line": 3353,
+        "function": "memo_source_element_computed_value",
+        "operation": "sealed-property-key",
+        "evidence": "CascadeValue::Literal(value) if declaration.property_key.as_custom().is_none() => {",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
+        "line": 3357,
+        "function": "memo_source_element_computed_value",
+        "operation": "sealed-property-key",
+        "evidence": "declaration.property_key.as_str(),",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
+        "line": 3435,
         "function": "memo_source_element_static_declarations",
         "operation": "property_names_same",
         "evidence": "property_names_same(&declaration.property_name, &property)",
         "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
+        "line": 3471,
+        "function": "memo_source_element_static_declarations",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "property_key: PropertyNameV0::from_authored(&property).canonical_key(),",
+        "role": "producer"
       },
       {
         "path": "rust/crates/omena-query/src/style/source_refs.rs",
@@ -2796,10 +3103,18 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/substrate.rs",
-        "line": 297,
+        "line": 298,
         "function": "summarize_omena_query_custom_property_annotations",
         "operation": "sealed-property-key",
         "evidence": ".unwrap_or_else(|| property_key.as_str().to_string()),",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/substrate.rs",
+        "line": 300,
+        "function": "summarize_omena_query_custom_property_annotations",
+        "operation": "sealed-property-key",
+        "evidence": "property_key,",
         "role": "consumer"
       },
       {
@@ -3027,6 +3342,78 @@
         "role": "consumer"
       },
       {
+        "path": "rust/crates/omena-query/src/types.rs",
+        "line": 9,
+        "function": "<module>",
+        "operation": "CanonicalPropertyKeyV0",
+        "evidence": "AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0,",
+        "role": "carrier"
+      },
+      {
+        "path": "rust/crates/omena-query/src/types.rs",
+        "line": 631,
+        "function": "<module>",
+        "operation": "sealed-property-key",
+        "evidence": "pub property_key: CanonicalCustomPropertyNameV0,",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-query/src/types.rs",
+        "line": 640,
+        "function": "eq",
+        "operation": "sealed-property-key",
+        "evidence": "self.property_key == other.property_key",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-query/src/types.rs",
+        "line": 1995,
+        "function": "class_name_collection_contains",
+        "operation": "sealed-property-key",
+        "evidence": "pub property_key: Option<CanonicalCustomPropertyNameV0>,",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-query/src/types.rs",
+        "line": 2003,
+        "function": "class_name_collection_contains",
+        "operation": "CanonicalCustomPropertyNameV0",
+        "evidence": "CustomProperty(Option<&'candidate CanonicalCustomPropertyNameV0>),",
+        "role": "carrier"
+      },
+      {
+        "path": "rust/crates/omena-query/src/types.rs",
+        "line": 2013,
+        "function": "identity",
+        "operation": "sealed-property-key",
+        "evidence": "OmenaQueryStyleHoverCandidateIdentityRefV0::CustomProperty(self.property_key.as_ref())",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-query/src/types.rs",
+        "line": 2087,
+        "function": "partial_cmp",
+        "operation": "sealed-property-key",
+        "evidence": "pub property_key: CanonicalPropertyKeyV0,",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-query/src/types.rs",
+        "line": 2548,
+        "function": "suppresses_diagnostics",
+        "operation": "sealed-property-key",
+        "evidence": "pub property_key: CanonicalCustomPropertyNameV0,",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-query/src/types.rs",
+        "line": 2556,
+        "function": "eq",
+        "operation": "sealed-property-key",
+        "evidence": "&& self.property_key == other.property_key",
+        "role": "consumer"
+      },
+      {
         "path": "rust/crates/omena-refinement/src/lib.rs",
         "line": 343,
         "function": "refined_projection_preserves_legacy_value_v0",
@@ -3132,15 +3519,31 @@
       },
       {
         "path": "rust/crates/omena-scss-eval/src/native_css.rs",
-        "line": 11,
+        "line": 13,
         "function": "<module>",
         "operation": "CanonicalCustomPropertyNameV0",
-        "evidence": "use omena_syntax::{SyntaxKind, ident::CanonicalCustomPropertyNameV0};",
+        "evidence": "ident::{AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, PropertyNameV0},",
         "role": "carrier"
       },
       {
         "path": "rust/crates/omena-scss-eval/src/native_css.rs",
-        "line": 1566,
+        "line": 58,
+        "function": "<module>",
+        "operation": "sealed-property-key",
+        "evidence": "pub property_key: CanonicalCustomPropertyNameV0,",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-scss-eval/src/native_css.rs",
+        "line": 70,
+        "function": "eq",
+        "operation": "sealed-property-key",
+        "evidence": "self.property_key == other.property_key",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-scss-eval/src/native_css.rs",
+        "line": 1585,
         "function": "native_css_exact_function_call_name",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "type NativeCssFunctionBindingV0 = (CanonicalCustomPropertyNameV0, String);",
@@ -3148,26 +3551,42 @@
       },
       {
         "path": "rust/crates/omena-scss-eval/src/native_css.rs",
-        "line": 1577,
+        "line": 1597,
         "function": "native_css_function_parameter_syntax_gate",
-        "operation": "PropertyNameV0::canonical_custom_key",
-        "evidence": "omena_syntax::ident::PropertyNameV0::canonical_custom_key(&parameter.name);",
-        "role": "producer"
+        "operation": "sealed-property-key",
+        "evidence": ".find(|(name, _)| name == &parameter.property_key)",
+        "role": "consumer"
       },
       {
         "path": "rust/crates/omena-scss-eval/src/native_css.rs",
-        "line": 1636,
+        "line": 1648,
         "function": "bind_native_css_function_arguments",
-        "operation": "PropertyNameV0::canonical_custom_key",
-        "evidence": "omena_syntax::ident::PropertyNameV0::canonical_custom_key(&parameter.name),",
-        "role": "producer"
+        "operation": "sealed-property-key",
+        "evidence": ".then(|| (parameter.property_key.clone(), argument.value.clone()));",
+        "role": "consumer"
       },
       {
         "path": "rust/crates/omena-scss-eval/src/native_css.rs",
-        "line": 1661,
+        "line": 1652,
+        "function": "bind_native_css_function_arguments",
+        "operation": "sealed-property-key",
+        "evidence": ".then(|| (parameter.property_key.clone(), default_value.to_string()))",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-scss-eval/src/native_css.rs",
+        "line": 1674,
         "function": "evaluate_native_css_function_result_value",
         "operation": "PropertyNameV0::canonical_custom_key",
         "evidence": "omena_syntax::ident::PropertyNameV0::canonical_custom_key(parameter_name);",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-scss-eval/src/native_css.rs",
+        "line": 2004,
+        "function": "collect_native_css_function_parameter",
+        "operation": "PropertyNameV0::canonical_custom_key",
+        "evidence": "property_key: PropertyNameV0::canonical_custom_key(name.text.clone()),",
         "role": "producer"
       },
       {
@@ -3364,23 +3783,23 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 100,
-        "function": "as_str",
+        "line": 173,
+        "function": "fmt",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "canonical: CanonicalStandardPropertyNameV0,",
         "role": "authority"
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 105,
-        "function": "as_str",
+        "line": 178,
+        "function": "fmt",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "canonical: CanonicalCustomPropertyNameV0,",
         "role": "authority"
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 134,
+        "line": 207,
         "function": "from_decoded",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "canonical: CanonicalStandardPropertyNameV0(",
@@ -3388,7 +3807,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 142,
+        "line": 215,
         "function": "from_decoded",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "canonical: CanonicalCustomPropertyNameV0(",
@@ -3396,7 +3815,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 208,
+        "line": 287,
         "function": "same_as",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "pub fn canonical_key(&self) -> CanonicalPropertyKeyV0 {",
@@ -3404,7 +3823,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 210,
+        "line": 289,
         "function": "canonical_key",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "Self::Standard { canonical, .. } => CanonicalPropertyKeyV0::Standard(canonical.clone()),",
@@ -3412,7 +3831,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 211,
+        "line": 290,
         "function": "canonical_key",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "Self::Custom { canonical, .. } => CanonicalPropertyKeyV0::Custom(canonical.clone()),",
@@ -3420,7 +3839,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 215,
+        "line": 294,
         "function": "canonical_key",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "pub fn as_custom_key(&self) -> Option<CanonicalCustomPropertyNameV0> {",
@@ -3428,7 +3847,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 222,
+        "line": 301,
         "function": "as_custom_key",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "pub fn as_standard_key(&self) -> Option<&CanonicalStandardPropertyNameV0> {",
@@ -3436,7 +3855,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 229,
+        "line": 308,
         "function": "as_standard_key",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "pub fn canonical_custom_key(authored: impl Into<String>) -> CanonicalCustomPropertyNameV0 {",
@@ -3444,7 +3863,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 236,
+        "line": 315,
         "function": "canonical_custom_key",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "pub fn canonical_standard_key(authored: impl Into<String>) -> CanonicalStandardPropertyNameV0 {",
@@ -3452,7 +3871,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 261,
+        "line": 340,
         "function": "canonical_standard_key",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "pub struct CanonicalStandardPropertyNameV0(String, CanonicalStandardPropertyNameSealV0);",
@@ -3460,7 +3879,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 263,
+        "line": 342,
         "function": "canonical_standard_key",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "impl CanonicalStandardPropertyNameV0 {",
@@ -3468,7 +3887,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 269,
+        "line": 348,
         "function": "as_str",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "impl serde::Serialize for CanonicalStandardPropertyNameV0 {",
@@ -3476,7 +3895,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 292,
+        "line": 371,
         "function": "serialize",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "pub struct CanonicalCustomPropertyNameV0(String, CanonicalCustomPropertyNameSealV0);",
@@ -3484,7 +3903,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 294,
+        "line": 373,
         "function": "serialize",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "impl CanonicalCustomPropertyNameV0 {",
@@ -3492,7 +3911,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 300,
+        "line": 379,
         "function": "as_str",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "impl serde::Serialize for CanonicalCustomPropertyNameV0 {",
@@ -3500,7 +3919,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 310,
+        "line": 389,
         "function": "serialize",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "pub enum CanonicalPropertyKeyV0 {",
@@ -3508,7 +3927,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 311,
+        "line": 390,
         "function": "serialize",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "Standard(CanonicalStandardPropertyNameV0),",
@@ -3516,7 +3935,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 312,
+        "line": 391,
         "function": "serialize",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "Custom(CanonicalCustomPropertyNameV0),",
@@ -3524,7 +3943,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 315,
+        "line": 394,
         "function": "serialize",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "impl CanonicalPropertyKeyV0 {",
@@ -3532,7 +3951,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 330,
+        "line": 409,
         "function": "kind",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "pub fn as_custom(&self) -> Option<&CanonicalCustomPropertyNameV0> {",
@@ -3540,7 +3959,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 337,
+        "line": 416,
         "function": "as_custom",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "pub fn as_standard(&self) -> Option<&CanonicalStandardPropertyNameV0> {",
@@ -3548,7 +3967,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 345,
+        "line": 424,
         "function": "as_standard",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "impl serde::Serialize for CanonicalPropertyKeyV0 {",
@@ -3556,7 +3975,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 356,
+        "line": 435,
         "function": "serialize",
         "operation": "property_names_same",
         "evidence": "pub fn property_names_same(left: &str, right: &str) -> bool {",
@@ -3564,7 +3983,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 357,
+        "line": 436,
         "function": "property_names_same",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "PropertyNameV0::from_authored(left).same_as(&PropertyNameV0::from_authored(right))",
@@ -3572,7 +3991,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 363,
+        "line": 442,
         "function": "is_custom_property_name",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "PropertyNameV0::from_authored(authored).kind() == PropertyNameKindV0::Custom",
@@ -3583,7 +4002,7 @@
         "line": 11,
         "function": "<module>",
         "operation": "CanonicalPropertyKeyV0",
-        "evidence": "ident::{CanonicalPropertyKeyV0, PropertyNameV0},",
+        "evidence": "ident::{AuthoredPropertyTextV0, CanonicalPropertyKeyV0, PropertyNameV0},",
         "role": "carrier"
       },
       {
@@ -3783,12 +4202,12 @@
         "line": 12,
         "function": "<module>",
         "operation": "CanonicalPropertyKeyV0",
-        "evidence": "CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0, PropertyNameV0, is_css_name_continue,",
+        "evidence": "AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0,",
         "role": "carrier"
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 69,
+        "line": 70,
         "function": "<module>",
         "operation": "sealed-property-key",
         "evidence": "pub(crate) property_key: CanonicalCustomPropertyNameV0,",
@@ -3796,7 +4215,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 78,
+        "line": 79,
         "function": "push_unique_custom_property_key",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "keys: &mut Vec<CanonicalCustomPropertyNameV0>,",
@@ -3804,7 +4223,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 79,
+        "line": 80,
         "function": "push_unique_custom_property_key",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "key: CanonicalCustomPropertyNameV0,",
@@ -3812,7 +4231,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 113,
+        "line": 114,
         "function": "parse_custom_property_registration_rule",
         "operation": "sealed-property-key",
         "evidence": "let property_key = canonical_custom_property_key(&name)?;",
@@ -3820,7 +4239,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 119,
+        "line": 120,
         "function": "parse_custom_property_registration_rule",
         "operation": "sealed-property-key",
         "evidence": ".find(|declaration| declaration.property_key.as_str() == \"syntax\" && !declaration.important)",
@@ -3828,7 +4247,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 124,
+        "line": 125,
         "function": "parse_custom_property_registration_rule",
         "operation": "sealed-property-key",
         "evidence": "declaration.property_key.as_str() == \"inherits\" && !declaration.important",
@@ -3836,7 +4255,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 130,
+        "line": 131,
         "function": "parse_custom_property_registration_rule",
         "operation": "sealed-property-key",
         "evidence": "declaration.property_key.as_str() == \"initial-value\" && !declaration.important",
@@ -3844,7 +4263,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 137,
+        "line": 138,
         "function": "parse_custom_property_registration_rule",
         "operation": "sealed-property-key",
         "evidence": "property_key,",
@@ -3852,7 +4271,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 149,
+        "line": 150,
         "function": "close_custom_property_dependency_graph",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "roots: Vec<CanonicalCustomPropertyNameV0>,",
@@ -3860,7 +4279,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 151,
+        "line": 152,
         "function": "close_custom_property_dependency_graph",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "CanonicalCustomPropertyNameV0,",
@@ -3868,7 +4287,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 152,
+        "line": 153,
         "function": "close_custom_property_dependency_graph",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "Vec<CanonicalCustomPropertyNameV0>,",
@@ -3876,7 +4295,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 154,
+        "line": 155,
         "function": "close_custom_property_dependency_graph",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": ") -> Vec<CanonicalCustomPropertyNameV0> {",
@@ -3884,7 +4303,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 176,
+        "line": 177,
         "function": "collect_custom_property_references_in_value",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": ") -> Vec<CanonicalCustomPropertyNameV0> {",
@@ -3892,7 +4311,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 243,
+        "line": 244,
         "function": "collect_custom_property_references_in_container_style_query_prelude",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": ") -> Vec<CanonicalCustomPropertyNameV0> {",
@@ -3900,7 +4319,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 296,
+        "line": 297,
         "function": "collect_custom_property_roots_from_container_style_query_preludes",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": ") -> Vec<CanonicalCustomPropertyNameV0> {",
@@ -3908,7 +4327,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 331,
+        "line": 332,
         "function": "collect_custom_property_roots_from_container_style_query_preludes_from_ir",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": ") -> Vec<CanonicalCustomPropertyNameV0> {",
@@ -3916,7 +4335,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 499,
+        "line": 500,
         "function": "collect_tree_shake_css_custom_property_replacements",
         "operation": "sealed-property-key",
         "evidence": ".any(|name| name == &registration.property_key)",
@@ -3924,7 +4343,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 578,
+        "line": 579,
         "function": "collect_tree_shake_css_custom_property_replacements",
         "operation": "sealed-property-key",
         "evidence": "let Some(property_key) = declaration.property_key.as_custom() else {",
@@ -3932,7 +4351,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 581,
+        "line": 582,
         "function": "collect_tree_shake_css_custom_property_replacements",
         "operation": "sealed-property-key",
         "evidence": "let name_is_referenced = referenced_names.contains(property_key);",
@@ -3940,7 +4359,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 640,
+        "line": 641,
         "function": "collect_tree_shake_css_custom_property_replacements_from_ir",
         "operation": "sealed-property-key",
         "evidence": ".any(|name| name == &registration.property_key)",
@@ -3948,7 +4367,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 754,
+        "line": 755,
         "function": "push_custom_property_rule_removals_from_declarations",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "referenced_names: &[CanonicalCustomPropertyNameV0],",
@@ -3956,7 +4375,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 757,
+        "line": 758,
         "function": "push_custom_property_rule_removals_from_declarations",
         "operation": "sealed-property-key",
         "evidence": "let Some(property_key) = declaration.property_key.as_custom() else {",
@@ -3964,7 +4383,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 760,
+        "line": 761,
         "function": "push_custom_property_rule_removals_from_declarations",
         "operation": "sealed-property-key",
         "evidence": "let name_is_referenced = referenced_names.contains(property_key);",
@@ -3972,7 +4391,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 882,
+        "line": 883,
         "function": "collect_reachable_custom_property_names",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": ") -> Option<Vec<CanonicalCustomPropertyNameV0>> {",
@@ -3980,7 +4399,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 885,
+        "line": 886,
         "function": "collect_reachable_custom_property_names",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "BTreeMap::<CanonicalCustomPropertyNameV0, Vec<CanonicalCustomPropertyNameV0>>::new();",
@@ -3988,7 +4407,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 951,
+        "line": 952,
         "function": "collect_reachable_custom_property_names",
         "operation": "sealed-property-key",
         "evidence": ".entry(registration.property_key)",
@@ -3996,7 +4415,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 978,
+        "line": 979,
         "function": "collect_reachable_custom_property_names",
         "operation": "sealed-property-key",
         "evidence": "if let Some(property_key) = declaration.property_key.as_custom().cloned() {",
@@ -4004,7 +4423,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 984,
+        "line": 985,
         "function": "collect_reachable_custom_property_names",
         "operation": "sealed-property-key",
         "evidence": "let dependencies = dependencies_by_name.entry(property_key).or_default();",
@@ -4012,7 +4431,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1010,
+        "line": 1011,
         "function": "collect_reachable_custom_property_names_from_ir",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": ") -> Option<Vec<CanonicalCustomPropertyNameV0>> {",
@@ -4020,7 +4439,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1013,
+        "line": 1014,
         "function": "collect_reachable_custom_property_names_from_ir",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "BTreeMap::<CanonicalCustomPropertyNameV0, Vec<CanonicalCustomPropertyNameV0>>::new();",
@@ -4028,7 +4447,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1074,
+        "line": 1075,
         "function": "collect_reachable_custom_property_names_from_ir",
         "operation": "sealed-property-key",
         "evidence": ".entry(registration.property_key)",
@@ -4036,7 +4455,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1094,
+        "line": 1095,
         "function": "collect_reachable_custom_property_names_from_ir",
         "operation": "sealed-property-key",
         "evidence": "if let Some(property_key) = declaration.property_key.as_custom().cloned() {",
@@ -4044,7 +4463,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1100,
+        "line": 1101,
         "function": "collect_reachable_custom_property_names_from_ir",
         "operation": "sealed-property-key",
         "evidence": "let dependencies = dependencies_by_name.entry(property_key).or_default();",
@@ -4052,7 +4471,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1139,
+        "line": 1140,
         "function": "collect_reachable_custom_property_names_from_ir",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "root_names: &'a mut Vec<CanonicalCustomPropertyNameV0>,",
@@ -4060,7 +4479,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1141,
+        "line": 1142,
         "function": "collect_reachable_custom_property_names_from_ir",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "&'a mut BTreeMap<CanonicalCustomPropertyNameV0, Vec<CanonicalCustomPropertyNameV0>>,",
@@ -4068,7 +4487,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1168,
+        "line": 1169,
         "function": "collect_reachable_custom_property_names_from_keyframes_from_ir",
         "operation": "sealed-property-key",
         "evidence": "if let Some(property_key) = declaration.property_key.as_custom().cloned() {",
@@ -4076,7 +4495,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1174,
+        "line": 1175,
         "function": "collect_reachable_custom_property_names_from_keyframes_from_ir",
         "operation": "sealed-property-key",
         "evidence": "let dependencies = input.dependencies_by_name.entry(property_key).or_default();",
@@ -4084,7 +4503,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1229,
+        "line": 1230,
         "function": "collect_custom_property_roots_from_reachable_at_rule_preludes",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": ") -> Vec<CanonicalCustomPropertyNameV0> {",
@@ -4092,7 +4511,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1267,
+        "line": 1268,
         "function": "collect_custom_property_roots_from_reachable_at_rule_preludes_from_ir",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": ") -> Vec<CanonicalCustomPropertyNameV0> {",
@@ -4100,7 +4519,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1292,
+        "line": 1293,
         "function": "collect_custom_property_roots_from_descriptor_at_rules",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": ") -> Vec<CanonicalCustomPropertyNameV0> {",
@@ -4108,7 +4527,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1329,
+        "line": 1330,
         "function": "collect_custom_property_roots_from_descriptor_at_rules_from_ir",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": ") -> Vec<CanonicalCustomPropertyNameV0> {",
@@ -4116,7 +4535,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1399,
+        "line": 1400,
         "function": "custom_property_registration_rule_from_ir",
         "operation": "sealed-property-key",
         "evidence": "let property_key = canonical_custom_property_key(name)?;",
@@ -4124,7 +4543,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1403,
+        "line": 1404,
         "function": "custom_property_registration_rule_from_ir",
         "operation": "sealed-property-key",
         "evidence": ".find(|declaration| declaration.property_key.as_str() == \"syntax\" && !declaration.important)",
@@ -4132,7 +4551,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1408,
+        "line": 1409,
         "function": "custom_property_registration_rule_from_ir",
         "operation": "sealed-property-key",
         "evidence": "declaration.property_key.as_str() == \"inherits\" && !declaration.important",
@@ -4140,7 +4559,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1414,
+        "line": 1415,
         "function": "custom_property_registration_rule_from_ir",
         "operation": "sealed-property-key",
         "evidence": "declaration.property_key.as_str() == \"initial-value\" && !declaration.important",
@@ -4148,7 +4567,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1419,
+        "line": 1420,
         "function": "custom_property_registration_rule_from_ir",
         "operation": "sealed-property-key",
         "evidence": "property_key,",
@@ -4156,7 +4575,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1557,
+        "line": 1558,
         "function": "declaration_ordinary_rule_slice_from_ir",
         "operation": "sealed-property-key",
         "evidence": "property_key: CanonicalPropertyKeyV0,",
@@ -4164,7 +4583,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1636,
+        "line": 1637,
         "function": "collect_simple_declarations_from_keyframe_slice",
         "operation": "sealed-property-key",
         "evidence": "property_key: declaration.property_key,",
@@ -4172,7 +4591,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1688,
+        "line": 1689,
         "function": "simple_declaration_from_ir",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "let property_name = PropertyNameV0::from_authored(property);",
@@ -4180,7 +4599,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1691,
+        "line": 1692,
         "function": "simple_declaration_from_ir",
         "operation": "PropertyNameV0::canonical_key",
         "evidence": "property_key: property_name.canonical_key(),",
@@ -4188,7 +4607,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1907,
+        "line": 1908,
         "function": "collect_custom_property_names_in_style_query",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "names: &mut Vec<CanonicalCustomPropertyNameV0>,",
@@ -4196,7 +4615,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1915,
+        "line": 1916,
         "function": "collect_custom_property_names_in_style_query",
         "operation": "sealed-property-key",
         "evidence": "if let Some(property_key) = canonical_custom_property_key(&token.text) {",
@@ -4204,7 +4623,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1916,
+        "line": 1917,
         "function": "collect_custom_property_names_in_style_query",
         "operation": "sealed-property-key",
         "evidence": "push_unique_custom_property_key(names, property_key);",
@@ -4212,7 +4631,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 1949,
+        "line": 1950,
         "function": "substitute_static_css_custom_properties_with_lexer",
         "operation": "sealed-property-key",
         "evidence": "if declaration.property_key.as_custom().is_some() {",
@@ -4223,7 +4642,7 @@
         "line": 2101,
         "function": "collect_static_root_custom_property_env",
         "operation": "sealed-property-key",
-        "evidence": "if let Some(property_key) = property.as_custom_key()",
+        "evidence": "if let Some(property_key) = declaration.property_key.as_custom().cloned()",
         "role": "consumer"
       },
       {
@@ -4238,21 +4657,13 @@
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
         "line": 2121,
         "function": "collect_static_root_custom_property_env",
-        "operation": "PropertyNameV0::from_authored",
-        "evidence": "let property = PropertyNameV0::from_authored(&declaration.property);",
-        "role": "consumer"
-      },
-      {
-        "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 2122,
-        "function": "collect_static_root_custom_property_env",
         "operation": "sealed-property-key",
-        "evidence": "let Some(property_key) = property.as_custom_key() else {",
+        "evidence": "let Some(property_key) = declaration.property_key.as_custom().cloned() else {",
         "role": "consumer"
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 2132,
+        "line": 2131,
         "function": "collect_static_root_custom_property_env",
         "operation": "sealed-property-key",
         "evidence": "if blocked_names.contains(&property_key) {",
@@ -4260,7 +4671,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 2135,
+        "line": 2134,
         "function": "collect_static_root_custom_property_env",
         "operation": "sealed-property-key",
         "evidence": "if env.contains_key(&property_key) {",
@@ -4268,7 +4679,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 2141,
+        "line": 2140,
         "function": "collect_static_root_custom_property_env",
         "operation": "sealed-property-key",
         "evidence": "env.remove(&property_key);",
@@ -4276,7 +4687,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 2142,
+        "line": 2141,
         "function": "collect_static_root_custom_property_env",
         "operation": "sealed-property-key",
         "evidence": "if !blocked_names.contains(&property_key) {",
@@ -4284,7 +4695,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 2143,
+        "line": 2142,
         "function": "collect_static_root_custom_property_env",
         "operation": "sealed-property-key",
         "evidence": "blocked_names.push(property_key);",
@@ -4292,7 +4703,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 2147,
+        "line": 2146,
         "function": "collect_static_root_custom_property_env",
         "operation": "sealed-property-key",
         "evidence": "env.insert(property_key, value);",
@@ -4300,7 +4711,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 2153,
+        "line": 2152,
         "function": "collect_static_root_custom_property_env",
         "operation": "sealed-property-key",
         "evidence": "let registration_key = registration.property_key;",
@@ -4308,7 +4719,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-        "line": 2333,
+        "line": 2332,
         "function": "parse_static_var_arguments",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "let property = PropertyNameV0::from_authored(name);",
@@ -5503,7 +5914,7 @@
         "line": 4,
         "function": "<module>",
         "operation": "CanonicalPropertyKeyV0",
-        "evidence": "ident::{CanonicalPropertyKeyV0, PropertyNameKindV0, PropertyNameV0},",
+        "evidence": "ident::{AuthoredPropertyTextV0, CanonicalPropertyKeyV0, PropertyNameKindV0, PropertyNameV0},",
         "role": "carrier"
       },
       {
@@ -5654,21 +6065,13 @@
         "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
         "line": 319,
         "function": "winner_witnesses_are_observationally_equal",
-        "operation": "PropertyNameV0::from_authored",
-        "evidence": "&& PropertyNameV0::from_authored(&input.winner.property)",
+        "operation": "sealed-property-key",
+        "evidence": "&& input.winner.property_key == output.winner.property_key",
         "role": "consumer"
       },
       {
         "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-        "line": 320,
-        "function": "winner_witnesses_are_observationally_equal",
-        "operation": "PropertyNameV0::from_authored",
-        "evidence": ".same_as(&PropertyNameV0::from_authored(&output.winner.property))",
-        "role": "consumer"
-      },
-      {
-        "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-        "line": 465,
+        "line": 464,
         "function": "winner_for_pair",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "let pair_property = PropertyNameV0::from_authored(&pair.property);",
@@ -5676,11 +6079,19 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-        "line": 470,
+        "line": 469,
         "function": "winner_for_pair",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "PropertyNameV0::from_authored(&candidate.property).same_as(&pair_property)",
         "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+        "line": 532,
+        "function": "winner_for_pair",
+        "operation": "sealed-property-key",
+        "evidence": "property_key: pair_property.canonical_key(),",
+        "role": "producer"
       },
       {
         "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
@@ -5692,7 +6103,15 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-        "line": 777,
+        "line": 607,
+        "function": "winner_for_pair",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "property_key: PropertyNameV0::from_authored(&declaration.property).canonical_key(),",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+        "line": 780,
         "function": "guarded_candidate_seeds_for_pair",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "let pair_property = PropertyNameV0::from_authored(&pair.property);",
@@ -5700,7 +6119,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-        "line": 779,
+        "line": 782,
         "function": "guarded_candidate_seeds_for_pair",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "PropertyNameV0::from_authored(&candidate.property).same_as(&pair_property)",
@@ -5708,7 +6127,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-        "line": 866,
+        "line": 869,
         "function": "guarded_environment_candidate_seeds_for_pair",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "let pair_property = PropertyNameV0::from_authored(&pair.property);",
@@ -5716,7 +6135,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-        "line": 868,
+        "line": 871,
         "function": "guarded_environment_candidate_seeds_for_pair",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "PropertyNameV0::from_authored(&declaration.property).same_as(&pair_property)",
@@ -5724,30 +6143,1908 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-        "line": 1078,
+        "line": 1081,
         "function": "winner_difference_absences",
-        "operation": "PropertyNameV0::from_authored",
-        "evidence": "|| !PropertyNameV0::from_authored(&input.winner.property)",
+        "operation": "sealed-property-key",
+        "evidence": "|| input.winner.property_key != output.winner.property_key",
         "role": "consumer"
       },
       {
         "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-        "line": 1079,
-        "function": "winner_difference_absences",
-        "operation": "PropertyNameV0::from_authored",
-        "evidence": ".same_as(&PropertyNameV0::from_authored(&output.winner.property))",
-        "role": "consumer"
-      },
-      {
-        "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-        "line": 1122,
+        "line": 1124,
         "function": "pair_identity",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "let property_key = PropertyNameV0::from_authored(&pair.property).canonical_key();",
         "role": "producer"
       }
     ],
-    "siteDigest": "sha256:99d37f7305f11ef9b5bec9add3f0ac5b77ba3b9250fa9836d23def38a15d66b9",
+    "siteDigest": "sha256:dad21f458a4e8641046783fba23f90059a60dce5d1df3e10de88f1b46b8a9bb3",
+    "residualRawCarrierDirection": "decrease-only",
+    "residualRawCarrierSiteCount": 209,
+    "residualRawCarrierSites": [
+      {
+        "path": "rust/crates/engine-style-parser/src/lib.rs",
+        "line": 156,
+        "function": "new",
+        "operation": "residual-property-field:DeclarationPayload.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Authored fixture or differential-evidence spelling; this site does not carry product identity."
+      },
+      {
+        "path": "rust/crates/engine-style-parser/src/lib.rs",
+        "line": 436,
+        "function": "new",
+        "operation": "residual-property-field:ParserIndexCustomPropertyDeclFactV0.name:String",
+        "evidence": "pub name: String,",
+        "disposition": "named-exempt",
+        "reason": "Authored fixture or differential-evidence spelling; this site does not carry product identity."
+      },
+      {
+        "path": "rust/crates/engine-style-parser/src/lib.rs",
+        "line": 450,
+        "function": "new",
+        "operation": "residual-property-field:ParserIndexCustomPropertyRefFactV0.name:String",
+        "evidence": "pub name: String,",
+        "disposition": "named-exempt",
+        "reason": "Authored fixture or differential-evidence spelling; this site does not carry product identity."
+      },
+      {
+        "path": "rust/crates/engine-style-parser/src/lib.rs",
+        "line": 1815,
+        "function": "increment_at_rule_kind_count",
+        "operation": "residual-property-field:CustomPropertyDeclNameSpan.name:String",
+        "evidence": "name: String,",
+        "disposition": "named-exempt",
+        "reason": "Authored fixture or differential-evidence spelling; this site does not carry product identity."
+      },
+      {
+        "path": "rust/crates/engine-style-parser/src/lib.rs",
+        "line": 1888,
+        "function": "classify_declaration_kind",
+        "operation": "residual-property-parameter:classify_declaration_kind.property:&str",
+        "evidence": "fn classify_declaration_kind(property: &str) -> DeclarationKind {",
+        "disposition": "named-exempt",
+        "reason": "Authored fixture or differential-evidence spelling; this site does not carry product identity."
+      },
+      {
+        "path": "rust/crates/engine-style-parser/src/lib.rs",
+        "line": 3421,
+        "function": "parse_sass_variable_decl_name",
+        "operation": "residual-property-parameter:parse_sass_variable_decl_name.property:&str",
+        "evidence": "fn parse_sass_variable_decl_name(property: &str) -> Option<String> {",
+        "disposition": "named-exempt",
+        "reason": "Authored fixture or differential-evidence spelling; this site does not carry product identity."
+      },
+      {
+        "path": "rust/crates/engine-style-parser/src/lib.rs",
+        "line": 3887,
+        "function": "is_css_custom_property_name",
+        "operation": "residual-property-parameter:is_css_custom_property_name.name:&str",
+        "evidence": "fn is_css_custom_property_name(name: &str) -> bool {",
+        "disposition": "named-exempt",
+        "reason": "Authored fixture or differential-evidence spelling; this site does not carry product identity."
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/cascade_family.rs",
+        "line": 18,
+        "function": "<module>",
+        "operation": "residual-property-field:CascadeValueFamilyV0.property_name:String",
+        "evidence": "pub property_name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/cascade_family.rs",
+        "line": 70,
+        "function": "<module>",
+        "operation": "residual-property-field:CascadeStalkEvaluationV0.property_name:String",
+        "evidence": "pub property_name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/property_value.rs",
+        "line": 69,
+        "function": "narrow_abstract_property_value_for_pseudo_state",
+        "operation": "residual-property-parameter:narrow_abstract_property_value_for_pseudo_state.property_name:&str",
+        "evidence": "property_name: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/property_value.rs",
+        "line": 85,
+        "function": "narrow_abstract_property_value_for_cascade_branch",
+        "operation": "residual-property-parameter:narrow_abstract_property_value_for_cascade_branch.property_name:&str",
+        "evidence": "property_name: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/property_value.rs",
+        "line": 139,
+        "function": "abstract_property_value_from_matched_candidates",
+        "operation": "residual-property-parameter:abstract_property_value_from_matched_candidates.property_name:&str",
+        "evidence": "property_name: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/property_value.rs",
+        "line": 199,
+        "function": "abstract_property_value_from_single_candidate",
+        "operation": "residual-property-parameter:abstract_property_value_from_single_candidate.property_name:&str",
+        "evidence": "property_name: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/property_value.rs",
+        "line": 270,
+        "function": "display_value_for_custom_property_reference",
+        "operation": "residual-property-parameter:display_value_for_custom_property_reference.custom_property_name:&str",
+        "evidence": "custom_property_name: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/registered_property.rs",
+        "line": 225,
+        "function": "standard_property_syntax_match",
+        "operation": "residual-property-parameter:standard_property_syntax_match.property:&str",
+        "evidence": "pub fn standard_property_syntax_match(property: &str, value: &str) -> RegisteredSyntaxMatchV0 {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/types.rs",
+        "line": 601,
+        "function": "eq",
+        "operation": "residual-property-field:AbstractPropertyValueCandidateV0.property_name:String",
+        "evidence": "pub property_name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/types.rs",
+        "line": 618,
+        "function": "eq",
+        "operation": "residual-property-field:AbstractPropertyValueNarrowingV0.property_name:String",
+        "evidence": "pub property_name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+        "line": 303,
+        "function": "match_standard_property_value_v0",
+        "operation": "residual-property-parameter:match_standard_property_value_v0.property:&str",
+        "evidence": "pub fn match_standard_property_value_v0(property: &str, value: &str) -> CssValueGrammarVerdictV0 {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+        "line": 392,
+        "function": "validate_standard_property_value_v0",
+        "operation": "residual-property-parameter:validate_standard_property_value_v0.property:&str",
+        "evidence": "pub fn validate_standard_property_value_v0(property: &str, value: &str) -> CssValueValidationV0 {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+        "line": 586,
+        "function": "match_and_type_standard_property_value_v0",
+        "operation": "residual-property-parameter:match_and_type_standard_property_value_v0.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-bridge/src/source_syntax.rs",
+        "line": 306,
+        "function": "<module>",
+        "operation": "residual-property-field:SourceInlineStyleDeclarationFactV0.property_name:String",
+        "evidence": "pub property_name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-bridge/src/source_syntax.rs",
+        "line": 4416,
+        "function": "normalize_inline_style_property_name",
+        "operation": "residual-property-parameter:normalize_inline_style_property_name.name:&str",
+        "evidence": "fn normalize_inline_style_property_name(name: &str) -> String {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade-proof/src/lib.rs",
+        "line": 463,
+        "function": "smt_prove_box_shorthand_combination_v0",
+        "operation": "residual-property-parameter:smt_prove_box_shorthand_combination_v0.shorthand_property:&str",
+        "evidence": "shorthand_property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade-proof/src/lib.rs",
+        "line": 479,
+        "function": "smt_prove_longhand_merge_v0",
+        "operation": "residual-property-parameter:smt_prove_longhand_merge_v0.shorthand_property:&str",
+        "evidence": "shorthand_property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade-proof/src/lib.rs",
+        "line": 565,
+        "function": "canonical_box_shorthand_combination_input_v0",
+        "operation": "residual-property-parameter:canonical_box_shorthand_combination_input_v0.shorthand_property:&str",
+        "evidence": "shorthand_property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade-proof/src/lib.rs",
+        "line": 601,
+        "function": "canonical_longhand_merge_input_v0",
+        "operation": "residual-property-parameter:canonical_longhand_merge_input_v0.shorthand_property:&str",
+        "evidence": "shorthand_property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade-proof/src/proof_kernel.rs",
+        "line": 225,
+        "function": "to_cascade_value",
+        "operation": "residual-property-field:ComputedValueEqualityCertV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/computed_value.rs",
+        "line": 238,
+        "function": "computed_value_from_unset",
+        "operation": "residual-property-parameter:computed_value_from_unset.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/computed_value.rs",
+        "line": 281,
+        "function": "computed_value_from_inherit",
+        "operation": "residual-property-parameter:computed_value_from_inherit.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/computed_value.rs",
+        "line": 327,
+        "function": "computed_value_from_initial",
+        "operation": "residual-property-parameter:computed_value_from_initial.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/computed_value.rs",
+        "line": 393,
+        "function": "property_inheritance",
+        "operation": "residual-property-parameter:property_inheritance.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/computed_value.rs",
+        "line": 408,
+        "function": "computed_value_from_unknown_metadata",
+        "operation": "residual-property-parameter:computed_value_from_unknown_metadata.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/computed_value.rs",
+        "line": 430,
+        "function": "computed_value_from_indeterminate_cascade_outcome",
+        "operation": "residual-property-parameter:computed_value_from_indeterminate_cascade_outcome.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/conformance.rs",
+        "line": 27,
+        "function": "<module>",
+        "operation": "residual-property-field:SelectorSpecificitySeedCase.property:&'static str",
+        "evidence": "property: &'static str,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/conformance.rs",
+        "line": 1082,
+        "function": "conformance_decl",
+        "operation": "residual-property-parameter:conformance_decl.property:&str",
+        "evidence": "fn conformance_decl(id: &str, property: &str, value: &str, key: CascadeKey) -> CascadeDeclaration {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/first_witness.rs",
+        "line": 201,
+        "function": "is_numeric",
+        "operation": "residual-property-field:GuardedCascadeCandidateV0.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/first_witness.rs",
+        "line": 343,
+        "function": "fmt",
+        "operation": "residual-property-field:GuardedCascadeFragmentV0.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/first_witness.rs",
+        "line": 502,
+        "function": "node_id",
+        "operation": "residual-property-field:GuardedCascadeFragmentPredicateV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/frame_footprint.rs",
+        "line": 32,
+        "function": "<module>",
+        "operation": "residual-property-field:CascadeEvidenceV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/frame_footprint.rs",
+        "line": 39,
+        "function": "<module>",
+        "operation": "residual-property-field:CustomPropertyEvidenceV0.custom_property_name:String",
+        "evidence": "pub custom_property_name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/grn.rs",
+        "line": 30,
+        "function": "<module>",
+        "operation": "residual-property-field:GrnVertexV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/lib.rs",
+        "line": 64,
+        "function": "cascade_property",
+        "operation": "residual-property-parameter:cascade_property.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/lib.rs",
+        "line": 78,
+        "function": "cascade_property_open_world",
+        "operation": "residual-property-parameter:cascade_property_open_world.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/lib.rs",
+        "line": 97,
+        "function": "prove_longhand_merge",
+        "operation": "residual-property-parameter:prove_longhand_merge.shorthand_property:&str",
+        "evidence": "shorthand_property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/lib.rs",
+        "line": 108,
+        "function": "prove_box_shorthand_combination",
+        "operation": "residual-property-parameter:prove_box_shorthand_combination.shorthand_property:&str",
+        "evidence": "shorthand_property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/model.rs",
+        "line": 411,
+        "function": "wire_name",
+        "operation": "residual-property-field:CascadeRegisteredCustomPropertyV0.name:String",
+        "evidence": "pub name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/model.rs",
+        "line": 420,
+        "function": "wire_name",
+        "operation": "residual-property-field:CascadeComputedValueInputV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/model.rs",
+        "line": 439,
+        "function": "wire_name",
+        "operation": "residual-property-field:CascadeComputedValueResultV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/model.rs",
+        "line": 700,
+        "function": "unsupported",
+        "operation": "residual-property-field:CascadeConformanceSeedCase.property:&'static str",
+        "evidence": "pub property: &'static str,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/model.rs",
+        "line": 819,
+        "function": "unsupported",
+        "operation": "residual-property-field:CustomPropertyLeastFixedPointEntryV0.name:String",
+        "evidence": "pub name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/model.rs",
+        "line": 841,
+        "function": "unsupported",
+        "operation": "residual-property-field:BoxLonghandInputV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/model.rs",
+        "line": 854,
+        "function": "unsupported",
+        "operation": "residual-property-field:ShorthandCombinationProofV0.shorthand_property:String",
+        "evidence": "pub shorthand_property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/proofs.rs",
+        "line": 17,
+        "function": "prove_longhand_merge",
+        "operation": "residual-property-parameter:prove_longhand_merge.shorthand_property:&str",
+        "evidence": "shorthand_property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/proofs.rs",
+        "line": 101,
+        "function": "prove_box_shorthand_combination",
+        "operation": "residual-property-parameter:prove_box_shorthand_combination.shorthand_property:&str",
+        "evidence": "shorthand_property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/proofs.rs",
+        "line": 329,
+        "function": "target_supports_feature_for_simple_declaration",
+        "operation": "residual-property-parameter:target_supports_feature_for_simple_declaration.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/proofs.rs",
+        "line": 571,
+        "function": "evaluate_modern_simple_supports_declaration",
+        "operation": "residual-property-parameter:evaluate_modern_simple_supports_declaration.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/proofs.rs",
+        "line": 713,
+        "function": "shorthand_combination_proof",
+        "operation": "residual-property-parameter:shorthand_combination_proof.shorthand_property:&str",
+        "evidence": "shorthand_property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/property_metadata.rs",
+        "line": 24,
+        "function": "css_property_metadata_for_property",
+        "operation": "residual-property-parameter:css_property_metadata_for_property.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/property_metadata.rs",
+        "line": 44,
+        "function": "css_property_is_inherited",
+        "operation": "residual-property-parameter:css_property_is_inherited.property:&str",
+        "evidence": "pub fn css_property_is_inherited(property: &str) -> CssPropertyInheritanceV0 {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/property_metadata.rs",
+        "line": 59,
+        "function": "css_property_initial_value",
+        "operation": "residual-property-parameter:css_property_initial_value.property:&str",
+        "evidence": "pub fn css_property_initial_value(property: &str) -> CssPropertyInitialValueV0 {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/ranked_set_loss_census.rs",
+        "line": 68,
+        "function": "<module>",
+        "operation": "residual-property-field:CascadeRankedSetLossCensusRowV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/ranking.rs",
+        "line": 21,
+        "function": "cascade_property",
+        "operation": "residual-property-parameter:cascade_property.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/ranking.rs",
+        "line": 51,
+        "function": "cascade_property_open_world",
+        "operation": "residual-property-parameter:cascade_property_open_world.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-categorical/src/kripke.rs",
+        "line": 72,
+        "function": "build_cascade_prefix_kripke_frame_v0",
+        "operation": "residual-property-parameter:build_cascade_prefix_kripke_frame_v0.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-checker/src/lib.rs",
+        "line": 580,
+        "function": "as_str",
+        "operation": "residual-property-field:OmenaCheckerCascadeDeclarationInputV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-checker/src/lib.rs",
+        "line": 601,
+        "function": "as_str",
+        "operation": "residual-property-field:OmenaCheckerCustomPropertyInputV0.name:String",
+        "evidence": "pub name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-checker/src/lib.rs",
+        "line": 609,
+        "function": "as_str",
+        "operation": "residual-property-field:OmenaCheckerCustomPropertyRegistrationInputV0.name:String",
+        "evidence": "pub name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-checker/src/lib.rs",
+        "line": 621,
+        "function": "as_str",
+        "operation": "residual-property-field:OmenaCheckerActiveCustomPropertyRegistrationV0.name:String",
+        "evidence": "pub name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-checker/src/lib.rs",
+        "line": 655,
+        "function": "as_str",
+        "operation": "residual-property-field:OmenaCheckerGrnVertexStateInputV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-checker/src/lib.rs",
+        "line": 1684,
+        "function": "standard_property_value_verdict_v0",
+        "operation": "residual-property-parameter:standard_property_value_verdict_v0.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cli/src/migrate/mod.rs",
+        "line": 1069,
+        "function": "normalize_custom_property_name",
+        "operation": "residual-property-parameter:normalize_custom_property_name.name:&str",
+        "evidence": "fn normalize_custom_property_name(name: &str) -> Result<String, String> {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-cli/src/perceptual.rs",
+        "line": 50,
+        "function": "<module>",
+        "operation": "residual-property-field:PerceptualExactColorContrastBoundV0.foreground_property:&'static str",
+        "evidence": "pub(crate) foreground_property: &'static str,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-cli/src/perceptual.rs",
+        "line": 51,
+        "function": "<module>",
+        "operation": "residual-property-field:PerceptualExactColorContrastBoundV0.background_property:&'static str",
+        "evidence": "pub(crate) background_property: &'static str,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-cli/src/perceptual.rs",
+        "line": 71,
+        "function": "<module>",
+        "operation": "residual-property-field:PerceptualDeclarationColorV0.property:&'static str",
+        "evidence": "property: &'static str,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-diff-test/src/lib.rs",
+        "line": 1013,
+        "function": "style_dialect_label",
+        "operation": "residual-property-field:SassSpecSoundBailMembershipCaseReportV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Authored fixture or differential-evidence spelling; this site does not carry product identity."
+      },
+      {
+        "path": "rust/crates/omena-diff-test/src/lib.rs",
+        "line": 1061,
+        "function": "style_dialect_label",
+        "operation": "residual-property-field:SassSpecStaticMustMatchCaseReportV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Authored fixture or differential-evidence spelling; this site does not carry product identity."
+      },
+      {
+        "path": "rust/crates/omena-diff-test/src/lib.rs",
+        "line": 1087,
+        "function": "style_dialect_label",
+        "operation": "residual-property-field:SassSpecDeclarationValuePairV0.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Authored fixture or differential-evidence spelling; this site does not carry product identity."
+      },
+      {
+        "path": "rust/crates/omena-diff-test/src/lib.rs",
+        "line": 4724,
+        "function": "normalize_sass_spec_css_value",
+        "operation": "residual-property-field:SassSpecDeclarationContextV0.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Authored fixture or differential-evidence spelling; this site does not carry product identity."
+      },
+      {
+        "path": "rust/crates/omena-diff-test/src/lib.rs",
+        "line": 4755,
+        "function": "sass_spec_resolution_matches_property",
+        "operation": "residual-property-parameter:sass_spec_resolution_matches_property.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Authored fixture or differential-evidence spelling; this site does not carry product identity."
+      },
+      {
+        "path": "rust/crates/omena-diff-test/src/lib.rs",
+        "line": 4767,
+        "function": "sass_spec_resolution_context_matches_concrete",
+        "operation": "residual-property-parameter:sass_spec_resolution_context_matches_concrete.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Authored fixture or differential-evidence spelling; this site does not carry product identity."
+      },
+      {
+        "path": "rust/crates/omena-diff-test/src/lib.rs",
+        "line": 4796,
+        "function": "sass_spec_rendered_values_for_property",
+        "operation": "residual-property-parameter:sass_spec_rendered_values_for_property.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Authored fixture or differential-evidence spelling; this site does not carry product identity."
+      },
+      {
+        "path": "rust/crates/omena-diff-test/src/transform_pass_cascade_conformance.rs",
+        "line": 42,
+        "function": "id",
+        "operation": "residual-property-field:TransformPassCascadeConformanceRecordV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Authored fixture or differential-evidence spelling; this site does not carry product identity."
+      },
+      {
+        "path": "rust/crates/omena-diff-test/src/transform_pass_cascade_conformance.rs",
+        "line": 249,
+        "function": "transform_pass_cascade_conformance_witness",
+        "operation": "residual-property-field:TransformPassCascadeOracleCaseV0.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Authored fixture or differential-evidence spelling; this site does not carry product identity."
+      },
+      {
+        "path": "rust/crates/omena-diff-test/src/transform_pass_cascade_conformance.rs",
+        "line": 500,
+        "function": "transform_pass_cascade_comparable_facts",
+        "operation": "residual-property-parameter:transform_pass_cascade_comparable_facts.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Authored fixture or differential-evidence spelling; this site does not carry product identity."
+      },
+      {
+        "path": "rust/crates/omena-diff-test/src/transform_pass_cascade_conformance.rs",
+        "line": 523,
+        "function": "transform_pass_cascade_section_projection",
+        "operation": "residual-property-parameter:transform_pass_cascade_section_projection.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Authored fixture or differential-evidence spelling; this site does not carry product identity."
+      },
+      {
+        "path": "rust/crates/omena-diff-test/src/transform_pass_cascade_conformance.rs",
+        "line": 540,
+        "function": "transform_pass_cascade_values_match",
+        "operation": "residual-property-parameter:transform_pass_cascade_values_match.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Authored fixture or differential-evidence spelling; this site does not carry product identity."
+      },
+      {
+        "path": "rust/crates/omena-diff-test/src/winner_equality_audit.rs",
+        "line": 16,
+        "function": "<module>",
+        "operation": "residual-property-field:TransformWinnerEqualityAuditFindingV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Authored fixture or differential-evidence spelling; this site does not carry product identity."
+      },
+      {
+        "path": "rust/crates/omena-ensemble/src/types.rs",
+        "line": 30,
+        "function": "<module>",
+        "operation": "residual-property-field:CascadeSiteKeyV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-ensemble/src/types.rs",
+        "line": 41,
+        "function": "<module>",
+        "operation": "residual-property-field:CascadeSectionKeyV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-ensemble/src/types.rs",
+        "line": 157,
+        "function": "compatibility_key_from_cascade_section_key_v0",
+        "operation": "residual-property-field:OverlapAttributionV0.site_property:String",
+        "evidence": "pub site_property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/query_adapter.rs",
+        "line": 11,
+        "function": "lsp_custom_property_key",
+        "operation": "residual-property-parameter:lsp_custom_property_key.name:&str",
+        "evidence": "name: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-parser/src/public_product.rs",
+        "line": 234,
+        "function": "<module>",
+        "operation": "residual-property-field:ParserIndexCustomPropertyDeclFactV0.name:String",
+        "evidence": "name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-parser/src/public_product.rs",
+        "line": 252,
+        "function": "<module>",
+        "operation": "residual-property-field:ParserIndexCustomPropertyRefFactV0.name:String",
+        "evidence": "name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-parser/src/public_product.rs",
+        "line": 399,
+        "function": "<module>",
+        "operation": "residual-property-field:ParserIndexAnimationNameRefFactV0.property:&'static str",
+        "evidence": "property: &'static str,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-parser/src/public_product/syntax_index.rs",
+        "line": 25,
+        "function": "<module>",
+        "operation": "residual-property-field:ParserDeclarationSyntaxFactV0.property_name:String",
+        "evidence": "pub property_name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-parser/src/summaries.rs",
+        "line": 1172,
+        "function": "classify_omena_parser_declaration_kind",
+        "operation": "residual-property-parameter:classify_omena_parser_declaration_kind.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-product-hints/src/lib.rs",
+        "line": 1434,
+        "function": "bool_bits_v0",
+        "operation": "residual-property-field:CascadeSiteKeyV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-product-hints/src/lib.rs",
+        "line": 1445,
+        "function": "bool_bits_v0",
+        "operation": "residual-property-field:CascadeSectionKeyV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-product-hints/src/lib.rs",
+        "line": 1561,
+        "function": "compatibility_key_from_cascade_section_key_v0",
+        "operation": "residual-property-field:OverlapAttributionV0.site_property:String",
+        "evidence": "pub site_property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style.rs",
+        "line": 121,
+        "function": "canonical_class_key",
+        "operation": "residual-property-field:OmenaQueryCascadeSectionOutcomeV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style.rs",
+        "line": 139,
+        "function": "canonical_class_key",
+        "operation": "residual-property-field:OmenaQueryCascadeSiteOutcomeV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/cascade_checker/declaration_facts_differential.rs",
+        "line": 24,
+        "function": "<module>",
+        "operation": "residual-property-field:CandidateSignature.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/cascade_checker/declaration_facts_differential.rs",
+        "line": 42,
+        "function": "<module>",
+        "operation": "residual-property-field:EmissionCandidateSignature.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/cascade_checker/declaration_facts.rs",
+        "line": 24,
+        "function": "<module>",
+        "operation": "residual-property-field:ParsedDeclarationFactV0.property_name:String",
+        "evidence": "pub(in crate::style) property_name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+        "line": 250,
+        "function": "query_runtime_guarded_winner_analysis",
+        "operation": "residual-property-parameter:query_runtime_guarded_winner_analysis.property_name:&str",
+        "evidence": "property_name: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+        "line": 298,
+        "function": "query_runtime_guarded_winner_fragment",
+        "operation": "residual-property-parameter:query_runtime_guarded_winner_fragment.property_name:&str",
+        "evidence": "property_name: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+        "line": 568,
+        "function": "query_runtime_state_scenario",
+        "operation": "residual-property-parameter:query_runtime_state_scenario.property_name:&str",
+        "evidence": "property_name: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+        "line": 584,
+        "function": "query_runtime_state_scenario_with_inline_override",
+        "operation": "residual-property-parameter:query_runtime_state_scenario_with_inline_override.property_name:&str",
+        "evidence": "property_name: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+        "line": 605,
+        "function": "query_runtime_state_scenario_with_optional_inline_override",
+        "operation": "residual-property-parameter:query_runtime_state_scenario_with_optional_inline_override.property_name:&str",
+        "evidence": "property_name: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+        "line": 622,
+        "function": "query_runtime_state_scenario_evaluation",
+        "operation": "residual-property-parameter:query_runtime_state_scenario_evaluation.property_name:&str",
+        "evidence": "property_name: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+        "line": 769,
+        "function": "query_runtime_inline_style_cascade_declaration",
+        "operation": "residual-property-parameter:query_runtime_inline_style_cascade_declaration.property_name:&str",
+        "evidence": "property_name: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/cascade_position.rs",
+        "line": 264,
+        "function": "read_omena_query_cascade_at_position_from_graph",
+        "operation": "residual-property-field:ReferencedDeclarationComputedValueSeed.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/cascade_position.rs",
+        "line": 276,
+        "function": "read_omena_query_cascade_at_position_from_graph",
+        "operation": "residual-property-field:StyleDeclarationAtOffset.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/cascade_position.rs",
+        "line": 512,
+        "function": "custom_property_ref_byte_spans",
+        "operation": "residual-property-field:CustomPropertyReferenceFactView.name:&'a str",
+        "evidence": "name: &'a str,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/registered_property_values.rs",
+        "line": 29,
+        "function": "<module>",
+        "operation": "residual-property-field:OmenaQueryRegisteredCustomPropertyComputedValueV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/registered_property_values.rs",
+        "line": 42,
+        "function": "summarize_omena_query_registered_custom_property_computed_value_v0",
+        "operation": "residual-property-parameter:summarize_omena_query_registered_custom_property_computed_value_v0.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
+        "line": 437,
+        "function": "record_css_modules_cross_file_resolution_compute_for_test",
+        "operation": "residual-property-field:OmenaQueryElementComputedValueV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
+        "line": 3301,
+        "function": "memo_source_element_computed_value",
+        "operation": "residual-property-parameter:memo_source_element_computed_value.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
+        "line": 3391,
+        "function": "memo_source_element_static_declarations",
+        "operation": "residual-property-parameter:memo_source_element_static_declarations.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
+        "line": 3514,
+        "function": "element_computed_value_report",
+        "operation": "residual-property-parameter:element_computed_value_report.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-query/src/types.rs",
+        "line": 2139,
+        "function": "eq",
+        "operation": "residual-property-field:OmenaQueryRuntimeStateScenarioEvidenceV0.property_name:String",
+        "evidence": "pub property_name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-query/src/types.rs",
+        "line": 2187,
+        "function": "eq",
+        "operation": "residual-property-field:OmenaQueryInlineStyleRuntimeOverrideV0.property_name:String",
+        "evidence": "pub property_name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-query/src/types.rs",
+        "line": 2482,
+        "function": "suppresses_diagnostics",
+        "operation": "residual-property-field:OmenaQueryShorthandCombinableV0.shorthand_property:String",
+        "evidence": "pub shorthand_property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-query/src/types.rs",
+        "line": 2494,
+        "function": "suppresses_diagnostics",
+        "operation": "residual-property-field:OmenaQueryCascadeInsightV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-query/src/types.rs",
+        "line": 2861,
+        "function": "projection_surface",
+        "operation": "residual-property-field:OmenaQueryCustomPropertyOccurrenceV0.name:String",
+        "evidence": "pub name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-refinement/src/lib.rs",
+        "line": 92,
+        "function": "default",
+        "operation": "residual-property-field:RefinedAbstractPropertyValueV0.property_name:&'static str",
+        "evidence": "pub property_name: &'static str,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-refinement/src/lib.rs",
+        "line": 178,
+        "function": "default",
+        "operation": "residual-property-field:CascadeDimensionalRefinementBridgeV0.property_name:String",
+        "evidence": "pub property_name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-refinement/src/lib.rs",
+        "line": 258,
+        "function": "default",
+        "operation": "residual-property-field:CalcDimensionDiagnosticV0.property_name:String",
+        "evidence": "pub property_name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-refinement/src/lib.rs",
+        "line": 451,
+        "function": "summarize_calc_dimension_diagnostics_v0",
+        "operation": "residual-property-parameter:summarize_calc_dimension_diagnostics_v0.property_name:&str",
+        "evidence": "property_name: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-refinement/src/lib.rs",
+        "line": 683,
+        "function": "evaluate_numeric_range_predicate_v0",
+        "operation": "residual-property-parameter:evaluate_numeric_range_predicate_v0.property_name:&str",
+        "evidence": "property_name: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-refinement/src/lib.rs",
+        "line": 732,
+        "function": "evaluate_pseudo_state_predicate_v0",
+        "operation": "residual-property-parameter:evaluate_pseudo_state_predicate_v0.property_name:&str",
+        "evidence": "property_name: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-refinement/src/lib.rs",
+        "line": 781,
+        "function": "evaluate_exact_value_predicate_v0",
+        "operation": "residual-property-parameter:evaluate_exact_value_predicate_v0.property_name:&str",
+        "evidence": "property_name: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-refinement/src/lib.rs",
+        "line": 818,
+        "function": "evaluate_one_of_values_predicate_v0",
+        "operation": "residual-property-parameter:evaluate_one_of_values_predicate_v0.property_name:&str",
+        "evidence": "property_name: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-refinement/src/lib.rs",
+        "line": 863,
+        "function": "evaluate_custom_property_reference_predicate_v0",
+        "operation": "residual-property-parameter:evaluate_custom_property_reference_predicate_v0.property_name:&str",
+        "evidence": "property_name: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-refinement/src/lib.rs",
+        "line": 864,
+        "function": "evaluate_custom_property_reference_predicate_v0",
+        "operation": "residual-property-parameter:evaluate_custom_property_reference_predicate_v0.expected_custom_property:&str",
+        "evidence": "expected_custom_property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-refinement/src/lib.rs",
+        "line": 1094,
+        "function": "calc_dimension_diagnostic_for_value_v0",
+        "operation": "residual-property-parameter:calc_dimension_diagnostic_for_value_v0.property_name:&str",
+        "evidence": "property_name: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-scss-eval/src/lib.rs",
+        "line": 102,
+        "function": "<module>",
+        "operation": "residual-property-field:OmenaScssEvalValueOracleV0.property_name:String",
+        "evidence": "pub property_name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-scss-eval/src/lib.rs",
+        "line": 292,
+        "function": "abstract_css_value_kind",
+        "operation": "residual-property-field:LegacyDeclarationValueV0.property_name:String",
+        "evidence": "property_name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-scss-eval/src/static_stylesheet/less_mixin_values.rs",
+        "line": 124,
+        "function": "resolve_static_less_body_property_value_by_name",
+        "operation": "residual-property-parameter:resolve_static_less_body_property_value_by_name.name:&str",
+        "evidence": "name: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-scss-eval/src/static_stylesheet/safety.rs",
+        "line": 17,
+        "function": "static_stylesheet_property_name_is_safe",
+        "operation": "residual-property-parameter:static_stylesheet_property_name_is_safe.name:&str",
+        "evidence": "pub(super) fn static_stylesheet_property_name_is_safe(name: &str) -> bool {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-semantic/src/types.rs",
+        "line": 124,
+        "function": "<module>",
+        "operation": "residual-property-field:ParserIndexCustomPropertyDeclFactV0.name:String",
+        "evidence": "pub name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-semantic/src/types.rs",
+        "line": 142,
+        "function": "<module>",
+        "operation": "residual-property-field:ParserIndexCustomPropertyRefFactV0.name:String",
+        "evidence": "pub name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-smt/src/obligations.rs",
+        "line": 15,
+        "function": "smt_prove_box_shorthand_combination_v0",
+        "operation": "residual-property-parameter:smt_prove_box_shorthand_combination_v0.shorthand_property:&str",
+        "evidence": "shorthand_property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-smt/src/obligations.rs",
+        "line": 31,
+        "function": "smt_prove_longhand_merge_v0",
+        "operation": "residual-property-parameter:smt_prove_longhand_merge_v0.shorthand_property:&str",
+        "evidence": "shorthand_property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-smt/src/obligations.rs",
+        "line": 99,
+        "function": "canonical_box_shorthand_combination_input_v0",
+        "operation": "residual-property-parameter:canonical_box_shorthand_combination_input_v0.shorthand_property:&str",
+        "evidence": "shorthand_property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-smt/src/obligations.rs",
+        "line": 135,
+        "function": "canonical_longhand_merge_input_v0",
+        "operation": "residual-property-parameter:canonical_longhand_merge_input_v0.shorthand_property:&str",
+        "evidence": "shorthand_property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-spec-audit/src/lib.rs",
+        "line": 815,
+        "function": "property_keywords",
+        "operation": "residual-property-parameter:property_keywords.property:&str",
+        "evidence": "pub fn property_keywords(&self, property: &str) -> Option<&[String]> {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-syntax/src/ident.rs",
+        "line": 435,
+        "function": "property_names_same",
+        "operation": "residual-property-parameter:property_names_same.left:&str",
+        "evidence": "pub fn property_names_same(left: &str, right: &str) -> bool {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-syntax/src/ident.rs",
+        "line": 435,
+        "function": "property_names_same",
+        "operation": "residual-property-parameter:property_names_same.right:&str",
+        "evidence": "pub fn property_names_same(left: &str, right: &str) -> bool {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/color.rs",
+        "line": 51,
+        "function": "is_static_color_reference_property",
+        "operation": "residual-property-parameter:is_static_color_reference_property.property:&str",
+        "evidence": "pub(crate) fn is_static_color_reference_property(property: &str) -> bool {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/color.rs",
+        "line": 107,
+        "function": "is_static_color_compression_property",
+        "operation": "residual-property-parameter:is_static_color_compression_property.property:&str",
+        "evidence": "fn is_static_color_compression_property(property: &str) -> bool {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/color.rs",
+        "line": 111,
+        "function": "preserves_currentcolor_keyword_case",
+        "operation": "residual-property-parameter:preserves_currentcolor_keyword_case.property:&str",
+        "evidence": "fn preserves_currentcolor_keyword_case(property: &str) -> bool {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/color.rs",
+        "line": 308,
+        "function": "compress_static_color_references_in_declaration_value",
+        "operation": "residual-property-parameter:compress_static_color_references_in_declaration_value.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
+        "line": 1973,
+        "function": "declaration_ordinary_rule_slice_from_ir",
+        "operation": "residual-property-field:CssModulesValueDeclarationIrViewV0.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+        "line": 61,
+        "function": "<module>",
+        "operation": "residual-property-field:CustomPropertySemanticFactV0.name:String",
+        "evidence": "pub(crate) name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+        "line": 69,
+        "function": "<module>",
+        "operation": "residual-property-field:CustomPropertyRegistrationRule.name:String",
+        "evidence": "pub(crate) name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/design_token.rs",
+        "line": 133,
+        "function": "collect_design_token_route_replacements",
+        "operation": "residual-property-field:DesignTokenDeclarationViewV0.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/logical.rs",
+        "line": 97,
+        "function": "is_horizontal_edge",
+        "operation": "residual-property-field:LogicalAxisMapping.block_size_property:&'static str",
+        "evidence": "block_size_property: &'static str,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/logical.rs",
+        "line": 98,
+        "function": "is_horizontal_edge",
+        "operation": "residual-property-field:LogicalAxisMapping.inline_size_property:&'static str",
+        "evidence": "inline_size_property: &'static str,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/logical.rs",
+        "line": 183,
+        "function": "physical_declaration_for_logical_declaration",
+        "operation": "residual-property-parameter:physical_declaration_for_logical_declaration.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/logical.rs",
+        "line": 213,
+        "function": "physical_property_for_logical_property",
+        "operation": "residual-property-parameter:physical_property_for_logical_property.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/logical.rs",
+        "line": 298,
+        "function": "physical_pair_properties_for_logical_pair",
+        "operation": "residual-property-parameter:physical_pair_properties_for_logical_pair.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/logical.rs",
+        "line": 382,
+        "function": "physical_pair_properties_for_logical_mirror",
+        "operation": "residual-property-parameter:physical_pair_properties_for_logical_mirror.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
+        "line": 187,
+        "function": "same_property_override_can_dedupe",
+        "operation": "residual-property-parameter:same_property_override_can_dedupe.property:&str",
+        "evidence": "fn same_property_override_can_dedupe(property: &str) -> bool {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
+        "line": 229,
+        "function": "collect_duplicate_ordinary_rule_replacements_from_rules",
+        "operation": "residual-property-field:RuleDedupDeclarationV0.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand_line.rs",
+        "line": 177,
+        "function": "line_shorthand_component_for_property",
+        "operation": "residual-property-parameter:line_shorthand_component_for_property.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand_line.rs",
+        "line": 272,
+        "function": "line_component_value_without_important",
+        "operation": "residual-property-parameter:line_component_value_without_important.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand_line.rs",
+        "line": 297,
+        "function": "line_component_property_accepts_axis_values",
+        "operation": "residual-property-parameter:line_component_property_accepts_axis_values.property:&str",
+        "evidence": "fn line_component_property_accepts_axis_values(property: &str) -> bool {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand_logical.rs",
+        "line": 217,
+        "function": "logical_family_value",
+        "operation": "residual-property-parameter:logical_family_value.property:&str",
+        "evidence": "property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand_motion.rs",
+        "line": 159,
+        "function": "normalize_transition_property",
+        "operation": "residual-property-parameter:normalize_transition_property.property:&str",
+        "evidence": "fn normalize_transition_property(property: &str) -> String {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+        "line": 56,
+        "function": "<module>",
+        "operation": "residual-property-field:LonghandMergeProofCandidateV0.shorthand_property:&'static str",
+        "evidence": "pub(crate) shorthand_property: &'static str,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+        "line": 519,
+        "function": "longhand_merge_proof_candidate",
+        "operation": "residual-property-parameter:longhand_merge_proof_candidate.shorthand_property:&'static str",
+        "evidence": "shorthand_property: &'static str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+        "line": 556,
+        "function": "box_shorthand_longhands",
+        "operation": "residual-property-parameter:box_shorthand_longhands.shorthand_property:&str",
+        "evidence": "fn box_shorthand_longhands(shorthand_property: &str) -> Option<Vec<&'static str>> {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+        "line": 1120,
+        "function": "flex_longhand_is_reset_by_flex_shorthand",
+        "operation": "residual-property-parameter:flex_longhand_is_reset_by_flex_shorthand.property:&str",
+        "evidence": "fn flex_longhand_is_reset_by_flex_shorthand(property: &str) -> bool {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+        "line": 1248,
+        "function": "is_place_axis_shorthand_property",
+        "operation": "residual-property-parameter:is_place_axis_shorthand_property.property:&str",
+        "evidence": "fn is_place_axis_shorthand_property(property: &str) -> bool {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+        "line": 1252,
+        "function": "compress_place_axis_shorthand_value",
+        "operation": "residual-property-parameter:compress_place_axis_shorthand_value.property:&str",
+        "evidence": "fn compress_place_axis_shorthand_value(property: &str, value: &str) -> Option<String> {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+        "line": 1319,
+        "function": "is_box_shorthand_property",
+        "operation": "residual-property-parameter:is_box_shorthand_property.property:&str",
+        "evidence": "pub(crate) fn is_box_shorthand_property(property: &str) -> bool {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+        "line": 1335,
+        "function": "is_border_none_shorthand_property",
+        "operation": "residual-property-parameter:is_border_none_shorthand_property.property:&str",
+        "evidence": "fn is_border_none_shorthand_property(property: &str) -> bool {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+        "line": 1386,
+        "function": "is_repeat_shorthand_property",
+        "operation": "residual-property-parameter:is_repeat_shorthand_property.property:&str",
+        "evidence": "fn is_repeat_shorthand_property(property: &str) -> bool {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+        "line": 1397,
+        "function": "is_repeated_two_axis_shorthand_property",
+        "operation": "residual-property-parameter:is_repeated_two_axis_shorthand_property.property:&str",
+        "evidence": "fn is_repeated_two_axis_shorthand_property(property: &str) -> bool {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/text.rs",
+        "line": 73,
+        "function": "normalize_static_font_declaration_value",
+        "operation": "residual-property-parameter:normalize_static_font_declaration_value.property:&str",
+        "evidence": "fn normalize_static_font_declaration_value(property: &str, value: &str) -> Option<String> {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/unit_properties.rs",
+        "line": 1,
+        "function": "is_zero_length_unit_property",
+        "operation": "residual-property-parameter:is_zero_length_unit_property.property:&str",
+        "evidence": "pub(crate) fn is_zero_length_unit_property(property: &str) -> bool {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/unit_properties.rs",
+        "line": 133,
+        "function": "is_zero_percentage_unit_property",
+        "operation": "residual-property-parameter:is_zero_percentage_unit_property.property:&str",
+        "evidence": "pub(crate) fn is_zero_percentage_unit_property(property: &str) -> bool {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/unit.rs",
+        "line": 149,
+        "function": "is_opacity_percentage_property",
+        "operation": "residual-property-parameter:is_opacity_percentage_property.property:&str",
+        "evidence": "fn is_opacity_percentage_property(property: &str) -> bool {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/unit.rs",
+        "line": 240,
+        "function": "unit_normalized_duplicate_property",
+        "operation": "residual-property-parameter:unit_normalized_duplicate_property.property:&str",
+        "evidence": "fn unit_normalized_duplicate_property(property: &str) -> bool {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/unit.rs",
+        "line": 256,
+        "function": "normalize_static_unit_declaration_value",
+        "operation": "residual-property-parameter:normalize_static_unit_declaration_value.property:&str",
+        "evidence": "fn normalize_static_unit_declaration_value(property: &str, value: &str) -> Option<String> {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
+        "line": 28,
+        "function": "<module>",
+        "operation": "residual-property-field:StaleVendorPrefixRemovalProofCandidateV0.prefixed_property:String",
+        "evidence": "pub prefixed_property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
+        "line": 29,
+        "function": "<module>",
+        "operation": "residual-property-field:StaleVendorPrefixRemovalProofCandidateV0.unprefixed_property:&'static str",
+        "evidence": "pub unprefixed_property: &'static str,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
+        "line": 370,
+        "function": "prefixed_supports_condition_for",
+        "operation": "residual-property-field:SupportsFeatureQuery.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
+        "line": 468,
+        "function": "dedupe_case_insensitive",
+        "operation": "residual-property-field:VendorPrefixPropertyRuleV0.name:String",
+        "evidence": "name: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
+        "line": 474,
+        "function": "dedupe_case_insensitive",
+        "operation": "residual-property-field:VendorPrefixValueRuleV0.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
+        "line": 481,
+        "function": "dedupe_case_insensitive",
+        "operation": "residual-property-field:VendorPrefixDeclarationRuleV0.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
+        "line": 487,
+        "function": "dedupe_case_insensitive",
+        "operation": "residual-property-field:VendorPrefixDeclarationEntryV0.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
+        "line": 496,
+        "function": "prefixed_properties_for",
+        "operation": "residual-property-parameter:prefixed_properties_for.property:&str",
+        "evidence": "fn prefixed_properties_for(property: &str) -> Vec<&'static str> {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
+        "line": 509,
+        "function": "unprefixed_property_for_stale_prefix",
+        "operation": "residual-property-parameter:unprefixed_property_for_stale_prefix.property:&str",
+        "evidence": "fn unprefixed_property_for_stale_prefix(property: &str) -> Option<&'static str> {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
+        "line": 551,
+        "function": "prefixed_values_for",
+        "operation": "residual-property-parameter:prefixed_values_for.property:&str",
+        "evidence": "fn prefixed_values_for(property: &str, value: &str) -> Vec<&'static str> {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
+        "line": 568,
+        "function": "prefixed_declarations_for",
+        "operation": "residual-property-parameter:prefixed_declarations_for.property:&str",
+        "evidence": "fn prefixed_declarations_for(property: &str, value: &str) -> Vec<(&'static str, String)> {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/helpers/identifiers.rs",
+        "line": 5,
+        "function": "canonical_custom_property_key",
+        "operation": "residual-property-parameter:canonical_custom_property_key.name:&str",
+        "evidence": "pub(crate) fn canonical_custom_property_key(name: &str) -> Option<CanonicalCustomPropertyNameV0> {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/helpers/identifiers.rs",
+        "line": 10,
+        "function": "normalize_custom_property_name",
+        "operation": "residual-property-parameter:normalize_custom_property_name.name:&str",
+        "evidence": "pub(crate) fn normalize_custom_property_name(name: &str) -> Option<&str> {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/model.rs",
+        "line": 580,
+        "function": "transform_structural_decision_policy",
+        "operation": "residual-property-field:TransformWinnerEqualityAffectedPairV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/model.rs",
+        "line": 1504,
+        "function": "into_public",
+        "operation": "residual-property-field:TransformCascadeEnvironmentDeclarationV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+        "line": 318,
+        "function": "shorthand_obligation",
+        "operation": "residual-property-parameter:shorthand_obligation.shorthand_property:&str",
+        "evidence": "shorthand_property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+        "line": 546,
+        "function": "stale_prefix_removal_obligation",
+        "operation": "residual-property-parameter:stale_prefix_removal_obligation.prefixed_property:String",
+        "evidence": "prefixed_property: String,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+        "line": 547,
+        "function": "stale_prefix_removal_obligation",
+        "operation": "residual-property-parameter:stale_prefix_removal_obligation.unprefixed_property:&'static str",
+        "evidence": "unprefixed_property: &'static str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+        "line": 133,
+        "function": "compare_transform_css_semantics_v0",
+        "operation": "residual-property-field:ExternalCssSemanticEntryV0.property:String",
+        "evidence": "pub property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+        "line": 550,
+        "function": "vendor_unprefixed_property",
+        "operation": "residual-property-parameter:vendor_unprefixed_property.property:&str",
+        "evidence": "fn vendor_unprefixed_property(property: &str) -> Option<&str> {",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+        "line": 1209,
+        "function": "semantic_observation_surface_descriptor",
+        "operation": "residual-property-field:SemanticCascadeCandidateV0.property:String",
+        "evidence": "pub(crate) property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+        "line": 59,
+        "function": "<module>",
+        "operation": "residual-property-field:GuardedCandidateSeedV0.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Serialized authored boundary or presentation spelling; identity decisions must use a separately carried sealed key."
+      },
+      {
+        "path": "rust/crates/omena-zk-audit/src/arkworks.rs",
+        "line": 128,
+        "function": "prove_and_verify_box_shorthand_cascade_with_arkworks_v0",
+        "operation": "residual-property-parameter:prove_and_verify_box_shorthand_cascade_with_arkworks_v0.shorthand_property:&str",
+        "evidence": "shorthand_property: &str,",
+        "disposition": "named-exempt",
+        "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      }
+    ],
+    "residualRawCarrierSiteDigest": "sha256:17aafe6bd274912adc32b91ffe398f20974fa22aa6bff5ca706728961c3c5839",
     "rawStringIdentitySiteCount": 0,
     "rawStringIdentitySites": [],
     "rawStringIdentitySiteDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"

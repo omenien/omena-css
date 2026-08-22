@@ -998,12 +998,16 @@ pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::condition_context: alloc:
 pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::declaration_ids: alloc::vec::Vec<alloc::string::String>
 pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::element_class_iteration: omena_abstract_value::types::ReducedClassValueProductIterationV0
 pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::product: &'static str
-pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::property_name: alloc::string::String
+pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::property_key: omena_syntax::ident::CanonicalPropertyKeyV0
+pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::property_name: omena_syntax::ident::AuthoredPropertyTextV0
 pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::property_value_narrowing: omena_abstract_value::types::AbstractPropertyValueNarrowingV0
 pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::runtime_state: core::option::Option<omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0>
 pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::schema_version: &'static str
 pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::selector: alloc::string::String
 pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::selector_class_names: alloc::vec::Vec<alloc::string::String>
+impl core::cmp::Eq for omena_query::OmenaQueryCascadeNarrowingEvidenceV0
+impl core::cmp::PartialEq for omena_query::OmenaQueryCascadeNarrowingEvidenceV0
+pub fn omena_query::OmenaQueryCascadeNarrowingEvidenceV0::eq(&self, &Self) -> bool
 pub struct omena_query::OmenaQueryCascadeOriginStylesheetV0
 pub omena_query::OmenaQueryCascadeOriginStylesheetV0::declarations: alloc::vec::Vec<omena_checker::OmenaCheckerCascadeDeclarationInputV0>
 pub omena_query::OmenaQueryCascadeOriginStylesheetV0::license: core::option::Option<&'static str>
@@ -1141,9 +1145,13 @@ pub omena_query::OmenaQueryConsumerCheckSummaryV0::style_path: alloc::string::St
 pub omena_query::OmenaQueryConsumerCheckSummaryV0::token_count: usize
 pub struct omena_query::OmenaQueryCreateCustomPropertyActionV0
 pub omena_query::OmenaQueryCreateCustomPropertyActionV0::new_text: alloc::string::String
-pub omena_query::OmenaQueryCreateCustomPropertyActionV0::property_name: alloc::string::String
+pub omena_query::OmenaQueryCreateCustomPropertyActionV0::property_key: omena_syntax::ident::CanonicalCustomPropertyNameV0
+pub omena_query::OmenaQueryCreateCustomPropertyActionV0::property_name: omena_syntax::ident::AuthoredPropertyTextV0
 pub omena_query::OmenaQueryCreateCustomPropertyActionV0::range: omena_parser::spans::ParserRangeV0
 pub omena_query::OmenaQueryCreateCustomPropertyActionV0::uri: alloc::string::String
+impl core::cmp::Eq for omena_query::OmenaQueryCreateCustomPropertyActionV0
+impl core::cmp::PartialEq for omena_query::OmenaQueryCreateCustomPropertyActionV0
+pub fn omena_query::OmenaQueryCreateCustomPropertyActionV0::eq(&self, &Self) -> bool
 pub struct omena_query::OmenaQueryCreateSelectorActionV0
 pub omena_query::OmenaQueryCreateSelectorActionV0::new_text: alloc::string::String
 pub omena_query::OmenaQueryCreateSelectorActionV0::range: omena_parser::spans::ParserRangeV0
@@ -1303,9 +1311,13 @@ pub omena_query::OmenaQueryCustomPropertyAnnotationSummaryV0::style_path: alloc:
 pub struct omena_query::OmenaQueryCustomPropertyAnnotationV0
 pub omena_query::OmenaQueryCustomPropertyAnnotationV0::annotation_kind: &'static str
 pub omena_query::OmenaQueryCustomPropertyAnnotationV0::declaration_count: usize
-pub omena_query::OmenaQueryCustomPropertyAnnotationV0::name: alloc::string::String
+pub omena_query::OmenaQueryCustomPropertyAnnotationV0::name: omena_syntax::ident::AuthoredPropertyTextV0
 pub omena_query::OmenaQueryCustomPropertyAnnotationV0::participates_in_fixed_point: bool
+pub omena_query::OmenaQueryCustomPropertyAnnotationV0::property_key: omena_syntax::ident::CanonicalCustomPropertyNameV0
 pub omena_query::OmenaQueryCustomPropertyAnnotationV0::reference_count: usize
+impl core::cmp::Eq for omena_query::OmenaQueryCustomPropertyAnnotationV0
+impl core::cmp::PartialEq for omena_query::OmenaQueryCustomPropertyAnnotationV0
+pub fn omena_query::OmenaQueryCustomPropertyAnnotationV0::eq(&self, &Self) -> bool
 pub struct omena_query::OmenaQueryCustomPropertyOccurrenceIndexV0
 pub omena_query::OmenaQueryCustomPropertyOccurrenceIndexV0::occurrence_count: usize
 pub omena_query::OmenaQueryCustomPropertyOccurrenceIndexV0::occurrences: alloc::vec::Vec<omena_query::OmenaQueryCustomPropertyOccurrenceV0>
@@ -2190,10 +2202,18 @@ pub omena_query::OmenaQueryStyleFrameRefreshFactsV0::token_count: usize
 pub struct omena_query::OmenaQueryStyleFrameRefreshParseCacheV0
 pub struct omena_query::OmenaQueryStyleHoverCandidateV0
 pub omena_query::OmenaQueryStyleHoverCandidateV0::kind: &'static str
-pub omena_query::OmenaQueryStyleHoverCandidateV0::name: alloc::string::String
+pub omena_query::OmenaQueryStyleHoverCandidateV0::name: omena_syntax::ident::AuthoredPropertyTextV0
 pub omena_query::OmenaQueryStyleHoverCandidateV0::namespace: core::option::Option<alloc::string::String>
+pub omena_query::OmenaQueryStyleHoverCandidateV0::property_key: core::option::Option<omena_syntax::ident::CanonicalCustomPropertyNameV0>
 pub omena_query::OmenaQueryStyleHoverCandidateV0::range: omena_parser::spans::ParserRangeV0
 pub omena_query::OmenaQueryStyleHoverCandidateV0::source: &'static str
+impl core::cmp::Eq for omena_query::OmenaQueryStyleHoverCandidateV0
+impl core::cmp::Ord for omena_query::OmenaQueryStyleHoverCandidateV0
+pub fn omena_query::OmenaQueryStyleHoverCandidateV0::cmp(&self, &Self) -> core::cmp::Ordering
+impl core::cmp::PartialEq for omena_query::OmenaQueryStyleHoverCandidateV0
+pub fn omena_query::OmenaQueryStyleHoverCandidateV0::eq(&self, &Self) -> bool
+impl core::cmp::PartialOrd for omena_query::OmenaQueryStyleHoverCandidateV0
+pub fn omena_query::OmenaQueryStyleHoverCandidateV0::partial_cmp(&self, &Self) -> core::option::Option<core::cmp::Ordering>
 pub struct omena_query::OmenaQueryStyleHoverCandidatesV0
 pub omena_query::OmenaQueryStyleHoverCandidatesV0::candidates: alloc::vec::Vec<omena_query::OmenaQueryStyleHoverCandidateV0>
 pub omena_query::OmenaQueryStyleHoverCandidatesV0::language: &'static str

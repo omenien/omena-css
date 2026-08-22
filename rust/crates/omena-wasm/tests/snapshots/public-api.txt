@@ -1,25 +1,19 @@
-pub mod omena_wasm
 #[non_exhaustive] pub struct omena_wasm::OmenaWasmBundleExecutionScopeResultV0
-pub omena_wasm::OmenaWasmBundleExecutionScopeResultV0::bundle: omena_query::types::OmenaQueryBundleWithEvidenceV0
-pub omena_wasm::OmenaWasmBundleExecutionScopeResultV0::execution_scope: core::option::Option<omena_query::types::OmenaQueryBundleExecutionScopeEvidenceV0>
-pub struct omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0
-impl omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0
-pub fn omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0::analyze(&mut self, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
-pub fn omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0::new() -> Self
-impl omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0
-pub fn omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0::analyze_summary(&mut self, &engine_input_producers::EngineInputV2) -> omena_query_core::OmenaQueryExpressionDomainIncrementalFlowAnalysisV0
 impl core::default::Default for omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0
-pub fn omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0::default() -> Self
-pub struct omena_wasm::OmenaWasmSourceImportDeclarationsV0
+impl omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0
+impl omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0
 impl omena_wasm::OmenaWasmSourceImportDeclarationsV0
+impl omena_wasm::OmenaWasmWorkspaceV0
+pub fn omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0::analyze(&mut self, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0::analyze_summary(&mut self, &engine_input_producers::EngineInputV2) -> omena_query_core::OmenaQueryExpressionDomainIncrementalFlowAnalysisV0
+pub fn omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0::default() -> Self
+pub fn omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0::new() -> Self
 pub fn omena_wasm::OmenaWasmSourceImportDeclarationsV0::binding_at(&self, usize) -> core::option::Option<alloc::string::String>
 pub fn omena_wasm::OmenaWasmSourceImportDeclarationsV0::declaration_id_at(&self, usize) -> core::option::Option<alloc::string::String>
 pub fn omena_wasm::OmenaWasmSourceImportDeclarationsV0::import_count(&self) -> usize
 pub fn omena_wasm::OmenaWasmSourceImportDeclarationsV0::specifier_at(&self, usize) -> core::option::Option<alloc::string::String>
 pub fn omena_wasm::OmenaWasmSourceImportDeclarationsV0::specifier_byte_end_at(&self, usize) -> core::option::Option<usize>
 pub fn omena_wasm::OmenaWasmSourceImportDeclarationsV0::specifier_byte_start_at(&self, usize) -> core::option::Option<usize>
-pub struct omena_wasm::OmenaWasmWorkspaceV0
-impl omena_wasm::OmenaWasmWorkspaceV0
 pub fn omena_wasm::OmenaWasmWorkspaceV0::build(&self, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
 pub fn omena_wasm::OmenaWasmWorkspaceV0::diagnostics(&self, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
 pub fn omena_wasm::OmenaWasmWorkspaceV0::explain(&self, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
@@ -96,3 +90,9 @@ pub fn omena_wasm::summarize_transform_bundle_from_source(&str, &str) -> core::r
 pub fn omena_wasm::summarize_transform_bundle_from_source_summary(&str, &str) -> omena_bundler::TransformBundleSourceSummaryV0
 pub fn omena_wasm::transform_context_from_engine_input(wasm_bindgen::JsValue, &str, bool) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
 pub fn omena_wasm::transform_context_from_engine_input_summary(&engine_input_producers::EngineInputV2, &str, bool) -> omena_query::types::OmenaQueryTransformContextFromEngineInputSummaryV0
+pub mod omena_wasm
+pub omena_wasm::OmenaWasmBundleExecutionScopeResultV0::bundle: omena_query::types::OmenaQueryBundleWithEvidenceV0
+pub omena_wasm::OmenaWasmBundleExecutionScopeResultV0::execution_scope: core::option::Option<omena_query::types::OmenaQueryBundleExecutionScopeEvidenceV0>
+pub struct omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0
+pub struct omena_wasm::OmenaWasmSourceImportDeclarationsV0
+pub struct omena_wasm::OmenaWasmWorkspaceV0

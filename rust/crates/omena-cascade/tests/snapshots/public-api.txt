@@ -25,9 +25,13 @@
 #[non_exhaustive] pub struct omena_cascade::OpenWorldTieEvidence
 #[non_exhaustive] pub struct omena_cascade::first_witness::GuardedCascadeFragmentPredicateV0
 #[non_exhaustive] pub struct omena_cascade::first_witness::GuardedCascadeWinnerAuthorityV0
+impl core::cmp::Eq for omena_cascade::CascadeDeclaration
+impl core::cmp::Eq for omena_cascade::CascadeProof
 impl core::cmp::Ord for omena_cascade::CascadeKey
 impl core::cmp::Ord for omena_cascade::ModuleRank
 impl core::cmp::Ord for omena_cascade::Specificity
+impl core::cmp::PartialEq for omena_cascade::CascadeDeclaration
+impl core::cmp::PartialEq for omena_cascade::CascadeProof
 impl core::cmp::PartialOrd for omena_cascade::CascadeKey
 impl core::cmp::PartialOrd for omena_cascade::ModuleRank
 impl core::cmp::PartialOrd for omena_cascade::Specificity
@@ -235,8 +239,10 @@ pub fn omena_cascade::AtRuleNestingOrderAtomV0::atom(&self) -> &str
 pub fn omena_cascade::AtRuleNestingOrderAtomV0::atom(&self) -> &str
 pub fn omena_cascade::AtRuleNestingOrderAtomV0::new(impl core::convert::Into<alloc::string::String>, impl core::iter::traits::collect::IntoIterator<Item = u32>) -> Self
 pub fn omena_cascade::AtRuleNestingOrderAtomV0::new(impl core::convert::Into<alloc::string::String>, impl core::iter::traits::collect::IntoIterator<Item = u32>) -> Self
+pub fn omena_cascade::CascadeDeclaration::eq(&self, &Self) -> bool
 pub fn omena_cascade::CascadeKey::cmp(&self, &Self) -> core::cmp::Ordering
 pub fn omena_cascade::CascadeKey::partial_cmp(&self, &Self) -> core::option::Option<core::cmp::Ordering>
+pub fn omena_cascade::CascadeProof::eq(&self, &Self) -> bool
 pub fn omena_cascade::CascadeProof::from_declaration(&omena_cascade::CascadeDeclaration) -> Self
 pub fn omena_cascade::CascadeRefinementContextV0::default() -> Self
 pub fn omena_cascade::ElementParentChainV0::is_complete(&self) -> bool
@@ -565,7 +571,8 @@ pub omena_cascade::CascadeConformanceSeedResult::passed: bool
 pub omena_cascade::CascadeDeclaration::id: alloc::string::String
 pub omena_cascade::CascadeDeclaration::key: omena_cascade::CascadeKey
 pub omena_cascade::CascadeDeclaration::open_world_tie_evidence: omena_cascade::OpenWorldTieEvidence
-pub omena_cascade::CascadeDeclaration::property: alloc::string::String
+pub omena_cascade::CascadeDeclaration::property: omena_syntax::ident::AuthoredPropertyTextV0
+pub omena_cascade::CascadeDeclaration::property_key: omena_syntax::ident::CanonicalPropertyKeyV0
 pub omena_cascade::CascadeDeclaration::specificity_exactness: omena_cascade::SpecificityExactnessV0
 pub omena_cascade::CascadeDeclaration::value: omena_cascade::CascadeValue
 pub omena_cascade::CascadeDeepConflictReportV0::conflicting_vertex_count: usize
@@ -659,7 +666,8 @@ pub omena_cascade::CascadeProof::declaration_id: alloc::string::String
 pub omena_cascade::CascadeProof::layer_rank: omena_cascade::LayerRank
 pub omena_cascade::CascadeProof::level: omena_cascade::CascadeLevel
 pub omena_cascade::CascadeProof::module_rank: omena_cascade::ModuleRank
-pub omena_cascade::CascadeProof::property: alloc::string::String
+pub omena_cascade::CascadeProof::property: omena_syntax::ident::AuthoredPropertyTextV0
+pub omena_cascade::CascadeProof::property_key: omena_syntax::ident::CanonicalPropertyKeyV0
 pub omena_cascade::CascadeProof::scope_proximity: u32
 pub omena_cascade::CascadeProof::source_order: u32
 pub omena_cascade::CascadeProof::specificity: omena_cascade::Specificity
@@ -1543,3 +1551,6 @@ pub type omena_cascade::LonghandMergeInputV0 = omena_cascade::BoxLonghandInputV0
 pub type omena_cascade::LonghandMergeProofV0 = omena_cascade::ShorthandCombinationProofV0
 pub type omena_cascade::NodeId = u32
 pub type omena_cascade::first_witness::NodeId = u32
+pub use omena_cascade::AuthoredPropertyTextV0
+pub use omena_cascade::CanonicalPropertyKeyV0
+pub use omena_cascade::PropertyNameV0
