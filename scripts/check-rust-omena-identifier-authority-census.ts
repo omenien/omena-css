@@ -36,6 +36,41 @@ interface DiscoveredSite {
   readonly evidence: string;
 }
 
+type PropertyIdentitySiteRole = "authority" | "producer" | "consumer" | "carrier";
+
+interface PropertyIdentitySite extends DiscoveredSite {
+  readonly role: PropertyIdentitySiteRole;
+}
+
+interface PropertyIdentityTypeSeal {
+  readonly path: "rust/crates/omena-syntax/src/ident.rs";
+  readonly propertyNameDerives: readonly ["Debug", "Clone"];
+  readonly propertyNameEqualityDerives: readonly [];
+  readonly standardKeyDerives: readonly [
+    "Debug",
+    "Clone",
+    "PartialEq",
+    "Eq",
+    "PartialOrd",
+    "Ord",
+    "Hash",
+  ];
+  readonly customKeyDerives: readonly [
+    "Debug",
+    "Clone",
+    "PartialEq",
+    "Eq",
+    "PartialOrd",
+    "Ord",
+    "Hash",
+  ];
+  readonly keyFieldVisibility: "private";
+  readonly sharedDecoder: "decode_css_identifier_escapes";
+  readonly standardCanonicalization: "trim-decode-ascii-lowercase";
+  readonly customCanonicalization: "trim-decode-case-preserved";
+  readonly equalityMethod: "PropertyNameV0::same_as";
+}
+
 interface IdentifierAuthorityCensus {
   readonly schemaVersion: "0";
   readonly product: "omena.identifier-authority.census";
@@ -108,6 +143,17 @@ interface IdentifierAuthorityCensus {
     readonly sites: readonly CensusSite[];
     readonly siteDigest: string;
   };
+  readonly propertyIdentity: {
+    readonly derivation: "authority-token-and-property-key-operation-scan";
+    readonly rawSiteDerivation: "property-labelled-raw-comparison-map-or-prefix-scan";
+    readonly typeSeal: PropertyIdentityTypeSeal;
+    readonly authoritySiteCount: number;
+    readonly sites: readonly PropertyIdentitySite[];
+    readonly siteDigest: string;
+    readonly rawStringIdentitySiteCount: 0;
+    readonly rawStringIdentitySites: readonly [];
+    readonly rawStringIdentitySiteDigest: string;
+  };
 }
 
 interface ExemptionRule {
@@ -135,6 +181,14 @@ const injectPredicateCopyExplicit =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PREDICATE_COPY_EXPLICIT === "1";
 const injectPredicateCopyReversed =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PREDICATE_COPY_REVERSED === "1";
+const injectPropertyStructuralEquality =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_STRUCTURAL_EQUALITY === "1";
+const injectPropertyRawMap =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_RAW_MAP === "1";
+const injectPropertyCaseFold =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_CASE_FOLD === "1";
+const injectPropertyDecodeNeuter =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_DECODE_NEUTER === "1";
 
 const sourceRoots = ["rust/crates"] as const;
 const lexemeGlobs = [
@@ -465,6 +519,9 @@ const typeSeal = inspectTypeSeal();
 const egressDiscovered = discoverEgressSites();
 const idiomDiscovered = discoverIdiomSites();
 const predicateDiscovered = discoverPredicateCopies();
+const propertyTypeSeal = inspectPropertyTypeSeal();
+const propertyIdentitySites = discoverPropertyIdentitySites();
+const rawPropertyIdentitySites = discoverRawPropertyIdentitySites();
 const egressSites = classifySites(
   egressDiscovered,
   existing?.egress.sites,
@@ -486,6 +543,11 @@ assert.deepEqual(
 const classifiedEgressSites = egressSites as CensusSite[];
 const classifiedIdiomSites = idiomSites as CensusSite[];
 const classifiedPredicateSites = predicateSites as CensusSite[];
+assert.deepEqual(
+  rawPropertyIdentitySites,
+  [],
+  "property identity census found raw-string identity sites; convert each boundary to PropertyNameV0 or a sealed canonical key",
+);
 const baselineEgressSiteCount = existing?.egress.baselineSiteCount ?? classifiedEgressSites.length;
 assert.ok(
   classifiedEgressSites.length <= baselineEgressSiteCount,
@@ -567,6 +629,17 @@ const census: IdentifierAuthorityCensus = {
     sites: classifiedPredicateSites,
     siteDigest: digest(classifiedPredicateSites),
   },
+  propertyIdentity: {
+    derivation: "authority-token-and-property-key-operation-scan",
+    rawSiteDerivation: "property-labelled-raw-comparison-map-or-prefix-scan",
+    typeSeal: propertyTypeSeal,
+    authoritySiteCount: propertyIdentitySites.length,
+    sites: propertyIdentitySites,
+    siteDigest: digest(propertyIdentitySites),
+    rawStringIdentitySiteCount: 0,
+    rawStringIdentitySites: [],
+    rawStringIdentitySiteDigest: digest([]),
+  },
 };
 
 const expected = `${JSON.stringify(census, null, 2)}\n`;
@@ -578,7 +651,11 @@ if (writeMode) {
       !injectUnlabelledComparison &&
       !injectPredicateCopy &&
       !injectPredicateCopyExplicit &&
-      !injectPredicateCopyReversed,
+      !injectPredicateCopyReversed &&
+      !injectPropertyStructuralEquality &&
+      !injectPropertyRawMap &&
+      !injectPropertyCaseFold &&
+      !injectPropertyDecodeNeuter,
     "test injection cannot be combined with --write",
   );
   writeFileSync(censusPath, expected);
@@ -616,6 +693,8 @@ process.stdout.write(
       idiomSanctionedSiteCount: census.idiom.sanctionedSiteCount,
       idiomNamedExemptSiteCount: census.idiom.namedExemptSiteCount,
       predicateCopySiteCount: census.predicateCopies.currentSiteCount,
+      propertyAuthoritySiteCount: census.propertyIdentity.authoritySiteCount,
+      rawPropertyIdentitySiteCount: census.propertyIdentity.rawStringIdentitySiteCount,
     },
     null,
     2,
@@ -694,6 +773,216 @@ function inspectTypeSeal(): IdentifierAuthorityCensus["typeSeal"] {
   };
 }
 
+function inspectPropertyTypeSeal(): PropertyIdentityTypeSeal {
+  const relativePath = "rust/crates/omena-syntax/src/ident.rs" as const;
+  let source = readFileSync(path.join(repoRoot, relativePath), "utf8");
+  if (injectPropertyCaseFold) {
+    source = source.replace(
+      /CanonicalCustomPropertyNameV0\(\s*decoded\.clone\(\),/u,
+      "CanonicalCustomPropertyNameV0(decoded.to_ascii_lowercase(),",
+    );
+  }
+  if (injectPropertyDecodeNeuter) {
+    source = source.replace(
+      "let decoded = decode_css_identifier_escapes(&authored).into_owned();",
+      "let decoded = authored.clone();",
+    );
+  }
+
+  const propertyNameDerives = derivesForEnum(source, "PropertyNameV0");
+  const standardKeyDerives = derivesForStruct(source, "CanonicalStandardPropertyNameV0");
+  const customKeyDerives = derivesForStruct(source, "CanonicalCustomPropertyNameV0");
+  assert.deepEqual(
+    propertyNameDerives,
+    ["Debug", "Clone"],
+    "PropertyNameV0 derives must forbid raw structural equality and ordering",
+  );
+  assert.deepEqual(
+    standardKeyDerives,
+    ["Debug", "Clone", "PartialEq", "Eq", "PartialOrd", "Ord", "Hash"],
+    "CanonicalStandardPropertyNameV0 must remain a sealed equality carrier",
+  );
+  assert.deepEqual(
+    customKeyDerives,
+    ["Debug", "Clone", "PartialEq", "Eq", "PartialOrd", "Ord", "Hash"],
+    "CanonicalCustomPropertyNameV0 must remain a sealed equality carrier",
+  );
+  assert.match(
+    source,
+    /pub struct CanonicalStandardPropertyNameV0\s*\(\s*String\s*,\s*CanonicalStandardPropertyNameSealV0\s*\)\s*;/u,
+    "standard property key fields must remain private and sealed",
+  );
+  assert.match(
+    source,
+    /pub struct CanonicalCustomPropertyNameV0\s*\(\s*String\s*,\s*CanonicalCustomPropertyNameSealV0\s*\)\s*;/u,
+    "custom property key fields must remain private and sealed",
+  );
+  assert.match(
+    source,
+    /let decoded = decode_css_identifier_escapes\(&authored\)\.into_owned\(\);/u,
+    "property identity must share the CSS identifier escape decoder",
+  );
+  assert.match(
+    source,
+    /CanonicalStandardPropertyNameV0\(\s*decoded\.to_ascii_lowercase\(\),/u,
+    "standard property canonicalization must remain ASCII-case-insensitive",
+  );
+  assert.match(
+    source,
+    /CanonicalCustomPropertyNameV0\(\s*decoded\.clone\(\),/u,
+    "custom property canonicalization must preserve decoded case",
+  );
+  assert.match(
+    source,
+    /pub fn property_names_same\([^)]*\)[^{]*\{\s*PropertyNameV0::from_authored\(left\)\.same_as\(&PropertyNameV0::from_authored\(right\)\)/su,
+    "property comparison helper must delegate to PropertyNameV0::same_as",
+  );
+
+  return {
+    path: relativePath,
+    propertyNameDerives: ["Debug", "Clone"],
+    propertyNameEqualityDerives: [],
+    standardKeyDerives: ["Debug", "Clone", "PartialEq", "Eq", "PartialOrd", "Ord", "Hash"],
+    customKeyDerives: ["Debug", "Clone", "PartialEq", "Eq", "PartialOrd", "Ord", "Hash"],
+    keyFieldVisibility: "private",
+    sharedDecoder: "decode_css_identifier_escapes",
+    standardCanonicalization: "trim-decode-ascii-lowercase",
+    customCanonicalization: "trim-decode-case-preserved",
+    equalityMethod: "PropertyNameV0::same_as",
+  };
+}
+
+function discoverPropertyIdentitySites(): PropertyIdentitySite[] {
+  const tokenPatterns = [
+    ["PropertyNameV0::from_authored", /PropertyNameV0::from_authored\s*\(/u],
+    ["PropertyNameV0::custom", /PropertyNameV0::custom\s*\(/u],
+    ["PropertyNameV0::standard", /PropertyNameV0::standard\s*\(/u],
+    ["PropertyNameV0::canonical_custom_key", /PropertyNameV0::canonical_custom_key\s*\(/u],
+    ["PropertyNameV0::canonical_standard_key", /PropertyNameV0::canonical_standard_key\s*\(/u],
+    [
+      "PropertyNameV0::canonical_key",
+      /\b(?:property|property_name|property_identity|canonical_property)\.canonical_key\s*\(\s*\)/u,
+    ],
+    ["sealed-property-key", /\b(?:[A-Za-z_][A-Za-z0-9_]*\.)?property_key\b/u],
+    [
+      "PropertyNameV0::same_as",
+      /(?:\b(?:property|property_name|property_identity|canonical_property)\.same_as\s*\(|\.same_as\s*\(\s*&PropertyNameV0)/u,
+    ],
+    ["property_names_same", /\bproperty_names_same\s*\(/u],
+    ["CanonicalPropertyKeyV0", /\bCanonicalPropertyKeyV0\b/u],
+    ["CanonicalCustomPropertyNameV0", /\bCanonicalCustomPropertyNameV0\b/u],
+    ["CanonicalStandardPropertyNameV0", /\bCanonicalStandardPropertyNameV0\b/u],
+  ] as const;
+  const sites: PropertyIdentitySite[] = [];
+  for (const relativePath of productionSources) {
+    const source = readFileSync(path.join(repoRoot, relativePath), "utf8");
+    const scannable = maskCommentsStringsAndTestItems(source, false);
+    const sourceLines = source.split(/\r?\n/u);
+    for (const [index, line] of scannable.split(/\r?\n/u).entries()) {
+      const match = tokenPatterns.find(([, pattern]) => pattern.test(line));
+      if (!match) continue;
+      const evidence = sourceLines[index]?.trim().replace(/\s+/gu, " ") ?? "";
+      const functionName = enclosingFunctionName(scannable, offsetForLine(scannable, index + 1));
+      const operation = match[0];
+      const role: PropertyIdentitySiteRole =
+        relativePath === "rust/crates/omena-syntax/src/ident.rs"
+          ? "authority"
+          : /property_key\s*:|canonical_custom_key|canonical_key/u.test(evidence)
+            ? "producer"
+            : /property_names_same|same_as|\.get\s*\(|contains_key|\.entry\s*\(/u.test(evidence)
+              ? "consumer"
+              : /Canonical(?:Custom|Standard)?Property/u.test(evidence)
+                ? "carrier"
+                : "consumer";
+      sites.push({
+        path: relativePath,
+        line: index + 1,
+        function: functionName,
+        operation,
+        evidence,
+        role,
+      });
+    }
+  }
+  return uniqueSites(sites);
+}
+
+function discoverRawPropertyIdentitySites(): DiscoveredSite[] {
+  const sources = productionSources.map((relativePath) => ({
+    relativePath,
+    source: readFileSync(path.join(repoRoot, relativePath), "utf8"),
+  }));
+  if (injectPropertyStructuralEquality) {
+    sources.push({
+      relativePath: "rust/crates/omena-query/src/injected_property_identity.rs",
+      source:
+        "fn injected(left_property: String, right_property: String) -> bool { left_property == right_property }\n",
+    });
+  }
+  if (injectPropertyRawMap) {
+    sources.push({
+      relativePath: "rust/crates/omena-query/src/injected_property_map.rs",
+      source:
+        "use std::collections::HashMap;\nfn injected() {\n  let custom_property_env:\n    HashMap<\n      &'static str,\n      u8,\n    > = HashMap::new();\n  drop(custom_property_env);\n}\n",
+    });
+  }
+
+  const dynamicPropertyComparison =
+    /(?:\b(?:left|right|candidate|declaration|previous|current|input|output|winner|actual|expected|fixture)(?:\.input)?\.property\b|\b(?:left_property|right_property|actual_property|property_name|shorthand)\b)\s*(?:==|!=)\s*(?:\b(?:left|right|candidate|declaration|previous|current|input|output|winner|actual|expected|fixture)(?:\.input)?\.property\b|\b(?:left_property|right_property|actual_property|property_name|shorthand|property)\b)/u;
+  const dynamicCustomNameComparison =
+    /\b(?:declaration|reference|winner|registration|candidate)\.name\s*(?:==|!=)\s*(?:\b(?:declaration|reference|winner|registration|candidate)\.name\b|\bname\b)/u;
+  const rawCustomPrefix =
+    /\b(?:property|property_name|declaration\.property)\.starts_with\s*\(\s*"--"\s*\)/u;
+  const rawStringKey = String.raw`(?:String|&\s*(?:'static\s+)?str)`;
+  const rawCollection = String.raw`(?:BTreeMap|BTreeSet|HashMap|HashSet)\s*(?:::\s*)?<\s*${rawStringKey}\b`;
+  const rawCustomMapLabel = String.raw`(?:custom_property(?:_env|_names|_keys|_map|_set|_declarations|_references|_registrations)?|custom_properties(?:_by_name|_map|_set)?|registered_custom_properties|customProperty[A-Za-z0-9_]*|CustomProperty[A-Za-z0-9_]*|declarations_by_name|references_by_name|registrations_by_name)`;
+  const rawCustomMap = new RegExp(
+    String.raw`\b${rawCustomMapLabel}\b\s*(?::|=)\s*${rawCollection}`,
+    "giu",
+  );
+  const rawCustomKeyOperation =
+    /\.(?:entry|get|contains_key|remove|insert)\s*\(\s*&?(?:declaration|reference|registration|candidate)\.name\b/u;
+  const sites: DiscoveredSite[] = [];
+  for (const { relativePath, source } of sources) {
+    const scannable = maskCommentsStringsAndTestItems(source, true);
+    const sourceLines = source.split(/\r?\n/u);
+    for (const match of scannable.matchAll(rawCustomMap)) {
+      sites.push(siteAt(relativePath, source, scannable, match.index, "raw-custom-property-map"));
+    }
+    for (const [index, line] of scannable.split(/\r?\n/u).entries()) {
+      if (
+        /PropertyNameV0|Canonical(?:Custom|Standard)?Property|property_names_same|property_key/u.test(
+          line,
+        )
+      ) {
+        continue;
+      }
+      const functionName = enclosingFunctionName(scannable, offsetForLine(scannable, index + 1));
+      const customPropertyContext = /(?:custom|registered)_property|property_registration/u.test(
+        `${relativePath} ${functionName} ${line}`,
+      );
+      const operation = dynamicPropertyComparison.test(line)
+        ? "raw-property-comparison"
+        : dynamicCustomNameComparison.test(line) && customPropertyContext
+          ? "raw-custom-property-name-comparison"
+          : rawCustomPrefix.test(line)
+            ? "raw-custom-property-prefix"
+            : rawCustomKeyOperation.test(line) && customPropertyContext
+              ? "raw-custom-property-key-operation"
+              : undefined;
+      if (!operation) continue;
+      sites.push({
+        path: relativePath,
+        line: index + 1,
+        function: functionName,
+        operation,
+        evidence: sourceLines[index]?.trim().replace(/\s+/gu, " ") ?? "",
+      });
+    }
+  }
+  return uniqueSites(sites);
+}
+
 function derivesForStruct(source: string, structName: string): string[] {
   const match = source.match(
     new RegExp(
@@ -702,6 +991,17 @@ function derivesForStruct(source: string, structName: string): string[] {
     ),
   );
   assert.ok(match, `derive list missing for ${structName}`);
+  return match[1]
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function derivesForEnum(source: string, enumName: string): string[] {
+  const match = source.match(
+    new RegExp(`#\\s*\\[\\s*derive\\s*\\(([^)]*)\\)\\s*\\]\\s*pub\\s+enum\\s+${enumName}\\b`, "u"),
+  );
+  assert.ok(match, `derive list missing for ${enumName}`);
   return match[1]
     .split(",")
     .map((value) => value.trim())
@@ -735,11 +1035,20 @@ function discoverEgressSites(): DiscoveredSite[] {
           ? /\b[A-Za-z_][A-Za-z0-9_]*\.into_inner\s*\(\s*\)/gu
           : /$a/gu,
       ],
-      ["CanonicalClassKeyV0::as_str", /\.canonical_key\s*\(\s*\)\s*\.as_str\s*\(\s*\)/gu],
+      [
+        "CanonicalClassKeyV0::as_str",
+        /\b([A-Za-z_][A-Za-z0-9_]*)\.canonical_key\s*\(\s*\)\s*\.as_str\s*\(\s*\)/gu,
+      ],
     ];
     for (const [operation, expression] of candidatePatterns) {
       expression.lastIndex = 0;
       for (const match of scannable.matchAll(expression)) {
+        if (
+          operation === "CanonicalClassKeyV0::as_str" &&
+          match[1]?.toLowerCase().includes("property")
+        ) {
+          continue;
+        }
         discovered.push(siteAt(relativePath, source, scannable, match.index, operation));
       }
     }
@@ -747,6 +1056,7 @@ function discoverEgressSites(): DiscoveredSite[] {
     for (const match of scannable.matchAll(
       /\blet\s+([A-Za-z_][A-Za-z0-9_]*)[^=;\n]*=\s*[^;\n]*\.canonical_key\s*\(\s*\)/gu,
     )) {
+      if (/property/u.test(match[0])) continue;
       canonicalVariables.add(match[1]);
     }
     for (const match of scannable.matchAll(
@@ -1188,5 +1498,27 @@ function readExistingCensus(): IdentifierAuthorityCensus | undefined {
     digest(parsed.predicateCopies.sites),
     "predicate-copy site digest",
   );
+  if (parsed.propertyIdentity) {
+    assert.equal(
+      parsed.propertyIdentity.authoritySiteCount,
+      parsed.propertyIdentity.sites.length,
+      "property authority site count",
+    );
+    assert.equal(
+      parsed.propertyIdentity.siteDigest,
+      digest(parsed.propertyIdentity.sites),
+      "property authority site digest",
+    );
+    assert.equal(
+      parsed.propertyIdentity.rawStringIdentitySiteCount,
+      0,
+      "raw property identity site count",
+    );
+    assert.equal(
+      parsed.propertyIdentity.rawStringIdentitySiteDigest,
+      digest(parsed.propertyIdentity.rawStringIdentitySites),
+      "raw property identity site digest",
+    );
+  }
   return parsed;
 }

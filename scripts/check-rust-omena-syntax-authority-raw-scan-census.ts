@@ -229,13 +229,6 @@ const namedTokenCaseOperationRules: readonly NamedTokenCaseOperationRule[] = [
     evidence: "let lower = source.to_ascii_lowercase();",
     reason: "A module request path is normalized for case-insensitive style-extension matching.",
   },
-  {
-    path: "rust/crates/omena-parser/src/public_product/syntax_index.rs",
-    function: "declaration_syntax_with_context",
-    operation: "to_ascii_lowercase",
-    evidence: "property_name = property_name.trim().to_ascii_lowercase();",
-    reason: "The product syntax index stores a canonical lowercase property identity.",
-  },
 ] as const;
 
 const existing = readExistingCensus();
