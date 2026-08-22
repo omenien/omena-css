@@ -1616,7 +1616,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand_logical.rs",
-      "line": 376,
+      "line": 383,
       "function": "single_component_value_without_important",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -1627,7 +1627,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand_logical.rs",
-      "line": 377,
+      "line": 384,
       "function": "single_component_value_without_important",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -1792,7 +1792,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 614,
+      "line": 615,
       "function": "declaration_value_without_important",
       "idiom": "ends-with",
       "keyword": "!important",
@@ -1803,17 +1803,6 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 1127,
-      "function": "single_component_value_without_important",
-      "idiom": "eq-ignore-ascii-case",
-      "keyword": "!important",
-      "classification": "PROTECTED-BY-PARSER",
-      "disposition": "retain-case-insensitive-witness",
-      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
-      "evidence": "component.eq_ignore_ascii_case(\"!important\")"
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
       "line": 1128,
       "function": "single_component_value_without_important",
       "idiom": "eq-ignore-ascii-case",
@@ -1821,18 +1810,18 @@
       "classification": "PROTECTED-BY-PARSER",
       "disposition": "retain-case-insensitive-witness",
       "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
-      "evidence": "|| component.eq_ignore_ascii_case(\"important\")"
+      "evidence": "component.eq_ignore_ascii_case(\"!important\")"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 1154,
-      "function": "normalize_place_axis_value",
+      "line": 1129,
+      "function": "single_component_value_without_important",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
       "classification": "PROTECTED-BY-PARSER",
       "disposition": "retain-case-insensitive-witness",
       "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
-      "evidence": "component.eq_ignore_ascii_case(\"!important\")"
+      "evidence": "|| component.eq_ignore_ascii_case(\"important\")"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
@@ -1843,11 +1832,22 @@
       "classification": "PROTECTED-BY-PARSER",
       "disposition": "retain-case-insensitive-witness",
       "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "component.eq_ignore_ascii_case(\"!important\")"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+      "line": 1156,
+      "function": "normalize_place_axis_value",
+      "idiom": "eq-ignore-ascii-case",
+      "keyword": "!important",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
       "evidence": "|| component.eq_ignore_ascii_case(\"important\")"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 1287,
+      "line": 1288,
       "function": "compress_gap_value",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -1858,7 +1858,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 1288,
+      "line": 1289,
       "function": "compress_gap_value",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -2045,7 +2045,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-      "line": 923,
+      "line": 924,
       "function": "guarded_conditions_from_context",
       "idiom": "strip-prefix",
       "keyword": "@supports",
@@ -2056,7 +2056,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-      "line": 1163,
+      "line": 1165,
       "function": "conditional_context_is_open",
       "idiom": "contains",
       "keyword": "@supports",
@@ -2110,7 +2110,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:d7ffe5fe644cb397d3f52dbc15cfbeb6096c1caf9688f2a7f9b3a8ab3106e745",
+  "siteDigest": "sha256:5ea858038920182d6a4df5a4366e310d812a72a65182126ef4d385741f0beac5",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
@@ -2157,12 +2157,10 @@
       "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs#collect_overridden_same_property_declaration_replacements_from_ir",
       "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs#keyframe_name_from_at_rule_prelude",
       "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#conditional_context_is_open",
-      "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#guarded_candidate_seeds_for_pair",
       "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#guarded_conditions_from_context",
-      "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#guarded_environment_candidate_seeds_for_pair",
       "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#winner_for_pair"
     ],
-    "functionKeyDigest": "sha256:4d9b39a41b99537aecf16d14f60aec29ff577a4db7aaadb20d8c0e4a9af34d85",
+    "functionKeyDigest": "sha256:ddbcb0cae53a4cb1471c730c9e994846c05a5ea94d84affb91aa5a117c281aec",
     "adHocCaseOperationCount": 0,
     "adHocCaseOperations": []
   }

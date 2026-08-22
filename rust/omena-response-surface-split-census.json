@@ -67,7 +67,7 @@
     "omena-refinement": 15,
     "omena-refinement-trait": 3,
     "omena-resolver": 39,
-    "omena-scss-eval": 180,
+    "omena-scss-eval": 181,
     "omena-semantic": 123,
     "omena-sif": 50,
     "omena-spec-audit": 25,
@@ -3685,7 +3685,7 @@
       "crate": "omena-checker",
       "typeName": "CascadeDeclarationFixture",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 5022
+      "line": 5030
     },
     {
       "crate": "omena-checker",
@@ -9539,6 +9539,12 @@
     },
     {
       "crate": "omena-scss-eval",
+      "typeName": "NativeCssFunctionBindingV0",
+      "sourcePath": "rust/crates/omena-scss-eval/src/native_css.rs",
+      "line": 1566
+    },
+    {
+      "crate": "omena-scss-eval",
       "typeName": "NativeCssFunctionSyntaxGateV0",
       "sourcePath": "rust/crates/omena-scss-eval/src/native_css.rs",
       "line": 1560
@@ -11749,61 +11755,61 @@
       "crate": "omena-syntax",
       "typeName": "CanonicalClassKeySealV0",
       "sourcePath": "rust/crates/omena-syntax/src/ident.rs",
-      "line": 62
+      "line": 61
     },
     {
       "crate": "omena-syntax",
       "typeName": "CanonicalClassKeyV0",
       "sourcePath": "rust/crates/omena-syntax/src/ident.rs",
-      "line": 65
+      "line": 64
     },
     {
       "crate": "omena-syntax",
       "typeName": "CanonicalCustomPropertyNameSealV0",
       "sourcePath": "rust/crates/omena-syntax/src/ident.rs",
-      "line": 273
+      "line": 279
     },
     {
       "crate": "omena-syntax",
       "typeName": "CanonicalCustomPropertyNameV0",
       "sourcePath": "rust/crates/omena-syntax/src/ident.rs",
-      "line": 276
+      "line": 292
     },
     {
       "crate": "omena-syntax",
       "typeName": "CanonicalPropertyKeyV0",
       "sourcePath": "rust/crates/omena-syntax/src/ident.rs",
-      "line": 300
+      "line": 310
     },
     {
       "crate": "omena-syntax",
       "typeName": "CanonicalStandardPropertyNameSealV0",
       "sourcePath": "rust/crates/omena-syntax/src/ident.rs",
-      "line": 246
+      "line": 245
     },
     {
       "crate": "omena-syntax",
       "typeName": "CanonicalStandardPropertyNameV0",
       "sourcePath": "rust/crates/omena-syntax/src/ident.rs",
-      "line": 249
+      "line": 261
     },
     {
       "crate": "omena-syntax",
       "typeName": "ClassNameV0",
       "sourcePath": "rust/crates/omena-syntax/src/ident.rs",
-      "line": 17
+      "line": 16
     },
     {
       "crate": "omena-syntax",
       "typeName": "ClassSelectorNameV0",
       "sourcePath": "rust/crates/omena-syntax/src/ident.rs",
-      "line": 363
+      "line": 373
     },
     {
       "crate": "omena-syntax",
       "typeName": "ClassSelectorPositionV0",
       "sourcePath": "rust/crates/omena-syntax/src/ident.rs",
-      "line": 357
+      "line": 367
     },
     {
       "crate": "omena-syntax",
@@ -11827,13 +11833,13 @@
       "crate": "omena-syntax",
       "typeName": "PropertyNameKindV0",
       "sourcePath": "rust/crates/omena-syntax/src/ident.rs",
-      "line": 76
+      "line": 75
     },
     {
       "crate": "omena-syntax",
       "typeName": "PropertyNameV0",
       "sourcePath": "rust/crates/omena-syntax/src/ident.rs",
-      "line": 97
+      "line": 96
     },
     {
       "crate": "omena-syntax",
@@ -13087,7 +13093,7 @@
       "crate": "omena-transform-passes",
       "typeName": "LogicalFourSideFamily",
       "sourcePath": "rust/crates/omena-transform-passes/src/domains/shorthand_logical.rs",
-      "line": 106
+      "line": 107
     },
     {
       "crate": "omena-transform-passes",
@@ -13141,7 +13147,7 @@
       "crate": "omena-transform-passes",
       "typeName": "PlaceAxisComponentKind",
       "sourcePath": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 1140
+      "line": 1141
     },
     {
       "crate": "omena-transform-passes",
@@ -13375,7 +13381,7 @@
       "crate": "omena-transform-passes",
       "typeName": "StaticFlexBasisComponent",
       "sourcePath": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 1555
+      "line": 1556
     },
     {
       "crate": "omena-transform-passes",
