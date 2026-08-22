@@ -4,6 +4,8 @@
 //! blocker witnesses for shorthand combination, static supports evaluation, and
 //! scope/layer flattening so transform passes can remain proof-driven.
 
+use omena_syntax::ident::{PropertyNameV0, property_names_same};
+
 use crate::{
     BoxLonghandInputV0, LayerFlattenInputV0, LayerFlattenProofV0, LonghandMergeInputV0,
     LonghandMergeProofV0, ScopeFlattenInputV0, ScopeFlattenProofV0, ShorthandCombinationProofV0,
@@ -42,7 +44,7 @@ where
     if longhands
         .iter()
         .zip(expected_longhands.iter())
-        .any(|(actual, expected)| actual.property != expected.as_ref())
+        .any(|(actual, expected)| !property_names_same(&actual.property, expected.as_ref()))
     {
         return shorthand_combination_proof(
             shorthand_property,
@@ -327,7 +329,8 @@ fn target_supports_feature_for_simple_declaration(
     property: &str,
     value: &str,
 ) -> Option<SupportsTargetFeature> {
-    let property = property.to_ascii_lowercase();
+    let property = PropertyNameV0::from_authored(property);
+    let property = property.as_standard_key()?.as_str();
     let value = normalize_ascii_whitespace(value).to_ascii_lowercase();
     if property.contains("-inline") || property.contains("-block") {
         return Some(SupportsTargetFeature::LogicalProperties);
@@ -568,9 +571,11 @@ fn evaluate_modern_simple_supports_declaration(
     property: &str,
     value: &str,
 ) -> StaticSupportsEvalVerdictV0 {
-    if starts_with_ascii_case_insensitive(property, "-ms-")
-        || starts_with_ascii_case_insensitive(value, "-ms-")
-    {
+    let property = PropertyNameV0::from_authored(property);
+    let is_obsolete_standard_property = property
+        .as_standard_key()
+        .is_some_and(|property| property.as_str().starts_with("-ms-"));
+    if is_obsolete_standard_property || starts_with_ascii_case_insensitive(value, "-ms-") {
         StaticSupportsEvalVerdictV0::AlwaysFalse
     } else {
         StaticSupportsEvalVerdictV0::AlwaysTrue
@@ -660,6 +665,8 @@ fn normalize_ascii_whitespace(text: &str) -> String {
 }
 
 fn box_shorthand_longhands(shorthand_property: &str) -> Option<[&'static str; 4]> {
+    let shorthand_property = PropertyNameV0::from_authored(shorthand_property);
+    let shorthand_property = shorthand_property.as_standard_key()?.as_str();
     match shorthand_property {
         "margin" => Some(["margin-top", "margin-right", "margin-bottom", "margin-left"]),
         "padding" => Some([

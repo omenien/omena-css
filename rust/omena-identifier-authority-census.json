@@ -831,7 +831,7 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/proofs.rs",
-        "line": 631,
+        "line": 636,
         "function": "is_supports_declaration_token_char",
         "operation": "character-predicate-copy",
         "evidence": "fn is_supports_declaration_token_char(ch: char) -> bool { ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_') }",
@@ -911,7 +911,7 @@
         "reason": "omena-transform-cst owns diagnostic context extraction, whose punctuation set is intentionally broader than a CSS identifier."
       }
     ],
-    "siteDigest": "sha256:d2f035b54272236ba80729c8b89e2e906c4ff01625ee440a507f0d6a7961a3f2"
+    "siteDigest": "sha256:5cc9e00a28970ace631770742a784f1345e791bd9c02cc09f1daec8441d6ca45"
   },
   "propertyIdentity": {
     "derivation": "authority-token-and-property-key-operation-scan",
@@ -928,7 +928,7 @@
       "customCanonicalization": "trim-decode-case-preserved",
       "equalityMethod": "PropertyNameV0::same_as"
     },
-    "authoritySiteCount": 568,
+    "authoritySiteCount": 567,
     "sites": [
       {
         "path": "rust/crates/engine-style-parser/src/lib.rs",
@@ -1235,46 +1235,6 @@
         "role": "producer"
       },
       {
-        "path": "rust/crates/omena-cascade/src/lib.rs",
-        "line": 104,
-        "function": "prove_longhand_merge",
-        "operation": "PropertyNameV0::from_authored",
-        "evidence": "omena_syntax::ident::PropertyNameV0::from_authored(shorthand_property)",
-        "role": "consumer"
-      },
-      {
-        "path": "rust/crates/omena-cascade/src/lib.rs",
-        "line": 110,
-        "function": "prove_longhand_merge",
-        "operation": "PropertyNameV0::from_authored",
-        "evidence": "omena_syntax::ident::PropertyNameV0::from_authored(property.as_ref())",
-        "role": "consumer"
-      },
-      {
-        "path": "rust/crates/omena-cascade/src/lib.rs",
-        "line": 120,
-        "function": "prove_longhand_merge",
-        "operation": "PropertyNameV0::from_authored",
-        "evidence": "omena_syntax::ident::PropertyNameV0::from_authored(&longhand.property)",
-        "role": "consumer"
-      },
-      {
-        "path": "rust/crates/omena-cascade/src/lib.rs",
-        "line": 140,
-        "function": "prove_box_shorthand_combination",
-        "operation": "PropertyNameV0::from_authored",
-        "evidence": "omena_syntax::ident::PropertyNameV0::from_authored(shorthand_property)",
-        "role": "consumer"
-      },
-      {
-        "path": "rust/crates/omena-cascade/src/lib.rs",
-        "line": 148,
-        "function": "prove_box_shorthand_combination",
-        "operation": "PropertyNameV0::from_authored",
-        "evidence": "omena_syntax::ident::PropertyNameV0::from_authored(&longhand.property)",
-        "role": "consumer"
-      },
-      {
         "path": "rust/crates/omena-cascade/src/model.rs",
         "line": 8,
         "function": "<module>",
@@ -1297,6 +1257,38 @@
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "pub type CustomPropertyEnv = BTreeMap<CanonicalCustomPropertyNameV0, CascadeValue>;",
         "role": "carrier"
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/proofs.rs",
+        "line": 47,
+        "function": "prove_longhand_merge",
+        "operation": "property_names_same",
+        "evidence": ".any(|(actual, expected)| !property_names_same(&actual.property, expected.as_ref()))",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/proofs.rs",
+        "line": 332,
+        "function": "target_supports_feature_for_simple_declaration",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "let property = PropertyNameV0::from_authored(property);",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/proofs.rs",
+        "line": 574,
+        "function": "evaluate_modern_simple_supports_declaration",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "let property = PropertyNameV0::from_authored(property);",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/proofs.rs",
+        "line": 668,
+        "function": "box_shorthand_longhands",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "let shorthand_property = PropertyNameV0::from_authored(shorthand_property);",
+        "role": "consumer"
       },
       {
         "path": "rust/crates/omena-cascade/src/property_metadata.rs",
@@ -5475,7 +5467,7 @@
         "role": "consumer"
       }
     ],
-    "siteDigest": "sha256:5e9cccbe1f9abe089715dc8f502099e32bc0e435c970ce8fd934a340063109eb",
+    "siteDigest": "sha256:89ecfc9ecb3292f5d05a41160f04af7cbf575870c664903ce887825b58abf3af",
     "rawStringIdentitySiteCount": 0,
     "rawStringIdentitySites": [],
     "rawStringIdentitySiteDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"

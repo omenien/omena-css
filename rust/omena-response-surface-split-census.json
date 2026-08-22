@@ -3637,7 +3637,7 @@
       "crate": "omena-cascade",
       "typeName": "SupportsTargetFeature",
       "sourcePath": "rust/crates/omena-cascade/src/proofs.rs",
-      "line": 283
+      "line": 285
     },
     {
       "crate": "omena-cascade",

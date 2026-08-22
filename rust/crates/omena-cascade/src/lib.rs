@@ -100,73 +100,14 @@ pub fn prove_longhand_merge<S>(
 where
     S: AsRef<str>,
 {
-    let canonical_shorthand =
-        omena_syntax::ident::PropertyNameV0::from_authored(shorthand_property)
-            .canonical_name()
-            .to_string();
-    let canonical_expected = expected_longhands
-        .iter()
-        .map(|property| {
-            omena_syntax::ident::PropertyNameV0::from_authored(property.as_ref())
-                .canonical_name()
-                .to_string()
-        })
-        .collect::<Vec<_>>();
-    let canonical_longhands = longhands
-        .iter()
-        .cloned()
-        .map(|mut longhand| {
-            longhand.property =
-                omena_syntax::ident::PropertyNameV0::from_authored(&longhand.property)
-                    .canonical_name()
-                    .to_string();
-            longhand
-        })
-        .collect::<Vec<_>>();
-    let mut proof = proofs::prove_longhand_merge(
-        &canonical_shorthand,
-        &canonical_expected,
-        &canonical_longhands,
-    );
-    restore_authored_longhand_proof_names(&mut proof, shorthand_property, longhands);
-    proof
+    proofs::prove_longhand_merge(shorthand_property, expected_longhands, longhands)
 }
 
 pub fn prove_box_shorthand_combination(
     shorthand_property: &str,
     longhands: &[BoxLonghandInputV0],
 ) -> ShorthandCombinationProofV0 {
-    let canonical_shorthand =
-        omena_syntax::ident::PropertyNameV0::from_authored(shorthand_property)
-            .canonical_name()
-            .to_string();
-    let canonical_longhands = longhands
-        .iter()
-        .cloned()
-        .map(|mut longhand| {
-            longhand.property =
-                omena_syntax::ident::PropertyNameV0::from_authored(&longhand.property)
-                    .canonical_name()
-                    .to_string();
-            longhand
-        })
-        .collect::<Vec<_>>();
-    let mut proof =
-        proofs::prove_box_shorthand_combination(&canonical_shorthand, &canonical_longhands);
-    restore_authored_longhand_proof_names(&mut proof, shorthand_property, longhands);
-    proof
-}
-
-fn restore_authored_longhand_proof_names(
-    proof: &mut ShorthandCombinationProofV0,
-    shorthand_property: &str,
-    longhands: &[BoxLonghandInputV0],
-) {
-    proof.shorthand_property = shorthand_property.to_string();
-    proof.ordered_longhand_properties = longhands
-        .iter()
-        .map(|longhand| longhand.property.clone())
-        .collect();
+    proofs::prove_box_shorthand_combination(shorthand_property, longhands)
 }
 
 pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {

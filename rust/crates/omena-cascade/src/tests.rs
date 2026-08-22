@@ -2018,6 +2018,51 @@ fn longhand_merge_canonicalizes_standard_property_identity_and_preserves_authore
 }
 
 #[test]
+fn box_shorthand_uses_property_authority_without_rewriting_authored_names() {
+    let proof = prove_box_shorthand_combination(
+        "MARGIN",
+        &[
+            BoxLonghandInputV0 {
+                property: r"MARGIN-\74 OP".to_string(),
+                value: "1px".to_string(),
+                important: false,
+                source_order: 1,
+            },
+            BoxLonghandInputV0 {
+                property: "MARGIN-RIGHT".to_string(),
+                value: "2px".to_string(),
+                important: false,
+                source_order: 2,
+            },
+            BoxLonghandInputV0 {
+                property: "margin-bottom".to_string(),
+                value: "3px".to_string(),
+                important: false,
+                source_order: 3,
+            },
+            BoxLonghandInputV0 {
+                property: "margin-left".to_string(),
+                value: "4px".to_string(),
+                important: false,
+                source_order: 4,
+            },
+        ],
+    );
+
+    assert!(proof.accepted);
+    assert_eq!(proof.shorthand_property, "MARGIN");
+    assert_eq!(
+        proof.ordered_longhand_properties,
+        vec![
+            r"MARGIN-\74 OP".to_string(),
+            "MARGIN-RIGHT".to_string(),
+            "margin-bottom".to_string(),
+            "margin-left".to_string(),
+        ]
+    );
+}
+
+#[test]
 fn blocks_box_shorthand_combination_when_intervening_order_is_possible() {
     let proof = prove_box_shorthand_combination(
         "padding",
@@ -2316,6 +2361,17 @@ fn supports_target_capability_preserves_unmapped_condition() {
 
     assert_eq!(target.verdict, StaticSupportsEvalVerdictV0::Unknown);
     assert_eq!(default.verdict, StaticSupportsEvalVerdictV0::AlwaysTrue);
+}
+
+#[test]
+fn supports_custom_property_name_does_not_acquire_a_standard_property_feature() {
+    let witness = evaluate_static_supports_condition(
+        "(--theme-inline: 1)",
+        StaticSupportsAssumptionV0::TargetCapability(SupportsTargetCapabilityV0::all_supported()),
+    );
+
+    assert_eq!(witness.verdict, StaticSupportsEvalVerdictV0::Unknown);
+    assert!(!witness.provenance_preserved);
 }
 
 #[test]

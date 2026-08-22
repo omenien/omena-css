@@ -183,8 +183,12 @@ const injectPredicateCopyReversed =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PREDICATE_COPY_REVERSED === "1";
 const injectPropertyStructuralEquality =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_STRUCTURAL_EQUALITY === "1";
+const injectPropertyRoundtripEquality =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_ROUNDTRIP_EQUALITY === "1";
 const injectPropertyRawMap =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_RAW_MAP === "1";
+const injectPropertyRawCanonicalization =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_RAW_CANONICALIZATION === "1";
 const injectPropertyCaseFold =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_CASE_FOLD === "1";
 const injectPropertyDecodeNeuter =
@@ -922,6 +926,13 @@ function discoverRawPropertyIdentitySites(): DiscoveredSite[] {
         "fn injected(left_property: String, right_property: String) -> bool { left_property == right_property }\n",
     });
   }
+  if (injectPropertyRoundtripEquality) {
+    sources.push({
+      relativePath: "rust/crates/omena-query/src/injected_property_roundtrip.rs",
+      source:
+        "struct Input { property: String }\nfn injected(actual: &Input, expected: &str) -> bool { actual.property != expected.as_ref() }\n",
+    });
+  }
   if (injectPropertyRawMap) {
     sources.push({
       relativePath: "rust/crates/omena-query/src/injected_property_map.rs",
@@ -929,9 +940,15 @@ function discoverRawPropertyIdentitySites(): DiscoveredSite[] {
         "use std::collections::HashMap;\nfn injected() {\n  let custom_property_env:\n    HashMap<\n      &'static str,\n      u8,\n    > = HashMap::new();\n  drop(custom_property_env);\n}\n",
     });
   }
+  if (injectPropertyRawCanonicalization) {
+    sources.push({
+      relativePath: "rust/crates/omena-query/src/injected_property_canonicalization.rs",
+      source: "fn injected(property: &str) -> String { property.to_ascii_lowercase() }\n",
+    });
+  }
 
   const dynamicPropertyComparison =
-    /(?:\b(?:left|right|candidate|declaration|previous|current|input|output|winner|actual|expected|fixture)(?:\.input)?\.property\b|\b(?:left_property|right_property|actual_property|property_name|shorthand)\b)\s*(?:==|!=)\s*(?:\b(?:left|right|candidate|declaration|previous|current|input|output|winner|actual|expected|fixture)(?:\.input)?\.property\b|\b(?:left_property|right_property|actual_property|property_name|shorthand|property)\b)/u;
+    /(?:\b(?:left|right|candidate|declaration|previous|current|input|output|winner|actual|expected|fixture)(?:\.input)?\.property\b|\b(?:left_property|right_property|actual_property|property_name|shorthand)\b)\s*(?:==|!=)\s*(?:\b(?:left|right|candidate|declaration|previous|current|input|output|winner|actual|expected|fixture)(?:\.input)?\.property\b|\b(?:left_property|right_property|actual_property|property_name|shorthand|property|expected(?:\.as_ref\(\))?)\b)/u;
   const dynamicCustomNameComparison =
     /\b(?:declaration|reference|winner|registration|candidate)\.name\s*(?:==|!=)\s*(?:\b(?:declaration|reference|winner|registration|candidate)\.name\b|\bname\b)/u;
   const rawCustomPrefix =
@@ -945,6 +962,7 @@ function discoverRawPropertyIdentitySites(): DiscoveredSite[] {
   );
   const rawCustomKeyOperation =
     /\.(?:entry|get|contains_key|remove|insert)\s*\(\s*&?(?:declaration|reference|registration|candidate)\.name\b/u;
+  const rawPropertyCanonicalization = /\b(?:property|property_name)\.to_ascii_lowercase\s*\(\s*\)/u;
   const sites: DiscoveredSite[] = [];
   for (const { relativePath, source } of sources) {
     const scannable = maskCommentsStringsAndTestItems(source, true);
@@ -972,7 +990,9 @@ function discoverRawPropertyIdentitySites(): DiscoveredSite[] {
             ? "raw-custom-property-prefix"
             : rawCustomKeyOperation.test(line) && customPropertyContext
               ? "raw-custom-property-key-operation"
-              : undefined;
+              : rawPropertyCanonicalization.test(line)
+                ? "raw-property-canonicalization"
+                : undefined;
       if (!operation) continue;
       sites.push({
         path: relativePath,

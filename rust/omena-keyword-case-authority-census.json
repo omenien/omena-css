@@ -43,7 +43,7 @@
     },
     {
       "path": "rust/crates/omena-cascade/src/proofs.rs",
-      "line": 362,
+      "line": 365,
       "function": "value_contains_relative_color_function",
       "idiom": "starts-with",
       "keyword": "from",
@@ -54,7 +54,7 @@
     },
     {
       "path": "rust/crates/omena-cascade/src/proofs.rs",
-      "line": 370,
+      "line": 373,
       "function": "prove_scope_flatten_candidate",
       "idiom": "direct-equality",
       "keyword": ":root",
@@ -2110,7 +2110,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:efb912e8d45a845c132d6e2dc312aa6f60df913ada2f51f36f7aca272e663631",
+  "siteDigest": "sha256:d7ffe5fe644cb397d3f52dbc15cfbeb6096c1caf9688f2a7f9b3a8ab3106e745",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
