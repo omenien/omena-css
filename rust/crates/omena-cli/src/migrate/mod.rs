@@ -350,17 +350,16 @@ fn build_token_rename_plan(
         });
     }
     if drafts.is_empty() && blockers.is_empty() {
+        let missing_name = token_name.as_str();
         blockers.push(MigrationBlockerV0 {
             code: "customPropertyNotFound".to_string(),
             uri: None,
             detail: format!(
-                "custom property '{}' was not found in the workspace index",
-                token_name.as_str()
+                "custom property '{missing_name}' was not found in the workspace index"
             ),
             evidence_refs: vec![authority_evidence.id.clone()],
         });
     }
-
     finalize_migration_plan(
         MigrationCodemodV0::TokenRename,
         workspace_root.as_path(),
@@ -1070,6 +1069,7 @@ fn normalize_selector_name(name: &str) -> Result<String, String> {
 }
 
 fn normalize_custom_property_name(name: &str) -> Result<CanonicalCustomPropertyNameV0, String> {
+    const INVALID_NAME: &str = "custom-property names must be non-empty and contain no whitespace";
     let name = name.trim();
     let normalized = if is_custom_property_name(name) {
         name.to_string()
@@ -1082,13 +1082,9 @@ fn normalize_custom_property_name(name: &str) -> Result<CanonicalCustomPropertyN
         property_key.as_str().len() > 2 && !property_key.as_str().chars().any(char::is_whitespace)
     });
     if !valid {
-        return Err(
-            "custom-property names must be non-empty and contain no whitespace".to_string(),
-        );
+        return Err(INVALID_NAME.to_string());
     }
-    property_key.ok_or_else(|| {
-        "custom-property names must be non-empty and contain no whitespace".to_string()
-    })
+    property_key.ok_or_else(|| INVALID_NAME.to_string())
 }
 
 fn is_css_module_path(path: &Path) -> bool {

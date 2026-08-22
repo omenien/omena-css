@@ -85,9 +85,9 @@
       "measurements": {
         "apiSurfaceStability": {
           "command": "git rev-list --count 4098be1fc..HEAD -- rust/crates/omena-scss-eval",
-          "value": 12,
+          "value": 13,
           "unit": "commits",
-          "response": "The measured interval contains twelve evaluator boundary changes, all covered by Rust workspace API and conformance gates; future changes must preserve that review path."
+          "response": "The measured interval contains thirteen evaluator boundary changes, all covered by Rust workspace API and conformance gates; future changes must preserve that review path."
         },
         "dependencyDirection": {
           "command": "cargo metadata --manifest-path rust/Cargo.toml --no-deps --format-version 1",

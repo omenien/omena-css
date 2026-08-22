@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -278,14 +278,57 @@ const residualConsumerMutationVariables = new Set([
   "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_MIGRATE_CLOSURE_PARAMETER",
 ]);
 
+function spawnCaptured(command, args, options) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, options);
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.once("error", reject);
+    child.once("close", (status, signal) => {
+      resolve({ status, signal, stdout, stderr });
+    });
+  });
+}
+
+async function mapWithConcurrency(items, concurrency, transform) {
+  const results = Array.from({ length: items.length });
+  let nextIndex = 0;
+  function worker() {
+    const index = nextIndex;
+    nextIndex += 1;
+    if (index >= items.length) {
+      return Promise.resolve();
+    }
+    return Promise.resolve(transform(items[index])).then((result) => {
+      results[index] = result;
+      return worker();
+    });
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+  return results;
+}
+
 let failures = 0;
 if (!generatedMatrixOnly) {
-  for (const [checker, variable, args] of redCases) {
-    const result = spawnSync("node", ["--import", "tsx", checker, ...args], {
+  const redCaseResults = await mapWithConcurrency(redCases, 4, ([checker, variable, args]) =>
+    spawnCaptured("node", ["--import", "tsx", checker, ...args], {
       cwd: repoRoot,
-      encoding: "utf8",
       env: { ...process.env, [variable]: "1" },
-    });
+      stdio: ["ignore", "pipe", "pipe"],
+    }),
+  );
+  for (const [[, variable, args], result] of redCases.map((redCase, index) => [
+    redCase,
+    redCaseResults[index],
+  ])) {
     const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
     const rawPropertySiteCount = Number(
       output.match(/rawPropertyIdentitySiteCount=(\d+)/u)?.[1] ?? "0",

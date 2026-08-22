@@ -325,7 +325,7 @@
       },
       {
         "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-        "line": 824,
+        "line": 823,
         "function": "build_css_modules_rename_plan",
         "operation": "str-eq",
         "evidence": "if selector_name == new_name {",
@@ -792,7 +792,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:e6d3104f2addb5083aaf810a04defd39d7814916721af232cbebb64f1f9f65a5"
+    "siteDigest": "sha256:ff44c6a2334f4d1950834bce08f99aa24e9c40acf47febd32c0b480459bec0a8"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
@@ -1647,7 +1647,7 @@
       },
       {
         "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-        "line": 1072,
+        "line": 1071,
         "function": "normalize_selector_name",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "fn normalize_custom_property_name(name: &str) -> Result<CanonicalCustomPropertyNameV0, String> {",
@@ -1687,10 +1687,10 @@
       },
       {
         "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-        "line": 1089,
+        "line": 1087,
         "function": "normalize_custom_property_name",
         "operation": "sealed-property-key",
-        "evidence": "property_key.ok_or_else(|| {",
+        "evidence": "property_key.ok_or_else(|| INVALID_NAME.to_string())",
         "role": "consumer"
       },
       {
@@ -6430,7 +6430,7 @@
         "role": "producer"
       }
     ],
-    "siteDigest": "sha256:76f93d3563bf884b2ee603e7e794aa1b1cdc5bc44d65683a7d624bdd0d42c43c",
+    "siteDigest": "sha256:ac069f35519ff1519747d4f7ead7e16ec3755228c0e368034941525973f34ec6",
     "residualRawCarrierDirection": "decrease-only",
     "residualRawCarrierSiteCount": 197,
     "residualRawCarrierSites": [
@@ -7048,7 +7048,7 @@
       },
       {
         "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-        "line": 1072,
+        "line": 1071,
         "function": "normalize_custom_property_name",
         "operation": "residual-property-parameter:normalize_custom_property_name.name:&str",
         "evidence": "fn normalize_custom_property_name(name: &str) -> Result<CanonicalCustomPropertyNameV0, String> {",
@@ -8208,7 +8208,7 @@
         "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
       }
     ],
-    "residualRawCarrierSiteDigest": "sha256:34b9c136d3e91fc1d630cb8d1adea32a54dc7d5594591c0cda258a5616983e58",
+    "residualRawCarrierSiteDigest": "sha256:87141cb9344bcaf00687f37fdd5af65db18b5bf8a8b88acb32d57fe6f8aca91f",
     "residualCarrierConsumerDerivation": "resolved-type-access-and-parameter-use-scan",
     "residualCarrierConsumerRows": [
       {
@@ -9669,7 +9669,7 @@
       {
         "carrier": {
           "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-          "line": 1072,
+          "line": 1071,
           "function": "normalize_custom_property_name",
           "operation": "residual-property-parameter:normalize_custom_property_name.name:&str",
           "evidence": "fn normalize_custom_property_name(name: &str) -> Result<CanonicalCustomPropertyNameV0, String> {",
@@ -12528,7 +12528,7 @@
     ],
     "residualCarrierConsumerSiteCount": 227,
     "residualIdentityShapedConsumerCount": 0,
-    "residualCarrierConsumerDigest": "sha256:f132b3c642086a901f8dab00b72b90e0d5f6c1ba370a05c7f693daa4d595c73c",
+    "residualCarrierConsumerDigest": "sha256:dd6946d464d95e2b7b9cddcfc26e61e6c2640aad7780cdaf4f63e7c7ff7a67c6",
     "rawStringIdentitySiteCount": 0,
     "rawStringIdentitySites": [],
     "rawStringIdentitySiteDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"

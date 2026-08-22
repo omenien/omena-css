@@ -692,7 +692,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 1208,
+      "line": 1214,
       "function": "hover_layer_name_from_prelude",
       "idiom": "strip-prefix",
       "keyword": "@layer",
@@ -1539,7 +1539,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
-      "line": 385,
+      "line": 387,
       "function": "declaration_value_is_important",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -1572,7 +1572,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand_line.rs",
-      "line": 279,
+      "line": 281,
       "function": "line_component_value_without_important",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -1583,7 +1583,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand_line.rs",
-      "line": 280,
+      "line": 282,
       "function": "line_component_value_without_important",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -1594,7 +1594,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand_line.rs",
-      "line": 318,
+      "line": 322,
       "function": "normalized_declaration_value_without_important",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -1605,7 +1605,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand_line.rs",
-      "line": 319,
+      "line": 323,
       "function": "normalized_declaration_value_without_important",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -1638,7 +1638,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand_motion.rs",
-      "line": 173,
+      "line": 174,
       "function": "single_motion_longhand_value_without_important",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -1649,7 +1649,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand_motion.rs",
-      "line": 174,
+      "line": 175,
       "function": "single_motion_longhand_value_without_important",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -1803,7 +1803,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 1135,
+      "line": 1137,
       "function": "single_component_value_without_important",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -1814,7 +1814,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 1136,
+      "line": 1138,
       "function": "single_component_value_without_important",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -1825,7 +1825,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 1162,
+      "line": 1164,
       "function": "normalize_place_axis_value",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -1836,7 +1836,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 1163,
+      "line": 1165,
       "function": "normalize_place_axis_value",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -1847,7 +1847,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 1295,
+      "line": 1299,
       "function": "compress_gap_value",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -1858,7 +1858,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 1296,
+      "line": 1300,
       "function": "compress_gap_value",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -2110,7 +2110,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:d97f2d9fc2e9da30d65dd41d9136908dde31ab9188eb31a9f74eb7fccccd2eb3",
+  "siteDigest": "sha256:8175918820013c4dd77fc509719434d02b1639690b0d5f8039bd15489b632604",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
