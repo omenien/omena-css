@@ -1792,7 +1792,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 615,
+      "line": 618,
       "function": "declaration_value_without_important",
       "idiom": "ends-with",
       "keyword": "!important",
@@ -1803,7 +1803,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 1128,
+      "line": 1135,
       "function": "single_component_value_without_important",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -1814,7 +1814,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 1129,
+      "line": 1136,
       "function": "single_component_value_without_important",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -1825,7 +1825,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 1155,
+      "line": 1162,
       "function": "normalize_place_axis_value",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -1836,7 +1836,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 1156,
+      "line": 1163,
       "function": "normalize_place_axis_value",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -1847,7 +1847,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 1288,
+      "line": 1295,
       "function": "compress_gap_value",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -1858,7 +1858,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 1289,
+      "line": 1296,
       "function": "compress_gap_value",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -2110,7 +2110,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:5ea858038920182d6a4df5a4366e310d812a72a65182126ef4d385741f0beac5",
+  "siteDigest": "sha256:02c4def6a5006df2c45431126eaf9e37d40bc824c9774190ca38afdb71575565",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [

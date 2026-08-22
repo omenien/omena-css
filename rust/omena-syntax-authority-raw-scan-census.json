@@ -1159,7 +1159,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 97,
+      "line": 100,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1168,7 +1168,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 120,
+      "line": 123,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1302,7 +1302,7 @@
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
     }
   ],
-  "siteDigest": "sha256:ec392c379b5555365e0867762d69f181fabb432a274594c2d44ccee9166527e9",
+  "siteDigest": "sha256:bec5ad81f38121264d1d81891fc52958ba1284d3ad30e51cd90808329c4f22e8",
   "classSelectorScanner": {
     "policy": "decrease-only",
     "baselineSiteCount": 3,

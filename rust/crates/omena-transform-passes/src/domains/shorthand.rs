@@ -3,7 +3,10 @@ use omena_cascade::{
     box_shorthand_longhands_v0, prove_longhand_merge,
 };
 use omena_parser::{LexedToken, StyleDialect};
-use omena_syntax::{SyntaxKind, ident::PropertyNameV0};
+use omena_syntax::{
+    SyntaxKind,
+    ident::{CanonicalPropertyKeyV0, PropertyNameV0},
+};
 use omena_value_lattice::{canonicalize_css_value, css_values_canonically_equal};
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -758,15 +761,19 @@ fn block_has_other_background_reset_sensitive_declarations(
     replacement_declarations: &[SimpleDeclarationSlice],
 ) -> bool {
     block_declarations.iter().any(|declaration| {
-        background_reset_sensitive_property(declaration.property_key.as_str())
+        background_reset_sensitive_property(&declaration.property_key)
             && !replacement_declarations
                 .iter()
                 .any(|replacement| replacement.start == declaration.start)
     })
 }
 
-fn background_reset_sensitive_property(property: &str) -> bool {
-    property == "background" || property.starts_with("background-")
+fn background_reset_sensitive_property(property: &CanonicalPropertyKeyV0) -> bool {
+    let Some(property) = property.as_standard() else {
+        return false;
+    };
+    property == &PropertyNameV0::canonical_standard_key("background")
+        || property.as_str().starts_with("background-")
 }
 
 fn single_background_component_value(value: &str, important: bool) -> Option<String> {

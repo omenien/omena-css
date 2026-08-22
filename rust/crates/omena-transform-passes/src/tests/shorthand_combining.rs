@@ -186,7 +186,7 @@ fn canonical_standard_property_outputs_match_pre_identity_baseline_bytes() {
             ".a { flex: 1; }",
         ),
         (
-            "mixed-case-twin",
+            "alternating-margin-values",
             r#".a { margin-top: 1px; margin-right: 2px; margin-bottom: 1px; margin-left: 2px; }"#,
             TransformPassKind::ShorthandCombining,
             ".a { margin: 1px 2px; }",

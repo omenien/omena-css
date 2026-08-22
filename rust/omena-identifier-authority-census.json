@@ -928,7 +928,7 @@
       "customCanonicalization": "trim-decode-case-preserved",
       "equalityMethod": "PropertyNameV0::same_as"
     },
-    "authoritySiteCount": 599,
+    "authoritySiteCount": 602,
     "sites": [
       {
         "path": "rust/crates/engine-style-parser/src/lib.rs",
@@ -5004,7 +5004,15 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 299,
+        "line": 8,
+        "function": "<module>",
+        "operation": "CanonicalPropertyKeyV0",
+        "evidence": "ident::{CanonicalPropertyKeyV0, PropertyNameV0},",
+        "role": "carrier"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+        "line": 302,
         "function": "box_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "let shorthand_property = match declarations.first()?.property_key.as_str() {",
@@ -5012,7 +5020,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 507,
+        "line": 510,
         "function": "push_longhand_merge_candidate_for_replacement",
         "operation": "PropertyNameV0::standard",
         "evidence": "&& PropertyNameV0::standard(existing.shorthand_property)",
@@ -5020,7 +5028,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 508,
+        "line": 511,
         "function": "push_longhand_merge_candidate_for_replacement",
         "operation": "PropertyNameV0::standard",
         "evidence": ".same_as(&PropertyNameV0::standard(candidate.shorthand_property))",
@@ -5028,7 +5036,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 566,
+        "line": 569,
         "function": "shorthand_value_replacement_for_declaration",
         "operation": "sealed-property-key",
         "evidence": "let property = declaration.property_key.as_str();",
@@ -5036,7 +5044,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 629,
+        "line": 632,
         "function": "border_radius_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "if top_left.property_key.as_str() != \"border-top-left-radius\"",
@@ -5044,7 +5052,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 630,
+        "line": 633,
         "function": "border_radius_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| top_right.property_key.as_str() != \"border-top-right-radius\"",
@@ -5052,7 +5060,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 631,
+        "line": 634,
         "function": "border_radius_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| bottom_right.property_key.as_str() != \"border-bottom-right-radius\"",
@@ -5060,7 +5068,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 632,
+        "line": 635,
         "function": "border_radius_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| bottom_left.property_key.as_str() != \"border-bottom-left-radius\"",
@@ -5068,7 +5076,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 672,
+        "line": 675,
         "function": "border_image_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "if source.property_key.as_str() != \"border-image-source\"",
@@ -5076,7 +5084,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 673,
+        "line": 676,
         "function": "border_image_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| slice.property_key.as_str() != \"border-image-slice\"",
@@ -5084,7 +5092,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 674,
+        "line": 677,
         "function": "border_image_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| width.property_key.as_str() != \"border-image-width\"",
@@ -5092,7 +5100,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 675,
+        "line": 678,
         "function": "border_image_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| outset.property_key.as_str() != \"border-image-outset\"",
@@ -5100,7 +5108,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 676,
+        "line": 679,
         "function": "border_image_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| repeat.property_key.as_str() != \"border-image-repeat\"",
@@ -5108,7 +5116,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 731,
+        "line": 734,
         "function": "background_component_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "if image.property_key.as_str() != \"background-image\"",
@@ -5116,7 +5124,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 732,
+        "line": 735,
         "function": "background_component_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| repeat.property_key.as_str() != \"background-repeat\"",
@@ -5124,7 +5132,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 733,
+        "line": 736,
         "function": "background_component_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| color.property_key.as_str() != \"background-color\"",
@@ -5132,15 +5140,31 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 761,
+        "line": 764,
         "function": "block_has_other_background_reset_sensitive_declarations",
         "operation": "sealed-property-key",
-        "evidence": "background_reset_sensitive_property(declaration.property_key.as_str())",
+        "evidence": "background_reset_sensitive_property(&declaration.property_key)",
         "role": "consumer"
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 816,
+        "line": 771,
+        "function": "block_has_other_background_reset_sensitive_declarations",
+        "operation": "CanonicalPropertyKeyV0",
+        "evidence": "fn background_reset_sensitive_property(property: &CanonicalPropertyKeyV0) -> bool {",
+        "role": "carrier"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+        "line": 775,
+        "function": "background_reset_sensitive_property",
+        "operation": "PropertyNameV0::canonical_standard_key",
+        "evidence": "property == &PropertyNameV0::canonical_standard_key(\"background\")",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+        "line": 823,
         "function": "inset_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "if top.property_key.as_str() != \"top\"",
@@ -5148,7 +5172,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 817,
+        "line": 824,
         "function": "inset_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| right.property_key.as_str() != \"right\"",
@@ -5156,7 +5180,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 818,
+        "line": 825,
         "function": "inset_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| bottom.property_key.as_str() != \"bottom\"",
@@ -5164,7 +5188,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 819,
+        "line": 826,
         "function": "inset_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| left.property_key.as_str() != \"left\"",
@@ -5172,7 +5196,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 868,
+        "line": 875,
         "function": "overflow_axis_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "let (x, y) = match (first.property_key.as_str(), second.property_key.as_str()) {",
@@ -5180,7 +5204,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 936,
+        "line": 943,
         "function": "place_axis_shorthand_components",
         "operation": "sealed-property-key",
         "evidence": "match (first.property_key.as_str(), second.property_key.as_str()) {",
@@ -5188,7 +5212,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 984,
+        "line": 991,
         "function": "gap_axis_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "let (row_gap, column_gap) = match (first.property_key.as_str(), second.property_key.as_str()) {",
@@ -5196,7 +5220,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 1026,
+        "line": 1033,
         "function": "flex_flow_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "let (direction, wrap) = match (first.property_key.as_str(), second.property_key.as_str()) {",
@@ -5204,7 +5228,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 1074,
+        "line": 1081,
         "function": "flex_longhand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "match declaration.property_key.as_str() {",
@@ -5212,7 +5236,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 1100,
+        "line": 1107,
         "function": "collect_overridden_flex_longhand_replacements",
         "operation": "sealed-property-key",
         "evidence": "if !flex_longhand_is_reset_by_flex_shorthand(declaration.property_key.as_str()) {",
@@ -5220,7 +5244,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 1105,
+        "line": 1112,
         "function": "collect_overridden_flex_longhand_replacements",
         "operation": "sealed-property-key",
         "evidence": ".find(|candidate| candidate.property_key.as_str() == \"flex\");",
@@ -5723,7 +5747,7 @@
         "role": "producer"
       }
     ],
-    "siteDigest": "sha256:f4e1106bf96beb814bd23e4e2a0c9ac6d90c110400f175bc0f69c28de1957217",
+    "siteDigest": "sha256:99d37f7305f11ef9b5bec9add3f0ac5b77ba3b9250fa9836d23def38a15d66b9",
     "rawStringIdentitySiteCount": 0,
     "rawStringIdentitySites": [],
     "rawStringIdentitySiteDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"

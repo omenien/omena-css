@@ -2438,8 +2438,8 @@ mod tests {
     }
 
     #[test]
-    fn native_css_function_parameter_binding_keeps_custom_property_case_sensitive() {
-        let source = "@function --echo(--Param <length>) returns <length> { result: var(--param); } .card { width: --echo(2rem); }";
+    fn native_css_function_parameter_binding_decodes_before_case_sensitive_join() {
+        let source = r#"@function --echo(--P\61 ram <length>, --param <color>) returns <length> { result: var(--Param); } .card { width: --echo(2rem, red); }"#;
         let report = summarize_native_css_function_call_evaluations(source, StyleDialect::Css);
         assert!(report.is_some());
         let Some(report) = report else {
@@ -2447,14 +2447,10 @@ mod tests {
         };
 
         assert_eq!(report.call_count, 1);
-        assert_eq!(report.foldable_call_count, 0);
-        assert_eq!(report.preserved_call_count, 1);
-        assert_eq!(report.calls[0].decision, "preserveVerbatim");
-        assert_eq!(
-            report.calls[0].reason,
-            "result value depends on runtime or cascade state"
-        );
-        assert_eq!(report.calls[0].evaluated_value, None);
+        assert_eq!(report.foldable_call_count, 1);
+        assert_eq!(report.preserved_call_count, 0);
+        assert_eq!(report.calls[0].decision, "foldToStaticValue");
+        assert_eq!(report.calls[0].evaluated_value.as_deref(), Some("2rem"));
     }
 
     #[test]

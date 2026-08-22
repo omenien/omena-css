@@ -43,10 +43,29 @@ const redCases = [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_NEW_FILE_RAW_CANONICALIZATION",
     [],
   ],
+  [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_TRIM_CHAIN", []],
+  [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_CONTEXT_RAW_OPERATIONS", []],
+  [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_AUTOMATIC_CARRIER", []],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_REAL_FILE_MUTATION", []],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_CASE_FOLD", []],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_DECODE_NEUTER", []],
 ];
+
+const rawPropertyMutationVariables = new Set([
+  "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_STRUCTURAL_EQUALITY",
+  "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_ROUNDTRIP_EQUALITY",
+  "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_RAW_MAP",
+  "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_RAW_CANONICALIZATION",
+  "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_FQN_RAW_MAP",
+  "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_VALUES_RAW_MAP",
+  "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_SAME_LINE_RAW_OPERATION",
+  "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_NEW_FILE_RAW_COMPARISON",
+  "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_NEW_FILE_RAW_CANONICALIZATION",
+  "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_TRIM_CHAIN",
+  "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_CONTEXT_RAW_OPERATIONS",
+  "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_AUTOMATIC_CARRIER",
+  "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_REAL_FILE_MUTATION",
+]);
 
 let failures = 0;
 for (const [checker, variable, args] of redCases) {
@@ -55,10 +74,20 @@ for (const [checker, variable, args] of redCases) {
     encoding: "utf8",
     env: { ...process.env, [variable]: "1" },
   });
-  const passed = result.status !== 0;
+  const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+  const rawPropertySiteCount = Number(
+    output.match(/rawPropertyIdentitySiteCount=(\d+)/u)?.[1] ?? "0",
+  );
+  const requiresRawPropertySite = rawPropertyMutationVariables.has(variable);
+  const passed = result.status !== 0 && (!requiresRawPropertySite || rawPropertySiteCount > 0);
   if (!passed) failures += 1;
   const suffix = args.length > 0 ? ` ${args.join(" ")}` : "";
-  process.stdout.write(`${passed ? "ok  " : "FAIL"} ${variable}${suffix} exits non-zero\n`);
+  const rawReceipt = requiresRawPropertySite
+    ? `; rawPropertyIdentitySiteCount=${rawPropertySiteCount}`
+    : "";
+  process.stdout.write(
+    `${passed ? "ok  " : "FAIL"} ${variable}${suffix} exits non-zero${rawReceipt}\n`,
+  );
 }
 const redFailures = failures;
 

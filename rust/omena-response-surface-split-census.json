@@ -13099,7 +13099,7 @@
       "crate": "omena-transform-passes",
       "typeName": "LonghandMergeProofCandidateV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 50
+      "line": 53
     },
     {
       "crate": "omena-transform-passes",
@@ -13147,7 +13147,7 @@
       "crate": "omena-transform-passes",
       "typeName": "PlaceAxisComponentKind",
       "sourcePath": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 1141
+      "line": 1148
     },
     {
       "crate": "omena-transform-passes",
@@ -13381,7 +13381,7 @@
       "crate": "omena-transform-passes",
       "typeName": "StaticFlexBasisComponent",
       "sourcePath": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-      "line": 1556
+      "line": 1563
     },
     {
       "crate": "omena-transform-passes",
