@@ -22,6 +22,7 @@ use omena_streaming_ifds::{
     demand_sliced_monotone_fact_propagation_event_input_v0,
     run_demand_sliced_monotone_fact_propagation_demand_with_index_v0,
 };
+use omena_syntax::ident::{CanonicalStandardPropertyNameV0, PropertyNameV0};
 use omena_transform_cst::{
     IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrTransactionV0, TransformIrV0,
     lower_transform_ir_from_source, reset_transform_ir_metadata_telemetry,
@@ -195,13 +196,14 @@ struct TransformIrMutationFixture {
 }
 
 type PropertyMetadataLookup = fn(
-    &str,
+    &CanonicalStandardPropertyNameV0,
     &'static [CssPropertyMetadataRecordStaticV1],
 ) -> Option<&'static CssPropertyMetadataRecordStaticV1>;
 
 struct PropertyMetadataLookupFixture {
     records: &'static [CssPropertyMetadataRecordStaticV1],
     lookup: PropertyMetadataLookup,
+    property: CanonicalStandardPropertyNameV0,
 }
 
 fn setup_property_metadata_lookup_registry_n() -> PropertyMetadataLookupFixture {
@@ -220,25 +222,25 @@ fn setup_property_metadata_lookup_registry(row_count: usize) -> PropertyMetadata
     PropertyMetadataLookupFixture {
         records: &CSS_PROPERTY_METADATA_RECORDS_V1[..row_count],
         lookup,
+        property: PropertyNameV0::canonical_standard_key("zzzz-unregistered-property"),
     }
 }
 
 fn measure_property_metadata_lookup(fixture: PropertyMetadataLookupFixture) -> usize {
     let mut misses = 0usize;
     for _ in 0..4_096 {
-        misses +=
-            (fixture.lookup)("zzzz-unregistered-property", fixture.records).is_none() as usize;
+        misses += (fixture.lookup)(&fixture.property, fixture.records).is_none() as usize;
     }
     black_box(misses)
 }
 
 fn linear_property_metadata_lookup(
-    property: &str,
+    property: &CanonicalStandardPropertyNameV0,
     records: &'static [CssPropertyMetadataRecordStaticV1],
 ) -> Option<&'static CssPropertyMetadataRecordStaticV1> {
     records
         .iter()
-        .find(|record| record.canonical_name == property)
+        .find(|record| record.canonical_name == property.as_str())
 }
 
 fn setup_memoized_recheck_query_corpus_n() -> RecheckFixture {

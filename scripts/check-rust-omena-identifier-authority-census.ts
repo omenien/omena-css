@@ -783,10 +783,13 @@ function inspectPropertyTypeSeal(): PropertyIdentityTypeSeal {
     );
   }
   if (injectPropertyDecodeNeuter) {
-    source = source.replace(
-      "let decoded = decode_css_identifier_escapes(&authored).into_owned();",
-      "let decoded = authored.clone();",
+    const decoderNeedle = "let decoded = decode_css_identifier_escapes(&authored).into_owned();";
+    assert.equal(
+      source.split(decoderNeedle).length - 1,
+      2,
+      "property decoder mutation must cover both explicit and inferred-kind constructors",
     );
+    source = source.replaceAll(decoderNeedle, "let decoded = authored.clone();");
   }
 
   const propertyNameDerives = derivesForEnum(source, "PropertyNameV0");

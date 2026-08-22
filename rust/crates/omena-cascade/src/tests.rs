@@ -1584,21 +1584,32 @@ fn property_metadata_lookup_respects_the_supplied_sorted_registry() {
     let prefix = &CSS_PROPERTY_METADATA_RECORDS_V1[..64];
     let first_name = prefix[0].canonical_name;
     let outside_name = CSS_PROPERTY_METADATA_RECORDS_V1[64].canonical_name;
+    let first_key = PropertyNameV0::canonical_standard_key(first_name);
+    let outside_key = PropertyNameV0::canonical_standard_key(outside_name);
 
     assert_eq!(
-        css_property_metadata_for_property_in_records(first_name, prefix)
+        css_property_metadata_for_property_in_records(&first_key, prefix)
             .map(|record| record.canonical_name),
         Some(first_name)
     );
-    assert!(css_property_metadata_for_property_in_records(outside_name, prefix).is_none());
+    assert!(css_property_metadata_for_property_in_records(&outside_key, prefix).is_none());
     assert_eq!(
         css_property_metadata_for_property_in_records(
-            outside_name,
+            &outside_key,
             CSS_PROPERTY_METADATA_RECORDS_V1
         )
         .map(|record| record.canonical_name),
         Some(outside_name)
     );
+    assert_eq!(
+        css_property_metadata_for_property("COLOR").map(|record| record.canonical_name),
+        Some("color")
+    );
+    assert_eq!(
+        css_property_metadata_for_property(r"c\6f lor").map(|record| record.canonical_name),
+        Some("color")
+    );
+    assert!(css_property_metadata_for_property("--color").is_none());
 }
 
 #[test]

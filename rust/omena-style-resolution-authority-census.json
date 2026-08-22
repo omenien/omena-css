@@ -23,12 +23,12 @@
   "sites": [
     {
       "path": "rust/crates/omena-query/src/style/cross_file_summary.rs",
-      "line": 669,
+      "line": 692,
       "function": "summarize_omena_query_workspace_cross_file_summary",
       "authority": "summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs",
       "callOrdinal": 0,
       "evidence": "summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs("
     }
   ],
-  "siteDigest": "sha256:3b42bf351665a8409a21973cb6bf9e8fca7f68bce4480ee041ae4ae5ff55e4b2"
+  "siteDigest": "sha256:de27b89e1faaed770d642448a4ad32babb25c5f588af5b38b0cc6a5a44247e08"
 }

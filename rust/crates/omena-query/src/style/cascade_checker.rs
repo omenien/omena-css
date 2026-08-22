@@ -54,8 +54,7 @@ use super::{
     omena_parser_dialect_for_style_path, parser_range_for_byte_span,
 };
 
-/// Cascade diagnostics with an optional theory-hint pass. Hints overlapping
-/// `circularVar` fold into its provenance to avoid duplicate diagnostics.
+/// Cascade diagnostics with optional theory hints; overlaps with `circularVar` fold into its provenance.
 pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
     style_uri: &str,
     source: &str,

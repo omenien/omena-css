@@ -112,19 +112,24 @@ impl PropertyNameV0 {
     /// corresponding canonical identity rules.
     pub fn from_authored(authored: impl Into<String>) -> Self {
         let authored = authored.into();
-        let decoded = decode_css_identifier_escapes(authored.trim());
+        let authored = authored.trim().to_string();
+        let decoded = decode_css_identifier_escapes(&authored).into_owned();
         let kind = if decoded.starts_with("--") {
             PropertyNameKindV0::Custom
         } else {
             PropertyNameKindV0::Standard
         };
-        Self::new(authored, kind)
+        Self::from_decoded(authored, decoded, kind)
     }
 
     pub fn new(authored: impl Into<String>, kind: PropertyNameKindV0) -> Self {
         let authored = authored.into();
         let authored = authored.trim().to_string();
         let decoded = decode_css_identifier_escapes(&authored).into_owned();
+        Self::from_decoded(authored, decoded, kind)
+    }
+
+    fn from_decoded(authored: String, decoded: String, kind: PropertyNameKindV0) -> Self {
         match kind {
             PropertyNameKindV0::Standard => Self::Standard {
                 canonical: CanonicalStandardPropertyNameV0(
@@ -212,6 +217,13 @@ impl PropertyNameV0 {
         match self {
             Self::Custom { canonical, .. } => Some(canonical.clone()),
             Self::Standard { .. } => None,
+        }
+    }
+
+    pub fn as_standard_key(&self) -> Option<&CanonicalStandardPropertyNameV0> {
+        match self {
+            Self::Standard { canonical, .. } => Some(canonical),
+            Self::Custom { .. } => None,
         }
     }
 

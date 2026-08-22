@@ -612,7 +612,7 @@
   },
   "exit": {
     "sourceRef": "WORKTREE",
-    "sourceFileSha256": "1ad0ff3df73d347aaf9df9bad9e44aaaa8ba0fedfca52fc1a172dbb561f45e55",
+    "sourceFileSha256": "cca9a952e3a6b237ace4d03005cfbfb9aa4a65589444d77d402a8a28087cfe39",
     "rowCount": 17,
     "planeCounts": {
       "cascadeObligation": 12,
@@ -897,7 +897,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_box_shorthand_combination_input_v0:adjacent-source-order",
-          "lineHint": 589,
+          "lineHint": 590,
           "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
         }
       },
@@ -908,7 +908,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_box_shorthand_combination_input_v0:canonical-longhand-quartet",
-          "lineHint": 580,
+          "lineHint": 581,
           "lineSha256": "18b3cd44421452e6273864b1ef096559d92ebe48794e74276279f2e28c514ad3"
         }
       },
@@ -919,7 +919,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_box_shorthand_combination_input_v0:no-empty-longhand-value",
-          "lineHint": 585,
+          "lineHint": 586,
           "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
         }
       },
@@ -930,7 +930,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_box_shorthand_combination_input_v0:no-important-longhand",
-          "lineHint": 581,
+          "lineHint": 582,
           "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
         }
       },
@@ -941,7 +941,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_box_shorthand_combination_input_v0:supported-shorthand-property",
-          "lineHint": 579,
+          "lineHint": 580,
           "lineSha256": "6001e9298287a3de0b15aab090b59c226ce54158da5fdde1057599ec7500bf1b"
         }
       },
@@ -952,7 +952,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_layer_flatten_candidate_input_v0:closed-bundle",
-          "lineHint": 663,
+          "lineHint": 664,
           "lineSha256": "458737241bd2789c10c8472f0b4cc507589f3fdc9ed3a61343d7f4e2d9b3379f"
         }
       },
@@ -963,7 +963,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_layer_flatten_candidate_input_v0:no-important-declaration",
-          "lineHint": 666,
+          "lineHint": 667,
           "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
         }
       },
@@ -974,7 +974,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_layer_flatten_candidate_input_v0:no-peer-layer",
-          "lineHint": 664,
+          "lineHint": 665,
           "lineSha256": "0b49d91ea12b50b284f1ce9f07c6fb0288390cc92613043aa0d67e6044d79734"
         }
       },
@@ -985,7 +985,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_layer_flatten_candidate_input_v0:no-unlayered-rule",
-          "lineHint": 665,
+          "lineHint": 666,
           "lineSha256": "686ef49c1eff33e1e1a353a14b916b10a9346aef5fbf7bcb70a9e6854a732839"
         }
       },
@@ -996,7 +996,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_longhand_merge_input_v0:adjacent-source-order",
-          "lineHint": 630,
+          "lineHint": 631,
           "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
         }
       },
@@ -1007,7 +1007,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_longhand_merge_input_v0:canonical-longhand-order",
-          "lineHint": 621,
+          "lineHint": 622,
           "lineSha256": "6c69d88989d4ec35459177ed3ac7bed425003bbfecb6449c1413b63d60bf97be"
         }
       },
@@ -1018,7 +1018,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_longhand_merge_input_v0:no-empty-longhand-value",
-          "lineHint": 626,
+          "lineHint": 627,
           "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
         }
       },
@@ -1029,7 +1029,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_longhand_merge_input_v0:no-important-longhand",
-          "lineHint": 622,
+          "lineHint": 623,
           "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
         }
       },
@@ -1040,7 +1040,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_longhand_merge_input_v0:supported-merge-family",
-          "lineHint": 617,
+          "lineHint": 618,
           "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
         }
       },
@@ -1051,7 +1051,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_scope_flatten_candidate_input_v0:no-competing-unscoped-rule",
-          "lineHint": 649,
+          "lineHint": 650,
           "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
         }
       },
@@ -1062,7 +1062,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_scope_flatten_candidate_input_v0:no-limit-selector",
-          "lineHint": 646,
+          "lineHint": 647,
           "lineSha256": "d684ea745b46abf9e970f059bae56ee449714c990ca60d36a96ea123fc96ede1"
         }
       },
@@ -1073,7 +1073,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_scope_flatten_candidate_input_v0:no-peer-scope",
-          "lineHint": 648,
+          "lineHint": 649,
           "lineSha256": "61beccbcbf7b934245ab875199b1e15b49b9b5a98249babda1b574552310b103"
         }
       },
@@ -1084,7 +1084,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_scope_flatten_candidate_input_v0:not-inside-layer",
-          "lineHint": 653,
+          "lineHint": 654,
           "lineSha256": "4e6cf49ef0bafff765058a6ef82cdd6b25a0019c847fea2f31552f95782f8721"
         }
       },
@@ -1095,7 +1095,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_scope_flatten_candidate_input_v0:root-scope",
-          "lineHint": 647,
+          "lineHint": 648,
           "lineSha256": "ac82a272ae83fddfa37b03e73687f97d5dbe061ebfc68b51c320eb3bdff672a2"
         }
       },
@@ -1106,7 +1106,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_static_supports_condition_input_v0:supports-condition-known-true",
-          "lineHint": 679,
+          "lineHint": 680,
           "lineSha256": "a14165a6c429d1e7dcef92e57e11f0415b24344cbf3bbdfec37c5ebddd37435a"
         }
       },
@@ -1117,7 +1117,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_static_supports_condition_input_v0:supports-condition-known-true",
-          "lineHint": 685,
+          "lineHint": 686,
           "lineSha256": "a14165a6c429d1e7dcef92e57e11f0415b24344cbf3bbdfec37c5ebddd37435a"
         }
       },
@@ -1128,7 +1128,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_transform_rewrite_candidate_input_v0:cascade-obligation-declared",
-          "lineHint": 707,
+          "lineHint": 708,
           "lineSha256": "85781eb9245b10ac2851a5121699c804a7fbfd0517890df4c5255212c796b179"
         }
       },
@@ -1139,7 +1139,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_transform_rewrite_candidate_input_v0:no-bogus-or-trivia",
-          "lineHint": 713,
+          "lineHint": 714,
           "lineSha256": "f76f0d9e4cd960b4d5e3b12a9da3961b775da26e98f4916d3457b507c7565496"
         }
       },
@@ -1150,7 +1150,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_transform_rewrite_candidate_input_v0:provenance-preserved",
-          "lineHint": 712,
+          "lineHint": 713,
           "lineSha256": "00d82eb152d68b08cc3fe3a257e154a99568939e68666fd90c6e7db74e234855"
         }
       },
@@ -1161,7 +1161,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_transform_rewrite_candidate_input_v0:provenance-recomputed",
-          "lineHint": 711,
+          "lineHint": 712,
           "lineSha256": "53d38124d764da8bfe9b5caaeff240e9bf68ea0af031987c5522d30196639ad9"
         }
       },
@@ -1172,7 +1172,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_transform_rewrite_candidate_input_v0:stable-post-semantic-ir",
-          "lineHint": 714,
+          "lineHint": 715,
           "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
         }
       }

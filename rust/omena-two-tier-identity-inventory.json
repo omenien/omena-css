@@ -158,7 +158,7 @@
   {
     "id": "rust/crates/omena-parser/src/closed_world/authority.rs#compute_reachability.by_instance",
     "sourcePath": "rust/crates/omena-parser/src/closed_world/authority.rs",
-    "sourceAnchor": "rust/crates/omena-parser/src/closed_world/authority.rs:226",
+    "sourceAnchor": "rust/crates/omena-parser/src/closed_world/authority.rs:228",
     "owner": "compute_reachability",
     "name": "by_instance",
     "collectionType": "BTreeMap<ModuleInstanceKeyV0, ClosedWorldLinkedModuleV0>",
@@ -170,7 +170,7 @@
   {
     "id": "rust/crates/omena-parser/src/closed_world/authority.rs#stable_closure_hash.by_instance",
     "sourcePath": "rust/crates/omena-parser/src/closed_world/authority.rs",
-    "sourceAnchor": "rust/crates/omena-parser/src/closed_world/authority.rs:456",
+    "sourceAnchor": "rust/crates/omena-parser/src/closed_world/authority.rs:478",
     "owner": "stable_closure_hash",
     "name": "by_instance",
     "collectionType": "BTreeMap<ModuleInstanceKeyV0, ClosedWorldLinkedModuleV0>",
@@ -182,7 +182,7 @@
   {
     "id": "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleMemoHostV0.committed_module_interface_changed_paths",
     "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:2267",
+    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:2268",
     "owner": "OmenaQueryStyleMemoHostV0",
     "name": "committed_module_interface_changed_paths",
     "collectionType": "BTreeSet<String>",
@@ -194,7 +194,7 @@
   {
     "id": "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleMemoHostV0.files_by_path",
     "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:2257",
+    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:2258",
     "owner": "OmenaQueryStyleMemoHostV0",
     "name": "files_by_path",
     "collectionType": "BTreeMap<String, OmenaQueryStyleFileInputV0>",
@@ -206,7 +206,7 @@
   {
     "id": "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleMemoHostV0.registered_style_paths",
     "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:2263",
+    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:2264",
     "owner": "OmenaQueryStyleMemoHostV0",
     "name": "registered_style_paths",
     "collectionType": "BTreeSet<String>",
@@ -218,7 +218,7 @@
   {
     "id": "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleMemoHostV0.source_files_by_path",
     "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:2258",
+    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:2259",
     "owner": "OmenaQueryStyleMemoHostV0",
     "name": "source_files_by_path",
     "collectionType": "BTreeMap<String, OmenaQuerySourceFileInputV0>",
@@ -230,7 +230,7 @@
   {
     "id": "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleRevisionSelectorV0.changed_module_interface_paths",
     "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:528",
+    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:529",
     "owner": "OmenaQueryStyleRevisionSelectorV0",
     "name": "changed_module_interface_paths",
     "collectionType": "BTreeSet<String>",
@@ -242,7 +242,7 @@
   {
     "id": "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleRevisionSelectorV0.files_by_path",
     "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:527",
+    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:528",
     "owner": "OmenaQueryStyleRevisionSelectorV0",
     "name": "files_by_path",
     "collectionType": "BTreeMap<String, OmenaQueryStyleFileInputV0>",
@@ -254,7 +254,7 @@
   {
     "id": "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleWorkspaceTransactionCommitV0.changed_module_interface_paths",
     "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:752",
+    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:753",
     "owner": "OmenaQueryStyleWorkspaceTransactionCommitV0",
     "name": "changed_module_interface_paths",
     "collectionType": "BTreeSet<String>",
@@ -266,7 +266,7 @@
   {
     "id": "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleWorkspaceTransactionCommitV0.changed_style_paths",
     "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:751",
+    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:752",
     "owner": "OmenaQueryStyleWorkspaceTransactionCommitV0",
     "name": "changed_style_paths",
     "collectionType": "BTreeSet<String>",
@@ -278,7 +278,7 @@
   {
     "id": "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleWorkspaceTransactionCoreCommitV0.changed_module_interface_paths",
     "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:761",
+    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:762",
     "owner": "OmenaQueryStyleWorkspaceTransactionCoreCommitV0",
     "name": "changed_module_interface_paths",
     "collectionType": "BTreeSet<String>",
@@ -290,7 +290,7 @@
   {
     "id": "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleWorkspaceTransactionCoreCommitV0.changed_style_paths",
     "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:760",
+    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:761",
     "owner": "OmenaQueryStyleWorkspaceTransactionCoreCommitV0",
     "name": "changed_style_paths",
     "collectionType": "BTreeSet<String>",
@@ -302,7 +302,7 @@
   {
     "id": "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleWorkspaceTransactionV0.registered_style_paths",
     "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:800",
+    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:801",
     "owner": "OmenaQueryStyleWorkspaceTransactionV0",
     "name": "registered_style_paths",
     "collectionType": "BTreeSet<String>",

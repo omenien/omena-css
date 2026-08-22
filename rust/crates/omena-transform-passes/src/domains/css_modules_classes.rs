@@ -906,7 +906,7 @@ fn composes_declaration_from_body_segment(
     let colon = declaration_without_semicolon.find(':')?;
     let property = declaration_without_semicolon.get(..colon)?.trim();
     let property_key = PropertyNameV0::from_authored(property).canonical_key();
-    if property_key.as_str() != "composes" {
+    if !css_keyword(property).equals("composes") {
         return None;
     }
     let value = declaration_without_semicolon.get(colon + 1..)?.trim();
