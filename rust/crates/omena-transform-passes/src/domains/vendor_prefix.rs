@@ -494,10 +494,14 @@ fn vendor_prefix_matrix() -> &'static VendorPrefixMatrixV0 {
 }
 
 fn prefixed_properties_for(property: &str) -> Vec<&'static str> {
+    let property_key = PropertyNameV0::from_authored(property).canonical_key();
+    let Some(property_key) = property_key.as_standard() else {
+        return Vec::new();
+    };
     vendor_prefix_matrix()
         .property_rules
         .iter()
-        .find(|rule| rule.name == property)
+        .find(|rule| PropertyNameV0::canonical_standard_key(&rule.name) == *property_key)
         .map(|rule| rule.prefixes.iter().map(String::as_str).collect())
         .unwrap_or_default()
 }
@@ -546,28 +550,31 @@ fn unprefixed_property_for_stale_prefix(property: &str) -> Option<&'static str> 
 
 fn prefixed_values_for(property: &str, value: &str) -> Vec<&'static str> {
     let property_key = PropertyNameV0::from_authored(property).canonical_key();
-    let Some(property) = property_key.as_standard().map(|property| property.as_str()) else {
+    let Some(property_key) = property_key.as_standard() else {
         return Vec::new();
     };
     let normalized = value.trim().to_ascii_lowercase();
     vendor_prefix_matrix()
         .value_rules
         .iter()
-        .find(|rule| rule.property == property && rule.value == normalized)
+        .find(|rule| {
+            PropertyNameV0::canonical_standard_key(&rule.property) == *property_key
+                && rule.value == normalized
+        })
         .map(|rule| rule.prefixes.iter().map(String::as_str).collect())
         .unwrap_or_default()
 }
 
 fn prefixed_declarations_for(property: &str, value: &str) -> Vec<(&'static str, String)> {
     let property_key = PropertyNameV0::from_authored(property).canonical_key();
-    let Some(property) = property_key.as_standard().map(|property| property.as_str()) else {
+    let Some(property_key) = property_key.as_standard() else {
         return Vec::new();
     };
     let normalized = value.trim().to_ascii_lowercase();
     vendor_prefix_matrix()
         .declaration_rules
         .iter()
-        .find(|rule| rule.property == property)
+        .find(|rule| PropertyNameV0::canonical_standard_key(&rule.property) == *property_key)
         .map(|rule| {
             rule.entries
                 .iter()

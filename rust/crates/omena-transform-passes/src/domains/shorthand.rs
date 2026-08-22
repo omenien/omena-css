@@ -3,7 +3,7 @@ use omena_cascade::{
     box_shorthand_longhands_v0, prove_longhand_merge,
 };
 use omena_parser::{LexedToken, StyleDialect};
-use omena_syntax::SyntaxKind;
+use omena_syntax::{SyntaxKind, ident::PropertyNameV0};
 use omena_value_lattice::{canonicalize_css_value, css_values_canonically_equal};
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -296,7 +296,7 @@ fn box_shorthand_replacement_for_declarations(
     tokens: &[LexedToken],
     declarations: &[SimpleDeclarationSlice],
 ) -> Option<(usize, usize, String)> {
-    let shorthand_property = match declarations.first()?.property.as_str() {
+    let shorthand_property = match declarations.first()?.property_key.as_str() {
         "margin-top" => "margin",
         "padding-top" => "padding",
         "border-top-color" => "border-color",
@@ -504,7 +504,8 @@ fn push_longhand_merge_candidate_for_replacement(
     if candidates.iter().any(|existing| {
         existing.source_span_start == candidate.source_span_start
             && existing.source_span_end == candidate.source_span_end
-            && existing.shorthand_property == candidate.shorthand_property
+            && PropertyNameV0::standard(existing.shorthand_property)
+                .same_as(&PropertyNameV0::standard(candidate.shorthand_property))
     }) {
         return;
     }
@@ -864,7 +865,7 @@ fn overflow_axis_replacement_for_declarations(
         return None;
     }
 
-    let (x, y) = match (first.property.as_str(), second.property.as_str()) {
+    let (x, y) = match (first.property_key.as_str(), second.property_key.as_str()) {
         ("overflow-x", "overflow-y") => (first.value.as_str(), second.value.as_str()),
         ("overflow-y", "overflow-x") => (second.value.as_str(), first.value.as_str()),
         _ => return None,
@@ -932,7 +933,7 @@ fn place_axis_shorthand_components<'a>(
     first: &'a SimpleDeclarationSlice,
     second: &'a SimpleDeclarationSlice,
 ) -> Option<(&'static str, &'a str, &'a str)> {
-    match (first.property.as_str(), second.property.as_str()) {
+    match (first.property_key.as_str(), second.property_key.as_str()) {
         ("align-items", "justify-items") => {
             Some(("place-items", first.value.as_str(), second.value.as_str()))
         }
@@ -980,7 +981,7 @@ fn gap_axis_replacement_for_declarations(
         return None;
     }
 
-    let (row_gap, column_gap) = match (first.property.as_str(), second.property.as_str()) {
+    let (row_gap, column_gap) = match (first.property_key.as_str(), second.property_key.as_str()) {
         ("row-gap", "column-gap") => (first.value.as_str(), second.value.as_str()),
         ("column-gap", "row-gap") => (second.value.as_str(), first.value.as_str()),
         _ => return None,
@@ -1022,7 +1023,7 @@ fn flex_flow_replacement_for_declarations(
         return None;
     }
 
-    let (direction, wrap) = match (first.property.as_str(), second.property.as_str()) {
+    let (direction, wrap) = match (first.property_key.as_str(), second.property_key.as_str()) {
         ("flex-direction", "flex-wrap") => (first.value.as_str(), second.value.as_str()),
         ("flex-wrap", "flex-direction") => (second.value.as_str(), first.value.as_str()),
         _ => return None,
@@ -1070,7 +1071,7 @@ fn flex_longhand_replacement_for_declarations(
     let mut shrink = None;
     let mut basis = None;
     for declaration in declarations {
-        match declaration.property.as_str() {
+        match declaration.property_key.as_str() {
             "flex-grow" => grow = Some(declaration.value.as_str()),
             "flex-shrink" => shrink = Some(declaration.value.as_str()),
             "flex-basis" => basis = Some(declaration.value.as_str()),

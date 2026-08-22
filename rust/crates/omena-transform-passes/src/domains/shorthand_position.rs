@@ -32,7 +32,7 @@ pub(crate) fn background_position_axis_replacement_for_declarations(
         return None;
     }
 
-    let (x_value, y_value) = match (first.property.as_str(), second.property.as_str()) {
+    let (x_value, y_value) = match (first.property_key.as_str(), second.property_key.as_str()) {
         ("background-position-x", "background-position-y") => {
             (first.value.as_str(), second.value.as_str())
         }

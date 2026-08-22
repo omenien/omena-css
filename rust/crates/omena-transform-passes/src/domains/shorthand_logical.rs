@@ -1,4 +1,5 @@
 use omena_parser::LexedToken;
+use omena_syntax::ident::{CanonicalPropertyKeyV0, PropertyNameV0};
 
 use crate::helpers::{
     declarations::{SimpleDeclarationSlice, declaration_ranges_are_adjacent},
@@ -202,7 +203,9 @@ fn logical_four_side_family(
         .all(|property| {
             declarations
                 .iter()
-                .filter(|declaration| declaration.property_key.as_str() == *property)
+                .filter(|declaration| {
+                    standard_property_key_matches(&declaration.property_key, property)
+                })
                 .count()
                 == 1
         })
@@ -216,8 +219,12 @@ fn logical_family_value(
 ) -> Option<String> {
     let declaration = declarations
         .iter()
-        .find(|declaration| declaration.property_key.as_str() == property)?;
+        .find(|declaration| standard_property_key_matches(&declaration.property_key, property))?;
     single_component_value_without_important(&declaration.value, important)
+}
+
+fn standard_property_key_matches(key: &CanonicalPropertyKeyV0, authored: &str) -> bool {
+    key.as_standard() == Some(&PropertyNameV0::canonical_standard_key(authored))
 }
 
 fn logical_axis_shorthand_components<'a>(

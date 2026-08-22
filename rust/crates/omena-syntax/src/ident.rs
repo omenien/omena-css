@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::borrow::Cow;
 
 /// A CSS class name with authored and decoded spellings.
@@ -245,18 +244,25 @@ impl PropertyNameV0 {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct CanonicalStandardPropertyNameSealV0(());
 
+/// A sealed standard-property lookup key.
+///
+/// Raw strings cannot borrow through this key; callers must construct a
+/// canonical key before a map lookup.
+///
+/// ```compile_fail,E0277
+/// use std::collections::BTreeMap;
+/// use omena_syntax::ident::{CanonicalStandardPropertyNameV0, PropertyNameV0};
+///
+/// let values = BTreeMap::<CanonicalStandardPropertyNameV0, usize>::new();
+/// let _ = values.get("COLOR");
+/// let _ = PropertyNameV0::canonical_standard_key("color");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CanonicalStandardPropertyNameV0(String, CanonicalStandardPropertyNameSealV0);
 
 impl CanonicalStandardPropertyNameV0 {
     pub fn as_str(&self) -> &str {
         &self.0
-    }
-}
-
-impl Borrow<str> for CanonicalStandardPropertyNameV0 {
-    fn borrow(&self) -> &str {
-        self.as_str()
     }
 }
 
@@ -272,18 +278,22 @@ impl serde::Serialize for CanonicalStandardPropertyNameV0 {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct CanonicalCustomPropertyNameSealV0(());
 
+/// A sealed custom-property lookup key.
+///
+/// ```compile_fail,E0277
+/// use std::collections::BTreeMap;
+/// use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0};
+///
+/// let values = BTreeMap::<CanonicalCustomPropertyNameV0, usize>::new();
+/// let _ = values.get("--token");
+/// let _ = PropertyNameV0::canonical_custom_key("--token");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CanonicalCustomPropertyNameV0(String, CanonicalCustomPropertyNameSealV0);
 
 impl CanonicalCustomPropertyNameV0 {
     pub fn as_str(&self) -> &str {
         &self.0
-    }
-}
-
-impl Borrow<str> for CanonicalCustomPropertyNameV0 {
-    fn borrow(&self) -> &str {
-        self.as_str()
     }
 }
 

@@ -43,7 +43,7 @@ pub(crate) fn lower_css_light_dark_with_lexer(
         let declarations =
             collect_simple_declarations_in_block(tokens, block_start_index, block_end_index);
         for declaration in declarations {
-            if !is_static_color_reference_property(&declaration.property) {
+            if !is_static_color_reference_property(declaration.property_key.as_str()) {
                 continue;
             }
             let Some((light_value, dark_value)) =
@@ -182,7 +182,7 @@ fn lower_static_color_function_references_with_lexer(
         {
             let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
             for declaration in declarations {
-                if !is_static_color_reference_property(&declaration.property) {
+                if !is_static_color_reference_property(declaration.property_key.as_str()) {
                     continue;
                 }
                 let Some(replacement_value) = substitute_static_css_function_references_in_value(

@@ -26,6 +26,24 @@ const redCases = [
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_ROUNDTRIP_EQUALITY", []],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_RAW_MAP", []],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_RAW_CANONICALIZATION", []],
+  [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_FQN_RAW_MAP", []],
+  [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_VALUES_RAW_MAP", []],
+  [
+    identifierChecker,
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_SAME_LINE_RAW_OPERATION",
+    [],
+  ],
+  [
+    identifierChecker,
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_NEW_FILE_RAW_COMPARISON",
+    [],
+  ],
+  [
+    identifierChecker,
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_NEW_FILE_RAW_CANONICALIZATION",
+    [],
+  ],
+  [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_REAL_FILE_MUTATION", []],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_CASE_FOLD", []],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_DECODE_NEUTER", []],
 ];
@@ -42,6 +60,7 @@ for (const [checker, variable, args] of redCases) {
   const suffix = args.length > 0 ? ` ${args.join(" ")}` : "";
   process.stdout.write(`${passed ? "ok  " : "FAIL"} ${variable}${suffix} exits non-zero\n`);
 }
+const redFailures = failures;
 
 const unlabelled = spawnSync("node", ["--import", "tsx", identifierChecker], {
   cwd: repoRoot,
@@ -54,8 +73,10 @@ const unlabelled = spawnSync("node", ["--import", "tsx", identifierChecker], {
 const blindSpotDisclosed = unlabelled.status === 0;
 if (!blindSpotDisclosed) failures += 1;
 process.stdout.write(
-  `${blindSpotDisclosed ? "ok  " : "FAIL"} unlabelled binding remains outside the idiom arm\n`,
+  `${blindSpotDisclosed ? "ok  " : "FAIL"} disclosed GREEN control: unlabelled class binding remains outside the idiom arm\n`,
 );
 
-process.stdout.write(`\n${redCases.length + 1 - failures}/${redCases.length + 1} passed\n`);
+process.stdout.write(
+  `\n${redCases.length - redFailures}/${redCases.length} RED mutation arms; ${blindSpotDisclosed ? "1/1" : "0/1"} disclosed GREEN control arm\n`,
+);
 process.exit(failures === 0 ? 0 : 1);

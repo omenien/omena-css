@@ -162,6 +162,7 @@ pub(crate) use omena_query::{
     OmenaQuerySourceSelectorReferenceSurfaceV0 as SourceSelectorReferenceSurface,
     OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex,
 };
+use omena_syntax::ident::PropertyNameV0;
 #[cfg(test)]
 pub(crate) use omena_tsgo_client::{TsgoResolvedTypeV0, TsgoTypeFactResultEntryV0};
 #[cfg(feature = "salsa-style-diagnostics")]
@@ -1184,7 +1185,9 @@ fn style_hover_trace_definitions(
     }
     if candidate.kind == "customPropertyReference"
         && let Some(target) = candidates.iter().find(|target| {
-            target.kind == "customPropertyDeclaration" && target.name == candidate.name
+            target.kind == "customPropertyDeclaration"
+                && PropertyNameV0::from_authored(&target.name)
+                    .same_as(&PropertyNameV0::from_authored(&candidate.name))
         })
     {
         return vec![(document.uri.clone(), target.clone())];

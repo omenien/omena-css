@@ -885,7 +885,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 374,
+        "line": 384,
         "function": "is_css_name_continue",
         "operation": "character-predicate-copy",
         "evidence": "fn is_css_name_continue(ch: char) -> bool { is_css_name_start(ch) || ch.is_ascii_digit() }",
@@ -894,7 +894,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 383,
+        "line": 393,
         "function": "is_ascii_word_continue",
         "operation": "character-predicate-copy",
         "evidence": "fn is_ascii_word_continue(ch: char) -> bool { ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-') }",
@@ -911,11 +911,11 @@
         "reason": "omena-transform-cst owns diagnostic context extraction, whose punctuation set is intentionally broader than a CSS identifier."
       }
     ],
-    "siteDigest": "sha256:5cc9e00a28970ace631770742a784f1345e791bd9c02cc09f1daec8441d6ca45"
+    "siteDigest": "sha256:6eb5d0f69481708c10c2fae9051763ad3c59b73a4f0dc48b522428116c57cd77"
   },
   "propertyIdentity": {
     "derivation": "authority-token-and-property-key-operation-scan",
-    "rawSiteDerivation": "property-labelled-raw-comparison-map-or-prefix-scan",
+    "rawSiteDerivation": "typed-property-operand-and-raw-key-dataflow-scan",
     "typeSeal": {
       "path": "rust/crates/omena-syntax/src/ident.rs",
       "propertyNameDerives": ["Debug", "Clone"],
@@ -928,7 +928,7 @@
       "customCanonicalization": "trim-decode-case-preserved",
       "equalityMethod": "PropertyNameV0::same_as"
     },
-    "authoritySiteCount": 567,
+    "authoritySiteCount": 599,
     "sites": [
       {
         "path": "rust/crates/engine-style-parser/src/lib.rs",
@@ -1600,6 +1600,22 @@
         "function": "transform_pass_cascade_values_match",
         "operation": "property_names_same",
         "evidence": "|| (property_names_same(property, \"opacity\")",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/lib.rs",
+        "line": 1189,
+        "function": "style_hover_trace_definitions",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "&& PropertyNameV0::from_authored(&target.name)",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/lib.rs",
+        "line": 1190,
+        "function": "style_hover_trace_definitions",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": ".same_as(&PropertyNameV0::from_authored(&candidate.name))",
         "role": "consumer"
       },
       {
@@ -3115,6 +3131,46 @@
         "role": "consumer"
       },
       {
+        "path": "rust/crates/omena-scss-eval/src/native_css.rs",
+        "line": 11,
+        "function": "<module>",
+        "operation": "CanonicalCustomPropertyNameV0",
+        "evidence": "use omena_syntax::{SyntaxKind, ident::CanonicalCustomPropertyNameV0};",
+        "role": "carrier"
+      },
+      {
+        "path": "rust/crates/omena-scss-eval/src/native_css.rs",
+        "line": 1566,
+        "function": "native_css_exact_function_call_name",
+        "operation": "CanonicalCustomPropertyNameV0",
+        "evidence": "type NativeCssFunctionBindingV0 = (CanonicalCustomPropertyNameV0, String);",
+        "role": "carrier"
+      },
+      {
+        "path": "rust/crates/omena-scss-eval/src/native_css.rs",
+        "line": 1577,
+        "function": "native_css_function_parameter_syntax_gate",
+        "operation": "PropertyNameV0::canonical_custom_key",
+        "evidence": "omena_syntax::ident::PropertyNameV0::canonical_custom_key(&parameter.name);",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-scss-eval/src/native_css.rs",
+        "line": 1636,
+        "function": "bind_native_css_function_arguments",
+        "operation": "PropertyNameV0::canonical_custom_key",
+        "evidence": "omena_syntax::ident::PropertyNameV0::canonical_custom_key(&parameter.name),",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-scss-eval/src/native_css.rs",
+        "line": 1661,
+        "function": "evaluate_native_css_function_result_value",
+        "operation": "PropertyNameV0::canonical_custom_key",
+        "evidence": "omena_syntax::ident::PropertyNameV0::canonical_custom_key(parameter_name);",
+        "role": "producer"
+      },
+      {
         "path": "rust/crates/omena-semantic/src/design_tokens.rs",
         "line": 14,
         "function": "<module>",
@@ -3308,7 +3364,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 101,
+        "line": 100,
         "function": "as_str",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "canonical: CanonicalStandardPropertyNameV0,",
@@ -3316,7 +3372,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 106,
+        "line": 105,
         "function": "as_str",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "canonical: CanonicalCustomPropertyNameV0,",
@@ -3324,7 +3380,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 135,
+        "line": 134,
         "function": "from_decoded",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "canonical: CanonicalStandardPropertyNameV0(",
@@ -3332,7 +3388,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 143,
+        "line": 142,
         "function": "from_decoded",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "canonical: CanonicalCustomPropertyNameV0(",
@@ -3340,7 +3396,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 209,
+        "line": 208,
         "function": "same_as",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "pub fn canonical_key(&self) -> CanonicalPropertyKeyV0 {",
@@ -3348,7 +3404,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 211,
+        "line": 210,
         "function": "canonical_key",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "Self::Standard { canonical, .. } => CanonicalPropertyKeyV0::Standard(canonical.clone()),",
@@ -3356,7 +3412,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 212,
+        "line": 211,
         "function": "canonical_key",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "Self::Custom { canonical, .. } => CanonicalPropertyKeyV0::Custom(canonical.clone()),",
@@ -3364,7 +3420,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 216,
+        "line": 215,
         "function": "canonical_key",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "pub fn as_custom_key(&self) -> Option<CanonicalCustomPropertyNameV0> {",
@@ -3372,7 +3428,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 223,
+        "line": 222,
         "function": "as_custom_key",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "pub fn as_standard_key(&self) -> Option<&CanonicalStandardPropertyNameV0> {",
@@ -3380,7 +3436,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 230,
+        "line": 229,
         "function": "as_standard_key",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "pub fn canonical_custom_key(authored: impl Into<String>) -> CanonicalCustomPropertyNameV0 {",
@@ -3388,7 +3444,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 237,
+        "line": 236,
         "function": "canonical_custom_key",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "pub fn canonical_standard_key(authored: impl Into<String>) -> CanonicalStandardPropertyNameV0 {",
@@ -3396,7 +3452,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 249,
+        "line": 261,
         "function": "canonical_standard_key",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "pub struct CanonicalStandardPropertyNameV0(String, CanonicalStandardPropertyNameSealV0);",
@@ -3404,7 +3460,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 251,
+        "line": 263,
         "function": "canonical_standard_key",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "impl CanonicalStandardPropertyNameV0 {",
@@ -3412,23 +3468,15 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 257,
+        "line": 269,
         "function": "as_str",
-        "operation": "CanonicalStandardPropertyNameV0",
-        "evidence": "impl Borrow<str> for CanonicalStandardPropertyNameV0 {",
-        "role": "authority"
-      },
-      {
-        "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 263,
-        "function": "borrow",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "impl serde::Serialize for CanonicalStandardPropertyNameV0 {",
         "role": "authority"
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 276,
+        "line": 292,
         "function": "serialize",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "pub struct CanonicalCustomPropertyNameV0(String, CanonicalCustomPropertyNameSealV0);",
@@ -3436,7 +3484,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 278,
+        "line": 294,
         "function": "serialize",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "impl CanonicalCustomPropertyNameV0 {",
@@ -3444,23 +3492,15 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 284,
+        "line": 300,
         "function": "as_str",
-        "operation": "CanonicalCustomPropertyNameV0",
-        "evidence": "impl Borrow<str> for CanonicalCustomPropertyNameV0 {",
-        "role": "authority"
-      },
-      {
-        "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 290,
-        "function": "borrow",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "impl serde::Serialize for CanonicalCustomPropertyNameV0 {",
         "role": "authority"
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 300,
+        "line": 310,
         "function": "serialize",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "pub enum CanonicalPropertyKeyV0 {",
@@ -3468,7 +3508,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 301,
+        "line": 311,
         "function": "serialize",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "Standard(CanonicalStandardPropertyNameV0),",
@@ -3476,7 +3516,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 302,
+        "line": 312,
         "function": "serialize",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "Custom(CanonicalCustomPropertyNameV0),",
@@ -3484,7 +3524,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 305,
+        "line": 315,
         "function": "serialize",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "impl CanonicalPropertyKeyV0 {",
@@ -3492,7 +3532,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 320,
+        "line": 330,
         "function": "kind",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "pub fn as_custom(&self) -> Option<&CanonicalCustomPropertyNameV0> {",
@@ -3500,7 +3540,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 327,
+        "line": 337,
         "function": "as_custom",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "pub fn as_standard(&self) -> Option<&CanonicalStandardPropertyNameV0> {",
@@ -3508,7 +3548,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 335,
+        "line": 345,
         "function": "as_standard",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "impl serde::Serialize for CanonicalPropertyKeyV0 {",
@@ -3516,7 +3556,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 346,
+        "line": 356,
         "function": "serialize",
         "operation": "property_names_same",
         "evidence": "pub fn property_names_same(left: &str, right: &str) -> bool {",
@@ -3524,7 +3564,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 347,
+        "line": 357,
         "function": "property_names_same",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "PropertyNameV0::from_authored(left).same_as(&PropertyNameV0::from_authored(right))",
@@ -3532,7 +3572,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 353,
+        "line": 363,
         "function": "is_custom_property_name",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "PropertyNameV0::from_authored(authored).kind() == PropertyNameKindV0::Custom",
@@ -3593,6 +3633,22 @@
         "operation": "sealed-property-key",
         "evidence": "property_key: declaration.property_key,",
         "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/color_lowering.rs",
+        "line": 46,
+        "function": "lower_css_light_dark_with_lexer",
+        "operation": "sealed-property-key",
+        "evidence": "if !is_static_color_reference_property(declaration.property_key.as_str()) {",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/color_lowering.rs",
+        "line": 185,
+        "function": "lower_static_color_function_references_with_lexer",
+        "operation": "sealed-property-key",
+        "evidence": "if !is_static_color_reference_property(declaration.property_key.as_str()) {",
+        "role": "consumer"
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/color.rs",
@@ -4748,23 +4804,47 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand_logical.rs",
-        "line": 205,
+        "line": 2,
+        "function": "<module>",
+        "operation": "CanonicalPropertyKeyV0",
+        "evidence": "use omena_syntax::ident::{CanonicalPropertyKeyV0, PropertyNameV0};",
+        "role": "carrier"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand_logical.rs",
+        "line": 207,
         "function": "logical_four_side_family",
         "operation": "sealed-property-key",
-        "evidence": ".filter(|declaration| declaration.property_key.as_str() == *property)",
+        "evidence": "standard_property_key_matches(&declaration.property_key, property)",
         "role": "consumer"
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand_logical.rs",
-        "line": 219,
+        "line": 222,
         "function": "logical_family_value",
         "operation": "sealed-property-key",
-        "evidence": ".find(|declaration| declaration.property_key.as_str() == property)?;",
+        "evidence": ".find(|declaration| standard_property_key_matches(&declaration.property_key, property))?;",
         "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand_logical.rs",
+        "line": 226,
+        "function": "logical_family_value",
+        "operation": "CanonicalPropertyKeyV0",
+        "evidence": "fn standard_property_key_matches(key: &CanonicalPropertyKeyV0, authored: &str) -> bool {",
+        "role": "carrier"
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand_logical.rs",
         "line": 227,
+        "function": "standard_property_key_matches",
+        "operation": "PropertyNameV0::canonical_standard_key",
+        "evidence": "key.as_standard() == Some(&PropertyNameV0::canonical_standard_key(authored))",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand_logical.rs",
+        "line": 234,
         "function": "logical_axis_shorthand_components",
         "operation": "sealed-property-key",
         "evidence": "match (first.property_key.as_str(), second.property_key.as_str()) {",
@@ -4867,6 +4947,14 @@
         "role": "consumer"
       },
       {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand_position.rs",
+        "line": 35,
+        "function": "background_position_axis_replacement_for_declarations",
+        "operation": "sealed-property-key",
+        "evidence": "let (x_value, y_value) = match (first.property_key.as_str(), second.property_key.as_str()) {",
+        "role": "consumer"
+      },
+      {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand_text.rs",
         "line": 19,
         "function": "text_decoration_shorthand_replacement_for_declarations",
@@ -4916,7 +5004,31 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 565,
+        "line": 299,
+        "function": "box_shorthand_replacement_for_declarations",
+        "operation": "sealed-property-key",
+        "evidence": "let shorthand_property = match declarations.first()?.property_key.as_str() {",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+        "line": 507,
+        "function": "push_longhand_merge_candidate_for_replacement",
+        "operation": "PropertyNameV0::standard",
+        "evidence": "&& PropertyNameV0::standard(existing.shorthand_property)",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+        "line": 508,
+        "function": "push_longhand_merge_candidate_for_replacement",
+        "operation": "PropertyNameV0::standard",
+        "evidence": ".same_as(&PropertyNameV0::standard(candidate.shorthand_property))",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+        "line": 566,
         "function": "shorthand_value_replacement_for_declaration",
         "operation": "sealed-property-key",
         "evidence": "let property = declaration.property_key.as_str();",
@@ -4924,7 +5036,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 628,
+        "line": 629,
         "function": "border_radius_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "if top_left.property_key.as_str() != \"border-top-left-radius\"",
@@ -4932,7 +5044,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 629,
+        "line": 630,
         "function": "border_radius_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| top_right.property_key.as_str() != \"border-top-right-radius\"",
@@ -4940,7 +5052,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 630,
+        "line": 631,
         "function": "border_radius_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| bottom_right.property_key.as_str() != \"border-bottom-right-radius\"",
@@ -4948,7 +5060,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 631,
+        "line": 632,
         "function": "border_radius_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| bottom_left.property_key.as_str() != \"border-bottom-left-radius\"",
@@ -4956,7 +5068,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 671,
+        "line": 672,
         "function": "border_image_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "if source.property_key.as_str() != \"border-image-source\"",
@@ -4964,7 +5076,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 672,
+        "line": 673,
         "function": "border_image_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| slice.property_key.as_str() != \"border-image-slice\"",
@@ -4972,7 +5084,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 673,
+        "line": 674,
         "function": "border_image_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| width.property_key.as_str() != \"border-image-width\"",
@@ -4980,7 +5092,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 674,
+        "line": 675,
         "function": "border_image_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| outset.property_key.as_str() != \"border-image-outset\"",
@@ -4988,7 +5100,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 675,
+        "line": 676,
         "function": "border_image_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| repeat.property_key.as_str() != \"border-image-repeat\"",
@@ -4996,7 +5108,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 730,
+        "line": 731,
         "function": "background_component_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "if image.property_key.as_str() != \"background-image\"",
@@ -5004,7 +5116,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 731,
+        "line": 732,
         "function": "background_component_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| repeat.property_key.as_str() != \"background-repeat\"",
@@ -5012,7 +5124,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 732,
+        "line": 733,
         "function": "background_component_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| color.property_key.as_str() != \"background-color\"",
@@ -5020,7 +5132,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 760,
+        "line": 761,
         "function": "block_has_other_background_reset_sensitive_declarations",
         "operation": "sealed-property-key",
         "evidence": "background_reset_sensitive_property(declaration.property_key.as_str())",
@@ -5028,7 +5140,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 815,
+        "line": 816,
         "function": "inset_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "if top.property_key.as_str() != \"top\"",
@@ -5036,7 +5148,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 816,
+        "line": 817,
         "function": "inset_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| right.property_key.as_str() != \"right\"",
@@ -5044,7 +5156,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 817,
+        "line": 818,
         "function": "inset_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| bottom.property_key.as_str() != \"bottom\"",
@@ -5052,7 +5164,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 818,
+        "line": 819,
         "function": "inset_shorthand_replacement_for_declarations",
         "operation": "sealed-property-key",
         "evidence": "|| left.property_key.as_str() != \"left\"",
@@ -5060,7 +5172,47 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 1099,
+        "line": 868,
+        "function": "overflow_axis_replacement_for_declarations",
+        "operation": "sealed-property-key",
+        "evidence": "let (x, y) = match (first.property_key.as_str(), second.property_key.as_str()) {",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+        "line": 936,
+        "function": "place_axis_shorthand_components",
+        "operation": "sealed-property-key",
+        "evidence": "match (first.property_key.as_str(), second.property_key.as_str()) {",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+        "line": 984,
+        "function": "gap_axis_replacement_for_declarations",
+        "operation": "sealed-property-key",
+        "evidence": "let (row_gap, column_gap) = match (first.property_key.as_str(), second.property_key.as_str()) {",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+        "line": 1026,
+        "function": "flex_flow_replacement_for_declarations",
+        "operation": "sealed-property-key",
+        "evidence": "let (direction, wrap) = match (first.property_key.as_str(), second.property_key.as_str()) {",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+        "line": 1074,
+        "function": "flex_longhand_replacement_for_declarations",
+        "operation": "sealed-property-key",
+        "evidence": "match declaration.property_key.as_str() {",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+        "line": 1100,
         "function": "collect_overridden_flex_longhand_replacements",
         "operation": "sealed-property-key",
         "evidence": "if !flex_longhand_is_reset_by_flex_shorthand(declaration.property_key.as_str()) {",
@@ -5068,7 +5220,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
-        "line": 1104,
+        "line": 1105,
         "function": "collect_overridden_flex_longhand_replacements",
         "operation": "sealed-property-key",
         "evidence": ".find(|candidate| candidate.property_key.as_str() == \"flex\");",
@@ -5252,23 +5404,55 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
-        "line": 548,
-        "function": "prefixed_values_for",
+        "line": 497,
+        "function": "prefixed_properties_for",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "let property_key = PropertyNameV0::from_authored(property).canonical_key();",
         "role": "producer"
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
-        "line": 549,
-        "function": "prefixed_values_for",
+        "line": 498,
+        "function": "prefixed_properties_for",
         "operation": "sealed-property-key",
-        "evidence": "let Some(property) = property_key.as_standard().map(|property| property.as_str()) else {",
+        "evidence": "let Some(property_key) = property_key.as_standard() else {",
         "role": "consumer"
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
-        "line": 562,
+        "line": 504,
+        "function": "prefixed_properties_for",
+        "operation": "PropertyNameV0::canonical_standard_key",
+        "evidence": ".find(|rule| PropertyNameV0::canonical_standard_key(&rule.name) == *property_key)",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
+        "line": 552,
+        "function": "prefixed_values_for",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "let property_key = PropertyNameV0::from_authored(property).canonical_key();",
+        "role": "producer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
+        "line": 553,
+        "function": "prefixed_values_for",
+        "operation": "sealed-property-key",
+        "evidence": "let Some(property_key) = property_key.as_standard() else {",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
+        "line": 561,
+        "function": "prefixed_values_for",
+        "operation": "PropertyNameV0::canonical_standard_key",
+        "evidence": "PropertyNameV0::canonical_standard_key(&rule.property) == *property_key",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
+        "line": 569,
         "function": "prefixed_declarations_for",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "let property_key = PropertyNameV0::from_authored(property).canonical_key();",
@@ -5276,10 +5460,18 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
-        "line": 563,
+        "line": 570,
         "function": "prefixed_declarations_for",
         "operation": "sealed-property-key",
-        "evidence": "let Some(property) = property_key.as_standard().map(|property| property.as_str()) else {",
+        "evidence": "let Some(property_key) = property_key.as_standard() else {",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
+        "line": 577,
+        "function": "prefixed_declarations_for",
+        "operation": "PropertyNameV0::canonical_standard_key",
+        "evidence": ".find(|rule| PropertyNameV0::canonical_standard_key(&rule.property) == *property_key)",
         "role": "consumer"
       },
       {
@@ -5452,10 +5644,58 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-        "line": 1077,
-        "function": "winner_difference_absences",
+        "line": 465,
+        "function": "winner_for_pair",
         "operation": "PropertyNameV0::from_authored",
-        "evidence": "|| !PropertyNameV0::from_authored(&input.winner.property)",
+        "evidence": "let pair_property = PropertyNameV0::from_authored(&pair.property);",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+        "line": 470,
+        "function": "winner_for_pair",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "PropertyNameV0::from_authored(&candidate.property).same_as(&pair_property)",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+        "line": 542,
+        "function": "winner_for_pair",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "PropertyNameV0::from_authored(&declaration.property).same_as(&pair_property)",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+        "line": 777,
+        "function": "guarded_candidate_seeds_for_pair",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "let pair_property = PropertyNameV0::from_authored(&pair.property);",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+        "line": 779,
+        "function": "guarded_candidate_seeds_for_pair",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "PropertyNameV0::from_authored(&candidate.property).same_as(&pair_property)",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+        "line": 866,
+        "function": "guarded_environment_candidate_seeds_for_pair",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "let pair_property = PropertyNameV0::from_authored(&pair.property);",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+        "line": 868,
+        "function": "guarded_environment_candidate_seeds_for_pair",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "PropertyNameV0::from_authored(&declaration.property).same_as(&pair_property)",
         "role": "consumer"
       },
       {
@@ -5463,11 +5703,27 @@
         "line": 1078,
         "function": "winner_difference_absences",
         "operation": "PropertyNameV0::from_authored",
+        "evidence": "|| !PropertyNameV0::from_authored(&input.winner.property)",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+        "line": 1079,
+        "function": "winner_difference_absences",
+        "operation": "PropertyNameV0::from_authored",
         "evidence": ".same_as(&PropertyNameV0::from_authored(&output.winner.property))",
         "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+        "line": 1122,
+        "function": "pair_identity",
+        "operation": "PropertyNameV0::from_authored",
+        "evidence": "let property_key = PropertyNameV0::from_authored(&pair.property).canonical_key();",
+        "role": "producer"
       }
     ],
-    "siteDigest": "sha256:89ecfc9ecb3292f5d05a41160f04af7cbf575870c664903ce887825b58abf3af",
+    "siteDigest": "sha256:f4e1106bf96beb814bd23e4e2a0c9ac6d90c110400f175bc0f69c28de1957217",
     "rawStringIdentitySiteCount": 0,
     "rawStringIdentitySites": [],
     "rawStringIdentitySiteDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"

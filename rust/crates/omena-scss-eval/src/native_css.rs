@@ -8,7 +8,7 @@ use omena_cascade::{
     evaluate_static_supports_condition,
 };
 use omena_parser::{LexedToken, StyleDialect, lex};
-use omena_syntax::SyntaxKind;
+use omena_syntax::{SyntaxKind, ident::CanonicalCustomPropertyNameV0};
 use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -1563,15 +1563,19 @@ enum NativeCssFunctionSyntaxGateV0 {
     Unknown { reason: &'static str },
 }
 
+type NativeCssFunctionBindingV0 = (CanonicalCustomPropertyNameV0, String);
+
 fn native_css_function_parameter_syntax_gate(
-    bindings: &[(String, String)],
+    bindings: &[NativeCssFunctionBindingV0],
     function: &OmenaScssEvalNativeCssFunctionV0,
 ) -> NativeCssFunctionSyntaxGateV0 {
     for parameter in &function.parameters {
         let Some(syntax) = parameter.syntax_source.as_deref() else {
             continue;
         };
-        let Some((_, value)) = bindings.iter().find(|(name, _)| name == &parameter.name) else {
+        let parameter_key =
+            omena_syntax::ident::PropertyNameV0::canonical_custom_key(&parameter.name);
+        let Some((_, value)) = bindings.iter().find(|(name, _)| name == &parameter_key) else {
             continue;
         };
         match validate_registered_property_value_v0(syntax, value).class {
@@ -1612,20 +1616,27 @@ fn native_css_function_return_syntax_gate(
 fn bind_native_css_function_arguments(
     arguments: &[OmenaScssEvalNativeCssFunctionCallArgumentV0],
     function: &OmenaScssEvalNativeCssFunctionV0,
-) -> Option<Vec<(String, String)>> {
+) -> Option<Vec<NativeCssFunctionBindingV0>> {
     function
         .parameters
         .iter()
         .enumerate()
         .map(|(index, parameter)| {
             if let Some(argument) = arguments.get(index) {
-                return argument
-                    .static_value
-                    .then(|| (parameter.name.clone(), argument.value.clone()));
+                return argument.static_value.then(|| {
+                    (
+                        omena_syntax::ident::PropertyNameV0::canonical_custom_key(&parameter.name),
+                        argument.value.clone(),
+                    )
+                });
             }
             let default_value = parameter.default_value.as_deref()?;
-            native_css_if_value_is_fully_static(default_value)
-                .then(|| (parameter.name.clone(), default_value.to_string()))
+            native_css_if_value_is_fully_static(default_value).then(|| {
+                (
+                    omena_syntax::ident::PropertyNameV0::canonical_custom_key(&parameter.name),
+                    default_value.to_string(),
+                )
+            })
         })
         .collect()
 }
@@ -1643,12 +1654,14 @@ fn native_css_function_required_argument_is_missing(
 
 fn evaluate_native_css_function_result_value(
     result: &str,
-    bindings: &[(String, String)],
+    bindings: &[NativeCssFunctionBindingV0],
 ) -> Option<String> {
     if let Some(parameter_name) = extract_exact_var_reference(result) {
+        let parameter_key =
+            omena_syntax::ident::PropertyNameV0::canonical_custom_key(parameter_name);
         return bindings
             .iter()
-            .find_map(|(name, value)| (name == parameter_name).then(|| value.clone()));
+            .find_map(|(name, value)| (name == &parameter_key).then(|| value.clone()));
     }
     if let Some(value) = evaluate_native_css_function_result_if_value(result) {
         return Some(value);
@@ -2422,6 +2435,42 @@ mod tests {
         assert_eq!(report.calls[0].evaluated_value.as_deref(), Some("2rem"));
         assert_eq!(report.calls[0].arguments[0].value, "2rem");
         assert!(report.calls[0].arguments[0].static_value);
+    }
+
+    #[test]
+    fn native_css_function_parameter_binding_keeps_custom_property_case_sensitive() {
+        let source = "@function --echo(--Param <length>) returns <length> { result: var(--param); } .card { width: --echo(2rem); }";
+        let report = summarize_native_css_function_call_evaluations(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.call_count, 1);
+        assert_eq!(report.foldable_call_count, 0);
+        assert_eq!(report.preserved_call_count, 1);
+        assert_eq!(report.calls[0].decision, "preserveVerbatim");
+        assert_eq!(
+            report.calls[0].reason,
+            "result value depends on runtime or cascade state"
+        );
+        assert_eq!(report.calls[0].evaluated_value, None);
+    }
+
+    #[test]
+    fn native_css_function_parameter_binding_joins_escape_equivalent_identity() {
+        let source = r#"@function --echo(--P\61 ram <length>) returns <length> { result: var(--Param); } .card { width: --echo(2rem); }"#;
+        let report = summarize_native_css_function_call_evaluations(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.call_count, 1);
+        assert_eq!(report.foldable_call_count, 1);
+        assert_eq!(report.preserved_call_count, 0);
+        assert_eq!(report.calls[0].decision, "foldToStaticValue");
+        assert_eq!(report.calls[0].evaluated_value.as_deref(), Some("2rem"));
     }
 
     #[test]

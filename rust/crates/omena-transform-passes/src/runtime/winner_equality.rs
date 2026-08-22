@@ -462,13 +462,13 @@ fn winner_for_pair(
     let mut declarations = Vec::new();
     let mut matched_ordinal = 0usize;
     let mut conditional_context_open = false;
+    let pair_property = PropertyNameV0::from_authored(&pair.property);
     let stylesheet_source_order_base = cascade_environment
         .map(|environment| environment.stylesheet_source_order_base)
         .unwrap_or_default();
-    for candidate in candidates
-        .iter()
-        .filter(|candidate| css_keyword(candidate.property.as_str()).equals(pair.property.as_str()))
-    {
+    for candidate in candidates.iter().filter(|candidate| {
+        PropertyNameV0::from_authored(&candidate.property).same_as(&pair_property)
+    }) {
         let witness = selector_match_witness(candidate.selector.as_str(), &pair.element_signature);
         match witness.verdict {
             SelectorMatchVerdict::No => continue,
@@ -539,7 +539,7 @@ fn winner_for_pair(
 
     if let Some(environment) = cascade_environment {
         for declaration in environment.declarations.iter().filter(|declaration| {
-            css_keyword(declaration.property.as_str()).equals(pair.property.as_str())
+            PropertyNameV0::from_authored(&declaration.property).same_as(&pair_property)
         }) {
             let witness =
                 selector_match_witness(declaration.selector.as_str(), &pair.element_signature);
@@ -774,10 +774,10 @@ fn guarded_candidate_seeds_for_pair(
 ) -> Option<Vec<GuardedCandidateSeedV0>> {
     let mut prepared = Vec::new();
     let mut matched_ordinal = 0usize;
-    for candidate in candidates
-        .iter()
-        .filter(|candidate| css_keyword(candidate.property.as_str()).equals(pair.property.as_str()))
-    {
+    let pair_property = PropertyNameV0::from_authored(&pair.property);
+    for candidate in candidates.iter().filter(|candidate| {
+        PropertyNameV0::from_authored(&candidate.property).same_as(&pair_property)
+    }) {
         let witness = selector_match_witness(candidate.selector.as_str(), &pair.element_signature);
         match witness.verdict {
             SelectorMatchVerdict::No => continue,
@@ -863,8 +863,9 @@ fn guarded_environment_candidate_seeds_for_pair(
     element_signature: &str,
 ) -> Option<Vec<GuardedCandidateSeedV0>> {
     let mut seeds = Vec::new();
+    let pair_property = PropertyNameV0::from_authored(&pair.property);
     for declaration in environment.declarations.iter().filter(|declaration| {
-        css_keyword(declaration.property.as_str()).equals(pair.property.as_str())
+        PropertyNameV0::from_authored(&declaration.property).same_as(&pair_property)
     }) {
         let witness =
             selector_match_witness(declaration.selector.as_str(), &pair.element_signature);
@@ -1118,7 +1119,8 @@ fn winner_difference_absences(
 }
 
 fn pair_identity(pair: &TransformWinnerEqualityAffectedPairV0) -> String {
-    format!("{:?}|{}", pair.element_signature, pair.property)
+    let property_key = PropertyNameV0::from_authored(&pair.property).canonical_key();
+    format!("{:?}|{property_key:?}", pair.element_signature)
 }
 
 fn overlaps_input_mutation(
@@ -1184,6 +1186,60 @@ mod tests {
             generated_span_end: output.len(),
             node_key: None,
         }
+    }
+
+    #[test]
+    fn candidate_selection_keeps_custom_property_identity_case_sensitive() {
+        let pair = TransformWinnerEqualityAffectedPairV0 {
+            element_signature: ElementSignature {
+                tag: None,
+                id: None,
+                classes: BTreeSet::from(["a".to_string()]),
+                attributes: BTreeSet::new(),
+                pseudo_states: BTreeSet::new(),
+                classes_are_exact: true,
+                attributes_are_exact: true,
+                pseudo_states_are_exact: true,
+                tag_is_exact: true,
+                id_is_exact: true,
+            },
+            property: "--FOO".to_string(),
+        };
+        let candidates = ["--foo", "--FOO"].map(|property| SemanticCascadeCandidateV0 {
+            selector: ".a".to_string(),
+            property: property.to_string(),
+            value: property.to_string(),
+            important: false,
+            source_span_start: 0,
+            source_span_end: 2,
+            context_key: String::new(),
+        });
+        let layer_index = summarize_style_layer_order_from_source("", StyleDialect::Css);
+
+        let seeds = guarded_candidate_seeds_for_pair(
+            &pair,
+            &candidates,
+            &layer_index,
+            "custom-property-case",
+            0,
+        );
+        assert!(seeds.is_some());
+        let Some(seeds) = seeds else {
+            return;
+        };
+
+        assert_eq!(
+            seeds
+                .iter()
+                .map(|seed| seed.property.as_str())
+                .collect::<Vec<_>>(),
+            ["--FOO"]
+        );
+        let lower_pair = TransformWinnerEqualityAffectedPairV0 {
+            property: "--foo".to_string(),
+            ..pair.clone()
+        };
+        assert_ne!(pair_identity(&pair), pair_identity(&lower_pair));
     }
 
     #[test]

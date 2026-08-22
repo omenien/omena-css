@@ -60,6 +60,155 @@ fn execution_runtime_combines_adjacent_box_longhands_with_cascade_proof() {
 }
 
 #[test]
+fn execution_runtime_combines_uppercase_margin_longhands() {
+    let source =
+        r#".a { MARGIN-TOP: 1px; MARGIN-RIGHT: 1px; MARGIN-BOTTOM: 1px; MARGIN-LEFT: 1px; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::ShorthandCombining,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(execution.output_css, ".a { margin: 1px; }");
+}
+
+#[test]
+fn execution_runtime_combines_uppercase_padding_longhands() {
+    let source =
+        r#".a { PADDING-TOP: 1px; PADDING-RIGHT: 2px; PADDING-BOTTOM: 1px; PADDING-LEFT: 2px; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::ShorthandCombining,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(execution.output_css, ".a { padding: 1px 2px; }");
+}
+
+#[test]
+fn execution_runtime_combines_uppercase_border_color_longhands() {
+    let source = r#".a { BORDER-TOP-COLOR: red; BORDER-RIGHT-COLOR: blue; BORDER-BOTTOM-COLOR: red; BORDER-LEFT-COLOR: blue; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::ShorthandCombining,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(execution.output_css, ".a { border-color: red blue; }");
+}
+
+#[test]
+fn execution_runtime_combines_uppercase_scroll_margin_longhands() {
+    let source = r#".a { SCROLL-MARGIN-TOP: 1px; SCROLL-MARGIN-RIGHT: 2px; SCROLL-MARGIN-BOTTOM: 1px; SCROLL-MARGIN-LEFT: 2px; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::ShorthandCombining,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(execution.output_css, ".a { scroll-margin: 1px 2px; }");
+}
+
+#[test]
+fn execution_runtime_combines_uppercase_flex_longhands() {
+    let source = r#".a { FLEX-GROW: 1; FLEX-SHRINK: 1; FLEX-BASIS: 0%; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::ShorthandCombining,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(execution.output_css, ".a { flex: 1; }");
+}
+
+#[test]
+fn execution_runtime_combines_mixed_case_standard_longhands() {
+    let source =
+        r#".a { mArGiN-ToP: 1px; MARGIN-right: 2px; margin-BOTTOM: 1px; MaRgIn-LeFt: 2px; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::ShorthandCombining,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(execution.output_css, ".a { margin: 1px 2px; }");
+}
+
+#[test]
+fn canonical_standard_property_outputs_match_pre_identity_baseline_bytes() {
+    let fixtures = [
+        (
+            "margin",
+            r#".a { margin-top: 1px; margin-right: 1px; margin-bottom: 1px; margin-left: 1px; }"#,
+            TransformPassKind::ShorthandCombining,
+            ".a { margin: 1px; }",
+        ),
+        (
+            "padding",
+            r#".a { padding-top: 1px; padding-right: 2px; padding-bottom: 1px; padding-left: 2px; }"#,
+            TransformPassKind::ShorthandCombining,
+            ".a { padding: 1px 2px; }",
+        ),
+        (
+            "border-color",
+            r#".a { border-top-color: red; border-right-color: blue; border-bottom-color: red; border-left-color: blue; }"#,
+            TransformPassKind::ShorthandCombining,
+            ".a { border-color: red blue; }",
+        ),
+        (
+            "scroll-margin",
+            r#".a { scroll-margin-top: 1px; scroll-margin-right: 2px; scroll-margin-bottom: 1px; scroll-margin-left: 2px; }"#,
+            TransformPassKind::ShorthandCombining,
+            ".a { scroll-margin: 1px 2px; }",
+        ),
+        (
+            "flex",
+            r#".a { flex-grow: 1; flex-shrink: 1; flex-basis: 0%; }"#,
+            TransformPassKind::ShorthandCombining,
+            ".a { flex: 1; }",
+        ),
+        (
+            "mixed-case-twin",
+            r#".a { margin-top: 1px; margin-right: 2px; margin-bottom: 1px; margin-left: 2px; }"#,
+            TransformPassKind::ShorthandCombining,
+            ".a { margin: 1px 2px; }",
+        ),
+        (
+            "color-light-dark",
+            r#".card { color: light-dark(red, blue); }"#,
+            TransformPassKind::LightDarkLowering,
+            r#".card { color: red; } @media (prefers-color-scheme: dark) { .card { color: blue; } }"#,
+        ),
+    ];
+
+    for (label, source, pass, expected) in fixtures {
+        let execution =
+            execute_transform_passes_on_source(source, &[pass, TransformPassKind::PrintCss]);
+        assert_eq!(execution.output_css, expected, "baseline row {label}");
+    }
+
+    println!("STANDARD_PROPERTY_BASELINE_BYTE_ROWS=7");
+}
+
+#[test]
 fn execution_summary_reports_deterministic_discharge_ledger_telemetry() {
     let source = r#".a { margin-top: 1px; margin-right: 2px; margin-bottom: 1px; margin-left: 2px; border-top-color: red; border-right-color: blue; border-bottom-color: red; border-left-color: blue; border-top-width: 1px; border-right-width: 2px; border-bottom-width: 3px; border-left-width: 2px; }"#;
     let snapshots = (0..3)

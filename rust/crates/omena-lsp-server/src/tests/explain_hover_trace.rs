@@ -73,6 +73,47 @@ fn explain_hover_trace_reports_style_selector_definition() {
 }
 
 #[test]
+fn explain_hover_trace_joins_escape_equivalent_custom_property_definitions() -> TestResult {
+    let style_uri = "file:///workspace-a/src/App.module.css";
+    let style_text = r#".root {
+  --br\61 nd: red;
+  color: var(--brand);
+}"#;
+    let mut state = LspShellState::default();
+    open_style_document(&mut state, style_uri, style_text);
+
+    let response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": EXPLAIN_HOVER_TRACE_REQUEST,
+            "params": {
+                "textDocument": { "uri": style_uri },
+                "position": parser_position_for_byte_offset(
+                    style_text,
+                    fixture_find(style_text, "--brand);", "fixture contains custom-property reference")? + 2,
+                ),
+            },
+        }),
+    );
+
+    assert_eq!(
+        response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/definitions/0/kind")),
+        Some(&json!("customPropertyDeclaration")),
+    );
+    assert_eq!(
+        response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/definitions/0/name")),
+        Some(&json!(r#"--br\61 nd"#)),
+    );
+    Ok(())
+}
+
+#[test]
 fn explain_hover_trace_reports_source_selector_resolution() -> TestResult {
     let style_uri = "file:///workspace-a/src/App.module.scss";
     let source_uri = "file:///workspace-a/src/App.tsx";

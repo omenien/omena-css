@@ -407,7 +407,7 @@
     {
       "crate": "omena-transform-passes",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor exposes checked module-export preservation evidence, can reject a structural pass candidate whose identity-keyed export observation is not preserved, returns typed dependency-cycle witnesses from checked pass planning, and adds independently measured full-CST coverage to external CSS adoption evidence.",
+      "reason": "The next pre-1.0 minor exposes checked module-export preservation evidence, can reject a structural pass candidate whose identity-keyed export observation is not preserved, returns typed dependency-cycle witnesses from checked pass planning, adds independently measured full-CST coverage to external CSS adoption evidence, and routes transform property selection through the shared standard/custom identity authority.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -497,6 +497,55 @@
             {
               "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
               "needles": ["NonStyleRuleDeclarationCarriers", "IntraRuleDeclarationOrdering"]
+            }
+          ]
+        },
+        {
+          "id": "transform-property-identity-selection",
+          "kind": "selection-outcome-changing",
+          "surface": "shorthand and color lowering plus guarded and unguarded cascade-winner candidate selection",
+          "reason": "Transform consumers now use sealed property keys: authored uppercase standard declarations participate in the same transforms as lowercase spellings, while case-distinct custom properties no longer share winner candidates or affected-pair identities.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+              "needles": [
+                "PropertyNameV0::from_authored(&candidate.property).same_as(&pair_property)",
+                "fn candidate_selection_keeps_custom_property_identity_case_sensitive()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/tests/shorthand_combining.rs",
+              "needles": [
+                "fn execution_runtime_combines_uppercase_margin_longhands()",
+                "fn execution_runtime_combines_mixed_case_standard_longhands()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/tests/value_lowering.rs",
+              "needles": [
+                "fn execution_runtime_lowers_light_dark_for_uppercase_standard_property()"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "string-authority-icss-export-retention",
+          "kind": "selection-outcome-changing",
+          "surface": "string-authority structural golden rows tree-shake-css-modules-values and tree-shake-custom-properties",
+          "reason": "ICSS reachability now follows each declaration's export_name, so the live keepExport declaration remains in both value and custom-property tree-shake outputs instead of being removed with dead exports.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/data/string-authority-structural-golden-v0.json",
+              "needles": [
+                "@value keep: 1px;   :export { keepExport: keep;  }",
+                " .used { color: var(--keep); --keep: green;  } :export { keepExport: var(--keep);  }"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+              "needles": [
+                "custom_property_icss_export_is_reachable(&declaration.export_name, external_roots)"
+              ]
             }
           ]
         }

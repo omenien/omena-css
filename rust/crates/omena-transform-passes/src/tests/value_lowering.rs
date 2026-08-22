@@ -195,6 +195,24 @@ fn execution_runtime_lowers_whole_value_light_dark_declarations() {
 }
 
 #[test]
+fn execution_runtime_lowers_light_dark_for_uppercase_standard_property() {
+    let source = r#".card { COLOR: light-dark(red, blue); }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::LightDarkLowering,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(
+        execution.output_css,
+        r#".card { COLOR: red; } @media (prefers-color-scheme: dark) { .card { COLOR: blue; } }"#
+    );
+}
+
+#[test]
 fn execution_runtime_lowers_static_srgb_color_mix_declarations() {
     let source = r#".card { color: color-mix(in srgb, red 50%, blue 50%); background-color: color-mix(in srgb, #000, #fff 25%); outline-color: color-mix(in srgb, rgb(255 0 0) 25%, hsl(240 100% 50%) 75%); text-decoration-color: color-mix(in srgb, hwb(120 0% 50%) 40%, white 60%); caret-color: color-mix(in srgb, black 12.5%, white 87.5%); background: linear-gradient(color-mix(in srgb, red 25%, blue 75%), white); accent-color: color-mix(in srgb, red 25%, blue 25%); fill: color-mix(in srgb, red 75%, blue 75%); stroke: color-mix(in srgb, red 0%, blue 0%); border: 1px solid color-mix(in srgb, red, blue); box-shadow: 0 0 1px color-mix(in srgb, red, blue); column-rule: 1px solid color-mix(in srgb, red, blue); border-color: color-mix(in oklab, red, blue); }"#;
     let execution = execute_transform_passes_on_source(

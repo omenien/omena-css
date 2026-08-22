@@ -3866,12 +3866,20 @@ mod tests {
             active_omena_checker_custom_property_registrations_v0(registrations.as_slice());
 
         assert_eq!(active.len(), 2);
-        assert!(!active.contains_key("--invalid-inherits"));
-        assert!(!active.contains_key("--invalid-initial"));
-        assert!(active["--universal"].inherits);
-        assert_eq!(active["--universal"].initial_value, None);
-        assert!(!active["--gap"].inherits);
-        assert_eq!(active["--gap"].initial_value.as_deref(), Some("8px"));
+        assert!(!active.contains_key(&PropertyNameV0::canonical_custom_key("--invalid-inherits")));
+        assert!(!active.contains_key(&PropertyNameV0::canonical_custom_key("--invalid-initial")));
+        assert!(active[&PropertyNameV0::canonical_custom_key("--universal")].inherits);
+        assert_eq!(
+            active[&PropertyNameV0::canonical_custom_key("--universal")].initial_value,
+            None
+        );
+        assert!(!active[&PropertyNameV0::canonical_custom_key("--gap")].inherits);
+        assert_eq!(
+            active[&PropertyNameV0::canonical_custom_key("--gap")]
+                .initial_value
+                .as_deref(),
+            Some("8px")
+        );
     }
 
     #[test]
