@@ -469,7 +469,7 @@
       },
       {
         "path": "rust/crates/omena-query-core/src/lib.rs",
-        "line": 763,
+        "line": 789,
         "function": "selector_universe_for_targets",
         "operation": "map-get",
         "evidence": "if let Some(selector_names) = style_selectors_by_path.get(target_style_path) {",
@@ -801,7 +801,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:9d7a8c319e951ac2bb53d90b8813901d90ac8ee1b6032f8c1ffa8943be24cfa4"
+    "siteDigest": "sha256:f63c703c98547c264b337bc3f367048c23f46298f0b551ea28ca360a1943c461"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
