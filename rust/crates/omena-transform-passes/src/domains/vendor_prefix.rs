@@ -507,6 +507,8 @@ fn prefixed_properties_for(property: &str) -> Vec<&'static str> {
 }
 
 fn unprefixed_property_for_stale_prefix(property: &str) -> Option<&'static str> {
+    let property = PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     match property {
         "-moz-appearance" | "-webkit-appearance" => Some("appearance"),
         "-webkit-backdrop-filter" => Some("backdrop-filter"),

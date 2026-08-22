@@ -1,4 +1,6 @@
 pub(crate) fn is_zero_length_unit_property(property: &str) -> bool {
+    let property = omena_syntax::ident::PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     matches!(
         property,
         "border"
@@ -131,6 +133,8 @@ pub(crate) fn is_zero_length_unit_property(property: &str) -> bool {
 }
 
 pub(crate) fn is_zero_percentage_unit_property(property: &str) -> bool {
+    let property = omena_syntax::ident::PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     matches!(
         property,
         "background-position"

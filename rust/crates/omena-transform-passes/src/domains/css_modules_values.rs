@@ -2024,7 +2024,7 @@ fn simple_declaration_from_ir(
     }
     let property_name = PropertyNameV0::from_authored(property);
     Some(CssModulesValueDeclarationIrViewV0 {
-        property: property_name.authored().to_string(),
+        property: property_name.authored_text().to_string(),
         value: value.to_string(),
         start: node.source_span_start,
         end: node.source_span_end,

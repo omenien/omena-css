@@ -292,14 +292,16 @@
             "field OmenaQueryStyleHoverCandidateV0.property_key",
             "field OmenaQueryCascadeNarrowingEvidenceV0.property_key",
             "field OmenaQueryCreateCustomPropertyActionV0.property_key",
-            "field OmenaQueryCustomPropertyAnnotationV0.property_key"
+            "field OmenaQueryCustomPropertyAnnotationV0.property_key",
+            "field OmenaQueryCustomPropertyOccurrenceV0.property_key"
           ],
           "witnessLinePrefix": "  field ",
           "expectedWitnesses": [
             "OmenaQueryStyleHoverCandidateV0.property_key",
             "OmenaQueryCascadeNarrowingEvidenceV0.property_key",
             "OmenaQueryCreateCustomPropertyActionV0.property_key",
-            "OmenaQueryCustomPropertyAnnotationV0.property_key"
+            "OmenaQueryCustomPropertyAnnotationV0.property_key",
+            "OmenaQueryCustomPropertyOccurrenceV0.property_key"
           ]
         },
         {
@@ -422,7 +424,8 @@
                 "pub name: AuthoredPropertyTextV0,",
                 "pub property_key: Option<CanonicalCustomPropertyNameV0>,",
                 "pub property_name: AuthoredPropertyTextV0,",
-                "pub property_key: CanonicalPropertyKeyV0,"
+                "pub property_key: CanonicalPropertyKeyV0,",
+                "pub property_key: CanonicalCustomPropertyNameV0,"
               ]
             }
           ]
@@ -707,7 +710,7 @@
               "sourcePath": "rust/crates/omena-parser/src/public_product/syntax_index.rs",
               "needles": [
                 "let property = PropertyNameV0::new(",
-                "let property_name = property.authored().to_string();",
+                "let property_name = property.authored_text().to_string();",
                 "let property_key = property.canonical_key();"
               ]
             },

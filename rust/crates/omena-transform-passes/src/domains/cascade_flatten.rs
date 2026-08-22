@@ -741,7 +741,7 @@ fn layer_declaration_from_ir(ir: &TransformIrV0, node: &IrNodeV0) -> Option<Laye
     }
     let colon = source.find(':')?;
     let property = PropertyNameV0::from_authored(source.get(..colon)?);
-    if property.authored().is_empty() {
+    if property.authored_text().to_string().is_empty() {
         return None;
     }
     Some(LayerDeclarationIrV0 {

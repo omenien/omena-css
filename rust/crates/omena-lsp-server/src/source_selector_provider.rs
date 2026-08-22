@@ -7,8 +7,8 @@ use omena_query::{
 use serde_json::Value;
 
 use crate::{
-    LspQueryReadView, LspStyleHoverCandidate, LspTextDocumentState, document_uri_from_params,
-    lsp_position_from_params,
+    LspQueryReadView, LspStyleHoverCandidate, LspStyleHoverCandidateIdentityRefV0,
+    LspTextDocumentState, document_uri_from_params, lsp_position_from_params,
     protocol::{
         file_uri_equivalent, is_style_document_uri, parser_range_contains_position,
         workspace_folder_compatible,
@@ -143,7 +143,11 @@ pub(crate) fn style_selector_definitions_from_open_documents(
                 .into_iter()
                 .filter(|candidate| {
                     candidate.kind == "selector"
-                        && (selector_name.is_empty() || candidate.identity_name().eq(selector_name))
+                        && (selector_name.is_empty()
+                            || candidate.identity()
+                                == LspStyleHoverCandidateIdentityRefV0::Other(
+                                    selector_name.to_string(),
+                                ))
                 })
                 .map(|candidate| (document.uri.clone(), candidate)),
         );
@@ -178,9 +182,10 @@ fn style_selector_definitions_for_source_candidate(
     candidate: &LspStyleHoverCandidate,
     workspace_folder_uri: Option<&str>,
 ) -> Vec<(String, LspStyleHoverCandidate)> {
+    let lookup_name = source_candidate_definition_lookup_name(candidate);
     let mut definitions = style_selector_definitions_from_open_documents(
         state,
-        source_candidate_definition_lookup_name(candidate),
+        lookup_name.as_str(),
         workspace_folder_uri,
     );
     if let Some(target_uri) = candidate.target_style_uri.as_deref()
@@ -213,7 +218,7 @@ fn style_selector_definitions_for_source_candidate(
         .filter(|(uri, definition)| {
             matched_identities.contains(&query_definition_identity(
                 uri.as_str(),
-                definition.name.as_str(),
+                definition.name.to_string().as_str(),
                 definition.range,
             ))
         })
@@ -236,22 +241,22 @@ pub(crate) fn style_selector_definitions_for_source_candidates(
             uri.clone(),
             definition.range.start.line,
             definition.range.start.character,
-            definition.identity_name().to_string(),
+            definition.identity_name(),
         )
     });
     definitions.dedup_by(|left, right| {
         left.0 == right.0
-            && left.1.identity_name() == right.1.identity_name()
+            && left.1.identity() == right.1.identity()
             && left.1.range == right.1.range
     });
     definitions
 }
 
-fn source_candidate_definition_lookup_name(candidate: &LspStyleHoverCandidate) -> &str {
+fn source_candidate_definition_lookup_name(candidate: &LspStyleHoverCandidate) -> String {
     if candidate.kind == "sourceSelectorPrefixReference" {
-        ""
+        String::new()
     } else {
-        candidate.name.as_str()
+        candidate.name.to_string()
     }
 }
 

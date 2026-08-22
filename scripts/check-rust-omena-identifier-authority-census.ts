@@ -42,12 +42,23 @@ interface PropertyIdentitySite extends DiscoveredSite {
   readonly role: PropertyIdentitySiteRole;
 }
 
+type ResidualPropertyConsumerClassification = "presentation" | "egress" | "identity-shaped";
+
+interface ResidualPropertyConsumerSite extends DiscoveredSite {
+  readonly classification: ResidualPropertyConsumerClassification;
+}
+
+interface ResidualPropertyCarrierConsumerRow {
+  readonly carrier: CensusSite;
+  readonly consumers: readonly ResidualPropertyConsumerSite[];
+}
+
 interface PropertyIdentityTypeSeal {
   readonly path: "rust/crates/omena-syntax/src/ident.rs";
   readonly authoredTextDerives: readonly ["Debug", "Clone", "serde::Serialize"];
   readonly authoredTextIdentityDerives: readonly [];
   readonly authoredTextFieldVisibility: "private";
-  readonly authoredTextPresentationMethods: readonly ["as_str", "Display"];
+  readonly authoredTextPresentationMethods: readonly ["Display", "write_into", "Serialize"];
   readonly propertyNameDerives: readonly ["Debug", "Clone"];
   readonly propertyNameEqualityDerives: readonly [];
   readonly standardKeyDerives: readonly [
@@ -158,6 +169,11 @@ interface IdentifierAuthorityCensus {
     readonly residualRawCarrierSiteCount: number;
     readonly residualRawCarrierSites: readonly CensusSite[];
     readonly residualRawCarrierSiteDigest: string;
+    readonly residualCarrierConsumerDerivation: "resolved-type-access-and-parameter-use-scan";
+    readonly residualCarrierConsumerRows: readonly ResidualPropertyCarrierConsumerRow[];
+    readonly residualCarrierConsumerSiteCount: number;
+    readonly residualIdentityShapedConsumerCount: 0;
+    readonly residualCarrierConsumerDigest: string;
     readonly rawStringIdentitySiteCount: 0;
     readonly rawStringIdentitySites: readonly [];
     readonly rawStringIdentitySiteDigest: string;
@@ -174,7 +190,9 @@ interface ExemptionRule {
 }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const censusPath = path.join(repoRoot, "rust/omena-identifier-authority-census.json");
+const censusPath = process.env.OMENA_IDENTIFIER_AUTHORITY_CENSUS_PATH
+  ? path.resolve(process.env.OMENA_IDENTIFIER_AUTHORITY_CENSUS_PATH)
+  : path.join(repoRoot, "rust/omena-identifier-authority-census.json");
 const writeMode = process.argv.includes("--write");
 const injectClassNameEquality =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CLASSNAME_EQUALITY === "1";
@@ -219,6 +237,44 @@ const injectPropertyCaseFold =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_CASE_FOLD === "1";
 const injectPropertyDecodeNeuter =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_DECODE_NEUTER === "1";
+const injectPropertyAuthorityDecreaseLaundering =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_AUTHORITY_DECREASE_LAUNDERING === "1";
+const injectMigrateLowercaseComparison =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_MIGRATE_LOWERCASE_COMPARISON === "1";
+const injectMigrateFqnParameter =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_MIGRATE_FQN_PARAMETER === "1";
+const injectMigrateAliasParameter =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_MIGRATE_ALIAS_PARAMETER === "1";
+const injectMigrateBareParameter =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_MIGRATE_BARE_PARAMETER === "1";
+const injectMigrateClosureParameter =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_MIGRATE_CLOSURE_PARAMETER === "1";
+const injectAuthoredUppercaseTransform =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_AUTHORED_UPPERCASE_TRANSFORM === "1";
+const injectAuthoredTrimMatchesTransform =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_AUTHORED_TRIM_MATCHES_TRANSFORM === "1";
+const injectAuthoredStripPrefixTransform =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_AUTHORED_STRIP_PREFIX_TRANSFORM === "1";
+const generatedFixtureManifestPath =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_GENERATED_FIXTURE_MANIFEST;
+
+interface GeneratedFixtureManifest {
+  readonly schemaVersion: "0";
+  readonly sources: readonly MutableRustSource[];
+  readonly expectedCellFunctions: readonly string[];
+}
+
+const generatedFixtureManifest = generatedFixtureManifestPath
+  ? (JSON.parse(readFileSync(generatedFixtureManifestPath, "utf8")) as GeneratedFixtureManifest)
+  : undefined;
+if (generatedFixtureManifest) {
+  assert.equal(generatedFixtureManifest.schemaVersion, "0", "generated fixture manifest schema");
+  assert.ok(
+    generatedFixtureManifest.sources.length > 0 &&
+      generatedFixtureManifest.expectedCellFunctions.length > 0,
+    "generated fixture manifest must be non-empty",
+  );
+}
 
 const sourceRoots = ["rust/crates"] as const;
 const lexemeGlobs = [
@@ -550,12 +606,32 @@ const idiomDiscovered = discoverIdiomSites();
 const predicateDiscovered = discoverPredicateCopies();
 const propertyTypeSeal = inspectPropertyTypeSeal();
 const propertyIdentitySites = discoverPropertyIdentitySites();
-const residualRawPropertyCarrierDiscovered = discoverResidualRawPropertyCarrierSites();
+const residualSweepSources: MutableRustSource[] = productionSources.map((relativePath) => ({
+  relativePath,
+  source: readFileSync(path.join(repoRoot, relativePath), "utf8"),
+}));
+applyMigrateConsumerProbeMutations(residualSweepSources);
+const residualRawPropertyCarrierDiscovered =
+  discoverResidualRawPropertyCarrierSites(residualSweepSources);
 const residualRawPropertyCarrierSites = classifyResidualRawPropertyCarrierSites(
   residualRawPropertyCarrierDiscovered,
   existing?.propertyIdentity.residualRawCarrierSites,
 );
 const rawPropertyIdentitySites = discoverRawPropertyIdentitySites();
+if (generatedFixtureManifest) {
+  const detectedFunctions = new Set(rawPropertyIdentitySites.map((site) => site.function));
+  const missingGeneratedCells = generatedFixtureManifest.expectedCellFunctions.filter(
+    (functionName) => !detectedFunctions.has(functionName),
+  );
+  const detectedGeneratedCellCount =
+    generatedFixtureManifest.expectedCellFunctions.length - missingGeneratedCells.length;
+  process.stderr.write(`generatedPropertyIdentityCellCount=${detectedGeneratedCellCount}\n`);
+  assert.deepEqual(
+    missingGeneratedCells,
+    [],
+    "generated property-identity matrix has undetected origin x grammar x position cells",
+  );
+}
 const egressSites = classifySites(
   egressDiscovered,
   existing?.egress.sites,
@@ -574,6 +650,9 @@ const unclassified = [
 if (rawPropertyIdentitySites.length > 0) {
   process.stderr.write(`rawPropertyIdentitySiteCount=${rawPropertyIdentitySites.length}\n`);
 }
+if (injectPropertyAuthorityDecreaseLaundering) {
+  process.stderr.write(`propertyAuthoritySiteCount=${propertyIdentitySites.length}\n`);
+}
 assert.deepEqual(
   unclassified,
   [],
@@ -583,10 +662,40 @@ assert.deepEqual(
 const classifiedEgressSites = egressSites as CensusSite[];
 const classifiedIdiomSites = idiomSites as CensusSite[];
 const classifiedPredicateSites = predicateSites as CensusSite[];
+const classifiedResidualRawPropertyCarrierSites = residualRawPropertyCarrierSites as CensusSite[];
+const residualCarrierConsumerRows = discoverResidualPropertyCarrierConsumers(
+  classifiedResidualRawPropertyCarrierSites,
+  residualSweepSources,
+);
+const residualCarrierConsumerSites = residualCarrierConsumerRows.flatMap((row) => row.consumers);
+const residualIdentityShapedConsumerCount = residualCarrierConsumerSites.filter(
+  (site) => site.classification === "identity-shaped",
+).length;
+if (residualIdentityShapedConsumerCount > 0) {
+  process.stderr.write(
+    `residualIdentityShapedConsumerCount=${residualIdentityShapedConsumerCount}\n`,
+  );
+  process.stderr.write(
+    `residualIdentityShapedConsumers=${JSON.stringify(
+      residualCarrierConsumerRows
+        .filter((row) => row.consumers.some((site) => site.classification === "identity-shaped"))
+        .map((row) => ({
+          carrier: row.carrier.operation,
+          path: row.carrier.path,
+          consumers: row.consumers.filter((site) => site.classification === "identity-shaped"),
+        })),
+    )}\n`,
+  );
+}
 assert.deepEqual(
   rawPropertyIdentitySites,
   [],
   "property identity census found raw-string identity sites; convert each boundary to PropertyNameV0 or a sealed canonical key",
+);
+assert.equal(
+  residualIdentityShapedConsumerCount,
+  0,
+  "residual raw-property carriers have identity-shaped consumers; add a sealed key to each carrier and migrate those consumers",
 );
 const baselineEgressSiteCount = existing?.egress.baselineSiteCount ?? classifiedEgressSites.length;
 assert.ok(
@@ -595,6 +704,10 @@ assert.ok(
 );
 
 if (existing && writeMode) {
+  assert.ok(
+    propertyIdentitySites.length >= existing.propertyIdentity.authoritySiteCount,
+    `authority inventory decrease cannot be adopted by --write: previous=${existing.propertyIdentity.authoritySiteCount} current=${propertyIdentitySites.length}`,
+  );
   assertNoAddedSites(existing.egress.sites, classifiedEgressSites, "identifier egress");
   assertNoAddedSites(existing.idiom.sites, classifiedIdiomSites, "identifier idiom");
   assertNoAddedSites(
@@ -603,7 +716,7 @@ if (existing && writeMode) {
     "identifier predicate copy",
   );
   if (existing.propertyIdentity.residualRawCarrierSites) {
-    assertNoAddedSites(
+    assertNoAddedCarrierSites(
       existing.propertyIdentity.residualRawCarrierSites,
       residualRawPropertyCarrierSites as CensusSite[],
       "raw property carrier",
@@ -684,9 +797,14 @@ const census: IdentifierAuthorityCensus = {
     sites: propertyIdentitySites,
     siteDigest: digest(propertyIdentitySites),
     residualRawCarrierDirection: "decrease-only",
-    residualRawCarrierSiteCount: residualRawPropertyCarrierSites.length,
-    residualRawCarrierSites: residualRawPropertyCarrierSites as CensusSite[],
+    residualRawCarrierSiteCount: classifiedResidualRawPropertyCarrierSites.length,
+    residualRawCarrierSites: classifiedResidualRawPropertyCarrierSites,
     residualRawCarrierSiteDigest: digest(residualRawPropertyCarrierSites),
+    residualCarrierConsumerDerivation: "resolved-type-access-and-parameter-use-scan",
+    residualCarrierConsumerRows,
+    residualCarrierConsumerSiteCount: residualCarrierConsumerSites.length,
+    residualIdentityShapedConsumerCount: 0,
+    residualCarrierConsumerDigest: digest(residualCarrierConsumerRows),
     rawStringIdentitySiteCount: 0,
     rawStringIdentitySites: [],
     rawStringIdentitySiteDigest: digest([]),
@@ -717,7 +835,17 @@ if (writeMode) {
       !injectPropertyAutomaticCarrier &&
       !injectPropertyRealFileMutation &&
       !injectPropertyCaseFold &&
-      !injectPropertyDecodeNeuter,
+      !injectPropertyDecodeNeuter &&
+      !injectPropertyAuthorityDecreaseLaundering &&
+      !injectMigrateLowercaseComparison &&
+      !injectMigrateFqnParameter &&
+      !injectMigrateAliasParameter &&
+      !injectMigrateBareParameter &&
+      !injectMigrateClosureParameter &&
+      !injectAuthoredUppercaseTransform &&
+      !injectAuthoredTrimMatchesTransform &&
+      !injectAuthoredStripPrefixTransform &&
+      !generatedFixtureManifest,
     "test injection cannot be combined with --write",
   );
   writeFileSync(censusPath, expected);
@@ -757,6 +885,9 @@ process.stdout.write(
       predicateCopySiteCount: census.predicateCopies.currentSiteCount,
       propertyAuthoritySiteCount: census.propertyIdentity.authoritySiteCount,
       residualRawPropertyCarrierSiteCount: census.propertyIdentity.residualRawCarrierSiteCount,
+      residualCarrierConsumerSiteCount: census.propertyIdentity.residualCarrierConsumerSiteCount,
+      residualIdentityShapedConsumerCount:
+        census.propertyIdentity.residualIdentityShapedConsumerCount,
       rawPropertyIdentitySiteCount: census.propertyIdentity.rawStringIdentitySiteCount,
     },
     null,
@@ -874,10 +1005,42 @@ function inspectPropertyTypeSeal(): PropertyIdentityTypeSeal {
     /impl fmt::Display for AuthoredPropertyTextV0/u,
     "authored property text must expose presentation through Display",
   );
+  const authoredImplStart = source.indexOf("impl AuthoredPropertyTextV0");
+  const authoredImplOpen = source.indexOf("{", authoredImplStart);
+  const authoredImplClose = matchingBrace(source, authoredImplOpen);
+  assert.ok(
+    authoredImplStart >= 0 && authoredImplOpen >= 0 && authoredImplClose !== undefined,
+    "AuthoredPropertyTextV0 impl must remain inspectable",
+  );
+  const authoredImpl = source.slice(authoredImplOpen + 1, authoredImplClose);
+  assert.deepEqual(
+    [...authoredImpl.matchAll(/\bpub fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/gu)].map(
+      (match) => match[1],
+    ),
+    ["new", "write_into"],
+    "AuthoredPropertyTextV0 may expose only construction plus bounded presentation",
+  );
+  assert.doesNotMatch(
+    authoredImpl,
+    /pub fn as_str\s*\(&self\)/u,
+    "authored property text must not expose a borrowable raw string",
+  );
   assert.match(
-    source,
-    /pub fn as_str\s*\(&self\)\s*->\s*&str/u,
-    "authored property text must expose presentation through as_str",
+    authoredImpl,
+    /pub fn write_into\s*\(&self,\s*out:\s*&mut impl fmt::Write\)\s*->\s*fmt::Result/u,
+    "authored property text must expose bounded writer-based presentation",
+  );
+  const propertyImplStart = source.indexOf("impl PropertyNameV0");
+  const propertyImplOpen = source.indexOf("{", propertyImplStart);
+  const propertyImplClose = matchingBrace(source, propertyImplOpen);
+  assert.ok(
+    propertyImplStart >= 0 && propertyImplOpen >= 0 && propertyImplClose !== undefined,
+    "PropertyNameV0 impl must remain inspectable",
+  );
+  assert.doesNotMatch(
+    source.slice(propertyImplOpen + 1, propertyImplClose),
+    /pub fn authored\s*\(&self\)\s*->\s*&str/u,
+    "PropertyNameV0 must not reintroduce the authored raw-string borrow",
   );
   assert.deepEqual(
     propertyNameDerives,
@@ -930,7 +1093,7 @@ function inspectPropertyTypeSeal(): PropertyIdentityTypeSeal {
     authoredTextDerives: ["Debug", "Clone", "serde::Serialize"],
     authoredTextIdentityDerives: [],
     authoredTextFieldVisibility: "private",
-    authoredTextPresentationMethods: ["as_str", "Display"],
+    authoredTextPresentationMethods: ["Display", "write_into", "Serialize"],
     propertyNameDerives: ["Debug", "Clone"],
     propertyNameEqualityDerives: [],
     standardKeyDerives: ["Debug", "Clone", "PartialEq", "Eq", "PartialOrd", "Ord", "Hash"],
@@ -966,7 +1129,22 @@ function discoverPropertyIdentitySites(): PropertyIdentitySite[] {
   ] as const;
   const sites: PropertyIdentitySite[] = [];
   for (const relativePath of productionSources) {
-    const source = readFileSync(path.join(repoRoot, relativePath), "utf8");
+    let source = readFileSync(path.join(repoRoot, relativePath), "utf8");
+    if (
+      injectPropertyAuthorityDecreaseLaundering &&
+      relativePath === "rust/crates/omena-lsp-server/src/lib.rs"
+    ) {
+      const authorityJoin = "target.property_key == candidate.property_key";
+      assert.equal(
+        source.split(authorityJoin).length - 1,
+        1,
+        "authority census decrease mutation must replace exactly one sealed join",
+      );
+      source = source.replace(
+        authorityJoin,
+        "target.name.to_string().eq_ignore_ascii_case(&candidate.name.to_string())",
+      );
+    }
     const scannable = maskCommentsStringsAndTestItems(source, false);
     const sourceLines = source.split(/\r?\n/u);
     for (const [index, line] of scannable.split(/\r?\n/u).entries()) {
@@ -1010,12 +1188,28 @@ function discoverAuthoredPropertyIdentityLaunderingSites(): DiscoveredSite[] {
     relativePath,
     source: readFileSync(path.join(repoRoot, relativePath), "utf8"),
   }));
+  sources.push(
+    ...(generatedFixtureManifest?.sources.map((source) => ({
+      relativePath: source.relativePath,
+      source: source.source,
+    })) ?? []),
+  );
+  applyPropertyAuthorityDecreaseMutation(sources);
+  applyMigrateConsumerProbeMutations(sources);
   const carrierFields = discoverAuthoredPropertyCarrierFields(sources);
+  const aliasesByPath = rustTypeAliasesByPath(sources);
+  const authoredReturningFunctions = authoredReturningFunctionNames(sources, carrierFields);
   const sites: DiscoveredSite[] = [];
   for (const { relativePath, source } of sources) {
     const scannable = maskCommentsStringsAndTestItems(source, false);
     for (const functionSlice of rustFunctionSlices(scannable)) {
-      const classifier = propertyOperandClassifier(functionSlice, carrierFields, false);
+      const classifier = propertyOperandClassifier(
+        functionSlice,
+        carrierFields,
+        false,
+        aliasesByPath.get(relativePath),
+        authoredReturningFunctions,
+      );
       const tokens = rustSemanticTokens(functionSlice.scannable);
       for (const [tokenIndex, token] of tokens.entries()) {
         if (token.text !== "==" && token.text !== "!=") continue;
@@ -1038,9 +1232,63 @@ function discoverAuthoredPropertyIdentityLaunderingSites(): DiscoveredSite[] {
       }
       for (const [tokenIndex, token] of tokens.entries()) {
         if (
+          !/^(?:eq|ne|eq_ignore_ascii_case|cmp|partial_cmp|is_eq)$/u.test(token.text) ||
+          tokens[tokenIndex - 1]?.text !== "." ||
+          tokens[tokenIndex + 1]?.text !== "("
+        ) {
+          continue;
+        }
+        const closeParen = matchingTokenDelimiter(tokens, tokenIndex + 1, "(", ")");
+        const receiver = operationSideTokens(tokens, tokenIndex - 1, "left");
+        const argumentTokens =
+          closeParen === undefined ? [] : tokens.slice(tokenIndex + 2, closeParen);
+        if (
+          !classifier.containsRawPropertyOrigin(receiver) &&
+          !classifier.containsRawPropertyOrigin(argumentTokens)
+        ) {
+          continue;
+        }
+        sites.push(
+          siteAt(
+            relativePath,
+            source,
+            scannable,
+            functionSlice.bodyStart + token.start,
+            "authored-property-identity-method-laundering",
+          ),
+        );
+      }
+      for (let tokenIndex = 0; tokenIndex + 3 < tokens.length; tokenIndex += 1) {
+        const ufcsEquality =
+          (tokens[tokenIndex].text === "str" || tokens[tokenIndex].text === "PartialEq") &&
+          tokens[tokenIndex + 1]?.text === "::" &&
+          tokens[tokenIndex + 2]?.text === "eq" &&
+          tokens[tokenIndex + 3]?.text === "(";
+        if (!ufcsEquality) continue;
+        const closeParen = matchingTokenDelimiter(tokens, tokenIndex + 3, "(", ")");
+        if (closeParen === undefined) continue;
+        if (!classifier.containsRawPropertyOrigin(tokens.slice(tokenIndex + 4, closeParen)))
+          continue;
+        sites.push(
+          siteAt(
+            relativePath,
+            source,
+            scannable,
+            functionSlice.bodyStart + tokens[tokenIndex + 2].start,
+            "authored-property-ufcs-identity-laundering",
+          ),
+        );
+      }
+      for (const [tokenIndex, token] of tokens.entries()) {
+        if (
           token.text !== "to_ascii_lowercase" &&
           token.text !== "make_ascii_lowercase" &&
-          token.text !== "to_lowercase"
+          token.text !== "to_lowercase" &&
+          token.text !== "to_ascii_uppercase" &&
+          token.text !== "make_ascii_uppercase" &&
+          token.text !== "to_uppercase" &&
+          token.text !== "trim_matches" &&
+          token.text !== "strip_prefix"
         )
           continue;
         if (tokens[tokenIndex - 1]?.text !== "." || tokens[tokenIndex + 1]?.text !== "(") continue;
@@ -1067,6 +1315,57 @@ function discoverAuthoredPropertyIdentityLaunderingSites(): DiscoveredSite[] {
             "authored-property-map-laundering",
           ),
         );
+        if (classifier.collectionUsesIdentityOperation(collection.binding)) {
+          sites.push(
+            siteAt(
+              relativePath,
+              source,
+              scannable,
+              functionSlice.bodyStart + collection.offset,
+              "authored-property-collection-identity-laundering",
+            ),
+          );
+        }
+      }
+      for (const [tokenIndex, token] of tokens.entries()) {
+        if (token.text === "match") {
+          const openBrace = tokens.findIndex(
+            (candidate, index) => index > tokenIndex && candidate.text === "{",
+          );
+          if (
+            openBrace > tokenIndex &&
+            classifier.containsRawPropertyOrigin(tokens.slice(tokenIndex + 1, openBrace))
+          ) {
+            sites.push(
+              siteAt(
+                relativePath,
+                source,
+                scannable,
+                functionSlice.bodyStart + token.start,
+                "authored-property-match-identity-laundering",
+              ),
+            );
+          }
+        }
+        if (
+          token.text === "matches" &&
+          tokens[tokenIndex + 1]?.text === "!" &&
+          tokens[tokenIndex + 2]?.text === "("
+        ) {
+          const closeParen = matchingTokenDelimiter(tokens, tokenIndex + 2, "(", ")");
+          if (closeParen === undefined) continue;
+          const firstArgument = firstArgumentTokens(tokens.slice(tokenIndex + 3, closeParen));
+          if (!classifier.containsRawPropertyOrigin(firstArgument)) continue;
+          sites.push(
+            siteAt(
+              relativePath,
+              source,
+              scannable,
+              functionSlice.bodyStart + token.start,
+              "authored-property-matches-identity-laundering",
+            ),
+          );
+        }
       }
     }
   }
@@ -1098,10 +1397,11 @@ function discoverAuthoredPropertyCarrierFields(
   return fields;
 }
 
-function discoverResidualRawPropertyCarrierSites(): DiscoveredSite[] {
+function discoverResidualRawPropertyCarrierSites(
+  sources: readonly MutableRustSource[],
+): DiscoveredSite[] {
   const sites: DiscoveredSite[] = [];
-  for (const relativePath of productionSources) {
-    const source = readFileSync(path.join(repoRoot, relativePath), "utf8");
+  for (const { relativePath, source } of sources) {
     const scannable = maskCommentsStringsAndTestItems(source, false);
     for (const match of scannable.matchAll(/\bstruct\s+([A-Za-z_][A-Za-z0-9_]*)[^;{]*\{/gu)) {
       const openBrace = match.index + match[0].lastIndexOf("{");
@@ -1109,12 +1409,18 @@ function discoverResidualRawPropertyCarrierSites(): DiscoveredSite[] {
       if (closeBrace === undefined) continue;
       const typeName = match[1];
       const body = scannable.slice(openBrace + 1, closeBrace);
+      const hasSealedPropertyIdentity =
+        /\bCanonical(?:Custom|Standard)?Property(?:Name|Key)V0\b/u.test(body);
       for (const field of body.matchAll(
         /\b(?:pub(?:\([^)]*\))?\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([^,}\n]+)/gu,
       )) {
         const fieldName = field[1];
         const rustType = field[2].trim().replace(/\s+/gu, " ");
-        if (!rawStringType(rustType) || !rawPropertyCarrierMember(typeName, fieldName, scannable))
+        if (
+          hasSealedPropertyIdentity ||
+          !rawStringType(rustType) ||
+          !rawPropertyCarrierMember(typeName, fieldName, scannable)
+        )
           continue;
         sites.push(
           siteAt(
@@ -1201,8 +1507,16 @@ function classifyResidualRawPropertyCarrierSites(
   previous: readonly CensusSite[] | undefined,
 ): readonly (CensusSite | (DiscoveredSite & { disposition: "unclassified" }))[] {
   const previousByKey = new Map((previous ?? []).map((site) => [stableSiteKey(site), site]));
+  const previousByCarrier = new Map(
+    (previous ?? []).map((site) => [
+      `${site.path}\u0000${site.function}\u0000${site.operation}`,
+      site,
+    ]),
+  );
   return discovered.map((site) => {
-    const prior = previousByKey.get(stableSiteKey(site));
+    const prior =
+      previousByKey.get(stableSiteKey(site)) ??
+      previousByCarrier.get(`${site.path}\u0000${site.function}\u0000${site.operation}`);
     if (prior)
       return { ...site, disposition: prior.disposition, reason: prior.reason } as CensusSite;
     if (!previous && writeMode) {
@@ -1222,6 +1536,308 @@ function classifyResidualRawPropertyCarrierSites(
     }
     return { ...site, disposition: "unclassified" } as const;
   });
+}
+
+function discoverResidualPropertyCarrierConsumers(
+  carriers: readonly CensusSite[],
+  sources: readonly MutableRustSource[],
+): ResidualPropertyCarrierConsumerRow[] {
+  const carrierByField = new Map<string, CensusSite>();
+  const carrierByParameter = new Map<string, CensusSite>();
+  for (const carrier of carriers) {
+    const field = carrier.operation.match(
+      /^residual-property-field:([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*):/u,
+    );
+    if (field) carrierByField.set(`${field[1]}.${field[2]}`, carrier);
+    const parameter = carrier.operation.match(
+      /^residual-property-parameter:([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*):/u,
+    );
+    if (parameter)
+      carrierByParameter.set(`${carrier.path}\u0000${parameter[1]}.${parameter[2]}`, carrier);
+  }
+
+  const aliasesByPath = rustTypeAliasesByPath(sources);
+  const structFieldTypes = rustStructFieldTypes(sources, aliasesByPath);
+  const consumersByCarrier = new Map<CensusSite, ResidualPropertyConsumerSite[]>();
+  for (const carrier of carriers) consumersByCarrier.set(carrier, []);
+
+  for (const { relativePath, source } of sources) {
+    const scannable = maskCommentsStringsAndTestItems(source, false);
+    const aliases = aliasesByPath.get(relativePath) ?? new Map<string, string>();
+    for (const functionSlice of rustFunctionSlices(scannable)) {
+      const bindings = resolvedRustBindingsForFunction(
+        functionSlice,
+        scannable,
+        aliases,
+        structFieldTypes,
+      );
+      for (const access of functionSlice.scannable.matchAll(
+        /\b([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b/gu,
+      )) {
+        const receiverType = bindings.get(access[1]);
+        if (!receiverType) continue;
+        const carrier = carrierByField.get(`${receiverType}.${access[2]}`);
+        if (!carrier) continue;
+        const offset = functionSlice.bodyStart + access.index;
+        consumersByCarrier
+          .get(carrier)
+          ?.push(
+            residualConsumerSiteAt(
+              relativePath,
+              source,
+              scannable,
+              offset,
+              functionSlice,
+              `${access[1]}.${access[2]}`,
+            ),
+          );
+      }
+
+      for (const [key, carrier] of carrierByParameter) {
+        const [carrierPath, functionAndParameter] = key.split("\u0000");
+        if (carrierPath !== relativePath) continue;
+        const separator = functionAndParameter.lastIndexOf(".");
+        const functionName = functionAndParameter.slice(0, separator);
+        const parameterName = functionAndParameter.slice(separator + 1);
+        if (functionName !== functionSlice.name) continue;
+        const parameterUse = new RegExp(`\\b${escapeRegExp(parameterName)}\\b`, "gu");
+        const authorityShadow = functionSlice.scannable.match(
+          new RegExp(
+            String.raw`\blet\s+${escapeRegExp(parameterName)}\s*=\s*(?:[A-Za-z_][A-Za-z0-9_]*\s*::\s*)*PropertyNameV0\s*::[^;]*\b${escapeRegExp(parameterName)}\b[^;]*;`,
+            "u",
+          ),
+        );
+        const authorityShadowEnd = authorityShadow
+          ? (authorityShadow.index ?? 0) + authorityShadow[0].length
+          : undefined;
+        for (const use of functionSlice.scannable.matchAll(parameterUse)) {
+          if (authorityShadowEnd !== undefined && use.index >= authorityShadowEnd) continue;
+          const offset = functionSlice.bodyStart + use.index;
+          consumersByCarrier
+            .get(carrier)
+            ?.push(
+              residualConsumerSiteAt(
+                relativePath,
+                source,
+                scannable,
+                offset,
+                functionSlice,
+                parameterName,
+              ),
+            );
+        }
+      }
+    }
+  }
+
+  return carriers.map((carrier) => ({
+    carrier,
+    consumers: uniqueSites(consumersByCarrier.get(carrier) ?? []),
+  }));
+}
+
+function residualConsumerSiteAt(
+  relativePath: string,
+  source: string,
+  scannable: string,
+  offset: number,
+  functionSlice: RustFunctionSlice,
+  expression: string,
+): ResidualPropertyConsumerSite {
+  const localOffset = offset - functionSlice.bodyStart;
+  const contextStart = Math.max(
+    0,
+    Math.max(
+      functionSlice.scannable.lastIndexOf(";", localOffset - 1),
+      functionSlice.scannable.lastIndexOf("{", localOffset - 1),
+      functionSlice.scannable.lastIndexOf("}", localOffset - 1),
+    ) + 1,
+  );
+  const nextSemicolon = functionSlice.scannable.indexOf(";", localOffset);
+  const contextEnd =
+    nextSemicolon < 0
+      ? Math.min(functionSlice.scannable.length, localOffset + 320)
+      : Math.min(functionSlice.scannable.length, nextSemicolon + 1);
+  const context = functionSlice.scannable.slice(contextStart, contextEnd);
+  const sourceLine = source.split(/\r?\n/u)[lineNumberAt(source, offset) - 1] ?? "";
+  const expressionCore = escapeRegExp(expression).replaceAll("\\.", String.raw`\s*\.\s*`);
+  const expressionPattern = String.raw`(?<![A-Za-z0-9_.])${expressionCore}(?![A-Za-z0-9_])`;
+  const authorityCall = new RegExp(
+    String.raw`(?:PropertyNameV0\s*::\s*(?:from_authored|custom|standard|canonical_custom_key|canonical_standard_key)|property_names_same)\s*\([^;{}]*?${expressionPattern}[^;{}]*?\)`,
+    "gu",
+  );
+  const identityContext = context.replace(authorityCall, "sealed_property_result");
+  const identityLine = sourceLine.replace(authorityCall, "sealed_property_result");
+  const directMethod = new RegExp(
+    String.raw`${expressionPattern}(?:\s*\.\s*[A-Za-z_][A-Za-z0-9_]*\s*\([^;{}]*?\))*\s*\.\s*(?:eq|ne|eq_ignore_ascii_case|cmp|partial_cmp|is_eq)\s*\(`,
+    "u",
+  );
+  const directBinary = new RegExp(
+    String.raw`(?:${expressionPattern}(?:\s*\.\s*[A-Za-z_][A-Za-z0-9_]*\s*\([^;{}]*?\))*\s*(?:==|!=)|(?:==|!=)\s*&?\s*${expressionPattern})`,
+    "u",
+  );
+  const collectionArgument = new RegExp(
+    String.raw`\.\s*(?:insert|get|entry|contains_key|contains|remove|binary_search(?:_by|_by_key)?)\s*\([^;{}]*${expressionPattern}`,
+    "u",
+  );
+  const directMatch = new RegExp(
+    String.raw`(?:\bmatch\s+${expressionPattern}\b|\bmatches\s*!\s*\(\s*${expressionPattern}\b|\b(?:str|PartialEq)\s*::\s*eq\s*\([^;{}]*${expressionPattern})`,
+    "u",
+  );
+  const identityShaped =
+    directMethod.test(identityLine) ||
+    directBinary.test(identityLine) ||
+    collectionArgument.test(identityLine) ||
+    directMatch.test(identityContext);
+  const classification: ResidualPropertyConsumerClassification = identityShaped
+    ? "identity-shaped"
+    : /(?:serde|serialize|json\s*!|format\s*!|write\s*!|writeln\s*!|\.to_string\s*\(|\breturn\b)/u.test(
+          context,
+        )
+      ? "egress"
+      : "presentation";
+  return {
+    ...siteAt(
+      relativePath,
+      source,
+      scannable,
+      offset,
+      `residual-property-consumer:${classification}`,
+    ),
+    classification,
+  };
+}
+
+function rustTypeAliasesByPath(
+  sources: readonly MutableRustSource[],
+): ReadonlyMap<string, ReadonlyMap<string, string>> {
+  const byPath = new Map<string, ReadonlyMap<string, string>>();
+  for (const { relativePath, source } of sources) {
+    const aliases = new Map<string, string>();
+    const scannable = maskCommentsStringsAndTestItems(source, false);
+    for (const alias of scannable.matchAll(
+      /\buse\s+(?:[A-Za-z_][A-Za-z0-9_]*::)*([A-Za-z_][A-Za-z0-9_]*)\s+as\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/gu,
+    )) {
+      aliases.set(alias[2], alias[1]);
+    }
+    byPath.set(relativePath, aliases);
+  }
+  return byPath;
+}
+
+function rustStructFieldTypes(
+  sources: readonly MutableRustSource[],
+  aliasesByPath: ReadonlyMap<string, ReadonlyMap<string, string>>,
+): ReadonlyMap<string, ReadonlyMap<string, string>> {
+  const structures = new Map<string, Map<string, string>>();
+  for (const { relativePath, source } of sources) {
+    const aliases = aliasesByPath.get(relativePath) ?? new Map<string, string>();
+    const scannable = maskCommentsStringsAndTestItems(source, false);
+    for (const structure of scannable.matchAll(/\bstruct\s+([A-Za-z_][A-Za-z0-9_]*)[^;{]*\{/gu)) {
+      const openBrace = structure.index + structure[0].lastIndexOf("{");
+      const closeBrace = matchingBrace(scannable, openBrace);
+      if (closeBrace === undefined) continue;
+      const fields = structures.get(structure[1]) ?? new Map<string, string>();
+      const body = scannable.slice(openBrace + 1, closeBrace);
+      for (const field of body.matchAll(
+        /\b(?:pub(?:\([^)]*\))?\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([^,}\n]+)/gu,
+      )) {
+        fields.set(field[1], normalizeRustType(field[2], aliases));
+      }
+      structures.set(structure[1], fields);
+    }
+  }
+  return structures;
+}
+
+function resolvedRustBindingsForFunction(
+  functionSlice: RustFunctionSlice,
+  source: string,
+  aliases: ReadonlyMap<string, string>,
+  structFields: ReadonlyMap<string, ReadonlyMap<string, string>>,
+): ReadonlyMap<string, string> {
+  const bindings = new Map<string, string>();
+  const text = `${functionSlice.signature}{${functionSlice.scannable}}`;
+  for (const binding of text.matchAll(
+    /\b([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([^,)=;{]+(?:<[^;{=]+>)?)/gu,
+  )) {
+    bindings.set(binding[1], normalizeRustType(binding[2], aliases));
+  }
+  const selfType = enclosingImplType(source, functionSlice.bodyStart, aliases);
+  if (selfType) bindings.set("self", selfType);
+
+  for (let pass = 0; pass < 4; pass += 1) {
+    let changed = false;
+    for (const closure of functionSlice.scannable.matchAll(
+      /\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\.iter\s*\(\s*\)(?:\.[A-Za-z_][A-Za-z0-9_]*\s*\([^|]*\))*\s*\.(?:any|all|map|filter|filter_map|find|find_map|for_each|position|rposition)\s*\(\s*\|\s*&?\s*(?:mut\s+)?([A-Za-z_][A-Za-z0-9_]*)/gu,
+    )) {
+      const receiverType = resolveRustAccessType(closure[1], bindings, structFields);
+      const elementType = rustCollectionElementType(receiverType, aliases) ?? receiverType;
+      if (elementType && bindings.get(closure[2]) !== elementType) {
+        bindings.set(closure[2], elementType);
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+  return bindings;
+}
+
+function normalizeRustType(typeSource: string, aliases: ReadonlyMap<string, string>): string {
+  const cleaned = typeSource
+    .replace(/&\s*(?:'[A-Za-z_][A-Za-z0-9_]*\s*)?/gu, "")
+    .replace(/\bmut\s+/gu, "")
+    .trim();
+  const identifiers = cleaned.match(/[A-Za-z_][A-Za-z0-9_]*/gu) ?? [];
+  const named = identifiers.findLast((identifier) => /^[A-Z]/u.test(identifier));
+  if (!named) return cleaned;
+  return aliases.get(named) ?? named;
+}
+
+function rustCollectionElementType(
+  typeSource: string | undefined,
+  aliases: ReadonlyMap<string, string>,
+): string | undefined {
+  if (!typeSource) return undefined;
+  const generic = typeSource.match(
+    /(?:Vec|Box|Arc|Rc|Option|BTreeSet|HashSet)\s*<\s*([^,>]+)/u,
+  )?.[1];
+  const slice = typeSource.match(/\[\s*([^;\]]+)/u)?.[1];
+  const candidate = generic ?? slice;
+  return candidate ? normalizeRustType(candidate, aliases) : undefined;
+}
+
+function resolveRustAccessType(
+  access: string,
+  bindings: ReadonlyMap<string, string>,
+  structFields: ReadonlyMap<string, ReadonlyMap<string, string>>,
+): string | undefined {
+  const [root, ...segments] = access.split(".");
+  let current = bindings.get(root);
+  for (const segment of segments) {
+    if (!current) return undefined;
+    current = structFields.get(current)?.get(segment);
+  }
+  return current;
+}
+
+function enclosingImplType(
+  source: string,
+  offset: number,
+  aliases: ReadonlyMap<string, string>,
+): string | undefined {
+  let candidate: string | undefined;
+  for (const implementation of source.matchAll(
+    /\bimpl(?:\s*<[^>{}]*>)?\s+(?:[^{}]*?\s+for\s+)?([A-Za-z_][A-Za-z0-9_:]*)[^{}]*\{/gu,
+  )) {
+    if (implementation.index > offset) break;
+    const openBrace = implementation.index + implementation[0].lastIndexOf("{");
+    const closeBrace = matchingBrace(source, openBrace);
+    if (closeBrace !== undefined && offset < closeBrace) {
+      candidate = normalizeRustType(implementation[1], aliases);
+    }
+  }
+  return candidate;
 }
 
 interface RustFunctionSlice {
@@ -1248,6 +1864,13 @@ function discoverTypedRawPropertyIdentitySites(): DiscoveredSite[] {
     relativePath,
     source: readFileSync(path.join(repoRoot, relativePath), "utf8"),
   }));
+  sources.push(
+    ...(generatedFixtureManifest?.sources.map((source) => ({
+      relativePath: source.relativePath,
+      source: source.source,
+    })) ?? []),
+  );
+  applyPropertyAuthorityDecreaseMutation(sources);
   if (injectPropertyRealFileMutation) {
     const winnerPath = "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs";
     const winnerSource = sources.find((source) => source.relativePath === winnerPath);
@@ -1339,15 +1962,42 @@ function discoverTypedRawPropertyIdentitySites(): DiscoveredSite[] {
       "rust/crates/omena-cascade/src/axis_order.rs",
     );
   }
+  if (injectAuthoredUppercaseTransform) {
+    appendTrackedSourceMutation(
+      sources,
+      'fn authored_property_uppercase_probe(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { property.to_string().to_uppercase() == "--PROBE" }',
+      "rust/crates/omena-cli/src/migrate/mod.rs",
+    );
+  }
+  if (injectAuthoredTrimMatchesTransform) {
+    appendTrackedSourceMutation(
+      sources,
+      "fn authored_property_trim_matches_probe(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { property.to_string().trim_matches('-') == \"probe\" }",
+      "rust/crates/omena-cli/src/migrate/mod.rs",
+    );
+  }
+  if (injectAuthoredStripPrefixTransform) {
+    appendTrackedSourceMutation(
+      sources,
+      'fn authored_property_strip_prefix_probe(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { property.to_string().strip_prefix("--") == Some("probe") }',
+      "rust/crates/omena-cli/src/migrate/mod.rs",
+    );
+  }
 
   const carrierFields = discoverRawPropertyCarrierFields(sources);
   const functionResultKinds = rustFunctionResultKinds(sources);
+  const aliasesByPath = rustTypeAliasesByPath(sources);
   const sites: DiscoveredSite[] = [];
   for (const { relativePath, source } of sources) {
     const scannable = maskCommentsStringsAndTestItems(source, false);
     const stringAwareScannable = maskCommentsStringsAndTestItems(source, true);
     for (const functionSlice of rustFunctionSlices(scannable)) {
-      const classifier = propertyOperandClassifier(functionSlice, carrierFields);
+      const classifier = propertyOperandClassifier(
+        functionSlice,
+        carrierFields,
+        true,
+        aliasesByPath.get(relativePath),
+      );
       const tokens = rustSemanticTokens(functionSlice.scannable);
       for (const [tokenIndex, token] of tokens.entries()) {
         if (token.text !== "==" && token.text !== "!=") continue;
@@ -1364,13 +2014,66 @@ function discoverTypedRawPropertyIdentitySites(): DiscoveredSite[] {
           !classifier.containsRawPropertyAccess(right)
         )
           continue;
+        const absoluteOffset = functionSlice.bodyStart + token.start;
+        const sourceLine = source.split(/\r?\n/u)[lineNumberAt(source, absoluteOffset) - 1] ?? "";
+        if (
+          !classifier.containsRawPropertyAccess(
+            maskPropertyAuthorityCalls(rustSemanticTokens(sourceLine)),
+          )
+        )
+          continue;
+        sites.push(
+          siteAt(relativePath, source, scannable, absoluteOffset, "raw-property-comparison"),
+        );
+      }
+
+      for (const [tokenIndex, token] of tokens.entries()) {
+        if (
+          !/^(?:eq|ne|eq_ignore_ascii_case|cmp|partial_cmp|is_eq)$/u.test(token.text) ||
+          tokens[tokenIndex - 1]?.text !== "." ||
+          tokens[tokenIndex + 1]?.text !== "("
+        ) {
+          continue;
+        }
+        const closeParen = matchingTokenDelimiter(tokens, tokenIndex + 1, "(", ")");
+        const receiver = operationSideTokens(tokens, tokenIndex - 1, "left");
+        const argumentTokens =
+          closeParen === undefined ? [] : tokens.slice(tokenIndex + 2, closeParen);
+        if (
+          !classifier.containsRawPropertyOrigin(receiver) &&
+          !classifier.containsRawPropertyOrigin(argumentTokens)
+        ) {
+          continue;
+        }
         sites.push(
           siteAt(
             relativePath,
             source,
             scannable,
             functionSlice.bodyStart + token.start,
-            "raw-property-comparison",
+            "raw-property-identity-method",
+          ),
+        );
+      }
+
+      for (let tokenIndex = 0; tokenIndex + 3 < tokens.length; tokenIndex += 1) {
+        const ufcsEquality =
+          (tokens[tokenIndex].text === "str" || tokens[tokenIndex].text === "PartialEq") &&
+          tokens[tokenIndex + 1]?.text === "::" &&
+          tokens[tokenIndex + 2]?.text === "eq" &&
+          tokens[tokenIndex + 3]?.text === "(";
+        if (!ufcsEquality) continue;
+        const closeParen = matchingTokenDelimiter(tokens, tokenIndex + 3, "(", ")");
+        if (closeParen === undefined) continue;
+        if (!classifier.containsRawPropertyOrigin(tokens.slice(tokenIndex + 4, closeParen)))
+          continue;
+        sites.push(
+          siteAt(
+            relativePath,
+            source,
+            scannable,
+            functionSlice.bodyStart + tokens[tokenIndex + 2].start,
+            "raw-property-ufcs-identity",
           ),
         );
       }
@@ -1379,7 +2082,10 @@ function discoverTypedRawPropertyIdentitySites(): DiscoveredSite[] {
         if (
           token.text !== "to_ascii_lowercase" &&
           token.text !== "make_ascii_lowercase" &&
-          token.text !== "to_lowercase"
+          token.text !== "to_lowercase" &&
+          token.text !== "to_ascii_uppercase" &&
+          token.text !== "make_ascii_uppercase" &&
+          token.text !== "to_uppercase"
         )
           continue;
         if (tokens[tokenIndex - 1]?.text !== "." || tokens[tokenIndex + 1]?.text !== "(") continue;
@@ -1448,6 +2154,61 @@ function appendTrackedSourceMutation(
   target.source = `${target.source.trimEnd()}\n\n${mutation}\n`;
 }
 
+function applyMigrateConsumerProbeMutations(sources: MutableRustSource[]): void {
+  const targetPath = "rust/crates/omena-cli/src/migrate/mod.rs";
+  if (injectMigrateLowercaseComparison) {
+    appendTrackedSourceMutation(
+      sources,
+      'fn migrate_property_lowercase_probe(candidate: &TransformPassCascadeOracleCaseV0) -> bool { candidate.property.to_ascii_lowercase() == "--probe" }',
+      targetPath,
+    );
+  }
+  if (injectMigrateFqnParameter) {
+    appendTrackedSourceMutation(
+      sources,
+      'fn migrate_property_fqn_probe(candidate: &omena_diff_test::TransformPassCascadeOracleCaseV0) -> bool { candidate.property == "--probe" }',
+      targetPath,
+    );
+  }
+  if (injectMigrateAliasParameter) {
+    appendTrackedSourceMutation(
+      sources,
+      'use omena_diff_test::TransformPassCascadeOracleCaseV0 as MigratePropertyProbe;\nfn migrate_property_alias_probe(candidate: &MigratePropertyProbe) -> bool { candidate.property == "--probe" }',
+      targetPath,
+    );
+  }
+  if (injectMigrateBareParameter) {
+    appendTrackedSourceMutation(
+      sources,
+      'fn migrate_property_bare_probe(candidate: &TransformPassCascadeOracleCaseV0) -> bool { candidate.property == "--probe" }',
+      targetPath,
+    );
+  }
+  if (injectMigrateClosureParameter) {
+    appendTrackedSourceMutation(
+      sources,
+      'fn migrate_property_closure_probe(candidates: &[TransformPassCascadeOracleCaseV0]) -> bool { candidates.iter().any(|candidate| candidate.property == "--probe") }',
+      targetPath,
+    );
+  }
+}
+
+function applyPropertyAuthorityDecreaseMutation(sources: MutableRustSource[]): void {
+  if (!injectPropertyAuthorityDecreaseLaundering) return;
+  const targetPath = "rust/crates/omena-lsp-server/src/lib.rs";
+  const target = sources.find((source) => source.relativePath === targetPath);
+  assert.ok(target, "authority decrease mutation target must be in census scope");
+  const authorityJoin = "target.property_key == candidate.property_key";
+  const launderingJoin =
+    "target.name.to_string().eq_ignore_ascii_case(&candidate.name.to_string())";
+  assert.equal(
+    target.source.split(authorityJoin).length - 1,
+    1,
+    "authority decrease mutation must replace exactly one sealed join",
+  );
+  target.source = target.source.replace(authorityJoin, launderingJoin);
+}
+
 function discoverRawPropertyCarrierFields(
   sources: readonly { relativePath: string; source: string }[],
 ): ReadonlyMap<string, ReadonlySet<string>> {
@@ -1505,11 +2266,14 @@ function propertyOperandClassifier(
   functionSlice: RustFunctionSlice,
   carrierFields: ReadonlyMap<string, ReadonlySet<string>>,
   includeRawParameters = true,
+  aliases: ReadonlyMap<string, string> = new Map(),
+  authoredReturningFunctions: ReadonlySet<string> = new Set(),
 ): {
   readonly isRawPropertyExpression: (expression: string) => boolean;
   readonly containsRawPropertyAccess: (tokens: readonly RustSemanticToken[]) => boolean;
   readonly containsRawPropertyOrigin: (tokens: readonly RustSemanticToken[]) => boolean;
   readonly collectionReceivesPropertyKey: (binding: string) => boolean;
+  readonly collectionUsesIdentityOperation: (binding: string) => boolean;
 } {
   const text = `${functionSlice.signature}{${functionSlice.scannable}}`;
   const rawBindings = new Set<string>();
@@ -1529,9 +2293,29 @@ function propertyOperandClassifier(
     }
   }
   for (const match of text.matchAll(
-    /\b([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(?:&\s*(?:'[A-Za-z_][A-Za-z0-9_]*\s*)?)?(?:mut\s+)?([A-Z][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)/gu,
+    /\b([A-Za-z_][A-Za-z0-9_]*)\s*:\s*&?\s*(?:'[A-Za-z_][A-Za-z0-9_]*\s*)?(?:mut\s+)?([A-Za-z_][A-Za-z0-9_:]*)\b/gu,
   )) {
-    bindingTypes.set(match[1], match[2].split("::").at(-1) ?? match[2]);
+    const typeName = normalizeRustType(match[2], aliases);
+    if (typeName !== "AuthoredPropertyTextV0") continue;
+    rawBindings.add(match[1]);
+    propertyBindings.add(match[1]);
+    bindingTypes.set(match[1], typeName);
+  }
+  for (const match of text.matchAll(
+    /\b([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(?:&\s*(?:'[A-Za-z_][A-Za-z0-9_]*\s*)?)?(?:mut\s+)?([A-Za-z_][A-Za-z0-9_:]*)/gu,
+  )) {
+    bindingTypes.set(match[1], normalizeRustType(match[2], aliases));
+  }
+  for (const match of text.matchAll(
+    /\b([A-Za-z_][A-Za-z0-9_]*)\s*:\s*&?\s*\[\s*([A-Za-z_][A-Za-z0-9_:]*)\s*\]/gu,
+  )) {
+    bindingTypes.set(match[1], normalizeRustType(match[2], aliases));
+  }
+  for (const closure of text.matchAll(
+    /\b([A-Za-z_][A-Za-z0-9_]*)\.iter\s*\(\s*\)(?:\.[A-Za-z_][A-Za-z0-9_]*\s*\([^|]*\))*\s*\.(?:any|all|map|filter|filter_map|find|find_map|for_each|position|rposition)\s*\(\s*\|\s*&?\s*(?:mut\s+)?([A-Za-z_][A-Za-z0-9_]*)/gu,
+  )) {
+    const elementType = bindingTypes.get(closure[1]);
+    if (elementType) bindingTypes.set(closure[2], elementType);
   }
 
   const accessIsRawProperty = (access: RustAccessPath): boolean => {
@@ -1548,15 +2332,21 @@ function propertyOperandClassifier(
     return rustAccessPaths(tokens).some(accessIsRawProperty);
   };
   const containsRawPropertyOrigin = (tokens: readonly RustSemanticToken[]): boolean => {
-    return rustAccessPaths(tokens).some((access) =>
-      rawPropertyExpressionKind(
-        access,
-        rawBindings,
-        propertyBindings,
-        bindingTypes,
-        carrierFields,
-        true,
-      ),
+    return (
+      rustAccessPaths(tokens).some((access) =>
+        rawPropertyExpressionKind(
+          access,
+          rawBindings,
+          propertyBindings,
+          bindingTypes,
+          carrierFields,
+          true,
+        ),
+      ) ||
+      tokens.some(
+        (token, index) =>
+          authoredReturningFunctions.has(token.text) && tokens[index + 1]?.text === "(",
+      )
     );
   };
 
@@ -1570,8 +2360,11 @@ function propertyOperandClassifier(
         !/\b(?:PropertyNameV0|CanonicalPropertyKeyV0|CanonicalCustomPropertyNameV0|CanonicalStandardPropertyNameV0)\b|\.canonical_key\s*\(/u.test(
           assignment[2],
         ) &&
-        rawStringValueExpression(assignment[2]) &&
-        containsRawPropertyAccess(rustSemanticTokens(assignment[2]))
+        authoredStringExpression(
+          assignment[2],
+          containsRawPropertyOrigin,
+          authoredReturningFunctions,
+        )
       ) {
         propertyBindings.add(assignment[1]);
         rawBindings.add(assignment[1]);
@@ -1593,7 +2386,9 @@ function propertyOperandClassifier(
         if (
           tokens[index].text !== binding ||
           tokens[index + 1].text !== "." ||
-          !["entry", "get", "contains_key", "remove", "insert"].includes(tokens[index + 2].text) ||
+          !["entry", "get", "contains_key", "remove", "insert", "push"].includes(
+            tokens[index + 2].text,
+          ) ||
           tokens[index + 3].text !== "("
         ) {
           continue;
@@ -1605,6 +2400,22 @@ function propertyOperandClassifier(
       }
       return false;
     },
+    collectionUsesIdentityOperation(binding: string): boolean {
+      const tokens = rustSemanticTokens(functionSlice.scannable);
+      for (let index = 0; index + 3 < tokens.length; index += 1) {
+        if (
+          tokens[index].text === binding &&
+          tokens[index + 1].text === "." &&
+          /^(?:get|entry|contains_key|contains|remove|sort(?:_by|_by_key|_by_cached_key|_unstable(?:_by|_by_key)?)?|dedup(?:_by|_by_key)?|binary_search(?:_by|_by_key)?)$/u.test(
+            tokens[index + 2].text,
+          ) &&
+          tokens[index + 3].text === "("
+        ) {
+          return true;
+        }
+      }
+      return false;
+    },
   };
 }
 
@@ -1612,6 +2423,83 @@ function rawStringValueExpression(expression: string): boolean {
   return /^\s*&?\s*[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*(?:\(\s*\))?)*\s*$/u.test(
     expression,
   );
+}
+
+function authoredStringExpression(
+  expression: string,
+  containsOrigin: (tokens: readonly RustSemanticToken[]) => boolean,
+  authoredReturningFunctions: ReadonlySet<string>,
+): boolean {
+  const tokens = rustSemanticTokens(expression);
+  if (!containsOrigin(tokens)) return false;
+  return (
+    !/(?:==|!=|\b(?:matches|match)\b|\.\s*(?:eq|ne|eq_ignore_ascii_case|cmp|partial_cmp|is_eq)\s*\()/u.test(
+      expression,
+    ) &&
+    (/^\s*format\s*!\s*\(/u.test(expression) ||
+      rawStringValueExpression(expression) ||
+      (() => {
+        const called = expression.match(
+          /^\s*(?:[A-Za-z_][A-Za-z0-9_]*\s*::\s*)*([A-Za-z_][A-Za-z0-9_]*)\s*\(/u,
+        )?.[1];
+        return called !== undefined && authoredReturningFunctions.has(called);
+      })())
+  );
+}
+
+function authoredReturningFunctionNames(
+  sources: readonly MutableRustSource[],
+  carrierFields: ReadonlyMap<string, ReadonlySet<string>>,
+): ReadonlySet<string> {
+  const returning = new Set<string>();
+  const aliasesByPath = rustTypeAliasesByPath(sources);
+  const structFields = rustStructFieldTypes(sources, aliasesByPath);
+  for (let pass = 0; pass < 3; pass += 1) {
+    let changed = false;
+    for (const { relativePath, source } of sources) {
+      const scannable = maskCommentsStringsAndTestItems(source, false);
+      const aliases = aliasesByPath.get(relativePath) ?? new Map<string, string>();
+      for (const functionSlice of rustFunctionSlices(scannable)) {
+        if (returning.has(functionSlice.name)) continue;
+        const returnType = functionSlice.signature.match(
+          /->\s*([^\n{]+?)(?:\s+where\b|\s*$)/u,
+        )?.[1];
+        if (!returnType || !rawStringType(returnType.trim())) continue;
+        const bindings = resolvedRustBindingsForFunction(
+          functionSlice,
+          source,
+          aliases,
+          structFields,
+        );
+        const directAuthoredParameter = [...bindings].some(
+          ([binding, typeName]) =>
+            typeName === "AuthoredPropertyTextV0" &&
+            new RegExp(`\\b${escapeRegExp(binding)}\\b`, "u").test(functionSlice.scannable),
+        );
+        const authoredFieldAccess = rustAccessPaths(
+          rustSemanticTokens(functionSlice.scannable),
+        ).some((access) => {
+          let currentType = bindings.get(access.root);
+          for (const segment of access.segments) {
+            if (segment.method) break;
+            if (currentType && carrierFields.get(currentType)?.has(segment.name)) return true;
+            currentType = currentType
+              ? structFields.get(currentType)?.get(segment.name)
+              : undefined;
+          }
+          return false;
+        });
+        const callsAuthoredReturning = [...returning].some((name) =>
+          new RegExp(`\\b${escapeRegExp(name)}\\s*\\(`, "u").test(functionSlice.scannable),
+        );
+        if (!directAuthoredParameter && !authoredFieldAccess && !callsAuthoredReturning) continue;
+        returning.add(functionSlice.name);
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+  return returning;
 }
 
 interface RustSemanticToken {
@@ -1650,7 +2538,12 @@ function maskNonRawResultCalls(
   const masked: RustSemanticToken[] = [];
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
-    if (resultKinds.get(token.text) !== "non-raw" || tokens[index + 1]?.text !== "(") {
+    if (
+      resultKinds.get(token.text) !== "non-raw" ||
+      tokens[index + 1]?.text !== "(" ||
+      tokens[index - 1]?.text === "." ||
+      tokens[index - 1]?.text === "::"
+    ) {
       masked.push(token);
       continue;
     }
@@ -1769,7 +2662,7 @@ function rawPropertyExpressionKind(
   propertyBindings: ReadonlySet<string>,
   bindingTypes: ReadonlyMap<string, string>,
   carrierFields: ReadonlyMap<string, ReadonlySet<string>>,
-  arbitraryMethodsPreserveOrigin = false,
+  _arbitraryMethodsPreserveOrigin = false,
 ): boolean {
   let rawProperty = rawBindings.has(access.root) && propertyBindings.has(access.root);
   const rootType = bindingTypes.get(access.root);
@@ -1778,30 +2671,9 @@ function rawPropertyExpressionKind(
       rawProperty = Boolean(rootType && carrierFields.get(rootType)?.has(segment.name));
       continue;
     }
-    if (
-      !rawProperty ||
-      (!arbitraryMethodsPreserveOrigin && rawStringResultType(segment.name) === undefined)
-    ) {
-      return false;
-    }
+    if (!rawProperty) return false;
   }
   return rawProperty;
-}
-
-function rawStringResultType(method: string): "String" | "&str" | undefined {
-  const resultTypes: Readonly<Record<string, "String" | "&str">> = {
-    as_ref: "&str",
-    as_str: "&str",
-    borrow: "&str",
-    clone: "String",
-    deref: "&str",
-    to_owned: "String",
-    to_string: "String",
-    trim: "&str",
-    trim_end: "&str",
-    trim_start: "&str",
-  };
-  return resultTypes[method];
 }
 
 function operationSideTokens(
@@ -1875,7 +2747,7 @@ function rawStringCollectionDeclarations(
 ): RawStringCollectionDeclaration[] {
   const declarations: RawStringCollectionDeclaration[] = [];
   const start =
-    /\b(?:let\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(?:(?:[A-Za-z_][A-Za-z0-9_]*::)+)?(?:BTreeMap|BTreeSet|HashMap|HashSet)\s*</gu;
+    /\b(?:let\s+(?:mut\s+)?)?([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(?:(?:[A-Za-z_][A-Za-z0-9_]*::)+)?(?:BTreeMap|BTreeSet|HashMap|HashSet|Vec)\s*</gu;
   for (const match of functionSlice.scannable.matchAll(start)) {
     const openAngle = match.index + match[0].lastIndexOf("<");
     const closeAngle = matchingDelimiter(functionSlice.scannable, openAngle, "<", ">");
@@ -2276,6 +3148,20 @@ function assertNoAddedSites(
   );
 }
 
+function assertNoAddedCarrierSites(
+  previous: readonly CensusSite[],
+  current: readonly CensusSite[],
+  label: string,
+): void {
+  const previousKeys = new Set(previous.map(stableCarrierKey));
+  const addedSites = current.filter((site) => !previousKeys.has(stableCarrierKey(site)));
+  assert.deepEqual(
+    addedSites,
+    [],
+    `the committed authored table cannot adopt new ${label} sites during regeneration`,
+  );
+}
+
 function siteAt(
   relativePath: string,
   source: string,
@@ -2308,6 +3194,10 @@ function stableSiteKey(
   site: Pick<DiscoveredSite, "path" | "function" | "operation" | "evidence">,
 ): string {
   return `${site.path}\u0000${site.function}\u0000${site.operation}\u0000${site.evidence}`;
+}
+
+function stableCarrierKey(site: Pick<DiscoveredSite, "path" | "function" | "operation">): string {
+  return `${site.path}\u0000${site.function}\u0000${site.operation}`;
 }
 
 function trackedProductionSources(): string[] {

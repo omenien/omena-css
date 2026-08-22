@@ -378,7 +378,7 @@ fn referenced_custom_property_name(value: &str) -> Option<ReferencedCustomProper
     let name = tail.get(..name_end)?.trim();
     let property_name = PropertyNameV0::from_authored(name);
     Some(ReferencedCustomPropertyNameV0 {
-        authored: property_name.authored().to_string(),
+        authored: property_name.authored_text().to_string(),
         key: property_name.as_custom_key()?,
     })
 }

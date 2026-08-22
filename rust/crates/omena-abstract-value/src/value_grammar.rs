@@ -301,6 +301,8 @@ pub fn audit_css_value_grammar_registry_v0(
 /// Matches a standard property's value against the grammar supplied by the
 /// pinned specification registry.
 pub fn match_standard_property_value_v0(property: &str, value: &str) -> CssValueGrammarVerdictV0 {
+    let property = PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     let registry = spec_grammar_registry();
     let Some(entry) = registry.entry("properties", property) else {
         return grammar_defect(
@@ -390,6 +392,8 @@ pub fn match_registered_property_value_v0(syntax: &str, value: &str) -> CssValue
 }
 
 pub fn validate_standard_property_value_v0(property: &str, value: &str) -> CssValueValidationV0 {
+    let property = PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     let classification = spec_grammar_registry()
         .entry("properties", property)
         .map(|entry| entry.boundary.classification)

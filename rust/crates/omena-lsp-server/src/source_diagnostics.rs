@@ -138,7 +138,7 @@ fn gather_source_diagnostics_render_inputs(
                 .iter()
                 .any(|range| parser_range_contains(range, &candidate.range));
             if !is_property_access
-                && let Some(global_uri) = global_class_definitions.get(candidate.name.as_str())
+                && let Some(global_uri) = global_class_definitions.get(&candidate.name.to_string())
             {
                 global_class_fallthroughs.push(crate::LspGlobalClassFallthroughCandidateV0 {
                     selector_name: candidate.name.to_string(),

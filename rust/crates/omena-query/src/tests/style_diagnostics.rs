@@ -41,11 +41,13 @@ fn custom_property_escape_identity_resolves_without_case_merging() {
         .candidates
         .iter()
         .filter(|candidate| candidate.kind == "customPropertyDeclaration")
-        .map(|candidate| candidate.name.as_str())
+        .map(|candidate| candidate.name.to_string())
         .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(
         authored_custom_names,
-        ["--FOO", "--foo"].into_iter().collect()
+        ["--FOO".to_string(), "--foo".to_string()]
+            .into_iter()
+            .collect()
     );
 }
 
@@ -638,7 +640,7 @@ fn style_diagnostics_for_file_include_cascade_aware_lints() -> Result<(), &'stat
     assert_eq!(narrowing.product, "omena-query.cascade-narrowing-evidence");
     assert_eq!(narrowing.selector, ".btn");
     assert_eq!(narrowing.selector_class_names, vec!["btn".to_string()]);
-    assert_eq!(narrowing.property_name.as_str(), "color");
+    assert_eq!(narrowing.property_name.to_string(), "color");
     assert_eq!(narrowing.property_value_narrowing.property_name, "color");
     assert_eq!(narrowing.property_value_narrowing.candidate_count, 2);
     assert_eq!(

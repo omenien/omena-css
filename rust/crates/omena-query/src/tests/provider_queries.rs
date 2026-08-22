@@ -52,27 +52,27 @@ $accent: red;
         candidates
             .candidates
             .iter()
-            .any(|candidate| candidate.kind == "selector" && candidate.name.as_str() == "button")
+            .any(|candidate| candidate.kind == "selector" && candidate.name.to_string() == "button")
     );
     assert!(candidates.candidates.iter().any(|candidate| {
-        candidate.kind == "customPropertyReference" && candidate.name.as_str() == "--brand"
+        candidate.kind == "customPropertyReference" && candidate.name.to_string() == "--brand"
     }));
     assert!(candidates.candidates.iter().any(|candidate| {
-        candidate.kind == "sassVariableDeclaration" && candidate.name.as_str() == "accent"
+        candidate.kind == "sassVariableDeclaration" && candidate.name.to_string() == "accent"
     }));
     assert!(candidates.candidates.iter().any(|candidate| {
         candidate.kind == "sassVariableReference"
-            && candidate.name.as_str() == "brand"
+            && candidate.name.to_string() == "brand"
             && candidate.namespace.as_deref() == Some("tokens")
     }));
     assert!(candidates.candidates.iter().any(|candidate| {
         candidate.kind == "sassMixinInclude"
-            && candidate.name.as_str() == "tone"
+            && candidate.name.to_string() == "tone"
             && candidate.namespace.as_deref() == Some("tokens")
     }));
     assert!(candidates.candidates.iter().any(|candidate| {
         candidate.kind == "sassFunctionCall"
-            && candidate.name.as_str() == "double"
+            && candidate.name.to_string() == "double"
             && candidate.namespace.as_deref() == Some("tokens")
     }));
     assert!(
@@ -81,7 +81,7 @@ $accent: red;
             .iter()
             .any(
                 |candidate| candidate.source == "sassPartialEvaluatorGeneratedSelectors"
-                    && candidate.name.as_str() == "tone-warm"
+                    && candidate.name.to_string() == "tone-warm"
             )
     );
 }

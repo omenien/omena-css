@@ -129,11 +129,11 @@ fn explain_hover_trace_keeps_case_distinct_custom_property_definitions_separate(
         .style_candidates
         .iter()
         .filter(|candidate| candidate.kind == "customPropertyDeclaration")
-        .map(|candidate| candidate.name.as_str())
+        .map(|candidate| candidate.name.to_string())
         .collect::<Vec<_>>();
     assert_eq!(
         supplied_names,
-        vec!["--Foo", "--foo"],
+        vec!["--Foo".to_string(), "--foo".to_string()],
         "the production hover provider must supply both case-distinct declarations",
     );
 

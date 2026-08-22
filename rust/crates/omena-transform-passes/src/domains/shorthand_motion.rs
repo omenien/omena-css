@@ -157,10 +157,11 @@ fn compress_single_transition_value(value: &str) -> Option<String> {
 }
 
 fn normalize_transition_property(property: &str) -> String {
-    if property.eq_ignore_ascii_case("all") {
+    let property_name = omena_syntax::ident::PropertyNameV0::from_authored(property);
+    if property_name.same_as(&omena_syntax::ident::PropertyNameV0::standard("all")) {
         "all".to_string()
     } else {
-        property.to_string()
+        property_name.canonical_name().to_string()
     }
 }
 

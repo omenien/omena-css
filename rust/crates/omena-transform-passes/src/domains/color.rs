@@ -49,6 +49,8 @@ pub(crate) fn parse_color_mix_value(value: &str) -> Option<String> {
 }
 
 pub(crate) fn is_static_color_reference_property(property: &str) -> bool {
+    let property = omena_syntax::ident::PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     matches!(
         property,
         "accent-color"
@@ -109,6 +111,8 @@ fn is_static_color_compression_property(property: &str) -> bool {
 }
 
 fn preserves_currentcolor_keyword_case(property: &str) -> bool {
+    let property = omena_syntax::ident::PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     matches!(property, "column-rule" | "column-rule-color")
 }
 

@@ -274,5 +274,5 @@ fn normalize_design_token_route_name(
 ) -> Option<(CanonicalCustomPropertyNameV0, String)> {
     let property = PropertyNameV0::from_authored(name);
     let property_key = property.as_custom_key()?;
-    (property_key.as_str().len() > 2).then(|| (property_key, property.authored().to_string()))
+    (property_key.as_str().len() > 2).then(|| (property_key, property.authored_text().to_string()))
 }

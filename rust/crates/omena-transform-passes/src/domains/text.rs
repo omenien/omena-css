@@ -71,6 +71,8 @@ pub(crate) fn normalize_css_font_declarations_with_lexer(
 }
 
 fn normalize_static_font_declaration_value(property: &str, value: &str) -> Option<String> {
+    let property = omena_syntax::ident::PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     match property {
         "cursor" => normalize_single_known_keyword_case(value, CURSOR_KEYWORDS),
         "display" => normalize_static_display_value(value),

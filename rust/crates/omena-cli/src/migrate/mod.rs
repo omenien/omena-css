@@ -17,7 +17,7 @@ use omena_query::{
     summarize_omena_query_sass_module_cross_file_resolution_for_workspace,
     summarize_omena_query_sass_module_source_edges,
 };
-use omena_syntax::ident::{PropertyNameV0, is_custom_property_name};
+use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0, is_custom_property_name};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -304,7 +304,7 @@ fn build_token_rename_plan(
     for occurrence in index
         .occurrences
         .iter()
-        .filter(|occurrence| occurrence.name == token_name)
+        .filter(|occurrence| occurrence.property_key == token_name)
     {
         let Some(source) = sources.get(occurrence.uri.as_str()) else {
             blockers.push(MigrationBlockerV0 {
@@ -332,7 +332,7 @@ fn build_token_rename_plan(
             range: occurrence.range,
             byte_span: occurrence.byte_span,
             expected_text: expected_text.to_string(),
-            replacement_text: new_name.clone(),
+            replacement_text: new_name.as_str().to_string(),
             expected_source_sha256: content_sha256(source.as_bytes()),
             safety_evidence: if occurrence.has_fallback {
                 conservative_workspace_safety()
@@ -353,7 +353,10 @@ fn build_token_rename_plan(
         blockers.push(MigrationBlockerV0 {
             code: "customPropertyNotFound".to_string(),
             uri: None,
-            detail: format!("custom property '{token_name}' was not found in the workspace index"),
+            detail: format!(
+                "custom property '{}' was not found in the workspace index",
+                token_name.as_str()
+            ),
             evidence_refs: vec![authority_evidence.id.clone()],
         });
     }
@@ -1066,7 +1069,7 @@ fn normalize_selector_name(name: &str) -> Result<String, String> {
     Ok(name.to_string())
 }
 
-fn normalize_custom_property_name(name: &str) -> Result<String, String> {
+fn normalize_custom_property_name(name: &str) -> Result<CanonicalCustomPropertyNameV0, String> {
     let name = name.trim();
     let normalized = if is_custom_property_name(name) {
         name.to_string()
@@ -1074,7 +1077,8 @@ fn normalize_custom_property_name(name: &str) -> Result<String, String> {
         format!("--{name}")
     };
     let property = PropertyNameV0::from_authored(&normalized);
-    let valid = property.as_custom_key().is_some_and(|property_key| {
+    let property_key = property.as_custom_key();
+    let valid = property_key.as_ref().is_some_and(|property_key| {
         property_key.as_str().len() > 2 && !property_key.as_str().chars().any(char::is_whitespace)
     });
     if !valid {
@@ -1082,7 +1086,9 @@ fn normalize_custom_property_name(name: &str) -> Result<String, String> {
             "custom-property names must be non-empty and contain no whitespace".to_string(),
         );
     }
-    Ok(normalized)
+    property_key.ok_or_else(|| {
+        "custom-property names must be non-empty and contain no whitespace".to_string()
+    })
 }
 
 fn is_css_module_path(path: &Path) -> bool {

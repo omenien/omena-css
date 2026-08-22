@@ -213,6 +213,8 @@ fn physical_property_for_logical_property(
     property: &str,
     axis_mapping: LogicalAxisMapping,
 ) -> Option<String> {
+    let property = omena_syntax::ident::PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     match property {
         "block-size" => Some(axis_mapping.block_size_property.to_string()),
         "inline-size" => Some(axis_mapping.inline_size_property.to_string()),
@@ -298,6 +300,8 @@ fn physical_pair_properties_for_logical_pair(
     property: &str,
     axis_mapping: LogicalAxisMapping,
 ) -> Option<(String, String)> {
+    let property = omena_syntax::ident::PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     match property {
         "inset-block" => Some(side_pair(axis_mapping.block_start, axis_mapping.block_end)),
         "inset-inline" => Some(side_pair(
@@ -382,6 +386,8 @@ fn physical_pair_properties_for_logical_mirror(
     property: &str,
     axis_mapping: LogicalAxisMapping,
 ) -> Option<(String, String)> {
+    let property = omena_syntax::ident::PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     match property {
         "border-block" => Some(border_side_property_pair(
             axis_mapping.block_start,

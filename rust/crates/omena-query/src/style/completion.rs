@@ -343,11 +343,12 @@ fn style_completion_documentation(
     if context_kind != "styleDocument" || candidate.kind != "selector" {
         return None;
     }
+    let candidate_name = candidate.name.to_string();
 
     summarize_omena_query_style_completion_candidate_documentation(
         source,
         candidate.kind,
-        candidate.name.as_str(),
+        candidate_name.as_str(),
         candidate.range.start,
     )
 }
@@ -610,6 +611,7 @@ fn collect_omena_query_completion_candidates(
             if candidate.kind != "selector" {
                 return None;
             }
+            let candidate_name = candidate.name.to_string();
             let documentation =
                 summarize_omena_query_style_completion_candidate_documentation_for_workspace_file(
                     source.style_path.as_str(),
@@ -617,14 +619,14 @@ fn collect_omena_query_completion_candidates(
                     package_manifests,
                     resolution_inputs,
                     candidate.kind,
-                    candidate.name.as_str(),
+                    candidate_name.as_str(),
                     candidate.range.start,
                 )
                 .or_else(|| {
                     summarize_omena_query_style_completion_candidate_documentation(
                         source.style_source.as_str(),
                         candidate.kind,
-                        candidate.name.as_str(),
+                        candidate_name.as_str(),
                         candidate.range.start,
                     )
                 });

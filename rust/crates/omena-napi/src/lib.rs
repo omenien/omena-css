@@ -1935,7 +1935,7 @@ mod tests {
             hover
                 .candidates
                 .iter()
-                .any(|candidate| candidate.name.as_str() == "--brand")
+                .any(|candidate| candidate.name.to_string() == "--brand")
         );
 
         let completion =

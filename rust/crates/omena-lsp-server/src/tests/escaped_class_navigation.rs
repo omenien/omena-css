@@ -75,7 +75,7 @@ export const plainClass = styles.plain;
         source_document
             .source_selector_candidates
             .iter()
-            .any(|candidate| candidate.name.as_str() == r#"md\:flex"#),
+            .any(|candidate| candidate.name.to_string() == r#"md\:flex"#),
         "LSP candidates should preserve the semantic selector name: {:?}",
         source_document.source_selector_candidates
     );

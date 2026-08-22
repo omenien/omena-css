@@ -80,7 +80,7 @@ pub(super) fn attach_omena_query_module_graph_property_value_narrowing_for_works
             continue;
         }
         let mut narrowed = narrow_abstract_property_value_for_cascade_branch(
-            cascade_narrowing.property_name.as_str(),
+            cascade_narrowing.property_key.as_str(),
             property_value_narrowing.requested_pseudo_state.as_deref(),
             property_value_narrowing
                 .requested_condition_context

@@ -1998,10 +1998,10 @@ pub struct OmenaQueryStyleHoverCandidateV0 {
     pub namespace: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum OmenaQueryStyleHoverCandidateIdentityRefV0<'candidate> {
     CustomProperty(Option<&'candidate CanonicalCustomPropertyNameV0>),
-    Other(&'candidate str),
+    Other(String),
 }
 
 impl OmenaQueryStyleHoverCandidateV0 {
@@ -2012,7 +2012,7 @@ impl OmenaQueryStyleHoverCandidateV0 {
         ) {
             OmenaQueryStyleHoverCandidateIdentityRefV0::CustomProperty(self.property_key.as_ref())
         } else {
-            OmenaQueryStyleHoverCandidateIdentityRefV0::Other(self.name.as_str())
+            OmenaQueryStyleHoverCandidateIdentityRefV0::Other(self.name.to_string())
         }
     }
 }
@@ -2864,6 +2864,7 @@ pub struct OmenaQueryCustomPropertyOccurrenceV0 {
     pub kind: &'static str,
     pub has_fallback: bool,
     pub source: &'static str,
+    pub property_key: CanonicalCustomPropertyNameV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]

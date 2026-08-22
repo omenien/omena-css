@@ -484,7 +484,7 @@ fn resolve_lsp_references(state: &LspShellState, params: Option<&Value>) -> Valu
         };
         locations.extend(selector_reference_locations_from_open_documents(
             state,
-            candidate.name.as_str(),
+            candidate.name.to_string().as_str(),
             document.workspace_folder_uri.as_deref(),
             Some(document.uri.as_str()),
         ));
@@ -668,11 +668,12 @@ fn resolve_lsp_code_lens(state: &dyn LspQueryReadView, params: Option<&Value>) -
         .iter()
         .filter(|candidate| candidate.kind == "selector")
     {
-        if !emitted_selectors.insert(candidate.name.as_str()) {
+        let candidate_name = candidate.name.to_string();
+        if !emitted_selectors.insert(candidate_name.clone()) {
             continue;
         }
         let locations = reference_locations_by_name
-            .get(candidate.name.as_str())
+            .get(candidate_name.as_str())
             .cloned()
             .unwrap_or_default();
         if locations.is_empty() {
@@ -766,7 +767,7 @@ fn resolve_lsp_rename(state: &LspShellState, params: Option<&Value>) -> Value {
             state,
             workspace_folder_uri,
             candidate.target_style_uri.as_deref(),
-            candidate.name.as_str(),
+            candidate.name.to_string().as_str(),
             new_name,
         );
     }
@@ -784,7 +785,7 @@ fn resolve_lsp_rename(state: &LspShellState, params: Option<&Value>) -> Value {
             state,
             workspace_folder_uri,
             Some(document_uri.as_str()),
-            candidate.name.as_str(),
+            candidate.name.to_string().as_str(),
             new_name,
         );
     }
@@ -815,8 +816,8 @@ fn style_candidates_for_params(
     Some((document_uri, candidate, candidates))
 }
 
-fn rename_placeholder(candidate: &LspStyleHoverCandidate) -> &str {
-    candidate.name.as_str()
+fn rename_placeholder(candidate: &LspStyleHoverCandidate) -> String {
+    candidate.name.to_string()
 }
 
 fn resolve_lsp_hover(state: &dyn LspQueryReadView, params: Option<&Value>) -> Value {
@@ -1326,7 +1327,7 @@ fn resolve_source_lsp_references(
         } else {
             locations.extend(selector_reference_locations_from_open_documents(
                 state,
-                candidate.name.as_str(),
+                candidate.name.to_string().as_str(),
                 document.workspace_folder_uri.as_deref(),
                 candidate.target_style_uri.as_deref(),
             ));
@@ -1442,7 +1443,7 @@ fn resolve_source_lsp_completion(
             continue;
         }
         let Some((uri, definition)) = definitions.iter().find(|(_, definition)| {
-            definition.kind == "selector" && definition.name.as_str() == item.label
+            definition.kind == "selector" && definition.name.to_string() == item.label
         }) else {
             continue;
         };
@@ -1454,19 +1455,20 @@ fn resolve_source_lsp_completion(
             )
         });
         item.documentation = style_text_for_uri(state, uri.as_str()).and_then(|style_text| {
+            let definition_name = definition.name.to_string();
             summarize_omena_query_style_completion_candidate_documentation_for_workspace_file_with_substrate(
                 uri.as_str(),
                 style_sources.as_slice(),
                 narrowing_substrate,
                 definition.kind,
-                definition.name.as_str(),
+                definition_name.as_str(),
                 definition.range.start,
             )
             .or_else(|| {
                 summarize_omena_query_style_completion_candidate_documentation(
                     style_text.as_str(),
                     definition.kind,
-                    definition.name.as_str(),
+                    definition_name.as_str(),
                     definition.range.start,
                 )
             })

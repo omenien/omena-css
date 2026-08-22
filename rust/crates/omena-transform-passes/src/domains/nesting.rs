@@ -501,9 +501,9 @@ fn format_declaration_text_from_segment(segment: &str) -> Option<String> {
     }
     let property_name = PropertyNameV0::from_authored(property);
     let property = if property_name.as_custom_key().is_some() {
-        property_name.authored()
+        property_name.authored_text().to_string()
     } else {
-        property_name.canonical_name()
+        property_name.canonical_name().to_string()
     };
     Some(format!("{property}: {value};"))
 }

@@ -185,6 +185,8 @@ fn declaration_value_has_compat_fallback(value: &str) -> bool {
 }
 
 fn same_property_override_can_dedupe(property: &str) -> bool {
+    let property = PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     // Keep opacity-family duplicates: lightningcss preserves them as compatibility fallbacks.
     !matches!(
         property,
@@ -365,7 +367,7 @@ fn simple_declaration_from_ir(
     }
     let property_name = PropertyNameV0::from_authored(property);
     Some(RuleDedupDeclarationV0 {
-        property: property_name.authored().to_string(),
+        property: property_name.authored_text().to_string(),
         property_key: property_name.canonical_key(),
         value: value.to_string(),
         important: declaration_value_is_important(value),

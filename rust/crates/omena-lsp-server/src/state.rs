@@ -137,14 +137,14 @@ pub struct LspStyleHoverCandidate {
     pub namespace: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum LspStyleHoverCandidateIdentityRefV0<'candidate> {
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum LspStyleHoverCandidateIdentityRefV0<'candidate> {
     CustomProperty(Option<&'candidate CanonicalCustomPropertyNameV0>),
-    Other(&'candidate str),
+    Other(String),
 }
 
 impl LspStyleHoverCandidate {
-    pub(crate) fn identity_name(&self) -> &str {
+    pub(crate) fn identity_name(&self) -> String {
         if matches!(
             self.kind,
             "customPropertyDeclaration" | "customPropertyReference"
@@ -153,19 +153,20 @@ impl LspStyleHoverCandidate {
                 .as_ref()
                 .map(CanonicalCustomPropertyNameV0::as_str)
                 .unwrap_or_default()
+                .to_string()
         } else {
-            self.name.as_str()
+            self.name.to_string()
         }
     }
 
-    fn identity(&self) -> LspStyleHoverCandidateIdentityRefV0<'_> {
+    pub(crate) fn identity(&self) -> LspStyleHoverCandidateIdentityRefV0<'_> {
         if matches!(
             self.kind,
             "customPropertyDeclaration" | "customPropertyReference"
         ) {
             LspStyleHoverCandidateIdentityRefV0::CustomProperty(self.property_key.as_ref())
         } else {
-            LspStyleHoverCandidateIdentityRefV0::Other(self.name.as_str())
+            LspStyleHoverCandidateIdentityRefV0::Other(self.name.to_string())
         }
     }
 }

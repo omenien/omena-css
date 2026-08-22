@@ -110,7 +110,7 @@ pub(crate) fn external_sif_sass_symbol_target_for_candidate(
             document,
             source.as_str(),
             family,
-            candidate.name.as_str(),
+            candidate.name.to_string().as_str(),
             &mut visiting,
         ) {
             return Some(target);
@@ -130,7 +130,7 @@ pub(crate) fn external_sif_sass_symbol_target_for_candidate(
             document,
             forward_edge.source.as_str(),
             family,
-            private_candidate.name.as_str(),
+            private_candidate.name.to_string().as_str(),
             &mut visiting,
         ) {
             target.name = candidate.name.to_string();
@@ -325,7 +325,7 @@ pub(crate) fn external_sif_sass_symbol_definition_location(
             document,
             source.as_str(),
             family,
-            candidate.name.as_str(),
+            candidate.name.to_string().as_str(),
             &mut visiting,
         );
         if target.is_some() {
@@ -358,7 +358,10 @@ fn external_sif_sass_symbol_definition_range(
         .find(|candidate| {
             is_sass_symbol_declaration_kind(candidate.kind)
                 && sass_symbol_kind_from_candidate_kind(candidate.kind) == Some(target.family)
-                && sass_symbol_names_match(candidate.name.as_str(), target.name.as_str())
+                && sass_symbol_names_match(
+                    candidate.name.to_string().as_str(),
+                    target.name.as_str(),
+                )
         })
         .map(|candidate| candidate.range)
 }

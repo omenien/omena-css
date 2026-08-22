@@ -176,6 +176,8 @@ enum LineShorthandComponent {
 fn line_shorthand_component_for_property(
     property: &str,
 ) -> Option<(&'static str, LineShorthandComponent)> {
+    let property = omena_syntax::ident::PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     match property {
         "border-width" => Some(("border", LineShorthandComponent::Width)),
         "border-style" => Some(("border", LineShorthandComponent::Style)),
@@ -295,6 +297,8 @@ fn line_component_value_without_important(
 }
 
 fn line_component_property_accepts_axis_values(property: &str) -> bool {
+    let property = omena_syntax::ident::PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     matches!(
         property,
         "border-width"

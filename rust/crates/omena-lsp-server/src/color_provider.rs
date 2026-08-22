@@ -96,10 +96,10 @@ pub(crate) fn resolve_lsp_document_color(
     // dependency chains from disk once per variable (measured at seconds
     // per tab open on a large workspace).
     let mut declarations = SassVariableDeclarationIndexV0::default();
-    let mut color_by_name: BTreeMap<(Option<&str>, &str), Option<[f64; 4]>> = BTreeMap::new();
+    let mut color_by_name: BTreeMap<(Option<String>, String), Option<[f64; 4]>> = BTreeMap::new();
     let mut informations = Vec::new();
     for candidate in color_candidates {
-        let key = (candidate.namespace.as_deref(), candidate.name.as_str());
+        let key = (candidate.namespace.clone(), candidate.name.to_string());
         let color = *color_by_name.entry(key).or_insert_with(|| {
             declarations
                 .resolve_value(state, document, candidate)
@@ -166,7 +166,7 @@ impl SassVariableDeclarationIndexV0 {
         }
         self.by_namespace
             .get(&namespace)
-            .and_then(|values| values.get(candidate.name.as_str()))
+            .and_then(|values| values.get(&candidate.name.to_string()))
             .cloned()
             .flatten()
     }
@@ -254,7 +254,7 @@ fn collect_document_variable_values(
                 summarize_omena_query_style_hover_render_parts_for_hover_position(
                     document.text.as_str(),
                     declaration.kind,
-                    declaration.name.as_str(),
+                    declaration.name.to_string().as_str(),
                     declaration.range.start,
                 )
                 .value

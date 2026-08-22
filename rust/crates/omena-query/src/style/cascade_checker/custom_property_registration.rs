@@ -113,7 +113,7 @@ fn skip_query_trivia(tokens: &[LexedToken], mut index: usize, end: usize) -> usi
 fn normalize_query_checker_custom_property_name(text: &str) -> Option<String> {
     let property = PropertyNameV0::from_authored(text);
     (property.kind() == PropertyNameKindV0::Custom && property.canonical_name().len() > 2)
-        .then(|| property.authored().to_string())
+        .then(|| property.authored_text().to_string())
 }
 
 fn find_query_registration_block_start(tokens: &[LexedToken], index: usize) -> Option<usize> {

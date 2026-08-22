@@ -246,6 +246,7 @@ fn custom_property_occurrence_index_preserves_exact_ranges_and_fallback_precisio
         .find(|occurrence| occurrence.has_fallback)
         .ok_or_else(|| "fallback occurrence is missing".to_string())?;
     assert_eq!(fallback.name, "--brand");
+    assert_eq!(fallback.property_key.as_str(), "--brand");
     assert_eq!(
         source.get(fallback.byte_span.start..fallback.byte_span.end),
         Some("--brand")
@@ -890,14 +891,14 @@ fn exposes_fast_facts_analyzed_graph_and_custom_property_annotations() {
     );
     assert_eq!(annotations.annotation_count, 2);
     assert!(annotations.annotations.iter().any(|annotation| {
-        annotation.name.as_str() == "--surface"
+        annotation.name.to_string() == "--surface"
             && annotation.declaration_count == 1
             && annotation.reference_count == 1
             && annotation.annotation_kind == "declarationAndReference"
             && annotation.participates_in_fixed_point
     }));
     assert!(annotations.annotations.iter().any(|annotation| {
-        annotation.name.as_str() == "--accent"
+        annotation.name.to_string() == "--accent"
             && annotation.declaration_count == 0
             && annotation.reference_count == 1
             && annotation.annotation_kind == "reference"
@@ -917,12 +918,12 @@ fn custom_property_annotations_join_escape_identity_without_folding_case() {
 
     assert_eq!(annotations.annotation_count, 2);
     assert!(annotations.annotations.iter().any(|annotation| {
-        annotation.name.as_str() == "--foo"
+        annotation.name.to_string() == "--foo"
             && annotation.declaration_count == 1
             && annotation.reference_count == 1
     }));
     assert!(annotations.annotations.iter().any(|annotation| {
-        annotation.name.as_str() == "--FOO"
+        annotation.name.to_string() == "--FOO"
             && annotation.declaration_count == 1
             && annotation.reference_count == 1
     }));

@@ -124,7 +124,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 1201,
+      "line": 1207,
       "idiom": "brace-list-search",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -133,7 +133,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 4057,
+      "line": 4063,
       "idiom": "brace-find",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -142,7 +142,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 4113,
+      "line": 4119,
       "idiom": "brace-find",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -151,7 +151,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 4199,
+      "line": 4205,
       "idiom": "brace-contains",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -394,7 +394,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/color.rs",
-      "line": 193,
+      "line": 197,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -403,7 +403,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/color.rs",
-      "line": 253,
+      "line": 257,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1051,7 +1051,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
-      "line": 251,
+      "line": 253,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1060,7 +1060,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
-      "line": 252,
+      "line": 254,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1069,7 +1069,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
-      "line": 289,
+      "line": 291,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1078,7 +1078,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
-      "line": 292,
+      "line": 294,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1087,7 +1087,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
-      "line": 602,
+      "line": 604,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1096,7 +1096,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
-      "line": 603,
+      "line": 605,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1105,7 +1105,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
-      "line": 654,
+      "line": 656,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1186,7 +1186,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/text.rs",
-      "line": 159,
+      "line": 161,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1195,7 +1195,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/unit.rs",
-      "line": 174,
+      "line": 176,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1204,7 +1204,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/unit.rs",
-      "line": 213,
+      "line": 215,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1302,7 +1302,7 @@
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
     }
   ],
-  "siteDigest": "sha256:5408807d55decbc1b346cb5eda5587dc8c0ccaa2555703ebc26e8924698f89a9",
+  "siteDigest": "sha256:e8fb9bcf425fd2f04e5c6a0eb02d23c0f90dc5c5109e1304f5435ec631187bc6",
   "classSelectorScanner": {
     "policy": "decrease-only",
     "baselineSiteCount": 3,

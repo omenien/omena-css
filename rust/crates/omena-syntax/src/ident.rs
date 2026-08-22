@@ -82,7 +82,8 @@ pub enum PropertyNameKindV0 {
 /// This type deliberately implements no structural equality, ordering, hashing,
 /// or raw-string borrowing. Identity-bearing carriers pair it with a sealed
 /// canonical property key and use that key for every comparison or lookup.
-/// [`AuthoredPropertyTextV0::as_str`] and [`fmt::Display`] are presentation only.
+/// [`fmt::Display`], [`AuthoredPropertyTextV0::write_into`], and serialization are
+/// the only presentation exits.
 ///
 /// ```compile_fail,E0369
 /// use omena_syntax::ident::AuthoredPropertyTextV0;
@@ -122,6 +123,13 @@ pub enum PropertyNameKindV0 {
 /// let _ = property.to_lowercase();
 /// ```
 ///
+/// ```compile_fail,E0599
+/// use omena_syntax::ident::AuthoredPropertyTextV0;
+///
+/// let property = AuthoredPropertyTextV0::new("COLOR");
+/// let _ = property.as_str();
+/// ```
+///
 /// ```compile_fail,E0308
 /// use std::collections::HashMap;
 /// use omena_syntax::ident::AuthoredPropertyTextV0;
@@ -138,15 +146,16 @@ impl AuthoredPropertyTextV0 {
         Self(authored.into())
     }
 
-    /// Returns the source spelling for presentation only, never identity.
-    pub fn as_str(&self) -> &str {
-        &self.0
+    /// Writes the source spelling to a presentation sink without exposing a
+    /// borrowable raw string that could be reused as an identity key.
+    pub fn write_into(&self, out: &mut impl fmt::Write) -> fmt::Result {
+        out.write_str(&self.0)
     }
 }
 
 impl fmt::Display for AuthoredPropertyTextV0 {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.as_str())
+        self.write_into(formatter)
     }
 }
 
@@ -234,12 +243,6 @@ impl PropertyNameV0 {
         match self {
             Self::Standard { .. } => PropertyNameKindV0::Standard,
             Self::Custom { .. } => PropertyNameKindV0::Custom,
-        }
-    }
-
-    pub fn authored(&self) -> &str {
-        match self {
-            Self::Standard { authored, .. } | Self::Custom { authored, .. } => authored.as_str(),
         }
     }
 
@@ -795,9 +798,9 @@ mod tests {
 
         assert!(!custom_upper.same_as(&custom_lower));
         assert!(standard_upper.same_as(&standard_lower));
-        assert_eq!(custom_upper.authored(), "--FOO");
+        assert_eq!(custom_upper.authored_text().to_string(), "--FOO");
         assert_eq!(custom_upper.canonical_name(), "--FOO");
-        assert_eq!(standard_upper.authored(), "COLOR");
+        assert_eq!(standard_upper.authored_text().to_string(), "COLOR");
         assert_eq!(standard_upper.canonical_name(), "color");
     }
 
@@ -807,7 +810,7 @@ mod tests {
         let plain = PropertyNameV0::custom("--foo");
 
         assert!(escaped.same_as(&plain));
-        assert_eq!(escaped.authored(), r"--f\6f o");
+        assert_eq!(escaped.authored_text().to_string(), r"--f\6f o");
         assert_eq!(escaped.decoded(), "--foo");
         assert_eq!(escaped.canonical_name(), "--foo");
         assert_eq!(
@@ -824,7 +827,7 @@ mod tests {
         let property = PropertyNameV0::from_authored(r"\2d\2d FOO");
 
         assert_eq!(property.kind(), PropertyNameKindV0::Custom);
-        assert_eq!(property.authored(), r"\2d\2d FOO");
+        assert_eq!(property.authored_text().to_string(), r"\2d\2d FOO");
         assert_eq!(property.canonical_name(), "--FOO");
         assert!(is_custom_property_name(r"\2d\2d FOO"));
         assert!(!is_custom_property_name("COLOR"));

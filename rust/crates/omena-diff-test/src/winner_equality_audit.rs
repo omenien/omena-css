@@ -176,7 +176,7 @@ mod tests {
                         diagnostic
                             .cascade_narrowing
                             .as_ref()
-                            .map(|narrowing| narrowing.property_name.as_str()),
+                            .map(|narrowing| narrowing.property_name.to_string()),
                     )
                 })
                 .collect::<Vec<_>>();

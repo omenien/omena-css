@@ -147,6 +147,8 @@ fn normalize_percentage_unit_token(
 }
 
 fn is_opacity_percentage_property(property: &str) -> bool {
+    let property = PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     matches!(property, "opacity" | "fill-opacity" | "stroke-opacity")
 }
 
@@ -238,6 +240,8 @@ fn remove_adjacent_duplicate_unit_declarations_with_lexer(
 }
 
 fn unit_normalized_duplicate_property(property: &str) -> bool {
+    let property = PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     is_zero_length_unit_property(property)
         || is_zero_percentage_unit_property(property)
         || matches!(
@@ -254,6 +258,8 @@ fn unit_normalized_duplicate_property(property: &str) -> bool {
 }
 
 fn normalize_static_unit_declaration_value(property: &str, value: &str) -> Option<String> {
+    let property = PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     match property {
         "aspect-ratio" => normalize_aspect_ratio_value(value),
         "background-position" | "mask-position" | "-webkit-mask-position" => {

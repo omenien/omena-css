@@ -1118,6 +1118,8 @@ fn collect_overridden_flex_longhand_replacements(
 }
 
 fn flex_longhand_is_reset_by_flex_shorthand(property: &str) -> bool {
+    let property = PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     matches!(property, "flex-basis" | "flex-grow" | "flex-shrink")
 }
 
@@ -1246,6 +1248,8 @@ fn compressed_place_axis_value(shorthand: &str, align_value: &str, justify_value
 }
 
 fn is_place_axis_shorthand_property(property: &str) -> bool {
+    let property = PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     matches!(property, "place-content" | "place-items" | "place-self")
 }
 
@@ -1317,6 +1321,8 @@ fn compressed_two_axis_shorthand_value(first: &str, second: &str) -> String {
 }
 
 pub(crate) fn is_box_shorthand_property(property: &str) -> bool {
+    let property = PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     matches!(
         property,
         "margin"
@@ -1333,6 +1339,8 @@ pub(crate) fn is_box_shorthand_property(property: &str) -> bool {
 }
 
 fn is_border_none_shorthand_property(property: &str) -> bool {
+    let property = PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     matches!(
         property,
         "border" | "border-top" | "border-right" | "border-bottom" | "border-left" | "outline"
@@ -1384,6 +1392,8 @@ pub(crate) fn compress_background_repeat_value(value: &str) -> Option<String> {
 }
 
 fn is_repeat_shorthand_property(property: &str) -> bool {
+    let property = PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     matches!(
         property,
         "background-repeat" | "mask-repeat" | "-webkit-mask-repeat"
@@ -1395,6 +1405,8 @@ fn is_background_repeat_axis_keyword(value: &str) -> bool {
 }
 
 fn is_repeated_two_axis_shorthand_property(property: &str) -> bool {
+    let property = PropertyNameV0::from_authored(property);
+    let property = property.canonical_name();
     matches!(
         property,
         "border-block-color"

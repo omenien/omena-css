@@ -78,7 +78,7 @@ fn collect_var_references_from_arguments(
     if let Some(property_key) = property.as_custom_key() {
         references
             .entry(property_key)
-            .or_insert_with(|| property.authored().to_string());
+            .or_insert_with(|| property.authored_text().to_string());
     }
     for fallback in parts.iter().skip(1) {
         for reference in collect_query_var_reference_facts_in_value(fallback) {

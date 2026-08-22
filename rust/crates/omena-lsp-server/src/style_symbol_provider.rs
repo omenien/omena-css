@@ -224,7 +224,10 @@ fn extract_style_symbol_workspace_occurrences_for_document(
     for candidate in candidates {
         if candidate.kind.starts_with("customProperty") {
             style_occurrences.push(style_symbol_occurrence_for_candidate(
-                style_custom_property_moniker(workspace_folder_uri, candidate.name.as_str()),
+                style_custom_property_moniker(
+                    workspace_folder_uri,
+                    candidate.identity_name().as_str(),
+                ),
                 document.uri.as_str(),
                 &candidate,
                 "customProperty",
@@ -337,7 +340,7 @@ pub(crate) fn sass_symbol_definitions_for_candidate(
     definitions.dedup_by(|left, right| {
         left.0 == right.0
             && left.1.kind == right.1.kind
-            && left.1.identity_name() == right.1.identity_name()
+            && left.1.identity() == right.1.identity()
             && left.1.range == right.1.range
     });
     definitions
@@ -414,7 +417,7 @@ fn sass_symbol_declarations_in_document(
     resolve_omena_query_sass_symbol_declarations(
         query_candidates.as_slice(),
         symbol_kind,
-        candidate.name.as_str(),
+        candidate.name.to_string().as_str(),
     )
     .into_iter()
     .map(lsp_style_hover_candidate_from_query)
@@ -535,8 +538,10 @@ impl SassForwardEdgeForLsp {
         &self,
         candidate: &LspStyleHoverCandidate,
     ) -> Option<LspStyleHoverCandidate> {
-        let private_name =
-            unapply_sass_forward_prefix(self.forward_prefix.as_deref(), candidate.name.as_str())?;
+        let private_name = unapply_sass_forward_prefix(
+            self.forward_prefix.as_deref(),
+            candidate.name.to_string().as_str(),
+        )?;
         let mut target = candidate.clone();
         target.name = omena_syntax::ident::AuthoredPropertyTextV0::new(private_name);
         target.property_key = None;
@@ -688,14 +693,14 @@ pub(crate) fn render_style_hover_candidate_markdown_for_workspace(
             style_sources.as_slice(),
             &narrowing_substrate,
             candidate.kind,
-            candidate.name.as_str(),
+            candidate.name.to_string().as_str(),
             candidate.range.start,
         )
         .unwrap_or_else(|| {
             summarize_omena_query_style_hover_render_parts_for_hover_position(
                 source,
                 candidate.kind,
-                candidate.name.as_str(),
+                candidate.name.to_string().as_str(),
                 candidate.range.start,
             )
         });

@@ -331,6 +331,11 @@ pub fn summarize_omena_query_custom_property_occurrence_index(
                 ParsedVariableFactKind::CustomPropertyReference => "customPropertyReference",
                 _ => continue,
             };
+            let Some(property_key) = fact.property_key else {
+                // Custom-property facts without a parser-owned identity key are not
+                // safe migration/index inputs. Keep the index fail-closed.
+                continue;
+            };
             let byte_span = ParserByteSpanV0 {
                 start: u32::from(fact.range.start()) as usize,
                 end: u32::from(fact.range.end()) as usize,
@@ -338,6 +343,7 @@ pub fn summarize_omena_query_custom_property_occurrence_index(
             occurrences.push(OmenaQueryCustomPropertyOccurrenceV0 {
                 uri: style.style_path.clone(),
                 name: fact.name,
+                property_key,
                 range: parser_range_for_byte_span(style.style_source.as_str(), byte_span),
                 byte_span,
                 kind,

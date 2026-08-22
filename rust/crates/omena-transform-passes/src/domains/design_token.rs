@@ -298,7 +298,7 @@ fn design_token_declaration_view_from_ir(
     }
     let property_name = PropertyNameV0::from_authored(property);
     Some(DesignTokenDeclarationViewV0 {
-        property: property_name.authored().to_string(),
+        property: property_name.authored_text().to_string(),
         property_key: property_name.canonical_key(),
         value: value.to_string(),
         important: declaration_value_without_important(value).is_some(),

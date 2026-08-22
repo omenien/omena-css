@@ -313,7 +313,7 @@ fn declaration_syntax_with_context(
             PropertyNameKindV0::Standard
         },
     );
-    let property_name = property.authored().to_string();
+    let property_name = property.authored_text().to_string();
     let property_key = property.canonical_key();
     let value_text = value_text.trim().to_string();
     (!property_name.is_empty()).then_some(ParserDeclarationSyntaxFactV0 {

@@ -1,5 +1,5 @@
 use super::*;
-use omena_query::ParserPositionV0;
+use omena_query::{ParserPositionV0, execute_omena_query_transform_passes_from_source};
 use std::{
     sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
@@ -289,6 +289,155 @@ fn token_rename_indexes_registrations_declarations_and_fallback_references() -> 
     );
     fs::remove_dir_all(root).map_err(|error| error.to_string())?;
     Ok(())
+}
+
+#[test]
+fn token_rename_joins_escaped_declaration_to_plain_reference() -> Result<(), String> {
+    assert_custom_property_token_rename_case(
+        "escaped-declaration",
+        r#":root { --f\6f o: red; }
+.a { color: var(--foo); }
+"#,
+        &[r#"--f\6f o"#, "--foo"],
+        &["color: red"],
+    )
+}
+
+#[test]
+fn token_rename_joins_plain_declaration_to_escaped_reference() -> Result<(), String> {
+    assert_custom_property_token_rename_case(
+        "escaped-reference",
+        r#":root { --foo: red; }
+.a { color: var(--f\6f o); }
+"#,
+        &["--foo", r#"--f\6f o"#],
+        &["color: red"],
+    )
+}
+
+#[test]
+fn token_rename_keeps_custom_property_case_distinct() -> Result<(), String> {
+    assert_custom_property_token_rename_case(
+        "case-distinct",
+        r#":root { --FOO: blue; --f\6f o: red; }
+.lower { color: var(--foo); }
+.upper { color: var(--FOO); }
+"#,
+        &[r#"--f\6f o"#, "--foo"],
+        &["color: red", "color: blue", "--FOO"],
+    )
+}
+
+#[test]
+fn token_rename_updates_every_escape_equivalent_occurrence() -> Result<(), String> {
+    assert_custom_property_token_rename_case(
+        "two-equivalent-occurrences",
+        r#":root { --f\6f o: red; }
+.a { color: var(--\66 oo); }
+"#,
+        &[r#"--f\6f o"#, r#"--\66 oo"#],
+        &["color: red"],
+    )
+}
+
+fn assert_custom_property_token_rename_case(
+    fixture_name: &str,
+    source: &str,
+    expected_authored_occurrences: &[&str],
+    resolved_fragments: &[&str],
+) -> Result<(), String> {
+    let root = fixture_directory(fixture_name);
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let source_path = root.join("tokens.css");
+    let plan_path = root.join("migration.json");
+    fs::write(&source_path, source).map_err(|error| error.to_string())?;
+
+    assert_static_custom_property_resolution(source, resolved_fragments);
+    let plan = build_token_rename_plan(
+        Some("foo".to_string()),
+        Some("bar".to_string()),
+        Some(root.clone()),
+    )?;
+    assert!(
+        plan.blockers.is_empty(),
+        "{fixture_name}: {:#?}",
+        plan.blockers
+    );
+    assert_eq!(plan.edits.len(), expected_authored_occurrences.len());
+    assert_eq!(plan.safe_edits.len(), expected_authored_occurrences.len());
+    assert!(plan.review_edits.is_empty());
+
+    let mut expected_spans = expected_authored_occurrences
+        .iter()
+        .map(|expected| {
+            let start = source
+                .find(expected)
+                .ok_or_else(|| format!("{fixture_name}: missing expected occurrence {expected}"))?;
+            Ok((start, start + expected.len(), (*expected).to_string()))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    expected_spans.sort();
+    assert_eq!(
+        plan.edits
+            .iter()
+            .map(|edit| {
+                (
+                    edit.byte_span.start,
+                    edit.byte_span.end,
+                    edit.expected_text.clone(),
+                )
+            })
+            .collect::<Vec<_>>(),
+        expected_spans,
+        "{fixture_name}: plan byte spans must cover every canonical-key-equivalent occurrence",
+    );
+    assert!(
+        plan.edits
+            .iter()
+            .all(|edit| edit.replacement_text == "--bar")
+    );
+
+    write_json_artifact(&plan_path, &plan)?;
+    let report = apply_migration_plan(MigrationCodemodV0::TokenRename, &plan_path, false)?;
+    assert_eq!(
+        report.applied_edit_count,
+        expected_authored_occurrences.len()
+    );
+    let after = fs::read_to_string(&source_path).map_err(|error| error.to_string())?;
+    assert_static_custom_property_resolution(after.as_str(), resolved_fragments);
+    assert_eq!(
+        after.matches("--bar").count(),
+        expected_authored_occurrences.len()
+    );
+    for authored in expected_authored_occurrences {
+        assert!(
+            !after.contains(authored),
+            "{fixture_name}: stale authored occurrence remained after apply: {authored}",
+        );
+    }
+
+    fs::remove_dir_all(root).map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn assert_static_custom_property_resolution(source: &str, resolved_fragments: &[&str]) {
+    let execution = execute_omena_query_transform_passes_from_source(
+        "tokens.css",
+        source,
+        &["custom-property-static-resolve".to_string()],
+    );
+    assert!(
+        !execution.execution.output_css.contains("var("),
+        "static custom-property runtime left an unresolved reference: {}",
+        execution.execution.output_css,
+    );
+    for fragment in resolved_fragments {
+        assert!(
+            execution.execution.output_css.contains(fragment),
+            "static custom-property runtime omitted {fragment}: {}",
+            execution.execution.output_css,
+        );
+    }
 }
 
 fn matching_sass_oracle_result(

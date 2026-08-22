@@ -1329,6 +1329,7 @@ pub omena_query::OmenaQueryCustomPropertyOccurrenceV0::byte_span: omena_parser::
 pub omena_query::OmenaQueryCustomPropertyOccurrenceV0::has_fallback: bool
 pub omena_query::OmenaQueryCustomPropertyOccurrenceV0::kind: &'static str
 pub omena_query::OmenaQueryCustomPropertyOccurrenceV0::name: alloc::string::String
+pub omena_query::OmenaQueryCustomPropertyOccurrenceV0::property_key: omena_syntax::ident::CanonicalCustomPropertyNameV0
 pub omena_query::OmenaQueryCustomPropertyOccurrenceV0::range: omena_parser::spans::ParserRangeV0
 pub omena_query::OmenaQueryCustomPropertyOccurrenceV0::source: &'static str
 pub omena_query::OmenaQueryCustomPropertyOccurrenceV0::uri: alloc::string::String

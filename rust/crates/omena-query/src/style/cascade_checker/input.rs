@@ -630,7 +630,7 @@ mod layer_binding_tests {
                 ));
             }
         };
-        assert_eq!(winner.property.as_str(), "--foo");
+        assert_eq!(winner.property.to_string(), "--foo");
         assert!(
             also_considered.is_empty(),
             "custom-property case must stay split"

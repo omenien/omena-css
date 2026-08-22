@@ -2409,7 +2409,7 @@ mod tests {
                 ]
             })
         );
-        assert_eq!(report.functions[0].parameters[0].name.as_str(), "--size");
+        assert_eq!(report.functions[0].parameters[0].name.to_string(), "--size");
         assert_eq!(
             report.functions[0].parameters[0].syntax_source.as_deref(),
             Some("<length>")
