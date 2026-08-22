@@ -630,7 +630,7 @@ mod layer_binding_tests {
                 ));
             }
         };
-        assert_eq!(winner.property, "--foo");
+        assert_eq!(winner.property.as_str(), "--foo");
         assert!(
             also_considered.is_empty(),
             "custom-property case must stay split"
@@ -694,7 +694,8 @@ mod layer_binding_tests {
             property: "color".to_string(),
             declarations: vec![CascadeDeclaration {
                 id: declaration_id.to_string(),
-                property: "color".to_string(),
+                property: omena_syntax::ident::AuthoredPropertyTextV0::new("color"),
+                property_key: PropertyNameV0::standard("color").canonical_key(),
                 value: CascadeValue::Literal(invalid_value.to_string()),
                 key: CascadeKey::new(
                     CascadeLevel::AuthorNormal,

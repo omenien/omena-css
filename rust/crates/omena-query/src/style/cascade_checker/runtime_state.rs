@@ -20,6 +20,7 @@ use omena_query_core::{
     AbstractClassValueV0, AbstractPropertyValueCandidateV0,
     narrow_abstract_property_value_for_cascade_branch, prefix_suffix_class_value,
 };
+use omena_syntax::ident::{AuthoredPropertyTextV0, PropertyNameV0};
 use omena_syntax::{
     css_keyword,
     ident::{class_selector_names, property_names_same},
@@ -774,7 +775,8 @@ fn query_runtime_inline_style_cascade_declaration(
         .unwrap_or_else(|| "<dynamic>".to_string());
     CascadeDeclaration {
         id: query_runtime_inline_style_declaration_id(override_fact),
-        property: property_name.to_string(),
+        property: AuthoredPropertyTextV0::new(property_name),
+        property_key: PropertyNameV0::from_authored(property_name).canonical_key(),
         value: CascadeValue::Literal(value),
         key: CascadeKey::new(
             cascade_level_for_origin(CascadeOriginV0::Inline, false),
@@ -836,7 +838,8 @@ pub(in crate::style) fn query_runtime_cascade_declaration_from_input(
 
     CascadeDeclaration {
         id: input.declaration_id.clone(),
-        property: input.property.clone(),
+        property: AuthoredPropertyTextV0::new(input.property.clone()),
+        property_key: PropertyNameV0::from_authored(&input.property).canonical_key(),
         value: CascadeValue::Literal(value),
         key: CascadeKey::new(level, layer_rank, 0, specificity, input.source_order),
         open_world_tie_evidence: OpenWorldTieEvidence::NONE,

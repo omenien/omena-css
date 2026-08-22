@@ -117,12 +117,25 @@ fn explain_hover_trace_joins_escape_equivalent_custom_property_definitions() -> 
 fn explain_hover_trace_keeps_case_distinct_custom_property_definitions_separate() -> TestResult {
     let style_uri = "file:///workspace-a/src/App.module.css";
     let style_text = r#".root {
-  --foo: red;
   --Foo: blue;
-  color: var(--Foo);
+  --foo: red;
+  color: var(--foo);
 }"#;
     let mut state = LspShellState::default();
     open_style_document(&mut state, style_uri, style_text);
+    let supplied_names = state
+        .document(style_uri)
+        .ok_or_else(|| std::io::Error::other("opened style document is indexed"))?
+        .style_candidates
+        .iter()
+        .filter(|candidate| candidate.kind == "customPropertyDeclaration")
+        .map(|candidate| candidate.name.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        supplied_names,
+        vec!["--Foo", "--foo"],
+        "the production hover provider must supply both case-distinct declarations",
+    );
 
     let response = handle_lsp_message(
         &mut state,
@@ -134,7 +147,7 @@ fn explain_hover_trace_keeps_case_distinct_custom_property_definitions_separate(
                 "textDocument": { "uri": style_uri },
                 "position": parser_position_for_byte_offset(
                     style_text,
-                    fixture_find(style_text, "--Foo);", "fixture contains custom-property reference")? + 2,
+                    fixture_find(style_text, "--foo);", "fixture contains custom-property reference")? + 2,
                 ),
             },
         }),
@@ -149,8 +162,14 @@ fn explain_hover_trace_keeps_case_distinct_custom_property_definitions_separate(
     assert_eq!(
         response
             .as_ref()
+            .and_then(|value| value.pointer("/result/definitions/0/kind")),
+        Some(&json!("customPropertyDeclaration")),
+    );
+    assert_eq!(
+        response
+            .as_ref()
             .and_then(|value| value.pointer("/result/definitions/0/name")),
-        Some(&json!("--Foo")),
+        Some(&json!("--foo")),
     );
     Ok(())
 }

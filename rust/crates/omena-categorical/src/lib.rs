@@ -953,7 +953,8 @@ fn omega_truth_value_label_v0(truth_value: OmegaCascadeTruthValueV0) -> &'static
 fn omega_color_declaration(id: &str, value: &str, source_order: u32) -> CascadeDeclaration {
     CascadeDeclaration {
         id: id.to_string(),
-        property: "color".to_string(),
+        property: omena_cascade::AuthoredPropertyTextV0::new("color"),
+        property_key: omena_cascade::PropertyNameV0::standard("color").canonical_key(),
         value: CascadeValue::Literal(value.to_string()),
         key: CascadeKey::new(
             CascadeLevel::AuthorNormal,

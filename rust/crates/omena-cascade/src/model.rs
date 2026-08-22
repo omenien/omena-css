@@ -5,7 +5,9 @@
 //! evidence fields instead of opaque booleans so later passes can explain why a
 //! cascade-sensitive rewrite was accepted or blocked.
 
-use omena_syntax::ident::CanonicalCustomPropertyNameV0;
+use omena_syntax::ident::{
+    AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
@@ -241,11 +243,12 @@ impl PartialOrd for CascadeKey {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeDeclaration {
     pub id: String,
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
+    pub property_key: CanonicalPropertyKeyV0,
     pub value: CascadeValue,
     pub key: CascadeKey,
     /// Non-spec evidence for deterministic ordering of open-world ties.
@@ -254,11 +257,25 @@ pub struct CascadeDeclaration {
     pub specificity_exactness: SpecificityExactnessV0,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+impl PartialEq for CascadeDeclaration {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.property_key == other.property_key
+            && self.value == other.value
+            && self.key == other.key
+            && self.open_world_tie_evidence == other.open_world_tie_evidence
+            && self.specificity_exactness == other.specificity_exactness
+    }
+}
+
+impl Eq for CascadeDeclaration {}
+
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeProof {
     pub declaration_id: String,
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
+    pub property_key: CanonicalPropertyKeyV0,
     pub level: CascadeLevel,
     pub layer_rank: LayerRank,
     pub scope_proximity: u32,
@@ -266,6 +283,21 @@ pub struct CascadeProof {
     pub module_rank: ModuleRank,
     pub source_order: u32,
 }
+
+impl PartialEq for CascadeProof {
+    fn eq(&self, other: &Self) -> bool {
+        self.declaration_id == other.declaration_id
+            && self.property_key == other.property_key
+            && self.level == other.level
+            && self.layer_rank == other.layer_rank
+            && self.scope_proximity == other.scope_proximity
+            && self.specificity == other.specificity
+            && self.module_rank == other.module_rank
+            && self.source_order == other.source_order
+    }
+}
+
+impl Eq for CascadeProof {}
 
 impl CascadeProof {
     pub fn from_declaration(declaration: &CascadeDeclaration) -> Self {
@@ -277,6 +309,7 @@ impl CascadeProof {
         Self {
             declaration_id: declaration.id.clone(),
             property: declaration.property.clone(),
+            property_key: declaration.property_key.clone(),
             level: declaration.key.level,
             layer_rank: declaration.key.layer_rank,
             scope_proximity: declaration.key.scope_proximity,

@@ -287,6 +287,22 @@
       "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints, requires exact Rust-authored declaration identities for style resolution, preserves analyzed-empty reachability as a closed-world result, and projects typed dialect-cycle evidence instead of a generic pass-unavailable blocker. It also moves custom-property diagnostics and module-interface joins onto the shared decoded, case-preserving property identity.",
       "expectedFailures": [
         {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field OmenaQueryStyleHoverCandidateV0.property_key",
+            "field OmenaQueryCascadeNarrowingEvidenceV0.property_key",
+            "field OmenaQueryCreateCustomPropertyActionV0.property_key",
+            "field OmenaQueryCustomPropertyAnnotationV0.property_key"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "OmenaQueryStyleHoverCandidateV0.property_key",
+            "OmenaQueryCascadeNarrowingEvidenceV0.property_key",
+            "OmenaQueryCreateCustomPropertyActionV0.property_key",
+            "OmenaQueryCustomPropertyAnnotationV0.property_key"
+          ]
+        },
+        {
           "lint": "enum_variant_added",
           "evidenceNeedles": [
             "variant OmenaQueryClosedWorldBlockerV0:UnsupportedDialectEmissionCycle"
@@ -375,8 +391,8 @@
         {
           "id": "query-custom-property-identity-wire-and-joins",
           "kind": "selection-outcome-changing",
-          "surface": "style diagnostics, @property registration, cascade-at-position, and module-interface custom-property projections",
-          "reason": "Query consumers now join declaration and var-reference facts by sealed custom-property keys, so escape-equivalent references resolve, case-distinct names remain separate, and module-interface sets expose canonical key types instead of raw strings.",
+          "surface": "style diagnostics, hover, annotations, code actions, @property registration, cascade-at-position, and module-interface custom-property projections",
+          "reason": "Query consumers now join declaration and var-reference facts by sealed custom-property keys, while public presentation carriers pair non-comparable authored text with the sealed key. Escape-equivalent references resolve, case-distinct names remain separate, and module-interface sets expose canonical key types instead of raw strings.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-query/src/style.rs",
@@ -399,6 +415,15 @@
             {
               "sourcePath": "rust/crates/omena-query/src/style/registered_property_values.rs",
               "needles": ["fn property_registration_joins_escape_identity_but_not_custom_case()"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/types.rs",
+              "needles": [
+                "pub name: AuthoredPropertyTextV0,",
+                "pub property_key: Option<CanonicalCustomPropertyNameV0>,",
+                "pub property_name: AuthoredPropertyTextV0,",
+                "pub property_key: CanonicalPropertyKeyV0,"
+              ]
             }
           ]
         }
@@ -593,6 +618,38 @@
       ]
     },
     {
+      "crate": "omena-scss-eval",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor makes native CSS function parameter identity explicit by pairing presentation-only authored text with a sealed, decoded, case-preserving custom-property key.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": ["field OmenaScssEvalNativeCssFunctionParameterV0.property_key"],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": ["OmenaScssEvalNativeCssFunctionParameterV0.property_key"]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "scss-native-css-parameter-identity-carrier",
+          "kind": "wire-value-order-preserving",
+          "surface": "OmenaScssEvalNativeCssFunctionParameterV0 and native CSS function argument binding",
+          "reason": "Serialized parameters retain their authored name and add propertyKey, while product binding compares the sealed key so CSS escapes join without folding custom-property case.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-scss-eval/src/native_css.rs",
+              "needles": [
+                "pub struct OmenaScssEvalNativeCssFunctionParameterV0",
+                "pub name: AuthoredPropertyTextV0,",
+                "pub property_key: CanonicalCustomPropertyNameV0,",
+                "fn native_css_function_parameter_binding_decodes_before_case_sensitive_join()"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
       "crate": "omena-syntax",
       "releaseClass": "pre1MinorBreaking",
       "reason": "The next pre-1.0 minor adds the sole public property-name identity authority with separate standard and custom canonical key domains.",
@@ -601,13 +658,15 @@
         {
           "id": "canonical-property-name-authority",
           "kind": "selection-outcome-changing",
-          "surface": "PropertyNameV0 and sealed canonical standard/custom property key APIs",
+          "surface": "PropertyNameV0, presentation-only AuthoredPropertyTextV0, and sealed canonical standard/custom property key APIs",
           "reason": "The new shared authority decodes CSS escapes once, folds ASCII case only for standard properties, preserves custom-property case, and prevents structural comparison of authored property spellings.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-syntax/src/ident.rs",
               "needles": [
                 "pub enum PropertyNameV0",
+                "pub struct AuthoredPropertyTextV0(String);",
+                "impl fmt::Display for AuthoredPropertyTextV0",
                 "pub struct CanonicalStandardPropertyNameV0",
                 "pub struct CanonicalCustomPropertyNameV0",
                 "pub fn property_names_same(left: &str, right: &str) -> bool",
@@ -666,14 +725,24 @@
     {
       "crate": "omena-cascade",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor changes public custom-property environment and var-reference carriers to sealed keys and makes cascade selection obey CSS property identity.",
-      "expectedFailures": [],
+      "reason": "The next pre-1.0 minor changes public custom-property environment and var-reference carriers to sealed keys, pairs authored declaration/proof text with canonical keys, and makes cascade selection obey CSS property identity.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field CascadeProof.property_key",
+            "field CascadeDeclaration.property_key"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": ["CascadeProof.property_key", "CascadeDeclaration.property_key"]
+        }
+      ],
       "expectedRuntimeValueChanges": [
         {
           "id": "cascade-canonical-property-identity",
           "kind": "selection-outcome-changing",
-          "surface": "CascadeValue::Var, CustomPropertyEnv, cascade_property, and cascade_property_open_world",
-          "reason": "Cascade filtering and custom-property substitution now use sealed property keys, so standard-property case variants compete together, custom-property case variants remain distinct, and escape-equivalent custom names resolve together.",
+          "surface": "CascadeDeclaration, CascadeProof, CascadeValue::Var, CustomPropertyEnv, cascade_property, and cascade_property_open_world",
+          "reason": "Cascade declarations and proofs carry presentation-only authored text beside a sealed key; filtering and custom-property substitution use those keys so standard-property case variants compete together, custom-property case variants remain distinct, and escape-equivalent custom names resolve together.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-cascade/src/model.rs",
@@ -686,7 +755,14 @@
               "sourcePath": "rust/crates/omena-cascade/src/ranking.rs",
               "needles": [
                 "let property_key = PropertyNameV0::from_authored(property).canonical_key();",
-                "PropertyNameV0::from_authored(&declaration.property).canonical_key() == property_key"
+                "declaration.property_key == property_key"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/model.rs",
+              "needles": [
+                "pub property: AuthoredPropertyTextV0,",
+                "pub property_key: CanonicalPropertyKeyV0,"
               ]
             },
             {

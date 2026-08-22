@@ -63,7 +63,7 @@ pub fn resolve_omena_query_sass_symbol_declarations(
             is_omena_query_sass_symbol_declaration_kind(target.kind)
                 && omena_query_sass_symbol_kind_from_candidate_kind(target.kind)
                     == Some(symbol_kind)
-                && target.name == name
+                && target.name.as_str() == name
         })
         .cloned()
         .collect()

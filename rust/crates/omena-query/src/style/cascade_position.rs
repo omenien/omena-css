@@ -11,7 +11,9 @@ use omena_cascade::{
 use omena_parser::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0};
 use omena_query_transform_runner::parse_static_css_cascade_value;
 use omena_semantic::DesignTokenRankedReferenceV0;
-use omena_syntax::ident::{PropertyNameV0, is_ascii_word_continue, property_names_same};
+use omena_syntax::ident::{
+    AuthoredPropertyTextV0, PropertyNameV0, is_ascii_word_continue, property_names_same,
+};
 
 use crate::{
     AbstractPropertyValueV0, CascadeContextV0, CascadeDimensionalRefinementBridgeV0,
@@ -292,7 +294,8 @@ fn compute_referenced_declaration_cascade_value_seed(
                 "{style_path}:{}:{}",
                 declaration.property, declaration.source_order
             ),
-            property: declaration.property.clone(),
+            property: AuthoredPropertyTextV0::new(declaration.property.clone()),
+            property_key: PropertyNameV0::from_authored(&declaration.property).canonical_key(),
             value: cascade_value,
             key: CascadeKey::new(
                 CascadeLevel::AuthorNormal,

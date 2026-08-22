@@ -190,7 +190,7 @@ pub(crate) fn observe_cascade_outcome(
         source_path: caller.file().to_string(),
         property: declarations
             .first()
-            .map(|declaration| declaration.property.clone())
+            .map(|declaration| declaration.property.to_string())
             .unwrap_or_default(),
         declaration_ids: declarations
             .iter()
@@ -308,7 +308,8 @@ mod tests {
     ) -> CascadeDeclaration {
         CascadeDeclaration {
             id: id.to_string(),
-            property: "color".to_string(),
+            property: omena_syntax::ident::AuthoredPropertyTextV0::new("color"),
+            property_key: omena_syntax::ident::PropertyNameV0::standard("color").canonical_key(),
             value: CascadeValue::Literal(id.to_string()),
             key: CascadeKey::new(
                 level,

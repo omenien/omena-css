@@ -445,7 +445,8 @@ fn fixture_replica<const N: usize>(
 fn definite_outcome(id: &str) -> CascadeOutcome {
     let declaration = CascadeDeclaration {
         id: id.to_string(),
-        property: "color".to_string(),
+        property: omena_cascade::AuthoredPropertyTextV0::new("color"),
+        property_key: omena_cascade::PropertyNameV0::standard("color").canonical_key(),
         value: CascadeValue::Literal(id.to_string()),
         key: CascadeKey {
             level: CascadeLevel::AuthorNormal,

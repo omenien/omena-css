@@ -4151,7 +4151,8 @@ mod tests {
                         rule.module_instance.module().as_str(),
                         rule.global_order_index
                     ),
-                    property: "color".to_string(),
+                    property: omena_cascade::AuthoredPropertyTextV0::new("color"),
+                    property_key: omena_cascade::PropertyNameV0::standard("color").canonical_key(),
                     value: omena_cascade::CascadeValue::Literal(value.to_string()),
                     key,
                     open_world_tie_evidence,
@@ -4218,7 +4219,8 @@ mod tests {
                         rule.module_instance.module().as_str(),
                         rule.global_order_index
                     ),
-                    property: "color".to_string(),
+                    property: omena_cascade::AuthoredPropertyTextV0::new("color"),
+                    property_key: omena_cascade::PropertyNameV0::standard("color").canonical_key(),
                     value: omena_cascade::CascadeValue::Literal(if linked_later {
                         "blue".to_string()
                     } else {

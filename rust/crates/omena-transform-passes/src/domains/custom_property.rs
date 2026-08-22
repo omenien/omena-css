@@ -9,7 +9,8 @@ use omena_parser::{LexedToken, StyleDialect};
 use omena_syntax::{
     SyntaxKind, css_keyword,
     ident::{
-        CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0, PropertyNameV0, is_css_name_continue,
+        AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0,
+        PropertyNameV0, is_css_name_continue,
     },
 };
 use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0};
@@ -582,7 +583,7 @@ fn collect_tree_shake_css_custom_property_replacements(
             if !rule_is_reachable || !name_is_referenced {
                 removals.push(TransformSemanticRemovalCandidate {
                     symbol_kind: "customProperty",
-                    name: declaration.property,
+                    name: declaration.property.to_string(),
                     source_span_start: declaration.start,
                     source_span_end: declaration.end,
                     reason: if rule_is_reachable {
@@ -770,7 +771,7 @@ fn push_custom_property_rule_removals_from_declarations(
         }
         removals.push(TransformSemanticRemovalCandidate {
             symbol_kind: "customProperty",
-            name: declaration.property,
+            name: declaration.property.to_string(),
             source_span_start: declaration.start,
             source_span_end: declaration.end,
             reason: if rule_is_reachable {
@@ -1438,7 +1439,7 @@ fn collect_static_custom_property_icss_export_rules_from_ir(
                     !collect_custom_property_references_in_value(&declaration.value).is_empty()
                 })
                 .map(|declaration| CustomPropertyIcssExportDeclaration {
-                    export_name: declaration.property,
+                    export_name: declaration.property.to_string(),
                     value: declaration.value,
                     start: declaration.start,
                     end: declaration.end,
@@ -1551,9 +1552,9 @@ fn declaration_ordinary_rule_slice_from_ir(
     })
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 struct CustomPropertyDeclarationIrViewV0 {
-    property: String,
+    property: AuthoredPropertyTextV0,
     property_key: CanonicalPropertyKeyV0,
     value: String,
     important: bool,
@@ -1687,7 +1688,7 @@ fn simple_declaration_from_ir(
     }
     let property_name = PropertyNameV0::from_authored(property);
     Some(CustomPropertyDeclarationIrViewV0 {
-        property: property_name.authored().to_string(),
+        property: property_name.authored_text(),
         property_key: property_name.canonical_key(),
         value: value.to_string(),
         important: value
@@ -2097,8 +2098,7 @@ pub(crate) fn collect_static_root_custom_property_env(
         for declaration in
             collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
         {
-            let property = PropertyNameV0::from_authored(&declaration.property);
-            if let Some(property_key) = property.as_custom_key()
+            if let Some(property_key) = declaration.property_key.as_custom().cloned()
                 && !blocked_names.contains(&property_key)
             {
                 blocked_names.push(property_key);
@@ -2118,8 +2118,7 @@ pub(crate) fn collect_static_root_custom_property_env(
         for declaration in
             collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
         {
-            let property = PropertyNameV0::from_authored(&declaration.property);
-            let Some(property_key) = property.as_custom_key() else {
+            let Some(property_key) = declaration.property_key.as_custom().cloned() else {
                 continue;
             };
             if declaration.important {

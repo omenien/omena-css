@@ -337,7 +337,7 @@ pub(crate) fn sass_symbol_definitions_for_candidate(
     definitions.dedup_by(|left, right| {
         left.0 == right.0
             && left.1.kind == right.1.kind
-            && left.1.name == right.1.name
+            && left.1.identity_name() == right.1.identity_name()
             && left.1.range == right.1.range
     });
     definitions
@@ -536,9 +536,10 @@ impl SassForwardEdgeForLsp {
         candidate: &LspStyleHoverCandidate,
     ) -> Option<LspStyleHoverCandidate> {
         let private_name =
-            unapply_sass_forward_prefix(self.forward_prefix.as_deref(), &candidate.name)?;
+            unapply_sass_forward_prefix(self.forward_prefix.as_deref(), candidate.name.as_str())?;
         let mut target = candidate.clone();
-        target.name = private_name;
+        target.name = omena_syntax::ident::AuthoredPropertyTextV0::new(private_name);
+        target.property_key = None;
         target.namespace = None;
         Some(target)
     }

@@ -1,5 +1,5 @@
 use super::*;
-use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0};
+use omena_syntax::ident::{AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, PropertyNameV0};
 use std::{
     cmp::Reverse,
     collections::{BTreeMap, BTreeSet},
@@ -23,7 +23,8 @@ fn declaration_with_tie_evidence(
 ) -> CascadeDeclaration {
     CascadeDeclaration {
         id: id.to_string(),
-        property: "color".to_string(),
+        property: AuthoredPropertyTextV0::new("color"),
+        property_key: PropertyNameV0::standard("color").canonical_key(),
         value: CascadeValue::Literal(value.to_string()),
         key,
         open_world_tie_evidence,
@@ -39,7 +40,8 @@ fn declaration_with_specificity_exactness(
 ) -> CascadeDeclaration {
     CascadeDeclaration {
         id: id.to_string(),
-        property: "color".to_string(),
+        property: AuthoredPropertyTextV0::new("color"),
+        property_key: PropertyNameV0::standard("color").canonical_key(),
         value: CascadeValue::Literal(value.to_string()),
         key,
         open_world_tie_evidence: OpenWorldTieEvidence::NONE,
@@ -55,7 +57,8 @@ fn property_declaration(
 ) -> CascadeDeclaration {
     CascadeDeclaration {
         id: id.to_string(),
-        property: property.to_string(),
+        property: AuthoredPropertyTextV0::new(property),
+        property_key: PropertyNameV0::from_authored(property).canonical_key(),
         value,
         key: key(
             CascadeLevel::AuthorNormal,

@@ -20,9 +20,11 @@ use omena_query::{
     OmenaResolverStyleModuleConfirmationIdentityIndexV0,
     OmenaResolverStyleModuleDiskCandidateIdentityV0,
 };
+use omena_syntax::ident::{AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0};
 use omena_tsgo_client::{TsgoTypeFactResultEntryV0, TsgoWorkspaceProcessPoolV0};
 use serde::Serialize;
 use std::cell::RefCell;
+use std::cmp::Ordering as CmpOrdering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::sync::{
@@ -120,17 +122,92 @@ pub struct LspStyleHoverCandidatesResult {
     pub candidates: Vec<LspStyleHoverCandidate>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LspStyleHoverCandidate {
     pub kind: &'static str,
-    pub name: String,
+    pub name: AuthoredPropertyTextV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub property_key: Option<CanonicalCustomPropertyNameV0>,
     pub range: ParserRangeV0,
     pub source: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub target_style_uri: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub namespace: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum LspStyleHoverCandidateIdentityRefV0<'candidate> {
+    CustomProperty(Option<&'candidate CanonicalCustomPropertyNameV0>),
+    Other(&'candidate str),
+}
+
+impl LspStyleHoverCandidate {
+    pub(crate) fn identity_name(&self) -> &str {
+        if matches!(
+            self.kind,
+            "customPropertyDeclaration" | "customPropertyReference"
+        ) {
+            self.property_key
+                .as_ref()
+                .map(CanonicalCustomPropertyNameV0::as_str)
+                .unwrap_or_default()
+        } else {
+            self.name.as_str()
+        }
+    }
+
+    fn identity(&self) -> LspStyleHoverCandidateIdentityRefV0<'_> {
+        if matches!(
+            self.kind,
+            "customPropertyDeclaration" | "customPropertyReference"
+        ) {
+            LspStyleHoverCandidateIdentityRefV0::CustomProperty(self.property_key.as_ref())
+        } else {
+            LspStyleHoverCandidateIdentityRefV0::Other(self.name.as_str())
+        }
+    }
+}
+
+impl PartialEq for LspStyleHoverCandidate {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+            && self.identity() == other.identity()
+            && self.range == other.range
+            && self.source == other.source
+            && self.target_style_uri == other.target_style_uri
+            && self.namespace == other.namespace
+    }
+}
+
+impl Eq for LspStyleHoverCandidate {}
+
+impl Ord for LspStyleHoverCandidate {
+    fn cmp(&self, other: &Self) -> CmpOrdering {
+        (
+            self.kind,
+            self.identity(),
+            self.range,
+            self.source,
+            &self.target_style_uri,
+            &self.namespace,
+        )
+            .cmp(&(
+                other.kind,
+                other.identity(),
+                other.range,
+                other.source,
+                &other.target_style_uri,
+                &other.namespace,
+            ))
+    }
+}
+
+impl PartialOrd for LspStyleHoverCandidate {
+    fn partial_cmp(&self, other: &Self) -> Option<CmpOrdering> {
+        Some(self.cmp(other))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

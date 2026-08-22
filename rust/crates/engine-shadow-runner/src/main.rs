@@ -3857,7 +3857,8 @@ fn replica_ensemble_module_graph(
 fn replica_ensemble_definite_outcome(winner: &str, source_order: u32) -> CascadeOutcome {
     let declaration = CascadeDeclaration {
         id: winner.to_string(),
-        property: "color".to_string(),
+        property: omena_cascade::AuthoredPropertyTextV0::new("color"),
+        property_key: omena_cascade::PropertyNameV0::standard("color").canonical_key(),
         value: CascadeValue::Literal(winner.to_string()),
         key: CascadeKey {
             level: CascadeLevel::AuthorNormal,

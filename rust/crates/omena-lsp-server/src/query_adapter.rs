@@ -4,6 +4,15 @@ use omena_query::{
     OmenaQueryStyleHoverCandidateV0, OmenaQueryStyleSelectorDefinitionV0, ParserPositionV0,
     ParserRangeV0, summarize_omena_query_style_hover_candidates,
 };
+use omena_syntax::ident::{AuthoredPropertyTextV0, PropertyNameV0};
+
+fn lsp_custom_property_key(
+    kind: &str,
+    name: &str,
+) -> Option<omena_syntax::ident::CanonicalCustomPropertyNameV0> {
+    kind.starts_with("customProperty")
+        .then(|| PropertyNameV0::canonical_custom_key(name))
+}
 
 pub(crate) fn empty_style_hover_candidates_result(
     document_uri: String,
@@ -43,6 +52,7 @@ pub(crate) fn lsp_style_hover_candidate_from_query(
     LspStyleHoverCandidate {
         kind: candidate.kind,
         name: candidate.name,
+        property_key: candidate.property_key,
         range: candidate.range,
         source: candidate.source,
         target_style_uri: None,
@@ -56,6 +66,7 @@ pub(crate) fn query_style_hover_candidate_from_lsp(
     OmenaQueryStyleHoverCandidateV0 {
         kind: candidate.kind,
         name: candidate.name.clone(),
+        property_key: candidate.property_key.clone(),
         range: candidate.range,
         source: candidate.source,
         namespace: candidate.namespace.clone(),
@@ -67,7 +78,7 @@ pub(crate) fn query_source_selector_candidate_from_lsp(
 ) -> OmenaQuerySourceSelectorCandidateV0 {
     OmenaQuerySourceSelectorCandidateV0 {
         kind: candidate.kind,
-        name: candidate.name.clone(),
+        name: candidate.name.to_string(),
         range: candidate.range,
         source: candidate.source,
         target_style_uri: candidate.target_style_uri.clone(),
@@ -88,7 +99,8 @@ pub(crate) fn lsp_source_selector_candidate_from_query(
 ) -> LspStyleHoverCandidate {
     LspStyleHoverCandidate {
         kind: candidate.kind,
-        name: candidate.name,
+        property_key: lsp_custom_property_key(candidate.kind, candidate.name.as_str()),
+        name: AuthoredPropertyTextV0::new(candidate.name),
         range: candidate.range,
         source: candidate.source,
         target_style_uri: candidate.target_style_uri,
@@ -102,7 +114,7 @@ pub(crate) fn query_style_selector_definition(
 ) -> OmenaQueryStyleSelectorDefinitionV0 {
     OmenaQueryStyleSelectorDefinitionV0 {
         uri: uri.to_string(),
-        name: definition.name.clone(),
+        name: definition.name.to_string(),
         range: definition.range,
     }
 }
@@ -123,7 +135,7 @@ pub(crate) fn query_source_selector_reference_candidate(
     OmenaQuerySourceSelectorReferenceCandidateV0 {
         uri: document.uri.clone(),
         kind: candidate.kind,
-        name: candidate.name.clone(),
+        name: candidate.name.to_string(),
         range: candidate.range,
         source: candidate.source,
         target_style_uri: candidate.target_style_uri.clone(),

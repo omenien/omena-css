@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -91,6 +92,73 @@ for (const [checker, variable, args] of redCases) {
 }
 const redFailures = failures;
 
+const exactLaunderingSourcePath = path.join(repoRoot, "rust/crates/omena-lsp-server/src/lib.rs");
+const exactLaunderingCensusPath = path.join(
+  repoRoot,
+  "rust/omena-identifier-authority-census.json",
+);
+const exactLaunderingNeedle = "target.property_key == candidate.property_key";
+const exactLaunderingMutation = "target.name.to_string() == candidate.name.to_string()";
+const originalLaunderingSource = readFileSync(exactLaunderingSourcePath);
+const originalLaunderingCensus = readFileSync(exactLaunderingCensusPath);
+let exactLaunderingPassed = false;
+let exactLaunderingWriteCount = 0;
+let exactLaunderingRecheckCount = 0;
+
+try {
+  const sourceText = originalLaunderingSource.toString("utf8");
+  const needleCount = sourceText.split(exactLaunderingNeedle).length - 1;
+  if (needleCount !== 1) {
+    throw new Error(`expected exactly one canonical custom-property join, found ${needleCount}`);
+  }
+  writeFileSync(
+    exactLaunderingSourcePath,
+    sourceText.replace(exactLaunderingNeedle, exactLaunderingMutation),
+  );
+
+  const writeAttempt = spawnSync("node", ["--import", "tsx", identifierChecker, "--write"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    env: process.env,
+  });
+  const writeOutput = `${writeAttempt.stdout ?? ""}\n${writeAttempt.stderr ?? ""}`;
+  exactLaunderingWriteCount = Number(
+    writeOutput.match(/rawPropertyIdentitySiteCount=(\d+)/u)?.[1] ?? "0",
+  );
+  const censusUnchangedAfterWrite =
+    readFileSync(exactLaunderingCensusPath).equals(originalLaunderingCensus);
+
+  const recheck = spawnSync("node", ["--import", "tsx", identifierChecker], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    env: process.env,
+  });
+  const recheckOutput = `${recheck.stdout ?? ""}\n${recheck.stderr ?? ""}`;
+  exactLaunderingRecheckCount = Number(
+    recheckOutput.match(/rawPropertyIdentitySiteCount=(\d+)/u)?.[1] ?? "0",
+  );
+  const censusUnchangedAfterRecheck =
+    readFileSync(exactLaunderingCensusPath).equals(originalLaunderingCensus);
+
+  exactLaunderingPassed =
+    writeAttempt.status !== 0 &&
+    exactLaunderingWriteCount > 0 &&
+    recheck.status !== 0 &&
+    exactLaunderingRecheckCount > 0 &&
+    censusUnchangedAfterWrite &&
+    censusUnchangedAfterRecheck;
+} catch (error) {
+  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+} finally {
+  writeFileSync(exactLaunderingSourcePath, originalLaunderingSource);
+  writeFileSync(exactLaunderingCensusPath, originalLaunderingCensus);
+}
+
+if (!exactLaunderingPassed) failures += 1;
+process.stdout.write(
+  `${exactLaunderingPassed ? "ok  " : "FAIL"} exact laundering: authored join revert; --write ${exactLaunderingWriteCount > 0 ? "RED" : "MISS"} raw=${exactLaunderingWriteCount}; recheck ${exactLaunderingRecheckCount > 0 ? "RED" : "MISS"} raw=${exactLaunderingRecheckCount}; census unchanged\n`,
+);
+
 const unlabelled = spawnSync("node", ["--import", "tsx", identifierChecker], {
   cwd: repoRoot,
   encoding: "utf8",
@@ -106,6 +174,6 @@ process.stdout.write(
 );
 
 process.stdout.write(
-  `\n${redCases.length - redFailures}/${redCases.length} RED mutation arms; ${blindSpotDisclosed ? "1/1" : "0/1"} disclosed GREEN control arm\n`,
+  `\n${redCases.length - redFailures}/${redCases.length} injected RED mutation arms; ${exactLaunderingPassed ? "1/1" : "0/1"} exact laundering arm; ${blindSpotDisclosed ? "1/1" : "0/1"} disclosed GREEN control arm\n`,
 );
 process.exit(failures === 0 ? 0 : 1);

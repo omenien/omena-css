@@ -890,14 +890,14 @@ fn exposes_fast_facts_analyzed_graph_and_custom_property_annotations() {
     );
     assert_eq!(annotations.annotation_count, 2);
     assert!(annotations.annotations.iter().any(|annotation| {
-        annotation.name == "--surface"
+        annotation.name.as_str() == "--surface"
             && annotation.declaration_count == 1
             && annotation.reference_count == 1
             && annotation.annotation_kind == "declarationAndReference"
             && annotation.participates_in_fixed_point
     }));
     assert!(annotations.annotations.iter().any(|annotation| {
-        annotation.name == "--accent"
+        annotation.name.as_str() == "--accent"
             && annotation.declaration_count == 0
             && annotation.reference_count == 1
             && annotation.annotation_kind == "reference"
@@ -917,12 +917,12 @@ fn custom_property_annotations_join_escape_identity_without_folding_case() {
 
     assert_eq!(annotations.annotation_count, 2);
     assert!(annotations.annotations.iter().any(|annotation| {
-        annotation.name == "--foo"
+        annotation.name.as_str() == "--foo"
             && annotation.declaration_count == 1
             && annotation.reference_count == 1
     }));
     assert!(annotations.annotations.iter().any(|annotation| {
-        annotation.name == "--FOO"
+        annotation.name.as_str() == "--FOO"
             && annotation.declaration_count == 1
             && annotation.reference_count == 1
     }));

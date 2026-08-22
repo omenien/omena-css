@@ -8,7 +8,10 @@ use omena_cascade::{
     evaluate_static_supports_condition,
 };
 use omena_parser::{LexedToken, StyleDialect, lex};
-use omena_syntax::{SyntaxKind, ident::CanonicalCustomPropertyNameV0};
+use omena_syntax::{
+    SyntaxKind,
+    ident::{AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, PropertyNameV0},
+};
 use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -48,10 +51,11 @@ pub struct OmenaScssEvalNativeCssFunctionV0 {
     pub results: Vec<OmenaScssEvalNativeCssFunctionResultV0>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaScssEvalNativeCssFunctionParameterV0 {
-    pub name: String,
+    pub name: AuthoredPropertyTextV0,
+    pub property_key: CanonicalCustomPropertyNameV0,
     pub source_span_start: usize,
     pub source_span_end: usize,
     pub name_span_start: usize,
@@ -60,6 +64,21 @@ pub struct OmenaScssEvalNativeCssFunctionParameterV0 {
     pub syntax: Option<RegisteredPropertySyntaxV0>,
     pub default_value: Option<String>,
 }
+
+impl PartialEq for OmenaScssEvalNativeCssFunctionParameterV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.property_key == other.property_key
+            && self.source_span_start == other.source_span_start
+            && self.source_span_end == other.source_span_end
+            && self.name_span_start == other.name_span_start
+            && self.name_span_end == other.name_span_end
+            && self.syntax_source == other.syntax_source
+            && self.syntax == other.syntax
+            && self.default_value == other.default_value
+    }
+}
+
+impl Eq for OmenaScssEvalNativeCssFunctionParameterV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1573,9 +1592,10 @@ fn native_css_function_parameter_syntax_gate(
         let Some(syntax) = parameter.syntax_source.as_deref() else {
             continue;
         };
-        let parameter_key =
-            omena_syntax::ident::PropertyNameV0::canonical_custom_key(&parameter.name);
-        let Some((_, value)) = bindings.iter().find(|(name, _)| name == &parameter_key) else {
+        let Some((_, value)) = bindings
+            .iter()
+            .find(|(name, _)| name == &parameter.property_key)
+        else {
             continue;
         };
         match validate_registered_property_value_v0(syntax, value).class {
@@ -1623,20 +1643,13 @@ fn bind_native_css_function_arguments(
         .enumerate()
         .map(|(index, parameter)| {
             if let Some(argument) = arguments.get(index) {
-                return argument.static_value.then(|| {
-                    (
-                        omena_syntax::ident::PropertyNameV0::canonical_custom_key(&parameter.name),
-                        argument.value.clone(),
-                    )
-                });
+                return argument
+                    .static_value
+                    .then(|| (parameter.property_key.clone(), argument.value.clone()));
             }
             let default_value = parameter.default_value.as_deref()?;
-            native_css_if_value_is_fully_static(default_value).then(|| {
-                (
-                    omena_syntax::ident::PropertyNameV0::canonical_custom_key(&parameter.name),
-                    default_value.to_string(),
-                )
-            })
+            native_css_if_value_is_fully_static(default_value)
+                .then(|| (parameter.property_key.clone(), default_value.to_string()))
         })
         .collect()
 }
@@ -1987,7 +2000,8 @@ fn collect_native_css_function_parameter(
         .unwrap_or_else(|| token_end(name));
 
     Some(OmenaScssEvalNativeCssFunctionParameterV0 {
-        name: name.text.clone(),
+        name: AuthoredPropertyTextV0::new(name.text.clone()),
+        property_key: PropertyNameV0::canonical_custom_key(name.text.clone()),
         source_span_start,
         source_span_end,
         name_span_start: token_start(name),
@@ -2395,7 +2409,7 @@ mod tests {
                 ]
             })
         );
-        assert_eq!(report.functions[0].parameters[0].name, "--size");
+        assert_eq!(report.functions[0].parameters[0].name.as_str(), "--size");
         assert_eq!(
             report.functions[0].parameters[0].syntax_source.as_deref(),
             Some("<length>")

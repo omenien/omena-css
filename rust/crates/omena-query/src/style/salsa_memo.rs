@@ -24,7 +24,7 @@ use super::diagnostics::{
     summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace_from_resolution,
 };
 use super::*;
-use omena_syntax::ident::{is_custom_property_name, property_names_same};
+use omena_syntax::ident::{AuthoredPropertyTextV0, PropertyNameV0, property_names_same};
 pub type OmenaQueryStyleMemoDatabaseV0 = OmenaSalsaDatabaseV0;
 use salsa::Setter;
 use std::collections::{BTreeMap, BTreeSet};
@@ -3350,10 +3350,13 @@ pub fn memo_source_element_computed_value(
             .declarations
             .iter()
             .filter_map(|declaration| match &declaration.value {
-                CascadeValue::Literal(value) if !is_custom_property_name(&declaration.property) => {
+                CascadeValue::Literal(value) if declaration.property_key.as_custom().is_none() => {
                     Some((
                         declaration.id.clone(),
-                        standard_property_value_verdict_v0(&declaration.property, value),
+                        standard_property_value_verdict_v0(
+                            declaration.property_key.as_str(),
+                            value,
+                        ),
                     ))
                 }
                 _ => None,
@@ -3464,7 +3467,8 @@ fn memo_source_element_static_declarations(
                 "{}:{}:{}",
                 identity.source_path, property, declaration.byte_span.start
             ),
-            property: property.clone(),
+            property: AuthoredPropertyTextV0::new(property.clone()),
+            property_key: PropertyNameV0::from_authored(&property).canonical_key(),
             value,
             key: CascadeKey::new(
                 cascade_level_for_origin(CascadeOriginV0::Inline, false),

@@ -37,6 +37,7 @@ pub use fuzz::*;
 pub use grn::*;
 pub use modal::*;
 pub use model::*;
+pub use omena_syntax::ident::{AuthoredPropertyTextV0, CanonicalPropertyKeyV0, PropertyNameV0};
 pub use origin::*;
 pub use proofs::{evaluate_static_supports_condition, prove_layer_flatten_candidate};
 pub use property_metadata::*;

@@ -11,6 +11,7 @@ use crate::{
     cascade_level_for_origin, cascade_property, normalized_layer_rank,
     parse_simple_selector_signature,
 };
+use omena_syntax::ident::{AuthoredPropertyTextV0, PropertyNameV0};
 
 struct SelectorSpecificitySeedDeclaration {
     id: String,
@@ -70,7 +71,8 @@ fn run_selector_specificity_seed_case(
                 && signature.specificity_exactness == expected.expected_exactness;
             Some(CascadeDeclaration {
                 id: expected.id,
-                property: case.property.to_string(),
+                property: AuthoredPropertyTextV0::new(case.property),
+                property_key: PropertyNameV0::from_authored(case.property).canonical_key(),
                 value: CascadeValue::Literal(expected.value),
                 key: conformance_key(
                     CascadeLevel::AuthorNormal,
@@ -1080,7 +1082,8 @@ fn conformance_layer_key(
 fn conformance_decl(id: &str, property: &str, value: &str, key: CascadeKey) -> CascadeDeclaration {
     CascadeDeclaration {
         id: id.to_string(),
-        property: property.to_string(),
+        property: AuthoredPropertyTextV0::new(property),
+        property_key: PropertyNameV0::from_authored(property).canonical_key(),
         value: CascadeValue::Literal(value.to_string()),
         key,
         open_world_tie_evidence: OpenWorldTieEvidence::NONE,

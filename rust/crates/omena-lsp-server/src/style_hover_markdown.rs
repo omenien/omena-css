@@ -39,7 +39,7 @@ pub(crate) fn render_style_hover_candidate_markdown_from_parts(
         kind if is_omena_query_sass_symbol_candidate_kind(kind) => {
             render_sass_symbol_hover_markdown(candidate, location.as_str(), render_parts)
         }
-        _ => candidate.name.clone(),
+        _ => candidate.name.to_string(),
     }
 }
 
@@ -166,6 +166,6 @@ fn render_sass_symbol_label(candidate: &LspStyleHoverCandidate) -> String {
         }
         Some("mixin") => format!("@include {namespace_prefix}{}", candidate.name),
         Some("function") => format!("{namespace_prefix}{}()", candidate.name),
-        _ => candidate.name.clone(),
+        _ => candidate.name.to_string(),
     }
 }

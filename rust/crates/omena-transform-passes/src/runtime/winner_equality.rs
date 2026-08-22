@@ -316,8 +316,7 @@ fn winner_witnesses_are_observationally_equal(
     // Absolute source ordinals may be renumbered when unrelated declarations
     // disappear; source-order effects remain observable through winner identity.
     input.winner.id == output.winner.id
-        && PropertyNameV0::from_authored(&input.winner.property)
-            .same_as(&PropertyNameV0::from_authored(&output.winner.property))
+        && input.winner.property_key == output.winner.property_key
         && input.winner.value == output.winner.value
         && input.proof.level == output.proof.level
         && input.proof.layer_rank == output.proof.layer_rank
@@ -529,7 +528,8 @@ fn winner_for_pair(
                 "{}|{}|{}|{}",
                 candidate.selector, candidate.property, candidate.value, candidate.important
             ),
-            property: candidate.property.clone(),
+            property: omena_syntax::ident::AuthoredPropertyTextV0::new(candidate.property.clone()),
+            property_key: pair_property.canonical_key(),
             value: CascadeValue::Literal(candidate.value.clone()),
             key: omena_cascade::CascadeKey::new(level, layer_rank, 0, specificity, source_order),
             open_world_tie_evidence: OpenWorldTieEvidence::NONE,
@@ -601,7 +601,10 @@ fn winner_for_pair(
             let layer_rank = normalized_layer_rank(declaration.important, layer_ordinal);
             declarations.push(CascadeDeclaration {
                 id: declaration.declaration_id.clone(),
-                property: declaration.property.clone(),
+                property: omena_syntax::ident::AuthoredPropertyTextV0::new(
+                    declaration.property.clone(),
+                ),
+                property_key: PropertyNameV0::from_authored(&declaration.property).canonical_key(),
                 value: CascadeValue::Literal(declaration.value.clone()),
                 key: omena_cascade::CascadeKey::new(
                     level,
@@ -1075,8 +1078,7 @@ fn winner_difference_absences(
     driven_axes: &[TransformWinnerEqualityAxisV0],
 ) -> Vec<TransformWinnerEqualityAbsenceV0> {
     if input.winner.id != output.winner.id
-        || !PropertyNameV0::from_authored(&input.winner.property)
-            .same_as(&PropertyNameV0::from_authored(&output.winner.property))
+        || input.winner.property_key != output.winner.property_key
         || input.winner.value != output.winner.value
     {
         return driven_axes

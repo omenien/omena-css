@@ -23,9 +23,7 @@ pub fn cascade_property(
     let property_key = PropertyNameV0::from_authored(property).canonical_key();
     let mut matching: Vec<CascadeDeclaration> = declarations
         .into_iter()
-        .filter(|declaration| {
-            PropertyNameV0::from_authored(&declaration.property).canonical_key() == property_key
-        })
+        .filter(|declaration| declaration.property_key == property_key)
         .collect();
 
     if matching.is_empty() {
@@ -55,9 +53,7 @@ pub fn cascade_property_open_world(
     let property_key = PropertyNameV0::from_authored(property).canonical_key();
     let mut matching: Vec<CascadeDeclaration> = declarations
         .into_iter()
-        .filter(|declaration| {
-            PropertyNameV0::from_authored(&declaration.property).canonical_key() == property_key
-        })
+        .filter(|declaration| declaration.property_key == property_key)
         .collect();
 
     if matching.is_empty() {

@@ -20,7 +20,7 @@ pub fn summarize_omena_query_style_completion_at_position(
                     "cssModuleSelector",
                 ),
                 "customPropertyDeclaration" => (
-                    candidate.name.clone(),
+                    candidate.name.to_string(),
                     "CSS custom property",
                     "cssCustomProperty",
                 ),
@@ -630,7 +630,7 @@ fn collect_omena_query_completion_candidates(
                 });
             Some(OmenaQueryCompletionCandidateV0 {
                 file_uri: source.style_path.clone(),
-                name: candidate.name,
+                name: candidate.name.to_string(),
                 kind: "selector",
                 range: candidate.range,
                 source: "omenaQueryStyleHoverCandidates",

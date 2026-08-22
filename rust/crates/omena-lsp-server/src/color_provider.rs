@@ -248,15 +248,17 @@ fn collect_document_variable_values(
         .iter()
         .filter(|declaration| declaration.kind == "sassVariableDeclaration")
     {
-        values.entry(declaration.name.clone()).or_insert_with(|| {
-            summarize_omena_query_style_hover_render_parts_for_hover_position(
-                document.text.as_str(),
-                declaration.kind,
-                declaration.name.as_str(),
-                declaration.range.start,
-            )
-            .value
-        });
+        values
+            .entry(declaration.name.to_string())
+            .or_insert_with(|| {
+                summarize_omena_query_style_hover_render_parts_for_hover_position(
+                    document.text.as_str(),
+                    declaration.kind,
+                    declaration.name.as_str(),
+                    declaration.range.start,
+                )
+                .value
+            });
     }
 }
 

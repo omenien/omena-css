@@ -40,7 +40,7 @@ pub(crate) fn collect_static_custom_property_icss_export_rules(
                         !collect_custom_property_references_in_value(&declaration.value).is_empty()
                     })
                     .map(|declaration| CustomPropertyIcssExportDeclaration {
-                        export_name: declaration.property,
+                        export_name: declaration.property.to_string(),
                         value: declaration.value,
                         start: declaration.start,
                         end: declaration.end,

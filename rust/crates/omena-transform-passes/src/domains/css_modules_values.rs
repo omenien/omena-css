@@ -1190,7 +1190,7 @@ fn collect_static_css_modules_icss_export_rules(
                 collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
                     .into_iter()
                     .map(|declaration| CssModulesIcssExportDeclaration {
-                        export_name: declaration.property,
+                        export_name: declaration.property.to_string(),
                         value: declaration.value,
                         start: declaration.start,
                         end: declaration.end,
@@ -1550,7 +1550,7 @@ fn collect_simple_declarations_from_keyframe_slice(
     collect_simple_declarations_in_block(&tokens, block_start_index, block_end_index)
         .into_iter()
         .map(|declaration| CssModulesValueDeclarationIrViewV0 {
-            property: declaration.property,
+            property: declaration.property.to_string(),
             value: declaration.value,
             start: declaration.start,
             end: declaration.end,

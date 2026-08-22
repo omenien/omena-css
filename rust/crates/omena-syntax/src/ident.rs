@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, fmt};
 
 /// A CSS class name with authored and decoded spellings.
 ///
@@ -77,6 +77,79 @@ pub enum PropertyNameKindV0 {
     Custom,
 }
 
+/// Authored CSS property text retained only for presentation and provenance.
+///
+/// This type deliberately implements no structural equality, ordering, hashing,
+/// or raw-string borrowing. Identity-bearing carriers pair it with a sealed
+/// canonical property key and use that key for every comparison or lookup.
+/// [`AuthoredPropertyTextV0::as_str`] and [`fmt::Display`] are presentation only.
+///
+/// ```compile_fail,E0369
+/// use omena_syntax::ident::AuthoredPropertyTextV0;
+///
+/// struct Declaration {
+///     property: AuthoredPropertyTextV0,
+/// }
+///
+/// let left = Declaration { property: AuthoredPropertyTextV0::new("--Foo") };
+/// let right = Declaration { property: AuthoredPropertyTextV0::new("--foo") };
+/// let _ = left.property == right.property;
+/// ```
+///
+/// ```compile_fail,E0369
+/// use omena_syntax::ident::AuthoredPropertyTextV0;
+///
+/// struct Candidate {
+///     name: AuthoredPropertyTextV0,
+/// }
+///
+/// let left = Candidate { name: AuthoredPropertyTextV0::new("--Foo") };
+/// let right = Candidate { name: AuthoredPropertyTextV0::new("--foo") };
+/// let _ = left.name == right.name;
+/// ```
+///
+/// ```compile_fail,E0599
+/// use omena_syntax::ident::AuthoredPropertyTextV0;
+///
+/// let property = AuthoredPropertyTextV0::new("COLOR");
+/// let _ = property.to_ascii_lowercase();
+/// ```
+///
+/// ```compile_fail,E0599
+/// use omena_syntax::ident::AuthoredPropertyTextV0;
+///
+/// let property = AuthoredPropertyTextV0::new("COLOR");
+/// let _ = property.to_lowercase();
+/// ```
+///
+/// ```compile_fail,E0308
+/// use std::collections::HashMap;
+/// use omena_syntax::ident::AuthoredPropertyTextV0;
+///
+/// let mut values = HashMap::<String, usize>::new();
+/// values.insert(AuthoredPropertyTextV0::new("--token"), 1);
+/// ```
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(transparent)]
+pub struct AuthoredPropertyTextV0(String);
+
+impl AuthoredPropertyTextV0 {
+    pub fn new(authored: impl Into<String>) -> Self {
+        Self(authored.into())
+    }
+
+    /// Returns the source spelling for presentation only, never identity.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for AuthoredPropertyTextV0 {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
 /// A CSS property name with an authored spelling and one sealed canonical identity.
 ///
 /// Structural equality is deliberately unavailable. Callers compare property
@@ -95,12 +168,12 @@ pub enum PropertyNameKindV0 {
 #[derive(Debug, Clone)]
 pub enum PropertyNameV0 {
     Standard {
-        authored: String,
+        authored: AuthoredPropertyTextV0,
         decoded: String,
         canonical: CanonicalStandardPropertyNameV0,
     },
     Custom {
-        authored: String,
+        authored: AuthoredPropertyTextV0,
         decoded: String,
         canonical: CanonicalCustomPropertyNameV0,
     },
@@ -135,7 +208,7 @@ impl PropertyNameV0 {
                     decoded.to_ascii_lowercase(),
                     CanonicalStandardPropertyNameSealV0(()),
                 ),
-                authored,
+                authored: AuthoredPropertyTextV0::new(authored),
                 decoded,
             },
             PropertyNameKindV0::Custom => Self::Custom {
@@ -143,7 +216,7 @@ impl PropertyNameV0 {
                     decoded.clone(),
                     CanonicalCustomPropertyNameSealV0(()),
                 ),
-                authored,
+                authored: AuthoredPropertyTextV0::new(authored),
                 decoded,
             },
         }
@@ -166,7 +239,13 @@ impl PropertyNameV0 {
 
     pub fn authored(&self) -> &str {
         match self {
-            Self::Standard { authored, .. } | Self::Custom { authored, .. } => authored,
+            Self::Standard { authored, .. } | Self::Custom { authored, .. } => authored.as_str(),
+        }
+    }
+
+    pub fn authored_text(&self) -> AuthoredPropertyTextV0 {
+        match self {
+            Self::Standard { authored, .. } | Self::Custom { authored, .. } => authored.clone(),
         }
     }
 

@@ -5,8 +5,9 @@ use omena_parser::{
 use omena_syntax::{
     css_keyword,
     ident::{
-        CanonicalClassKeyV0, CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0, ClassNameV0,
-        PropertyNameV0, is_ascii_word_continue, is_css_name_continue,
+        AuthoredPropertyTextV0, CanonicalClassKeyV0, CanonicalCustomPropertyNameV0,
+        CanonicalPropertyKeyV0, ClassNameV0, PropertyNameV0, is_ascii_word_continue,
+        is_css_name_continue,
     },
 };
 use std::cell::RefCell;
@@ -1793,7 +1794,7 @@ fn style_selector_definitions_for_query(
         .filter_map(|candidate| {
             (candidate.kind == "selector").then(|| OmenaQueryStyleSelectorDefinitionV0 {
                 uri: entry.style_path.clone(),
-                name: candidate.name,
+                name: candidate.name.to_string(),
                 range: candidate.range,
             })
         })
@@ -3775,7 +3776,8 @@ fn collect_style_selector_hover_candidates_from_omena_parser_facts(
         if seen.insert((byte_span.start, byte_span.end, fact.name.clone())) {
             candidates.push(OmenaQueryStyleHoverCandidateV0 {
                 kind: "selector",
-                name: fact.name.clone(),
+                name: AuthoredPropertyTextV0::new(fact.name.clone()),
+                property_key: None,
                 range: parser_range_for_byte_span(source, byte_span),
                 source: "omenaParserSelectorFacts",
                 namespace: None,
@@ -3805,7 +3807,8 @@ fn collect_custom_property_hover_candidates_from_omena_parser_facts(
         if seen.insert((byte_span.start, byte_span.end, fact.name.clone())) {
             candidates.push(OmenaQueryStyleHoverCandidateV0 {
                 kind,
-                name: fact.name.clone(),
+                name: AuthoredPropertyTextV0::new(fact.name.clone()),
+                property_key: fact.property_key.clone(),
                 range: parser_range_for_byte_span(source, byte_span),
                 source: "omenaParserVariableFacts",
                 namespace: None,
@@ -3851,7 +3854,8 @@ fn collect_sass_symbol_hover_candidates_from_omena_parser_facts(
         )) {
             candidates.push(OmenaQueryStyleHoverCandidateV0 {
                 kind,
-                name: fact.name.clone(),
+                name: AuthoredPropertyTextV0::new(fact.name.clone()),
+                property_key: None,
                 range: parser_range_for_byte_span(source, byte_span),
                 source: "omenaParserSassSymbolFacts",
                 namespace: fact.namespace.clone(),
@@ -3877,7 +3881,8 @@ fn collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts(
             if seen.insert((range_span.start, range_span.end, selector_name.clone())) {
                 candidates.push(OmenaQueryStyleHoverCandidateV0 {
                     kind: "selector",
-                    name: selector_name,
+                    name: AuthoredPropertyTextV0::new(selector_name),
+                    property_key: None,
                     range: parser_range_for_byte_span(source, range_span),
                     source: "sassPartialEvaluatorGeneratedSelectors",
                     namespace: None,

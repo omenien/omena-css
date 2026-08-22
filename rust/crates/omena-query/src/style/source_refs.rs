@@ -1145,7 +1145,7 @@ pub(super) fn summarize_omena_query_style_selector_definitions(
         definitions.extend(candidates.candidates.into_iter().filter_map(|candidate| {
             (candidate.kind == "selector").then(|| OmenaQueryStyleSelectorDefinitionV0 {
                 uri: source.style_path.clone(),
-                name: candidate.name,
+                name: candidate.name.to_string(),
                 range: candidate.range,
             })
         }));

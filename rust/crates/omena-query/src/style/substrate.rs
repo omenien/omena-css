@@ -291,10 +291,13 @@ pub fn summarize_omena_query_custom_property_annotations(
             let declaration_count = declaration.map(|entry| entry.1).unwrap_or(0);
             let reference_count = reference.map(|entry| entry.1).unwrap_or(0);
             OmenaQueryCustomPropertyAnnotationV0 {
-                name: declaration
-                    .or(reference)
-                    .map(|entry| entry.0.clone())
-                    .unwrap_or_else(|| property_key.as_str().to_string()),
+                name: omena_syntax::ident::AuthoredPropertyTextV0::new(
+                    declaration
+                        .or(reference)
+                        .map(|entry| entry.0.clone())
+                        .unwrap_or_else(|| property_key.as_str().to_string()),
+                ),
+                property_key,
                 declaration_count,
                 reference_count,
                 annotation_kind: match (declaration_count > 0, reference_count > 0) {

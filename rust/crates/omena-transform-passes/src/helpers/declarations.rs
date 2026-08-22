@@ -1,7 +1,7 @@
 use omena_parser::LexedToken;
 use omena_syntax::{
     SyntaxKind,
-    ident::{CanonicalPropertyKeyV0, PropertyNameKindV0, PropertyNameV0},
+    ident::{AuthoredPropertyTextV0, CanonicalPropertyKeyV0, PropertyNameKindV0, PropertyNameV0},
 };
 
 use super::tokens::{
@@ -9,10 +9,10 @@ use super::tokens::{
     tokens_between_byte_range,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub(crate) struct SimpleDeclarationSlice {
     /// Authored property spelling retained for source-preserving emission.
-    pub(crate) property: String,
+    pub(crate) property: AuthoredPropertyTextV0,
     pub(crate) property_key: CanonicalPropertyKeyV0,
     pub(crate) value: String,
     pub(crate) important: bool,
@@ -138,7 +138,7 @@ fn build_simple_declaration_slice(
         .any(|token| token.kind == SyntaxKind::Important);
     Some((
         SimpleDeclarationSlice {
-            property: property.authored().to_string(),
+            property: property.authored_text(),
             property_key: property.canonical_key(),
             value,
             important,

@@ -5,7 +5,7 @@
 //! gates. Their expected values are generated from the same inputs, so these
 //! checks are not browser-conformance or regression evidence.
 
-use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0};
+use omena_syntax::ident::{AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, PropertyNameV0};
 
 use crate::{
     CascadeDeclaration, CascadeEvaluationFuzzCaseV0, CascadeEvaluationFuzzResultV0,
@@ -23,8 +23,7 @@ pub fn run_cascade_evaluation_fuzz_case(
     let matching = declarations
         .iter()
         .filter(|declaration| {
-            PropertyNameV0::from_authored(&declaration.property)
-                .same_as(&PropertyNameV0::standard("color"))
+            declaration.property_key == PropertyNameV0::standard("color").canonical_key()
         })
         .cloned()
         .collect::<Vec<_>>();
@@ -157,7 +156,8 @@ fn generated_cascade_fuzz_declarations(
             let layer_ordinal = LayerOrdinal::new((fuzz_next(&mut state) % 10) as i32);
             CascadeDeclaration {
                 id: format!("decl-{seed}-{index}"),
-                property: property.to_string(),
+                property: AuthoredPropertyTextV0::new(property),
+                property_key: PropertyNameV0::from_authored(property).canonical_key(),
                 value: CascadeValue::Literal(format!("v{}", fuzz_next(&mut state) % 17)),
                 key: CascadeKey::new(
                     fuzz_cascade_level(fuzz_next(&mut state)),

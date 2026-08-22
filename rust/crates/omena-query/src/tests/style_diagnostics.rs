@@ -187,6 +187,37 @@ fn missing_custom_property_diagnostics_are_query_owned() -> Result<(), serde_jso
 }
 
 #[test]
+fn missing_custom_property_diagnostics_fail_closed_without_sealed_identity() {
+    let candidate = crate::OmenaQueryStyleHoverCandidateV0 {
+        kind: "customPropertyReference",
+        name: omena_syntax::ident::AuthoredPropertyTextV0::new("--missing"),
+        property_key: None,
+        range: ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 0,
+                character: 0,
+            },
+            end: ParserPositionV0 {
+                line: 0,
+                character: 9,
+            },
+        },
+        source: "malformedFixture",
+        namespace: None,
+    };
+
+    assert!(
+        crate::summarize_omena_query_missing_custom_property_diagnostics(
+            "file:///workspace/src/Component.module.css",
+            ":root {}",
+            &[candidate],
+        )
+        .is_empty(),
+        "a custom-property candidate without a sealed key must not fall back to authored identity",
+    );
+}
+
+#[test]
 fn statement_layer_order_controls_the_winner_and_dead_layer_anchor() {
     // Reversion witness: replace the semantic layer ordinal with declaration encounter order.
     let source = r#"
@@ -607,7 +638,7 @@ fn style_diagnostics_for_file_include_cascade_aware_lints() -> Result<(), &'stat
     assert_eq!(narrowing.product, "omena-query.cascade-narrowing-evidence");
     assert_eq!(narrowing.selector, ".btn");
     assert_eq!(narrowing.selector_class_names, vec!["btn".to_string()]);
-    assert_eq!(narrowing.property_name, "color");
+    assert_eq!(narrowing.property_name.as_str(), "color");
     assert_eq!(narrowing.property_value_narrowing.property_name, "color");
     assert_eq!(narrowing.property_value_narrowing.candidate_count, 2);
     assert_eq!(

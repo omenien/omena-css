@@ -143,7 +143,7 @@ pub(crate) fn style_selector_definitions_from_open_documents(
                 .into_iter()
                 .filter(|candidate| {
                     candidate.kind == "selector"
-                        && (selector_name.is_empty() || candidate.name == selector_name)
+                        && (selector_name.is_empty() || candidate.identity_name().eq(selector_name))
                 })
                 .map(|candidate| (document.uri.clone(), candidate)),
         );
@@ -236,11 +236,13 @@ pub(crate) fn style_selector_definitions_for_source_candidates(
             uri.clone(),
             definition.range.start.line,
             definition.range.start.character,
-            definition.name.clone(),
+            definition.identity_name().to_string(),
         )
     });
     definitions.dedup_by(|left, right| {
-        left.0 == right.0 && left.1.name == right.1.name && left.1.range == right.1.range
+        left.0 == right.0
+            && left.1.identity_name() == right.1.identity_name()
+            && left.1.range == right.1.range
     });
     definitions
 }

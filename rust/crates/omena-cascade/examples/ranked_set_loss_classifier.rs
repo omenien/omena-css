@@ -82,7 +82,8 @@ fn declaration(
 ) -> CascadeDeclaration {
     CascadeDeclaration {
         id: id.to_string(),
-        property: "color".to_string(),
+        property: omena_syntax::ident::AuthoredPropertyTextV0::new("color"),
+        property_key: omena_syntax::ident::PropertyNameV0::standard("color").canonical_key(),
         value: CascadeValue::Literal(id.to_string()),
         key: CascadeKey::new(
             level,

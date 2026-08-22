@@ -8,7 +8,7 @@ use omena_parser::StyleDialect;
 use omena_semantic::summarize_style_layer_order_from_source;
 use omena_syntax::{
     SyntaxKind,
-    ident::{CanonicalPropertyKeyV0, PropertyNameV0},
+    ident::{AuthoredPropertyTextV0, CanonicalPropertyKeyV0, PropertyNameV0},
 };
 use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0};
 
@@ -500,7 +500,7 @@ pub(crate) struct LayerInversionBundleCandidateV0 {
 /// reduced to the SMT-facing `(layer_rank, source_order)` coordinates.
 struct CompetingLayerDeclarationV0 {
     selector: String,
-    property: String,
+    property: AuthoredPropertyTextV0,
     property_key: CanonicalPropertyKeyV0,
     layer_rank: usize,
     source_order: usize,
@@ -516,7 +516,7 @@ struct LayeredDeclarationRuleIrV0 {
 }
 
 struct LayerDeclarationIrV0 {
-    property: String,
+    property: AuthoredPropertyTextV0,
     property_key: CanonicalPropertyKeyV0,
     start: usize,
     end: usize,
@@ -745,7 +745,7 @@ fn layer_declaration_from_ir(ir: &TransformIrV0, node: &IrNodeV0) -> Option<Laye
         return None;
     }
     Some(LayerDeclarationIrV0 {
-        property: property.authored().to_string(),
+        property: property.authored_text(),
         property_key: property.canonical_key(),
         start: node.source_span_start,
         end: node.source_span_end,

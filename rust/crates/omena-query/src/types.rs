@@ -5,6 +5,10 @@ use omena_evidence_graph::{
 };
 use omena_query_transform_runner::normalize_omena_transform_bundle_path;
 use omena_sif::OmenaSifV1;
+use omena_syntax::ident::{
+    AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0,
+};
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
 mod runtime_state_serialization;
@@ -620,15 +624,28 @@ pub struct OmenaQueryCustomPropertyAnnotationSummaryV0 {
     pub annotations: Vec<OmenaQueryCustomPropertyAnnotationV0>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCustomPropertyAnnotationV0 {
-    pub name: String,
+    pub name: AuthoredPropertyTextV0,
+    pub property_key: CanonicalCustomPropertyNameV0,
     pub declaration_count: usize,
     pub reference_count: usize,
     pub annotation_kind: &'static str,
     pub participates_in_fixed_point: bool,
 }
+
+impl PartialEq for OmenaQueryCustomPropertyAnnotationV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.property_key == other.property_key
+            && self.declaration_count == other.declaration_count
+            && self.reference_count == other.reference_count
+            && self.annotation_kind == other.annotation_kind
+            && self.participates_in_fixed_point == other.participates_in_fixed_point
+    }
+}
+
+impl Eq for OmenaQueryCustomPropertyAnnotationV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1969,14 +1986,72 @@ pub struct OmenaQueryIcssExportEdgeFactV0 {
     pub reference_names: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryStyleHoverCandidateV0 {
     pub kind: &'static str,
-    pub name: String,
+    pub name: AuthoredPropertyTextV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub property_key: Option<CanonicalCustomPropertyNameV0>,
     pub range: ParserRangeV0,
     pub source: &'static str,
     pub namespace: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum OmenaQueryStyleHoverCandidateIdentityRefV0<'candidate> {
+    CustomProperty(Option<&'candidate CanonicalCustomPropertyNameV0>),
+    Other(&'candidate str),
+}
+
+impl OmenaQueryStyleHoverCandidateV0 {
+    fn identity(&self) -> OmenaQueryStyleHoverCandidateIdentityRefV0<'_> {
+        if matches!(
+            self.kind,
+            "customPropertyDeclaration" | "customPropertyReference"
+        ) {
+            OmenaQueryStyleHoverCandidateIdentityRefV0::CustomProperty(self.property_key.as_ref())
+        } else {
+            OmenaQueryStyleHoverCandidateIdentityRefV0::Other(self.name.as_str())
+        }
+    }
+}
+
+impl PartialEq for OmenaQueryStyleHoverCandidateV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+            && self.identity() == other.identity()
+            && self.range == other.range
+            && self.source == other.source
+            && self.namespace == other.namespace
+    }
+}
+
+impl Eq for OmenaQueryStyleHoverCandidateV0 {}
+
+impl Ord for OmenaQueryStyleHoverCandidateV0 {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (
+            self.kind,
+            self.identity(),
+            self.range,
+            self.source,
+            &self.namespace,
+        )
+            .cmp(&(
+                other.kind,
+                other.identity(),
+                other.range,
+                other.source,
+                &other.namespace,
+            ))
+    }
+}
+
+impl PartialOrd for OmenaQueryStyleHoverCandidateV0 {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -2001,14 +2076,15 @@ pub struct OmenaQueryStyleHoverRenderPartsV0 {
     pub render_source: &'static str,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCascadeNarrowingEvidenceV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub selector: String,
     pub selector_class_names: Vec<String>,
-    pub property_name: String,
+    pub property_name: AuthoredPropertyTextV0,
+    pub property_key: CanonicalPropertyKeyV0,
     pub condition_context: Vec<String>,
     pub declaration_ids: Vec<String>,
     pub element_class_iteration: ReducedClassValueProductIterationV0,
@@ -2016,6 +2092,23 @@ pub struct OmenaQueryCascadeNarrowingEvidenceV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub runtime_state: Option<OmenaQueryRuntimeStateScenarioEvidenceV0>,
 }
+
+impl PartialEq for OmenaQueryCascadeNarrowingEvidenceV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.product == other.product
+            && self.selector == other.selector
+            && self.selector_class_names.eq(&other.selector_class_names)
+            && self.property_key == other.property_key
+            && self.condition_context == other.condition_context
+            && self.declaration_ids == other.declaration_ids
+            && self.element_class_iteration == other.element_class_iteration
+            && self.property_value_narrowing == other.property_value_narrowing
+            && self.runtime_state == other.runtime_state
+    }
+}
+
+impl Eq for OmenaQueryCascadeNarrowingEvidenceV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -2445,14 +2538,26 @@ pub struct OmenaQueryCascadeAtPositionV0 {
         Option<omena_query_checker_orchestrator::CategoricalCascadeEvidenceV0>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCreateCustomPropertyActionV0 {
     pub uri: String,
     pub range: ParserRangeV0,
     pub new_text: String,
-    pub property_name: String,
+    pub property_name: AuthoredPropertyTextV0,
+    pub property_key: CanonicalCustomPropertyNameV0,
 }
+
+impl PartialEq for OmenaQueryCreateCustomPropertyActionV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.uri == other.uri
+            && self.range == other.range
+            && self.new_text == other.new_text
+            && self.property_key == other.property_key
+    }
+}
+
+impl Eq for OmenaQueryCreateCustomPropertyActionV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use omena_syntax::ident::property_names_same;
+use omena_syntax::ident::{PropertyNameV0, property_names_same};
 
 use super::shared::*;
 
@@ -58,10 +58,8 @@ pub(super) fn attach_omena_query_module_graph_property_value_narrowing_for_works
             .iter()
             .filter(|(selector, candidate)| {
                 selector == &cascade_narrowing.selector
-                    && property_names_same(
-                        &candidate.property_name,
-                        &cascade_narrowing.property_name,
-                    )
+                    && PropertyNameV0::from_authored(&candidate.property_name).canonical_key()
+                        == cascade_narrowing.property_key
                     && *static_reachability_by_context
                         .entry(candidate.condition_context.clone())
                         .or_insert_with(|| {

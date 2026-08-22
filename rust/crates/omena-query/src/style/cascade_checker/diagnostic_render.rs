@@ -5,7 +5,7 @@ use omena_query_core::{
     AbstractPropertyValueCandidateV0, iterate_reduced_class_value_product_constraints,
     narrow_abstract_property_value_for_cascade_branch,
 };
-use omena_syntax::ident::property_names_same;
+use omena_syntax::ident::{AuthoredPropertyTextV0, PropertyNameV0, property_names_same};
 
 use super::super::OmenaQueryCascadeNarrowingEvidenceV0;
 use super::runtime_state::{
@@ -103,7 +103,8 @@ pub(super) fn summarize_query_cascade_narrowing_for_evaluation(
         product: "omena-query.cascade-narrowing-evidence",
         selector: anchor.selector.as_str().to_string(),
         selector_class_names,
-        property_name: anchor.property.clone(),
+        property_name: AuthoredPropertyTextV0::new(anchor.property.clone()),
+        property_key: PropertyNameV0::from_authored(&anchor.property).canonical_key(),
         condition_context: anchor.condition_context.clone(),
         declaration_ids: site_declarations
             .into_iter()

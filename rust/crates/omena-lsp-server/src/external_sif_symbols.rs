@@ -133,7 +133,7 @@ pub(crate) fn external_sif_sass_symbol_target_for_candidate(
             private_candidate.name.as_str(),
             &mut visiting,
         ) {
-            target.name = candidate.name.clone();
+            target.name = candidate.name.to_string();
             return Some(target);
         }
     }

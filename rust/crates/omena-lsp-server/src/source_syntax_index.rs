@@ -15,6 +15,7 @@ use omena_query::{
     summarize_omena_query_source_import_declarations_for_source_language,
     summarize_omena_query_source_syntax_index_for_source_language_with_type_fact_attempts,
 };
+use omena_syntax::ident::AuthoredPropertyTextV0;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SourceImportIndex {
@@ -153,7 +154,8 @@ fn source_reference_candidate(
             SourceSelectorReferenceMatchKind::Exact => "sourceSelectorReference",
             SourceSelectorReferenceMatchKind::Prefix => "sourceSelectorPrefixReference",
         },
-        name,
+        name: AuthoredPropertyTextV0::new(name),
+        property_key: None,
         range: parser_range_for_byte_span(document.text.as_str(), reference.byte_span),
         source: "omenaQuerySourceSyntaxIndex",
         target_style_uri: reference.target_style_uri.clone(),

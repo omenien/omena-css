@@ -141,7 +141,7 @@ fn gather_source_diagnostics_render_inputs(
                 && let Some(global_uri) = global_class_definitions.get(candidate.name.as_str())
             {
                 global_class_fallthroughs.push(crate::LspGlobalClassFallthroughCandidateV0 {
-                    selector_name: candidate.name,
+                    selector_name: candidate.name.to_string(),
                     global_definition_uri: global_uri.clone(),
                     target_style_uri,
                     target_style_source: target_style_document.text.clone(),
@@ -152,7 +152,7 @@ fn gather_source_diagnostics_render_inputs(
             Some(OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 {
                 target_style_uri,
                 target_style_source: target_style_document.text.clone(),
-                selector_name: candidate.name,
+                selector_name: candidate.name.to_string(),
                 source_reference_range: candidate.range,
             })
         })
@@ -361,7 +361,7 @@ fn global_class_definitions_for_workspace(
         for candidate in &document.style_candidates {
             if candidate.kind == "selector" {
                 definitions
-                    .entry(candidate.name.clone())
+                    .entry(candidate.name.to_string())
                     .or_insert_with(|| document.uri.clone());
             }
         }

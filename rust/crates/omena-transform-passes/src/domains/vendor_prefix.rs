@@ -135,7 +135,7 @@ fn collect_stale_vendor_prefix_removal_proof_candidates(
                     source_span_end: declaration.end,
                     unprefixed_peer_span_start: _peer.start,
                     unprefixed_peer_span_end: _peer.end,
-                    prefixed_property: declaration.property.clone(),
+                    prefixed_property: declaration.property.to_string(),
                     unprefixed_property,
                     value: declaration.value.clone(),
                     important: declaration.important,

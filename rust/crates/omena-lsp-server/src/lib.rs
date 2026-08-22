@@ -162,7 +162,6 @@ pub(crate) use omena_query::{
     OmenaQuerySourceSelectorReferenceSurfaceV0 as SourceSelectorReferenceSurface,
     OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex,
 };
-use omena_syntax::ident::PropertyNameV0;
 #[cfg(test)]
 pub(crate) use omena_tsgo_client::{TsgoResolvedTypeV0, TsgoTypeFactResultEntryV0};
 #[cfg(feature = "salsa-style-diagnostics")]
@@ -1184,10 +1183,10 @@ fn style_hover_trace_definitions(
         return sass_symbol_definitions_for_candidate(state, document, candidate);
     }
     if candidate.kind == "customPropertyReference"
+        && candidate.property_key.is_some()
         && let Some(target) = candidates.iter().find(|target| {
             target.kind == "customPropertyDeclaration"
-                && PropertyNameV0::from_authored(&target.name)
-                    .same_as(&PropertyNameV0::from_authored(&candidate.name))
+                && target.property_key == candidate.property_key
         })
     {
         return vec![(document.uri.clone(), target.clone())];
@@ -1404,7 +1403,7 @@ fn resolve_source_lsp_completion(
                 .unwrap_or_else(|| uri.clone());
             OmenaQueryCompletionCandidateV0 {
                 file_uri,
-                name: definition.name.clone(),
+                name: definition.name.to_string(),
                 kind: definition.kind,
                 range: definition.range,
                 source: definition.source,
@@ -1442,10 +1441,9 @@ fn resolve_source_lsp_completion(
         if item.item_kind != "cssModuleSelector" || item.documentation.is_some() {
             continue;
         }
-        let Some((uri, definition)) = definitions
-            .iter()
-            .find(|(_, definition)| definition.kind == "selector" && definition.name == item.label)
-        else {
+        let Some((uri, definition)) = definitions.iter().find(|(_, definition)| {
+            definition.kind == "selector" && definition.name.as_str() == item.label
+        }) else {
             continue;
         };
         let narrowing_substrate = narrowing_substrate.get_or_insert_with(|| {

@@ -9,7 +9,7 @@ pub fn summarize_omena_query_missing_custom_property_diagnostics(
     let declaration_names = candidates
         .iter()
         .filter(|candidate| candidate.kind == "customPropertyDeclaration")
-        .map(|candidate| PropertyNameV0::canonical_custom_key(&candidate.name))
+        .filter_map(|candidate| candidate.property_key.clone())
         .collect::<BTreeSet<_>>();
     if declaration_names.is_empty() {
         return Vec::new();
@@ -44,38 +44,41 @@ pub fn summarize_omena_query_missing_custom_property_diagnostics(
     let insertion_range = end_of_source_range(source);
     candidates
         .iter()
-        .filter(|candidate| {
-            candidate.kind == "customPropertyReference"
-                && !declaration_names
-                    .contains(&PropertyNameV0::canonical_custom_key(&candidate.name))
-                && !fallback_ranges.contains(&(
-                    PropertyNameV0::canonical_custom_key(&candidate.name),
-                    candidate.range,
-                ))
-        })
-        .map(|candidate| OmenaQueryStyleDiagnosticV0 {
-            code: "missingCustomProperty",
-            severity: "warning",
-            provenance: omena_query_evidence_graph_provenance![
-                "omena-parser.custom-property-facts",
-                "omena-query.style-diagnostics",
-            ],
-            range: candidate.range,
-            message: format!(
-                "CSS custom property '{}' not found in indexed style tokens.",
-                candidate.name
-            ),
-            tags: Vec::new(),
-            create_custom_property: Some(OmenaQueryCreateCustomPropertyActionV0 {
-                uri: style_uri.to_string(),
-                range: insertion_range,
-                new_text: format!("\n\n:root {{\n  {}: ;\n}}\n", candidate.name),
-                property_name: candidate.name.clone(),
-            }),
-            cascade_narrowing: None,
-            cascade_confidence: None,
-            polynomial_provenance: None,
-            cross_file_scc: None,
+        .filter_map(|candidate| {
+            if candidate.kind != "customPropertyReference" {
+                return None;
+            }
+            let property_key = candidate.property_key.as_ref()?;
+            if declaration_names.contains(property_key)
+                || fallback_ranges.contains(&(property_key.clone(), candidate.range))
+            {
+                return None;
+            }
+            Some(OmenaQueryStyleDiagnosticV0 {
+                code: "missingCustomProperty",
+                severity: "warning",
+                provenance: omena_query_evidence_graph_provenance![
+                    "omena-parser.custom-property-facts",
+                    "omena-query.style-diagnostics",
+                ],
+                range: candidate.range,
+                message: format!(
+                    "CSS custom property '{}' not found in indexed style tokens.",
+                    candidate.name
+                ),
+                tags: Vec::new(),
+                create_custom_property: Some(OmenaQueryCreateCustomPropertyActionV0 {
+                    uri: style_uri.to_string(),
+                    range: insertion_range,
+                    new_text: format!("\n\n:root {{\n  {}: ;\n}}\n", candidate.name),
+                    property_name: candidate.name.clone(),
+                    property_key: property_key.clone(),
+                }),
+                cascade_narrowing: None,
+                cascade_confidence: None,
+                polynomial_provenance: None,
+                cross_file_scc: None,
+            })
         })
         .collect()
 }
@@ -103,12 +106,7 @@ pub fn summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis(
     let declarations_by_name = candidates
         .iter()
         .filter(|candidate| candidate.kind == "customPropertyDeclaration")
-        .map(|candidate| {
-            (
-                PropertyNameV0::canonical_custom_key(&candidate.name),
-                candidate.range,
-            )
-        })
+        .filter_map(|candidate| Some((candidate.property_key.clone()?, candidate.range)))
         .collect::<BTreeMap<_, _>>();
 
     let dialect = omena_parser_dialect_for_style_path(style_uri);

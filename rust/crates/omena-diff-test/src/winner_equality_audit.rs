@@ -117,7 +117,7 @@ mod tests {
         summarize_omena_query_style_diagnostics_for_file,
         summarize_omena_query_style_hover_candidates,
     };
-    use omena_syntax::ident::property_names_same;
+    use omena_syntax::ident::{PropertyNameV0, property_names_same};
     use omena_transform_cst::TransformPassKind;
     use omena_transform_passes::{
         compare_transform_winner_equality_for_conformance_v0,
@@ -158,7 +158,10 @@ mod tests {
             .diagnostics
             .iter()
             .filter_map(|diagnostic| diagnostic.cascade_narrowing.as_ref())
-            .filter(|narrowing| property_names_same(&narrowing.property_name, fixture.property))
+            .filter(|narrowing| {
+                narrowing.property_key
+                    == PropertyNameV0::from_authored(fixture.property).canonical_key()
+            })
             .filter_map(|narrowing| narrowing.runtime_state.as_ref())
             .flat_map(|runtime| runtime.scenarios.iter())
             .map(|scenario| scenario.winner_value.clone())

@@ -11,7 +11,9 @@ use omena_query_checker_orchestrator::{
     REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaSiteOutcomeV0,
     cascade_section_key, compatibility_key_from_cascade_section_key_v0,
 };
-use omena_syntax::ident::CanonicalStandardPropertyNameV0;
+use omena_syntax::ident::{
+    AuthoredPropertyTextV0, CanonicalStandardPropertyNameV0, PropertyNameV0,
+};
 
 use super::collect_query_checker_cascade_declarations;
 
@@ -103,7 +105,8 @@ fn query_cascade_declaration_from_input(
 
     CascadeDeclaration {
         id: value.clone(),
-        property: input.property.clone(),
+        property: AuthoredPropertyTextV0::new(input.property.clone()),
+        property_key: PropertyNameV0::from_authored(&input.property).canonical_key(),
         value: CascadeValue::Literal(value),
         key: CascadeKey::new(level, layer_rank, 0, specificity, input.source_order),
         open_world_tie_evidence: OpenWorldTieEvidence::NONE,

@@ -1062,6 +1062,14 @@
       "owner": "domain claim census maintainers",
       "justification": "The authored governance map must spell the superseded forms so reviewers can audit each mapping, compatibility declaration, and topology escalation.",
       "reviewCondition": "Remove a form only when the independent lexical seed and every mapped compatibility or escalation obligation are removed in the same reviewed change."
+    },
+    {
+      "id": "identifier-authority-generated-census",
+      "pathExact": "rust/omena-identifier-authority-census.json",
+      "familyIds": ["f05"],
+      "owner": "identifier authority census maintainers",
+      "justification": "The generated identifier-authority census records existing compatibility type names as measured governance data; those names are evidence rows and do not assert the superseded domain claim.",
+      "reviewCondition": "Remove this rule when the generated census no longer contains any compatibility type name matched by the independent domain-claim scanner."
     }
   ]
 }
