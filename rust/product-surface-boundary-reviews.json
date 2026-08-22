@@ -29,9 +29,9 @@
       "measurements": {
         "apiSurfaceStability": {
           "command": "git rev-list --count 4098be1fc..HEAD -- rust/crates/omena-bundler",
-          "value": 45,
+          "value": 48,
           "unit": "commits",
-          "response": "The measured interval contains forty-five bundler boundary changes; public API changes remain guarded by rust/omena-bundler/public-surface and require explicit snapshot review."
+          "response": "The measured interval contains forty-eight bundler boundary changes; public API changes remain guarded by rust/omena-bundler/public-surface and require explicit snapshot review."
         },
         "dependencyDirection": {
           "command": "cargo metadata --manifest-path rust/Cargo.toml --no-deps --format-version 1",
@@ -85,9 +85,9 @@
       "measurements": {
         "apiSurfaceStability": {
           "command": "git rev-list --count 4098be1fc..HEAD -- rust/crates/omena-scss-eval",
-          "value": 11,
+          "value": 12,
           "unit": "commits",
-          "response": "The measured interval contains eleven evaluator boundary changes, all covered by Rust workspace API and conformance gates; future changes must preserve that review path."
+          "response": "The measured interval contains twelve evaluator boundary changes, all covered by Rust workspace API and conformance gates; future changes must preserve that review path."
         },
         "dependencyDirection": {
           "command": "cargo metadata --manifest-path rust/Cargo.toml --no-deps --format-version 1",
