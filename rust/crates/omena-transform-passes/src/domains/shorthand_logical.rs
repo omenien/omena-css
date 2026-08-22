@@ -202,7 +202,7 @@ fn logical_four_side_family(
         .all(|property| {
             declarations
                 .iter()
-                .filter(|declaration| declaration.property == *property)
+                .filter(|declaration| declaration.property_key.as_str() == *property)
                 .count()
                 == 1
         })
@@ -216,7 +216,7 @@ fn logical_family_value(
 ) -> Option<String> {
     let declaration = declarations
         .iter()
-        .find(|declaration| declaration.property == property)?;
+        .find(|declaration| declaration.property_key.as_str() == property)?;
     single_component_value_without_important(&declaration.value, important)
 }
 
@@ -224,7 +224,7 @@ fn logical_axis_shorthand_components<'a>(
     first: &'a SimpleDeclarationSlice,
     second: &'a SimpleDeclarationSlice,
 ) -> Option<(&'static str, &'a str, &'a str)> {
-    match (first.property.as_str(), second.property.as_str()) {
+    match (first.property_key.as_str(), second.property_key.as_str()) {
         ("margin-block-start", "margin-block-end") => {
             Some(("margin-block", first.value.as_str(), second.value.as_str()))
         }

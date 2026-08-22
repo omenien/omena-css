@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use cstree::syntax::SyntaxNode;
+use omena_syntax::ident::{CanonicalPropertyKeyV0, PropertyNameKindV0, PropertyNameV0};
 use omena_syntax::{SyntaxKind, css_keyword};
 
 use crate::{ParseResult, ParserByteSpanV0, StyleDialect, is_at_rule_node_kind, parse};
@@ -20,7 +21,10 @@ pub struct ParserDeclarationSelectorContextV0 {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParserDeclarationSyntaxFactV0 {
     pub byte_span: ParserByteSpanV0,
+    /// Authored spelling without surrounding declaration trivia.
     pub property_name: String,
+    /// The sole identity carrier used by downstream declaration consumers.
+    pub property_key: CanonicalPropertyKeyV0,
     pub value_span: ParserByteSpanV0,
     pub value_text: String,
     pub important: bool,
@@ -255,6 +259,7 @@ fn declaration_syntax_with_context(
     let mut value_end = None;
     let mut important_start = None;
     let mut property_name = String::new();
+    let mut property_is_custom = node.kind() == SyntaxKind::CustomPropertyDeclaration;
     let mut value_text = String::new();
     for token in node
         .descendants_with_tokens()
@@ -282,6 +287,7 @@ fn declaration_syntax_with_context(
         }
 
         let target = if colon.is_none() {
+            property_is_custom |= token.kind() == SyntaxKind::CustomPropertyName;
             Some(&mut property_name)
         } else if value_end.is_none() && important_start.is_none() {
             Some(&mut value_text)
@@ -299,11 +305,21 @@ fn declaration_syntax_with_context(
             .unwrap_or(declaration_end)
             .min(important_start.unwrap_or(usize::MAX)),
     };
-    property_name = property_name.trim().to_ascii_lowercase();
+    let property = PropertyNameV0::new(
+        property_name,
+        if property_is_custom {
+            PropertyNameKindV0::Custom
+        } else {
+            PropertyNameKindV0::Standard
+        },
+    );
+    let property_name = property.authored().to_string();
+    let property_key = property.canonical_key();
     let value_text = value_text.trim().to_string();
     (!property_name.is_empty()).then_some(ParserDeclarationSyntaxFactV0 {
         byte_span: declaration_span,
         property_name,
+        property_key,
         value_span,
         value_text,
         important: important_start.is_some(),

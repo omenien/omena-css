@@ -1,6 +1,7 @@
 use super::*;
 use omena_query_transform_runner::TransformDesignTokenRouteV0;
-use std::collections::{BTreeSet, VecDeque};
+use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 pub(super) fn derive_design_token_routes_for_transform_context(
     entry: &OmenaQueryStyleFactEntry,
@@ -25,41 +26,43 @@ pub(super) fn derive_design_token_routes_for_transform_context(
         resolution_context.tsconfig_path_mappings,
         resolution_context.disk_style_path_identities,
     );
-    let (local_decl_names, local_ref_names) = local_custom_property_index_names(entry);
+    let (local_decl_keys, local_refs) = local_custom_property_index_names(entry);
 
     let mut routes = Vec::new();
     let mut routed = BTreeSet::new();
     let mut queued = BTreeSet::new();
     let mut pending = VecDeque::new();
 
-    for name in local_ref_names
+    for (property_key, authored) in local_refs
         .iter()
-        .filter(|name| !local_decl_names.contains(*name))
+        .filter(|(property_key, _)| !local_decl_keys.contains(*property_key))
     {
-        if queued.insert(name.clone()) {
-            pending.push_back(name.clone());
+        if queued.insert(property_key.clone()) {
+            pending.push_back((property_key.clone(), authored.clone()));
         }
     }
 
-    while let Some(name) = pending.pop_front() {
-        if routed.contains(&name) {
+    while let Some((property_key, authored)) = pending.pop_front() {
+        if routed.contains(&property_key) {
             continue;
         }
         let Some(candidate) = unique_external_design_token_route_declaration(
-            &name,
+            &property_key,
             entry.style_path.as_str(),
             &reachable_declarations,
         ) else {
             continue;
         };
-        routed.insert(name.clone());
-        for dependency in collect_design_token_route_value_references(&candidate.value) {
-            if !local_decl_names.contains(&dependency) && queued.insert(dependency.clone()) {
-                pending.push_back(dependency);
+        routed.insert(property_key);
+        for (dependency_key, dependency_authored) in
+            collect_design_token_route_value_references(&candidate.value)
+        {
+            if !local_decl_keys.contains(&dependency_key) && queued.insert(dependency_key.clone()) {
+                pending.push_back((dependency_key, dependency_authored));
             }
         }
         routes.push(TransformDesignTokenRouteV0 {
-            token_name: name,
+            token_name: authored,
             routed_value: candidate.value.clone(),
         });
     }
@@ -69,34 +72,48 @@ pub(super) fn derive_design_token_routes_for_transform_context(
 
 fn local_custom_property_index_names(
     entry: &OmenaQueryStyleFactEntry,
-) -> (BTreeSet<String>, Vec<String>) {
-    if let Some(index) = entry.semantic_runtime_index.as_ref() {
-        return (
-            index.custom_property_decl_names.iter().cloned().collect(),
-            index.custom_property_ref_names.clone(),
-        );
-    }
+) -> (
+    BTreeSet<CanonicalCustomPropertyNameV0>,
+    BTreeMap<CanonicalCustomPropertyNameV0, String>,
+) {
+    let (declaration_names, reference_names) =
+        if let Some(index) = entry.semantic_runtime_index.as_ref() {
+            (
+                index.custom_property_decl_names.as_slice(),
+                index.custom_property_ref_names.as_slice(),
+            )
+        } else {
+            (
+                entry.facts.custom_property_decl_names.as_slice(),
+                entry.facts.custom_property_ref_names.as_slice(),
+            )
+        };
 
     (
-        entry
-            .facts
-            .custom_property_decl_names
+        declaration_names
             .iter()
-            .cloned()
+            .filter_map(|name| PropertyNameV0::from_authored(name).as_custom_key())
             .collect(),
-        entry.facts.custom_property_ref_names.clone(),
+        reference_names
+            .iter()
+            .filter_map(|name| {
+                PropertyNameV0::from_authored(name)
+                    .as_custom_key()
+                    .map(|property_key| (property_key, name.clone()))
+            })
+            .collect(),
     )
 }
 
 fn unique_external_design_token_route_declaration<'a>(
-    name: &str,
+    property_key: &CanonicalCustomPropertyNameV0,
     target_style_path: &str,
     reachable_declarations: &'a [DesignTokenWorkspaceDeclarationFactV0],
 ) -> Option<&'a DesignTokenWorkspaceDeclarationFactV0> {
     let candidates = reachable_declarations
         .iter()
         .filter(|declaration| declaration.file_path != target_style_path)
-        .filter(|declaration| declaration.name == name)
+        .filter(|declaration| declaration.property_key == *property_key)
         .filter(|declaration| design_token_route_value_is_safe(&declaration.value))
         .collect::<Vec<_>>();
     let [candidate] = candidates.as_slice() else {
@@ -110,7 +127,9 @@ fn design_token_route_value_is_safe(value: &str) -> bool {
     !value.is_empty() && !value.chars().any(|ch| matches!(ch, ';' | '{' | '}'))
 }
 
-fn collect_design_token_route_value_references(value: &str) -> Vec<String> {
+fn collect_design_token_route_value_references(
+    value: &str,
+) -> Vec<(CanonicalCustomPropertyNameV0, String)> {
     let mut references = Vec::new();
     let mut seen = BTreeSet::new();
     let mut index = 0usize;
@@ -145,12 +164,12 @@ fn collect_design_token_route_value_references(value: &str) -> Vec<String> {
                 let left_paren_index = index + "var".len();
                 if let Some(close_index) =
                     matching_design_token_route_function_call_end(value, left_paren_index)
-                    && let Some(token_name) = design_token_route_first_argument_name(
+                    && let Some((property_key, authored)) = design_token_route_first_argument_name(
                         &value[left_paren_index + 1..close_index],
                     )
-                    && seen.insert(token_name.clone())
+                    && seen.insert(property_key.clone())
                 {
-                    references.push(token_name);
+                    references.push((property_key, authored));
                 }
                 index += ch.len_utf8();
             }
@@ -208,7 +227,9 @@ fn matching_design_token_route_function_call_end(
     None
 }
 
-fn design_token_route_first_argument_name(arguments: &str) -> Option<String> {
+fn design_token_route_first_argument_name(
+    arguments: &str,
+) -> Option<(CanonicalCustomPropertyNameV0, String)> {
     let mut index = 0usize;
     let mut depth = 0usize;
     let mut quote: Option<char> = None;
@@ -248,7 +269,10 @@ fn design_token_route_first_argument_name(arguments: &str) -> Option<String> {
     normalize_design_token_route_name(arguments)
 }
 
-fn normalize_design_token_route_name(name: &str) -> Option<String> {
-    let name = name.trim();
-    (name.starts_with("--") && name.len() > 2).then(|| name.to_string())
+fn normalize_design_token_route_name(
+    name: &str,
+) -> Option<(CanonicalCustomPropertyNameV0, String)> {
+    let property = PropertyNameV0::from_authored(name);
+    let property_key = property.as_custom_key()?;
+    (property_key.as_str().len() > 2).then(|| (property_key, property.authored().to_string()))
 }

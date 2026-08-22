@@ -1,5 +1,8 @@
 use omena_parser::StyleDialect;
-use omena_syntax::SyntaxKind;
+use omena_syntax::{
+    SyntaxKind,
+    ident::{CanonicalPropertyKeyV0, PropertyNameKindV0, PropertyNameV0},
+};
 use omena_value_lattice::css_number_is_zero;
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -38,8 +41,8 @@ pub(crate) fn normalize_css_units_with_lexer(
     let lexed = lex(source, dialect);
     let mut output = String::with_capacity(source.len());
     let mut mutation_count = 0;
-    let mut property_candidate: Option<String> = None;
-    let mut active_property: Option<String> = None;
+    let mut property_candidate: Option<CanonicalPropertyKeyV0> = None;
+    let mut active_property: Option<CanonicalPropertyKeyV0> = None;
     let mut awaiting_property = false;
 
     for token in lexed.tokens() {
@@ -62,7 +65,13 @@ pub(crate) fn normalize_css_units_with_lexer(
                 token.kind,
                 SyntaxKind::Ident | SyntaxKind::CustomPropertyName
             ) {
-                property_candidate = Some(token.text.to_ascii_lowercase());
+                let property_kind = if token.kind == SyntaxKind::CustomPropertyName {
+                    PropertyNameKindV0::Custom
+                } else {
+                    PropertyNameKindV0::Standard
+                };
+                property_candidate =
+                    Some(PropertyNameV0::new(token.text.clone(), property_kind).canonical_key());
             } else {
                 awaiting_property = false;
                 property_candidate = None;
@@ -71,10 +80,10 @@ pub(crate) fn normalize_css_units_with_lexer(
 
         let replacement = match token.kind {
             SyntaxKind::Dimension => active_property
-                .as_deref()
+                .as_ref()
                 .and_then(|property| normalize_dimension_unit_token(&token.text, property)),
             SyntaxKind::Percentage => active_property
-                .as_deref()
+                .as_ref()
                 .and_then(|property| normalize_percentage_unit_token(&token.text, property)),
             _ => None,
         };
@@ -99,10 +108,8 @@ pub(crate) fn normalize_css_units_with_lexer(
     )
 }
 
-fn normalize_dimension_unit_token(text: &str, property: &str) -> Option<String> {
-    if property.starts_with("--") {
-        return None;
-    }
+fn normalize_dimension_unit_token(text: &str, property: &CanonicalPropertyKeyV0) -> Option<String> {
+    let property = property.as_standard()?.as_str();
 
     let split = numeric_prefix_end(text)?;
     let (number, unit) = text.split_at(split);
@@ -119,10 +126,11 @@ fn normalize_dimension_unit_token(text: &str, property: &str) -> Option<String> 
     normalize_known_css_unit_case(number, unit)
 }
 
-fn normalize_percentage_unit_token(text: &str, property: &str) -> Option<String> {
-    if property.starts_with("--") {
-        return None;
-    }
+fn normalize_percentage_unit_token(
+    text: &str,
+    property: &CanonicalPropertyKeyV0,
+) -> Option<String> {
+    let property = property.as_standard()?.as_str();
 
     let number = text.strip_suffix('%')?;
     if is_opacity_percentage_property(property) {
@@ -167,7 +175,7 @@ fn normalize_static_unit_declaration_values_with_lexer(
         {
             for declaration in collect_simple_declarations_in_block(tokens, index, close_index) {
                 let Some(replacement_value) = normalize_static_unit_declaration_value(
-                    &declaration.property,
+                    declaration.property_key.as_str(),
                     &declaration.value,
                 ) else {
                     continue;
@@ -212,9 +220,9 @@ fn remove_adjacent_duplicate_unit_declarations_with_lexer(
                 if !declaration_ranges_are_adjacent(tokens, pair)
                     || left.important
                     || right.important
-                    || left.property != right.property
+                    || left.property_key != right.property_key
                     || left.value != right.value
-                    || !unit_normalized_duplicate_property(&left.property)
+                    || !unit_normalized_duplicate_property(left.property_key.as_str())
                 {
                     continue;
                 }

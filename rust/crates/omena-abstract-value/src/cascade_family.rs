@@ -1,4 +1,5 @@
 use crate::{ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0, AbstractPropertyValueV0};
+use omena_syntax::ident::property_names_same;
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -123,7 +124,7 @@ pub fn summarize_context_indexed_cascade_value_family_v0(
         .collect::<BTreeSet<_>>();
     let property_consistent = members
         .iter()
-        .all(|member| property_value_name(&member.value) == property_name);
+        .all(|member| property_names_same(property_value_name(&member.value), &property_name));
     let dangling_restriction_count = restriction_maps
         .iter()
         .filter(|restriction| {

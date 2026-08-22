@@ -3142,6 +3142,27 @@ fn summarizes_style_facts_as_parser_owned_product() {
 }
 
 #[test]
+fn style_fact_name_sets_dedupe_custom_property_escapes_without_folding_case() {
+    let summary = summarize_omena_parser_style_facts(
+        r#":root { --foo: red; --f\6f o: blue; --FOO: green; color: var(--f\6f o); }"#,
+        StyleDialect::Css,
+    );
+
+    assert_eq!(
+        summary.custom_property_names,
+        vec!["--FOO".to_string(), "--foo".to_string()]
+    );
+    assert_eq!(
+        summary.custom_property_decl_names,
+        vec!["--FOO".to_string(), "--foo".to_string()]
+    );
+    assert_eq!(
+        summary.custom_property_ref_names,
+        vec![r"--f\6f o".to_string()]
+    );
+}
+
+#[test]
 fn extracts_sass_symbol_style_facts() {
     let facts = collect_style_facts(
         "@mixin tone($color) { color: $color; } @function double($x) { @return $x * 2; } .card { @include tone(red); width: double(2px); }",

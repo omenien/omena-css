@@ -25,13 +25,13 @@ pub(crate) fn font_shorthand_replacement_for_declarations(
     else {
         return None;
     };
-    if style.property != "font-style"
-        || variant_caps.property != "font-variant-caps"
-        || weight.property != "font-weight"
-        || stretch.property != "font-stretch"
-        || size.property != "font-size"
-        || line_height.property != "line-height"
-        || family.property != "font-family"
+    if style.property_key.as_str() != "font-style"
+        || variant_caps.property_key.as_str() != "font-variant-caps"
+        || weight.property_key.as_str() != "font-weight"
+        || stretch.property_key.as_str() != "font-stretch"
+        || size.property_key.as_str() != "font-size"
+        || line_height.property_key.as_str() != "line-height"
+        || family.property_key.as_str() != "font-family"
         || !declaration_ranges_are_adjacent(tokens, declarations)
     {
         return None;

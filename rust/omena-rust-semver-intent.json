@@ -284,7 +284,7 @@
     {
       "crate": "omena-query",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints, requires exact Rust-authored declaration identities for style resolution, preserves analyzed-empty reachability as a closed-world result, and projects typed dialect-cycle evidence instead of a generic pass-unavailable blocker.",
+      "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints, requires exact Rust-authored declaration identities for style resolution, preserves analyzed-empty reachability as a closed-world result, and projects typed dialect-cycle evidence instead of a generic pass-unavailable blocker. It also moves custom-property diagnostics and module-interface joins onto the shared decoded, case-preserving property identity.",
       "expectedFailures": [
         {
           "lint": "enum_variant_added",
@@ -369,6 +369,36 @@
                 "OmenaQueryClosedWorldBlockerV0::UnsupportedDialectEmissionCycle {",
                 "\"kind\": \"unsupportedDialectEmissionCycle\""
               ]
+            }
+          ]
+        },
+        {
+          "id": "query-custom-property-identity-wire-and-joins",
+          "kind": "selection-outcome-changing",
+          "surface": "style diagnostics, @property registration, cascade-at-position, and module-interface custom-property projections",
+          "reason": "Query consumers now join declaration and var-reference facts by sealed custom-property keys, so escape-equivalent references resolve, case-distinct names remain separate, and module-interface sets expose canonical key types instead of raw strings.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style.rs",
+              "needles": [
+                "pub custom_property_decl_names: BTreeSet<CanonicalCustomPropertyNameV0>",
+                "pub custom_property_ref_names: BTreeSet<CanonicalCustomPropertyNameV0>"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/cascade_checker/input.rs",
+              "needles": [
+                "fn query_property_identity_survives_fact_join_checker_and_ranking_planes",
+                "BTreeMap<CanonicalCustomPropertyNameV0, String>"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/tests/style_diagnostics.rs",
+              "needles": ["fn custom_property_escape_identity_resolves_without_case_merging()"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/registered_property_values.rs",
+              "needles": ["fn property_registration_joins_escape_identity_but_not_custom_case()"]
             }
           ]
         }
@@ -507,6 +537,183 @@
               "needles": [
                 "fn browser_import_declarations_preserve_rust_identity_and_spans()",
                 "Some(\"rust-decl:import:styles:7:13:./Card.module.scss\")"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-syntax",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor adds the sole public property-name identity authority with separate standard and custom canonical key domains.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "canonical-property-name-authority",
+          "kind": "selection-outcome-changing",
+          "surface": "PropertyNameV0 and sealed canonical standard/custom property key APIs",
+          "reason": "The new shared authority decodes CSS escapes once, folds ASCII case only for standard properties, preserves custom-property case, and prevents structural comparison of authored property spellings.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-syntax/src/ident.rs",
+              "needles": [
+                "pub enum PropertyNameV0",
+                "pub struct CanonicalStandardPropertyNameV0",
+                "pub struct CanonicalCustomPropertyNameV0",
+                "pub fn property_names_same(left: &str, right: &str) -> bool",
+                "fn property_name_identity_preserves_custom_case_and_standard_case_folding()",
+                "fn custom_property_identity_decodes_escapes_without_destroying_authored_spelling()"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-parser",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor preserves authored custom-property spelling and adds sealed property keys to public parser facts.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field ParserDeclarationSyntaxFactV0.property_key",
+            "field ParsedVariableFact.property_key"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "ParserDeclarationSyntaxFactV0.property_key",
+            "ParsedVariableFact.property_key"
+          ]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "parser-custom-property-identity-wire",
+          "kind": "wire-value-order-preserving",
+          "surface": "parser declaration syntax facts and serialized custom-property declaration/reference facts",
+          "reason": "Custom-property name fields now preserve authored spelling instead of unconditional ASCII lowercasing, while an additive propertyKey field carries the decoded, case-preserving identity used by downstream joins.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-parser/src/public_product/syntax_index.rs",
+              "needles": [
+                "let property = PropertyNameV0::new(",
+                "let property_name = property.authored().to_string();",
+                "let property_key = property.canonical_key();"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-parser/src/public_product/tests.rs",
+              "needles": [
+                "fn declaration_syntax_facts_preserve_authored_property_names_with_canonical_keys()",
+                "assert_ne!(facts[1].property_key, facts[2].property_key);"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-cascade",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor changes public custom-property environment and var-reference carriers to sealed keys and makes cascade selection obey CSS property identity.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "cascade-canonical-property-identity",
+          "kind": "selection-outcome-changing",
+          "surface": "CascadeValue::Var, CustomPropertyEnv, cascade_property, and cascade_property_open_world",
+          "reason": "Cascade filtering and custom-property substitution now use sealed property keys, so standard-property case variants compete together, custom-property case variants remain distinct, and escape-equivalent custom names resolve together.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/model.rs",
+              "needles": [
+                "name: CanonicalCustomPropertyNameV0",
+                "pub type CustomPropertyEnv = BTreeMap<CanonicalCustomPropertyNameV0, CascadeValue>;"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/ranking.rs",
+              "needles": [
+                "let property_key = PropertyNameV0::from_authored(property).canonical_key();",
+                "PropertyNameV0::from_authored(&declaration.property).canonical_key() == property_key"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/tests.rs",
+              "needles": [
+                "fn cascade_property_ranking_uses_standard_and_custom_canonical_identity()"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-checker",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor makes checker registration, dependency, and declaration joins consume the shared property identity authority.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "checker-custom-property-identity-joins",
+          "kind": "selection-outcome-changing",
+          "surface": "active custom-property registrations, dependency cycles, risky var references, and cascade declaration comparisons",
+          "reason": "Checker joins now key custom properties by decoded case-preserving identity instead of raw or lowercased strings, removing false unknown-reference warnings without merging case-distinct custom properties.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-checker/src/lib.rs",
+              "needles": [
+                "BTreeMap<CanonicalCustomPropertyNameV0, OmenaCheckerActiveCustomPropertyRegistrationV0>",
+                "let key = PropertyNameV0::canonical_custom_key(*name);",
+                "fn checker_joins_property_identity_without_merging_custom_property_case()"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-semantic",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor adds sealed custom-property keys to public semantic facts while preserving authored names for presentation.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field ParserIndexCustomPropertyRefFactV0.property_key",
+            "field DesignTokenWorkspaceDeclarationFactV0.property_key",
+            "field ParserIndexCustomPropertyDeclFactV0.property_key"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "ParserIndexCustomPropertyDeclFactV0.property_key",
+            "ParserIndexCustomPropertyRefFactV0.property_key",
+            "DesignTokenWorkspaceDeclarationFactV0.property_key"
+          ]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "semantic-custom-property-identity-wire",
+          "kind": "wire-value-order-preserving",
+          "surface": "ParserIndexCustomPropertyDeclFactV0, ParserIndexCustomPropertyRefFactV0, and DesignTokenWorkspaceDeclarationFactV0",
+          "reason": "Serialized semantic facts preserve authored custom-property spelling and add a propertyKey field for decoded, case-preserving joins across declarations, references, and workspace design-token candidates.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-semantic/src/types.rs",
+              "needles": [
+                "pub struct ParserIndexCustomPropertyDeclFactV0",
+                "pub struct ParserIndexCustomPropertyRefFactV0",
+                "pub property_key: CanonicalCustomPropertyNameV0"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-semantic/src/design_tokens.rs",
+              "needles": [
+                "pub struct DesignTokenWorkspaceDeclarationFactV0",
+                "pub property_key: CanonicalCustomPropertyNameV0"
               ]
             }
           ]

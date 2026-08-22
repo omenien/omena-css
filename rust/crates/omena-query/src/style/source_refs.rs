@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, PathBuf};
 
+use omena_syntax::ident::PropertyNameV0;
+
 use super::dynamic_classname::{
     OMENA_QUERY_WORKSPACE_DYNAMIC_CLASSNAME_CONTEXT_DEPTH,
     harvest_omena_query_dynamic_classname_m_tier_diagnostics,
@@ -43,7 +45,8 @@ pub fn omena_workspace_moniker(input: OmenaWorkspaceMonikerInput<'_>) -> String 
             name,
         } => {
             let scope = workspace_folder_uri.unwrap_or("global");
-            format!("css-custom-property:{scope}#{name}")
+            let property_key = PropertyNameV0::canonical_custom_key(name);
+            format!("css-custom-property:{scope}#{}", property_key.as_str())
         }
         OmenaWorkspaceMonikerInput::SassSymbol {
             definition_uri,
@@ -1976,5 +1979,23 @@ mod class_reference_identity_tests {
                     .any(|location| { location.role == "reference" && location.uri == source_uri })
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod custom_property_moniker_identity_tests {
+    use super::*;
+
+    #[test]
+    fn monikers_decode_custom_property_escapes_without_folding_case() {
+        let moniker = |name| {
+            omena_workspace_moniker(OmenaWorkspaceMonikerInput::CssCustomProperty {
+                workspace_folder_uri: Some("file:///workspace"),
+                name,
+            })
+        };
+
+        assert_eq!(moniker(r"--f\6f o"), moniker("--foo"));
+        assert_ne!(moniker("--FOO"), moniker("--foo"));
     }
 }

@@ -16,10 +16,10 @@ pub(crate) fn text_decoration_shorthand_replacement_for_declarations(
     let [line, style, color, thickness] = declarations else {
         return None;
     };
-    if line.property != "text-decoration-line"
-        || style.property != "text-decoration-style"
-        || color.property != "text-decoration-color"
-        || thickness.property != "text-decoration-thickness"
+    if line.property_key.as_str() != "text-decoration-line"
+        || style.property_key.as_str() != "text-decoration-style"
+        || color.property_key.as_str() != "text-decoration-color"
+        || thickness.property_key.as_str() != "text-decoration-thickness"
         || declarations
             .iter()
             .any(|declaration| declaration.important != line.important)
@@ -53,8 +53,8 @@ pub(crate) fn text_emphasis_shorthand_replacement_for_declarations(
     let [style, color] = declarations else {
         return None;
     };
-    if style.property != "text-emphasis-style"
-        || color.property != "text-emphasis-color"
+    if style.property_key.as_str() != "text-emphasis-style"
+        || color.property_key.as_str() != "text-emphasis-color"
         || style.important != color.important
         || !declaration_ranges_are_adjacent(tokens, declarations)
     {

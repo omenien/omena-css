@@ -62,6 +62,7 @@ use omena_sif::{
     OmenaSifExportsV1, OmenaSifGeneratorV1, OmenaSifSourceSyntaxV1, OmenaSifSourceV1, OmenaSifV1,
     OmenaSifVariableExportV1,
 };
+use omena_syntax::ident::property_names_same;
 use omena_testkit::{
     OmenaFixtureDiagnosticV0, OmenaFixtureExpectationOutcomeV0, evaluate_omena_fixture_v0_with,
 };
@@ -4757,7 +4758,7 @@ fn sass_spec_resolution_matches_property(
         .get(resolution.start..resolution.end)
         .is_some_and(|reference| reference.trim() == resolution.name)
         && sass_spec_declaration_context(source, resolution.start)
-            .is_some_and(|context| context.property.eq_ignore_ascii_case(property))
+            .is_some_and(|context| property_names_same(&context.property, property))
 }
 
 fn sass_spec_resolution_context_matches_concrete(

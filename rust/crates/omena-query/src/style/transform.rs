@@ -62,8 +62,9 @@ pub use context::{
 };
 
 use context::{
-    css_identifier_names_match, derive_omena_query_transform_context_from_engine_input,
-    find_target_style_source, merge_target_options_transform_context, merge_transform_context,
+    css_identifier_names_match, dedupe_custom_property_names,
+    derive_omena_query_transform_context_from_engine_input, find_target_style_source,
+    merge_target_options_transform_context, merge_transform_context,
     summarize_omena_query_transform_context_from_sources_with_resolution_context,
 };
 use imports::resolve_import_inline_replacement_for_transform_context;
@@ -3788,8 +3789,8 @@ fn fan_out_reachability_to_instances(
         merged.keyframe_names.dedup();
         merged.value_names.sort();
         merged.value_names.dedup();
-        merged.custom_property_names.sort();
-        merged.custom_property_names.dedup();
+        merged.custom_property_names =
+            dedupe_custom_property_names(merged.custom_property_names.drain(..));
     }
 
     let expected_instance_reachability_count = reachability_by_path

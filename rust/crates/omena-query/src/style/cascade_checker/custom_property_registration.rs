@@ -2,7 +2,10 @@ use std::collections::BTreeMap;
 
 use omena_parser::{LexedToken, lex};
 use omena_query_checker_orchestrator::OmenaCheckerCustomPropertyRegistrationInputV0;
-use omena_syntax::SyntaxKind;
+use omena_syntax::{
+    SyntaxKind,
+    ident::{PropertyNameKindV0, PropertyNameV0},
+};
 
 use super::omena_parser_dialect_for_style_path;
 
@@ -108,8 +111,9 @@ fn skip_query_trivia(tokens: &[LexedToken], mut index: usize, end: usize) -> usi
 }
 
 fn normalize_query_checker_custom_property_name(text: &str) -> Option<String> {
-    let name = text.trim();
-    (name.starts_with("--") && name.len() > 2).then(|| name.to_string())
+    let property = PropertyNameV0::from_authored(text);
+    (property.kind() == PropertyNameKindV0::Custom && property.canonical_name().len() > 2)
+        .then(|| property.authored().to_string())
 }
 
 fn find_query_registration_block_start(tokens: &[LexedToken], index: usize) -> Option<usize> {

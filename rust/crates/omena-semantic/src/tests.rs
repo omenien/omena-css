@@ -33,6 +33,7 @@ use engine_input_producers::{
     SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2, StyleSelectorV2,
     TypeFactEntryV2,
 };
+use omena_syntax::ident::PropertyNameV0;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[test]
@@ -2023,6 +2024,7 @@ fn design_token_workspace_provenance_is_permutation_invariant_and_load_bearing()
         DesignTokenWorkspaceDeclarationFactV0 {
             file_path: file_path.to_string(),
             name: "--brand".to_string(),
+            property_key: PropertyNameV0::canonical_custom_key("--brand"),
             value: value.to_string(),
             source_order: 0,
             import_graph_distance: Some(import_graph_distance),
@@ -2094,6 +2096,7 @@ fn design_token_full_tie_pins_local_before_workspace_chain_order() -> Result<(),
     let workspace_candidate = DesignTokenWorkspaceDeclarationFactV0 {
         file_path: "/tmp/workspace.css".to_string(),
         name: "--brand".to_string(),
+        property_key: PropertyNameV0::canonical_custom_key("--brand"),
         value: "workspace".to_string(),
         source_order: 0,
         import_graph_distance: Some(0),

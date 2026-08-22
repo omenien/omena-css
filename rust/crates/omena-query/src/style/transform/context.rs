@@ -14,7 +14,7 @@ use crate::types::{
     OmenaQueryEngineInputModuleAttributionV0, normalize_omena_query_style_path,
     resolve_omena_query_style_path_against_known,
 };
-use omena_syntax::ident::ClassNameV0;
+use omena_syntax::ident::{CanonicalCustomPropertyNameV0, ClassNameV0, PropertyNameV0};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy)]
@@ -107,10 +107,11 @@ pub(super) fn merge_transform_context(
         &mut merged.reachable_value_names,
         &context.reachable_value_names,
     );
-    merge_context_list(
-        &mut merged.reachable_custom_property_names,
-        &context.reachable_custom_property_names,
-    );
+    merged
+        .reachable_custom_property_names
+        .extend(context.reachable_custom_property_names.iter().cloned());
+    merged.reachable_custom_property_names =
+        dedupe_custom_property_names(merged.reachable_custom_property_names.drain(..));
 
     if context.scss_module_evaluation.is_some() {
         merged.scss_module_evaluation = context.scss_module_evaluation.clone();
@@ -627,6 +628,16 @@ fn merge_context_list(target: &mut Vec<String>, additional: &[String]) {
         }
     }
     target.sort();
+}
+
+pub(super) fn dedupe_custom_property_names(names: impl IntoIterator<Item = String>) -> Vec<String> {
+    let mut by_identity = BTreeMap::<CanonicalCustomPropertyNameV0, String>::new();
+    for authored in names {
+        by_identity
+            .entry(PropertyNameV0::canonical_custom_key(&authored))
+            .or_insert(authored);
+    }
+    by_identity.into_values().collect()
 }
 
 fn merge_context_records_by_key<T, F>(target: &mut Vec<T>, overrides: &[T], key: F)

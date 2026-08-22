@@ -17,3 +17,4 @@ workspace = true
 
 [dependencies]
 cstree.workspace = true
+serde.workspace = true

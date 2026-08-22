@@ -1,4 +1,5 @@
 use super::shared::*;
+use omena_syntax::ident::PropertyNameV0;
 
 pub fn summarize_omena_query_missing_custom_property_diagnostics(
     style_uri: &str,
@@ -8,7 +9,7 @@ pub fn summarize_omena_query_missing_custom_property_diagnostics(
     let declaration_names = candidates
         .iter()
         .filter(|candidate| candidate.kind == "customPropertyDeclaration")
-        .map(|candidate| candidate.name.as_str())
+        .map(|candidate| PropertyNameV0::canonical_custom_key(&candidate.name))
         .collect::<BTreeSet<_>>();
     if declaration_names.is_empty() {
         return Vec::new();
@@ -34,7 +35,7 @@ pub fn summarize_omena_query_missing_custom_property_diagnostics(
                 end: u32::from(fact.range.end()) as usize,
             };
             (
-                fact.name.clone(),
+                PropertyNameV0::canonical_custom_key(&fact.name),
                 parser_range_for_byte_span(source, byte_span),
             )
         })
@@ -45,8 +46,12 @@ pub fn summarize_omena_query_missing_custom_property_diagnostics(
         .iter()
         .filter(|candidate| {
             candidate.kind == "customPropertyReference"
-                && !declaration_names.contains(candidate.name.as_str())
-                && !fallback_ranges.contains(&(candidate.name.clone(), candidate.range))
+                && !declaration_names
+                    .contains(&PropertyNameV0::canonical_custom_key(&candidate.name))
+                && !fallback_ranges.contains(&(
+                    PropertyNameV0::canonical_custom_key(&candidate.name),
+                    candidate.range,
+                ))
         })
         .map(|candidate| OmenaQueryStyleDiagnosticV0 {
             code: "missingCustomProperty",
@@ -98,7 +103,12 @@ pub fn summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis(
     let declarations_by_name = candidates
         .iter()
         .filter(|candidate| candidate.kind == "customPropertyDeclaration")
-        .map(|candidate| (candidate.name.as_str(), candidate.range))
+        .map(|candidate| {
+            (
+                PropertyNameV0::canonical_custom_key(&candidate.name),
+                candidate.range,
+            )
+        })
         .collect::<BTreeMap<_, _>>();
 
     let dialect = omena_parser_dialect_for_style_path(style_uri);
@@ -109,7 +119,7 @@ pub fn summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis(
             .filter(|entry| entry.guaranteed_invalid)
             .filter_map(|entry| {
                 declarations_by_name
-                    .get(entry.name.as_str())
+                    .get(&PropertyNameV0::canonical_custom_key(&entry.name))
                     .copied()
                     .map(|range| OmenaQueryStyleDiagnosticV0 {
                         code: "guaranteedInvalidCustomProperty",

@@ -13,9 +13,9 @@ pub(crate) fn list_style_shorthand_replacement_for_declarations(
     let [style_type, position, image] = declarations else {
         return None;
     };
-    if style_type.property != "list-style-type"
-        || position.property != "list-style-position"
-        || image.property != "list-style-image"
+    if style_type.property_key.as_str() != "list-style-type"
+        || position.property_key.as_str() != "list-style-position"
+        || image.property_key.as_str() != "list-style-image"
         || declarations.iter().any(|declaration| declaration.important)
         || !declaration_ranges_are_adjacent(tokens, declarations)
     {

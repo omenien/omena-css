@@ -24,5 +24,6 @@ omena-cascade = { path = "../omena-cascade", version = "=0.4.0" }
 serde.workspace = true
 
 [dev-dependencies]
+omena-syntax = { path = "../omena-syntax", version = "=0.4.0" }
 serde_json.workspace = true
 sha2.workspace = true

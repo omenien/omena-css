@@ -16,10 +16,10 @@ pub(crate) fn transition_shorthand_replacement_for_declarations(
     let [property, duration, timing, delay] = declarations else {
         return None;
     };
-    if property.property != "transition-property"
-        || duration.property != "transition-duration"
-        || timing.property != "transition-timing-function"
-        || delay.property != "transition-delay"
+    if property.property_key.as_str() != "transition-property"
+        || duration.property_key.as_str() != "transition-duration"
+        || timing.property_key.as_str() != "transition-timing-function"
+        || delay.property_key.as_str() != "transition-delay"
         || !declaration_ranges_are_adjacent(tokens, declarations)
     {
         return None;
@@ -66,14 +66,14 @@ pub(crate) fn animation_shorthand_replacement_for_declarations(
     else {
         return None;
     };
-    if name.property != "animation-name"
-        || duration.property != "animation-duration"
-        || timing.property != "animation-timing-function"
-        || delay.property != "animation-delay"
-        || iteration_count.property != "animation-iteration-count"
-        || direction.property != "animation-direction"
-        || fill_mode.property != "animation-fill-mode"
-        || play_state.property != "animation-play-state"
+    if name.property_key.as_str() != "animation-name"
+        || duration.property_key.as_str() != "animation-duration"
+        || timing.property_key.as_str() != "animation-timing-function"
+        || delay.property_key.as_str() != "animation-delay"
+        || iteration_count.property_key.as_str() != "animation-iteration-count"
+        || direction.property_key.as_str() != "animation-direction"
+        || fill_mode.property_key.as_str() != "animation-fill-mode"
+        || play_state.property_key.as_str() != "animation-play-state"
         || !declaration_ranges_are_adjacent(tokens, declarations)
     {
         return None;

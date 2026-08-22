@@ -1,5 +1,8 @@
 use omena_parser::LexedToken;
-use omena_syntax::SyntaxKind;
+use omena_syntax::{
+    SyntaxKind,
+    ident::{CanonicalPropertyKeyV0, PropertyNameKindV0, PropertyNameV0},
+};
 
 use super::tokens::{
     is_comment_token, matching_right_brace_index, skip_whitespace_tokens, token_end, token_start,
@@ -8,7 +11,9 @@ use super::tokens::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SimpleDeclarationSlice {
+    /// Authored property spelling retained for source-preserving emission.
     pub(crate) property: String,
+    pub(crate) property_key: CanonicalPropertyKeyV0,
     pub(crate) value: String,
     pub(crate) important: bool,
     pub(crate) start: usize,
@@ -60,8 +65,12 @@ fn parse_simple_declaration_slice(
 ) -> Option<(SimpleDeclarationSlice, usize)> {
     let property_token = tokens.get(start_index)?;
     let property = match property_token.kind {
-        SyntaxKind::Ident => property_token.text.to_ascii_lowercase(),
-        SyntaxKind::CustomPropertyName => property_token.text.clone(),
+        SyntaxKind::Ident => {
+            PropertyNameV0::new(property_token.text.clone(), PropertyNameKindV0::Standard)
+        }
+        SyntaxKind::CustomPropertyName => {
+            PropertyNameV0::new(property_token.text.clone(), PropertyNameKindV0::Custom)
+        }
         _ => return None,
     };
 
@@ -102,7 +111,7 @@ fn parse_simple_declaration_slice(
 }
 
 fn build_simple_declaration_slice(
-    property: String,
+    property: PropertyNameV0,
     property_token: &LexedToken,
     value_tokens: &[&LexedToken],
     end: usize,
@@ -129,7 +138,8 @@ fn build_simple_declaration_slice(
         .any(|token| token.kind == SyntaxKind::Important);
     Some((
         SimpleDeclarationSlice {
-            property,
+            property: property.authored().to_string(),
+            property_key: property.canonical_key(),
             value,
             important,
             start: token_start(property_token),

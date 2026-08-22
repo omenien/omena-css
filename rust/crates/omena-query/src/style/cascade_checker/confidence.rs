@@ -7,6 +7,7 @@ use omena_cascade::{
 use omena_query_checker_orchestrator::{
     OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeEvaluationV0,
 };
+use omena_syntax::ident::property_names_same;
 
 use super::super::OmenaQueryCascadeConfidenceV0;
 use super::runtime_state::query_runtime_cascade_declaration_from_input;
@@ -67,7 +68,7 @@ fn query_cascade_margin_for_evaluation(
         .iter()
         .filter(|declaration| {
             declaration.selector == anchor.selector
-                && declaration.property == anchor.property
+                && property_names_same(&declaration.property, &anchor.property)
                 && declaration.condition_context == anchor.condition_context
         })
         .map(query_diagnostic_cascade_declaration_from_input)

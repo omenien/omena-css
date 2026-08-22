@@ -36,6 +36,7 @@ use omena_parser::{
     ParsedStyleFacts, ParsedVariableFactKind, StyleDialect, collect_style_fact_collection,
     collect_style_facts,
 };
+use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0};
 use omena_transform_cst::{
     IrNodeKindV0, TransformPassKind, lower_transform_ir_from_source, transform_pass_sort_ordinal,
 };
@@ -1961,7 +1962,7 @@ fn linker_input_from_module_facts(
                 .filter(|value| value.kind == ParsedCssModuleValueFactKind::Definition)
                 .map(|value| value.name.clone()),
         ),
-        custom_property_names: dedupe_names(
+        custom_property_names: dedupe_custom_property_names(
             facts
                 .variables
                 .iter()
@@ -2029,7 +2030,8 @@ fn fan_out_path_reachability_to_instances(
         merged.class_names = dedupe_names(merged.class_names.drain(..));
         merged.keyframe_names = dedupe_names(merged.keyframe_names.drain(..));
         merged.value_names = dedupe_names(merged.value_names.drain(..));
-        merged.custom_property_names = dedupe_names(merged.custom_property_names.drain(..));
+        merged.custom_property_names =
+            dedupe_custom_property_names(merged.custom_property_names.drain(..));
     }
 
     reachability_by_path
@@ -2141,7 +2143,7 @@ fn apply_semantic_reachability_to_linker_inputs(
             .custom_property_names
             .extend(input.custom_property_names.iter().cloned());
         inputs[index].custom_property_names =
-            dedupe_names(inputs[index].custom_property_names.drain(..));
+            dedupe_custom_property_names(inputs[index].custom_property_names.drain(..));
     }
     (
         evidence_by_instance,
@@ -2185,7 +2187,8 @@ fn instance_reachability_inputs_closed_over_composes(
         merged.class_names = dedupe_names(merged.class_names.drain(..));
         merged.keyframe_names = dedupe_names(merged.keyframe_names.drain(..));
         merged.value_names = dedupe_names(merged.value_names.drain(..));
-        merged.custom_property_names = dedupe_names(merged.custom_property_names.drain(..));
+        merged.custom_property_names =
+            dedupe_custom_property_names(merged.custom_property_names.drain(..));
     }
 
     loop {
@@ -2401,7 +2404,7 @@ fn collect_closed_world_linked_modules_from_projection(
             for name in dedupe_names(input.value_names.iter().cloned()) {
                 linked = linked.with_value_name(name);
             }
-            for name in dedupe_names(input.custom_property_names.iter().cloned()) {
+            for name in dedupe_custom_property_names(input.custom_property_names.iter().cloned()) {
                 linked = linked.with_custom_property_name(name);
             }
             linked.dependencies.sort();
@@ -2597,6 +2600,16 @@ fn dedupe_names(names: impl IntoIterator<Item = String>) -> Vec<String> {
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect()
+}
+
+fn dedupe_custom_property_names(names: impl IntoIterator<Item = String>) -> Vec<String> {
+    let mut by_identity = BTreeMap::<CanonicalCustomPropertyNameV0, String>::new();
+    for authored in names {
+        by_identity
+            .entry(PropertyNameV0::canonical_custom_key(&authored))
+            .or_insert(authored);
+    }
+    by_identity.into_values().collect()
 }
 
 fn collect_bundle_edges_from_facts(
@@ -4565,6 +4578,38 @@ mod tests {
         carrier_hygiene_assertions::assert_duplicate_instance_reachability(
             inputs[0].class_names.as_slice(),
         );
+    }
+
+    #[test]
+    fn instance_reachability_dedupes_custom_property_escapes_without_folding_case() {
+        let instance = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("shared.module.css"));
+        let mut inputs = vec![LinkerInputV0 {
+            source_path: "shared.module.css".to_string(),
+            dialect: StyleDialect::Css,
+            instance: instance.clone(),
+            dependency_edges: Vec::new(),
+            class_names: Vec::new(),
+            keyframe_names: Vec::new(),
+            value_names: Vec::new(),
+            custom_property_names: Vec::new(),
+            ordered_rules: Vec::new(),
+        }];
+        let mut first = TransformBundleInstanceReachabilityInputV0::new(
+            instance.clone(),
+            InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+        );
+        first
+            .custom_property_names
+            .extend(["--foo".to_string(), r"--f\6f o".to_string()]);
+        let mut second = TransformBundleInstanceReachabilityInputV0::new(
+            instance,
+            InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+        );
+        second.custom_property_names.push("--FOO".to_string());
+
+        apply_semantic_reachability_to_linker_inputs(inputs.as_mut_slice(), &[first, second]);
+
+        assert_eq!(inputs[0].custom_property_names, ["--FOO", "--foo"]);
     }
 
     #[test]

@@ -17,6 +17,7 @@ use omena_query::{
     summarize_omena_query_sass_module_cross_file_resolution_for_workspace,
     summarize_omena_query_sass_module_source_edges,
 };
+use omena_syntax::ident::{PropertyNameV0, is_custom_property_name};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -1067,12 +1068,16 @@ fn normalize_selector_name(name: &str) -> Result<String, String> {
 
 fn normalize_custom_property_name(name: &str) -> Result<String, String> {
     let name = name.trim();
-    let normalized = if name.starts_with("--") {
+    let normalized = if is_custom_property_name(name) {
         name.to_string()
     } else {
         format!("--{name}")
     };
-    if normalized.len() <= 2 || normalized.chars().any(char::is_whitespace) {
+    let property = PropertyNameV0::from_authored(&normalized);
+    let valid = property.as_custom_key().is_some_and(|property_key| {
+        property_key.as_str().len() > 2 && !property_key.as_str().chars().any(char::is_whitespace)
+    });
+    if !valid {
         return Err(
             "custom-property names must be non-empty and contain no whitespace".to_string(),
         );

@@ -16,6 +16,7 @@ use omena_evidence_graph::{
     ObligationFamilyIdV0, ProseObligationProvenanceV0, build_evidence_graph_from_edges_v0,
 };
 use omena_refinement_trait::RefinementVerdictV0;
+use omena_syntax::ident::property_names_same;
 use serde::Serialize;
 
 pub mod discharge_ledger;
@@ -570,7 +571,7 @@ fn canonical_box_shorthand_combination_input_v0(
             && longhands
                 .iter()
                 .zip(expected.iter())
-                .all(|(actual, expected)| actual.property == *expected)
+                .all(|(actual, expected)| property_names_same(&actual.property, expected))
     });
     canonical_smt_input_v0(
         "box-shorthand-combination",
@@ -609,7 +610,7 @@ where
         && longhands
             .iter()
             .zip(expected_longhands.iter())
-            .all(|(actual, expected)| actual.property == expected.as_ref());
+            .all(|(actual, expected)| property_names_same(&actual.property, expected.as_ref()));
     canonical_smt_input_v0(
         "longhand-merge",
         "prove_longhand_merge",

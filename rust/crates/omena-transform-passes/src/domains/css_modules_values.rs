@@ -7,7 +7,7 @@ use std::collections::{BTreeMap, VecDeque};
 
 use cstree::text::{TextRange, TextSize};
 use omena_parser::{LexedToken, StyleDialect};
-use omena_syntax::SyntaxKind;
+use omena_syntax::{SyntaxKind, ident::PropertyNameV0};
 use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -2022,8 +2022,9 @@ fn simple_declaration_from_ir(
     if property.is_empty() || value.is_empty() {
         return None;
     }
+    let property_name = PropertyNameV0::from_authored(property);
     Some(CssModulesValueDeclarationIrViewV0 {
-        property: property.to_ascii_lowercase(),
+        property: property_name.authored().to_string(),
         value: value.to_string(),
         start: node.source_span_start,
         end: node.source_span_end,

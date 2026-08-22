@@ -194,11 +194,11 @@ fn compress_static_color_function_declaration_values_with_lexer(
         {
             let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
             for declaration in declarations {
-                if declaration.property.starts_with("--") || declaration.important {
+                if declaration.property_key.as_custom().is_some() || declaration.important {
                     continue;
                 }
                 let Some(replacement_value) = compress_static_color_references_in_declaration_value(
-                    &declaration.property,
+                    declaration.property_key.as_str(),
                     &declaration.value,
                 ) else {
                     continue;
@@ -260,9 +260,9 @@ fn remove_adjacent_duplicate_static_color_declarations_with_lexer(
                 if !declaration_ranges_are_adjacent(tokens, pair)
                     || left.important
                     || right.important
-                    || left.property != right.property
+                    || left.property_key != right.property_key
                     || left.value != right.value
-                    || !is_static_color_compression_property(&left.property)
+                    || !is_static_color_compression_property(left.property_key.as_str())
                 {
                     continue;
                 }

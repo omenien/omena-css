@@ -7,6 +7,7 @@ use omena_query_checker_orchestrator::{
     OmenaCheckerSmtLayerInversionObligationInputV0, OmenaCheckerSmtObligationInputV0,
     run_omena_query_checker_smt_gate_v0, run_omena_query_checker_smt_layer_inversion_gate_v0,
 };
+use omena_syntax::ident::{CanonicalPropertyKeyV0, PropertyNameV0};
 
 use super::{
     OmenaQueryStyleDiagnosticV0, ParserByteSpanV0, ParserRangeV0, parser_range_for_byte_span,
@@ -193,11 +194,10 @@ fn query_smt_box_shorthand_obligations(
             // canonical top/right/bottom/left expectation order.
             let mut quartet = Vec::with_capacity(expected_longhands.len());
             for expected in expected_longhands {
-                let Some(declaration) = selector_declarations
-                    .iter()
-                    .copied()
-                    .find(|declaration| declaration.property == *expected)
-                else {
+                let Some(declaration) = selector_declarations.iter().copied().find(|declaration| {
+                    PropertyNameV0::from_authored(&declaration.property)
+                        .same_as(&PropertyNameV0::from_authored(expected))
+                }) else {
                     break;
                 };
                 quartet.push(declaration);
@@ -208,10 +208,14 @@ fn query_smt_box_shorthand_obligations(
                 continue;
             }
 
-            let canonical_order = quartet
-                .iter()
-                .zip(expected_longhands.iter())
-                .all(|(declaration, expected)| declaration.property == *expected);
+            let canonical_order =
+                quartet
+                    .iter()
+                    .zip(expected_longhands.iter())
+                    .all(|(declaration, expected)| {
+                        PropertyNameV0::from_authored(&declaration.property)
+                            .same_as(&PropertyNameV0::from_authored(*expected))
+                    });
             let no_important = quartet.iter().all(|declaration| !declaration.important);
             let no_empty_value = quartet
                 .iter()
@@ -257,12 +261,13 @@ pub(super) fn query_smt_layer_inversion_obligations(
     declarations: &[OmenaCheckerCascadeDeclarationInputV0],
 ) -> Vec<(QuerySmtCascadeObligation, String)> {
     let mut obligations = Vec::new();
-    let mut by_property = BTreeMap::<&str, Vec<&OmenaCheckerCascadeDeclarationInputV0>>::new();
+    let mut by_property =
+        BTreeMap::<CanonicalPropertyKeyV0, Vec<&OmenaCheckerCascadeDeclarationInputV0>>::new();
 
     for declaration in declarations {
         if declaration.layer_order.is_some() {
             by_property
-                .entry(declaration.property.as_str())
+                .entry(PropertyNameV0::from_authored(&declaration.property).canonical_key())
                 .or_default()
                 .push(declaration);
         }
@@ -316,7 +321,8 @@ pub(super) fn query_smt_layer_inversion_obligations(
                     QuerySmtCascadeObligation::LayerInversion(
                         OmenaCheckerSmtLayerInversionObligationInputV0 {
                             obligation_id: format!(
-                                "stylesheet://{selector_pair}::{property}-layer-flatten-inversion"
+                                "stylesheet://{selector_pair}::{}-layer-flatten-inversion",
+                                property.as_str()
                             ),
                             declarations: layer_declarations,
                         },

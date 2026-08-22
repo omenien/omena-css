@@ -9,6 +9,47 @@ use crate::{
 };
 
 #[test]
+fn custom_property_escape_identity_resolves_without_case_merging() {
+    let source = r#"
+:root { --foo: red; --FOO: blue; }
+.card { color: var(--f\6f o); }
+"#;
+    let candidates =
+        crate::summarize_omena_query_style_hover_candidates("Component.module.css", source)
+            .expect("identity fixture should produce hover candidates");
+    let missing = crate::summarize_omena_query_missing_custom_property_diagnostics(
+        "file:///workspace/src/Component.module.css",
+        source,
+        candidates.candidates.as_slice(),
+    );
+    let cascade = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.css",
+        source,
+        candidates.candidates.as_slice(),
+    );
+
+    assert!(
+        missing.is_empty(),
+        "escape-equivalent var() reference is declared"
+    );
+    assert!(cascade.diagnostics.iter().all(|diagnostic| {
+        diagnostic.code != "unreachableDeclaration"
+            && diagnostic.code != "unspecifiedCascadeTie"
+            && diagnostic.code != "iacvtProne"
+    }));
+    let authored_custom_names = candidates
+        .candidates
+        .iter()
+        .filter(|candidate| candidate.kind == "customPropertyDeclaration")
+        .map(|candidate| candidate.name.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        authored_custom_names,
+        ["--FOO", "--foo"].into_iter().collect()
+    );
+}
+
+#[test]
 fn missing_custom_property_diagnostics_are_query_owned() -> Result<(), serde_json::Error> {
     let source = ":root { --brand: red; }\n.alert { color: var(--missing); }";
     let candidates =

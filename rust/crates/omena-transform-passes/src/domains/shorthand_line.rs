@@ -13,10 +13,10 @@ pub(crate) fn border_side_shorthand_replacement_for_declarations(
     let [top, right, bottom, left] = declarations else {
         return None;
     };
-    if top.property != "border-top"
-        || right.property != "border-right"
-        || bottom.property != "border-bottom"
-        || left.property != "border-left"
+    if top.property_key.as_str() != "border-top"
+        || right.property_key.as_str() != "border-right"
+        || bottom.property_key.as_str() != "border-bottom"
+        || left.property_key.as_str() != "border-left"
         || !declaration_ranges_are_adjacent(tokens, declarations)
     {
         return None;
@@ -59,7 +59,10 @@ pub(crate) fn logical_line_axis_shorthand_replacement_for_declarations(
         return None;
     }
 
-    let shorthand = logical_line_axis_shorthand_for_sides(&first.property, &second.property)?;
+    let shorthand = logical_line_axis_shorthand_for_sides(
+        first.property_key.as_str(),
+        second.property_key.as_str(),
+    )?;
     let start_value = normalized_declaration_value_without_important(first)?;
     let end_value = normalized_declaration_value_without_important(second)?;
     if start_value != end_value {
@@ -128,14 +131,14 @@ pub(crate) fn line_shorthand_replacement_for_declarations(
             return None;
         }
         let (declaration_shorthand, component) =
-            line_shorthand_component_for_property(&declaration.property)?;
+            line_shorthand_component_for_property(declaration.property_key.as_str())?;
         if shorthand.is_some_and(|current_shorthand| current_shorthand != declaration_shorthand) {
             return None;
         }
         shorthand = Some(declaration_shorthand);
 
         let value = line_component_value_without_important(
-            &declaration.property,
+            declaration.property_key.as_str(),
             &declaration.value,
             important,
         )?;
@@ -235,14 +238,14 @@ fn logical_line_side_shorthand_value_for_declarations(
 
     for declaration in declarations {
         let (declaration_shorthand, component) =
-            line_shorthand_component_for_property(&declaration.property)?;
+            line_shorthand_component_for_property(declaration.property_key.as_str())?;
         if shorthand.is_some_and(|current_shorthand| current_shorthand != declaration_shorthand) {
             return None;
         }
         shorthand = Some(declaration_shorthand);
 
         let value = line_component_value_without_important(
-            &declaration.property,
+            declaration.property_key.as_str(),
             &declaration.value,
             declaration.important,
         )?;

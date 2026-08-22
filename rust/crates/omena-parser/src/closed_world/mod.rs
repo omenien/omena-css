@@ -69,6 +69,27 @@ mod tests {
     }
 
     #[test]
+    fn closed_world_custom_property_symbols_use_canonical_identity() -> Result<(), String> {
+        let app = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/app.css"));
+        let bundle = ClosedWorldBundleV0::try_from_linked_modules(
+            vec![app.clone()],
+            vec![
+                ClosedWorldLinkedModuleV0::new(app)
+                    .with_custom_property_name("--foo")
+                    .with_custom_property_name(r"--f\6f o")
+                    .with_custom_property_name("--FOO"),
+            ],
+        )
+        .map_err(|error| format!("{error:?}"))?;
+
+        assert_eq!(
+            bundle.reachability().custom_property_names(),
+            ["--FOO", "--foo"]
+        );
+        Ok(())
+    }
+
+    #[test]
     fn closed_world_bundle_closure_hash_is_content_addressed() -> Result<(), String> {
         let app = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/app.css"));
         let module = ClosedWorldLinkedModuleV0::new(app.clone()).with_class_name("button");

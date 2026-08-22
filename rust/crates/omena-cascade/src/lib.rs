@@ -38,10 +38,7 @@ pub use grn::*;
 pub use modal::*;
 pub use model::*;
 pub use origin::*;
-pub use proofs::{
-    evaluate_static_supports_condition, prove_box_shorthand_combination,
-    prove_layer_flatten_candidate, prove_longhand_merge,
-};
+pub use proofs::{evaluate_static_supports_condition, prove_layer_flatten_candidate};
 pub use property_metadata::*;
 pub use property_metadata_idl_generated::{
     CSS_PROPERTY_METADATA_RECORDS_V1, CSS_PROPERTY_METADATA_V1, CssCustomPropertyPolicyStaticV1,
@@ -93,6 +90,83 @@ pub fn prove_scope_flatten_candidate(mut input: ScopeFlattenInputV0) -> ScopeFla
         input.root_selector = ":root".to_string();
     }
     proofs::prove_scope_flatten_candidate(input)
+}
+
+pub fn prove_longhand_merge<S>(
+    shorthand_property: &str,
+    expected_longhands: &[S],
+    longhands: &[LonghandMergeInputV0],
+) -> LonghandMergeProofV0
+where
+    S: AsRef<str>,
+{
+    let canonical_shorthand =
+        omena_syntax::ident::PropertyNameV0::from_authored(shorthand_property)
+            .canonical_name()
+            .to_string();
+    let canonical_expected = expected_longhands
+        .iter()
+        .map(|property| {
+            omena_syntax::ident::PropertyNameV0::from_authored(property.as_ref())
+                .canonical_name()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    let canonical_longhands = longhands
+        .iter()
+        .cloned()
+        .map(|mut longhand| {
+            longhand.property =
+                omena_syntax::ident::PropertyNameV0::from_authored(&longhand.property)
+                    .canonical_name()
+                    .to_string();
+            longhand
+        })
+        .collect::<Vec<_>>();
+    let mut proof = proofs::prove_longhand_merge(
+        &canonical_shorthand,
+        &canonical_expected,
+        &canonical_longhands,
+    );
+    restore_authored_longhand_proof_names(&mut proof, shorthand_property, longhands);
+    proof
+}
+
+pub fn prove_box_shorthand_combination(
+    shorthand_property: &str,
+    longhands: &[BoxLonghandInputV0],
+) -> ShorthandCombinationProofV0 {
+    let canonical_shorthand =
+        omena_syntax::ident::PropertyNameV0::from_authored(shorthand_property)
+            .canonical_name()
+            .to_string();
+    let canonical_longhands = longhands
+        .iter()
+        .cloned()
+        .map(|mut longhand| {
+            longhand.property =
+                omena_syntax::ident::PropertyNameV0::from_authored(&longhand.property)
+                    .canonical_name()
+                    .to_string();
+            longhand
+        })
+        .collect::<Vec<_>>();
+    let mut proof =
+        proofs::prove_box_shorthand_combination(&canonical_shorthand, &canonical_longhands);
+    restore_authored_longhand_proof_names(&mut proof, shorthand_property, longhands);
+    proof
+}
+
+fn restore_authored_longhand_proof_names(
+    proof: &mut ShorthandCombinationProofV0,
+    shorthand_property: &str,
+    longhands: &[BoxLonghandInputV0],
+) {
+    proof.shorthand_property = shorthand_property.to_string();
+    proof.ordered_longhand_properties = longhands
+        .iter()
+        .map(|longhand| longhand.property.clone())
+        .collect();
 }
 
 pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {

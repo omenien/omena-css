@@ -44,7 +44,7 @@ pub(crate) fn normalize_css_font_declarations_with_lexer(
             let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
             for declaration in declarations {
                 let Some(replacement_value) = normalize_static_font_declaration_value(
-                    &declaration.property,
+                    declaration.property_key.as_str(),
                     &declaration.value,
                 ) else {
                     continue;
@@ -165,7 +165,7 @@ fn remove_overridden_static_font_longhands(source: &str, dialect: StyleDialect) 
                 }
                 let later_declaration = declarations[declaration_index + 1..]
                     .iter()
-                    .find(|candidate| candidate.property == declaration.property);
+                    .find(|candidate| candidate.property_key == declaration.property_key);
                 if later_declaration.is_some_and(|candidate| {
                     is_static_font_override_candidate(candidate)
                         && !declaration.important
@@ -184,7 +184,7 @@ fn remove_overridden_static_font_longhands(source: &str, dialect: StyleDialect) 
 }
 
 fn is_static_font_override_candidate(declaration: &SimpleDeclarationSlice) -> bool {
-    match declaration.property.as_str() {
+    match declaration.property_key.as_str() {
         "font-weight" => is_static_font_weight_value(&declaration.value),
         "font-stretch" => is_static_font_stretch_value(&declaration.value),
         _ => false,

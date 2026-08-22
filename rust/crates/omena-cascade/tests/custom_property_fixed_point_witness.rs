@@ -4,6 +4,7 @@ use omena_cascade::{
     CascadeValue, CustomPropertyEnv, resolve_custom_property_env_least_fixed_point,
     summarize_custom_property_least_fixed_point,
 };
+use omena_syntax::ident::PropertyNameV0;
 use serde::{Deserialize, Serialize};
 
 const CORPUS_JSON: &str = include_str!("fixtures/custom-property-fixed-point-witness-v1.json");
@@ -126,13 +127,18 @@ fn custom_property_fixed_point_witness_corpus_matches_frozen_oracle() -> Result<
         let input = case
             .bindings
             .iter()
-            .map(|(name, value)| (name.clone(), to_cascade_value(value)))
+            .map(|(name, value)| {
+                (
+                    PropertyNameV0::canonical_custom_key(name),
+                    to_cascade_value(value),
+                )
+            })
             .collect::<CustomPropertyEnv>();
         let implementation_env = resolve_custom_property_env_least_fixed_point(&input);
         let implementation_summary = summarize_custom_property_least_fixed_point(&input);
         let implementation = implementation_env
             .iter()
-            .map(|(name, value)| (name.clone(), from_cascade_value(value)))
+            .map(|(name, value)| (name.as_str().to_string(), from_cascade_value(value)))
             .collect::<BTreeMap<_, _>>();
         let summary_env = implementation_summary
             .entries
@@ -338,7 +344,7 @@ fn to_cascade_value(value: &FixtureValue) -> CascadeValue {
             CascadeValue::Composite(parts.iter().map(to_cascade_value).collect())
         }
         FixtureValue::Var { name, fallback } => CascadeValue::Var {
-            name: name.clone(),
+            name: PropertyNameV0::canonical_custom_key(name),
             fallback: fallback.as_deref().map(to_cascade_value).map(Box::new),
         },
         FixtureValue::Initial => CascadeValue::Initial,
@@ -356,7 +362,7 @@ fn from_cascade_value(value: &CascadeValue) -> FixtureValue {
             FixtureValue::Composite(parts.iter().map(from_cascade_value).collect())
         }
         CascadeValue::Var { name, fallback } => FixtureValue::Var {
-            name: name.clone(),
+            name: name.as_str().to_string(),
             fallback: fallback.as_deref().map(from_cascade_value).map(Box::new),
         },
         CascadeValue::Initial => FixtureValue::Initial,

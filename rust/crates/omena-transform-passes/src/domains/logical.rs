@@ -31,7 +31,7 @@ pub(crate) fn lower_css_logical_to_physical_with_lexer(
             };
             for declaration in declarations {
                 let Some(physical_declaration) = physical_declaration_for_logical_declaration(
-                    &declaration.property,
+                    declaration.property_key.as_str(),
                     &declaration.value,
                     axis_mapping,
                 ) else {
@@ -104,7 +104,7 @@ fn static_logical_axis_mapping_for_declarations(
     let writing_mode = declarations
         .iter()
         .rev()
-        .find(|declaration| declaration.property == "writing-mode")
+        .find(|declaration| declaration.property_key.as_str() == "writing-mode")
         .map(|declaration| match declaration.value.as_str() {
             "horizontal-tb" => Some(WritingMode::HorizontalTb),
             "vertical-rl" => Some(WritingMode::VerticalRl),
@@ -115,7 +115,7 @@ fn static_logical_axis_mapping_for_declarations(
     let direction = declarations
         .iter()
         .rev()
-        .find(|declaration| declaration.property == "direction")
+        .find(|declaration| declaration.property_key.as_str() == "direction")
         .and_then(|declaration| match declaration.value.as_str() {
             "ltr" => Some(InlineDirection::Ltr),
             "rtl" => Some(InlineDirection::Rtl),

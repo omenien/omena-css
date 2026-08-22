@@ -19,6 +19,7 @@ use omena_refinement_trait::{
     REFINEMENT_SCHEMA_VERSION_V0, RefinementPredicateV0, RefinementVerdictV0, RefinementWitnessV0,
     refinement_provenance_v0, refinement_witness_v0,
 };
+use omena_syntax::ident::property_names_same;
 use serde::Serialize;
 
 pub const REFINEMENT_BRIDGE_CLAIM_LEVEL_V0: &str = "m6DimensionalRefinementBridgeSubstrate";
@@ -339,7 +340,7 @@ where
     refined.schema_version == REFINEMENT_SCHEMA_VERSION_V0
         && refined.layer_marker == REFINEMENT_LAYER_MARKER_V0
         && refined.feature_gate == REFINEMENT_FEATURE_GATE_V0
-        && refined.property_name == P::PROPERTY_NAME
+        && property_names_same(refined.property_name, P::PROPERTY_NAME)
         && refined.predicate_id == R::PREDICATE_ID
         && abstract_property_value_shape_v0(&project_refined_to_legacy_v0(refined))
             == refined.value_shape
@@ -690,7 +691,7 @@ fn evaluate_numeric_range_predicate_v0(
             property_name: actual_property,
             value: actual_value,
             ..
-        } if actual_property == property_name => {
+        } if property_names_same(actual_property, property_name) => {
             if numeric_range_contains_value_v0(actual_value, min_inclusive, max_inclusive, unit) {
                 RefinementVerdictV0::SatisfiedAll
             } else {
@@ -701,7 +702,7 @@ fn evaluate_numeric_range_predicate_v0(
             property_name: actual_property,
             values,
             ..
-        } if actual_property == property_name => {
+        } if property_names_same(actual_property, property_name) => {
             let matched = values
                 .iter()
                 .filter(|candidate| {
@@ -722,7 +723,7 @@ fn evaluate_numeric_range_predicate_v0(
         | AbstractPropertyValueV0::CustomPropertyReference {
             property_name: actual_property,
             ..
-        } if actual_property == property_name => RefinementVerdictV0::Unknown,
+        } if property_names_same(actual_property, property_name) => RefinementVerdictV0::Unknown,
         _ => RefinementVerdictV0::Unsatisfiable,
     }
 }
@@ -742,7 +743,7 @@ fn evaluate_pseudo_state_predicate_v0(
             property_name: actual_property,
             pseudo_state,
             ..
-        } if actual_property == property_name => {
+        } if property_names_same(actual_property, property_name) => {
             if pseudo_state.as_deref() == Some(expected_pseudo_state) {
                 RefinementVerdictV0::SatisfiedAll
             } else {
@@ -753,7 +754,7 @@ fn evaluate_pseudo_state_predicate_v0(
             property_name: actual_property,
             pseudo_states,
             ..
-        } if actual_property == property_name => {
+        } if property_names_same(actual_property, property_name) => {
             if pseudo_states.len() == 1
                 && pseudo_states
                     .iter()
@@ -771,7 +772,7 @@ fn evaluate_pseudo_state_predicate_v0(
         }
         AbstractPropertyValueV0::Top {
             property_name: actual_property,
-        } if actual_property == property_name => RefinementVerdictV0::Unknown,
+        } if property_names_same(actual_property, property_name) => RefinementVerdictV0::Unknown,
         _ => RefinementVerdictV0::Unsatisfiable,
     }
 }
@@ -786,14 +787,16 @@ fn evaluate_exact_value_predicate_v0(
             property_name: actual_property,
             value: actual_value,
             ..
-        } if actual_property == property_name && actual_value == expected => {
+        } if property_names_same(actual_property, property_name) && actual_value == expected => {
             RefinementVerdictV0::SatisfiedAll
         }
         AbstractPropertyValueV0::FiniteSet {
             property_name: actual_property,
             values,
             ..
-        } if actual_property == property_name && values.iter().any(|value| value == expected) => {
+        } if property_names_same(actual_property, property_name)
+            && values.iter().any(|value| value == expected) =>
+        {
             if values.len() == 1 {
                 RefinementVerdictV0::SatisfiedAll
             } else {
@@ -806,7 +809,7 @@ fn evaluate_exact_value_predicate_v0(
         | AbstractPropertyValueV0::CustomPropertyReference {
             property_name: actual_property,
             ..
-        } if actual_property == property_name => RefinementVerdictV0::Unknown,
+        } if property_names_same(actual_property, property_name) => RefinementVerdictV0::Unknown,
         _ => RefinementVerdictV0::Unsatisfiable,
     }
 }
@@ -821,7 +824,7 @@ fn evaluate_one_of_values_predicate_v0(
             property_name: actual_property,
             value: actual_value,
             ..
-        } if actual_property == property_name => {
+        } if property_names_same(actual_property, property_name) => {
             if expected_values.contains(actual_value) {
                 RefinementVerdictV0::SatisfiedAll
             } else {
@@ -832,7 +835,7 @@ fn evaluate_one_of_values_predicate_v0(
             property_name: actual_property,
             values,
             ..
-        } if actual_property == property_name => {
+        } if property_names_same(actual_property, property_name) => {
             let matched = values
                 .iter()
                 .filter(|value| expected_values.contains(*value))
@@ -851,7 +854,7 @@ fn evaluate_one_of_values_predicate_v0(
         | AbstractPropertyValueV0::CustomPropertyReference {
             property_name: actual_property,
             ..
-        } if actual_property == property_name => RefinementVerdictV0::Unknown,
+        } if property_names_same(actual_property, property_name) => RefinementVerdictV0::Unknown,
         _ => RefinementVerdictV0::Unsatisfiable,
     }
 }
@@ -866,14 +869,14 @@ fn evaluate_custom_property_reference_predicate_v0(
             property_name: actual_property,
             custom_property_name,
             ..
-        } if actual_property == property_name
-            && custom_property_name == expected_custom_property =>
+        } if property_names_same(actual_property, property_name)
+            && property_names_same(custom_property_name, expected_custom_property) =>
         {
             RefinementVerdictV0::SatisfiedAll
         }
         AbstractPropertyValueV0::Top {
             property_name: actual_property,
-        } if actual_property == property_name => RefinementVerdictV0::Unknown,
+        } if property_names_same(actual_property, property_name) => RefinementVerdictV0::Unknown,
         _ => RefinementVerdictV0::Unsatisfiable,
     }
 }

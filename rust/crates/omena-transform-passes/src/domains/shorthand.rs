@@ -562,39 +562,40 @@ fn shorthand_value_replacement_for_declaration(
     } else {
         declaration.value.as_str()
     };
-    let mut replacement_value = if is_box_shorthand_property(&declaration.property) {
+    let property = declaration.property_key.as_str();
+    let mut replacement_value = if is_box_shorthand_property(property) {
         compress_box_shorthand_value(value)
-    } else if is_border_none_shorthand_property(&declaration.property) {
+    } else if is_border_none_shorthand_property(property) {
         compress_border_none_shorthand_value(value)
-    } else if is_repeat_shorthand_property(&declaration.property) {
+    } else if is_repeat_shorthand_property(property) {
         compress_background_repeat_value(value)
-    } else if declaration.property == "overflow" {
+    } else if property == "overflow" {
         compress_overflow_shorthand_value(value)
-    } else if is_repeated_two_axis_shorthand_property(&declaration.property) {
+    } else if is_repeated_two_axis_shorthand_property(property) {
         compress_repeated_two_axis_value(value)
-    } else if declaration.property == "border-radius" {
+    } else if property == "border-radius" {
         compress_border_radius_value(value)
-    } else if declaration.property == "flex" {
+    } else if property == "flex" {
         compress_flex_value(value)
-    } else if declaration.property == "flex-flow" {
+    } else if property == "flex-flow" {
         compress_flex_flow_value(value)
-    } else if is_place_axis_shorthand_property(&declaration.property) {
-        compress_place_axis_shorthand_value(&declaration.property, value)
-    } else if declaration.property == "gap" {
+    } else if is_place_axis_shorthand_property(property) {
+        compress_place_axis_shorthand_value(property, value)
+    } else if property == "gap" {
         compress_gap_value(value, declaration.important)
-    } else if declaration.property == "inset" {
+    } else if property == "inset" {
         compress_box_shorthand_value(value)
-    } else if declaration.property == "list-style" {
+    } else if property == "list-style" {
         compress_list_style_value(value)
-    } else if declaration.property == "transition" {
+    } else if property == "transition" {
         compress_transition_value(value)
-    } else if declaration.property == "animation" {
+    } else if property == "animation" {
         compress_animation_value(value)
-    } else if declaration.property == "font" {
+    } else if property == "font" {
         compress_existing_font_shorthand_value(value)
-    } else if declaration.property == "text-decoration" {
+    } else if property == "text-decoration" {
         compress_text_decoration_value(value, declaration.important)
-    } else if declaration.property == "text-emphasis-position" {
+    } else if property == "text-emphasis-position" {
         compress_text_emphasis_position_value(value, declaration.important)
     } else {
         None
@@ -624,10 +625,10 @@ fn border_radius_shorthand_replacement_for_declarations(
     let [top_left, top_right, bottom_right, bottom_left] = declarations else {
         return None;
     };
-    if top_left.property != "border-top-left-radius"
-        || top_right.property != "border-top-right-radius"
-        || bottom_right.property != "border-bottom-right-radius"
-        || bottom_left.property != "border-bottom-left-radius"
+    if top_left.property_key.as_str() != "border-top-left-radius"
+        || top_right.property_key.as_str() != "border-top-right-radius"
+        || bottom_right.property_key.as_str() != "border-bottom-right-radius"
+        || bottom_left.property_key.as_str() != "border-bottom-left-radius"
         || declarations.iter().any(|declaration| declaration.important)
         || !declaration_ranges_are_adjacent(tokens, declarations)
     {
@@ -667,11 +668,11 @@ fn border_image_shorthand_replacement_for_declarations(
     let [source, slice, width, outset, repeat] = declarations else {
         return None;
     };
-    if source.property != "border-image-source"
-        || slice.property != "border-image-slice"
-        || width.property != "border-image-width"
-        || outset.property != "border-image-outset"
-        || repeat.property != "border-image-repeat"
+    if source.property_key.as_str() != "border-image-source"
+        || slice.property_key.as_str() != "border-image-slice"
+        || width.property_key.as_str() != "border-image-width"
+        || outset.property_key.as_str() != "border-image-outset"
+        || repeat.property_key.as_str() != "border-image-repeat"
         || declarations
             .iter()
             .any(|declaration| declaration.important != source.important)
@@ -726,9 +727,9 @@ fn background_component_shorthand_replacement_for_declarations(
     let [image, repeat, color] = declarations else {
         return None;
     };
-    if image.property != "background-image"
-        || repeat.property != "background-repeat"
-        || color.property != "background-color"
+    if image.property_key.as_str() != "background-image"
+        || repeat.property_key.as_str() != "background-repeat"
+        || color.property_key.as_str() != "background-color"
         || image.important != repeat.important
         || image.important != color.important
         || !declaration_ranges_are_adjacent(tokens, declarations)
@@ -756,7 +757,7 @@ fn block_has_other_background_reset_sensitive_declarations(
     replacement_declarations: &[SimpleDeclarationSlice],
 ) -> bool {
     block_declarations.iter().any(|declaration| {
-        background_reset_sensitive_property(&declaration.property)
+        background_reset_sensitive_property(declaration.property_key.as_str())
             && !replacement_declarations
                 .iter()
                 .any(|replacement| replacement.start == declaration.start)
@@ -811,10 +812,10 @@ fn inset_shorthand_replacement_for_declarations(
     let [top, right, bottom, left] = declarations else {
         return None;
     };
-    if top.property != "top"
-        || right.property != "right"
-        || bottom.property != "bottom"
-        || left.property != "left"
+    if top.property_key.as_str() != "top"
+        || right.property_key.as_str() != "right"
+        || bottom.property_key.as_str() != "bottom"
+        || left.property_key.as_str() != "left"
         || declarations.iter().any(|declaration| declaration.important)
         || !declaration_ranges_are_adjacent(tokens, declarations)
     {
@@ -1095,12 +1096,12 @@ fn collect_overridden_flex_longhand_replacements(
 ) -> Vec<(usize, usize, String)> {
     let mut ranges = Vec::new();
     for (index, declaration) in declarations.iter().enumerate() {
-        if !flex_longhand_is_reset_by_flex_shorthand(&declaration.property) {
+        if !flex_longhand_is_reset_by_flex_shorthand(declaration.property_key.as_str()) {
             continue;
         }
         let later_flex = declarations[index + 1..]
             .iter()
-            .find(|candidate| candidate.property == "flex");
+            .find(|candidate| candidate.property_key.as_str() == "flex");
         if later_flex.is_some_and(|candidate| later_declaration_overrides(declaration, candidate)) {
             ranges.push((declaration.start, declaration.end, String::new()));
         }

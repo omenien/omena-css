@@ -15,7 +15,7 @@ use crate::{
     summarize_omena_parser_parity_lite,
 };
 use cstree::text::TextRange;
-use omena_syntax::ident::class_selector_names;
+use omena_syntax::ident::{CanonicalCustomPropertyNameV0, class_selector_names};
 use serde::Serialize;
 
 mod style_blocks;
@@ -228,7 +228,7 @@ struct ParserIndexCustomPropertyFactsV0 {
     selectors_with_refs_under_layer_names: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ParserIndexCustomPropertyDeclFactV0 {
     name: String,
@@ -243,9 +243,10 @@ struct ParserIndexCustomPropertyDeclFactV0 {
     under_media: bool,
     under_supports: bool,
     under_layer: bool,
+    property_key: CanonicalCustomPropertyNameV0,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ParserIndexCustomPropertyRefFactV0 {
     name: String,
@@ -257,6 +258,7 @@ struct ParserIndexCustomPropertyRefFactV0 {
     under_media: bool,
     under_supports: bool,
     under_layer: bool,
+    property_key: CanonicalCustomPropertyNameV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
@@ -1096,6 +1098,9 @@ fn summarize_custom_properties(
     for variable in &facts.variables {
         match variable.kind {
             ParsedVariableFactKind::CustomPropertyDeclaration => {
+                let Some(property_key) = variable.property_key.clone() else {
+                    continue;
+                };
                 let byte_span = byte_span_for_range(variable.range);
                 let wrapper = wrapper_for_offset(blocks, byte_span.start);
                 let rule_byte_span = style_block_for_offset(blocks, byte_span.start)
@@ -1107,6 +1112,7 @@ fn summarize_custom_properties(
                     .unwrap_or(byte_span);
                 decl_facts.push(ParserIndexCustomPropertyDeclFactV0 {
                     name: variable.name.clone(),
+                    property_key,
                     value: syntax_index
                         .declaration_value_text(source, byte_span.start)
                         .unwrap_or_default(),
@@ -1123,10 +1129,14 @@ fn summarize_custom_properties(
                 });
             }
             ParsedVariableFactKind::CustomPropertyReference => {
+                let Some(property_key) = variable.property_key.clone() else {
+                    continue;
+                };
                 let byte_span = byte_span_for_range(variable.range);
                 let wrapper = wrapper_for_offset(blocks, byte_span.start);
                 ref_facts.push(ParserIndexCustomPropertyRefFactV0 {
                     name: variable.name.clone(),
+                    property_key,
                     source_order: ref_facts.len(),
                     byte_span,
                     range: parser_range_for_byte_span(source, line_index, byte_span),

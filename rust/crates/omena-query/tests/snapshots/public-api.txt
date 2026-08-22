@@ -1464,8 +1464,8 @@ pub omena_query::OmenaQueryModuleInterfaceChangeProjectionV0::sass_module_public
 pub omena_query::OmenaQueryModuleInterfaceChangeProjectionV0::sass_module_public_variable_names: alloc::collections::btree::set::BTreeSet<alloc::string::String>
 pub struct omena_query::OmenaQueryModuleInterfaceProjectionV0
 pub omena_query::OmenaQueryModuleInterfaceProjectionV0::css_modules_style_facts: omena_semantic::css_modules_cross_file::CssModulesCrossFileStyleFactsV0
-pub omena_query::OmenaQueryModuleInterfaceProjectionV0::custom_property_decl_names: alloc::collections::btree::set::BTreeSet<alloc::string::String>
-pub omena_query::OmenaQueryModuleInterfaceProjectionV0::custom_property_ref_names: alloc::vec::Vec<alloc::string::String>
+pub omena_query::OmenaQueryModuleInterfaceProjectionV0::custom_property_decl_names: alloc::collections::btree::set::BTreeSet<omena_syntax::ident::CanonicalCustomPropertyNameV0>
+pub omena_query::OmenaQueryModuleInterfaceProjectionV0::custom_property_ref_names: alloc::collections::btree::set::BTreeSet<omena_syntax::ident::CanonicalCustomPropertyNameV0>
 pub omena_query::OmenaQueryModuleInterfaceProjectionV0::sass_module_configurable_variable_names: alloc::collections::btree::set::BTreeSet<alloc::string::String>
 pub omena_query::OmenaQueryModuleInterfaceProjectionV0::sass_module_edges: alloc::vec::Vec<omena_query::OmenaQuerySassModuleEdgeFactV0>
 pub omena_query::OmenaQueryModuleInterfaceProjectionV0::sass_module_rule_configurations: alloc::vec::Vec<omena_query::OmenaQuerySassModuleRuleConfigurationSurfaceV0>

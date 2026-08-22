@@ -32,6 +32,7 @@ omena-scss-eval = { path = "../omena-scss-eval", version = "=0.4.0", features = 
 omena-semantic = { path = "../omena-semantic", version = "=0.4.0" }
 omena-sif = { path = "../omena-sif", version = "=0.4.0" }
 omena-streaming-ifds = { path = "../omena-streaming-ifds", version = "=0.4.0" }
+omena-syntax = { path = "../omena-syntax", version = "=0.4.0" }
 omena-testkit = { path = "../omena-testkit", version = "=0.4.0" }
 omena-transform-cst = { path = "../omena-transform-cst", version = "=0.4.0" }
 omena-transform-passes = { path = "../omena-transform-passes", version = "=0.4.0" }

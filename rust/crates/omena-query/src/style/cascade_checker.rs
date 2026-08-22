@@ -1,6 +1,7 @@
 use omena_query_checker_orchestrator::run_omena_query_checker_cascade_gate_with_standard_property_value_verdicts_v0;
 #[cfg(test)]
 use omena_query_checker_orchestrator::{CanonicalSelector, OmenaCheckerCascadeDeclarationInputV0};
+use omena_syntax::ident::PropertyNameV0;
 mod confidence;
 mod custom_property_registration;
 mod declaration_facts;
@@ -132,10 +133,9 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
             continue;
         }
         if evaluation.rule_code_name == "iacvt-prone"
-            && evaluation
-                .custom_property_names
-                .iter()
-                .all(|name| !custom_property_ranges.contains_key(name))
+            && evaluation.custom_property_names.iter().all(|name| {
+                !custom_property_ranges.contains_key(&PropertyNameV0::canonical_custom_key(name))
+            })
         {
             continue;
         }
@@ -144,10 +144,11 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
             .iter()
             .find_map(|declaration_id| declaration_ranges.get(declaration_id).copied())
             .or_else(|| {
-                evaluation
-                    .custom_property_names
-                    .iter()
-                    .find_map(|name| custom_property_ranges.get(name).copied())
+                evaluation.custom_property_names.iter().find_map(|name| {
+                    custom_property_ranges
+                        .get(&PropertyNameV0::canonical_custom_key(name))
+                        .copied()
+                })
             })
             .unwrap_or_else(|| {
                 parser_range_for_byte_span(

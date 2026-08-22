@@ -6,6 +6,7 @@
 //! internal parser state.
 
 use omena_parser::StyleDialect;
+use omena_syntax::ident::CanonicalCustomPropertyNameV0;
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,7 +118,7 @@ pub struct ParserIndexCustomPropertyFactsV0 {
     pub selectors_with_refs_under_layer_names: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ParserIndexCustomPropertyDeclFactV0 {
     pub name: String,
@@ -132,9 +133,10 @@ pub struct ParserIndexCustomPropertyDeclFactV0 {
     pub under_media: bool,
     pub under_supports: bool,
     pub under_layer: bool,
+    pub property_key: CanonicalCustomPropertyNameV0,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ParserIndexCustomPropertyRefFactV0 {
     pub name: String,
@@ -146,6 +148,7 @@ pub struct ParserIndexCustomPropertyRefFactV0 {
     pub under_media: bool,
     pub under_supports: bool,
     pub under_layer: bool,
+    pub property_key: CanonicalCustomPropertyNameV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

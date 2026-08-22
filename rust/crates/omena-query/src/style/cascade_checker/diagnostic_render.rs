@@ -5,6 +5,7 @@ use omena_query_core::{
     AbstractPropertyValueCandidateV0, iterate_reduced_class_value_product_constraints,
     narrow_abstract_property_value_for_cascade_branch,
 };
+use omena_syntax::ident::property_names_same;
 
 use super::super::OmenaQueryCascadeNarrowingEvidenceV0;
 use super::runtime_state::{
@@ -59,7 +60,7 @@ pub(super) fn summarize_query_cascade_narrowing_for_evaluation(
         .iter()
         .filter(|declaration| {
             declaration.selector == anchor.selector
-                && declaration.property == anchor.property
+                && property_names_same(&declaration.property, &anchor.property)
                 && declaration.condition_context == anchor.condition_context
         })
         .collect::<Vec<_>>();

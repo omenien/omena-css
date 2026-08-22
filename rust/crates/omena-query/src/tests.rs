@@ -906,6 +906,29 @@ fn exposes_fast_facts_analyzed_graph_and_custom_property_annotations() {
 }
 
 #[test]
+fn custom_property_annotations_join_escape_identity_without_folding_case() {
+    let annotations = summarize_omena_query_custom_property_annotations(
+        "Card.module.css",
+        r#"
+          :root { --foo: red; --FOO: blue; }
+          .card { color: var(--f\6f o); background: var(--FOO); }
+        "#,
+    );
+
+    assert_eq!(annotations.annotation_count, 2);
+    assert!(annotations.annotations.iter().any(|annotation| {
+        annotation.name == "--foo"
+            && annotation.declaration_count == 1
+            && annotation.reference_count == 1
+    }));
+    assert!(annotations.annotations.iter().any(|annotation| {
+        annotation.name == "--FOO"
+            && annotation.declaration_count == 1
+            && annotation.reference_count == 1
+    }));
+}
+
+#[test]
 fn analyzed_graph_collects_style_facts_once_and_embeds_identical_fast_facts() {
     let source = r#"
       @use "tokens";

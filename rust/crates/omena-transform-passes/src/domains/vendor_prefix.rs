@@ -6,7 +6,7 @@
 use std::sync::OnceLock;
 
 use omena_parser::{LexedToken, StyleDialect};
-use omena_syntax::SyntaxKind;
+use omena_syntax::{SyntaxKind, ident::PropertyNameV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -154,9 +154,10 @@ fn exact_unprefixed_peer_for_stale_prefix<'a>(
     declaration: &SimpleDeclarationSlice,
     declarations: &'a [SimpleDeclarationSlice],
 ) -> Option<(&'static str, &'a SimpleDeclarationSlice)> {
-    let unprefixed_property = unprefixed_property_for_stale_prefix(&declaration.property)?;
+    let unprefixed_property =
+        unprefixed_property_for_stale_prefix(declaration.property_key.as_str())?;
     let peer = declarations.iter().find(|candidate| {
-        candidate.property == unprefixed_property
+        candidate.property_key.as_str() == unprefixed_property
             && candidate.value == declaration.value
             && candidate.important == declaration.important
     })?;
@@ -180,13 +181,13 @@ fn collect_vendor_prefix_insertions(
         {
             let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
             for declaration in &declarations {
-                for prefixed_property in prefixed_properties_for(&declaration.property)
+                for prefixed_property in prefixed_properties_for(declaration.property_key.as_str())
                     .into_iter()
                     .filter(|prefixed_property| policy.allows_prefix(prefixed_property))
                 {
                     if declarations
                         .iter()
-                        .any(|candidate| candidate.property == prefixed_property)
+                        .any(|candidate| candidate.property_key.as_str() == prefixed_property)
                     {
                         continue;
                     }
@@ -195,12 +196,13 @@ fn collect_vendor_prefix_insertions(
                         format!("{prefixed_property}: {}; ", declaration.value),
                     ));
                 }
-                for prefixed_value in prefixed_values_for(&declaration.property, &declaration.value)
-                    .into_iter()
-                    .filter(|prefixed_value| policy.allows_prefix(prefixed_value))
+                for prefixed_value in
+                    prefixed_values_for(declaration.property_key.as_str(), &declaration.value)
+                        .into_iter()
+                        .filter(|prefixed_value| policy.allows_prefix(prefixed_value))
                 {
                     if declarations.iter().any(|candidate| {
-                        candidate.property == declaration.property
+                        candidate.property_key == declaration.property_key
                             && candidate.value.eq_ignore_ascii_case(prefixed_value)
                     }) {
                         continue;
@@ -211,12 +213,12 @@ fn collect_vendor_prefix_insertions(
                     ));
                 }
                 for (prefixed_property, prefixed_value) in
-                    prefixed_declarations_for(&declaration.property, &declaration.value)
+                    prefixed_declarations_for(declaration.property_key.as_str(), &declaration.value)
                         .into_iter()
                         .filter(|(prefixed_property, _)| policy.allows_prefix(prefixed_property))
                 {
                     if declarations.iter().any(|candidate| {
-                        candidate.property == prefixed_property
+                        candidate.property_key.as_str() == prefixed_property
                             && candidate
                                 .value
                                 .eq_ignore_ascii_case(prefixed_value.as_str())
@@ -380,7 +382,9 @@ fn parse_single_supports_feature_query(condition: &str) -> Option<SupportsFeatur
         return None;
     }
     let colon_index = top_level_colon_index(inner)?;
-    let property = inner[..colon_index].trim().to_ascii_lowercase();
+    let property_name = PropertyNameV0::from_authored(inner[..colon_index].trim());
+    let property_key = property_name.canonical_key();
+    let property = property_key.as_standard()?.as_str().to_string();
     let value = inner[colon_index + 1..].trim();
     if property.is_empty()
         || property.starts_with('-')
@@ -541,6 +545,10 @@ fn unprefixed_property_for_stale_prefix(property: &str) -> Option<&'static str> 
 }
 
 fn prefixed_values_for(property: &str, value: &str) -> Vec<&'static str> {
+    let property_key = PropertyNameV0::from_authored(property).canonical_key();
+    let Some(property) = property_key.as_standard().map(|property| property.as_str()) else {
+        return Vec::new();
+    };
     let normalized = value.trim().to_ascii_lowercase();
     vendor_prefix_matrix()
         .value_rules
@@ -551,6 +559,10 @@ fn prefixed_values_for(property: &str, value: &str) -> Vec<&'static str> {
 }
 
 fn prefixed_declarations_for(property: &str, value: &str) -> Vec<(&'static str, String)> {
+    let property_key = PropertyNameV0::from_authored(property).canonical_key();
+    let Some(property) = property_key.as_standard().map(|property| property.as_str()) else {
+        return Vec::new();
+    };
     let normalized = value.trim().to_ascii_lowercase();
     vendor_prefix_matrix()
         .declaration_rules

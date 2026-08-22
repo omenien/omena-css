@@ -10,6 +10,7 @@ use omena_cascade::{
 use omena_query_checker_orchestrator::active_omena_checker_custom_property_registrations_v0;
 use omena_query_core::{CssValueValidationClassV0, validate_registered_property_value_v0};
 use omena_query_transform_runner::parse_static_css_cascade_value;
+use omena_syntax::ident::{PropertyNameV0, property_names_same};
 use serde::Serialize;
 
 use super::cascade_checker::{
@@ -45,7 +46,8 @@ pub fn summarize_omena_query_registered_custom_property_computed_value_v0(
         collect_query_checker_custom_property_registrations(style_uri, source);
     let active_registrations =
         active_omena_checker_custom_property_registrations_v0(registration_inputs.as_slice());
-    let active_registration = active_registrations.get(property);
+    let property_key = PropertyNameV0::canonical_custom_key(property);
+    let active_registration = active_registrations.get(&property_key);
     let mut verdicts = BTreeMap::new();
     let mut matched_value_count = 0usize;
     let mut unmatched_value_count = 0usize;
@@ -53,7 +55,7 @@ pub fn summarize_omena_query_registered_custom_property_computed_value_v0(
     let declarations = collect_query_checker_cascade_declarations(source)
         .into_iter()
         .filter(|declaration| {
-            declaration.input.property == property
+            property_names_same(&declaration.input.property, property)
                 && declaration.input.selector.as_str() == selector
                 && declaration.input.condition_context.is_empty()
         })
@@ -239,6 +241,42 @@ mod tests {
             result.computed_value.indeterminate_reason,
             Some(ComputedCascadeIndeterminateReasonV0::RegisteredPropertySyntaxIndeterminate)
         );
+    }
+
+    #[test]
+    fn property_registration_joins_escape_identity_but_not_custom_case() {
+        let escaped = summarize_omena_query_registered_custom_property_computed_value_v0(
+            "tokens.css",
+            r#"
+@property --f\6f o {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 8px;
+}
+.target { --foo: 12px; }
+"#,
+            ".target",
+            "--foo",
+            None,
+        );
+        assert!(escaped.registration_applied);
+        assert_eq!(escaped.matched_value_count, 1);
+
+        let distinct_case = summarize_omena_query_registered_custom_property_computed_value_v0(
+            "tokens.css",
+            r#"
+@property --FOO {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 8px;
+}
+.target { --foo: 12px; }
+"#,
+            ".target",
+            "--foo",
+            None,
+        );
+        assert!(!distinct_case.registration_applied);
     }
 
     #[test]

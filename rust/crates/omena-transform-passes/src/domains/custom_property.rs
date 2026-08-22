@@ -6,7 +6,12 @@ use omena_cascade::{
     substitute_custom_properties,
 };
 use omena_parser::{LexedToken, StyleDialect};
-use omena_syntax::{SyntaxKind, css_keyword, ident::is_css_name_continue};
+use omena_syntax::{
+    SyntaxKind, css_keyword,
+    ident::{
+        CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0, PropertyNameV0, is_css_name_continue,
+    },
+};
 use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -31,7 +36,7 @@ use crate::helpers::{
     blocks::{at_rule_block_start, at_rule_prelude_end_index, rule_block_token_indexes},
     collections::push_unique_string,
     declarations::collect_simple_declarations_in_block,
-    identifiers::normalize_custom_property_name,
+    identifiers::{canonical_custom_property_key, normalize_custom_property_name},
     ir_transaction::{
         TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
         TransformIrSourceReplacementV0, delete_ir_nodes_in_ir,
@@ -61,11 +66,21 @@ pub(crate) struct CustomPropertySemanticFactV0 {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CustomPropertyRegistrationRule {
     pub(crate) name: String,
+    pub(crate) property_key: CanonicalCustomPropertyNameV0,
     pub(crate) start: usize,
     pub(crate) end: usize,
     pub(crate) syntax: Option<String>,
     pub(crate) inherits: Option<String>,
     pub(crate) initial_value: Option<String>,
+}
+
+fn push_unique_custom_property_key(
+    keys: &mut Vec<CanonicalCustomPropertyNameV0>,
+    key: CanonicalCustomPropertyNameV0,
+) {
+    if !keys.contains(&key) {
+        keys.push(key);
+    }
 }
 
 pub(crate) fn collect_custom_property_registration_rules(
@@ -95,25 +110,31 @@ fn parse_custom_property_registration_rule(
 ) -> Option<(CustomPropertyRegistrationRule, usize)> {
     let name_index = skip_whitespace_tokens(tokens, at_property_index + 1, tokens.len());
     let name = normalize_custom_property_name(tokens.get(name_index)?.text.as_str())?.to_string();
+    let property_key = canonical_custom_property_key(&name)?;
     let block_start_index = at_rule_block_start(tokens, name_index + 1)?;
     let close_index = matching_right_brace_index(tokens, block_start_index)?;
     let declarations = collect_simple_declarations_in_block(tokens, block_start_index, close_index);
     let syntax = declarations
         .iter()
-        .find(|declaration| declaration.property == "syntax" && !declaration.important)
+        .find(|declaration| declaration.property_key.as_str() == "syntax" && !declaration.important)
         .map(|declaration| declaration.value.clone());
     let inherits = declarations
         .iter()
-        .find(|declaration| declaration.property == "inherits" && !declaration.important)
+        .find(|declaration| {
+            declaration.property_key.as_str() == "inherits" && !declaration.important
+        })
         .map(|declaration| declaration.value.clone());
     let initial_value = declarations
         .into_iter()
-        .find(|declaration| declaration.property == "initial-value" && !declaration.important)
+        .find(|declaration| {
+            declaration.property_key.as_str() == "initial-value" && !declaration.important
+        })
         .map(|declaration| declaration.value);
 
     Some((
         CustomPropertyRegistrationRule {
             name,
+            property_key,
             start: token_start(&tokens[at_property_index]),
             end: token_end(&tokens[close_index]),
             syntax,
@@ -125,9 +146,12 @@ fn parse_custom_property_registration_rule(
 }
 
 pub(crate) fn close_custom_property_dependency_graph(
-    roots: Vec<String>,
-    dependencies_by_name: &BTreeMap<String, Vec<String>>,
-) -> Vec<String> {
+    roots: Vec<CanonicalCustomPropertyNameV0>,
+    dependencies_by_name: &BTreeMap<
+        CanonicalCustomPropertyNameV0,
+        Vec<CanonicalCustomPropertyNameV0>,
+    >,
+) -> Vec<CanonicalCustomPropertyNameV0> {
     let mut reachable = Vec::new();
     let mut queue = roots.into_iter().collect::<VecDeque<_>>();
 
@@ -147,7 +171,9 @@ pub(crate) fn close_custom_property_dependency_graph(
     reachable
 }
 
-pub(crate) fn collect_custom_property_references_in_value(value: &str) -> Vec<String> {
+pub(crate) fn collect_custom_property_references_in_value(
+    value: &str,
+) -> Vec<CanonicalCustomPropertyNameV0> {
     let mut names = Vec::new();
     let mut index = 0usize;
     let mut quote: Option<char> = None;
@@ -190,14 +216,14 @@ pub(crate) fn collect_custom_property_references_in_value(value: &str) -> Vec<St
                     continue;
                 };
                 if let [name, fallback @ ..] = arguments.as_slice()
-                    && let Some(name) = normalize_custom_property_name(name)
+                    && let Some(name) = canonical_custom_property_key(name)
                 {
-                    push_unique_string(&mut names, name.to_string());
+                    push_unique_custom_property_key(&mut names, name);
                     for fallback_value in fallback {
                         for fallback_name in
                             collect_custom_property_references_in_value(fallback_value)
                         {
-                            push_unique_string(&mut names, fallback_name);
+                            push_unique_custom_property_key(&mut names, fallback_name);
                         }
                     }
                 }
@@ -214,7 +240,7 @@ pub(crate) fn collect_custom_property_references_in_value(value: &str) -> Vec<St
 
 pub(crate) fn collect_custom_property_references_in_container_style_query_prelude(
     prelude: &str,
-) -> Vec<String> {
+) -> Vec<CanonicalCustomPropertyNameV0> {
     let mut names = Vec::new();
     let mut index = 0usize;
     let mut quote: Option<char> = None;
@@ -267,7 +293,7 @@ pub(crate) fn collect_custom_property_roots_from_container_style_query_preludes(
     source: &str,
     tokens: &[omena_parser::LexedToken],
     mut block_is_reachable: impl FnMut(usize, usize) -> bool,
-) -> Vec<String> {
+) -> Vec<CanonicalCustomPropertyNameV0> {
     let mut roots = Vec::new();
     let mut index = 0usize;
 
@@ -290,7 +316,7 @@ pub(crate) fn collect_custom_property_roots_from_container_style_query_preludes(
             for name in collect_custom_property_references_in_container_style_query_prelude(
                 &source[prelude_start..prelude_end],
             ) {
-                push_unique_string(&mut roots, name);
+                push_unique_custom_property_key(&mut roots, name);
             }
         }
         index = prelude_end_index.saturating_add(1);
@@ -302,7 +328,7 @@ pub(crate) fn collect_custom_property_roots_from_container_style_query_preludes(
 fn collect_custom_property_roots_from_container_style_query_preludes_from_ir(
     ir: &TransformIrV0,
     mut block_is_reachable: impl FnMut(usize, usize) -> bool,
-) -> Vec<String> {
+) -> Vec<CanonicalCustomPropertyNameV0> {
     let mut roots = Vec::new();
     for at_rule in collect_custom_property_at_rule_preludes_from_ir(ir) {
         if !at_rule.keyword.eq_ignore_ascii_case("@container") {
@@ -319,7 +345,7 @@ fn collect_custom_property_roots_from_container_style_query_preludes_from_ir(
             for name in
                 collect_custom_property_references_in_container_style_query_prelude(at_rule.prelude)
             {
-                push_unique_string(&mut roots, name);
+                push_unique_custom_property_key(&mut roots, name);
             }
         }
     }
@@ -470,7 +496,7 @@ fn collect_tree_shake_css_custom_property_replacements(
     for registration in collect_custom_property_registration_rules(tokens) {
         if !referenced_names
             .iter()
-            .any(|name| name == &registration.name)
+            .any(|name| name == &registration.property_key)
         {
             removals.push(TransformSemanticRemovalCandidate {
                 symbol_kind: "customPropertyRegistration",
@@ -549,12 +575,10 @@ fn collect_tree_shake_css_custom_property_replacements(
         for declaration in
             collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
         {
-            if !declaration.property.starts_with("--") {
+            let Some(property_key) = declaration.property_key.as_custom() else {
                 continue;
-            }
-            let name_is_referenced = referenced_names
-                .iter()
-                .any(|name| name == &declaration.property);
+            };
+            let name_is_referenced = referenced_names.contains(property_key);
             if !rule_is_reachable || !name_is_referenced {
                 removals.push(TransformSemanticRemovalCandidate {
                     symbol_kind: "customProperty",
@@ -613,7 +637,7 @@ fn collect_tree_shake_css_custom_property_replacements_from_ir(
     for registration in collect_custom_property_registration_rules_from_ir(ir) {
         if !referenced_names
             .iter()
-            .any(|name| name == &registration.name)
+            .any(|name| name == &registration.property_key)
         {
             removals.push(TransformSemanticRemovalCandidate {
                 symbol_kind: "customPropertyRegistration",
@@ -727,15 +751,13 @@ fn push_custom_property_rule_removals_from_declarations(
     removals: &mut Vec<TransformSemanticRemovalCandidate>,
     declarations: Vec<CustomPropertyDeclarationIrViewV0>,
     rule_is_reachable: bool,
-    referenced_names: &[String],
+    referenced_names: &[CanonicalCustomPropertyNameV0],
 ) {
     for declaration in declarations {
-        if !declaration.property.starts_with("--") {
+        let Some(property_key) = declaration.property_key.as_custom() else {
             continue;
-        }
-        let name_is_referenced = referenced_names
-            .iter()
-            .any(|name| name == &declaration.property);
+        };
+        let name_is_referenced = referenced_names.contains(property_key);
         if rule_is_reachable && name_is_referenced {
             continue;
         }
@@ -857,9 +879,10 @@ fn collect_reachable_custom_property_names(
     external_roots: &[String],
     external_keyframe_roots: &[String],
     reachable_class_names: &[String],
-) -> Option<Vec<String>> {
+) -> Option<Vec<CanonicalCustomPropertyNameV0>> {
     let mut root_names = Vec::new();
-    let mut dependencies_by_name = BTreeMap::<String, Vec<String>>::new();
+    let mut dependencies_by_name =
+        BTreeMap::<CanonicalCustomPropertyNameV0, Vec<CanonicalCustomPropertyNameV0>>::new();
     let scope_blocks = collect_css_module_scope_blocks(source, tokens);
     let keyframes = collect_keyframes_rules(tokens);
     let reachable_keyframe_names = collect_reachable_keyframe_names(
@@ -870,8 +893,8 @@ fn collect_reachable_custom_property_names(
     );
 
     for name in external_roots {
-        if let Some(name) = normalize_custom_property_name(name) {
-            push_unique_string(&mut root_names, name.to_string());
+        if let Some(name) = canonical_custom_property_key(name) {
+            push_unique_custom_property_key(&mut root_names, name);
         }
     }
     for name in collect_custom_property_roots_from_container_style_query_preludes(
@@ -888,7 +911,7 @@ fn collect_reachable_custom_property_names(
             )
         },
     ) {
-        push_unique_string(&mut root_names, name);
+        push_unique_custom_property_key(&mut root_names, name);
     }
     for name in collect_custom_property_roots_from_reachable_at_rule_preludes(
         source,
@@ -904,10 +927,10 @@ fn collect_reachable_custom_property_names(
             )
         },
     ) {
-        push_unique_string(&mut root_names, name);
+        push_unique_custom_property_key(&mut root_names, name);
     }
     for name in collect_custom_property_roots_from_descriptor_at_rules(tokens) {
-        push_unique_string(&mut root_names, name);
+        push_unique_custom_property_key(&mut root_names, name);
     }
     for rule in collect_static_custom_property_icss_export_rules(source, tokens) {
         for declaration in rule.declarations {
@@ -915,7 +938,7 @@ fn collect_reachable_custom_property_names(
                 continue;
             }
             for name in collect_custom_property_references_in_value(&declaration.value) {
-                push_unique_string(&mut root_names, name);
+                push_unique_custom_property_key(&mut root_names, name);
             }
         }
     }
@@ -924,9 +947,11 @@ fn collect_reachable_custom_property_names(
         let Some(initial_value) = registration.initial_value else {
             continue;
         };
-        let dependencies = dependencies_by_name.entry(registration.name).or_default();
+        let dependencies = dependencies_by_name
+            .entry(registration.property_key)
+            .or_default();
         for name in collect_custom_property_references_in_value(&initial_value) {
-            push_unique_string(dependencies, name);
+            push_unique_custom_property_key(dependencies, name);
         }
     }
 
@@ -950,23 +975,21 @@ fn collect_reachable_custom_property_names(
         for declaration in
             collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
         {
-            if declaration.property.starts_with("--") {
+            if let Some(property_key) = declaration.property_key.as_custom().cloned() {
                 if !rule_is_reachable {
                     continue;
                 }
                 let referenced_names =
                     collect_custom_property_references_in_value(&declaration.value);
-                let dependencies = dependencies_by_name
-                    .entry(declaration.property)
-                    .or_default();
+                let dependencies = dependencies_by_name.entry(property_key).or_default();
                 for name in referenced_names {
-                    push_unique_string(dependencies, name);
+                    push_unique_custom_property_key(dependencies, name);
                 }
             } else if rule_is_reachable {
                 let referenced_names =
                     collect_custom_property_references_in_value(&declaration.value);
                 for name in referenced_names {
-                    push_unique_string(&mut root_names, name);
+                    push_unique_custom_property_key(&mut root_names, name);
                 }
             }
         }
@@ -984,9 +1007,10 @@ fn collect_reachable_custom_property_names_from_ir(
     external_roots: &[String],
     external_keyframe_roots: &[String],
     reachable_class_names: &[String],
-) -> Option<Vec<String>> {
+) -> Option<Vec<CanonicalCustomPropertyNameV0>> {
     let mut root_names = Vec::new();
-    let mut dependencies_by_name = BTreeMap::<String, Vec<String>>::new();
+    let mut dependencies_by_name =
+        BTreeMap::<CanonicalCustomPropertyNameV0, Vec<CanonicalCustomPropertyNameV0>>::new();
     let scope_blocks = collect_css_module_scope_blocks_from_ir(ir);
     let keyframes = collect_keyframes_rules_from_ir(ir);
     let reachable_keyframe_names = collect_reachable_keyframe_names_from_ir(
@@ -996,8 +1020,8 @@ fn collect_reachable_custom_property_names_from_ir(
     );
 
     for name in external_roots {
-        if let Some(name) = normalize_custom_property_name(name) {
-            push_unique_string(&mut root_names, name.to_string());
+        if let Some(name) = canonical_custom_property_key(name) {
+            push_unique_custom_property_key(&mut root_names, name);
         }
     }
     for name in collect_custom_property_roots_from_container_style_query_preludes_from_ir(
@@ -1012,7 +1036,7 @@ fn collect_reachable_custom_property_names_from_ir(
             )
         },
     ) {
-        push_unique_string(&mut root_names, name);
+        push_unique_custom_property_key(&mut root_names, name);
     }
     for name in collect_custom_property_roots_from_reachable_at_rule_preludes_from_ir(
         ir,
@@ -1026,10 +1050,10 @@ fn collect_reachable_custom_property_names_from_ir(
             )
         },
     ) {
-        push_unique_string(&mut root_names, name);
+        push_unique_custom_property_key(&mut root_names, name);
     }
     for name in collect_custom_property_roots_from_descriptor_at_rules_from_ir(ir) {
-        push_unique_string(&mut root_names, name);
+        push_unique_custom_property_key(&mut root_names, name);
     }
     for rule in collect_static_custom_property_icss_export_rules_from_ir(ir) {
         for declaration in rule.declarations {
@@ -1037,7 +1061,7 @@ fn collect_reachable_custom_property_names_from_ir(
                 continue;
             }
             for name in collect_custom_property_references_in_value(&declaration.value) {
-                push_unique_string(&mut root_names, name);
+                push_unique_custom_property_key(&mut root_names, name);
             }
         }
     }
@@ -1046,9 +1070,11 @@ fn collect_reachable_custom_property_names_from_ir(
         let Some(initial_value) = registration.initial_value else {
             continue;
         };
-        let dependencies = dependencies_by_name.entry(registration.name).or_default();
+        let dependencies = dependencies_by_name
+            .entry(registration.property_key)
+            .or_default();
         for name in collect_custom_property_references_in_value(&initial_value) {
-            push_unique_string(dependencies, name);
+            push_unique_custom_property_key(dependencies, name);
         }
     }
 
@@ -1065,23 +1091,21 @@ fn collect_reachable_custom_property_names_from_ir(
         let rule_is_reachable =
             rule_slice_matches_reachable_class_context(&rule, &scope_blocks, reachable_class_names);
         for declaration in collect_simple_declarations_from_ir(ir, &rule) {
-            if declaration.property.starts_with("--") {
+            if let Some(property_key) = declaration.property_key.as_custom().cloned() {
                 if !rule_is_reachable {
                     continue;
                 }
                 let referenced_names =
                     collect_custom_property_references_in_value(&declaration.value);
-                let dependencies = dependencies_by_name
-                    .entry(declaration.property)
-                    .or_default();
+                let dependencies = dependencies_by_name.entry(property_key).or_default();
                 for name in referenced_names {
-                    push_unique_string(dependencies, name);
+                    push_unique_custom_property_key(dependencies, name);
                 }
             } else if rule_is_reachable {
                 let referenced_names =
                     collect_custom_property_references_in_value(&declaration.value);
                 for name in referenced_names {
-                    push_unique_string(&mut root_names, name);
+                    push_unique_custom_property_key(&mut root_names, name);
                 }
             }
         }
@@ -1112,8 +1136,9 @@ struct CustomPropertyKeyframeReachabilityInputV0<'a> {
     reachable_keyframe_names: Option<&'a [String]>,
     reachable_class_names: &'a [String],
     scope_blocks: &'a [CssModuleScopeBlock],
-    root_names: &'a mut Vec<String>,
-    dependencies_by_name: &'a mut BTreeMap<String, Vec<String>>,
+    root_names: &'a mut Vec<CanonicalCustomPropertyNameV0>,
+    dependencies_by_name:
+        &'a mut BTreeMap<CanonicalCustomPropertyNameV0, Vec<CanonicalCustomPropertyNameV0>>,
 }
 
 fn collect_reachable_custom_property_names_from_keyframes_from_ir(
@@ -1140,24 +1165,21 @@ fn collect_reachable_custom_property_names_from_keyframes_from_ir(
                 input.dialect,
                 &rule,
             ) {
-                if declaration.property.starts_with("--") {
+                if let Some(property_key) = declaration.property_key.as_custom().cloned() {
                     if !rule_is_reachable {
                         continue;
                     }
                     let referenced_names =
                         collect_custom_property_references_in_value(&declaration.value);
-                    let dependencies = input
-                        .dependencies_by_name
-                        .entry(declaration.property)
-                        .or_default();
+                    let dependencies = input.dependencies_by_name.entry(property_key).or_default();
                     for name in referenced_names {
-                        push_unique_string(dependencies, name);
+                        push_unique_custom_property_key(dependencies, name);
                     }
                 } else if rule_is_reachable {
                     let referenced_names =
                         collect_custom_property_references_in_value(&declaration.value);
                     for name in referenced_names {
-                        push_unique_string(input.root_names, name);
+                        push_unique_custom_property_key(input.root_names, name);
                     }
                 }
             }
@@ -1204,7 +1226,7 @@ fn collect_custom_property_roots_from_reachable_at_rule_preludes(
     source: &str,
     tokens: &[omena_parser::LexedToken],
     mut block_is_reachable: impl FnMut(usize, usize) -> bool,
-) -> Vec<String> {
+) -> Vec<CanonicalCustomPropertyNameV0> {
     let mut roots = Vec::new();
     let mut index = 0usize;
 
@@ -1230,7 +1252,7 @@ fn collect_custom_property_roots_from_reachable_at_rule_preludes(
             for name in
                 collect_custom_property_references_in_value(&source[prelude_start..prelude_end])
             {
-                push_unique_string(&mut roots, name);
+                push_unique_custom_property_key(&mut roots, name);
             }
         }
         index = prelude_end_index.saturating_add(1);
@@ -1242,7 +1264,7 @@ fn collect_custom_property_roots_from_reachable_at_rule_preludes(
 fn collect_custom_property_roots_from_reachable_at_rule_preludes_from_ir(
     ir: &TransformIrV0,
     mut block_is_reachable: impl FnMut(usize, usize) -> bool,
-) -> Vec<String> {
+) -> Vec<CanonicalCustomPropertyNameV0> {
     let mut roots = Vec::new();
     for at_rule in collect_custom_property_at_rule_preludes_from_ir(ir) {
         if !at_rule_prelude_can_reference_custom_properties(at_rule.keyword) {
@@ -1258,7 +1280,7 @@ fn collect_custom_property_roots_from_reachable_at_rule_preludes_from_ir(
         };
         if prelude_can_keep_roots {
             for name in collect_custom_property_references_in_value(at_rule.prelude) {
-                push_unique_string(&mut roots, name);
+                push_unique_custom_property_key(&mut roots, name);
             }
         }
     }
@@ -1267,7 +1289,7 @@ fn collect_custom_property_roots_from_reachable_at_rule_preludes_from_ir(
 
 fn collect_custom_property_roots_from_descriptor_at_rules(
     tokens: &[omena_parser::LexedToken],
-) -> Vec<String> {
+) -> Vec<CanonicalCustomPropertyNameV0> {
     let mut roots = Vec::new();
     let mut index = 0usize;
 
@@ -1293,7 +1315,7 @@ fn collect_custom_property_roots_from_descriptor_at_rules(
             collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
         {
             for name in collect_custom_property_references_in_value(&declaration.value) {
-                push_unique_string(&mut roots, name);
+                push_unique_custom_property_key(&mut roots, name);
             }
         }
         index = block_end_index + 1;
@@ -1304,7 +1326,7 @@ fn collect_custom_property_roots_from_descriptor_at_rules(
 
 fn collect_custom_property_roots_from_descriptor_at_rules_from_ir(
     ir: &TransformIrV0,
-) -> Vec<String> {
+) -> Vec<CanonicalCustomPropertyNameV0> {
     let mut roots = Vec::new();
     for node in ir
         .nodes
@@ -1323,7 +1345,7 @@ fn collect_custom_property_roots_from_descriptor_at_rules_from_ir(
         };
         for declaration in collect_simple_declarations_between_from_ir(ir, block_start, block_end) {
             for name in collect_custom_property_references_in_value(&declaration.value) {
-                push_unique_string(&mut roots, name);
+                push_unique_custom_property_key(&mut roots, name);
             }
         }
     }
@@ -1374,21 +1396,27 @@ fn custom_property_registration_rule_from_ir(
         return None;
     };
     let name = normalize_custom_property_name(source.get(keyword_end..block_start)?.trim())?;
+    let property_key = canonical_custom_property_key(name)?;
     let declarations = collect_simple_declarations_between_from_ir(ir, block_start, block_end);
     let syntax = declarations
         .iter()
-        .find(|declaration| declaration.property == "syntax" && !declaration.important)
+        .find(|declaration| declaration.property_key.as_str() == "syntax" && !declaration.important)
         .map(|declaration| declaration.value.clone());
     let inherits = declarations
         .iter()
-        .find(|declaration| declaration.property == "inherits" && !declaration.important)
+        .find(|declaration| {
+            declaration.property_key.as_str() == "inherits" && !declaration.important
+        })
         .map(|declaration| declaration.value.clone());
     let initial_value = declarations
         .into_iter()
-        .find(|declaration| declaration.property == "initial-value" && !declaration.important)
+        .find(|declaration| {
+            declaration.property_key.as_str() == "initial-value" && !declaration.important
+        })
         .map(|declaration| declaration.value);
     Some(CustomPropertyRegistrationRule {
         name: name.to_string(),
+        property_key,
         start: keyword_start,
         end: node.source_span_end,
         syntax,
@@ -1526,6 +1554,7 @@ fn declaration_ordinary_rule_slice_from_ir(
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CustomPropertyDeclarationIrViewV0 {
     property: String,
+    property_key: CanonicalPropertyKeyV0,
     value: String,
     important: bool,
     start: usize,
@@ -1604,6 +1633,7 @@ fn collect_simple_declarations_from_keyframe_slice(
         .into_iter()
         .map(|declaration| CustomPropertyDeclarationIrViewV0 {
             property: declaration.property,
+            property_key: declaration.property_key,
             value: declaration.value,
             important: declaration.important,
             start: declaration.start,
@@ -1655,13 +1685,10 @@ fn simple_declaration_from_ir(
     if property.is_empty() || value.is_empty() {
         return None;
     }
-    let property = if property.starts_with("--") {
-        property.to_string()
-    } else {
-        property.to_ascii_lowercase()
-    };
+    let property_name = PropertyNameV0::from_authored(property);
     Some(CustomPropertyDeclarationIrViewV0 {
-        property,
+        property: property_name.authored().to_string(),
+        property_key: property_name.canonical_key(),
         value: value.to_string(),
         important: value
             .split_whitespace()
@@ -1875,58 +1902,20 @@ fn source_text_contains_comment(source: &str) -> bool {
     source.as_bytes().windows(2).any(|bytes| bytes == b"/*")
 }
 
-fn collect_custom_property_names_in_style_query(query: &str, names: &mut Vec<String>) {
-    let mut index = 0usize;
-    let mut quote: Option<char> = None;
-
-    while index < query.len() {
-        let Some(ch) = query[index..].chars().next() else {
-            break;
-        };
-
-        if let Some(quote_ch) = quote {
-            index += ch.len_utf8();
-            if ch == '\\' {
-                if let Some(escaped) = query[index..].chars().next() {
-                    index += escaped.len_utf8();
-                }
-            } else if ch == quote_ch {
-                quote = None;
-            }
-            continue;
-        }
-
-        match ch {
-            '"' | '\'' => {
-                quote = Some(ch);
-                index += ch.len_utf8();
-            }
-            '-' if query[index..].starts_with("--") => {
-                let name_end = custom_property_name_end(query, index + "--".len());
-                if name_end > index + "--".len()
-                    && let Some(name) = normalize_custom_property_name(&query[index..name_end])
-                {
-                    push_unique_string(names, name.to_string());
-                }
-                index = name_end;
-            }
-            _ => {
-                index += ch.len_utf8();
-            }
+fn collect_custom_property_names_in_style_query(
+    query: &str,
+    names: &mut Vec<CanonicalCustomPropertyNameV0>,
+) {
+    let lexed = lex(query, StyleDialect::Css);
+    for token in lexed
+        .tokens()
+        .iter()
+        .filter(|token| token.kind == SyntaxKind::CustomPropertyName)
+    {
+        if let Some(property_key) = canonical_custom_property_key(&token.text) {
+            push_unique_custom_property_key(names, property_key);
         }
     }
-}
-fn custom_property_name_end(value: &str, mut index: usize) -> usize {
-    while index < value.len() {
-        let Some(ch) = value[index..].chars().next() else {
-            break;
-        };
-        if !is_css_name_continue(ch) {
-            break;
-        }
-        index += ch.len_utf8();
-    }
-    index
 }
 
 pub(crate) fn substitute_static_css_custom_properties_with_lexer(
@@ -1957,7 +1946,7 @@ pub(crate) fn substitute_static_css_custom_properties_with_lexer(
             continue;
         };
         for declaration in collect_simple_declarations_in_block(tokens, index, close_index) {
-            if declaration.property.starts_with("--") {
+            if declaration.property_key.as_custom().is_some() {
                 continue;
             }
             let Some(resolved_value) =
@@ -2108,10 +2097,11 @@ pub(crate) fn collect_static_root_custom_property_env(
         for declaration in
             collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
         {
-            if declaration.property.starts_with("--")
-                && !blocked_names.contains(&declaration.property)
+            let property = PropertyNameV0::from_authored(&declaration.property);
+            if let Some(property_key) = property.as_custom_key()
+                && !blocked_names.contains(&property_key)
             {
-                blocked_names.push(declaration.property);
+                blocked_names.push(property_key);
             }
         }
     }
@@ -2128,47 +2118,49 @@ pub(crate) fn collect_static_root_custom_property_env(
         for declaration in
             collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
         {
-            if !declaration.property.starts_with("--") {
+            let property = PropertyNameV0::from_authored(&declaration.property);
+            let Some(property_key) = property.as_custom_key() else {
                 continue;
-            }
+            };
             if declaration.important {
-                env.remove(&declaration.property);
-                if !blocked_names.contains(&declaration.property) {
-                    blocked_names.push(declaration.property);
+                env.remove(&property_key);
+                if !blocked_names.contains(&property_key) {
+                    blocked_names.push(property_key);
                 }
                 continue;
             }
-            if blocked_names.contains(&declaration.property) {
+            if blocked_names.contains(&property_key) {
                 continue;
             }
-            if env.contains_key(&declaration.property) {
-                env.remove(&declaration.property);
-                blocked_names.push(declaration.property);
+            if env.contains_key(&property_key) {
+                env.remove(&property_key);
+                blocked_names.push(property_key);
                 continue;
             }
             let Some(value) = parse_static_custom_property_env_value(&declaration.value) else {
-                env.remove(&declaration.property);
-                if !blocked_names.contains(&declaration.property) {
-                    blocked_names.push(declaration.property);
+                env.remove(&property_key);
+                if !blocked_names.contains(&property_key) {
+                    blocked_names.push(property_key);
                 }
                 continue;
             };
-            env.insert(declaration.property, value);
+            env.insert(property_key, value);
         }
     }
 
     let mut registration_names = Vec::new();
     for registration in registrations {
-        if blocked_names.contains(&registration.name) {
+        let registration_key = registration.property_key;
+        if blocked_names.contains(&registration_key) {
             continue;
         }
-        if registration_names.contains(&registration.name) {
-            env.remove(&registration.name);
-            blocked_names.push(registration.name);
+        if registration_names.contains(&registration_key) {
+            env.remove(&registration_key);
+            blocked_names.push(registration_key);
             continue;
         }
-        registration_names.push(registration.name.clone());
-        if env.contains_key(&registration.name) {
+        registration_names.push(registration_key.clone());
+        if env.contains_key(&registration_key) {
             continue;
         }
         let Some(initial_value) = registration.initial_value else {
@@ -2177,7 +2169,7 @@ pub(crate) fn collect_static_root_custom_property_env(
         let Some(value) = parse_static_custom_property_env_value(&initial_value) else {
             continue;
         };
-        env.insert(registration.name, value);
+        env.insert(registration_key, value);
     }
 
     env
@@ -2338,19 +2330,18 @@ fn parse_static_var_value(value: &str) -> Option<CascadeValue> {
 
 fn parse_static_var_arguments(arguments: &[String]) -> Option<CascadeValue> {
     let (name, fallback_arguments) = arguments.split_first()?;
-    if !name.starts_with("--") {
-        return None;
-    }
+    let property = PropertyNameV0::from_authored(name);
+    let name = property.as_custom_key()?;
     if fallback_arguments.is_empty() {
         return Some(CascadeValue::Var {
-            name: name.to_string(),
+            name,
             fallback: None,
         });
     }
 
     let fallback = parse_static_custom_property_env_value(&fallback_arguments.join(", "))?;
     Some(CascadeValue::Var {
-        name: name.to_string(),
+        name,
         fallback: Some(Box::new(fallback)),
     })
 }
@@ -2383,6 +2374,21 @@ mod static_cascade_value_rendering_tests {
         assert_eq!(
             render_static_cascade_value(&CascadeValue::Indeterminate),
             None
+        );
+    }
+
+    #[test]
+    fn static_var_values_use_canonical_custom_property_identity() {
+        assert_eq!(
+            parse_static_custom_property_env_value(r"var(--f\6f o)"),
+            Some(CascadeValue::Var {
+                name: PropertyNameV0::canonical_custom_key("--foo"),
+                fallback: None,
+            })
+        );
+        assert_ne!(
+            PropertyNameV0::canonical_custom_key("--FOO"),
+            PropertyNameV0::canonical_custom_key("--foo")
         );
     }
 }

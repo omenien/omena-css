@@ -1,4 +1,5 @@
 use omena_parser::StyleDialect;
+use omena_syntax::ident::{CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0, PropertyNameV0};
 use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -96,11 +97,7 @@ fn collect_design_token_route_replacements(
             } else {
                 declaration.value.as_str()
             };
-            let blocked_token_name = declaration
-                .property
-                .starts_with("--")
-                .then(|| normalize_design_token_name(&declaration.property))
-                .flatten();
+            let blocked_token_name = declaration.property_key.as_custom();
             let Some(routed_value) = route_design_token_references_in_value(
                 declaration_value,
                 routes,
@@ -134,6 +131,7 @@ struct DesignTokenAtRuleViewV0<'source> {
 
 struct DesignTokenDeclarationViewV0 {
     property: String,
+    property_key: CanonicalPropertyKeyV0,
     value: String,
     important: bool,
     source_span_start: usize,
@@ -183,11 +181,7 @@ fn collect_design_token_route_replacements_from_ir(
         } else {
             declaration.value.as_str()
         };
-        let blocked_token_name = declaration
-            .property
-            .starts_with("--")
-            .then(|| normalize_design_token_name(&declaration.property))
-            .flatten();
+        let blocked_token_name = declaration.property_key.as_custom();
         let Some(routed_value) =
             route_design_token_references_in_value(declaration_value, routes, blocked_token_name)
         else {
@@ -302,13 +296,10 @@ fn design_token_declaration_view_from_ir(
     if property.is_empty() || value.is_empty() {
         return None;
     }
-    let property = if property.starts_with("--") {
-        property.to_string()
-    } else {
-        property.to_ascii_lowercase()
-    };
+    let property_name = PropertyNameV0::from_authored(property);
     Some(DesignTokenDeclarationViewV0 {
-        property,
+        property: property_name.authored().to_string(),
+        property_key: property_name.canonical_key(),
         value: value.to_string(),
         important: declaration_value_without_important(value).is_some(),
         source_span_start: node.source_span_start.checked_add(leading_offset)?,
@@ -375,7 +366,7 @@ fn declaration_value_without_important(value: &str) -> Option<&str> {
 fn route_design_token_references_in_value(
     value: &str,
     routes: &[TransformDesignTokenRouteV0],
-    blocked_token_name: Option<&str>,
+    blocked_token_name: Option<&CanonicalCustomPropertyNameV0>,
 ) -> Option<String> {
     let mut output = String::with_capacity(value.len());
     let mut cursor = 0usize;
@@ -451,15 +442,15 @@ fn route_design_token_references_in_value(
 fn routed_design_token_value_for_var_arguments(
     arguments: &[String],
     routes: &[TransformDesignTokenRouteV0],
-    blocked_token_name: Option<&str>,
-    visiting: &mut Vec<String>,
+    blocked_token_name: Option<&CanonicalCustomPropertyNameV0>,
+    visiting: &mut Vec<CanonicalCustomPropertyNameV0>,
 ) -> Option<String> {
     let (token_name, fallback_arguments) = arguments.split_first()?;
     let token_name = normalize_design_token_name(token_name)?;
-    if blocked_token_name.is_some_and(|blocked| blocked == token_name) {
+    if blocked_token_name.is_some_and(|blocked| blocked == &token_name) {
         return None;
     }
-    let routed_value = design_token_routed_value(token_name, routes)?;
+    let routed_value = design_token_routed_value(&token_name, routes)?;
     if !fallback_arguments.is_empty()
         && let Some(routed_token_name) = parse_single_custom_property_var_reference(routed_value)
     {
@@ -467,7 +458,10 @@ fn routed_design_token_value_for_var_arguments(
         let routed_fallback =
             route_design_token_references_in_value(&fallback, routes, blocked_token_name)
                 .unwrap_or(fallback);
-        return Some(format!("var({routed_token_name}, {routed_fallback})"));
+        return Some(format!(
+            "var({}, {routed_fallback})",
+            routed_token_name.as_str()
+        ));
     }
     resolve_nested_design_token_route_value(routed_value, routes, blocked_token_name, visiting)
         .or_else(|| Some(routed_value.to_string()))
@@ -476,13 +470,13 @@ fn routed_design_token_value_for_var_arguments(
 fn resolve_nested_design_token_route_value(
     value: &str,
     routes: &[TransformDesignTokenRouteV0],
-    blocked_token_name: Option<&str>,
-    visiting: &mut Vec<String>,
+    blocked_token_name: Option<&CanonicalCustomPropertyNameV0>,
+    visiting: &mut Vec<CanonicalCustomPropertyNameV0>,
 ) -> Option<String> {
     let Some(routed_token_name) = parse_single_custom_property_var_reference(value) else {
         return route_design_token_references_in_value(value, routes, blocked_token_name);
     };
-    if visiting.iter().any(|name| name == &routed_token_name) {
+    if visiting.contains(&routed_token_name) {
         return None;
     }
     visiting.push(routed_token_name.clone());
@@ -493,10 +487,10 @@ fn resolve_nested_design_token_route_value(
 }
 
 fn resolve_design_token_route_name(
-    token_name: &str,
+    token_name: &CanonicalCustomPropertyNameV0,
     routes: &[TransformDesignTokenRouteV0],
-    blocked_token_name: Option<&str>,
-    visiting: &mut Vec<String>,
+    blocked_token_name: Option<&CanonicalCustomPropertyNameV0>,
+    visiting: &mut Vec<CanonicalCustomPropertyNameV0>,
 ) -> Option<String> {
     if blocked_token_name.is_some_and(|blocked| blocked == token_name) {
         return None;
@@ -506,16 +500,18 @@ fn resolve_design_token_route_name(
         .or_else(|| Some(routed_value.to_string()))
 }
 
-fn parse_single_custom_property_var_reference(value: &str) -> Option<String> {
+fn parse_single_custom_property_var_reference(
+    value: &str,
+) -> Option<CanonicalCustomPropertyNameV0> {
     let arguments = parse_whole_function_value_arguments(value, "var")?;
     let [name] = arguments.as_slice() else {
         return None;
     };
-    Some(normalize_design_token_name(name)?.to_string())
+    normalize_design_token_name(name)
 }
 
 fn design_token_routed_value<'a>(
-    token_name: &str,
+    token_name: &CanonicalCustomPropertyNameV0,
     routes: &'a [TransformDesignTokenRouteV0],
 ) -> Option<&'a str> {
     routes.iter().find_map(|route| {
@@ -524,14 +520,12 @@ fn design_token_routed_value<'a>(
         if routed_value.is_empty() || routed_value.chars().any(|ch| matches!(ch, ';' | '{' | '}')) {
             return None;
         }
-        (route_name == token_name).then_some(routed_value)
+        (&route_name == token_name).then_some(routed_value)
     })
 }
 
-fn normalize_design_token_name(name: &str) -> Option<&str> {
-    let name = name.trim();
-    if name.starts_with("--") && name.len() > 2 {
-        return Some(name);
-    }
-    None
+fn normalize_design_token_name(name: &str) -> Option<CanonicalCustomPropertyNameV0> {
+    let property_name = PropertyNameV0::from_authored(name);
+    let key = property_name.as_custom_key()?;
+    (key.as_str().len() > 2).then_some(key)
 }

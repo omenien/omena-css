@@ -7,6 +7,7 @@ use omena_evidence_graph::{
 use omena_spec_audit::{
     SpecGrammarBoundaryClassificationV0, SpecGrammarRegistryV0, spec_grammar_registry,
 };
+use omena_syntax::ident::{PropertyNameV0, is_custom_property_name};
 use omena_value_lattice::{
     CssValueComponentKindV0, CssValueComponentV0, DeclarationValueLensV0, ValueNodeV0,
     css_value_component_stream, declaration_value_lens, parse_numeric_value_with_unit,
@@ -1340,7 +1341,9 @@ fn parse_reference(source: &str, offset: usize) -> Result<VdsReference, VdsParse
     {
         return Ok(VdsReference {
             category: ReferenceCategory::Property,
-            name: property.to_ascii_lowercase(),
+            name: PropertyNameV0::from_authored(property)
+                .canonical_name()
+                .to_string(),
             range: None,
         });
     }
@@ -1887,7 +1890,7 @@ fn match_builtin_reference(
         "ident" | "ident-token" => matches!(component.kind, CssValueComponentKindV0::Ident),
         "dashed-ident" | "custom-property-name" => {
             matches!(component.kind, CssValueComponentKindV0::Ident)
-                && component.text.starts_with("--")
+                && is_custom_property_name(&component.text)
         }
         "string" | "string-token" => matches!(kind, DeclaredValueKindV0::QuotedString),
         "url" | "url-token" => matches!(kind, DeclaredValueKindV0::Url),

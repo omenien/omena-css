@@ -117,6 +117,7 @@ mod tests {
         summarize_omena_query_style_diagnostics_for_file,
         summarize_omena_query_style_hover_candidates,
     };
+    use omena_syntax::ident::property_names_same;
     use omena_transform_cst::TransformPassKind;
     use omena_transform_passes::{
         compare_transform_winner_equality_for_conformance_v0,
@@ -157,7 +158,7 @@ mod tests {
             .diagnostics
             .iter()
             .filter_map(|diagnostic| diagnostic.cascade_narrowing.as_ref())
-            .filter(|narrowing| narrowing.property_name == fixture.property)
+            .filter(|narrowing| property_names_same(&narrowing.property_name, fixture.property))
             .filter_map(|narrowing| narrowing.runtime_state.as_ref())
             .flat_map(|runtime| runtime.scenarios.iter())
             .map(|scenario| scenario.winner_value.clone())
@@ -196,7 +197,7 @@ mod tests {
         collect_parser_declaration_syntax_facts(source, dialect)
             .into_iter()
             .find(|fact| {
-                fact.property_name == property
+                property_names_same(&fact.property_name, property)
                     && source
                         .get(fact.byte_span.start..fact.byte_span.end)
                         .is_some_and(|declaration| declaration.contains(raw_value))
@@ -226,7 +227,9 @@ mod tests {
         }
         let observation = obligations
             .iter()
-            .find(|obligation| obligation.affected_pair.property == fixture.property)
+            .find(|obligation| {
+                property_names_same(&obligation.affected_pair.property, fixture.property)
+            })
             .map(|obligation| &obligation.observation)
             .ok_or_else(|| format!("{} has no emission-plane obligation", fixture.name))?;
         if fixture.name == "guarded-winner-reconciliation"

@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0, property_names_same};
 use omena_value_lattice::{canonicalize_css_value, css_values_canonically_equal};
 
 use crate::{
@@ -91,7 +92,7 @@ pub fn narrow_abstract_property_value_for_cascade_branch(
 ) -> AbstractPropertyValueNarrowingV0 {
     let matched = candidates
         .iter()
-        .filter(|candidate| candidate.property_name == property_name)
+        .filter(|candidate| property_names_same(&candidate.property_name, property_name))
         .filter(|candidate| {
             candidate.pseudo_state.as_deref().is_none()
                 || candidate.pseudo_state.as_deref() == requested_pseudo_state
@@ -202,7 +203,7 @@ fn abstract_property_value_from_single_candidate(
     if let Some(custom_property_name) = referenced_custom_property_name(value) {
         return AbstractPropertyValueV0::CustomPropertyReference {
             property_name: property_name.to_string(),
-            custom_property_name,
+            custom_property_name: custom_property_name.authored,
             pseudo_state: requested_pseudo_state.map(str::to_string),
         };
     }
@@ -269,11 +270,13 @@ fn display_value_for_custom_property_reference(
     custom_property_name: &str,
     matched: &[&AbstractPropertyValueCandidateV0],
 ) -> Option<String> {
+    let custom_property_key =
+        PropertyNameV0::from_authored(custom_property_name).as_custom_key()?;
     matched
         .iter()
         .find(|candidate| {
-            referenced_custom_property_name(candidate.value.trim()).as_deref()
-                == Some(custom_property_name)
+            referenced_custom_property_name(candidate.value.trim())
+                .is_some_and(|reference| reference.key == custom_property_key)
         })
         .and_then(|candidate| display_candidate_value(candidate))
         .or_else(|| Some(format!("var({custom_property_name})")))
@@ -362,16 +365,20 @@ fn finite_css_typed_value_from_strings(values: &[String]) -> Option<Box<Abstract
         .map(Box::new)
 }
 
-fn referenced_custom_property_name(value: &str) -> Option<String> {
+struct ReferencedCustomPropertyNameV0 {
+    authored: String,
+    key: CanonicalCustomPropertyNameV0,
+}
+
+fn referenced_custom_property_name(value: &str) -> Option<ReferencedCustomPropertyNameV0> {
     let value = value.trim();
     let name_start = value.find("var(")? + "var(".len();
     let tail = value.get(name_start..)?.trim_start();
-    if !tail.starts_with("--") {
-        return None;
-    }
-    let name_end = tail
-        .find(|character: char| character == ')' || character == ',' || character.is_whitespace())
-        .unwrap_or(tail.len());
+    let name_end = tail.find([')', ',']).unwrap_or(tail.len());
     let name = tail.get(..name_end)?.trim();
-    (!name.is_empty()).then(|| name.to_string())
+    let property_name = PropertyNameV0::from_authored(name);
+    Some(ReferencedCustomPropertyNameV0 {
+        authored: property_name.authored().to_string(),
+        key: property_name.as_custom_key()?,
+    })
 }

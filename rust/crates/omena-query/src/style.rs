@@ -4,7 +4,10 @@ use omena_parser::{
 };
 use omena_syntax::{
     css_keyword,
-    ident::{CanonicalClassKeyV0, ClassNameV0, is_ascii_word_continue, is_css_name_continue},
+    ident::{
+        CanonicalClassKeyV0, CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0, ClassNameV0,
+        PropertyNameV0, is_ascii_word_continue, is_css_name_continue,
+    },
 };
 use std::cell::RefCell;
 use std::cmp::Ordering;
@@ -624,7 +627,12 @@ struct HoverCascadeBranchMatch {
     scope: HoverCascadeBranchScope,
 }
 
-type SelectorPropertyBranchKey = (String, Vec<String>, Option<String>, Option<i32>);
+type SelectorPropertyBranchKey = (
+    CanonicalPropertyKeyV0,
+    Vec<String>,
+    Option<String>,
+    Option<i32>,
+);
 
 /// Name-independent cascade-narrowing inputs precollected over a fixed style corpus
 /// (rfcs#63 E-ii): per-file cascade declarations in `style_sources` order plus the
@@ -784,7 +792,7 @@ fn selector_property_value_narrowings_from_declarations(
         .iter()
         .map(|declaration| {
             (
-                declaration.input.property.clone(),
+                declaration.property_key.clone(),
                 declaration.input.condition_context.clone(),
                 declaration.input.layer_name.clone(),
                 declaration.input.layer_order,
@@ -812,10 +820,10 @@ fn selector_property_value_narrowings_from_declarations(
     branch_keys
         .into_iter()
         .map(
-            |(property_name, condition_context, layer_name, layer_order)| {
+            |(property_key, condition_context, layer_name, layer_order)| {
                 let property_candidates = matching_declarations
                     .iter()
-                    .filter(|declaration| declaration.input.property == property_name)
+                    .filter(|declaration| declaration.property_key == property_key)
                     .map(|declaration| AbstractPropertyValueCandidateV0 {
                         property_name: declaration.input.property.clone(),
                         value: declaration.input.value.clone(),
@@ -829,7 +837,7 @@ fn selector_property_value_narrowings_from_declarations(
                     })
                     .collect::<Vec<_>>();
                 narrow_abstract_property_value_for_cascade_branch(
-                    property_name.as_str(),
+                    property_key.as_str(),
                     None,
                     condition_context.as_slice(),
                     layer_name.as_deref(),
@@ -928,7 +936,7 @@ fn module_graph_narrowings_from_matching_declarations(
         .iter()
         .map(|declaration| {
             (
-                declaration.input.property.clone(),
+                declaration.property_key.clone(),
                 declaration.input.condition_context.clone(),
                 declaration.input.layer_name.clone(),
                 declaration.input.layer_order,
@@ -956,10 +964,10 @@ fn module_graph_narrowings_from_matching_declarations(
     branch_keys
         .into_iter()
         .map(
-            |(property_name, condition_context, layer_name, layer_order)| {
+            |(property_key, condition_context, layer_name, layer_order)| {
                 let property_candidates = matching_declarations
                     .iter()
-                    .filter(|declaration| declaration.input.property == property_name)
+                    .filter(|declaration| declaration.property_key == property_key)
                     .map(|declaration| AbstractPropertyValueCandidateV0 {
                         property_name: declaration.input.property.clone(),
                         value: declaration.input.value.clone(),
@@ -973,7 +981,7 @@ fn module_graph_narrowings_from_matching_declarations(
                     })
                     .collect::<Vec<_>>();
                 let mut narrowed = narrow_abstract_property_value_for_cascade_branch(
-                    property_name.as_str(),
+                    property_key.as_str(),
                     None,
                     condition_context.as_slice(),
                     layer_name.as_deref(),
@@ -1483,8 +1491,8 @@ pub struct OmenaQueryModuleInterfaceProjectionV0 {
     pub style_path: String,
     pub style_selector_definitions: Vec<OmenaQueryStyleSelectorDefinitionV0>,
     pub css_modules_style_facts: omena_semantic::CssModulesCrossFileStyleFactsV0,
-    pub custom_property_decl_names: BTreeSet<String>,
-    pub custom_property_ref_names: Vec<String>,
+    pub custom_property_decl_names: BTreeSet<CanonicalCustomPropertyNameV0>,
+    pub custom_property_ref_names: BTreeSet<CanonicalCustomPropertyNameV0>,
     pub style_dependency_sources: Vec<String>,
     pub sass_module_edges: Vec<OmenaQuerySassModuleEdgeFactV0>,
     pub sass_module_configurable_variable_names: BTreeSet<String>,
@@ -1804,27 +1812,50 @@ fn style_selector_definitions_for_query(
     definitions
 }
 
-fn custom_property_decl_names_for_query(entry: &OmenaQueryStyleFactEntry) -> BTreeSet<String> {
+fn custom_property_decl_names_for_query(
+    entry: &OmenaQueryStyleFactEntry,
+) -> BTreeSet<CanonicalCustomPropertyNameV0> {
     entry
         .semantic_runtime_index
         .as_ref()
-        .map(|index| index.custom_property_decl_names.iter().cloned().collect())
+        .map(|index| {
+            index
+                .custom_property_decl_names
+                .iter()
+                .filter_map(|name| PropertyNameV0::from_authored(name).as_custom_key())
+                .collect()
+        })
         .unwrap_or_else(|| {
             entry
                 .facts
                 .custom_property_decl_names
                 .iter()
-                .cloned()
+                .filter_map(|name| PropertyNameV0::from_authored(name).as_custom_key())
                 .collect()
         })
 }
 
-fn custom_property_ref_names_for_query(entry: &OmenaQueryStyleFactEntry) -> Vec<String> {
+fn custom_property_ref_names_for_query(
+    entry: &OmenaQueryStyleFactEntry,
+) -> BTreeSet<CanonicalCustomPropertyNameV0> {
     entry
         .semantic_runtime_index
         .as_ref()
-        .map(|index| index.custom_property_ref_names.clone())
-        .unwrap_or_else(|| entry.facts.custom_property_ref_names.clone())
+        .map(|index| {
+            index
+                .custom_property_ref_names
+                .iter()
+                .filter_map(|name| PropertyNameV0::from_authored(name).as_custom_key())
+                .collect()
+        })
+        .unwrap_or_else(|| {
+            entry
+                .facts
+                .custom_property_ref_names
+                .iter()
+                .filter_map(|name| PropertyNameV0::from_authored(name).as_custom_key())
+                .collect()
+        })
 }
 
 fn sass_module_configurable_variable_names_for_query(

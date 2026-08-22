@@ -17,6 +17,7 @@ use omena_semantic::{
     summarize_style_layer_order_from_source,
 };
 use omena_syntax::StyleDialect;
+use omena_syntax::ident::{CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0, PropertyNameV0};
 
 use super::super::{
     ParserByteSpanV0, ParserRangeV0, omena_parser_dialect_for_style_path,
@@ -34,6 +35,8 @@ use super::source_scanner::{
     query_value_has_important_suffix, split_query_selector_list, strip_query_statement_comments,
     trimmed_query_span,
 };
+use super::value_references::collect_query_var_reference_facts_in_value;
+#[cfg(test)]
 use super::value_references::collect_query_var_references_in_value;
 
 pub(super) fn collect_query_checker_cascade_input(
@@ -60,45 +63,56 @@ pub(super) fn collect_query_checker_cascade_input(
             .entries
             .into_iter()
             .filter(|entry| entry.guaranteed_invalid)
-            .map(|entry| entry.name)
+            .map(|entry| PropertyNameV0::canonical_custom_key(entry.name))
             .collect::<BTreeSet<_>>();
-    let mut custom_properties_by_name =
-        BTreeMap::<String, (BTreeSet<String>, bool, ParserByteSpanV0)>::new();
+    let mut custom_properties_by_name = BTreeMap::<
+        CanonicalCustomPropertyNameV0,
+        (
+            String,
+            BTreeMap<CanonicalCustomPropertyNameV0, String>,
+            bool,
+            ParserByteSpanV0,
+        ),
+    >::new();
 
     for declaration in &declarations {
-        if !declaration.input.property.starts_with("--") {
+        let Some(property_key) = declaration.property_key.as_custom().cloned() else {
             continue;
-        }
+        };
         let entry = custom_properties_by_name
-            .entry(declaration.input.property.clone())
+            .entry(property_key.clone())
             .or_insert_with(|| {
                 (
-                    BTreeSet::new(),
-                    guaranteed_invalid_custom_properties.contains(&declaration.input.property),
+                    declaration.input.property.clone(),
+                    BTreeMap::new(),
+                    guaranteed_invalid_custom_properties.contains(&property_key),
                     declaration.byte_span,
                 )
             });
-        entry.1 |= guaranteed_invalid_custom_properties.contains(&declaration.input.property);
-        for dependency in collect_query_var_references_in_value(&declaration.input.value) {
-            entry.0.insert(dependency);
+        entry.2 |= guaranteed_invalid_custom_properties.contains(&property_key);
+        for dependency in collect_query_var_reference_facts_in_value(&declaration.input.value) {
+            entry.1.entry(dependency.key).or_insert(dependency.authored);
         }
     }
 
     let custom_property_ranges = custom_properties_by_name
         .iter()
-        .map(|(name, (_, _, byte_span))| {
-            (name.clone(), parser_range_for_byte_span(source, *byte_span))
+        .map(|(property_key, (_, _, _, byte_span))| {
+            (
+                property_key.clone(),
+                parser_range_for_byte_span(source, *byte_span),
+            )
         })
         .collect::<BTreeMap<_, _>>();
     let custom_properties = custom_properties_by_name
         .into_iter()
-        .map(
-            |(name, (dependencies, guaranteed_invalid, _))| OmenaCheckerCustomPropertyInputV0 {
-                name,
-                dependencies: dependencies.into_iter().collect(),
+        .map(|(_, (authored, dependencies, guaranteed_invalid, _))| {
+            OmenaCheckerCustomPropertyInputV0 {
+                name: authored,
+                dependencies: dependencies.into_values().collect(),
                 guaranteed_invalid,
-            },
-        )
+            }
+        })
         .collect::<Vec<_>>();
     let checker_declarations = declarations
         .into_iter()
@@ -123,7 +137,7 @@ pub(super) fn collect_query_checker_cascade_input(
 pub(super) struct QueryCheckerCascadeInputCollection {
     pub(super) checker_input: OmenaCheckerCascadeInputV0,
     pub(super) declaration_ranges: BTreeMap<String, ParserRangeV0>,
-    pub(super) custom_property_ranges: BTreeMap<String, ParserRangeV0>,
+    pub(super) custom_property_ranges: BTreeMap<CanonicalCustomPropertyNameV0, ParserRangeV0>,
     pub(super) topology_incomplete_unresolved_count: Option<usize>,
     pub(super) standard_property_value_verdicts: BTreeMap<String, CascadeStandardValueVerdictV0>,
 }
@@ -131,6 +145,7 @@ pub(super) struct QueryCheckerCascadeInputCollection {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::style) struct QueryCheckerCascadeDeclaration {
     pub(in crate::style) input: OmenaCheckerCascadeDeclarationInputV0,
+    pub(in crate::style) property_key: CanonicalPropertyKeyV0,
     pub(in crate::style) byte_span: ParserByteSpanV0,
 }
 
@@ -176,6 +191,7 @@ pub(in crate::style) fn collect_query_checker_cascade_declarations_from_syntax_a
         .into_iter()
         .map(|fact| QueryCheckerCascadeDeclaration {
             input: fact.checker_input(),
+            property_key: fact.property_key,
             byte_span: fact.byte_span,
         })
         .collect()
@@ -213,6 +229,7 @@ fn collect_query_checker_cascade_declaration_collection_from_facts(
             .into_iter()
             .map(|fact| QueryCheckerCascadeDeclaration {
                 input: fact.checker_input(),
+                property_key: fact.property_key,
                 byte_span: fact.byte_span,
             })
             .collect(),
@@ -507,6 +524,7 @@ fn push_query_checker_declaration(
     let source_order = declarations.len();
     let declaration_id = format!("decl-{source_order}");
     declarations.push(QueryCheckerCascadeDeclaration {
+        property_key: PropertyNameV0::from_authored(property).canonical_key(),
         input: OmenaCheckerCascadeDeclarationInputV0 {
             declaration_id,
             selector: CanonicalSelector::from_canonical(selector),
@@ -553,16 +571,89 @@ pub(crate) mod cascade_declarations_collect_probe {
 #[cfg(test)]
 mod layer_binding_tests {
     use super::*;
+    use crate::style::cascade_checker::runtime_state::query_runtime_cascade_declaration_from_input;
     use omena_cascade::{
-        CascadeComputedValueInputV0, CascadeDeclaration, CascadeKey, CascadeLevel,
+        CascadeComputedValueInputV0, CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome,
         CascadeStandardValueVerdictV0, CascadeValue, ComputedCascadeValueStatusV0,
         CustomPropertyEnv, OpenWorldTieEvidence, Specificity, SpecificityExactnessV0,
-        compute_cascade_computed_value, normalized_layer_rank,
+        cascade_property, compute_cascade_computed_value, normalized_layer_rank,
     };
     use omena_query_checker_orchestrator::{
         OmenaCheckerCascadeInputV0,
         run_omena_query_checker_cascade_gate_with_standard_property_value_verdicts_v0,
     };
+
+    #[test]
+    fn query_property_identity_survives_fact_join_checker_and_ranking_planes() -> Result<(), String>
+    {
+        let source = r#"
+@property --f\6f o {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 8px;
+}
+:root { --foo: red; --FOO: blue; }
+.card { color: var(--f\6f o); }
+.standard { COLOR: red; color: blue; }
+"#;
+        let collection = collect_query_checker_cascade_input("file:///tmp/identity.css", source);
+        let custom_declarations = collect_query_checker_cascade_declarations(source)
+            .into_iter()
+            .filter(|declaration| declaration.property_key.as_custom().is_some())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            custom_declarations
+                .iter()
+                .map(|declaration| (
+                    declaration.input.property.as_str(),
+                    declaration.property_key.as_str(),
+                ))
+                .collect::<Vec<_>>(),
+            [("--foo", "--foo"), ("--FOO", "--FOO")]
+        );
+        let ranked = cascade_property(
+            custom_declarations.iter().map(|declaration| {
+                query_runtime_cascade_declaration_from_input(&declaration.input)
+            }),
+            r"--f\6f o",
+        );
+        let (winner, also_considered) = match ranked {
+            CascadeOutcome::Definite {
+                winner,
+                also_considered,
+                ..
+            } => (winner, also_considered),
+            outcome => {
+                return Err(format!(
+                    "escape-equivalent custom property should rank definitively: {outcome:?}"
+                ));
+            }
+        };
+        assert_eq!(winner.property, "--foo");
+        assert!(
+            also_considered.is_empty(),
+            "custom-property case must stay split"
+        );
+
+        let gate = run_omena_query_checker_cascade_gate_with_standard_property_value_verdicts_v0(
+            collection.checker_input,
+            &collection.standard_property_value_verdicts,
+        );
+        assert!(!gate.evaluations.iter().any(|evaluation| {
+            evaluation.rule_code_name == "iacvt-prone"
+                && evaluation.declaration_ids == vec!["decl-2"]
+        }));
+        assert!(gate.evaluations.iter().any(|evaluation| {
+            evaluation.rule_code_name == "registered-property-type-mismatch"
+                && evaluation.custom_property_names == vec!["--foo"]
+        }));
+        assert!(gate.evaluations.iter().any(|evaluation| {
+            evaluation.rule_code_name == "unspecified-cascade-tie"
+                && evaluation.declaration_ids.len() == 2
+        }));
+        Ok(())
+    }
 
     #[test]
     fn one_standard_grammar_verdict_drives_checker_and_computed_value() {

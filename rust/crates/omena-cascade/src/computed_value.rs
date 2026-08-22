@@ -3,6 +3,8 @@
 //! This module owns the seed implementation for turning a cascaded declaration
 //! into a computed value witness without hiding indeterminate cascade outcomes.
 
+use omena_syntax::ident::{PropertyNameKindV0, PropertyNameV0};
+
 use crate::{
     CascadeComputedValueInputV0, CascadeComputedValueResultV0, CascadeOutcome,
     CascadeRegisteredCustomPropertyV0, CascadeRegisteredValueVerdictV0,
@@ -23,8 +25,10 @@ pub fn compute_cascade_computed_value(
         registered_custom_property,
         standard_property_value_verdicts,
     } = input;
-    let registered_custom_property =
-        registered_custom_property.filter(|registration| registration.name == property);
+    let property_identity = PropertyNameV0::from_authored(&property);
+    let registered_custom_property = registered_custom_property.filter(|registration| {
+        property_identity.same_as(&PropertyNameV0::custom(&registration.name))
+    });
     let outcome = cascade_property(declarations, &property);
     if let Some(result) = computed_value_from_indeterminate_cascade_outcome(&property, &outcome) {
         return result;
@@ -45,7 +49,7 @@ pub fn compute_cascade_computed_value(
                         .copied()
                         .unwrap_or(CascadeRegisteredValueVerdictV0::Unknown)
                 });
-            let standard_value_verdict = (!property.starts_with("--"))
+            let standard_value_verdict = (property_identity.kind() == PropertyNameKindV0::Standard)
                 .then(|| {
                     standard_property_value_verdicts
                         .get(winner.id.as_str())
@@ -146,7 +150,7 @@ pub fn compute_cascade_computed_value(
         Some(CascadeStandardValueVerdictV0::Matched) => {
             derivation_steps.push("standardPropertySyntaxMatched");
         }
-        None if !property.starts_with("--") => {
+        None if property_identity.kind() == PropertyNameKindV0::Standard => {
             derivation_steps.push("standardPropertySyntaxVerdictUnavailable");
         }
         None => {}
@@ -343,7 +347,8 @@ fn computed_value_from_initial(
         };
     }
     derivation_steps.push("initialValueTableConsulted");
-    match css_property_initial_value(&property) {
+    let canonical_property = PropertyNameV0::from_authored(&property);
+    match css_property_initial_value(canonical_property.canonical_name()) {
         CssPropertyInitialValueV0::Literal(value) => CascadeComputedValueResultV0 {
             schema_version: "0",
             product: "omena-cascade.computed-value",
@@ -392,7 +397,10 @@ fn property_inheritance(
     match registered_custom_property {
         Some(registration) if registration.inherits => CssPropertyInheritanceV0::Inherited,
         Some(_) => CssPropertyInheritanceV0::NotInherited,
-        None => css_property_is_inherited(property),
+        None => {
+            let property = PropertyNameV0::from_authored(property);
+            css_property_is_inherited(property.canonical_name())
+        }
     }
 }
 

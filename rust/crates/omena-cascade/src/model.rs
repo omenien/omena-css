@@ -5,6 +5,7 @@
 //! evidence fields instead of opaque booleans so later passes can explain why a
 //! cascade-sensitive rewrite was accepted or blocked.
 
+use omena_syntax::ident::CanonicalCustomPropertyNameV0;
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
@@ -305,7 +306,7 @@ pub enum CascadeValue {
     Literal(String),
     Composite(Vec<CascadeValue>),
     Var {
-        name: String,
+        name: CanonicalCustomPropertyNameV0,
         fallback: Option<Box<CascadeValue>>,
     },
     Initial,
@@ -1005,4 +1006,4 @@ pub struct CascadeMarginV0 {
     pub public_safety_claim_ready: bool,
 }
 
-pub type CustomPropertyEnv = BTreeMap<String, CascadeValue>;
+pub type CustomPropertyEnv = BTreeMap<CanonicalCustomPropertyNameV0, CascadeValue>;

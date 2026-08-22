@@ -8,6 +8,7 @@ use super::*;
 use omena_cascade::{
     SelectorMatchVerdict, parse_simple_selector_signature, selector_co_match_verdict,
 };
+use omena_syntax::ident::PropertyNameV0;
 
 pub fn summarize_omena_query_style_insights(
     style_uri: &str,
@@ -201,12 +202,13 @@ fn collect_partial_shorthand_override_insights(
     let mut emitted = BTreeSet::new();
     for declaration in selector_declarations {
         for (shorthand, longhands) in query_smt_box_shorthand_longhand_quartets() {
-            if declaration.input.property != shorthand {
+            let shorthand_key = PropertyNameV0::from_authored(shorthand).canonical_key();
+            if declaration.property_key != shorthand_key {
                 continue;
             }
             for override_declaration in selector_declarations.iter().copied().filter(|candidate| {
                 candidate.input.source_order > declaration.input.source_order
-                    && longhands.contains(&candidate.input.property.as_str())
+                    && longhands.contains(&candidate.property_key.as_str())
                     && same_cascade_insight_scope(declaration, candidate)
             }) {
                 if !emitted.insert((
@@ -264,7 +266,7 @@ fn collect_longhand_redundant_insights(
     for pair in selector_declarations.windows(2) {
         let previous = pair[0];
         let current = pair[1];
-        if previous.input.property != current.input.property
+        if previous.property_key != current.property_key
             || previous.input.value.trim() != current.input.value.trim()
             || !same_cascade_insight_scope(previous, current)
         {
@@ -316,7 +318,7 @@ fn collect_specificity_tie_insights(
             continue;
         };
         for right in declarations.iter().skip(index + 1) {
-            if left.input.property != right.input.property
+            if left.property_key != right.property_key
                 || left.input.selector == right.input.selector
                 || !same_cascade_insight_scope(left, right)
             {
@@ -427,7 +429,7 @@ fn shorthand_quartet_for_selector<'a>(
         let declaration = declarations
             .iter()
             .copied()
-            .find(|declaration| declaration.input.property == expected)?;
+            .find(|declaration| declaration.property_key.as_str() == expected)?;
         quartet.push(declaration);
     }
     Some(quartet)

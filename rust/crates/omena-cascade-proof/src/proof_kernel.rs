@@ -15,13 +15,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_cascade::{
-    CascadeKey, CascadeLevel, CascadeValue, DomClassTokenizationV0, LayerOrdinal,
-    OrderedTokenWordV0, Specificity, TokenSupportV0, normalized_layer_rank,
+    CascadeKey, CascadeLevel, CascadeValue, CustomPropertyEnv, DomClassTokenizationV0,
+    LayerOrdinal, OrderedTokenWordV0, Specificity, TokenSupportV0, normalized_layer_rank,
     resolve_custom_property_env_least_fixed_point, token_support_v0,
     tokenize_dom_class_attribute_v0,
 };
 use omena_parser::ModuleInstanceKeyV0;
-use omena_syntax::ident::ClassNameV0;
+use omena_syntax::ident::{ClassNameV0, PropertyNameV0};
 use serde::{Deserialize, Serialize};
 
 pub const REWRITE_CERTIFICATE_SCHEMA_VERSION_V0: &str = "0";
@@ -198,7 +198,7 @@ impl ComputedValueTermV0 {
                     .collect(),
             ),
             Self::Variable { name, fallback } => CascadeValue::Var {
-                name: name.clone(),
+                name: PropertyNameV0::canonical_custom_key(name),
                 fallback: fallback
                     .as_ref()
                     .map(|value| Box::new(value.to_cascade_value())),
@@ -1963,11 +1963,14 @@ fn computed_value_environment_v0(
     entries: &[ComputedValueEnvironmentEntryV0],
     path: &[usize],
     rule_id: &str,
-) -> Result<BTreeMap<String, CascadeValue>, CertificateRejectionV0> {
+) -> Result<CustomPropertyEnv, CertificateRejectionV0> {
     let mut environment = BTreeMap::new();
     for entry in entries {
         if environment
-            .insert(entry.name.clone(), entry.value.to_cascade_value())
+            .insert(
+                PropertyNameV0::canonical_custom_key(&entry.name),
+                entry.value.to_cascade_value(),
+            )
             .is_some()
         {
             return Err(CertificateRejectionV0::new(
@@ -1994,8 +1997,9 @@ fn check_computed_value_equality_v0(
         computed_value_environment_v0(&certificate.after_environment, path, rule_id)?;
     let before_resolved = resolve_custom_property_env_least_fixed_point(&before_environment);
     let after_resolved = resolve_custom_property_env_least_fixed_point(&after_environment);
-    let before_value = before_resolved.get(&certificate.property);
-    let after_value = after_resolved.get(&certificate.property);
+    let property = PropertyNameV0::canonical_custom_key(&certificate.property);
+    let before_value = before_resolved.get(&property);
+    let after_value = after_resolved.get(&property);
     if before_value.is_some() && before_value == after_value {
         return Ok(());
     }

@@ -8,7 +8,10 @@ use omena_parser::{
     ClosedWorldBundleV0, ModuleQualifiedSymbolSetV0, ParserDeclarationSyntaxFactV0, StyleDialect,
     collect_parser_declaration_syntax_facts, lex,
 };
-use omena_syntax::{SyntaxKind, css_keyword};
+use omena_syntax::{
+    SyntaxKind, css_keyword,
+    ident::{CanonicalPropertyKeyV0, PropertyNameV0},
+};
 use omena_transform_cst::{
     IrBlockSpanV0, IrNodeKindV0, IrNodeV0, TransformIrV0, TransformPassKind,
     lower_transform_ir_from_source, structural_block_spans_for_source,
@@ -461,7 +464,7 @@ fn external_css_entries_for_declaration(
         })
         .map(|selector| ExternalCssSemanticEntryV0 {
             selector,
-            property: declaration.property.clone(),
+            property: declaration.property_key.as_str().to_string(),
             context: context.clone(),
             value: declaration.value.clone(),
             important: declaration.important,
@@ -513,7 +516,7 @@ fn classify_external_semantic_change(
             vendor_unprefixed_property(entry.property.as_str()).is_some_and(|unprefixed| {
                 let peer = SemanticObservationKeyV0 {
                     selector_key: entry.selector.clone(),
-                    property: unprefixed.to_string(),
+                    property: PropertyNameV0::from_authored(unprefixed).canonical_key(),
                     context_key: entry.context.clone(),
                 };
                 [input.get(&peer), output.get(&peer)]
@@ -557,7 +560,7 @@ fn external_semantic_entry(
 ) -> ExternalCssSemanticEntryV0 {
     ExternalCssSemanticEntryV0 {
         selector: key.selector_key.clone(),
-        property: key.property.clone(),
+        property: key.property.as_str().to_string(),
         context: key.context_key.clone(),
         value: value.value.clone(),
         important: value.important,
@@ -1125,7 +1128,7 @@ type SemanticObservationV0 = BTreeMap<SemanticObservationKeyV0, SemanticObservat
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct SemanticObservationKeyV0 {
     selector_key: String,
-    property: String,
+    property: CanonicalPropertyKeyV0,
     context_key: String,
 }
 
@@ -1264,7 +1267,7 @@ pub(crate) fn semantic_cascade_candidates(
         .into_iter()
         .map(|candidate| SemanticCascadeCandidateV0 {
             selector: candidate.key.selector_key,
-            property: candidate.key.property,
+            property: candidate.key.property.as_str().to_string(),
             value: candidate.value.value,
             important: candidate.value.important,
             source_span_start: candidate.source_span_start,
@@ -1289,7 +1292,7 @@ fn semantic_custom_property_candidates(
             source_span_end: fact.source_span_end,
             key: SemanticObservationKeyV0 {
                 selector_key: fact.fact_kind.to_string(),
-                property: fact.name,
+                property: PropertyNameV0::from_authored(fact.name).canonical_key(),
                 context_key: "css-custom-properties".to_string(),
             },
             value: SemanticObservationValueV0 {
@@ -1315,7 +1318,7 @@ fn semantic_css_modules_value_candidates(
             source_span_end: fact.source_span_end,
             key: SemanticObservationKeyV0 {
                 selector_key: fact.fact_kind.to_string(),
-                property: fact.name,
+                property: PropertyNameV0::from_authored(fact.name).canonical_key(),
                 context_key: "css-modules".to_string(),
             },
             value: SemanticObservationValueV0 {
@@ -1547,7 +1550,7 @@ fn candidates_from_selector_declarations(
     declarations
         .into_iter()
         .flat_map(|declaration| {
-            let property = declaration.property;
+            let property = declaration.property_key;
             let value = declaration.value;
             let context_key = context_key.to_string();
             selector_keys
@@ -1572,7 +1575,7 @@ fn candidates_from_selector_declarations(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SemanticDeclarationV0 {
-    property: String,
+    property_key: CanonicalPropertyKeyV0,
     value: String,
     important: bool,
     source_order: usize,
@@ -1644,13 +1647,9 @@ fn semantic_declaration_from_source(
     if property.is_empty() || value.is_empty() {
         return None;
     }
-    let property = if property.starts_with("--") {
-        property.to_string()
-    } else {
-        property.to_ascii_lowercase()
-    };
+    let property_name = PropertyNameV0::from_authored(property);
     Some(SemanticDeclarationV0 {
-        property,
+        property_key: property_name.canonical_key(),
         value: normalize_declaration_value(value),
         important: declaration_value_is_important(value),
         source_order,
@@ -1842,7 +1841,7 @@ fn semantic_declarations_from_direct_ir_children(
     declarations.sort_by_key(|declaration| declaration.source_order);
     declarations.dedup_by(|left, right| {
         left.source_order == right.source_order
-            && left.property == right.property
+            && left.property_key == right.property_key
             && left.value == right.value
             && left.important == right.important
     });
@@ -1863,7 +1862,7 @@ fn semantic_declaration_from_ir_fact(
         })
     {
         return Some(SemanticDeclarationV0 {
-            property: fact.property_name.clone(),
+            property_key: fact.property_key.clone(),
             value: fact.value_text.clone(),
             important: fact.important,
             source_order: node.global_order,
@@ -2486,7 +2485,7 @@ fn semantic_observation_contract_snapshot() -> SemanticObservationContractV0 {
             .into_iter()
             .map(|(key, value)| SemanticObservationContractEntryV0 {
                 selector: key.selector_key,
-                property: key.property,
+                property: key.property.as_str().to_string(),
                 context: key.context_key,
                 value: value.value,
                 important: value.important,
@@ -2626,7 +2625,7 @@ mod tests {
 
         let important = observation.get(&SemanticObservationKeyV0 {
             selector_key: ".a".to_string(),
-            property: "color".to_string(),
+            property: PropertyNameV0::standard("color").canonical_key(),
             context_key: String::new(),
         });
         assert!(important.is_some(), "important declaration observation");
@@ -2637,7 +2636,7 @@ mod tests {
 
         let source_order = observation.get(&SemanticObservationKeyV0 {
             selector_key: ".b".to_string(),
-            property: "color".to_string(),
+            property: PropertyNameV0::standard("color").canonical_key(),
             context_key: String::new(),
         });
         assert!(

@@ -20,7 +20,10 @@ use omena_query_core::{
     AbstractClassValueV0, AbstractPropertyValueCandidateV0,
     narrow_abstract_property_value_for_cascade_branch, prefix_suffix_class_value,
 };
-use omena_syntax::{css_keyword, ident::class_selector_names};
+use omena_syntax::{
+    css_keyword,
+    ident::{class_selector_names, property_names_same},
+};
 
 #[cfg(test)]
 use crate::types::runtime_state_result_certainty_labels;
@@ -58,7 +61,7 @@ pub(super) fn summarize_query_runtime_state_for_evaluation(
     let selector_class_names = query_selector_class_names(anchor.selector.as_str());
     let candidate_declarations = declarations
         .iter()
-        .filter(|declaration| declaration.property == anchor.property)
+        .filter(|declaration| property_names_same(&declaration.property, &anchor.property))
         .filter(|declaration| {
             query_runtime_selector_matches_anchor_classes(
                 anchor.selector.as_str(),
@@ -583,7 +586,7 @@ pub(in crate::style) fn query_runtime_state_scenario_with_inline_override(
 ) -> OmenaQueryRuntimeStateScenarioV0 {
     let candidate_declarations = declarations
         .iter()
-        .filter(|declaration| declaration.property == property_name)
+        .filter(|declaration| property_names_same(&declaration.property, property_name))
         .filter(|declaration| {
             query_runtime_selector_matches_anchor_classes(selector, declaration.selector.as_str())
         })

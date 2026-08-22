@@ -1,5 +1,8 @@
 use omena_parser::{LexedToken, StyleDialect};
-use omena_syntax::{SyntaxKind, css_keyword};
+use omena_syntax::{
+    SyntaxKind, css_keyword,
+    ident::{CanonicalPropertyKeyV0, PropertyNameV0},
+};
 use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -100,17 +103,17 @@ fn collect_overridden_same_property_declaration_replacements(
         let declarations =
             collect_simple_declarations_in_block(tokens, block_start_index, block_end_index);
         for (index, declaration) in declarations.iter().enumerate() {
-            if css_keyword(&declaration.property).equals("composes")
-                || !same_property_override_can_dedupe(&declaration.property)
+            if css_keyword(declaration.property_key.as_str()).equals("composes")
+                || !same_property_override_can_dedupe(declaration.property_key.as_str())
                 || declaration_value_has_compat_fallback(&declaration.value)
             {
                 continue;
             }
             let has_later_same_cascade_bucket = declarations[index + 1..].iter().any(|candidate| {
-                candidate.property == declaration.property
+                candidate.property_key == declaration.property_key
                     && candidate.important == declaration.important
-                    && !css_keyword(&candidate.property).equals("composes")
-                    && same_property_override_can_dedupe(&candidate.property)
+                    && !css_keyword(candidate.property_key.as_str()).equals("composes")
+                    && same_property_override_can_dedupe(candidate.property_key.as_str())
                     && !declaration_value_has_compat_fallback(&candidate.value)
             });
             if has_later_same_cascade_bucket {
@@ -147,17 +150,17 @@ fn collect_overridden_same_property_declaration_replacements_from_ir(
         };
         let declarations = collect_simple_declarations_from_ir(ir, rule_node);
         for (index, declaration) in declarations.iter().enumerate() {
-            if css_keyword(&declaration.property).equals("composes")
-                || !same_property_override_can_dedupe(&declaration.property)
+            if css_keyword(declaration.property_key.as_str()).equals("composes")
+                || !same_property_override_can_dedupe(declaration.property_key.as_str())
                 || declaration_value_has_compat_fallback(&declaration.value)
             {
                 continue;
             }
             let has_later_same_cascade_bucket = declarations[index + 1..].iter().any(|candidate| {
-                candidate.property == declaration.property
+                candidate.property_key == declaration.property_key
                     && candidate.important == declaration.important
-                    && !css_keyword(&candidate.property).equals("composes")
-                    && same_property_override_can_dedupe(&candidate.property)
+                    && !css_keyword(candidate.property_key.as_str()).equals("composes")
+                    && same_property_override_can_dedupe(candidate.property_key.as_str())
                     && !declaration_value_has_compat_fallback(&candidate.value)
             });
             if has_later_same_cascade_bucket {
@@ -224,6 +227,7 @@ fn collect_duplicate_ordinary_rule_replacements_from_rules(
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RuleDedupDeclarationV0 {
     property: String,
+    property_key: CanonicalPropertyKeyV0,
     value: String,
     important: bool,
     start: usize,
@@ -359,13 +363,10 @@ fn simple_declaration_from_ir(
     if property.is_empty() || value.is_empty() {
         return None;
     }
-    let property = if property.starts_with("--") {
-        property.to_string()
-    } else {
-        property.to_ascii_lowercase()
-    };
+    let property_name = PropertyNameV0::from_authored(property);
     Some(RuleDedupDeclarationV0 {
-        property,
+        property: property_name.authored().to_string(),
+        property_key: property_name.canonical_key(),
         value: value.to_string(),
         important: declaration_value_is_important(value),
         start: node.source_span_start,

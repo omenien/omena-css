@@ -4,7 +4,10 @@
 //! so later layers can resolve scope and module visibility explicitly.
 
 use cstree::text::TextRange;
-use omena_syntax::{StyleDialect, SyntaxKind};
+use omena_syntax::{
+    StyleDialect, SyntaxKind,
+    ident::{CanonicalCustomPropertyNameV0, PropertyNameV0},
+};
 use std::collections::BTreeMap;
 
 #[cfg(test)]
@@ -20,6 +23,7 @@ use super::StyleFactSink;
 pub struct ParsedVariableFact {
     pub kind: ParsedVariableFactKind,
     pub name: String,
+    pub property_key: Option<CanonicalCustomPropertyNameV0>,
     pub range: TextRange,
     /// For a `CustomPropertyReference` written as `var(--x, fallback)`, records that a
     /// top-level fallback argument is present. The reference cannot be "missing" in any
@@ -123,9 +127,16 @@ fn variable_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedVariableFac
         };
         let has_fallback = kind == ParsedVariableFactKind::CustomPropertyReference
             && custom_property_reference_has_var_fallback(tokens, index);
+        let property_key = matches!(
+            kind,
+            ParsedVariableFactKind::CustomPropertyDeclaration
+                | ParsedVariableFactKind::CustomPropertyReference
+        )
+        .then(|| PropertyNameV0::canonical_custom_key(token.text));
         variables.push(ParsedVariableFact {
             kind,
             name: token.text.to_string(),
+            property_key,
             range: token.range,
             has_fallback,
             value_repr: None,

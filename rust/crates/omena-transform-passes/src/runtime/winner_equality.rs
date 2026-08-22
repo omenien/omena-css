@@ -21,6 +21,7 @@ use omena_parser::{StyleDialect, css_keyword};
 use omena_semantic::{
     LayerBindingResolutionV0, layer_ordinal_for_byte_span, summarize_style_layer_order_from_source,
 };
+use omena_syntax::ident::PropertyNameV0;
 use omena_transform_cst::{
     ObservationKindV0, PassAssumptionKindV0, PassObservationSurfaceV0, TransformIrV0,
     TransformPassKind, pass_observation_contract,
@@ -315,7 +316,8 @@ fn winner_witnesses_are_observationally_equal(
     // Absolute source ordinals may be renumbered when unrelated declarations
     // disappear; source-order effects remain observable through winner identity.
     input.winner.id == output.winner.id
-        && input.winner.property == output.winner.property
+        && PropertyNameV0::from_authored(&input.winner.property)
+            .same_as(&PropertyNameV0::from_authored(&output.winner.property))
         && input.winner.value == output.winner.value
         && input.proof.level == output.proof.level
         && input.proof.layer_rank == output.proof.layer_rank
@@ -1072,7 +1074,8 @@ fn winner_difference_absences(
     driven_axes: &[TransformWinnerEqualityAxisV0],
 ) -> Vec<TransformWinnerEqualityAbsenceV0> {
     if input.winner.id != output.winner.id
-        || input.winner.property != output.winner.property
+        || !PropertyNameV0::from_authored(&input.winner.property)
+            .same_as(&PropertyNameV0::from_authored(&output.winner.property))
         || input.winner.value != output.winner.value
     {
         return driven_axes

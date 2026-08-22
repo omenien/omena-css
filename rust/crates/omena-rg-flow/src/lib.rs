@@ -2029,6 +2029,7 @@ mod tests {
     use omena_cascade::{
         CascadeValue, CustomPropertyEnv, summarize_custom_property_least_fixed_point,
     };
+    use omena_syntax::ident::PropertyNameV0;
     use sha2::{Digest, Sha256};
 
     use super::*;
@@ -2185,14 +2186,14 @@ mod tests {
     fn beta_estimate_reads_cascade_fixed_point_trace_without_mutating_cascade() {
         let mut env = CustomPropertyEnv::default();
         env.insert(
-            "--a".to_string(),
+            PropertyNameV0::canonical_custom_key("--a"),
             CascadeValue::Var {
-                name: "--b".to_string(),
+                name: PropertyNameV0::canonical_custom_key("--b"),
                 fallback: None,
             },
         );
         env.insert(
-            "--b".to_string(),
+            PropertyNameV0::canonical_custom_key("--b"),
             CascadeValue::Literal("ready".to_string()),
         );
         let summary = summarize_custom_property_least_fixed_point(&env);
@@ -2366,21 +2367,21 @@ mod tests {
     fn multiscale_complexity_heuristic_metric_records_trace_derived_flow_evidence() {
         let mut env = CustomPropertyEnv::default();
         env.insert(
-            "--a".to_string(),
+            PropertyNameV0::canonical_custom_key("--a"),
             CascadeValue::Var {
-                name: "--b".to_string(),
+                name: PropertyNameV0::canonical_custom_key("--b"),
                 fallback: None,
             },
         );
         env.insert(
-            "--b".to_string(),
+            PropertyNameV0::canonical_custom_key("--b"),
             CascadeValue::Var {
-                name: "--c".to_string(),
+                name: PropertyNameV0::canonical_custom_key("--c"),
                 fallback: None,
             },
         );
         env.insert(
-            "--c".to_string(),
+            PropertyNameV0::canonical_custom_key("--c"),
             CascadeValue::Literal("ready".to_string()),
         );
         let summary = summarize_custom_property_least_fixed_point(&env);

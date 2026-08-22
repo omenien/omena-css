@@ -5,6 +5,8 @@
 //! gates. Their expected values are generated from the same inputs, so these
 //! checks are not browser-conformance or regression evidence.
 
+use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0};
+
 use crate::{
     CascadeDeclaration, CascadeEvaluationFuzzCaseV0, CascadeEvaluationFuzzResultV0,
     CascadeFuzzSeedReportV0, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue,
@@ -20,7 +22,10 @@ pub fn run_cascade_evaluation_fuzz_case(
     let declarations = generated_cascade_fuzz_declarations(case.seed, declaration_count);
     let matching = declarations
         .iter()
-        .filter(|declaration| declaration.property == "color")
+        .filter(|declaration| {
+            PropertyNameV0::from_authored(&declaration.property)
+                .same_as(&PropertyNameV0::standard("color"))
+        })
         .cloned()
         .collect::<Vec<_>>();
     let expected_winner_id = rank_cascade_items(matching.clone(), |declaration| declaration.key)
@@ -191,8 +196,8 @@ fn fuzz_cascade_level(value: u64) -> CascadeLevel {
     }
 }
 
-fn fuzz_var_name(index: usize) -> String {
-    format!("--fuzz-{index}")
+fn fuzz_var_name(index: usize) -> CanonicalCustomPropertyNameV0 {
+    PropertyNameV0::canonical_custom_key(format!("--fuzz-{index}"))
 }
 
 fn fuzz_next(state: &mut u64) -> u64 {

@@ -135,13 +135,13 @@
     "fixture": "tree-shake-css-modules-values",
     "passId": "tree-shake-value",
     "dialect": "css",
-    "outputCss": "   "
+    "outputCss": "@value keep: 1px;   :export { keepExport: keep;  }"
   },
   {
     "fixture": "tree-shake-custom-properties",
     "passId": "tree-shake-custom-property",
     "dialect": "css",
-    "outputCss": " .used { color: var(--keep); --keep: green;  } "
+    "outputCss": " .used { color: var(--keep); --keep: green;  } :export { keepExport: var(--keep);  }"
   },
   {
     "fixture": "module-import-inline",

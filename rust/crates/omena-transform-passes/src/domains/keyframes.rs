@@ -1,5 +1,8 @@
 use omena_parser::StyleDialect;
-use omena_syntax::{SyntaxKind, ident::css_identifier_escape_sequence_end};
+use omena_syntax::{
+    SyntaxKind,
+    ident::{CanonicalPropertyKeyV0, PropertyNameV0, css_identifier_escape_sequence_end},
+};
 use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -370,7 +373,7 @@ pub(crate) fn collect_referenced_keyframe_names(
         for declaration in
             collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
         {
-            match declaration.property.as_str() {
+            match declaration.property_key.as_str() {
                 "animation-name" => {
                     if declaration.value.contains("var(") {
                         return None;
@@ -411,7 +414,7 @@ pub(crate) fn collect_referenced_keyframe_names_from_ir(
             continue;
         }
         for declaration in collect_simple_declarations_from_ir(ir, &rule) {
-            match declaration.property.as_str() {
+            match declaration.property_key.as_str() {
                 "animation-name" => {
                     if declaration.value.contains("var(") {
                         return None;
@@ -531,7 +534,7 @@ fn style_rule_context_from_ir(ir: &TransformIrV0, node: &IrNodeV0) -> (usize, us
 
 struct KeyframeDeclarationIrViewV0 {
     source_span_start: usize,
-    property: String,
+    property_key: CanonicalPropertyKeyV0,
     value: String,
 }
 
@@ -575,7 +578,7 @@ fn simple_declaration_from_ir(
     }
     Some(KeyframeDeclarationIrViewV0 {
         source_span_start: node.source_span_start,
-        property: property.to_ascii_lowercase(),
+        property_key: PropertyNameV0::from_authored(property).canonical_key(),
         value: value.to_string(),
     })
 }

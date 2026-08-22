@@ -1,4 +1,5 @@
 use super::*;
+use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0};
 
 #[cfg(any(test, feature = "test-support"))]
 thread_local! {
@@ -250,16 +251,12 @@ fn summarize_omena_query_cross_file_summary_from_design_token_surfaces(
         collect_design_token_reachable_style_paths_by_origin(sass_module_resolution);
 
     for surface in design_token_surfaces {
-        let local_declaration_refs = surface
-            .custom_property_decl_names
-            .iter()
-            .map(String::as_str)
-            .collect::<BTreeSet<_>>();
-        for name in &surface.custom_property_ref_names {
+        let local_declaration_keys = surface.custom_property_declarations.keys().collect();
+        for (property_key, authored) in &surface.custom_property_references {
             let target = resolve_design_token_reference_target(
                 surface.style_path.as_str(),
-                name.as_str(),
-                &local_declaration_refs,
+                property_key,
+                &local_declaration_keys,
                 &design_token_declarations,
                 &design_token_reachability,
             );
@@ -275,9 +272,9 @@ fn summarize_omena_query_cross_file_summary_from_design_token_surfaces(
                     target_path: target_style_path,
                     source: None,
                     owner_selector_name: None,
-                    local_name: Some(name.clone()),
+                    local_name: Some(authored.clone()),
                     remote_name: None,
-                    target_names: vec![name.clone()],
+                    target_names: vec![authored.clone()],
                     status,
                     provenance,
                 },
@@ -347,19 +344,19 @@ struct DesignTokenReachableStylePath {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct OmenaQueryStyleDesignTokenSurfaceV0 {
     style_path: String,
-    custom_property_decl_names: BTreeSet<String>,
-    custom_property_ref_names: Vec<String>,
+    custom_property_declarations: BTreeMap<CanonicalCustomPropertyNameV0, String>,
+    custom_property_references: BTreeMap<CanonicalCustomPropertyNameV0, String>,
 }
 
 fn style_design_token_surface_for_entry(
     entry: &OmenaQueryStyleFactEntry,
 ) -> OmenaQueryStyleDesignTokenSurfaceV0 {
-    let (custom_property_decl_names, custom_property_ref_names) =
+    let (custom_property_declarations, custom_property_references) =
         custom_property_index_names_for_entry(entry);
     OmenaQueryStyleDesignTokenSurfaceV0 {
         style_path: entry.style_path.clone(),
-        custom_property_decl_names,
-        custom_property_ref_names,
+        custom_property_declarations,
+        custom_property_references,
     }
 }
 
@@ -369,19 +366,28 @@ fn style_design_token_surface_for_module_interface(
 ) -> OmenaQueryStyleDesignTokenSurfaceV0 {
     OmenaQueryStyleDesignTokenSurfaceV0 {
         style_path: projection.style_path.clone(),
-        custom_property_decl_names: projection.custom_property_decl_names.clone(),
-        custom_property_ref_names: projection.custom_property_ref_names.clone(),
+        custom_property_declarations: projection
+            .custom_property_decl_names
+            .iter()
+            .map(|key| (key.clone(), key.as_str().to_string()))
+            .collect(),
+        custom_property_references: projection
+            .custom_property_ref_names
+            .iter()
+            .map(|key| (key.clone(), key.as_str().to_string()))
+            .collect(),
     }
 }
 
 fn collect_design_token_declarations_by_name(
     design_token_surfaces: &[OmenaQueryStyleDesignTokenSurfaceV0],
-) -> BTreeMap<String, BTreeSet<String>> {
-    let mut declarations_by_name = BTreeMap::<String, BTreeSet<String>>::new();
+) -> BTreeMap<CanonicalCustomPropertyNameV0, BTreeSet<String>> {
+    let mut declarations_by_name =
+        BTreeMap::<CanonicalCustomPropertyNameV0, BTreeSet<String>>::new();
     for surface in design_token_surfaces {
-        for name in &surface.custom_property_decl_names {
+        for property_key in surface.custom_property_declarations.keys() {
             declarations_by_name
-                .entry(name.clone())
+                .entry(property_key.clone())
                 .or_default()
                 .insert(surface.style_path.clone());
         }
@@ -429,33 +435,50 @@ fn collect_design_token_reachable_style_paths_by_origin(
 
 fn custom_property_index_names_for_entry(
     entry: &OmenaQueryStyleFactEntry,
-) -> (BTreeSet<String>, Vec<String>) {
-    if let Some(index) = entry.semantic_runtime_index.as_ref() {
-        return (
-            index.custom_property_decl_names.iter().cloned().collect(),
-            index.custom_property_ref_names.clone(),
-        );
-    }
+) -> (
+    BTreeMap<CanonicalCustomPropertyNameV0, String>,
+    BTreeMap<CanonicalCustomPropertyNameV0, String>,
+) {
+    let (declaration_names, reference_names) =
+        if let Some(index) = entry.semantic_runtime_index.as_ref() {
+            (
+                index.custom_property_decl_names.as_slice(),
+                index.custom_property_ref_names.as_slice(),
+            )
+        } else {
+            (
+                entry.facts.custom_property_decl_names.as_slice(),
+                entry.facts.custom_property_ref_names.as_slice(),
+            )
+        };
 
     (
-        entry
-            .facts
-            .custom_property_decl_names
-            .iter()
-            .cloned()
-            .collect(),
-        entry.facts.custom_property_ref_names.clone(),
+        canonical_custom_property_spellings(declaration_names.iter()),
+        canonical_custom_property_spellings(reference_names.iter()),
     )
+}
+
+fn canonical_custom_property_spellings<'a>(
+    names: impl IntoIterator<Item = &'a String>,
+) -> BTreeMap<CanonicalCustomPropertyNameV0, String> {
+    names
+        .into_iter()
+        .filter_map(|name| {
+            PropertyNameV0::from_authored(name)
+                .as_custom_key()
+                .map(|property_key| (property_key, name.clone()))
+        })
+        .collect()
 }
 
 fn resolve_design_token_reference_target(
     from_style_path: &str,
-    name: &str,
-    local_declarations: &BTreeSet<&str>,
-    declarations_by_name: &BTreeMap<String, BTreeSet<String>>,
+    property_key: &CanonicalCustomPropertyNameV0,
+    local_declarations: &BTreeSet<&CanonicalCustomPropertyNameV0>,
+    declarations_by_name: &BTreeMap<CanonicalCustomPropertyNameV0, BTreeSet<String>>,
     reachable_by_origin: &BTreeMap<String, Vec<DesignTokenReachableStylePath>>,
 ) -> DesignTokenReferenceTarget {
-    if local_declarations.contains(name) {
+    if local_declarations.contains(property_key) {
         return DesignTokenReferenceTarget {
             target_style_path: Some(from_style_path.to_string()),
             status: "localResolved",
@@ -463,7 +486,7 @@ fn resolve_design_token_reference_target(
         };
     }
 
-    let Some(declaration_paths) = declarations_by_name.get(name) else {
+    let Some(declaration_paths) = declarations_by_name.get(property_key) else {
         return DesignTokenReferenceTarget {
             target_style_path: None,
             status: "unresolvedReference",

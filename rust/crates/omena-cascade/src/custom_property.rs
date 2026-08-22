@@ -4,6 +4,7 @@
 //! iteration traces, monotonic progress witnesses, and cycle-to-guaranteed-invalid
 //! behavior. Historical proof-oriented API names remain as compatibility aliases.
 
+use omena_syntax::ident::CanonicalCustomPropertyNameV0;
 use std::collections::BTreeSet;
 
 use crate::{
@@ -34,7 +35,7 @@ pub fn summarize_custom_property_least_fixed_point(
                 .cloned()
                 .unwrap_or(CascadeValue::GuaranteedInvalid);
             CustomPropertyLeastFixedPointEntryV0 {
-                name: name.clone(),
+                name: name.as_str().to_string(),
                 input: input.clone(),
                 changed: &resolved != input,
                 guaranteed_invalid: resolved == CascadeValue::GuaranteedInvalid,
@@ -203,7 +204,7 @@ fn custom_property_least_fixed_point_proof() -> CustomPropertyLeastFixedPointPro
 fn substitute_custom_properties_inner(
     value: &CascadeValue,
     env: &CustomPropertyEnv,
-    visiting: &mut BTreeSet<String>,
+    visiting: &mut BTreeSet<CanonicalCustomPropertyNameV0>,
 ) -> CascadeValue {
     match value {
         CascadeValue::Literal(_)

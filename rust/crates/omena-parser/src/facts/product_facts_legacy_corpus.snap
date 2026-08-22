@@ -3394,6 +3394,14 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: CustomPropertyDeclaration,
             name: "--known",
+            property_key: Some(
+                CanonicalCustomPropertyNameV0(
+                    "--known",
+                    CanonicalCustomPropertyNameSealV0(
+                        (),
+                    ),
+                ),
+            ),
             range: 10..17,
             has_fallback: false,
             value_repr: None,
@@ -3403,6 +3411,14 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: CustomPropertyReference,
             name: "--missing",
+            property_key: Some(
+                CanonicalCustomPropertyNameV0(
+                    "--missing",
+                    CanonicalCustomPropertyNameSealV0(
+                        (),
+                    ),
+                ),
+            ),
             range: 54..63,
             has_fallback: false,
             value_repr: None,
@@ -4151,6 +4167,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: LessReference,
             name: "@r",
+            property_key: None,
             range: 9..11,
             has_fallback: false,
             value_repr: None,
@@ -4160,6 +4177,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: LessReference,
             name: "@r",
+            property_key: None,
             range: 30..32,
             has_fallback: false,
             value_repr: None,
@@ -4231,6 +4249,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: LessDeclaration,
             name: "@accent",
+            property_key: None,
             range: 0..7,
             has_fallback: false,
             value_repr: None,
@@ -4240,6 +4259,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: LessDeclaration,
             name: "@accent-soft",
+            property_key: None,
             range: 18..30,
             has_fallback: false,
             value_repr: None,
@@ -4249,6 +4269,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: LessReference,
             name: "@accent",
+            property_key: None,
             range: 37..44,
             has_fallback: false,
             value_repr: None,
@@ -4258,6 +4279,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: LessReference,
             name: "@accent",
+            property_key: None,
             range: 133..140,
             has_fallback: false,
             value_repr: None,
@@ -4267,6 +4289,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: LessReference,
             name: "@accent",
+            property_key: None,
             range: 243..250,
             has_fallback: false,
             value_repr: None,
@@ -4276,6 +4299,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: LessReference,
             name: "@accent-soft",
+            property_key: None,
             range: 490..502,
             has_fallback: false,
             value_repr: None,
@@ -4332,6 +4356,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: LessDeclaration,
             name: "@gap",
+            property_key: None,
             range: 0..4,
             has_fallback: false,
             value_repr: None,
@@ -4341,6 +4366,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: LessReference,
             name: "@gap",
+            property_key: None,
             range: 28..32,
             has_fallback: false,
             value_repr: None,
@@ -4397,6 +4423,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: LessDeclaration,
             name: "@gap",
+            property_key: None,
             range: 0..4,
             has_fallback: false,
             value_repr: None,
@@ -4406,6 +4433,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: LessReference,
             name: "@gap",
+            property_key: None,
             range: 27..31,
             has_fallback: false,
             value_repr: None,
@@ -4467,6 +4495,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: LessDeclaration,
             name: "@gap",
+            property_key: None,
             range: 0..4,
             has_fallback: false,
             value_repr: None,
@@ -4476,6 +4505,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: LessReference,
             name: "@gap",
+            property_key: None,
             range: 62..66,
             has_fallback: false,
             value_repr: None,
@@ -4532,6 +4562,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: LessDeclaration,
             name: "@name",
+            property_key: None,
             range: 0..5,
             has_fallback: false,
             value_repr: None,
@@ -4588,6 +4619,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: LessDeclaration,
             name: "@path",
+            property_key: None,
             range: 0..5,
             has_fallback: false,
             value_repr: None,
@@ -4597,6 +4629,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: LessDeclaration,
             name: "@theme",
+            property_key: None,
             range: 17..23,
             has_fallback: false,
             value_repr: None,
@@ -4658,6 +4691,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$gap",
+            property_key: None,
             range: 0..4,
             has_fallback: false,
             value_repr: Some(
@@ -4669,6 +4703,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$gap",
+            property_key: None,
             range: 27..31,
             has_fallback: false,
             value_repr: None,
@@ -4740,6 +4775,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$brand",
+            property_key: None,
             range: 0..6,
             has_fallback: false,
             value_repr: Some(
@@ -4751,6 +4787,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$gap",
+            property_key: None,
             range: 26..30,
             has_fallback: false,
             value_repr: Some(
@@ -4824,6 +4861,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$c",
+            property_key: None,
             range: 0..2,
             has_fallback: false,
             value_repr: Some(
@@ -4835,6 +4873,14 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: CustomPropertyReference,
             name: "--d",
+            property_key: Some(
+                CanonicalCustomPropertyNameV0(
+                    "--d",
+                    CanonicalCustomPropertyNameSealV0(
+                        (),
+                    ),
+                ),
+            ),
             range: 8..11,
             has_fallback: false,
             value_repr: None,
@@ -4844,6 +4890,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$c",
+            property_key: None,
             range: 26..28,
             has_fallback: false,
             value_repr: None,
@@ -4921,6 +4968,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$color",
+            property_key: None,
             range: 0..6,
             has_fallback: false,
             value_repr: Some(
@@ -4932,6 +4980,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$color",
+            property_key: None,
             range: 25..31,
             has_fallback: false,
             value_repr: None,
@@ -4941,6 +4990,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$color",
+            property_key: None,
             range: 45..51,
             has_fallback: false,
             value_repr: None,
@@ -5033,6 +5083,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$enabled",
+            property_key: None,
             range: 0..8,
             has_fallback: false,
             value_repr: Some(
@@ -5044,6 +5095,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$enabled",
+            property_key: None,
             range: 21..29,
             has_fallback: false,
             value_repr: None,
@@ -5121,6 +5173,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$gap",
+            property_key: None,
             range: 0..4,
             has_fallback: false,
             value_repr: Some(
@@ -5132,6 +5185,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$gap",
+            property_key: None,
             range: 29..33,
             has_fallback: false,
             value_repr: None,
@@ -5209,6 +5263,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$gap",
+            property_key: None,
             range: 0..4,
             has_fallback: false,
             value_repr: Some(
@@ -5220,6 +5275,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$gap",
+            property_key: None,
             range: 27..31,
             has_fallback: false,
             value_repr: None,
@@ -5302,6 +5358,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$gap",
+            property_key: None,
             range: 0..4,
             has_fallback: false,
             value_repr: Some(
@@ -5313,6 +5370,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$gap",
+            property_key: None,
             range: 38..42,
             has_fallback: false,
             value_repr: None,
@@ -5395,6 +5453,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$gap",
+            property_key: None,
             range: 0..4,
             has_fallback: false,
             value_repr: Some(
@@ -5406,6 +5465,14 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: CustomPropertyDeclaration,
             name: "--tone",
+            property_key: Some(
+                CanonicalCustomPropertyNameV0(
+                    "--tone",
+                    CanonicalCustomPropertyNameSealV0(
+                        (),
+                    ),
+                ),
+            ),
             range: 22..28,
             has_fallback: false,
             value_repr: None,
@@ -5415,6 +5482,14 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: CustomPropertyReference,
             name: "--tone",
+            property_key: Some(
+                CanonicalCustomPropertyNameV0(
+                    "--tone",
+                    CanonicalCustomPropertyNameSealV0(
+                        (),
+                    ),
+                ),
+            ),
             range: 48..54,
             has_fallback: false,
             value_repr: None,
@@ -5424,6 +5499,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$gap",
+            property_key: None,
             range: 82..86,
             has_fallback: false,
             value_repr: None,
@@ -5501,6 +5577,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$i",
+            property_key: None,
             range: 0..2,
             has_fallback: false,
             value_repr: Some(
@@ -5512,6 +5589,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$i",
+            property_key: None,
             range: 14..16,
             has_fallback: false,
             value_repr: None,
@@ -5521,6 +5599,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$i",
+            property_key: None,
             range: 23..25,
             has_fallback: false,
             value_repr: Some(
@@ -5532,6 +5611,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$i",
+            property_key: None,
             range: 27..29,
             has_fallback: false,
             value_repr: None,
@@ -5541,6 +5621,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$i",
+            property_key: None,
             range: 47..49,
             has_fallback: false,
             value_repr: None,
@@ -5663,6 +5744,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$i",
+            property_key: None,
             range: 0..2,
             has_fallback: false,
             value_repr: Some(
@@ -5674,6 +5756,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$i",
+            property_key: None,
             range: 14..16,
             has_fallback: false,
             value_repr: None,
@@ -5683,6 +5766,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$i",
+            property_key: None,
             range: 33..35,
             has_fallback: false,
             value_repr: None,
@@ -5770,6 +5854,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$known",
+            property_key: None,
             range: 0..6,
             has_fallback: false,
             value_repr: Some(
@@ -5781,6 +5866,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$known",
+            property_key: None,
             range: 51..57,
             has_fallback: false,
             value_repr: None,
@@ -5790,6 +5876,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$missing",
+            property_key: None,
             range: 81..89,
             has_fallback: false,
             value_repr: None,
@@ -5902,6 +5989,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$name",
+            property_key: None,
             range: 0..5,
             has_fallback: false,
             value_repr: Some(
@@ -5913,6 +6001,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$name",
+            property_key: None,
             range: 25..30,
             has_fallback: false,
             value_repr: None,
@@ -6030,6 +6119,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$radius",
+            property_key: None,
             range: 0..7,
             has_fallback: false,
             value_repr: Some(
@@ -6041,6 +6131,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$radius",
+            property_key: None,
             range: 76..83,
             has_fallback: false,
             value_repr: None,
@@ -7012,6 +7103,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$variant",
+            property_key: None,
             range: 10..18,
             has_fallback: false,
             value_repr: None,
@@ -9142,6 +9234,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$tone",
+            property_key: None,
             range: 6..11,
             has_fallback: false,
             value_repr: None,
@@ -9151,6 +9244,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$tone",
+            property_key: None,
             range: 39..44,
             has_fallback: false,
             value_repr: None,
@@ -9274,6 +9368,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$i",
+            property_key: None,
             range: 5..7,
             has_fallback: false,
             value_repr: None,
@@ -9283,6 +9378,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$i",
+            property_key: None,
             range: 39..41,
             has_fallback: false,
             value_repr: None,
@@ -9360,6 +9456,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$value",
+            property_key: None,
             range: 14..20,
             has_fallback: false,
             value_repr: None,
@@ -9369,6 +9466,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$value",
+            property_key: None,
             range: 32..38,
             has_fallback: false,
             value_repr: None,
@@ -9580,6 +9678,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$color",
+            property_key: None,
             range: 12..18,
             has_fallback: false,
             value_repr: None,
@@ -9589,6 +9688,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$color",
+            property_key: None,
             range: 39..45,
             has_fallback: false,
             value_repr: None,
@@ -9697,6 +9797,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$color",
+            property_key: None,
             range: 12..18,
             has_fallback: false,
             value_repr: None,
@@ -9706,6 +9807,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$gap",
+            property_key: None,
             range: 20..24,
             has_fallback: false,
             value_repr: None,
@@ -9715,6 +9817,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$color",
+            property_key: None,
             range: 40..46,
             has_fallback: false,
             value_repr: None,
@@ -9724,6 +9827,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$gap",
+            property_key: None,
             range: 56..60,
             has_fallback: false,
             value_repr: None,
@@ -9859,6 +9963,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssDeclaration,
             name: "$enabled",
+            property_key: None,
             range: 12..20,
             has_fallback: false,
             value_repr: None,
@@ -9868,6 +9973,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$enabled",
+            property_key: None,
             range: 28..36,
             has_fallback: false,
             value_repr: None,
@@ -9976,6 +10082,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$brand",
+            property_key: None,
             range: 104..110,
             has_fallback: false,
             value_repr: None,
@@ -10063,6 +10170,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$brand",
+            property_key: None,
             range: 54..60,
             has_fallback: false,
             value_repr: None,
@@ -10072,6 +10180,7 @@ ParsedStyleFacts {
         ParsedVariableFact {
             kind: ScssReference,
             name: "$gap",
+            property_key: None,
             range: 87..91,
             has_fallback: false,
             value_repr: None,

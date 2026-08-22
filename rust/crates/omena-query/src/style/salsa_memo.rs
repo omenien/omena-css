@@ -24,6 +24,7 @@ use super::diagnostics::{
     summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace_from_resolution,
 };
 use super::*;
+use omena_syntax::ident::{is_custom_property_name, property_names_same};
 pub type OmenaQueryStyleMemoDatabaseV0 = OmenaSalsaDatabaseV0;
 use salsa::Setter;
 use std::collections::{BTreeMap, BTreeSet};
@@ -3349,10 +3350,12 @@ pub fn memo_source_element_computed_value(
             .declarations
             .iter()
             .filter_map(|declaration| match &declaration.value {
-                CascadeValue::Literal(value) if !declaration.property.starts_with("--") => Some((
-                    declaration.id.clone(),
-                    standard_property_value_verdict_v0(&declaration.property, value),
-                )),
+                CascadeValue::Literal(value) if !is_custom_property_name(&declaration.property) => {
+                    Some((
+                        declaration.id.clone(),
+                        standard_property_value_verdict_v0(&declaration.property, value),
+                    ))
+                }
                 _ => None,
             })
             .collect();
@@ -3426,7 +3429,7 @@ fn memo_source_element_static_declarations(
         .inline_style_declarations
         .iter()
         .filter(|declaration| {
-            declaration.property_name == property
+            property_names_same(&declaration.property_name, &property)
                 && declaration.byte_span.start >= identity.byte_start
                 && declaration.byte_span.end <= identity.byte_end
         })

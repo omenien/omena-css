@@ -7,6 +7,7 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
+use omena_syntax::ident::property_names_same;
 use serde::Serialize;
 
 pub type NodeId = u32;
@@ -371,7 +372,7 @@ impl<K: Clone + Ord> GuardedCascadeFragmentV0<K> {
                     observed: candidate.element_signature.clone(),
                 });
             }
-            if candidate.property != property {
+            if !property_names_same(&candidate.property, &property) {
                 return Err(GuardedCascadeFragmentRefusalV0::MultipleProperties {
                     expected: property,
                     observed: candidate.property.clone(),

@@ -14,6 +14,7 @@ use omena_query_checker_orchestrator::{
     OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0,
     OmenaCheckerMultiscaleComplexityHeuristicInputV0, run_omena_query_checker_categorical_gate_v0,
 };
+use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0};
 
 use super::super::{
     OmenaQueryStyleDiagnosticV0, ParserByteSpanV0, ParserRangeV0, parser_range_for_byte_span,
@@ -174,17 +175,17 @@ fn query_categorical_role_mapping_for_cascade(
 
     let declared = custom_properties
         .iter()
-        .map(|property| property.name.as_str())
+        .map(|property| PropertyNameV0::canonical_custom_key(&property.name))
         .collect::<BTreeSet<_>>();
     let dependencies = custom_properties
         .iter()
         .map(|property| {
             (
-                property.name.as_str(),
+                PropertyNameV0::canonical_custom_key(&property.name),
                 property
                     .dependencies
                     .iter()
-                    .map(String::as_str)
+                    .map(PropertyNameV0::canonical_custom_key)
                     .filter(|dependency| declared.contains(dependency))
                     .collect::<BTreeSet<_>>(),
             )
@@ -239,17 +240,17 @@ fn query_multiscale_complexity_heuristic_coupling_for_custom_properties(
 
     let declared = custom_properties
         .iter()
-        .map(|property| property.name.as_str())
+        .map(|property| PropertyNameV0::canonical_custom_key(&property.name))
         .collect::<BTreeSet<_>>();
     let dependencies = custom_properties
         .iter()
         .map(|property| {
             (
-                property.name.as_str(),
+                PropertyNameV0::canonical_custom_key(&property.name),
                 property
                     .dependencies
                     .iter()
-                    .map(String::as_str)
+                    .map(PropertyNameV0::canonical_custom_key)
                     .filter(|dependency| declared.contains(dependency))
                     .collect::<BTreeSet<_>>(),
             )
@@ -263,7 +264,8 @@ fn query_multiscale_complexity_heuristic_coupling_for_custom_properties(
             property
                 .dependencies
                 .iter()
-                .any(|dependency| declared.contains(dependency.as_str()))
+                .map(PropertyNameV0::canonical_custom_key)
+                .any(|dependency| declared.contains(&dependency))
         })
         .count();
     let k_cycle = declared
@@ -299,12 +301,12 @@ fn query_multiscale_complexity_heuristic_coupling_for_custom_properties(
 }
 
 fn query_acyclic_high_gain_coupling_pressure(
-    dependencies: &BTreeMap<&str, BTreeSet<&str>>,
+    dependencies: &BTreeMap<CanonicalCustomPropertyNameV0, BTreeSet<CanonicalCustomPropertyNameV0>>,
 ) -> usize {
-    let mut fanout_by_dependency = BTreeMap::<&str, usize>::new();
+    let mut fanout_by_dependency = BTreeMap::<CanonicalCustomPropertyNameV0, usize>::new();
     for edges in dependencies.values() {
         for dependency in edges {
-            *fanout_by_dependency.entry(*dependency).or_default() += 1;
+            *fanout_by_dependency.entry(dependency.clone()).or_default() += 1;
         }
     }
 
@@ -316,23 +318,23 @@ fn query_acyclic_high_gain_coupling_pressure(
 }
 
 fn query_custom_property_in_reference_cycle(
-    start: &str,
-    dependencies: &BTreeMap<&str, BTreeSet<&str>>,
+    start: &CanonicalCustomPropertyNameV0,
+    dependencies: &BTreeMap<CanonicalCustomPropertyNameV0, BTreeSet<CanonicalCustomPropertyNameV0>>,
 ) -> bool {
     let mut stack = dependencies
         .get(start)
-        .map(|edges| edges.iter().copied().collect::<Vec<_>>())
+        .map(|edges| edges.iter().cloned().collect::<Vec<_>>())
         .unwrap_or_default();
     let mut visited = BTreeSet::new();
     while let Some(node) = stack.pop() {
-        if node == start {
+        if &node == start {
             return true;
         }
-        if !visited.insert(node) {
+        if !visited.insert(node.clone()) {
             continue;
         }
-        if let Some(edges) = dependencies.get(node) {
-            stack.extend(edges.iter().copied());
+        if let Some(edges) = dependencies.get(&node) {
+            stack.extend(edges.iter().cloned());
         }
     }
     false

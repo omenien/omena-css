@@ -543,6 +543,35 @@ fn style_extract_code_actions_are_query_owned() {
 }
 
 #[test]
+fn style_extract_code_action_avoids_escape_equivalent_custom_property_identity()
+-> Result<(), String> {
+    let source = r#":root { --extracted-c\6f lor: red; } .button { color: #ff0000; }"#;
+    let Some(start) = source.find("#ff0000") else {
+        return Err("fixture color should be present".to_string());
+    };
+    let plan = summarize_omena_query_style_extract_code_actions(
+        "file:///workspace/src/App.module.css",
+        source,
+        ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 0,
+                character: start,
+            },
+            end: ParserPositionV0 {
+                line: 0,
+                character: start + "#ff0000".len(),
+            },
+        },
+    );
+
+    assert_eq!(
+        plan.actions[0].title,
+        "Extract CSS custom property '--extracted-color-2'"
+    );
+    Ok(())
+}
+
+#[test]
 fn style_inline_code_actions_are_query_owned() {
     let source = ".button {\n  composes: base;\n  color: red;\n}\n.base {\n  color: blue;\n  margin: 1rem;\n}";
     let style_uri = "file:///workspace/src/App.module.scss";

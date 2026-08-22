@@ -11,7 +11,7 @@ use omena_cascade::{
 use omena_parser::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0};
 use omena_query_transform_runner::parse_static_css_cascade_value;
 use omena_semantic::DesignTokenRankedReferenceV0;
-use omena_syntax::ident::is_ascii_word_continue;
+use omena_syntax::ident::{PropertyNameV0, is_ascii_word_continue, property_names_same};
 
 use crate::{
     AbstractPropertyValueV0, CascadeContextV0, CascadeDimensionalRefinementBridgeV0,
@@ -170,7 +170,7 @@ pub fn read_omena_query_cascade_at_position_from_graph(
         .ranked_references
         .iter()
         .find(|ranking| {
-            ranking.reference_name == reference.name
+            property_names_same(&ranking.reference_name, reference.name)
                 && ranking.reference_source_order == reference.source_order
         });
     let custom_property_env = collect_same_file_custom_property_env_from_graph_for_reference_winner(
@@ -188,7 +188,7 @@ pub fn read_omena_query_cascade_at_position_from_graph(
     let fixed_point_entry = fixed_point
         .entries
         .iter()
-        .find(|entry| entry.name == reference.name);
+        .find(|entry| property_names_same(&entry.name, reference.name));
     let fixed_point_value =
         fixed_point_entry.and_then(|entry| render_query_cascade_value(&entry.resolved));
     let refinement_evidence = fixed_point_value
@@ -373,13 +373,14 @@ fn summarize_query_cascade_refinement_evidence(
 fn collect_same_file_custom_property_env_from_graph(
     graph: &StyleSemanticGraphSummaryV0,
 ) -> CustomPropertyEnv {
-    let mut latest_values = BTreeMap::<String, (usize, CascadeValue)>::new();
+    let mut latest_values = BTreeMap::new();
     for declaration in &graph.parser_facts.custom_properties.decl_facts {
         let Some(value) = parse_static_css_cascade_value(&declaration.value) else {
             continue;
         };
+        let property_key = PropertyNameV0::canonical_custom_key(&declaration.name);
         let entry = latest_values
-            .entry(declaration.name.clone())
+            .entry(property_key)
             .or_insert((declaration.source_order, value.clone()));
         if declaration.source_order >= entry.0 {
             *entry = (declaration.source_order, value);
@@ -406,7 +407,8 @@ fn collect_same_file_custom_property_env_from_graph_for_reference_winner(
         .decl_facts
         .iter()
         .find(|declaration| {
-            declaration.name == reference_name
+            PropertyNameV0::custom(&declaration.name)
+                .same_as(&PropertyNameV0::custom(reference_name))
                 && declaration.source_order == winner_declaration_source_order
         })
     else {
@@ -415,7 +417,7 @@ fn collect_same_file_custom_property_env_from_graph_for_reference_winner(
     let Some(value) = parse_static_css_cascade_value(&winner.value) else {
         return env;
     };
-    env.insert(reference_name.to_string(), value);
+    env.insert(PropertyNameV0::canonical_custom_key(reference_name), value);
     env
 }
 

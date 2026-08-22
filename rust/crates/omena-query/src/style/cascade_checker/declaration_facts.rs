@@ -8,7 +8,7 @@ use omena_semantic::{
     LayerBindingResolutionV0, StyleContextIndexV0,
     collect_parser_declaration_syntax_and_style_context_from_source, layer_ordinal_for_byte_span,
 };
-use omena_syntax::ident::ClassNameV0;
+use omena_syntax::ident::{CanonicalPropertyKeyV0, ClassNameV0};
 
 use super::runtime_state::query_selector_class_names;
 use super::value_references::collect_query_var_references_in_value;
@@ -22,6 +22,7 @@ pub(in crate::style) struct ParsedDeclarationFactV0 {
     pub(in crate::style) byte_span: ParserByteSpanV0,
     pub(in crate::style) selector: String,
     pub(in crate::style) property_name: String,
+    pub(in crate::style) property_key: CanonicalPropertyKeyV0,
     pub(in crate::style) value: String,
     pub(in crate::style) important: bool,
     pub(in crate::style) condition_context: Vec<String>,
@@ -109,6 +110,7 @@ fn join_declaration_syntax_and_context(
                 ),
                 selector,
                 property_name: syntax_fact.property_name.clone(),
+                property_key: syntax_fact.property_key.clone(),
                 value,
                 important: syntax_fact.important,
                 condition_context: syntax_fact.condition_contexts.clone(),

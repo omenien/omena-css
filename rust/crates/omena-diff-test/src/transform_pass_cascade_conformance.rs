@@ -1,5 +1,7 @@
 //! Cascade conformance verdicts for transform passes against recorded oracles.
 
+use omena_syntax::ident::{is_custom_property_name, property_names_same};
+
 use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
@@ -510,7 +512,7 @@ fn transform_pass_cascade_comparable_facts(
             ObservationKindV0::Inheritance => {
                 css_property_is_inherited(property) != CssPropertyInheritanceV0::Unknown
             }
-            ObservationKindV0::CustomPropertyComputedValue => property.starts_with("--"),
+            ObservationKindV0::CustomPropertyComputedValue => is_custom_property_name(property),
             _ => false,
         })
         .collect()
@@ -522,7 +524,7 @@ fn transform_pass_cascade_section_projection(
 ) -> Option<TransformPassCascadeSectionProjectionV0> {
     let mut matching = summarize_omena_query_cascade_section_outcomes_from_source(source)
         .into_iter()
-        .filter(|outcome| outcome.property.eq_ignore_ascii_case(property));
+        .filter(|outcome| property_names_same(&outcome.property, property));
     let first = matching.next()?;
     if matching.next().is_some() {
         return None;
@@ -544,7 +546,7 @@ fn transform_pass_cascade_values_match(
         TransformPassCascadeOracleV0::Wpt => {
             wpt_values_agree(actual, expected)
                 || actual.trim().eq_ignore_ascii_case(expected.trim())
-                || (property.eq_ignore_ascii_case("opacity")
+                || (property_names_same(property, "opacity")
                     && css_opacity_values_agree(actual, expected))
                 || css_url_values_agree(actual, expected)
         }

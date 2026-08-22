@@ -4,6 +4,7 @@ use std::{
 };
 
 use omena_parser::{ParsedCssModuleComposesEdgeKind, css_keyword};
+use omena_syntax::ident::PropertyNameV0;
 
 use super::*;
 
@@ -15,7 +16,8 @@ pub fn summarize_omena_query_style_extract_code_actions(
     let mut actions = Vec::new();
 
     if let Some(value) = selected_extractable_css_value(source, range) {
-        let property_name = next_custom_property_name(source, custom_property_stem(value));
+        let property_name =
+            next_custom_property_name(style_uri, source, custom_property_stem(value));
         actions.push(OmenaQueryCodeActionV0 {
             title: format!("Extract CSS custom property '{property_name}'"),
             kind: "refactor.extract",
@@ -623,10 +625,18 @@ fn custom_property_stem(value: &str) -> &'static str {
     }
 }
 
-fn next_custom_property_name(source: &str, stem: &str) -> String {
+fn next_custom_property_name(style_uri: &str, source: &str, stem: &str) -> String {
+    let existing = super::parser_facade::collect_omena_query_omena_parser_style_facts_raw(
+        source,
+        super::parser_facade::omena_parser_dialect_for_style_path(style_uri),
+    )
+    .variables
+    .into_iter()
+    .filter_map(|variable| variable.property_key)
+    .collect::<BTreeSet<_>>();
     let mut candidate = format!("--{stem}");
     let mut suffix = 2usize;
-    while source.contains(candidate.as_str()) {
+    while existing.contains(&PropertyNameV0::canonical_custom_key(&candidate)) {
         candidate = format!("--{stem}-{suffix}");
         suffix += 1;
     }

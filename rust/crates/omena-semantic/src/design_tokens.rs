@@ -9,7 +9,10 @@ use omena_cascade::{
     SelectorMatchVerdict, Specificity, normalized_layer_rank, select_open_world_cascade_winner,
     selector_context_witness, selector_context_witness_for_declaration,
 };
-use omena_syntax::css_keyword;
+use omena_syntax::{
+    css_keyword,
+    ident::{CanonicalCustomPropertyNameV0, PropertyNameV0},
+};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -149,6 +152,7 @@ pub struct DesignTokenWorkspaceDeclarationFactV0 {
     pub under_media: bool,
     pub under_supports: bool,
     pub under_layer: bool,
+    pub property_key: CanonicalCustomPropertyNameV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -414,7 +418,7 @@ fn summarize_design_token_declaration_candidates(
     candidates.dedup_by(|left, right| {
         left.file_path == right.file_path
             && left.source_order == right.source_order
-            && left.name == right.name
+            && PropertyNameV0::custom(&left.name).same_as(&PropertyNameV0::custom(&right.name))
             && left.range == right.range
     });
     candidates
@@ -431,6 +435,7 @@ pub fn collect_design_token_workspace_declarations(
         .map(|declaration| DesignTokenWorkspaceDeclarationFactV0 {
             file_path: style_path.to_string(),
             name: declaration.name.clone(),
+            property_key: declaration.property_key.clone(),
             value: declaration.value.clone(),
             source_order: declaration.source_order,
             import_graph_distance: None,
@@ -456,9 +461,9 @@ fn summarize_design_token_cascade_ranking_signal(
     let custom_properties = &parser_facts.custom_properties;
     let cascade_context =
         DesignTokenCascadeContext::from_style_context_index(&semantic_facts.context_index);
-    let mut declaration_name_counts = BTreeMap::<&str, usize>::new();
-    let mut winner_declarations = BTreeSet::<(String, usize)>::new();
-    let mut shadowed_declarations = BTreeSet::<(String, usize)>::new();
+    let mut declaration_name_counts = BTreeMap::<CanonicalCustomPropertyNameV0, usize>::new();
+    let mut winner_declarations = BTreeSet::<(CanonicalCustomPropertyNameV0, usize)>::new();
+    let mut shadowed_declarations = BTreeSet::<(CanonicalCustomPropertyNameV0, usize)>::new();
     let mut ranked_reference_count = 0;
     let mut unranked_reference_count = 0;
     let mut cross_file_candidate_declaration_count = 0;
@@ -469,7 +474,7 @@ fn summarize_design_token_cascade_ranking_signal(
 
     for declaration in &custom_properties.decl_facts {
         *declaration_name_counts
-            .entry(declaration.name.as_str())
+            .entry(declaration.property_key.clone())
             .or_insert(0) += 1;
     }
 
@@ -578,7 +583,7 @@ fn summarize_design_token_cascade_ranking_signal(
             .iter()
             .filter(|declaration| {
                 declaration_name_counts
-                    .get(declaration.name.as_str())
+                    .get(&declaration.property_key)
                     .is_some_and(|count| *count > 1)
             })
             .count(),
@@ -1022,7 +1027,7 @@ impl DesignTokenCandidateDeclaration<'_> {
             DesignTokenCandidateDeclaration::Workspace(winner)
                 if winner.file_path == declaration.file_path
                     && winner.source_order == declaration.source_order
-                    && winner.name == declaration.name
+                    && winner.property_key == declaration.property_key
         )
     }
 
@@ -1105,15 +1110,15 @@ impl DesignTokenCandidateDeclaration<'_> {
 
 fn custom_property_declaration_key(
     declaration: &ParserIndexCustomPropertyDeclFactV0,
-) -> (String, usize) {
-    (declaration.name.clone(), declaration.source_order)
+) -> (CanonicalCustomPropertyNameV0, usize) {
+    (declaration.property_key.clone(), declaration.source_order)
 }
 
 fn custom_property_context_matches(
     declaration: &ParserIndexCustomPropertyDeclFactV0,
     reference: &ParserIndexCustomPropertyRefFactV0,
 ) -> bool {
-    if declaration.name != reference.name {
+    if declaration.property_key != reference.property_key {
         return false;
     }
     if declaration.under_media && !reference.under_media {
@@ -1138,7 +1143,7 @@ fn custom_property_workspace_context_matches(
     declaration: &DesignTokenWorkspaceDeclarationFactV0,
     reference: &ParserIndexCustomPropertyRefFactV0,
 ) -> bool {
-    if declaration.name != reference.name {
+    if declaration.property_key != reference.property_key {
         return false;
     }
     if declaration.under_media && !reference.under_media {

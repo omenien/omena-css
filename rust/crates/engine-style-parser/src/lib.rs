@@ -1,5 +1,6 @@
 //! Lightweight CSS, SCSS, and Less parsing boundary used by engine integrations.
 
+use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0, property_names_same};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -429,7 +430,7 @@ pub struct ParserIndexCustomPropertyFactsV0 {
     pub selectors_with_refs_under_layer_names: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ParserIndexCustomPropertyDeclFactV0 {
     pub name: String,
@@ -440,9 +441,10 @@ pub struct ParserIndexCustomPropertyDeclFactV0 {
     pub under_media: bool,
     pub under_supports: bool,
     pub under_layer: bool,
+    pub property_key: CanonicalCustomPropertyNameV0,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ParserIndexCustomPropertyRefFactV0 {
     pub name: String,
@@ -451,6 +453,7 @@ pub struct ParserIndexCustomPropertyRefFactV0 {
     pub under_media: bool,
     pub under_supports: bool,
     pub under_layer: bool,
+    pub property_key: CanonicalCustomPropertyNameV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -913,20 +916,15 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
     acc.value_decl_ref_names.sort();
     acc.value_decl_ref_names.dedup();
     acc.value_decl_imported_value_ref_sources.sort();
-    acc.custom_property_decl_names.sort();
-    acc.custom_property_decl_names.dedup();
+    dedupe_custom_property_names(&mut acc.custom_property_decl_names);
     acc.custom_property_decl_facts.sort();
     acc.custom_property_decl_facts.dedup();
     acc.custom_property_decl_context_selectors.sort();
     acc.custom_property_decl_context_selectors.dedup();
-    acc.custom_property_decl_names_under_media.sort();
-    acc.custom_property_decl_names_under_media.dedup();
-    acc.custom_property_decl_names_under_supports.sort();
-    acc.custom_property_decl_names_under_supports.dedup();
-    acc.custom_property_decl_names_under_layer.sort();
-    acc.custom_property_decl_names_under_layer.dedup();
-    acc.custom_property_ref_names.sort();
-    acc.custom_property_ref_names.dedup();
+    dedupe_custom_property_names(&mut acc.custom_property_decl_names_under_media);
+    dedupe_custom_property_names(&mut acc.custom_property_decl_names_under_supports);
+    dedupe_custom_property_names(&mut acc.custom_property_decl_names_under_layer);
+    dedupe_custom_property_names(&mut acc.custom_property_ref_names);
     acc.custom_property_ref_facts.sort();
     acc.custom_property_ref_facts.dedup();
     acc.selectors_with_custom_property_refs_names.sort();
@@ -1546,7 +1544,7 @@ fn custom_property_context_matches(
     decl: &ParserIndexCustomPropertyDeclFactV0,
     reference: &ParserIndexCustomPropertyRefFactV0,
 ) -> bool {
-    if decl.name != reference.name {
+    if !property_names_same(&decl.name, &reference.name) {
         return false;
     }
     if decl.under_media && !reference.under_media {
@@ -1888,7 +1886,8 @@ struct ComposesSpec {
 }
 
 fn classify_declaration_kind(property: &str) -> DeclarationKind {
-    match property.trim().to_ascii_lowercase().as_str() {
+    let property_name = PropertyNameV0::from_authored(property);
+    match property_name.canonical_name() {
         "composes" => DeclarationKind::Composes,
         "animation" => DeclarationKind::Animation,
         "animation-name" => DeclarationKind::AnimationName,
@@ -2411,6 +2410,7 @@ fn collect_index_names(
                     acc.custom_property_decl_facts.extend(
                         custom_property_decl_name_spans.into_iter().enumerate().map(
                             |(index, fact)| ParserIndexCustomPropertyDeclFactV0 {
+                                property_key: PropertyNameV0::canonical_custom_key(&fact.name),
                                 name: fact.name,
                                 source_order: source_order_offset + index,
                                 byte_span: fact.byte_span,
@@ -3133,6 +3133,7 @@ fn collect_index_selector_attachment_facts_with_context(
                             .cloned()
                             .enumerate()
                             .map(|(index, name)| ParserIndexCustomPropertyRefFactV0 {
+                                property_key: PropertyNameV0::canonical_custom_key(&name),
                                 name,
                                 source_order: source_order_offset + index,
                                 selector_contexts: selector_contexts.clone(),
@@ -3848,26 +3849,25 @@ fn find_css_var_ref_names(raw: &str) -> Vec<String> {
             cursor += ch.len_utf8();
         }
 
-        if !raw[cursor..].starts_with("--") {
-            search_start = cursor;
-            continue;
-        }
-
         let name_start = cursor;
-        let mut name_end = cursor;
+        let mut name_end = raw.len();
+        let mut escaped = false;
         for (relative_index, ch) in raw[name_start..].char_indices() {
-            let absolute_index = name_start + relative_index;
-            if relative_index == 0 {
-                name_end = absolute_index + ch.len_utf8();
+            if escaped {
+                escaped = false;
                 continue;
             }
-            if !is_css_custom_property_ident_continue(ch) {
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if matches!(ch, ',' | ')') {
+                name_end = name_start + relative_index;
                 break;
             }
-            name_end = absolute_index + ch.len_utf8();
         }
 
-        let candidate = &raw[name_start..name_end];
+        let candidate = raw[name_start..name_end].trim();
         if is_css_custom_property_name(candidate) {
             refs.push(candidate.to_string());
         }
@@ -3885,22 +3885,20 @@ fn is_css_function_boundary(raw: &str, function_start: usize) -> bool {
 }
 
 fn is_css_custom_property_name(name: &str) -> bool {
-    let Some(rest) = name.strip_prefix("--") else {
-        return false;
-    };
-    let mut chars = rest.chars();
-    let Some(first) = chars.next() else {
-        return false;
-    };
-    is_css_custom_property_ident_start(first) && chars.all(is_css_custom_property_ident_continue)
+    PropertyNameV0::from_authored(name)
+        .as_custom_key()
+        .is_some_and(|property_key| property_key.as_str().len() > 2)
 }
 
-fn is_css_custom_property_ident_start(ch: char) -> bool {
-    ch == '_' || ch == '-' || ch.is_ascii_alphabetic() || !ch.is_ascii()
-}
-
-fn is_css_custom_property_ident_continue(ch: char) -> bool {
-    is_css_custom_property_ident_start(ch) || ch.is_ascii_digit()
+fn dedupe_custom_property_names(names: &mut Vec<String>) {
+    let mut by_identity = BTreeMap::new();
+    for authored in names.drain(..) {
+        let property = PropertyNameV0::from_authored(&authored);
+        if let Some(property_key) = property.as_custom_key() {
+            by_identity.entry(property_key).or_insert(authored);
+        }
+    }
+    *names = by_identity.into_values().collect();
 }
 
 fn is_sass_ident_start(ch: char) -> bool {

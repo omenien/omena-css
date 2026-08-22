@@ -587,9 +587,9 @@ pub fn summarize_omena_parser_style_facts(
     let mut sass_module_use_sources = BTreeSet::new();
     let mut sass_module_forward_sources = BTreeSet::new();
     let mut sass_module_import_sources = BTreeSet::new();
-    let mut custom_property_names = BTreeSet::new();
-    let mut custom_property_decl_names = BTreeSet::new();
-    let mut custom_property_ref_names = BTreeSet::new();
+    let mut custom_property_names = BTreeMap::new();
+    let mut custom_property_decl_names = BTreeMap::new();
+    let mut custom_property_ref_names = BTreeMap::new();
 
     for selector in facts.selectors {
         match selector.kind {
@@ -609,13 +609,22 @@ pub fn summarize_omena_parser_style_facts(
             }
             ParsedVariableFactKind::CustomPropertyDeclaration
             | ParsedVariableFactKind::CustomPropertyReference => {
-                custom_property_names.insert(variable.name.clone());
+                let Some(property_key) = variable.property_key else {
+                    continue;
+                };
+                custom_property_names
+                    .entry(property_key.clone())
+                    .or_insert_with(|| variable.name.clone());
                 match variable.kind {
                     ParsedVariableFactKind::CustomPropertyDeclaration => {
-                        custom_property_decl_names.insert(variable.name);
+                        custom_property_decl_names
+                            .entry(property_key)
+                            .or_insert(variable.name);
                     }
                     ParsedVariableFactKind::CustomPropertyReference => {
-                        custom_property_ref_names.insert(variable.name);
+                        custom_property_ref_names
+                            .entry(property_key)
+                            .or_insert(variable.name);
                     }
                     _ => {}
                 }
@@ -793,9 +802,9 @@ pub fn summarize_omena_parser_style_facts(
                 visibility_filter_names: edge.visibility_filter_names,
             })
             .collect(),
-        custom_property_names: custom_property_names.into_iter().collect(),
-        custom_property_decl_names: custom_property_decl_names.into_iter().collect(),
-        custom_property_ref_names: custom_property_ref_names.into_iter().collect(),
+        custom_property_names: custom_property_names.into_values().collect(),
+        custom_property_decl_names: custom_property_decl_names.into_values().collect(),
+        custom_property_ref_names: custom_property_ref_names.into_values().collect(),
         at_rule_names: facts
             .at_rules
             .into_iter()

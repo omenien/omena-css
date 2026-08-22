@@ -6,7 +6,7 @@ use omena_abstract_value::{
 use omena_parser::ParserByteSpanV0;
 use omena_syntax::ident::{
     class_selector_name_end, is_css_name_continue as is_css_identifier_continue,
-    is_safe_css_identifier,
+    is_custom_property_name, is_safe_css_identifier,
 };
 use oxc_allocator::Allocator;
 use oxc_ast::ast::TSModuleReference;
@@ -4414,7 +4414,7 @@ fn is_jsx_style_attribute(name: &JSXAttributeName<'_>) -> bool {
 }
 
 fn normalize_inline_style_property_name(name: &str) -> String {
-    if name.starts_with("--") {
+    if is_custom_property_name(name) {
         return name.to_string();
     }
     let mut normalized = String::new();

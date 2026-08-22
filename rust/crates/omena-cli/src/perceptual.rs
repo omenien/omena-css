@@ -6,7 +6,7 @@ use crate::{
 use omena_query::{
     summarize_omena_query_consumer_check_style_source, summarize_omena_query_style_document,
 };
-use omena_syntax::css_keyword;
+use omena_syntax::{css_keyword, ident::PropertyNameV0};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
@@ -187,12 +187,13 @@ fn collect_wcag_exact_color_contrast_bounds_v0(
             let Some((property, value)) = declaration.split_once(':') else {
                 continue;
             };
-            let property = property.trim().to_ascii_lowercase();
+            let property_name = PropertyNameV0::from_authored(property);
+            let property = property_name.canonical_name();
             let value = strip_declaration_priority_v0(value.trim());
             let Some(color) = parse_perceptual_exact_srgb_color_v0(value) else {
                 continue;
             };
-            match property.as_str() {
+            match property {
                 "color" => {
                     foreground = Some(PerceptualDeclarationColorV0 {
                         property: "color",

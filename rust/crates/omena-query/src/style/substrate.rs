@@ -1,5 +1,6 @@
 use super::*;
 use omena_parser::ParsedStyleFacts;
+use omena_syntax::ident::CanonicalCustomPropertyNameV0;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const OMENA_QUERY_FRAGILE_GUARDED_WINNER_THRESHOLD_V0: u32 = 1;
@@ -252,16 +253,26 @@ pub fn summarize_omena_query_custom_property_annotations(
 ) -> OmenaQueryCustomPropertyAnnotationSummaryV0 {
     let dialect = omena_parser_dialect_for_style_path(style_path);
     let facts = collect_omena_query_omena_parser_style_facts_raw(style_source, dialect);
-    let mut declarations_by_name = BTreeMap::<String, usize>::new();
-    let mut references_by_name = BTreeMap::<String, usize>::new();
+    let mut declarations_by_name =
+        BTreeMap::<CanonicalCustomPropertyNameV0, (String, usize)>::new();
+    let mut references_by_name = BTreeMap::<CanonicalCustomPropertyNameV0, (String, usize)>::new();
 
     for fact in facts.variables {
+        let Some(property_key) = fact.property_key else {
+            continue;
+        };
         match fact.kind {
             ParsedVariableFactKind::CustomPropertyDeclaration => {
-                *declarations_by_name.entry(fact.name).or_default() += 1;
+                declarations_by_name
+                    .entry(property_key)
+                    .and_modify(|entry| entry.1 += 1)
+                    .or_insert((fact.name, 1));
             }
             ParsedVariableFactKind::CustomPropertyReference => {
-                *references_by_name.entry(fact.name).or_default() += 1;
+                references_by_name
+                    .entry(property_key)
+                    .and_modify(|entry| entry.1 += 1)
+                    .or_insert((fact.name, 1));
             }
             _ => {}
         }
@@ -274,11 +285,16 @@ pub fn summarize_omena_query_custom_property_annotations(
         .collect::<BTreeSet<_>>();
     let annotations = names
         .into_iter()
-        .map(|name| {
-            let declaration_count = declarations_by_name.get(&name).copied().unwrap_or(0);
-            let reference_count = references_by_name.get(&name).copied().unwrap_or(0);
+        .map(|property_key| {
+            let declaration = declarations_by_name.get(&property_key);
+            let reference = references_by_name.get(&property_key);
+            let declaration_count = declaration.map(|entry| entry.1).unwrap_or(0);
+            let reference_count = reference.map(|entry| entry.1).unwrap_or(0);
             OmenaQueryCustomPropertyAnnotationV0 {
-                name,
+                name: declaration
+                    .or(reference)
+                    .map(|entry| entry.0.clone())
+                    .unwrap_or_else(|| property_key.as_str().to_string()),
                 declaration_count,
                 reference_count,
                 annotation_kind: match (declaration_count > 0, reference_count > 0) {

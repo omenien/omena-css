@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use omena_syntax::ident::property_names_same;
+
 use super::shared::*;
 
 pub(super) fn attach_omena_query_module_graph_property_value_narrowing_for_workspace(
@@ -56,7 +58,10 @@ pub(super) fn attach_omena_query_module_graph_property_value_narrowing_for_works
             .iter()
             .filter(|(selector, candidate)| {
                 selector == &cascade_narrowing.selector
-                    && candidate.property_name == cascade_narrowing.property_name
+                    && property_names_same(
+                        &candidate.property_name,
+                        &cascade_narrowing.property_name,
+                    )
                     && *static_reachability_by_context
                         .entry(candidate.condition_context.clone())
                         .or_insert_with(|| {
@@ -172,7 +177,9 @@ fn attach_omena_query_runtime_state_inline_overrides_from_overrides(
         runtime_state.scenarios.extend(
             inline_overrides
                 .iter()
-                .filter(|override_fact| override_fact.property_name == property_name)
+                .filter(|override_fact| {
+                    property_names_same(&override_fact.property_name, &property_name)
+                })
                 .map(|override_fact| {
                     query_runtime_state_scenario_with_inline_override(
                         runtime_state.selector.as_str(),
@@ -188,7 +195,9 @@ fn attach_omena_query_runtime_state_inline_overrides_from_overrides(
                 driver.scenario_count = runtime_state
                     .inline_style_overrides
                     .iter()
-                    .filter(|override_fact| override_fact.property_name == property_name)
+                    .filter(|override_fact| {
+                        property_names_same(&override_fact.property_name, &property_name)
+                    })
                     .count();
             }
         }

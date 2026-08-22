@@ -2,6 +2,8 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0};
+
 use super::contract::{
     ClosedWorldBundleBuildErrorV0, ClosedWorldBundleEvidenceV0, ClosedWorldBundleV0,
     ClosedWorldComposesEdgeV0, ClosedWorldComposesScanStateV0,
@@ -309,7 +311,7 @@ fn reachability_index_from_seen(
     let mut class_names = BTreeSet::new();
     let mut keyframe_names = BTreeSet::new();
     let mut value_names = BTreeSet::new();
-    let mut custom_property_names = BTreeSet::new();
+    let mut custom_property_names = BTreeMap::new();
     let mut module_qualified_symbols = Vec::with_capacity(by_instance.len());
 
     for (instance, module) in by_instance {
@@ -318,7 +320,10 @@ fn reachability_index_from_seen(
             class_names.extend(module.class_names.iter().cloned());
             keyframe_names.extend(module.keyframe_names.iter().cloned());
             value_names.extend(module.value_names.iter().cloned());
-            custom_property_names.extend(module.custom_property_names.iter().cloned());
+            extend_custom_property_names(
+                &mut custom_property_names,
+                module.custom_property_names.iter().cloned(),
+            );
         }
         let qualified_class_names = if reachable {
             dedupe_symbol_names(&module.class_names)
@@ -336,7 +341,7 @@ fn reachability_index_from_seen(
             Vec::new()
         };
         let qualified_custom_property_names = if reachable {
-            dedupe_symbol_names(&module.custom_property_names)
+            dedupe_custom_property_names(&module.custom_property_names)
         } else {
             Vec::new()
         };
@@ -356,7 +361,7 @@ fn reachability_index_from_seen(
         class_names.into_iter().collect(),
         keyframe_names.into_iter().collect(),
         value_names.into_iter().collect(),
-        custom_property_names.into_iter().collect(),
+        custom_property_names.into_values().collect(),
     ))
 }
 
@@ -367,6 +372,23 @@ fn dedupe_symbol_names(names: &[String]) -> Vec<String> {
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect()
+}
+
+fn dedupe_custom_property_names(names: &[String]) -> Vec<String> {
+    let mut by_identity = BTreeMap::new();
+    extend_custom_property_names(&mut by_identity, names.iter().cloned());
+    by_identity.into_values().collect()
+}
+
+fn extend_custom_property_names(
+    by_identity: &mut BTreeMap<CanonicalCustomPropertyNameV0, String>,
+    names: impl IntoIterator<Item = String>,
+) {
+    for authored in names {
+        by_identity
+            .entry(PropertyNameV0::canonical_custom_key(&authored))
+            .or_insert(authored);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -490,7 +512,7 @@ fn stable_closure_hash(
     }
     for name in reachability.custom_property_names() {
         hash.piece("custom-property");
-        hash.piece(name);
+        hash.piece(PropertyNameV0::canonical_custom_key(name).as_str());
     }
     hash.finish_hex()
 }

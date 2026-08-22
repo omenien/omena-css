@@ -206,6 +206,21 @@ fn declaration_syntax_facts_normalize_comment_trivia_from_property_and_value_tex
 }
 
 #[test]
+fn declaration_syntax_facts_preserve_authored_property_names_with_canonical_keys() {
+    let source = r#".a { COLOR: red; --FOO: blue; --f\6f o: green; }"#;
+    let facts = collect_parser_declaration_syntax_facts(source, StyleDialect::Css);
+
+    assert_eq!(facts.len(), 3, "{facts:#?}");
+    assert_eq!(facts[0].property_name, "COLOR");
+    assert_eq!(facts[0].property_key.as_str(), "color");
+    assert_eq!(facts[1].property_name, "--FOO");
+    assert_eq!(facts[1].property_key.as_str(), "--FOO");
+    assert_eq!(facts[2].property_name, r"--f\6f o");
+    assert_eq!(facts[2].property_key.as_str(), "--foo");
+    assert_ne!(facts[1].property_key, facts[2].property_key);
+}
+
+#[test]
 fn declaration_only_projection_matches_the_full_product_index() {
     let source = r#"
 @media (min-width: 40rem) {

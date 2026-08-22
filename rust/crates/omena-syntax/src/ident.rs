@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::borrow::Cow;
 
 /// A CSS class name with authored and decoded spellings.
@@ -67,6 +68,277 @@ impl CanonicalClassKeyV0 {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+}
+
+/// Whether a declaration name belongs to the standard-property or custom-property
+/// identity domain.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PropertyNameKindV0 {
+    Standard,
+    Custom,
+}
+
+/// A CSS property name with an authored spelling and one sealed canonical identity.
+///
+/// Structural equality is deliberately unavailable. Callers compare property
+/// identity through [`PropertyNameV0::same_as`] or carry the sealed key returned by
+/// [`PropertyNameV0::canonical_key`].
+///
+/// ```compile_fail,E0369
+/// use omena_syntax::ident::{PropertyNameKindV0, PropertyNameV0};
+///
+/// fn raw_structural_equality(left: &PropertyNameV0, right: &PropertyNameV0) -> bool {
+///     left == right
+/// }
+///
+/// let _ = PropertyNameV0::new("color", PropertyNameKindV0::Standard);
+/// ```
+#[derive(Debug, Clone)]
+pub enum PropertyNameV0 {
+    Standard {
+        authored: String,
+        decoded: String,
+        canonical: CanonicalStandardPropertyNameV0,
+    },
+    Custom {
+        authored: String,
+        decoded: String,
+        canonical: CanonicalCustomPropertyNameV0,
+    },
+}
+
+impl PropertyNameV0 {
+    /// Classifies a property name after CSS-escape decoding, then applies the
+    /// corresponding canonical identity rules.
+    pub fn from_authored(authored: impl Into<String>) -> Self {
+        let authored = authored.into();
+        let decoded = decode_css_identifier_escapes(authored.trim());
+        let kind = if decoded.starts_with("--") {
+            PropertyNameKindV0::Custom
+        } else {
+            PropertyNameKindV0::Standard
+        };
+        Self::new(authored, kind)
+    }
+
+    pub fn new(authored: impl Into<String>, kind: PropertyNameKindV0) -> Self {
+        let authored = authored.into();
+        let authored = authored.trim().to_string();
+        let decoded = decode_css_identifier_escapes(&authored).into_owned();
+        match kind {
+            PropertyNameKindV0::Standard => Self::Standard {
+                canonical: CanonicalStandardPropertyNameV0(
+                    decoded.to_ascii_lowercase(),
+                    CanonicalStandardPropertyNameSealV0(()),
+                ),
+                authored,
+                decoded,
+            },
+            PropertyNameKindV0::Custom => Self::Custom {
+                canonical: CanonicalCustomPropertyNameV0(
+                    decoded.clone(),
+                    CanonicalCustomPropertyNameSealV0(()),
+                ),
+                authored,
+                decoded,
+            },
+        }
+    }
+
+    pub fn standard(authored: impl Into<String>) -> Self {
+        Self::new(authored, PropertyNameKindV0::Standard)
+    }
+
+    pub fn custom(authored: impl Into<String>) -> Self {
+        Self::new(authored, PropertyNameKindV0::Custom)
+    }
+
+    pub fn kind(&self) -> PropertyNameKindV0 {
+        match self {
+            Self::Standard { .. } => PropertyNameKindV0::Standard,
+            Self::Custom { .. } => PropertyNameKindV0::Custom,
+        }
+    }
+
+    pub fn authored(&self) -> &str {
+        match self {
+            Self::Standard { authored, .. } | Self::Custom { authored, .. } => authored,
+        }
+    }
+
+    pub fn decoded(&self) -> &str {
+        match self {
+            Self::Standard { decoded, .. } | Self::Custom { decoded, .. } => decoded,
+        }
+    }
+
+    pub fn canonical_name(&self) -> &str {
+        match self {
+            Self::Standard { canonical, .. } => canonical.as_str(),
+            Self::Custom { canonical, .. } => canonical.as_str(),
+        }
+    }
+
+    pub fn same_as(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Self::Standard {
+                    canonical: left, ..
+                },
+                Self::Standard {
+                    canonical: right, ..
+                },
+            ) => left == right,
+            (
+                Self::Custom {
+                    canonical: left, ..
+                },
+                Self::Custom {
+                    canonical: right, ..
+                },
+            ) => left == right,
+            _ => false,
+        }
+    }
+
+    pub fn canonical_key(&self) -> CanonicalPropertyKeyV0 {
+        match self {
+            Self::Standard { canonical, .. } => CanonicalPropertyKeyV0::Standard(canonical.clone()),
+            Self::Custom { canonical, .. } => CanonicalPropertyKeyV0::Custom(canonical.clone()),
+        }
+    }
+
+    pub fn as_custom_key(&self) -> Option<CanonicalCustomPropertyNameV0> {
+        match self {
+            Self::Custom { canonical, .. } => Some(canonical.clone()),
+            Self::Standard { .. } => None,
+        }
+    }
+
+    pub fn canonical_custom_key(authored: impl Into<String>) -> CanonicalCustomPropertyNameV0 {
+        match Self::custom(authored) {
+            Self::Custom { canonical, .. } => canonical,
+            Self::Standard { .. } => unreachable!("custom constructor returned a standard name"),
+        }
+    }
+
+    pub fn canonical_standard_key(authored: impl Into<String>) -> CanonicalStandardPropertyNameV0 {
+        match Self::standard(authored) {
+            Self::Standard { canonical, .. } => canonical,
+            Self::Custom { .. } => unreachable!("standard constructor returned a custom name"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct CanonicalStandardPropertyNameSealV0(());
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CanonicalStandardPropertyNameV0(String, CanonicalStandardPropertyNameSealV0);
+
+impl CanonicalStandardPropertyNameV0 {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Borrow<str> for CanonicalStandardPropertyNameV0 {
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl serde::Serialize for CanonicalStandardPropertyNameV0 {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct CanonicalCustomPropertyNameSealV0(());
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CanonicalCustomPropertyNameV0(String, CanonicalCustomPropertyNameSealV0);
+
+impl CanonicalCustomPropertyNameV0 {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Borrow<str> for CanonicalCustomPropertyNameV0 {
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl serde::Serialize for CanonicalCustomPropertyNameV0 {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CanonicalPropertyKeyV0 {
+    Standard(CanonicalStandardPropertyNameV0),
+    Custom(CanonicalCustomPropertyNameV0),
+}
+
+impl CanonicalPropertyKeyV0 {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Standard(name) => name.as_str(),
+            Self::Custom(name) => name.as_str(),
+        }
+    }
+
+    pub fn kind(&self) -> PropertyNameKindV0 {
+        match self {
+            Self::Standard(_) => PropertyNameKindV0::Standard,
+            Self::Custom(_) => PropertyNameKindV0::Custom,
+        }
+    }
+
+    pub fn as_custom(&self) -> Option<&CanonicalCustomPropertyNameV0> {
+        match self {
+            Self::Custom(name) => Some(name),
+            Self::Standard(_) => None,
+        }
+    }
+
+    pub fn as_standard(&self) -> Option<&CanonicalStandardPropertyNameV0> {
+        match self {
+            Self::Standard(name) => Some(name),
+            Self::Custom(_) => None,
+        }
+    }
+}
+
+impl serde::Serialize for CanonicalPropertyKeyV0 {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+/// Compares two authored property spellings through the sole property-name
+/// identity authority.
+pub fn property_names_same(left: &str, right: &str) -> bool {
+    PropertyNameV0::from_authored(left).same_as(&PropertyNameV0::from_authored(right))
+}
+
+/// Classifies an authored property spelling through the sole property-name
+/// authority, including escaped leading hyphens.
+pub fn is_custom_property_name(authored: &str) -> bool {
+    PropertyNameV0::from_authored(authored).kind() == PropertyNameKindV0::Custom
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -411,6 +683,50 @@ mod tests {
         assert!(escaped.same_as(&plain));
         assert_eq!(escaped.raw(), r"a\.b");
         assert_eq!(escaped.canonical_key().as_str(), "a.b");
+    }
+
+    #[test]
+    fn property_name_identity_preserves_custom_case_and_standard_case_folding() {
+        let custom_upper = PropertyNameV0::custom("--FOO");
+        let custom_lower = PropertyNameV0::custom("--foo");
+        let standard_upper = PropertyNameV0::standard("COLOR");
+        let standard_lower = PropertyNameV0::standard("color");
+
+        assert!(!custom_upper.same_as(&custom_lower));
+        assert!(standard_upper.same_as(&standard_lower));
+        assert_eq!(custom_upper.authored(), "--FOO");
+        assert_eq!(custom_upper.canonical_name(), "--FOO");
+        assert_eq!(standard_upper.authored(), "COLOR");
+        assert_eq!(standard_upper.canonical_name(), "color");
+    }
+
+    #[test]
+    fn custom_property_identity_decodes_escapes_without_destroying_authored_spelling() {
+        let escaped = PropertyNameV0::custom(r"--f\6f o");
+        let plain = PropertyNameV0::custom("--foo");
+
+        assert!(escaped.same_as(&plain));
+        assert_eq!(escaped.authored(), r"--f\6f o");
+        assert_eq!(escaped.decoded(), "--foo");
+        assert_eq!(escaped.canonical_name(), "--foo");
+        assert_eq!(
+            escaped
+                .as_custom_key()
+                .as_ref()
+                .map(CanonicalCustomPropertyNameV0::as_str),
+            Some("--foo")
+        );
+    }
+
+    #[test]
+    fn property_name_kind_is_classified_after_escape_decoding() {
+        let property = PropertyNameV0::from_authored(r"\2d\2d FOO");
+
+        assert_eq!(property.kind(), PropertyNameKindV0::Custom);
+        assert_eq!(property.authored(), r"\2d\2d FOO");
+        assert_eq!(property.canonical_name(), "--FOO");
+        assert!(is_custom_property_name(r"\2d\2d FOO"));
+        assert!(!is_custom_property_name("COLOR"));
     }
 
     #[test]

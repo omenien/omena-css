@@ -767,7 +767,7 @@ pub omena_cascade::CascadeValue::Literal(alloc::string::String)
 pub omena_cascade::CascadeValue::Unset
 pub omena_cascade::CascadeValue::Var
 pub omena_cascade::CascadeValue::Var::fallback: core::option::Option<alloc::boxed::Box<omena_cascade::CascadeValue>>
-pub omena_cascade::CascadeValue::Var::name: alloc::string::String
+pub omena_cascade::CascadeValue::Var::name: omena_syntax::ident::CanonicalCustomPropertyNameV0
 pub omena_cascade::CascadeWinnerAxisV0::CascadeLevel
 pub omena_cascade::CascadeWinnerAxisV0::LayerRank
 pub omena_cascade::CascadeWinnerAxisV0::ScopeProximity
@@ -1538,7 +1538,7 @@ pub struct omena_cascade::first_witness::IncrementalGuardedCascadeWinnerEditRepo
 pub struct omena_cascade::first_witness::IncrementalGuardedCascadeWinnerV0<K>
 pub struct omena_cascade::first_witness::VariableOrderRegistrationV0
 pub type omena_cascade::CustomPropertyBoundedFixedPointComputationWitnessV0 = omena_cascade::CustomPropertyLeastFixedPointProofV0
-pub type omena_cascade::CustomPropertyEnv = alloc::collections::btree::map::BTreeMap<alloc::string::String, omena_cascade::CascadeValue>
+pub type omena_cascade::CustomPropertyEnv = alloc::collections::btree::map::BTreeMap<omena_syntax::ident::CanonicalCustomPropertyNameV0, omena_cascade::CascadeValue>
 pub type omena_cascade::LonghandMergeInputV0 = omena_cascade::BoxLonghandInputV0
 pub type omena_cascade::LonghandMergeProofV0 = omena_cascade::ShorthandCombinationProofV0
 pub type omena_cascade::NodeId = u32

@@ -20,7 +20,7 @@ use omena_parser::{
 };
 use omena_syntax::{SyntaxKind, SyntaxNode, css_keyword};
 use serde::Serialize;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 mod css_modules;
 mod css_modules_cross_file;
@@ -1158,21 +1158,27 @@ fn summarize_omena_parser_custom_property_facts(
     facts: &ParsedStyleFacts,
     cst: &ParsedCst,
 ) -> ParserIndexCustomPropertyFactsV0 {
-    let mut decl_names = BTreeSet::new();
-    let mut ref_names = BTreeSet::new();
+    let mut decl_names = BTreeMap::new();
+    let mut ref_names = BTreeMap::new();
     let mut decl_facts = Vec::new();
     let mut ref_facts = Vec::new();
     for variable in &facts.variables {
         match variable.kind {
             ParsedVariableFactKind::CustomPropertyDeclaration => {
+                let Some(property_key) = variable.property_key.clone() else {
+                    continue;
+                };
                 let byte_span = parser_byte_span_for_offsets(
                     u32::from(variable.range.start()) as usize,
                     u32::from(variable.range.end()) as usize,
                 );
-                decl_names.insert(variable.name.clone());
+                decl_names
+                    .entry(property_key.clone())
+                    .or_insert_with(|| variable.name.clone());
                 let context = style_context_for_cst_offset(source, cst, byte_span.start);
                 decl_facts.push(ParserIndexCustomPropertyDeclFactV0 {
                     name: variable.name.clone(),
+                    property_key,
                     value: declaration_value_text(source, byte_span.start),
                     source_order: decl_facts.len(),
                     byte_span,
@@ -1186,11 +1192,17 @@ fn summarize_omena_parser_custom_property_facts(
                 });
             }
             ParsedVariableFactKind::CustomPropertyReference => {
+                let Some(property_key) = variable.property_key.clone() else {
+                    continue;
+                };
                 let byte_offset = u32::from(variable.range.start()) as usize;
                 let context = style_context_for_cst_offset(source, cst, byte_offset);
-                ref_names.insert(variable.name.clone());
+                ref_names
+                    .entry(property_key.clone())
+                    .or_insert_with(|| variable.name.clone());
                 ref_facts.push(ParserIndexCustomPropertyRefFactV0 {
                     name: variable.name.clone(),
+                    property_key,
                     source_order: ref_facts.len(),
                     selector_contexts: context.selector_contexts,
                     condition_context: context.condition_context,
@@ -1229,27 +1241,27 @@ fn summarize_omena_parser_custom_property_facts(
     let decl_names_under_media = decl_facts
         .iter()
         .filter(|declaration| declaration.under_media)
-        .map(|declaration| declaration.name.clone())
-        .collect::<BTreeSet<_>>();
+        .map(|declaration| (declaration.property_key.clone(), declaration.name.clone()))
+        .collect::<BTreeMap<_, _>>();
     let decl_names_under_supports = decl_facts
         .iter()
         .filter(|declaration| declaration.under_supports)
-        .map(|declaration| declaration.name.clone())
-        .collect::<BTreeSet<_>>();
+        .map(|declaration| (declaration.property_key.clone(), declaration.name.clone()))
+        .collect::<BTreeMap<_, _>>();
     let decl_names_under_layer = decl_facts
         .iter()
         .filter(|declaration| declaration.under_layer)
-        .map(|declaration| declaration.name.clone())
-        .collect::<BTreeSet<_>>();
+        .map(|declaration| (declaration.property_key.clone(), declaration.name.clone()))
+        .collect::<BTreeMap<_, _>>();
 
     ParserIndexCustomPropertyFactsV0 {
-        decl_names: decl_names.into_iter().collect(),
+        decl_names: decl_names.into_values().collect(),
         decl_facts,
         decl_context_selectors: decl_context_selectors.into_iter().collect(),
-        decl_names_under_media: decl_names_under_media.into_iter().collect(),
-        decl_names_under_supports: decl_names_under_supports.into_iter().collect(),
-        decl_names_under_layer: decl_names_under_layer.into_iter().collect(),
-        ref_names: ref_names.into_iter().collect(),
+        decl_names_under_media: decl_names_under_media.into_values().collect(),
+        decl_names_under_supports: decl_names_under_supports.into_values().collect(),
+        decl_names_under_layer: decl_names_under_layer.into_values().collect(),
+        ref_names: ref_names.into_values().collect(),
         ref_facts,
         selectors_with_refs_names: selectors_with_refs_names.into_iter().collect(),
         selectors_with_refs_under_media_names: selectors_with_refs_under_media_names
@@ -1403,24 +1415,28 @@ fn summarize_omena_parser_composes_facts(facts: &ParsedStyleFacts) -> ParserInde
 fn summarize_omena_parser_custom_property_semantic_facts(
     facts: &ParserIndexCustomPropertyFactsV0,
 ) -> StyleCustomPropertySemanticFactsV0 {
-    let mut resolved_ref_names = BTreeSet::new();
-    let mut unresolved_ref_names = BTreeSet::new();
+    let mut resolved_ref_names = BTreeMap::new();
+    let mut unresolved_ref_names = BTreeMap::new();
     for reference in &facts.ref_facts {
         if facts
             .decl_facts
             .iter()
             .any(|declaration| custom_property_context_matches(declaration, reference))
         {
-            resolved_ref_names.insert(reference.name.clone());
+            resolved_ref_names
+                .entry(reference.property_key.clone())
+                .or_insert_with(|| reference.name.clone());
         } else {
-            unresolved_ref_names.insert(reference.name.clone());
+            unresolved_ref_names
+                .entry(reference.property_key.clone())
+                .or_insert_with(|| reference.name.clone());
         }
     }
     StyleCustomPropertySemanticFactsV0 {
         decl_names: facts.decl_names.clone(),
         ref_names: facts.ref_names.clone(),
-        resolved_ref_names: resolved_ref_names.into_iter().collect(),
-        unresolved_ref_names: unresolved_ref_names.into_iter().collect(),
+        resolved_ref_names: resolved_ref_names.into_values().collect(),
+        unresolved_ref_names: unresolved_ref_names.into_values().collect(),
         selectors_with_refs_names: facts.selectors_with_refs_names.clone(),
     }
 }
@@ -1500,7 +1516,7 @@ fn custom_property_context_matches(
     declaration: &ParserIndexCustomPropertyDeclFactV0,
     reference: &ParserIndexCustomPropertyRefFactV0,
 ) -> bool {
-    if declaration.name != reference.name {
+    if declaration.property_key != reference.property_key {
         return false;
     }
     if declaration.under_media && !reference.under_media {

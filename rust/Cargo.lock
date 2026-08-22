@@ -2538,6 +2538,7 @@ dependencies = [
  "omena-cascade",
  "omena-cross-file-summary",
  "omena-parser",
+ "omena-syntax",
  "omena-transform-cst",
  "omena-transform-passes",
  "serde",
@@ -2590,6 +2591,7 @@ dependencies = [
  "omena-product-hints",
  "omena-resolver",
  "omena-smt",
+ "omena-syntax",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -2660,6 +2662,7 @@ dependencies = [
  "omena-semantic",
  "omena-sif",
  "omena-streaming-ifds",
+ "omena-syntax",
  "omena-testkit",
  "omena-transform-cst",
  "omena-transform-passes",
@@ -2879,6 +2882,7 @@ dependencies = [
  "omena-cascade",
  "omena-refinement-trait",
  "omena-smt",
+ "omena-syntax",
  "serde",
 ]
 
@@ -2904,6 +2908,7 @@ name = "omena-rg-flow"
 version = "0.4.0"
 dependencies = [
  "omena-cascade",
+ "omena-syntax",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -2959,6 +2964,7 @@ dependencies = [
  "blake3",
  "omena-cascade",
  "omena-refinement-trait",
+ "omena-syntax",
  "serde",
  "z3",
 ]
@@ -2988,6 +2994,7 @@ name = "omena-syntax"
 version = "0.4.0"
 dependencies = [
  "cstree",
+ "serde",
 ]
 
 [[package]]

@@ -1,10 +1,15 @@
 use super::*;
+use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0};
 use std::{
     cmp::Reverse,
     collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
 };
+
+fn custom_property_key(name: &str) -> CanonicalCustomPropertyNameV0 {
+    PropertyNameV0::canonical_custom_key(name)
+}
 
 fn declaration(id: &str, value: &str, key: CascadeKey) -> CascadeDeclaration {
     declaration_with_specificity_exactness(id, value, key, SpecificityExactnessV0::Exact)
@@ -62,6 +67,57 @@ fn property_declaration(
         open_world_tie_evidence: OpenWorldTieEvidence::NONE,
         specificity_exactness: SpecificityExactnessV0::Exact,
     }
+}
+
+#[test]
+fn cascade_property_ranking_uses_standard_and_custom_canonical_identity() -> Result<(), String> {
+    let lower = property_declaration(
+        "lower",
+        "--foo",
+        CascadeValue::Literal("red".to_string()),
+        1,
+    );
+    let upper = property_declaration(
+        "upper",
+        "--FOO",
+        CascadeValue::Literal("blue".to_string()),
+        2,
+    );
+
+    let (winner, also_considered) = match cascade_property([lower, upper], r"--f\6f o") {
+        CascadeOutcome::Definite {
+            winner,
+            also_considered,
+            ..
+        } => (winner, also_considered),
+        outcome => {
+            return Err(format!(
+                "escape-equivalent custom property should have a definite winner: {outcome:?}"
+            ));
+        }
+    };
+    assert_eq!(winner.id, "lower");
+    assert!(
+        also_considered.is_empty(),
+        "custom property case must not merge"
+    );
+
+    let standard = property_declaration(
+        "standard",
+        "COLOR",
+        CascadeValue::Literal("green".to_string()),
+        0,
+    );
+    let winner = match cascade_property([standard], "color") {
+        CascadeOutcome::Definite { winner, .. } => winner,
+        outcome => {
+            return Err(format!(
+                "standard property ASCII case must share one identity: {outcome:?}"
+            ));
+        }
+    };
+    assert_eq!(winner.id, "standard");
+    Ok(())
 }
 
 fn key(
@@ -1094,7 +1150,7 @@ fn cascade_margin_schema_is_substrate_only_until_calibrated() {
 fn computes_values_through_var_substitution() {
     let mut env = CustomPropertyEnv::new();
     env.insert(
-        "--brand".to_string(),
+        custom_property_key("--brand"),
         CascadeValue::Literal("red".to_string()),
     );
 
@@ -1104,7 +1160,7 @@ fn computes_values_through_var_substitution() {
             "color-decl",
             "color",
             CascadeValue::Var {
-                name: "--brand".to_string(),
+                name: custom_property_key("--brand"),
                 fallback: None,
             },
             1,
@@ -1404,7 +1460,7 @@ fn standard_property_syntax_unknown_defers_across_var_substitution() {
     let declaration_id = "variable-color";
     let mut custom_property_env = CustomPropertyEnv::new();
     custom_property_env.insert(
-        "--tone".to_string(),
+        custom_property_key("--tone"),
         CascadeValue::Literal("red".to_string()),
     );
     let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
@@ -1413,7 +1469,7 @@ fn standard_property_syntax_unknown_defers_across_var_substitution() {
             declaration_id,
             "color",
             CascadeValue::Var {
-                name: "--tone".to_string(),
+                name: custom_property_key("--tone"),
                 fallback: None,
             },
             1,
@@ -1679,9 +1735,9 @@ fn genuine_substitution_failure_survives_unknown_metadata_fallbacks() {
     for property in ["future-prop", "background"] {
         let mut env = CustomPropertyEnv::new();
         env.insert(
-            "--cyclic".to_string(),
+            custom_property_key("--cyclic"),
             CascadeValue::Var {
-                name: "--cyclic".to_string(),
+                name: custom_property_key("--cyclic"),
                 fallback: None,
             },
         );
@@ -1691,7 +1747,7 @@ fn genuine_substitution_failure_survives_unknown_metadata_fallbacks() {
                 "cyclic-value",
                 property,
                 CascadeValue::Var {
-                    name: "--cyclic".to_string(),
+                    name: custom_property_key("--cyclic"),
                     fallback: None,
                 },
                 1,
@@ -1717,16 +1773,16 @@ fn genuine_substitution_failure_survives_unknown_metadata_fallbacks() {
 fn treats_guaranteed_invalid_var_substitution_as_iacvt_unset() {
     let mut env = CustomPropertyEnv::new();
     env.insert(
-        "--a".to_string(),
+        custom_property_key("--a"),
         CascadeValue::Var {
-            name: "--b".to_string(),
+            name: custom_property_key("--b"),
             fallback: None,
         },
     );
     env.insert(
-        "--b".to_string(),
+        custom_property_key("--b"),
         CascadeValue::Var {
-            name: "--a".to_string(),
+            name: custom_property_key("--a"),
             fallback: None,
         },
     );
@@ -1737,7 +1793,7 @@ fn treats_guaranteed_invalid_var_substitution_as_iacvt_unset() {
             "cycle-color",
             "color",
             CascadeValue::Var {
-                name: "--a".to_string(),
+                name: custom_property_key("--a"),
                 fallback: None,
             },
             1,
@@ -1915,6 +1971,38 @@ fn proves_generic_longhand_merge_with_canonical_order_contract() {
     assert_eq!(
         rejected.blocked_reason,
         Some("longhands are not in canonical merge order")
+    );
+}
+
+#[test]
+fn longhand_merge_canonicalizes_standard_property_identity_and_preserves_authored_names() {
+    let proof = prove_longhand_merge(
+        "PLACE-CONTENT",
+        &["align-content", "justify-content"],
+        &[
+            LonghandMergeInputV0 {
+                property: r"ALIGN-\63 ONTENT".to_string(),
+                value: "center".to_string(),
+                important: false,
+                source_order: 10,
+            },
+            LonghandMergeInputV0 {
+                property: "JUSTIFY-CONTENT".to_string(),
+                value: "space-between".to_string(),
+                important: false,
+                source_order: 11,
+            },
+        ],
+    );
+
+    assert!(proof.accepted);
+    assert_eq!(proof.shorthand_property, "PLACE-CONTENT");
+    assert_eq!(
+        proof.ordered_longhand_properties,
+        vec![
+            r"ALIGN-\63 ONTENT".to_string(),
+            "JUSTIFY-CONTENT".to_string()
+        ]
     );
 }
 
@@ -3081,13 +3169,13 @@ fn unsupported_combinators_are_reported_as_maybe() {
 fn substitutes_custom_property_fallbacks_and_references() {
     let mut env = CustomPropertyEnv::new();
     env.insert(
-        "--brand".to_string(),
+        custom_property_key("--brand"),
         CascadeValue::Literal("red".to_string()),
     );
 
     let resolved = substitute_custom_properties(
         &CascadeValue::Var {
-            name: "--brand".to_string(),
+            name: custom_property_key("--brand"),
             fallback: Some(Box::new(CascadeValue::Literal("blue".to_string()))),
         },
         &env,
@@ -3096,7 +3184,7 @@ fn substitutes_custom_property_fallbacks_and_references() {
 
     let fallback = substitute_custom_properties(
         &CascadeValue::Var {
-            name: "--missing".to_string(),
+            name: custom_property_key("--missing"),
             fallback: Some(Box::new(CascadeValue::Literal("blue".to_string()))),
         },
         &env,
@@ -3108,25 +3196,25 @@ fn substitutes_custom_property_fallbacks_and_references() {
 fn substitutes_custom_properties_inside_composite_values() {
     let mut env = CustomPropertyEnv::new();
     env.insert(
-        "--gap".to_string(),
+        custom_property_key("--gap"),
         CascadeValue::Literal("2px".to_string()),
     );
     env.insert(
-        "--shadow".to_string(),
+        custom_property_key("--shadow"),
         CascadeValue::Composite(vec![
             CascadeValue::Literal("0 0 ".to_string()),
             CascadeValue::Var {
-                name: "--gap".to_string(),
+                name: custom_property_key("--gap"),
                 fallback: None,
             },
         ]),
     );
     env.insert(
-        "--invalid-shadow".to_string(),
+        custom_property_key("--invalid-shadow"),
         CascadeValue::Composite(vec![
             CascadeValue::Literal("0 0 ".to_string()),
             CascadeValue::Var {
-                name: "--missing".to_string(),
+                name: custom_property_key("--missing"),
                 fallback: None,
             },
         ]),
@@ -3134,7 +3222,7 @@ fn substitutes_custom_properties_inside_composite_values() {
 
     let resolved = substitute_custom_properties(
         &CascadeValue::Var {
-            name: "--shadow".to_string(),
+            name: custom_property_key("--shadow"),
             fallback: None,
         },
         &env,
@@ -3149,7 +3237,7 @@ fn substitutes_custom_properties_inside_composite_values() {
 
     let fallback = substitute_custom_properties(
         &CascadeValue::Var {
-            name: "--invalid-shadow".to_string(),
+            name: custom_property_key("--invalid-shadow"),
             fallback: Some(Box::new(CascadeValue::Literal("none".to_string()))),
         },
         &env,
@@ -3161,23 +3249,23 @@ fn substitutes_custom_properties_inside_composite_values() {
 fn substitutes_cycles_to_guaranteed_invalid() {
     let mut env = CustomPropertyEnv::new();
     env.insert(
-        "--a".to_string(),
+        custom_property_key("--a"),
         CascadeValue::Var {
-            name: "--b".to_string(),
+            name: custom_property_key("--b"),
             fallback: None,
         },
     );
     env.insert(
-        "--b".to_string(),
+        custom_property_key("--b"),
         CascadeValue::Var {
-            name: "--a".to_string(),
+            name: custom_property_key("--a"),
             fallback: None,
         },
     );
 
     let resolved = substitute_custom_properties(
         &CascadeValue::Var {
-            name: "--a".to_string(),
+            name: custom_property_key("--a"),
             fallback: None,
         },
         &env,
@@ -3187,7 +3275,7 @@ fn substitutes_cycles_to_guaranteed_invalid() {
 
     let fallback = substitute_custom_properties(
         &CascadeValue::Var {
-            name: "--a".to_string(),
+            name: custom_property_key("--a"),
             fallback: Some(Box::new(CascadeValue::Literal("blue".to_string()))),
         },
         &env,
@@ -3200,37 +3288,37 @@ fn substitutes_cycles_to_guaranteed_invalid() {
 fn summarizes_custom_property_least_fixed_point() {
     let mut env = CustomPropertyEnv::new();
     env.insert(
-        "--brand".to_string(),
+        custom_property_key("--brand"),
         CascadeValue::Literal("red".to_string()),
     );
     env.insert(
-        "--alias".to_string(),
+        custom_property_key("--alias"),
         CascadeValue::Var {
-            name: "--brand".to_string(),
+            name: custom_property_key("--brand"),
             fallback: None,
         },
     );
     env.insert(
-        "--shadow".to_string(),
+        custom_property_key("--shadow"),
         CascadeValue::Composite(vec![
             CascadeValue::Literal("0 0 ".to_string()),
             CascadeValue::Var {
-                name: "--alias".to_string(),
+                name: custom_property_key("--alias"),
                 fallback: None,
             },
         ]),
     );
     env.insert(
-        "--cycle-a".to_string(),
+        custom_property_key("--cycle-a"),
         CascadeValue::Var {
-            name: "--cycle-b".to_string(),
+            name: custom_property_key("--cycle-b"),
             fallback: None,
         },
     );
     env.insert(
-        "--cycle-b".to_string(),
+        custom_property_key("--cycle-b"),
         CascadeValue::Var {
-            name: "--cycle-a".to_string(),
+            name: custom_property_key("--cycle-a"),
             fallback: None,
         },
     );

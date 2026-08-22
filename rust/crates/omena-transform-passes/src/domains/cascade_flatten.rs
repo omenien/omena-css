@@ -6,7 +6,10 @@ use omena_cascade::{
 use omena_cascade_proof::{LayerInversionDeclarationV0, layer_inversion_declaration_v0};
 use omena_parser::StyleDialect;
 use omena_semantic::summarize_style_layer_order_from_source;
-use omena_syntax::SyntaxKind;
+use omena_syntax::{
+    SyntaxKind,
+    ident::{CanonicalPropertyKeyV0, PropertyNameV0},
+};
 use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -498,6 +501,7 @@ pub(crate) struct LayerInversionBundleCandidateV0 {
 struct CompetingLayerDeclarationV0 {
     selector: String,
     property: String,
+    property_key: CanonicalPropertyKeyV0,
     layer_rank: usize,
     source_order: usize,
     span_start: usize,
@@ -513,6 +517,7 @@ struct LayeredDeclarationRuleIrV0 {
 
 struct LayerDeclarationIrV0 {
     property: String,
+    property_key: CanonicalPropertyKeyV0,
     start: usize,
     end: usize,
 }
@@ -631,6 +636,7 @@ pub(crate) fn collect_layer_inversion_declarations_with_lexer(
             competing.push(CompetingLayerDeclarationV0 {
                 selector: rule.selector.clone(),
                 property: declaration.property,
+                property_key: declaration.property_key,
                 layer_rank,
                 source_order: declaration.start,
                 span_start: declaration.start,
@@ -648,7 +654,7 @@ fn layer_inversion_bundles_from_competing_declarations(
     let mut bundles = Vec::new();
     for (left_index, left) in competing.iter().enumerate() {
         for right in competing.iter().skip(left_index + 1) {
-            if left.property != right.property
+            if left.property_key != right.property_key
                 || left.layer_rank == right.layer_rank
                 || selector_co_match_verdict(left.selector.as_str(), right.selector.as_str())
                     == SelectorMatchVerdict::No
@@ -734,12 +740,13 @@ fn layer_declaration_from_ir(ir: &TransformIrV0, node: &IrNodeV0) -> Option<Laye
         return None;
     }
     let colon = source.find(':')?;
-    let property = source.get(..colon)?.trim().to_ascii_lowercase();
-    if property.is_empty() {
+    let property = PropertyNameV0::from_authored(source.get(..colon)?);
+    if property.authored().is_empty() {
         return None;
     }
     Some(LayerDeclarationIrV0 {
-        property,
+        property: property.authored().to_string(),
+        property_key: property.canonical_key(),
         start: node.source_span_start,
         end: node.source_span_end,
     })
@@ -811,6 +818,7 @@ pub(crate) fn collect_layer_inversion_declarations_from_ir(
             competing.push(CompetingLayerDeclarationV0 {
                 selector: rule.selector.clone(),
                 property: declaration.property,
+                property_key: declaration.property_key,
                 layer_rank,
                 source_order: declaration.start,
                 span_start: declaration.start,

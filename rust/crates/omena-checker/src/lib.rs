@@ -42,6 +42,9 @@ use omena_smt::{
     SmtBackendKindV0, SmtBackendSatResultV0, SmtBackendV0, SmtVerdictV0, canonical_smt_input_v0,
     layer_inversion_declaration_v0, smt_check_layer_flatten_inversion_v0,
 };
+use omena_syntax::ident::{
+    CanonicalCustomPropertyNameV0, PropertyNameKindV0, PropertyNameV0, property_names_same,
+};
 use serde::{Deserialize, Serialize};
 
 mod enforcement_coverage;
@@ -1693,12 +1696,16 @@ pub fn standard_property_value_verdicts_v0(
 ) -> BTreeMap<String, CascadeStandardValueVerdictV0> {
     declarations
         .iter()
-        .filter(|declaration| !declaration.property.starts_with("--"))
+        .filter(|declaration| {
+            PropertyNameV0::from_authored(&declaration.property).kind()
+                == PropertyNameKindV0::Standard
+        })
         .map(|declaration| {
+            let property = PropertyNameV0::from_authored(&declaration.property);
             (
                 declaration.declaration_id.clone(),
                 standard_property_value_verdict_v0(
-                    declaration.property.as_str(),
+                    property.canonical_name(),
                     declaration.value.as_str(),
                 ),
             )
@@ -1718,13 +1725,18 @@ pub fn evaluate_omena_checker_cascade_rules_with_standard_property_value_verdict
     let invalid_custom_properties = custom_properties
         .iter()
         .filter(|property| property.guaranteed_invalid)
-        .map(|property| property.name.clone())
+        .map(|property| PropertyNameV0::canonical_custom_key(&property.name))
         .collect::<BTreeSet<_>>();
     let cyclic_custom_properties = cyclic_custom_property_names(&custom_properties);
     let known_custom_properties = custom_properties
         .iter()
-        .map(|property| property.name.clone())
-        .collect::<BTreeSet<_>>();
+        .map(|property| {
+            (
+                PropertyNameV0::canonical_custom_key(&property.name),
+                property.name.clone(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
     let mut evaluations = Vec::new();
 
     for declaration in &declarations {
@@ -1782,9 +1794,10 @@ pub fn evaluate_omena_checker_cascade_rules_with_standard_property_value_verdict
             .var_references
             .iter()
             .filter(|name| {
-                !known_custom_properties.contains(*name)
-                    || invalid_custom_properties.contains(*name)
-                    || cyclic_custom_properties.contains(*name)
+                let key = PropertyNameV0::canonical_custom_key(*name);
+                !known_custom_properties.contains_key(&key)
+                    || invalid_custom_properties.contains(&key)
+                    || cyclic_custom_properties.contains(&key)
             })
             .cloned()
             .collect::<BTreeSet<_>>()
@@ -1803,10 +1816,11 @@ pub fn evaluate_omena_checker_cascade_rules_with_standard_property_value_verdict
     }
 
     for declaration in &declarations {
-        if !declaration.property.starts_with("--") {
+        let property = PropertyNameV0::from_authored(&declaration.property);
+        let Some(property_key) = property.as_custom_key() else {
             continue;
-        }
-        let Some(registration) = active_registrations.get(declaration.property.as_str()) else {
+        };
+        let Some(registration) = active_registrations.get(&property_key) else {
             continue;
         };
         if validate_registered_property_value_v0(
@@ -1828,7 +1842,8 @@ pub fn evaluate_omena_checker_cascade_rules_with_standard_property_value_verdict
     }
 
     for declaration in &declarations {
-        if declaration.property.starts_with("--") {
+        if PropertyNameV0::from_authored(&declaration.property).kind() == PropertyNameKindV0::Custom
+        {
             continue;
         }
         if standard_property_value_verdicts.get(declaration.declaration_id.as_str())
@@ -1846,12 +1861,21 @@ pub fn evaluate_omena_checker_cascade_rules_with_standard_property_value_verdict
     }
 
     if !cyclic_custom_properties.is_empty() {
+        let cyclic_names = cyclic_custom_properties
+            .into_iter()
+            .map(|name| {
+                known_custom_properties
+                    .get(&name)
+                    .cloned()
+                    .unwrap_or_else(|| name.as_str().to_string())
+            })
+            .collect();
         evaluations.push(cascade_evaluation(
             OmenaCheckerRuleCodeV0::CircularVar,
             OmenaCheckerSeverityV0::Warning,
             Vec::new(),
             None,
-            cyclic_custom_properties.into_iter().collect(),
+            cyclic_names,
             "Custom property dependency graph contains a cycle.",
         ));
     }
@@ -1887,7 +1911,7 @@ pub fn evaluate_omena_checker_cascade_rules_with_standard_property_value_verdict
 
 pub fn active_omena_checker_custom_property_registrations_v0(
     registrations: &[OmenaCheckerCustomPropertyRegistrationInputV0],
-) -> BTreeMap<String, OmenaCheckerActiveCustomPropertyRegistrationV0> {
+) -> BTreeMap<CanonicalCustomPropertyNameV0, OmenaCheckerActiveCustomPropertyRegistrationV0> {
     let mut active_registrations = BTreeMap::new();
     for registration in registrations {
         let Some(syntax) = registration.syntax.as_deref() else {
@@ -1913,7 +1937,7 @@ pub fn active_omena_checker_custom_property_registrations_v0(
             continue;
         }
         active_registrations.insert(
-            registration.name.clone(),
+            PropertyNameV0::canonical_custom_key(&registration.name),
             OmenaCheckerActiveCustomPropertyRegistrationV0 {
                 name: registration.name.clone(),
                 syntax: syntax.to_string(),
@@ -2539,7 +2563,7 @@ fn is_progressive_enhancement_pair(
     left: &OmenaCheckerCascadeDeclarationInputV0,
     right: &OmenaCheckerCascadeDeclarationInputV0,
 ) -> bool {
-    if left.property != right.property || left.value == right.value {
+    if !property_names_same(&left.property, &right.property) || left.value == right.value {
         return false;
     }
     let left_token = leading_value_token(&left.value);
@@ -2573,27 +2597,28 @@ fn declarations_share_cascade_context(
     right: &OmenaCheckerCascadeDeclarationInputV0,
 ) -> bool {
     left.selector.as_str() == right.selector.as_str()
-        && left.property == right.property
+        && property_names_same(&left.property, &right.property)
         && left.condition_context == right.condition_context
 }
 
 fn cyclic_custom_property_names(
     custom_properties: &[OmenaCheckerCustomPropertyInputV0],
-) -> BTreeSet<String> {
+) -> BTreeSet<CanonicalCustomPropertyNameV0> {
     let graph = custom_properties
         .iter()
         .map(|property| {
             (
-                property.name.clone(),
+                PropertyNameV0::canonical_custom_key(&property.name),
                 property
                     .dependencies
                     .iter()
                     .filter(|dependency| {
-                        custom_properties
-                            .iter()
-                            .any(|property| property.name == **dependency)
+                        let dependency_key = PropertyNameV0::canonical_custom_key(*dependency);
+                        custom_properties.iter().any(|property| {
+                            PropertyNameV0::canonical_custom_key(&property.name) == dependency_key
+                        })
                     })
-                    .cloned()
+                    .map(PropertyNameV0::canonical_custom_key)
                     .collect::<Vec<_>>(),
             )
         })
@@ -2606,10 +2631,10 @@ fn cyclic_custom_property_names(
 }
 
 fn custom_property_reaches_name(
-    start: &str,
-    current: &str,
-    graph: &BTreeMap<String, Vec<String>>,
-    visited: &mut BTreeSet<String>,
+    start: &CanonicalCustomPropertyNameV0,
+    current: &CanonicalCustomPropertyNameV0,
+    graph: &BTreeMap<CanonicalCustomPropertyNameV0, Vec<CanonicalCustomPropertyNameV0>>,
+    visited: &mut BTreeSet<CanonicalCustomPropertyNameV0>,
 ) -> bool {
     let Some(dependencies) = graph.get(current) else {
         return false;
@@ -3575,6 +3600,113 @@ mod tests {
         assert_eq!(mismatches.len(), 1);
         assert_eq!(mismatches[0].declaration_ids, vec!["bad-gap"]);
         assert_eq!(mismatches[0].custom_property_names, vec!["--gap"]);
+    }
+
+    #[test]
+    fn checker_joins_property_identity_without_merging_custom_property_case() {
+        let evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
+            declarations: vec![
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "custom-lower",
+                    selector: ":root",
+                    property: "--foo",
+                    value: "red",
+                    source_order: 1,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "custom-upper",
+                    selector: ":root",
+                    property: "--FOO",
+                    value: "blue",
+                    source_order: 2,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "escaped-use",
+                    selector: ".card",
+                    property: "color",
+                    value: r"var(--f\6f o)",
+                    source_order: 3,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[r"--f\6f o"],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "standard-upper",
+                    selector: ".standard",
+                    property: "COLOR",
+                    value: "red",
+                    source_order: 4,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "standard-lower",
+                    selector: ".standard",
+                    property: "color",
+                    value: "blue",
+                    source_order: 5,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+            ],
+            custom_properties: vec![
+                OmenaCheckerCustomPropertyInputV0 {
+                    name: "--foo".to_string(),
+                    dependencies: Vec::new(),
+                    guaranteed_invalid: false,
+                },
+                OmenaCheckerCustomPropertyInputV0 {
+                    name: "--FOO".to_string(),
+                    dependencies: Vec::new(),
+                    guaranteed_invalid: false,
+                },
+            ],
+            custom_property_registrations: vec![OmenaCheckerCustomPropertyRegistrationInputV0 {
+                name: r"--f\6f o".to_string(),
+                syntax: Some("'<length>'".to_string()),
+                inherits: Some("false".to_string()),
+                initial_value: Some("8px".to_string()),
+            }],
+        });
+
+        assert!(!evaluations.iter().any(|evaluation| {
+            evaluation.rule_code == OmenaCheckerRuleCodeV0::IacvtProne
+                && evaluation.declaration_ids == vec!["escaped-use"]
+        }));
+        assert!(!evaluations.iter().any(|evaluation| {
+            evaluation
+                .declaration_ids
+                .contains(&"custom-lower".to_string())
+                && evaluation
+                    .declaration_ids
+                    .contains(&"custom-upper".to_string())
+        }));
+        assert!(evaluations.iter().any(|evaluation| {
+            evaluation.rule_code == OmenaCheckerRuleCodeV0::RegisteredPropertyTypeMismatch
+                && evaluation.declaration_ids == vec!["custom-lower"]
+        }));
+        assert!(evaluations.iter().any(|evaluation| {
+            evaluation.rule_code == OmenaCheckerRuleCodeV0::UnspecifiedCascadeTie
+                && evaluation.declaration_ids == vec!["standard-upper", "standard-lower"]
+        }));
     }
 
     #[test]

@@ -718,6 +718,6 @@ $brand: red !default;
         let fingerprint = bytes.bytes().fold(0xcbf29ce484222325_u64, |hash, byte| {
             (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
         });
-        assert_eq!(fingerprint, 0x592c0aa23038e439);
+        assert_eq!(fingerprint, 0x60bac74d4ed97b4c);
     }
 }

@@ -1,5 +1,5 @@
 use omena_parser::StyleDialect;
-use omena_syntax::SyntaxKind;
+use omena_syntax::{SyntaxKind, ident::PropertyNameV0};
 use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -499,10 +499,11 @@ fn format_declaration_text_from_segment(segment: &str) -> Option<String> {
     if property.is_empty() || value.is_empty() {
         return None;
     }
-    let property = if property.starts_with("--") {
-        property.to_string()
+    let property_name = PropertyNameV0::from_authored(property);
+    let property = if property_name.as_custom_key().is_some() {
+        property_name.authored()
     } else {
-        property.to_ascii_lowercase()
+        property_name.canonical_name()
     };
     Some(format!("{property}: {value};"))
 }

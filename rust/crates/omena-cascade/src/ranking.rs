@@ -4,6 +4,7 @@
 //! preserving non-winning declarations as evidence for diagnostics and proof
 //! reports.
 
+use omena_syntax::ident::PropertyNameV0;
 use std::cmp::{Ordering, Reverse};
 
 use crate::{
@@ -19,9 +20,12 @@ pub fn cascade_property(
     declarations: impl IntoIterator<Item = CascadeDeclaration>,
     property: &str,
 ) -> CascadeOutcome {
+    let property_key = PropertyNameV0::from_authored(property).canonical_key();
     let mut matching: Vec<CascadeDeclaration> = declarations
         .into_iter()
-        .filter(|declaration| declaration.property == property)
+        .filter(|declaration| {
+            PropertyNameV0::from_authored(&declaration.property).canonical_key() == property_key
+        })
         .collect();
 
     if matching.is_empty() {
@@ -48,9 +52,12 @@ pub fn cascade_property_open_world(
     declarations: impl IntoIterator<Item = CascadeDeclaration>,
     property: &str,
 ) -> CascadeOutcome {
+    let property_key = PropertyNameV0::from_authored(property).canonical_key();
     let mut matching: Vec<CascadeDeclaration> = declarations
         .into_iter()
-        .filter(|declaration| declaration.property == property)
+        .filter(|declaration| {
+            PropertyNameV0::from_authored(&declaration.property).canonical_key() == property_key
+        })
         .collect();
 
     if matching.is_empty() {

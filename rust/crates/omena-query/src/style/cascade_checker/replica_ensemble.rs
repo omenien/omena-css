@@ -11,6 +11,7 @@ use omena_query_checker_orchestrator::{
     REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaSiteOutcomeV0,
     cascade_section_key, compatibility_key_from_cascade_section_key_v0,
 };
+use omena_syntax::ident::CanonicalStandardPropertyNameV0;
 
 use super::collect_query_checker_cascade_declarations;
 
@@ -39,17 +40,17 @@ pub(in crate::style) fn collect_query_replica_ensemble_site_outcomes(
 ) -> Vec<ReplicaSiteOutcomeV0> {
     let declarations = collect_query_checker_cascade_declarations(source);
 
-    let mut by_site: BTreeMap<(String, String), Vec<CascadeDeclaration>> = BTreeMap::new();
+    let mut by_site: BTreeMap<(String, CanonicalStandardPropertyNameV0), Vec<CascadeDeclaration>> =
+        BTreeMap::new();
     for declaration in &declarations {
-        let property = declaration.input.property.as_str();
-        if property.starts_with("--") {
+        let Some(property_key) = declaration.property_key.as_standard().cloned() else {
             continue;
-        }
+        };
         let cascade_declaration = query_cascade_declaration_from_input(&declaration.input);
         by_site
             .entry((
                 declaration.input.selector.as_str().to_string(),
-                declaration.input.property.clone(),
+                property_key,
             ))
             .or_default()
             .push(cascade_declaration);
@@ -57,7 +58,8 @@ pub(in crate::style) fn collect_query_replica_ensemble_site_outcomes(
 
     by_site
         .into_iter()
-        .filter_map(|((selector, property), site_declarations)| {
+        .filter_map(|((selector, property_key), site_declarations)| {
+            let property = property_key.as_str().to_string();
             let outcome = cascade_property(site_declarations, &property);
             if !matches!(outcome, omena_cascade::CascadeOutcome::Definite { .. }) {
                 return None;
