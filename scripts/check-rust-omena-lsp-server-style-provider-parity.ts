@@ -165,6 +165,7 @@ const expectedMissingCustomPropertyDiagnostic = {
       uri: styleUri,
       range: documentEndRange(styleText),
       newText: "\n\n:root {\n  --missing: ;\n}\n",
+      propertyKey: "--missing",
       propertyName: "--missing",
     },
   },
@@ -963,6 +964,7 @@ assert.equal(customPropertyReferenceResponse.id, 3);
 assertSingleCandidate(customPropertyReferenceResponse, customPropertyReferenceQueryPosition, {
   kind: "customPropertyReference",
   name: nodeCustomPropertyReference.name,
+  propertyKey: nodeCustomPropertyReference.name,
   range: nodeCustomPropertyReference.range,
   source: "omenaParserVariableFacts",
 });
@@ -972,6 +974,7 @@ assert.equal(customPropertyDeclarationResponse.id, 4);
 assertSingleCandidate(customPropertyDeclarationResponse, customPropertyDeclarationQueryPosition, {
   kind: "customPropertyDeclaration",
   name: nodeCustomPropertyDeclaration.name,
+  propertyKey: nodeCustomPropertyDeclaration.name,
   range: nodeCustomPropertyDeclaration.range,
   source: "omenaParserVariableFacts",
 });

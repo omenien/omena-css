@@ -1,104 +1,435 @@
+pub mod omena_bundler
 #[non_exhaustive] pub enum omena_bundler::BundleResolutionAuthorityV0
+pub omena_bundler::BundleResolutionAuthorityV0::LegacyPathInferred
+pub omena_bundler::BundleResolutionAuthorityV0::Resolved
+pub enum omena_bundler::EmissionCycleClassV0
+pub omena_bundler::EmissionCycleClassV0::Composition
+pub omena_bundler::EmissionCycleClassV0::Import
+pub omena_bundler::EmissionCycleClassV0::Mixed
 #[non_exhaustive] pub enum omena_bundler::EmissionCycleDialectV0
+pub omena_bundler::EmissionCycleDialectV0::Css
+pub omena_bundler::EmissionCycleDialectV0::Less
+pub omena_bundler::EmissionCycleDialectV0::Mixed
+pub omena_bundler::EmissionCycleDialectV0::Sass
+pub omena_bundler::EmissionCycleDialectV0::Scss
+pub enum omena_bundler::EmissionCyclePolicyV0
+pub omena_bundler::EmissionCyclePolicyV0::ModuleIdentity
 #[non_exhaustive] pub enum omena_bundler::EmissionItemFactCategoryV0
+pub omena_bundler::EmissionItemFactCategoryV0::Animations
+pub omena_bundler::EmissionItemFactCategoryV0::AtRules
+pub omena_bundler::EmissionItemFactCategoryV0::CssModuleComposes
+pub omena_bundler::EmissionItemFactCategoryV0::CssModuleComposesEdges
+pub omena_bundler::EmissionItemFactCategoryV0::CssModuleValueDefinitionEdges
+pub omena_bundler::EmissionItemFactCategoryV0::CssModuleValueImportEdges
+pub omena_bundler::EmissionItemFactCategoryV0::CssModuleValues
+pub omena_bundler::EmissionItemFactCategoryV0::EmissionSelectors
+pub omena_bundler::EmissionItemFactCategoryV0::ExtendTargets
+pub omena_bundler::EmissionItemFactCategoryV0::Icss
+pub omena_bundler::EmissionItemFactCategoryV0::IcssExportEdges
+pub omena_bundler::EmissionItemFactCategoryV0::IcssImportEdges
+pub omena_bundler::EmissionItemFactCategoryV0::NamedSelectors
+pub omena_bundler::EmissionItemFactCategoryV0::SassIncludes
+pub omena_bundler::EmissionItemFactCategoryV0::SassModuleEdges
+pub omena_bundler::EmissionItemFactCategoryV0::SassPlaceholderDefinitions
+pub omena_bundler::EmissionItemFactCategoryV0::SassSymbols
+pub omena_bundler::EmissionItemFactCategoryV0::Variables
 #[non_exhaustive] pub enum omena_bundler::EmissionItemKindV0
+pub omena_bundler::EmissionItemKindV0::AnimationNameReference
+pub omena_bundler::EmissionItemKindV0::AtRule
+pub omena_bundler::EmissionItemKindV0::AtRule::node_kind: u32
+pub omena_bundler::EmissionItemKindV0::KeyframesDeclaration
+pub omena_bundler::EmissionItemKindV0::ModuleBoundary
+pub omena_bundler::EmissionItemKindV0::SelectorAttribute
+pub omena_bundler::EmissionItemKindV0::SelectorClass
+pub omena_bundler::EmissionItemKindV0::SelectorElement
+pub omena_bundler::EmissionItemKindV0::SelectorId
+pub omena_bundler::EmissionItemKindV0::SelectorPlaceholder
+pub omena_bundler::EmissionItemKindV0::SelectorPseudoClass
+pub omena_bundler::EmissionItemKindV0::SelectorPseudoElement
+pub omena_bundler::EmissionItemKindV0::SelectorUniversal
+pub omena_bundler::EmissionItemKindV0::UnknownAtRule
+pub omena_bundler::EmissionItemKindV0::UnknownStructuralSelector
 #[non_exhaustive] pub enum omena_bundler::EmissionItemProjectionDispositionV0
+pub omena_bundler::EmissionItemProjectionDispositionV0::NotProjected
+pub omena_bundler::EmissionItemProjectionDispositionV0::Projected
 #[non_exhaustive] pub enum omena_bundler::EmissionItemProjectionReasonV0
-#[non_exhaustive] pub enum omena_bundler::InstanceReachabilityDerivationV0
-#[non_exhaustive] pub enum omena_bundler::LinkedEmissionItemMaterializationErrorV0
-#[non_exhaustive] pub enum omena_bundler::TransformBundleReachabilityAnalysisV0
-#[non_exhaustive] pub enum omena_bundler::TransformBundleReachabilityUnanalyzedCauseV0
-#[non_exhaustive] pub struct omena_bundler::BundleDependencyResolutionDisclosureV0
-#[non_exhaustive] pub struct omena_bundler::EmissionItemInputV0
-#[non_exhaustive] pub struct omena_bundler::EmissionItemOrderKeyV0
-#[non_exhaustive] pub struct omena_bundler::EmissionItemPlanV0
-#[non_exhaustive] pub struct omena_bundler::EmissionItemProjectionDisclosureV0
-#[non_exhaustive] pub struct omena_bundler::EmissionItemV0
-#[non_exhaustive] pub struct omena_bundler::LinkedEmissionItemOrderV0
-#[non_exhaustive] pub struct omena_bundler::LinkedEmissionItemV0
-#[non_exhaustive] pub struct omena_bundler::LinkedStylesheetWithEmissionItemsV0
-#[non_exhaustive] pub struct omena_bundler::TransformBundleDependencyResolutionV0
-#[non_exhaustive] pub struct omena_bundler::TransformBundleEmissionAdmissionV0
-#[non_exhaustive] pub struct omena_bundler::TransformBundleEmissionItemProjectionV0
-#[non_exhaustive] pub struct omena_bundler::TransformBundleInstanceReachabilityInputV0
-#[non_exhaustive] pub struct omena_bundler::TransformBundleLinkOptionsV0
-#[non_exhaustive] pub struct omena_bundler::TransformBundleLinkProjectionSetV0
-#[non_exhaustive] pub struct omena_bundler::TransformBundleLinkerProjectionV0
-#[non_exhaustive] pub struct omena_bundler::TransformBundleParsedModuleInputV0
-#[non_exhaustive] pub struct omena_bundler::TransformBundleResolvedDependencyV0
-impl core::convert::From<omena_bundler::LinkedEmissionMaterializationErrorV0> for omena_bundler::LinkedEmissionItemMaterializationErrorV0
-impl core::convert::From<omena_bundler::LinkedEmissionMaterializationErrorV0> for omena_bundler::LinkedEmissionItemMaterializationErrorV0
-impl core::default::Default for omena_bundler::TransformBundleReachabilityAnalysisV0
+pub omena_bundler::EmissionItemProjectionReasonV0::NotAnEmissionBoundary
+pub omena_bundler::EmissionItemProjectionReasonV0::SourceOrderedAnimation
+pub omena_bundler::EmissionItemProjectionReasonV0::SourceOrderedAtRule
+pub omena_bundler::EmissionItemProjectionReasonV0::SourceOrderedNamedSelector
+pub omena_bundler::EmissionItemProjectionReasonV0::SourceOrderedStructuralSelector
+pub enum omena_bundler::EmissionOrderingPolicyV0
+pub omena_bundler::EmissionOrderingPolicyV0::ImportOrderPreserving
+pub omena_bundler::EmissionOrderingPolicyV0::ModuleIdLegacy
 impl omena_bundler::EmissionOrderingPolicyV0
-impl omena_bundler::LinkedStylesheetRuleV0
-impl omena_bundler::TransformBundleDependencyResolutionV0
-impl omena_bundler::TransformBundleEdgeKind
-impl omena_bundler::TransformBundleEmissionAdmissionV0
-impl omena_bundler::TransformBundleEmissionItemProjectionV0
-impl omena_bundler::TransformBundleInstanceReachabilityInputV0
-impl omena_bundler::TransformBundleLinkOptionsV0
-impl omena_bundler::TransformBundleLinkProjectionSetV0
-impl omena_bundler::TransformBundleLinkerProjectionV0
-impl omena_bundler::TransformBundleModuleInputV0
-impl omena_bundler::TransformBundleParsedModuleInputV0
-impl omena_bundler::TransformBundleReachabilityAnalysisV0
-impl omena_bundler::TransformBundleResolvedDependencyV0
-impl omena_bundler::TransformBundleSemanticReachabilityInputV0
-impl omena_bundler::TransformBundleTransformedModuleV0
 pub const fn omena_bundler::EmissionOrderingPolicyV0::as_wire_label(self) -> &'static str
+#[non_exhaustive] pub enum omena_bundler::InstanceReachabilityDerivationV0
+pub omena_bundler::InstanceReachabilityDerivationV0::InstanceAttributed
+pub omena_bundler::InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator
+#[non_exhaustive] pub enum omena_bundler::LinkedEmissionItemMaterializationErrorV0
+pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::InvalidItemOrderIndex
+pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::InvalidItemOrderIndex::actual: u32
+pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::InvalidItemOrderIndex::expected: u32
+pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::LegacyMaterialization
+pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::LegacyMaterialization::error: omena_bundler::LinkedEmissionMaterializationErrorV0
+pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::MissingEmissionItem
+pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::MissingEmissionItem::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::UnknownEmissionItemModule
+pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::UnknownEmissionItemModule::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+impl core::convert::From<omena_bundler::LinkedEmissionMaterializationErrorV0> for omena_bundler::LinkedEmissionItemMaterializationErrorV0
+pub fn omena_bundler::LinkedEmissionItemMaterializationErrorV0::from(omena_bundler::LinkedEmissionMaterializationErrorV0) -> Self
+pub enum omena_bundler::LinkedEmissionMaterializationErrorV0
+pub omena_bundler::LinkedEmissionMaterializationErrorV0::DuplicateTransformedModule
+pub omena_bundler::LinkedEmissionMaterializationErrorV0::DuplicateTransformedModule::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub omena_bundler::LinkedEmissionMaterializationErrorV0::ImportReplacementWouldDuplicateModule
+pub omena_bundler::LinkedEmissionMaterializationErrorV0::ImportReplacementWouldDuplicateModule::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub omena_bundler::LinkedEmissionMaterializationErrorV0::ImportReplacementWouldDuplicateModule::replacement_count: usize
+pub omena_bundler::LinkedEmissionMaterializationErrorV0::InvalidGlobalOrderIndex
+pub omena_bundler::LinkedEmissionMaterializationErrorV0::InvalidGlobalOrderIndex::actual: u32
+pub omena_bundler::LinkedEmissionMaterializationErrorV0::InvalidGlobalOrderIndex::expected: u32
+pub omena_bundler::LinkedEmissionMaterializationErrorV0::MissingTransformedModule
+pub omena_bundler::LinkedEmissionMaterializationErrorV0::MissingTransformedModule::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub omena_bundler::LinkedEmissionMaterializationErrorV0::UnexpectedTransformedModule
+pub omena_bundler::LinkedEmissionMaterializationErrorV0::UnexpectedTransformedModule::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+impl core::convert::From<omena_bundler::LinkedEmissionMaterializationErrorV0> for omena_bundler::LinkedEmissionItemMaterializationErrorV0
+pub fn omena_bundler::LinkedEmissionItemMaterializationErrorV0::from(omena_bundler::LinkedEmissionMaterializationErrorV0) -> Self
+pub enum omena_bundler::TransformBundleAssetUrlKind
+pub omena_bundler::TransformBundleAssetUrlKind::AbsolutePath
+pub omena_bundler::TransformBundleAssetUrlKind::Data
+pub omena_bundler::TransformBundleAssetUrlKind::External
+pub omena_bundler::TransformBundleAssetUrlKind::Fragment
+pub omena_bundler::TransformBundleAssetUrlKind::Relative
+pub enum omena_bundler::TransformBundleChunkKind
+pub omena_bundler::TransformBundleChunkKind::Asset
+pub omena_bundler::TransformBundleChunkKind::Entry
+pub omena_bundler::TransformBundleChunkKind::StyleImport
+pub enum omena_bundler::TransformBundleEdgeKind
+pub omena_bundler::TransformBundleEdgeKind::CssImport
+pub omena_bundler::TransformBundleEdgeKind::CssModuleComposesExternal
+pub omena_bundler::TransformBundleEdgeKind::CssModuleComposesLocal
+pub omena_bundler::TransformBundleEdgeKind::CssModuleValueImport
+pub omena_bundler::TransformBundleEdgeKind::IcssImport
+pub omena_bundler::TransformBundleEdgeKind::LessImport
+pub omena_bundler::TransformBundleEdgeKind::SassForward
+pub omena_bundler::TransformBundleEdgeKind::SassImport
+pub omena_bundler::TransformBundleEdgeKind::SassUse
+impl omena_bundler::TransformBundleEdgeKind
 pub const fn omena_bundler::TransformBundleEdgeKind::as_wire_label(self) -> &'static str
 pub const fn omena_bundler::TransformBundleEdgeKind::order_relevance(self) -> omena_cross_file_summary::EdgeOrderRelevanceV0
 pub const fn omena_bundler::TransformBundleEdgeKind::order_relevance_reason(self) -> &'static str
-pub const fn omena_bundler::TransformBundleEmissionAdmissionV0::module_id_legacy_open(&self) -> bool
-pub const fn omena_bundler::TransformBundleLinkOptionsV0::with_dependency_resolution_authority(self, omena_bundler::BundleResolutionAuthorityV0) -> Self
-pub const fn omena_bundler::TransformBundleLinkOptionsV0::with_emission_ordering_policy(self, omena_bundler::EmissionOrderingPolicyV0) -> Self
-pub const fn omena_bundler::TransformBundleTransformedModuleV0::with_non_empty_import_replacement_count(self, usize) -> Self
-pub const fn omena_bundler::bundle_edge_is_module_dependency(omena_bundler::TransformBundleEdgeKind) -> bool
-pub const omena_bundler::TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0: [omena_bundler::TransformBundleEdgeKind; 9]
-pub enum omena_bundler::EmissionCycleClassV0
-pub enum omena_bundler::EmissionCyclePolicyV0
-pub enum omena_bundler::EmissionOrderingPolicyV0
-pub enum omena_bundler::LinkedEmissionMaterializationErrorV0
-pub enum omena_bundler::TransformBundleAssetUrlKind
-pub enum omena_bundler::TransformBundleChunkKind
-pub enum omena_bundler::TransformBundleEdgeKind
 pub enum omena_bundler::TransformBundleLinkErrorV0
-pub fn omena_bundler::LinkedEmissionItemMaterializationErrorV0::from(omena_bundler::LinkedEmissionMaterializationErrorV0) -> Self
-pub fn omena_bundler::LinkedEmissionItemMaterializationErrorV0::from(omena_bundler::LinkedEmissionMaterializationErrorV0) -> Self
+pub omena_bundler::TransformBundleLinkErrorV0::AmbiguousModulePath
+pub omena_bundler::TransformBundleLinkErrorV0::AmbiguousModulePath::source_path: alloc::string::String
+pub omena_bundler::TransformBundleLinkErrorV0::ClosedWorldBundle
+pub omena_bundler::TransformBundleLinkErrorV0::ClosedWorldBundle::error: omena_parser::closed_world::contract::ClosedWorldBundleBuildErrorV0
+pub omena_bundler::TransformBundleLinkErrorV0::InvalidEmissionPlan
+pub omena_bundler::TransformBundleLinkErrorV0::InvalidEmissionPlan::reason: alloc::string::String
+pub omena_bundler::TransformBundleLinkErrorV0::MissingDependency
+pub omena_bundler::TransformBundleLinkErrorV0::MissingDependency::import_source: alloc::string::String
+pub omena_bundler::TransformBundleLinkErrorV0::MissingDependency::source_path: alloc::string::String
+pub omena_bundler::TransformBundleLinkErrorV0::MissingEntrypoint
+pub omena_bundler::TransformBundleLinkErrorV0::MissingEntrypoint::source_path: alloc::string::String
+pub omena_bundler::TransformBundleLinkErrorV0::UnresolvedDependencyEdge
+pub omena_bundler::TransformBundleLinkErrorV0::UnresolvedDependencyEdge::import_ordinal: core::option::Option<u32>
+pub omena_bundler::TransformBundleLinkErrorV0::UnresolvedDependencyEdge::import_source: alloc::string::String
+pub omena_bundler::TransformBundleLinkErrorV0::UnresolvedDependencyEdge::source_path: alloc::string::String
+pub omena_bundler::TransformBundleLinkErrorV0::UnsupportedDialectEmissionCycle
+pub omena_bundler::TransformBundleLinkErrorV0::UnsupportedDialectEmissionCycle::class: omena_bundler::EmissionCycleClassV0
+pub omena_bundler::TransformBundleLinkErrorV0::UnsupportedDialectEmissionCycle::dialect: omena_bundler::EmissionCycleDialectV0
+pub omena_bundler::TransformBundleLinkErrorV0::UnsupportedDialectEmissionCycle::edge_kinds: alloc::vec::Vec<omena_bundler::TransformBundleEdgeKind>
+pub omena_bundler::TransformBundleLinkErrorV0::UnsupportedEmissionCycle
+pub omena_bundler::TransformBundleLinkErrorV0::UnsupportedEmissionCycle::edge_kind: omena_bundler::TransformBundleEdgeKind
+#[non_exhaustive] pub enum omena_bundler::TransformBundleReachabilityAnalysisV0
+pub omena_bundler::TransformBundleReachabilityAnalysisV0::Analyzed
+pub omena_bundler::TransformBundleReachabilityAnalysisV0::Unanalyzed
+pub omena_bundler::TransformBundleReachabilityAnalysisV0::Unanalyzed::cause: omena_bundler::TransformBundleReachabilityUnanalyzedCauseV0
+impl omena_bundler::TransformBundleReachabilityAnalysisV0
+pub fn omena_bundler::TransformBundleReachabilityAnalysisV0::is_analyzed(self) -> bool
+impl core::default::Default for omena_bundler::TransformBundleReachabilityAnalysisV0
+pub fn omena_bundler::TransformBundleReachabilityAnalysisV0::default() -> Self
+#[non_exhaustive] pub enum omena_bundler::TransformBundleReachabilityUnanalyzedCauseV0
+pub omena_bundler::TransformBundleReachabilityUnanalyzedCauseV0::AnalysisNotAttempted
+pub omena_bundler::TransformBundleReachabilityUnanalyzedCauseV0::AnalysisResultUnavailable
+pub omena_bundler::TransformBundleReachabilityUnanalyzedCauseV0::InputNotProvided
+#[non_exhaustive] pub struct omena_bundler::BundleDependencyResolutionDisclosureV0
+pub omena_bundler::BundleDependencyResolutionDisclosureV0::authority: omena_bundler::BundleResolutionAuthorityV0
+pub omena_bundler::BundleDependencyResolutionDisclosureV0::import_ordinal: core::option::Option<u32>
+pub omena_bundler::BundleDependencyResolutionDisclosureV0::import_source: alloc::string::String
+pub omena_bundler::BundleDependencyResolutionDisclosureV0::source_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub struct omena_bundler::EmissionCycleGroupV0
+pub omena_bundler::EmissionCycleGroupV0::chosen_order: alloc::vec::Vec<omena_parser::closed_world::contract::ModuleInstanceKeyV0>
+pub omena_bundler::EmissionCycleGroupV0::class: omena_bundler::EmissionCycleClassV0
+pub omena_bundler::EmissionCycleGroupV0::dialect: omena_bundler::EmissionCycleDialectV0
+pub omena_bundler::EmissionCycleGroupV0::members: alloc::vec::Vec<omena_parser::closed_world::contract::ModuleInstanceKeyV0>
+pub omena_bundler::EmissionCycleGroupV0::policy: omena_bundler::EmissionCyclePolicyV0
+pub struct omena_bundler::EmissionDependencyFactV0
+pub omena_bundler::EmissionDependencyFactV0::edge_kind: omena_bundler::TransformBundleEdgeKind
+pub omena_bundler::EmissionDependencyFactV0::from_module: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub omena_bundler::EmissionDependencyFactV0::import_ordinal: u32
+pub omena_bundler::EmissionDependencyFactV0::order_relevance: omena_cross_file_summary::EdgeOrderRelevanceV0
+pub omena_bundler::EmissionDependencyFactV0::order_relevance_reason: &'static str
+pub omena_bundler::EmissionDependencyFactV0::to_module: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+#[non_exhaustive] pub struct omena_bundler::EmissionItemInputV0
+pub omena_bundler::EmissionItemInputV0::disclosure: alloc::vec::Vec<omena_bundler::EmissionItemProjectionDisclosureV0>
+pub omena_bundler::EmissionItemInputV0::items: alloc::vec::Vec<omena_bundler::EmissionItemV0>
+pub omena_bundler::EmissionItemInputV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+#[non_exhaustive] pub struct omena_bundler::EmissionItemOrderKeyV0
+pub omena_bundler::EmissionItemOrderKeyV0::intra_module_ordinal: u32
+pub omena_bundler::EmissionItemOrderKeyV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+#[non_exhaustive] pub struct omena_bundler::EmissionItemPlanV0
+pub omena_bundler::EmissionItemPlanV0::entries: alloc::vec::Vec<omena_bundler::EmissionItemOrderKeyV0>
+pub omena_bundler::EmissionItemPlanV0::policy: omena_bundler::EmissionOrderingPolicyV0
+#[non_exhaustive] pub struct omena_bundler::EmissionItemProjectionDisclosureV0
+pub omena_bundler::EmissionItemProjectionDisclosureV0::category: omena_bundler::EmissionItemFactCategoryV0
+pub omena_bundler::EmissionItemProjectionDisclosureV0::disposition: omena_bundler::EmissionItemProjectionDispositionV0
+pub omena_bundler::EmissionItemProjectionDisclosureV0::reason: omena_bundler::EmissionItemProjectionReasonV0
+#[non_exhaustive] pub struct omena_bundler::EmissionItemV0
+pub omena_bundler::EmissionItemV0::kind: omena_bundler::EmissionItemKindV0
+pub omena_bundler::EmissionItemV0::name: alloc::string::String
+pub omena_bundler::EmissionItemV0::range_end: u32
+pub omena_bundler::EmissionItemV0::range_start: u32
+pub struct omena_bundler::EmissionOrderKeyV0
+pub omena_bundler::EmissionOrderKeyV0::intra_module_ordinal: u32
+pub omena_bundler::EmissionOrderKeyV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub struct omena_bundler::EmissionPlanV0
+pub omena_bundler::EmissionPlanV0::cycle_groups: alloc::vec::Vec<omena_bundler::EmissionCycleGroupV0>
+pub omena_bundler::EmissionPlanV0::dependency_facts: alloc::vec::Vec<omena_bundler::EmissionDependencyFactV0>
+pub omena_bundler::EmissionPlanV0::entries: alloc::vec::Vec<omena_bundler::EmissionOrderKeyV0>
+pub omena_bundler::EmissionPlanV0::policy: omena_bundler::EmissionOrderingPolicyV0
+pub struct omena_bundler::EmissionPolicyDifferenceV0
+pub omena_bundler::EmissionPolicyDifferenceV0::import_order_module: core::option::Option<omena_parser::closed_world::contract::ModuleInstanceKeyV0>
+pub omena_bundler::EmissionPolicyDifferenceV0::import_order_selector: core::option::Option<alloc::string::String>
+pub omena_bundler::EmissionPolicyDifferenceV0::module_id_legacy_module: core::option::Option<omena_parser::closed_world::contract::ModuleInstanceKeyV0>
+pub omena_bundler::EmissionPolicyDifferenceV0::module_id_legacy_selector: core::option::Option<alloc::string::String>
+pub omena_bundler::EmissionPolicyDifferenceV0::output_index: u32
+pub struct omena_bundler::EmissionPolicyDifferentialReportV0
+pub omena_bundler::EmissionPolicyDifferentialReportV0::difference_count: usize
+pub omena_bundler::EmissionPolicyDifferentialReportV0::differences: alloc::vec::Vec<omena_bundler::EmissionPolicyDifferenceV0>
+pub omena_bundler::EmissionPolicyDifferentialReportV0::equivalent: bool
+pub omena_bundler::EmissionPolicyDifferentialReportV0::import_order_rule_count: usize
+pub omena_bundler::EmissionPolicyDifferentialReportV0::module_id_legacy_rule_count: usize
+pub omena_bundler::EmissionPolicyDifferentialReportV0::product: &'static str
+pub omena_bundler::EmissionPolicyDifferentialReportV0::schema_version: &'static str
+pub struct omena_bundler::GlobalRuleOrderV0
+pub omena_bundler::GlobalRuleOrderV0::rules: alloc::vec::Vec<omena_bundler::LinkedStylesheetRuleV0>
+pub struct omena_bundler::LinkedEmissionArtifactV0
+pub omena_bundler::LinkedEmissionArtifactV0::emitted_module_count: usize
+pub omena_bundler::LinkedEmissionArtifactV0::global_order_entry_count: usize
+pub omena_bundler::LinkedEmissionArtifactV0::module_regions: alloc::vec::Vec<omena_bundler::LinkedEmissionModuleRegionV0>
+pub omena_bundler::LinkedEmissionArtifactV0::order_entry_regions: alloc::vec::Vec<omena_bundler::LinkedEmissionOrderEntryRegionV0>
+pub omena_bundler::LinkedEmissionArtifactV0::output_css: alloc::string::String
+pub omena_bundler::LinkedEmissionArtifactV0::product: &'static str
+pub omena_bundler::LinkedEmissionArtifactV0::schema_version: &'static str
+#[non_exhaustive] pub struct omena_bundler::LinkedEmissionItemOrderV0
+pub omena_bundler::LinkedEmissionItemOrderV0::items: alloc::vec::Vec<omena_bundler::LinkedEmissionItemV0>
+#[non_exhaustive] pub struct omena_bundler::LinkedEmissionItemV0
+pub omena_bundler::LinkedEmissionItemV0::global_order_index: u32
+pub omena_bundler::LinkedEmissionItemV0::kind: omena_bundler::EmissionItemKindV0
+pub omena_bundler::LinkedEmissionItemV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub omena_bundler::LinkedEmissionItemV0::name: alloc::string::String
+pub omena_bundler::LinkedEmissionItemV0::range_end: u32
+pub omena_bundler::LinkedEmissionItemV0::range_start: u32
+pub struct omena_bundler::LinkedEmissionModuleRegionV0
+pub omena_bundler::LinkedEmissionModuleRegionV0::first_global_order_index: core::option::Option<u32>
+pub omena_bundler::LinkedEmissionModuleRegionV0::generated_end: usize
+pub omena_bundler::LinkedEmissionModuleRegionV0::generated_start: usize
+pub omena_bundler::LinkedEmissionModuleRegionV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub struct omena_bundler::LinkedEmissionOrderEntryRegionV0
+pub omena_bundler::LinkedEmissionOrderEntryRegionV0::generated_end: usize
+pub omena_bundler::LinkedEmissionOrderEntryRegionV0::generated_start: usize
+pub omena_bundler::LinkedEmissionOrderEntryRegionV0::global_order_index: u32
+pub omena_bundler::LinkedEmissionOrderEntryRegionV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub struct omena_bundler::LinkedStylesheetRuleV0
+pub omena_bundler::LinkedStylesheetRuleV0::global_order_index: u32
+pub omena_bundler::LinkedStylesheetRuleV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub omena_bundler::LinkedStylesheetRuleV0::range_end: u32
+pub omena_bundler::LinkedStylesheetRuleV0::range_start: u32
+pub omena_bundler::LinkedStylesheetRuleV0::selector_kind: &'static str
+pub omena_bundler::LinkedStylesheetRuleV0::selector_name: alloc::string::String
+impl omena_bundler::LinkedStylesheetRuleV0
 pub fn omena_bundler::LinkedStylesheetRuleV0::cascade_key_with_global_source_order(&self, omena_cascade::model::CascadeLevel, omena_cascade::model::LayerOrdinal, bool, u32, omena_cascade::model::Specificity, omena_cascade::model::ModuleRank) -> (omena_cascade::model::CascadeKey, omena_cascade::model::OpenWorldTieEvidence)
+pub struct omena_bundler::LinkedStylesheetV0
+pub omena_bundler::LinkedStylesheetV0::closed_world_bundle: omena_parser::closed_world::contract::ClosedWorldBundleV0
+pub omena_bundler::LinkedStylesheetV0::emission_plan: omena_bundler::EmissionPlanV0
+pub omena_bundler::LinkedStylesheetV0::entrypoints: alloc::vec::Vec<omena_parser::closed_world::contract::ModuleInstanceKeyV0>
+pub omena_bundler::LinkedStylesheetV0::global_rule_order: omena_bundler::GlobalRuleOrderV0
+pub omena_bundler::LinkedStylesheetV0::module_instances: alloc::vec::Vec<omena_parser::closed_world::contract::ModuleInstanceKeyV0>
+pub omena_bundler::LinkedStylesheetV0::product: &'static str
+pub omena_bundler::LinkedStylesheetV0::schema_version: &'static str
+#[non_exhaustive] pub struct omena_bundler::LinkedStylesheetWithEmissionItemsV0
+pub omena_bundler::LinkedStylesheetWithEmissionItemsV0::dependency_resolution_disclosures: alloc::vec::Vec<omena_bundler::BundleDependencyResolutionDisclosureV0>
+pub omena_bundler::LinkedStylesheetWithEmissionItemsV0::emission_item_order: omena_bundler::LinkedEmissionItemOrderV0
+pub omena_bundler::LinkedStylesheetWithEmissionItemsV0::emission_item_plan: omena_bundler::EmissionItemPlanV0
+pub omena_bundler::LinkedStylesheetWithEmissionItemsV0::linked_stylesheet: omena_bundler::LinkedStylesheetV0
+pub omena_bundler::LinkedStylesheetWithEmissionItemsV0::projection_disclosures: alloc::vec::Vec<omena_bundler::EmissionItemProjectionDisclosureV0>
+pub struct omena_bundler::LinkerDependencyEdgeV0
+pub omena_bundler::LinkerDependencyEdgeV0::import_ordinal: core::option::Option<u32>
+pub omena_bundler::LinkerDependencyEdgeV0::import_source: alloc::string::String
+pub omena_bundler::LinkerDependencyEdgeV0::kind: omena_bundler::TransformBundleEdgeKind
+pub omena_bundler::LinkerDependencyEdgeV0::local_names: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::LinkerDependencyEdgeV0::remote_names: alloc::vec::Vec<alloc::string::String>
+pub struct omena_bundler::LinkerInputV0
+pub omena_bundler::LinkerInputV0::class_names: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::LinkerInputV0::custom_property_names: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::LinkerInputV0::dependency_edges: alloc::vec::Vec<omena_bundler::LinkerDependencyEdgeV0>
+pub omena_bundler::LinkerInputV0::dialect: omena_syntax::StyleDialect
+pub omena_bundler::LinkerInputV0::instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub omena_bundler::LinkerInputV0::keyframe_names: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::LinkerInputV0::ordered_rules: alloc::vec::Vec<omena_bundler::LinkerRuleV0>
+pub omena_bundler::LinkerInputV0::source_path: alloc::string::String
+pub omena_bundler::LinkerInputV0::value_names: alloc::vec::Vec<alloc::string::String>
+pub struct omena_bundler::LinkerRuleV0
+pub omena_bundler::LinkerRuleV0::range_end: u32
+pub omena_bundler::LinkerRuleV0::range_start: u32
+pub omena_bundler::LinkerRuleV0::selector_kind: omena_parser::facts::selectors::ParsedSelectorFactKind
+pub omena_bundler::LinkerRuleV0::selector_name: alloc::string::String
+pub struct omena_bundler::TransformBundleAssetUrlRewriteSummaryV0
+pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::asset_url_count: usize
+pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::output_css: alloc::string::String
+pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::product: &'static str
+pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::rewrite_count: usize
+pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::rewritten_asset_urls: alloc::vec::Vec<omena_bundler::TransformBundleAssetUrlV0>
+pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::schema_version: &'static str
+pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::source_path: alloc::string::String
+pub struct omena_bundler::TransformBundleAssetUrlV0
+pub omena_bundler::TransformBundleAssetUrlV0::bundler_resolution_required: bool
+pub omena_bundler::TransformBundleAssetUrlV0::kind: omena_bundler::TransformBundleAssetUrlKind
+pub omena_bundler::TransformBundleAssetUrlV0::normalized_url: alloc::string::String
+pub omena_bundler::TransformBundleAssetUrlV0::range_end: u32
+pub omena_bundler::TransformBundleAssetUrlV0::range_start: u32
+pub omena_bundler::TransformBundleAssetUrlV0::raw_url: alloc::string::String
+pub omena_bundler::TransformBundleAssetUrlV0::resolved_path: core::option::Option<alloc::string::String>
+pub omena_bundler::TransformBundleAssetUrlV0::source_path: alloc::string::String
+pub struct omena_bundler::TransformBundleChunkV0
+pub omena_bundler::TransformBundleChunkV0::asset_url: core::option::Option<alloc::string::String>
+pub omena_bundler::TransformBundleChunkV0::chunk_id: alloc::string::String
+pub omena_bundler::TransformBundleChunkV0::depends_on: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::TransformBundleChunkV0::import_source: core::option::Option<alloc::string::String>
+pub omena_bundler::TransformBundleChunkV0::kind: omena_bundler::TransformBundleChunkKind
+pub omena_bundler::TransformBundleChunkV0::resolved_path: core::option::Option<alloc::string::String>
+pub omena_bundler::TransformBundleChunkV0::source_path: alloc::string::String
+pub omena_bundler::TransformBundleChunkV0::split_boundary: &'static str
+#[non_exhaustive] pub struct omena_bundler::TransformBundleDependencyResolutionV0
+pub omena_bundler::TransformBundleDependencyResolutionV0::attempt_state: &'static str
+pub omena_bundler::TransformBundleDependencyResolutionV0::candidate_count: usize
+pub omena_bundler::TransformBundleDependencyResolutionV0::policy_step_keys: alloc::vec::Vec<&'static str>
+pub omena_bundler::TransformBundleDependencyResolutionV0::resolution_kind: core::option::Option<&'static str>
+pub omena_bundler::TransformBundleDependencyResolutionV0::target_instance: core::option::Option<omena_parser::closed_world::contract::ModuleInstanceKeyV0>
+impl omena_bundler::TransformBundleDependencyResolutionV0
 pub fn omena_bundler::TransformBundleDependencyResolutionV0::attempted(alloc::vec::Vec<&'static str>, &'static str, usize, core::option::Option<omena_parser::closed_world::contract::ModuleInstanceKeyV0>) -> Self
 pub fn omena_bundler::TransformBundleDependencyResolutionV0::never_attempted(alloc::vec::Vec<&'static str>) -> Self
+pub struct omena_bundler::TransformBundleEdgeV0
+pub omena_bundler::TransformBundleEdgeV0::import_ordinal: core::option::Option<u32>
+pub omena_bundler::TransformBundleEdgeV0::import_source: core::option::Option<alloc::string::String>
+pub omena_bundler::TransformBundleEdgeV0::kind: omena_bundler::TransformBundleEdgeKind
+pub omena_bundler::TransformBundleEdgeV0::local_names: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::TransformBundleEdgeV0::namespace: core::option::Option<alloc::string::String>
+pub omena_bundler::TransformBundleEdgeV0::provenance_required: bool
+pub omena_bundler::TransformBundleEdgeV0::range_end: u32
+pub omena_bundler::TransformBundleEdgeV0::range_start: u32
+pub omena_bundler::TransformBundleEdgeV0::remote_names: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::TransformBundleEdgeV0::source_path: alloc::string::String
+#[non_exhaustive] pub struct omena_bundler::TransformBundleEmissionAdmissionV0
+impl omena_bundler::TransformBundleEmissionAdmissionV0
 pub fn omena_bundler::TransformBundleEmissionAdmissionV0::into_parts(self) -> (bool, core::result::Result<omena_bundler::LinkedStylesheetWithEmissionItemsV0, omena_bundler::TransformBundleLinkErrorV0>)
 pub fn omena_bundler::TransformBundleEmissionAdmissionV0::into_requested_policy_result(self) -> core::result::Result<omena_bundler::LinkedStylesheetWithEmissionItemsV0, omena_bundler::TransformBundleLinkErrorV0>
+pub const fn omena_bundler::TransformBundleEmissionAdmissionV0::module_id_legacy_open(&self) -> bool
 pub fn omena_bundler::TransformBundleEmissionAdmissionV0::requested_policy_result(&self) -> &core::result::Result<omena_bundler::LinkedStylesheetWithEmissionItemsV0, omena_bundler::TransformBundleLinkErrorV0>
+#[non_exhaustive] pub struct omena_bundler::TransformBundleEmissionItemProjectionV0
+impl omena_bundler::TransformBundleEmissionItemProjectionV0
 pub fn omena_bundler::TransformBundleEmissionItemProjectionV0::inputs(&self) -> &[omena_bundler::EmissionItemInputV0]
+#[non_exhaustive] pub struct omena_bundler::TransformBundleInstanceReachabilityInputV0
+pub omena_bundler::TransformBundleInstanceReachabilityInputV0::analysis: omena_bundler::TransformBundleReachabilityAnalysisV0
+pub omena_bundler::TransformBundleInstanceReachabilityInputV0::class_names: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::TransformBundleInstanceReachabilityInputV0::custom_property_names: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::TransformBundleInstanceReachabilityInputV0::derivation: omena_bundler::InstanceReachabilityDerivationV0
+pub omena_bundler::TransformBundleInstanceReachabilityInputV0::keyframe_names: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::TransformBundleInstanceReachabilityInputV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub omena_bundler::TransformBundleInstanceReachabilityInputV0::value_names: alloc::vec::Vec<alloc::string::String>
+impl omena_bundler::TransformBundleInstanceReachabilityInputV0
 pub fn omena_bundler::TransformBundleInstanceReachabilityInputV0::has_reachable_symbols(&self) -> bool
 pub fn omena_bundler::TransformBundleInstanceReachabilityInputV0::new(omena_parser::closed_world::contract::ModuleInstanceKeyV0, omena_bundler::InstanceReachabilityDerivationV0) -> Self
 pub fn omena_bundler::TransformBundleInstanceReachabilityInputV0::unanalyzed(omena_parser::closed_world::contract::ModuleInstanceKeyV0, omena_bundler::InstanceReachabilityDerivationV0, omena_bundler::TransformBundleReachabilityUnanalyzedCauseV0) -> Self
+#[non_exhaustive] pub struct omena_bundler::TransformBundleLinkOptionsV0
+pub omena_bundler::TransformBundleLinkOptionsV0::dependency_resolution_authority: omena_bundler::BundleResolutionAuthorityV0
+pub omena_bundler::TransformBundleLinkOptionsV0::emission_ordering_policy: omena_bundler::EmissionOrderingPolicyV0
+impl omena_bundler::TransformBundleLinkOptionsV0
+pub const fn omena_bundler::TransformBundleLinkOptionsV0::with_dependency_resolution_authority(self, omena_bundler::BundleResolutionAuthorityV0) -> Self
+pub const fn omena_bundler::TransformBundleLinkOptionsV0::with_emission_ordering_policy(self, omena_bundler::EmissionOrderingPolicyV0) -> Self
+#[non_exhaustive] pub struct omena_bundler::TransformBundleLinkProjectionSetV0
+impl omena_bundler::TransformBundleLinkProjectionSetV0
 pub fn omena_bundler::TransformBundleLinkProjectionSetV0::emission_item_projection(&self) -> &omena_bundler::TransformBundleEmissionItemProjectionV0
 pub fn omena_bundler::TransformBundleLinkProjectionSetV0::linker_projection(&self) -> &omena_bundler::TransformBundleLinkerProjectionV0
+#[non_exhaustive] pub struct omena_bundler::TransformBundleLinkerProjectionV0
+impl omena_bundler::TransformBundleLinkerProjectionV0
 pub fn omena_bundler::TransformBundleLinkerProjectionV0::analyzed_empty_reachability_input_count(&self) -> usize
 pub fn omena_bundler::TransformBundleLinkerProjectionV0::inputs(&self) -> &[omena_bundler::LinkerInputV0]
 pub fn omena_bundler::TransformBundleLinkerProjectionV0::module_reachability_analysis(&self, &omena_parser::closed_world::contract::ModuleInstanceKeyV0) -> omena_bundler::TransformBundleReachabilityAnalysisV0
 pub fn omena_bundler::TransformBundleLinkerProjectionV0::module_reachability_derivation(&self, &omena_parser::closed_world::contract::ModuleInstanceKeyV0) -> core::option::Option<omena_bundler::InstanceReachabilityDerivationV0>
 pub fn omena_bundler::TransformBundleLinkerProjectionV0::module_reachability_evidence(&self, &omena_parser::closed_world::contract::ModuleInstanceKeyV0) -> omena_parser::closed_world::contract::ClosedWorldModuleReachabilityEvidenceV0
 pub fn omena_bundler::TransformBundleLinkerProjectionV0::unanalyzed_reachability_input_count(&self) -> usize
+pub struct omena_bundler::TransformBundleModuleInputV0
+pub omena_bundler::TransformBundleModuleInputV0::configuration_hash: omena_parser::closed_world::contract::ConfigurationHashV0
+pub omena_bundler::TransformBundleModuleInputV0::dialect: omena_syntax::StyleDialect
+pub omena_bundler::TransformBundleModuleInputV0::source: alloc::string::String
+pub omena_bundler::TransformBundleModuleInputV0::source_path: alloc::string::String
+impl omena_bundler::TransformBundleModuleInputV0
 pub fn omena_bundler::TransformBundleModuleInputV0::module_instance_key(&self) -> omena_parser::closed_world::contract::ModuleInstanceKeyV0
 pub fn omena_bundler::TransformBundleModuleInputV0::new(impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>, omena_syntax::StyleDialect) -> Self
 pub fn omena_bundler::TransformBundleModuleInputV0::with_configuration_hash(self, omena_parser::closed_world::contract::ConfigurationHashV0) -> Self
+#[non_exhaustive] pub struct omena_bundler::TransformBundleParsedModuleInputV0
+impl omena_bundler::TransformBundleParsedModuleInputV0
 pub fn omena_bundler::TransformBundleParsedModuleInputV0::configuration_hashes(&self) -> &[omena_parser::closed_world::contract::ConfigurationHashV0]
 pub fn omena_bundler::TransformBundleParsedModuleInputV0::module_instance_keys(&self) -> alloc::vec::Vec<omena_parser::closed_world::contract::ModuleInstanceKeyV0>
 pub fn omena_bundler::TransformBundleParsedModuleInputV0::new(impl core::convert::Into<alloc::string::String>, omena_syntax::StyleDialect, omena_parser::facts::ParsedStyleFacts) -> Self
 pub fn omena_bundler::TransformBundleParsedModuleInputV0::source_path(&self) -> &str
 pub fn omena_bundler::TransformBundleParsedModuleInputV0::with_configuration_hashes(self, alloc::vec::Vec<omena_parser::closed_world::contract::ConfigurationHashV0>) -> Self
 pub fn omena_bundler::TransformBundleParsedModuleInputV0::with_emission_selectors(self, omena_parser::facts::emission_selectors::ParsedEmissionSelectorFactsV0) -> Self
-pub fn omena_bundler::TransformBundleReachabilityAnalysisV0::default() -> Self
-pub fn omena_bundler::TransformBundleReachabilityAnalysisV0::is_analyzed(self) -> bool
+#[non_exhaustive] pub struct omena_bundler::TransformBundleResolvedDependencyV0
+pub omena_bundler::TransformBundleResolvedDependencyV0::edge_kind: omena_bundler::TransformBundleEdgeKind
+pub omena_bundler::TransformBundleResolvedDependencyV0::import_ordinal: core::option::Option<u32>
+pub omena_bundler::TransformBundleResolvedDependencyV0::import_source: alloc::string::String
+pub omena_bundler::TransformBundleResolvedDependencyV0::resolution: omena_bundler::TransformBundleDependencyResolutionV0
+pub omena_bundler::TransformBundleResolvedDependencyV0::source_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+impl omena_bundler::TransformBundleResolvedDependencyV0
 pub fn omena_bundler::TransformBundleResolvedDependencyV0::new(omena_parser::closed_world::contract::ModuleInstanceKeyV0, omena_bundler::TransformBundleEdgeKind, impl core::convert::Into<alloc::string::String>, core::option::Option<u32>, omena_bundler::TransformBundleDependencyResolutionV0) -> Self
+pub struct omena_bundler::TransformBundleSemanticReachabilityInputV0
+pub omena_bundler::TransformBundleSemanticReachabilityInputV0::analysis: omena_bundler::TransformBundleReachabilityAnalysisV0
+pub omena_bundler::TransformBundleSemanticReachabilityInputV0::class_names: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::TransformBundleSemanticReachabilityInputV0::custom_property_names: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::TransformBundleSemanticReachabilityInputV0::keyframe_names: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::TransformBundleSemanticReachabilityInputV0::source_path: alloc::string::String
+pub omena_bundler::TransformBundleSemanticReachabilityInputV0::value_names: alloc::vec::Vec<alloc::string::String>
+impl omena_bundler::TransformBundleSemanticReachabilityInputV0
 pub fn omena_bundler::TransformBundleSemanticReachabilityInputV0::has_reachable_symbols(&self) -> bool
 pub fn omena_bundler::TransformBundleSemanticReachabilityInputV0::new(impl core::convert::Into<alloc::string::String>) -> Self
 pub fn omena_bundler::TransformBundleSemanticReachabilityInputV0::unanalyzed(impl core::convert::Into<alloc::string::String>, omena_bundler::TransformBundleReachabilityUnanalyzedCauseV0) -> Self
+pub struct omena_bundler::TransformBundleSourceSummaryV0
+pub omena_bundler::TransformBundleSourceSummaryV0::asset_urls: alloc::vec::Vec<omena_bundler::TransformBundleAssetUrlV0>
+pub omena_bundler::TransformBundleSourceSummaryV0::bundle_edges: alloc::vec::Vec<omena_bundler::TransformBundleEdgeV0>
+pub omena_bundler::TransformBundleSourceSummaryV0::class_hashing_required: bool
+pub omena_bundler::TransformBundleSourceSummaryV0::code_split_chunks: alloc::vec::Vec<omena_bundler::TransformBundleChunkV0>
+pub omena_bundler::TransformBundleSourceSummaryV0::code_splitting_required: bool
+pub omena_bundler::TransformBundleSourceSummaryV0::css_modules_resolution_required: bool
+pub omena_bundler::TransformBundleSourceSummaryV0::dialect: &'static str
+pub omena_bundler::TransformBundleSourceSummaryV0::import_inline_required: bool
+pub omena_bundler::TransformBundleSourceSummaryV0::module_evaluation_required: bool
+pub omena_bundler::TransformBundleSourceSummaryV0::pass_plan: omena_transform_passes::model::TransformPassPlanV0
+pub omena_bundler::TransformBundleSourceSummaryV0::planned_pass_ids: alloc::vec::Vec<&'static str>
+pub omena_bundler::TransformBundleSourceSummaryV0::product: &'static str
+pub omena_bundler::TransformBundleSourceSummaryV0::required_pass_ids: alloc::vec::Vec<&'static str>
+pub omena_bundler::TransformBundleSourceSummaryV0::schema_version: &'static str
+pub omena_bundler::TransformBundleSourceSummaryV0::source_path: alloc::string::String
+pub omena_bundler::TransformBundleSourceSummaryV0::value_resolution_required: bool
+pub struct omena_bundler::TransformBundleTransformedModuleV0
+pub omena_bundler::TransformBundleTransformedModuleV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub omena_bundler::TransformBundleTransformedModuleV0::non_empty_import_replacement_count: usize
+pub omena_bundler::TransformBundleTransformedModuleV0::output_css: alloc::string::String
+impl omena_bundler::TransformBundleTransformedModuleV0
 pub fn omena_bundler::TransformBundleTransformedModuleV0::new(omena_parser::closed_world::contract::ModuleInstanceKeyV0, impl core::convert::Into<alloc::string::String>) -> Self
+pub const fn omena_bundler::TransformBundleTransformedModuleV0::with_non_empty_import_replacement_count(self, usize) -> Self
+pub const omena_bundler::TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0: [omena_bundler::TransformBundleEdgeKind; 9]
+pub const fn omena_bundler::bundle_edge_is_module_dependency(omena_bundler::TransformBundleEdgeKind) -> bool
 pub fn omena_bundler::compare_omena_transform_bundle_emission_policies<P: core::convert::AsRef<str>>(&[P], &[omena_bundler::TransformBundleModuleInputV0]) -> core::result::Result<omena_bundler::EmissionPolicyDifferentialReportV0, omena_bundler::TransformBundleLinkErrorV0>
 pub fn omena_bundler::evaluate_omena_transform_bundle_projection_emission_admission_with_resolved_dependencies_and_options<P: core::convert::AsRef<str>>(&[P], &omena_bundler::TransformBundleLinkerProjectionV0, &omena_bundler::TransformBundleEmissionItemProjectionV0, &[omena_bundler::TransformBundleResolvedDependencyV0], &[omena_parser::closed_world::contract::ClosedWorldModuleMetadataV0], omena_bundler::TransformBundleLinkOptionsV0) -> omena_bundler::TransformBundleEmissionAdmissionV0
 pub fn omena_bundler::link_legacy_path_inferred_bundle<P: core::convert::AsRef<str>>(&[P], &omena_bundler::TransformBundleLinkerProjectionV0, &omena_bundler::TransformBundleEmissionItemProjectionV0, &[omena_bundler::TransformBundleResolvedDependencyV0], &[omena_parser::closed_world::contract::ClosedWorldModuleMetadataV0], omena_bundler::EmissionOrderingPolicyV0) -> core::result::Result<omena_bundler::LinkedStylesheetWithEmissionItemsV0, omena_bundler::TransformBundleLinkErrorV0>
@@ -123,334 +454,3 @@ pub fn omena_bundler::project_omena_transform_bundle_linker_inputs_from_parsed_m
 pub fn omena_bundler::project_omena_transform_bundle_linker_inputs_from_parsed_modules_with_instance_reachability(&[omena_bundler::TransformBundleParsedModuleInputV0], &[omena_bundler::TransformBundleInstanceReachabilityInputV0]) -> omena_bundler::TransformBundleLinkerProjectionV0
 pub fn omena_bundler::rewrite_omena_transform_bundle_asset_urls_in_source(impl core::convert::Into<alloc::string::String>, &str) -> omena_bundler::TransformBundleAssetUrlRewriteSummaryV0
 pub fn omena_bundler::summarize_omena_transform_bundle_from_source(impl core::convert::Into<alloc::string::String>, &str, omena_syntax::StyleDialect) -> omena_bundler::TransformBundleSourceSummaryV0
-pub mod omena_bundler
-pub omena_bundler::BundleDependencyResolutionDisclosureV0::authority: omena_bundler::BundleResolutionAuthorityV0
-pub omena_bundler::BundleDependencyResolutionDisclosureV0::import_ordinal: core::option::Option<u32>
-pub omena_bundler::BundleDependencyResolutionDisclosureV0::import_source: alloc::string::String
-pub omena_bundler::BundleDependencyResolutionDisclosureV0::source_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
-pub omena_bundler::BundleResolutionAuthorityV0::LegacyPathInferred
-pub omena_bundler::BundleResolutionAuthorityV0::Resolved
-pub omena_bundler::EmissionCycleClassV0::Composition
-pub omena_bundler::EmissionCycleClassV0::Import
-pub omena_bundler::EmissionCycleClassV0::Mixed
-pub omena_bundler::EmissionCycleDialectV0::Css
-pub omena_bundler::EmissionCycleDialectV0::Less
-pub omena_bundler::EmissionCycleDialectV0::Mixed
-pub omena_bundler::EmissionCycleDialectV0::Sass
-pub omena_bundler::EmissionCycleDialectV0::Scss
-pub omena_bundler::EmissionCycleGroupV0::chosen_order: alloc::vec::Vec<omena_parser::closed_world::contract::ModuleInstanceKeyV0>
-pub omena_bundler::EmissionCycleGroupV0::class: omena_bundler::EmissionCycleClassV0
-pub omena_bundler::EmissionCycleGroupV0::dialect: omena_bundler::EmissionCycleDialectV0
-pub omena_bundler::EmissionCycleGroupV0::members: alloc::vec::Vec<omena_parser::closed_world::contract::ModuleInstanceKeyV0>
-pub omena_bundler::EmissionCycleGroupV0::policy: omena_bundler::EmissionCyclePolicyV0
-pub omena_bundler::EmissionCyclePolicyV0::ModuleIdentity
-pub omena_bundler::EmissionDependencyFactV0::edge_kind: omena_bundler::TransformBundleEdgeKind
-pub omena_bundler::EmissionDependencyFactV0::from_module: omena_parser::closed_world::contract::ModuleInstanceKeyV0
-pub omena_bundler::EmissionDependencyFactV0::import_ordinal: u32
-pub omena_bundler::EmissionDependencyFactV0::order_relevance: omena_cross_file_summary::EdgeOrderRelevanceV0
-pub omena_bundler::EmissionDependencyFactV0::order_relevance_reason: &'static str
-pub omena_bundler::EmissionDependencyFactV0::to_module: omena_parser::closed_world::contract::ModuleInstanceKeyV0
-pub omena_bundler::EmissionItemFactCategoryV0::Animations
-pub omena_bundler::EmissionItemFactCategoryV0::AtRules
-pub omena_bundler::EmissionItemFactCategoryV0::CssModuleComposes
-pub omena_bundler::EmissionItemFactCategoryV0::CssModuleComposesEdges
-pub omena_bundler::EmissionItemFactCategoryV0::CssModuleValueDefinitionEdges
-pub omena_bundler::EmissionItemFactCategoryV0::CssModuleValueImportEdges
-pub omena_bundler::EmissionItemFactCategoryV0::CssModuleValues
-pub omena_bundler::EmissionItemFactCategoryV0::EmissionSelectors
-pub omena_bundler::EmissionItemFactCategoryV0::ExtendTargets
-pub omena_bundler::EmissionItemFactCategoryV0::Icss
-pub omena_bundler::EmissionItemFactCategoryV0::IcssExportEdges
-pub omena_bundler::EmissionItemFactCategoryV0::IcssImportEdges
-pub omena_bundler::EmissionItemFactCategoryV0::NamedSelectors
-pub omena_bundler::EmissionItemFactCategoryV0::SassIncludes
-pub omena_bundler::EmissionItemFactCategoryV0::SassModuleEdges
-pub omena_bundler::EmissionItemFactCategoryV0::SassPlaceholderDefinitions
-pub omena_bundler::EmissionItemFactCategoryV0::SassSymbols
-pub omena_bundler::EmissionItemFactCategoryV0::Variables
-pub omena_bundler::EmissionItemInputV0::disclosure: alloc::vec::Vec<omena_bundler::EmissionItemProjectionDisclosureV0>
-pub omena_bundler::EmissionItemInputV0::items: alloc::vec::Vec<omena_bundler::EmissionItemV0>
-pub omena_bundler::EmissionItemInputV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
-pub omena_bundler::EmissionItemKindV0::AnimationNameReference
-pub omena_bundler::EmissionItemKindV0::AtRule
-pub omena_bundler::EmissionItemKindV0::AtRule::node_kind: u32
-pub omena_bundler::EmissionItemKindV0::KeyframesDeclaration
-pub omena_bundler::EmissionItemKindV0::ModuleBoundary
-pub omena_bundler::EmissionItemKindV0::SelectorAttribute
-pub omena_bundler::EmissionItemKindV0::SelectorClass
-pub omena_bundler::EmissionItemKindV0::SelectorElement
-pub omena_bundler::EmissionItemKindV0::SelectorId
-pub omena_bundler::EmissionItemKindV0::SelectorPlaceholder
-pub omena_bundler::EmissionItemKindV0::SelectorPseudoClass
-pub omena_bundler::EmissionItemKindV0::SelectorPseudoElement
-pub omena_bundler::EmissionItemKindV0::SelectorUniversal
-pub omena_bundler::EmissionItemKindV0::UnknownAtRule
-pub omena_bundler::EmissionItemKindV0::UnknownStructuralSelector
-pub omena_bundler::EmissionItemOrderKeyV0::intra_module_ordinal: u32
-pub omena_bundler::EmissionItemOrderKeyV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
-pub omena_bundler::EmissionItemPlanV0::entries: alloc::vec::Vec<omena_bundler::EmissionItemOrderKeyV0>
-pub omena_bundler::EmissionItemPlanV0::policy: omena_bundler::EmissionOrderingPolicyV0
-pub omena_bundler::EmissionItemProjectionDisclosureV0::category: omena_bundler::EmissionItemFactCategoryV0
-pub omena_bundler::EmissionItemProjectionDisclosureV0::disposition: omena_bundler::EmissionItemProjectionDispositionV0
-pub omena_bundler::EmissionItemProjectionDisclosureV0::reason: omena_bundler::EmissionItemProjectionReasonV0
-pub omena_bundler::EmissionItemProjectionDispositionV0::NotProjected
-pub omena_bundler::EmissionItemProjectionDispositionV0::Projected
-pub omena_bundler::EmissionItemProjectionReasonV0::NotAnEmissionBoundary
-pub omena_bundler::EmissionItemProjectionReasonV0::SourceOrderedAnimation
-pub omena_bundler::EmissionItemProjectionReasonV0::SourceOrderedAtRule
-pub omena_bundler::EmissionItemProjectionReasonV0::SourceOrderedNamedSelector
-pub omena_bundler::EmissionItemProjectionReasonV0::SourceOrderedStructuralSelector
-pub omena_bundler::EmissionItemV0::kind: omena_bundler::EmissionItemKindV0
-pub omena_bundler::EmissionItemV0::name: alloc::string::String
-pub omena_bundler::EmissionItemV0::range_end: u32
-pub omena_bundler::EmissionItemV0::range_start: u32
-pub omena_bundler::EmissionOrderKeyV0::intra_module_ordinal: u32
-pub omena_bundler::EmissionOrderKeyV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
-pub omena_bundler::EmissionOrderingPolicyV0::ImportOrderPreserving
-pub omena_bundler::EmissionOrderingPolicyV0::ModuleIdLegacy
-pub omena_bundler::EmissionPlanV0::cycle_groups: alloc::vec::Vec<omena_bundler::EmissionCycleGroupV0>
-pub omena_bundler::EmissionPlanV0::dependency_facts: alloc::vec::Vec<omena_bundler::EmissionDependencyFactV0>
-pub omena_bundler::EmissionPlanV0::entries: alloc::vec::Vec<omena_bundler::EmissionOrderKeyV0>
-pub omena_bundler::EmissionPlanV0::policy: omena_bundler::EmissionOrderingPolicyV0
-pub omena_bundler::EmissionPolicyDifferenceV0::import_order_module: core::option::Option<omena_parser::closed_world::contract::ModuleInstanceKeyV0>
-pub omena_bundler::EmissionPolicyDifferenceV0::import_order_selector: core::option::Option<alloc::string::String>
-pub omena_bundler::EmissionPolicyDifferenceV0::module_id_legacy_module: core::option::Option<omena_parser::closed_world::contract::ModuleInstanceKeyV0>
-pub omena_bundler::EmissionPolicyDifferenceV0::module_id_legacy_selector: core::option::Option<alloc::string::String>
-pub omena_bundler::EmissionPolicyDifferenceV0::output_index: u32
-pub omena_bundler::EmissionPolicyDifferentialReportV0::difference_count: usize
-pub omena_bundler::EmissionPolicyDifferentialReportV0::differences: alloc::vec::Vec<omena_bundler::EmissionPolicyDifferenceV0>
-pub omena_bundler::EmissionPolicyDifferentialReportV0::equivalent: bool
-pub omena_bundler::EmissionPolicyDifferentialReportV0::import_order_rule_count: usize
-pub omena_bundler::EmissionPolicyDifferentialReportV0::module_id_legacy_rule_count: usize
-pub omena_bundler::EmissionPolicyDifferentialReportV0::product: &'static str
-pub omena_bundler::EmissionPolicyDifferentialReportV0::schema_version: &'static str
-pub omena_bundler::GlobalRuleOrderV0::rules: alloc::vec::Vec<omena_bundler::LinkedStylesheetRuleV0>
-pub omena_bundler::InstanceReachabilityDerivationV0::InstanceAttributed
-pub omena_bundler::InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator
-pub omena_bundler::LinkedEmissionArtifactV0::emitted_module_count: usize
-pub omena_bundler::LinkedEmissionArtifactV0::global_order_entry_count: usize
-pub omena_bundler::LinkedEmissionArtifactV0::module_regions: alloc::vec::Vec<omena_bundler::LinkedEmissionModuleRegionV0>
-pub omena_bundler::LinkedEmissionArtifactV0::order_entry_regions: alloc::vec::Vec<omena_bundler::LinkedEmissionOrderEntryRegionV0>
-pub omena_bundler::LinkedEmissionArtifactV0::output_css: alloc::string::String
-pub omena_bundler::LinkedEmissionArtifactV0::product: &'static str
-pub omena_bundler::LinkedEmissionArtifactV0::schema_version: &'static str
-pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::InvalidItemOrderIndex
-pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::InvalidItemOrderIndex::actual: u32
-pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::InvalidItemOrderIndex::expected: u32
-pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::LegacyMaterialization
-pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::LegacyMaterialization::error: omena_bundler::LinkedEmissionMaterializationErrorV0
-pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::MissingEmissionItem
-pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::MissingEmissionItem::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
-pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::UnknownEmissionItemModule
-pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::UnknownEmissionItemModule::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
-pub omena_bundler::LinkedEmissionItemOrderV0::items: alloc::vec::Vec<omena_bundler::LinkedEmissionItemV0>
-pub omena_bundler::LinkedEmissionItemV0::global_order_index: u32
-pub omena_bundler::LinkedEmissionItemV0::kind: omena_bundler::EmissionItemKindV0
-pub omena_bundler::LinkedEmissionItemV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
-pub omena_bundler::LinkedEmissionItemV0::name: alloc::string::String
-pub omena_bundler::LinkedEmissionItemV0::range_end: u32
-pub omena_bundler::LinkedEmissionItemV0::range_start: u32
-pub omena_bundler::LinkedEmissionMaterializationErrorV0::DuplicateTransformedModule
-pub omena_bundler::LinkedEmissionMaterializationErrorV0::DuplicateTransformedModule::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
-pub omena_bundler::LinkedEmissionMaterializationErrorV0::ImportReplacementWouldDuplicateModule
-pub omena_bundler::LinkedEmissionMaterializationErrorV0::ImportReplacementWouldDuplicateModule::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
-pub omena_bundler::LinkedEmissionMaterializationErrorV0::ImportReplacementWouldDuplicateModule::replacement_count: usize
-pub omena_bundler::LinkedEmissionMaterializationErrorV0::InvalidGlobalOrderIndex
-pub omena_bundler::LinkedEmissionMaterializationErrorV0::InvalidGlobalOrderIndex::actual: u32
-pub omena_bundler::LinkedEmissionMaterializationErrorV0::InvalidGlobalOrderIndex::expected: u32
-pub omena_bundler::LinkedEmissionMaterializationErrorV0::MissingTransformedModule
-pub omena_bundler::LinkedEmissionMaterializationErrorV0::MissingTransformedModule::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
-pub omena_bundler::LinkedEmissionMaterializationErrorV0::UnexpectedTransformedModule
-pub omena_bundler::LinkedEmissionMaterializationErrorV0::UnexpectedTransformedModule::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
-pub omena_bundler::LinkedEmissionModuleRegionV0::first_global_order_index: core::option::Option<u32>
-pub omena_bundler::LinkedEmissionModuleRegionV0::generated_end: usize
-pub omena_bundler::LinkedEmissionModuleRegionV0::generated_start: usize
-pub omena_bundler::LinkedEmissionModuleRegionV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
-pub omena_bundler::LinkedEmissionOrderEntryRegionV0::generated_end: usize
-pub omena_bundler::LinkedEmissionOrderEntryRegionV0::generated_start: usize
-pub omena_bundler::LinkedEmissionOrderEntryRegionV0::global_order_index: u32
-pub omena_bundler::LinkedEmissionOrderEntryRegionV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
-pub omena_bundler::LinkedStylesheetRuleV0::global_order_index: u32
-pub omena_bundler::LinkedStylesheetRuleV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
-pub omena_bundler::LinkedStylesheetRuleV0::range_end: u32
-pub omena_bundler::LinkedStylesheetRuleV0::range_start: u32
-pub omena_bundler::LinkedStylesheetRuleV0::selector_kind: &'static str
-pub omena_bundler::LinkedStylesheetRuleV0::selector_name: alloc::string::String
-pub omena_bundler::LinkedStylesheetV0::closed_world_bundle: omena_parser::closed_world::contract::ClosedWorldBundleV0
-pub omena_bundler::LinkedStylesheetV0::emission_plan: omena_bundler::EmissionPlanV0
-pub omena_bundler::LinkedStylesheetV0::entrypoints: alloc::vec::Vec<omena_parser::closed_world::contract::ModuleInstanceKeyV0>
-pub omena_bundler::LinkedStylesheetV0::global_rule_order: omena_bundler::GlobalRuleOrderV0
-pub omena_bundler::LinkedStylesheetV0::module_instances: alloc::vec::Vec<omena_parser::closed_world::contract::ModuleInstanceKeyV0>
-pub omena_bundler::LinkedStylesheetV0::product: &'static str
-pub omena_bundler::LinkedStylesheetV0::schema_version: &'static str
-pub omena_bundler::LinkedStylesheetWithEmissionItemsV0::dependency_resolution_disclosures: alloc::vec::Vec<omena_bundler::BundleDependencyResolutionDisclosureV0>
-pub omena_bundler::LinkedStylesheetWithEmissionItemsV0::emission_item_order: omena_bundler::LinkedEmissionItemOrderV0
-pub omena_bundler::LinkedStylesheetWithEmissionItemsV0::emission_item_plan: omena_bundler::EmissionItemPlanV0
-pub omena_bundler::LinkedStylesheetWithEmissionItemsV0::linked_stylesheet: omena_bundler::LinkedStylesheetV0
-pub omena_bundler::LinkedStylesheetWithEmissionItemsV0::projection_disclosures: alloc::vec::Vec<omena_bundler::EmissionItemProjectionDisclosureV0>
-pub omena_bundler::LinkerDependencyEdgeV0::import_ordinal: core::option::Option<u32>
-pub omena_bundler::LinkerDependencyEdgeV0::import_source: alloc::string::String
-pub omena_bundler::LinkerDependencyEdgeV0::kind: omena_bundler::TransformBundleEdgeKind
-pub omena_bundler::LinkerDependencyEdgeV0::local_names: alloc::vec::Vec<alloc::string::String>
-pub omena_bundler::LinkerDependencyEdgeV0::remote_names: alloc::vec::Vec<alloc::string::String>
-pub omena_bundler::LinkerInputV0::class_names: alloc::vec::Vec<alloc::string::String>
-pub omena_bundler::LinkerInputV0::custom_property_names: alloc::vec::Vec<alloc::string::String>
-pub omena_bundler::LinkerInputV0::dependency_edges: alloc::vec::Vec<omena_bundler::LinkerDependencyEdgeV0>
-pub omena_bundler::LinkerInputV0::dialect: omena_syntax::StyleDialect
-pub omena_bundler::LinkerInputV0::instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
-pub omena_bundler::LinkerInputV0::keyframe_names: alloc::vec::Vec<alloc::string::String>
-pub omena_bundler::LinkerInputV0::ordered_rules: alloc::vec::Vec<omena_bundler::LinkerRuleV0>
-pub omena_bundler::LinkerInputV0::source_path: alloc::string::String
-pub omena_bundler::LinkerInputV0::value_names: alloc::vec::Vec<alloc::string::String>
-pub omena_bundler::LinkerRuleV0::range_end: u32
-pub omena_bundler::LinkerRuleV0::range_start: u32
-pub omena_bundler::LinkerRuleV0::selector_kind: omena_parser::facts::selectors::ParsedSelectorFactKind
-pub omena_bundler::LinkerRuleV0::selector_name: alloc::string::String
-pub omena_bundler::TransformBundleAssetUrlKind::AbsolutePath
-pub omena_bundler::TransformBundleAssetUrlKind::Data
-pub omena_bundler::TransformBundleAssetUrlKind::External
-pub omena_bundler::TransformBundleAssetUrlKind::Fragment
-pub omena_bundler::TransformBundleAssetUrlKind::Relative
-pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::asset_url_count: usize
-pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::output_css: alloc::string::String
-pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::product: &'static str
-pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::rewrite_count: usize
-pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::rewritten_asset_urls: alloc::vec::Vec<omena_bundler::TransformBundleAssetUrlV0>
-pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::schema_version: &'static str
-pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::source_path: alloc::string::String
-pub omena_bundler::TransformBundleAssetUrlV0::bundler_resolution_required: bool
-pub omena_bundler::TransformBundleAssetUrlV0::kind: omena_bundler::TransformBundleAssetUrlKind
-pub omena_bundler::TransformBundleAssetUrlV0::normalized_url: alloc::string::String
-pub omena_bundler::TransformBundleAssetUrlV0::range_end: u32
-pub omena_bundler::TransformBundleAssetUrlV0::range_start: u32
-pub omena_bundler::TransformBundleAssetUrlV0::raw_url: alloc::string::String
-pub omena_bundler::TransformBundleAssetUrlV0::resolved_path: core::option::Option<alloc::string::String>
-pub omena_bundler::TransformBundleAssetUrlV0::source_path: alloc::string::String
-pub omena_bundler::TransformBundleChunkKind::Asset
-pub omena_bundler::TransformBundleChunkKind::Entry
-pub omena_bundler::TransformBundleChunkKind::StyleImport
-pub omena_bundler::TransformBundleChunkV0::asset_url: core::option::Option<alloc::string::String>
-pub omena_bundler::TransformBundleChunkV0::chunk_id: alloc::string::String
-pub omena_bundler::TransformBundleChunkV0::depends_on: alloc::vec::Vec<alloc::string::String>
-pub omena_bundler::TransformBundleChunkV0::import_source: core::option::Option<alloc::string::String>
-pub omena_bundler::TransformBundleChunkV0::kind: omena_bundler::TransformBundleChunkKind
-pub omena_bundler::TransformBundleChunkV0::resolved_path: core::option::Option<alloc::string::String>
-pub omena_bundler::TransformBundleChunkV0::source_path: alloc::string::String
-pub omena_bundler::TransformBundleChunkV0::split_boundary: &'static str
-pub omena_bundler::TransformBundleDependencyResolutionV0::attempt_state: &'static str
-pub omena_bundler::TransformBundleDependencyResolutionV0::candidate_count: usize
-pub omena_bundler::TransformBundleDependencyResolutionV0::policy_step_keys: alloc::vec::Vec<&'static str>
-pub omena_bundler::TransformBundleDependencyResolutionV0::resolution_kind: core::option::Option<&'static str>
-pub omena_bundler::TransformBundleDependencyResolutionV0::target_instance: core::option::Option<omena_parser::closed_world::contract::ModuleInstanceKeyV0>
-pub omena_bundler::TransformBundleEdgeKind::CssImport
-pub omena_bundler::TransformBundleEdgeKind::CssModuleComposesExternal
-pub omena_bundler::TransformBundleEdgeKind::CssModuleComposesLocal
-pub omena_bundler::TransformBundleEdgeKind::CssModuleValueImport
-pub omena_bundler::TransformBundleEdgeKind::IcssImport
-pub omena_bundler::TransformBundleEdgeKind::LessImport
-pub omena_bundler::TransformBundleEdgeKind::SassForward
-pub omena_bundler::TransformBundleEdgeKind::SassImport
-pub omena_bundler::TransformBundleEdgeKind::SassUse
-pub omena_bundler::TransformBundleEdgeV0::import_ordinal: core::option::Option<u32>
-pub omena_bundler::TransformBundleEdgeV0::import_source: core::option::Option<alloc::string::String>
-pub omena_bundler::TransformBundleEdgeV0::kind: omena_bundler::TransformBundleEdgeKind
-pub omena_bundler::TransformBundleEdgeV0::local_names: alloc::vec::Vec<alloc::string::String>
-pub omena_bundler::TransformBundleEdgeV0::namespace: core::option::Option<alloc::string::String>
-pub omena_bundler::TransformBundleEdgeV0::provenance_required: bool
-pub omena_bundler::TransformBundleEdgeV0::range_end: u32
-pub omena_bundler::TransformBundleEdgeV0::range_start: u32
-pub omena_bundler::TransformBundleEdgeV0::remote_names: alloc::vec::Vec<alloc::string::String>
-pub omena_bundler::TransformBundleEdgeV0::source_path: alloc::string::String
-pub omena_bundler::TransformBundleInstanceReachabilityInputV0::analysis: omena_bundler::TransformBundleReachabilityAnalysisV0
-pub omena_bundler::TransformBundleInstanceReachabilityInputV0::class_names: alloc::vec::Vec<alloc::string::String>
-pub omena_bundler::TransformBundleInstanceReachabilityInputV0::custom_property_names: alloc::vec::Vec<alloc::string::String>
-pub omena_bundler::TransformBundleInstanceReachabilityInputV0::derivation: omena_bundler::InstanceReachabilityDerivationV0
-pub omena_bundler::TransformBundleInstanceReachabilityInputV0::keyframe_names: alloc::vec::Vec<alloc::string::String>
-pub omena_bundler::TransformBundleInstanceReachabilityInputV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
-pub omena_bundler::TransformBundleInstanceReachabilityInputV0::value_names: alloc::vec::Vec<alloc::string::String>
-pub omena_bundler::TransformBundleLinkErrorV0::AmbiguousModulePath
-pub omena_bundler::TransformBundleLinkErrorV0::AmbiguousModulePath::source_path: alloc::string::String
-pub omena_bundler::TransformBundleLinkErrorV0::ClosedWorldBundle
-pub omena_bundler::TransformBundleLinkErrorV0::ClosedWorldBundle::error: omena_parser::closed_world::contract::ClosedWorldBundleBuildErrorV0
-pub omena_bundler::TransformBundleLinkErrorV0::InvalidEmissionPlan
-pub omena_bundler::TransformBundleLinkErrorV0::InvalidEmissionPlan::reason: alloc::string::String
-pub omena_bundler::TransformBundleLinkErrorV0::MissingDependency
-pub omena_bundler::TransformBundleLinkErrorV0::MissingDependency::import_source: alloc::string::String
-pub omena_bundler::TransformBundleLinkErrorV0::MissingDependency::source_path: alloc::string::String
-pub omena_bundler::TransformBundleLinkErrorV0::MissingEntrypoint
-pub omena_bundler::TransformBundleLinkErrorV0::MissingEntrypoint::source_path: alloc::string::String
-pub omena_bundler::TransformBundleLinkErrorV0::UnresolvedDependencyEdge
-pub omena_bundler::TransformBundleLinkErrorV0::UnresolvedDependencyEdge::import_ordinal: core::option::Option<u32>
-pub omena_bundler::TransformBundleLinkErrorV0::UnresolvedDependencyEdge::import_source: alloc::string::String
-pub omena_bundler::TransformBundleLinkErrorV0::UnresolvedDependencyEdge::source_path: alloc::string::String
-pub omena_bundler::TransformBundleLinkErrorV0::UnsupportedDialectEmissionCycle
-pub omena_bundler::TransformBundleLinkErrorV0::UnsupportedDialectEmissionCycle::class: omena_bundler::EmissionCycleClassV0
-pub omena_bundler::TransformBundleLinkErrorV0::UnsupportedDialectEmissionCycle::dialect: omena_bundler::EmissionCycleDialectV0
-pub omena_bundler::TransformBundleLinkErrorV0::UnsupportedDialectEmissionCycle::edge_kinds: alloc::vec::Vec<omena_bundler::TransformBundleEdgeKind>
-pub omena_bundler::TransformBundleLinkErrorV0::UnsupportedEmissionCycle
-pub omena_bundler::TransformBundleLinkErrorV0::UnsupportedEmissionCycle::edge_kind: omena_bundler::TransformBundleEdgeKind
-pub omena_bundler::TransformBundleLinkOptionsV0::dependency_resolution_authority: omena_bundler::BundleResolutionAuthorityV0
-pub omena_bundler::TransformBundleLinkOptionsV0::emission_ordering_policy: omena_bundler::EmissionOrderingPolicyV0
-pub omena_bundler::TransformBundleModuleInputV0::configuration_hash: omena_parser::closed_world::contract::ConfigurationHashV0
-pub omena_bundler::TransformBundleModuleInputV0::dialect: omena_syntax::StyleDialect
-pub omena_bundler::TransformBundleModuleInputV0::source: alloc::string::String
-pub omena_bundler::TransformBundleModuleInputV0::source_path: alloc::string::String
-pub omena_bundler::TransformBundleReachabilityAnalysisV0::Analyzed
-pub omena_bundler::TransformBundleReachabilityAnalysisV0::Unanalyzed
-pub omena_bundler::TransformBundleReachabilityAnalysisV0::Unanalyzed::cause: omena_bundler::TransformBundleReachabilityUnanalyzedCauseV0
-pub omena_bundler::TransformBundleReachabilityUnanalyzedCauseV0::AnalysisNotAttempted
-pub omena_bundler::TransformBundleReachabilityUnanalyzedCauseV0::AnalysisResultUnavailable
-pub omena_bundler::TransformBundleReachabilityUnanalyzedCauseV0::InputNotProvided
-pub omena_bundler::TransformBundleResolvedDependencyV0::edge_kind: omena_bundler::TransformBundleEdgeKind
-pub omena_bundler::TransformBundleResolvedDependencyV0::import_ordinal: core::option::Option<u32>
-pub omena_bundler::TransformBundleResolvedDependencyV0::import_source: alloc::string::String
-pub omena_bundler::TransformBundleResolvedDependencyV0::resolution: omena_bundler::TransformBundleDependencyResolutionV0
-pub omena_bundler::TransformBundleResolvedDependencyV0::source_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
-pub omena_bundler::TransformBundleSemanticReachabilityInputV0::analysis: omena_bundler::TransformBundleReachabilityAnalysisV0
-pub omena_bundler::TransformBundleSemanticReachabilityInputV0::class_names: alloc::vec::Vec<alloc::string::String>
-pub omena_bundler::TransformBundleSemanticReachabilityInputV0::custom_property_names: alloc::vec::Vec<alloc::string::String>
-pub omena_bundler::TransformBundleSemanticReachabilityInputV0::keyframe_names: alloc::vec::Vec<alloc::string::String>
-pub omena_bundler::TransformBundleSemanticReachabilityInputV0::source_path: alloc::string::String
-pub omena_bundler::TransformBundleSemanticReachabilityInputV0::value_names: alloc::vec::Vec<alloc::string::String>
-pub omena_bundler::TransformBundleSourceSummaryV0::asset_urls: alloc::vec::Vec<omena_bundler::TransformBundleAssetUrlV0>
-pub omena_bundler::TransformBundleSourceSummaryV0::bundle_edges: alloc::vec::Vec<omena_bundler::TransformBundleEdgeV0>
-pub omena_bundler::TransformBundleSourceSummaryV0::class_hashing_required: bool
-pub omena_bundler::TransformBundleSourceSummaryV0::code_split_chunks: alloc::vec::Vec<omena_bundler::TransformBundleChunkV0>
-pub omena_bundler::TransformBundleSourceSummaryV0::code_splitting_required: bool
-pub omena_bundler::TransformBundleSourceSummaryV0::css_modules_resolution_required: bool
-pub omena_bundler::TransformBundleSourceSummaryV0::dialect: &'static str
-pub omena_bundler::TransformBundleSourceSummaryV0::import_inline_required: bool
-pub omena_bundler::TransformBundleSourceSummaryV0::module_evaluation_required: bool
-pub omena_bundler::TransformBundleSourceSummaryV0::pass_plan: omena_transform_passes::model::TransformPassPlanV0
-pub omena_bundler::TransformBundleSourceSummaryV0::planned_pass_ids: alloc::vec::Vec<&'static str>
-pub omena_bundler::TransformBundleSourceSummaryV0::product: &'static str
-pub omena_bundler::TransformBundleSourceSummaryV0::required_pass_ids: alloc::vec::Vec<&'static str>
-pub omena_bundler::TransformBundleSourceSummaryV0::schema_version: &'static str
-pub omena_bundler::TransformBundleSourceSummaryV0::source_path: alloc::string::String
-pub omena_bundler::TransformBundleSourceSummaryV0::value_resolution_required: bool
-pub omena_bundler::TransformBundleTransformedModuleV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
-pub omena_bundler::TransformBundleTransformedModuleV0::non_empty_import_replacement_count: usize
-pub omena_bundler::TransformBundleTransformedModuleV0::output_css: alloc::string::String
-pub struct omena_bundler::EmissionCycleGroupV0
-pub struct omena_bundler::EmissionDependencyFactV0
-pub struct omena_bundler::EmissionOrderKeyV0
-pub struct omena_bundler::EmissionPlanV0
-pub struct omena_bundler::EmissionPolicyDifferenceV0
-pub struct omena_bundler::EmissionPolicyDifferentialReportV0
-pub struct omena_bundler::GlobalRuleOrderV0
-pub struct omena_bundler::LinkedEmissionArtifactV0
-pub struct omena_bundler::LinkedEmissionModuleRegionV0
-pub struct omena_bundler::LinkedEmissionOrderEntryRegionV0
-pub struct omena_bundler::LinkedStylesheetRuleV0
-pub struct omena_bundler::LinkedStylesheetV0
-pub struct omena_bundler::LinkerDependencyEdgeV0
-pub struct omena_bundler::LinkerInputV0
-pub struct omena_bundler::LinkerRuleV0
-pub struct omena_bundler::TransformBundleAssetUrlRewriteSummaryV0
-pub struct omena_bundler::TransformBundleAssetUrlV0
-pub struct omena_bundler::TransformBundleChunkV0
-pub struct omena_bundler::TransformBundleEdgeV0
-pub struct omena_bundler::TransformBundleModuleInputV0
-pub struct omena_bundler::TransformBundleSemanticReachabilityInputV0
-pub struct omena_bundler::TransformBundleSourceSummaryV0
-pub struct omena_bundler::TransformBundleTransformedModuleV0
