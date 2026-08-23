@@ -521,7 +521,7 @@
           "id": "query-post-substitution-standard-grammar",
           "kind": "selection-outcome-changing",
           "surface": "salsa-backed source element computed values and cascade-at-position computed-value seeds",
-          "reason": "Query paths now carry static custom-property bindings and deferred standard-property verdicts into the spec grammar port, so color:var(--tone) with --tone:12px reports invalid-at-computed-value-time while --tone:red remains resolved.",
+          "reason": "Query paths carry static custom-property bindings and deferred standard-property verdicts into the spec grammar port. Invalid substituted colors report invalid-at-computed-value-time, while spec-valid paint context keywords remain resolved and do not emit invalidPropertyValue.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
@@ -536,6 +536,20 @@
               "needles": [
                 "standard_property_value_verdict_v0(",
                 "SpecStandardPropertyValueValidatorV0"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/tests/cascade_queries.rs",
+              "needles": [
+                "fn read_cascade_at_position_resolves_paint_values_through_the_pinned_matcher()",
+                "--context-fill: context-fill",
+                "--context-stroke: context-stroke"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/tests/style_diagnostics.rs",
+              "needles": [
+                "fn paint_context_keywords_do_not_emit_invalid_property_value_diagnostics()"
               ]
             }
           ]
@@ -1004,7 +1018,7 @@
     {
       "crate": "omena-abstract-value",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor derives closed-world token-kind contradictions from the pinned grammar registry while keeping genuinely open matcher gaps non-definite, and expands that authority for paint colors, core math functions, and grid track functions.",
+      "reason": "The next pre-1.0 minor derives closed-world contradictions only from override-free imported grammar or pinned css-tree closure evidence, defaults unwitnessed builtin token domains open, and expands the reviewed paint and compatibility keyword grammars.",
       "expectedFailures": [
         {
           "lint": "enum_variant_added",
@@ -1016,16 +1030,22 @@
           "id": "standard-value-matcher-coverage-gate",
           "kind": "selection-outcome-changing",
           "surface": "CssValueValidationV0 class and reason",
-          "reason": "An in-boundary Unmatched verdict is Invalid when the transitive matcher is complete or when the same pinned grammar derives a closed token kind that excludes an observed token; unmatched values without either certificate remain NotValidatable with MatcherCoverageIncomplete.",
+          "reason": "An in-boundary Unmatched verdict is Invalid only when its token domain has imported or css-tree-backed closure authority. Reviewed overrides, matcher gaps, and unknown builtin types default to NotValidatable or OPEN instead of manufacturing a definite rejection.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
               "needles": [
                 "standard_property_matcher_coverage_complete",
                 "standard_property_closed_world_token_kind_mismatch",
+                "closed_world_keyword_closure_certified_properties",
+                "closed_world_builtin_token_profiles",
                 "CssValueValidationReasonV0::MatcherCoverageIncomplete",
                 "fn incomplete_matcher_coverage_cannot_promote_unmatched_to_invalid()"
               ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/data/closed-world-builtin-token-profiles.json",
+              "needles": ["omena-abstract-value.closed-world-builtin-token-profiles", "defaultOpen"]
             }
           ]
         },
@@ -1033,18 +1053,23 @@
           "id": "pinned-paint-math-grid-expansion",
           "kind": "selection-outcome-changing",
           "surface": "standard property value matcher and post-substitution cascade validation",
-          "reason": "The reviewed paint grammar includes color, core math functions are validated at numeric reference sites, and grid minmax/repeat values use the same pinned registry instead of becoming indeterminate after var substitution.",
+          "reason": "The reviewed paint grammar includes the complete Fill and Stroke alternatives, css-tree closure covers zoom, baseline-shift, and -webkit-mask compatibility keywords, core math functions are validated at numeric reference sites, and grid minmax/repeat values use the pinned registry.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-spec-audit/data/value-grammar-overrides.json",
-              "needles": ["fill-stroke-paint-includes-color"]
+              "needles": [
+                "fill-stroke-paint-complete-grammar",
+                "css-tree-keyword-closure-normal-reset",
+                "compatibility-keyword-closure-mask-box-aliases"
+              ]
             },
             {
               "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
               "needles": [
                 "math_function_matches_reference",
                 "fn pinned_matcher_resolves_paint_math_and_grid_function_shapes()",
-                "fn forty_valid_declaration_corpus_has_no_definite_rejection()"
+                "fn css_tree_keyword_closure_regressions_are_valid_across_the_validator_adapter()",
+                "fn valid_declaration_corpus_covers_closed_ident_edges_without_definite_rejection()"
               ]
             }
           ]
