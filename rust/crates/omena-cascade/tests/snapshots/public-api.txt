@@ -245,7 +245,7 @@ pub fn omena_cascade::CascadeKey::partial_cmp(&self, &Self) -> core::option::Opt
 pub fn omena_cascade::CascadeProof::eq(&self, &Self) -> bool
 pub fn omena_cascade::CascadeProof::from_declaration(&omena_cascade::CascadeDeclaration) -> Self
 pub fn omena_cascade::CascadeRefinementContextV0::default() -> Self
-pub fn omena_cascade::CascadeStandardValueValidatorV0::validate_standard_property_value(&self, &str, &str) -> omena_cascade::CascadeStandardValueVerdictV0
+pub fn omena_cascade::CascadeStandardValueValidatorV0::validate_standard_property_value(&self, &omena_syntax::ident::PropertyNameV0, &str) -> omena_cascade::CascadeStandardValueVerdictV0
 pub fn omena_cascade::ElementParentChainV0::is_complete(&self) -> bool
 pub fn omena_cascade::ElementSignature::at_least_classes(impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<alloc::string::String>>) -> Self
 pub fn omena_cascade::ElementSignature::concrete(core::option::Option<impl core::convert::Into<alloc::string::String>>, core::option::Option<impl core::convert::Into<alloc::string::String>>, impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<alloc::string::String>>) -> Self
