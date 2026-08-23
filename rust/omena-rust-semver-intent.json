@@ -1037,7 +1037,7 @@
               "needles": [
                 "standard_property_matcher_coverage_complete",
                 "standard_property_closed_world_token_kind_mismatch",
-                "closed_world_keyword_closure_certified_properties",
+                "certified_keyword_properties",
                 "closed_world_builtin_token_profiles",
                 "CssValueValidationReasonV0::MatcherCoverageIncomplete",
                 "fn incomplete_matcher_coverage_cannot_promote_unmatched_to_invalid()"
@@ -1115,7 +1115,7 @@
             {
               "sourcePath": "rust/crates/omena-checker/src/lib.rs",
               "needles": [
-                "fn invalid_property_value_uses_a_closed_token_kind_certificate_for_compounds()",
+                "fn invalid_property_value_skips_compounds_when_keyword_closure_has_gaps()",
                 "fn invalid_property_value_reports_closed_kind_negative_compounds()",
                 "fn invalid_property_value_fires_on_definite_keyword_violation()"
               ]
