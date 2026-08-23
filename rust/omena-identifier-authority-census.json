@@ -1095,7 +1095,7 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 1511,
+        "line": 1846,
         "function": "parse_reference",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "name: PropertyNameV0::from_authored(property)",
@@ -6486,7 +6486,7 @@
         "role": "producer"
       }
     ],
-    "siteDigest": "sha256:21d50b4b1afc2e694862fedf0eed3e0aef11c2ce9214c58fe5b6d738f9fe90c6",
+    "siteDigest": "sha256:d54b6afb00151d333bd74338afa951f2cd6a8cf576fa64a756de2386fb73d8dc",
     "residualRawCarrierDirection": "decrease-only",
     "residualRawCarrierSiteCount": 197,
     "residualRawCarrierSites": [
@@ -6645,7 +6645,7 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 651,
+        "line": 662,
         "function": "match_and_type_standard_property_value_v0",
         "operation": "residual-property-parameter:match_and_type_standard_property_value_v0.property:&str",
         "evidence": "property: &str,",
@@ -8264,7 +8264,7 @@
         "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
       }
     ],
-    "residualRawCarrierSiteDigest": "sha256:185da96e2bfde23e1e1b09e11413396bfdf3ef0f941be97d5304c39efe03e191",
+    "residualRawCarrierSiteDigest": "sha256:ecf66ffcdda1d61f17d7fa51210d51926aad1d7d9eaf81e16f5a92d84e46a604",
     "residualCarrierConsumerDerivation": "resolved-type-access-and-parameter-use-scan",
     "residualCarrierConsumerRows": [
       {
@@ -8622,7 +8622,7 @@
       {
         "carrier": {
           "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-          "line": 651,
+          "line": 662,
           "function": "match_and_type_standard_property_value_v0",
           "operation": "residual-property-parameter:match_and_type_standard_property_value_v0.property:&str",
           "evidence": "property: &str,",
@@ -8632,7 +8632,7 @@
         "consumers": [
           {
             "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-            "line": 654,
+            "line": 665,
             "function": "match_and_type_standard_property_value_v0",
             "operation": "residual-property-consumer:presentation",
             "evidence": "typed_match_result(match_standard_property_value_v0(property, value), value)",
@@ -12601,7 +12601,7 @@
     ],
     "residualCarrierConsumerSiteCount": 229,
     "residualIdentityShapedConsumerCount": 0,
-    "residualCarrierConsumerDigest": "sha256:190e894ac8e1137e581d769f1021305ad8760d4b3c79d5721a161edb34992f78",
+    "residualCarrierConsumerDigest": "sha256:6f8dd994febbc54a40a9c0478210eae2035f315ca648bd457271145cc0a261f4",
     "rawStringIdentitySiteCount": 0,
     "rawStringIdentitySites": [],
     "rawStringIdentitySiteDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
