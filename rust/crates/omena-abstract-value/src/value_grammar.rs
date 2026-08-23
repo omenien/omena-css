@@ -8,7 +8,9 @@ use omena_evidence_graph::{
 use omena_spec_audit::{
     SpecGrammarBoundaryClassificationV0, SpecGrammarRegistryV0, spec_grammar_registry,
 };
-use omena_syntax::ident::{PropertyNameV0, is_custom_property_name};
+use omena_syntax::ident::{
+    CanonicalStandardPropertyNameV0, PropertyNameV0, is_custom_property_name,
+};
 use omena_value_lattice::{
     CssValueComponentKindV0, CssValueComponentV0, DeclarationValueLensV0, ValueNodeV0,
     css_value_component_stream, declaration_value_lens, parse_numeric_value_with_unit,
@@ -1162,8 +1164,8 @@ const CLOSED_WORLD_TOKEN_KINDS: [ClosedWorldTokenKindV0; 8] = [
     ClosedWorldTokenKindV0::Url,
 ];
 
-fn closed_world_keyword_closure_certified_properties() -> &'static BTreeSet<String> {
-    static CERTIFIED: OnceLock<BTreeSet<String>> = OnceLock::new();
+fn certified_keyword_properties() -> &'static BTreeSet<CanonicalStandardPropertyNameV0> {
+    static CERTIFIED: OnceLock<BTreeSet<CanonicalStandardPropertyNameV0>> = OnceLock::new();
     CERTIFIED.get_or_init(|| {
         parse_closed_world_keyword_closure_certificate(
             CLOSED_WORLD_KEYWORD_CLOSURE_CERTIFICATE_SOURCE,
@@ -1172,7 +1174,9 @@ fn closed_world_keyword_closure_certified_properties() -> &'static BTreeSet<Stri
     })
 }
 
-fn parse_closed_world_keyword_closure_certificate(source: &str) -> Option<BTreeSet<String>> {
+fn parse_closed_world_keyword_closure_certificate(
+    source: &str,
+) -> Option<BTreeSet<CanonicalStandardPropertyNameV0>> {
     let certificate =
         serde_json::from_str::<ClosedWorldKeywordClosureCertificateV0>(source).ok()?;
     if certificate.schema_version != "0"
@@ -1250,7 +1254,13 @@ fn parse_closed_world_keyword_closure_certificate(source: &str) -> Option<BTreeS
         return None;
     }
 
-    Some(certificate.certified_properties)
+    Some(
+        certificate
+            .certified_properties
+            .into_iter()
+            .map(PropertyNameV0::canonical_standard_key)
+            .collect(),
+    )
 }
 
 fn standard_property_value_token_kinds_have_closure_authority(
@@ -1265,8 +1275,10 @@ fn standard_property_value_token_kinds_have_closure_authority(
         .iter()
         .any(|component| matches!(component.kind, CssValueComponentKindV0::Ident))
     {
-        return closed_world_keyword_closure_certified_properties()
-            .contains(property.canonical_name());
+        let Some(property_key) = property.as_standard_key() else {
+            return false;
+        };
+        return certified_keyword_properties().contains(property_key);
     }
     standard_property_grammar_is_machine_imported_without_overrides(property, registry)
 }
@@ -1370,11 +1382,13 @@ fn standard_property_closed_world_token_kind_mismatch(
         let Some((kind, value)) = closed_world_component_identity(component) else {
             return false;
         };
-        if kind == ClosedWorldTokenKindV0::Ident
-            && !closed_world_keyword_closure_certified_properties()
-                .contains(property.canonical_name())
-        {
-            return false;
+        if kind == ClosedWorldTokenKindV0::Ident {
+            let Some(property_key) = property.as_standard_key() else {
+                return false;
+            };
+            if !certified_keyword_properties().contains(property_key) {
+                return false;
+            }
         }
         let domain = profile.domain(kind);
         !domain.open && !domain.allowed.contains(value.as_str())
@@ -3853,44 +3867,69 @@ mod tests {
             "the embedded keyword-closure certificate must pass its in-binary integrity checks"
         );
 
-        let mut wrong_digest = serde_json::from_str::<serde_json::Value>(
+        let wrong_digest = serde_json::from_str::<serde_json::Value>(
             CLOSED_WORLD_KEYWORD_CLOSURE_CERTIFICATE_SOURCE,
-        )
-        .expect("embedded certificate JSON");
+        );
+        assert!(wrong_digest.is_ok(), "embedded certificate JSON must parse");
+        let Ok(mut wrong_digest) = wrong_digest else {
+            return;
+        };
         wrong_digest["acceptedPairDigest"] = serde_json::Value::String("0".repeat(64));
+        let wrong_digest_source = serde_json::to_string(&wrong_digest);
         assert!(
-            parse_closed_world_keyword_closure_certificate(
-                &serde_json::to_string(&wrong_digest).expect("mutated certificate JSON")
-            )
-            .is_none(),
+            wrong_digest_source.is_ok(),
+            "mutated certificate JSON must serialize"
+        );
+        let Ok(wrong_digest_source) = wrong_digest_source else {
+            return;
+        };
+        assert!(
+            parse_closed_world_keyword_closure_certificate(&wrong_digest_source).is_none(),
             "the accepted-pair digest must be checked by the in-binary loader"
         );
 
-        let mut zero_sample = serde_json::from_str::<serde_json::Value>(
+        let zero_sample = serde_json::from_str::<serde_json::Value>(
             CLOSED_WORLD_KEYWORD_CLOSURE_CERTIFICATE_SOURCE,
-        )
-        .expect("embedded certificate JSON");
-        let zero_sample_property = zero_sample["propertyTests"]
-            .as_array()
-            .and_then(|entries| {
-                entries.iter().find_map(|entry| {
-                    if entry["testedPairCount"].as_u64() == Some(0) {
-                        entry["property"].as_str().map(str::to_owned)
-                    } else {
-                        None
-                    }
-                })
+        );
+        assert!(zero_sample.is_ok(), "embedded certificate JSON must parse");
+        let Ok(mut zero_sample) = zero_sample else {
+            return;
+        };
+        let zero_sample_property = zero_sample["propertyTests"].as_array().and_then(|entries| {
+            entries.iter().find_map(|entry| {
+                if entry["testedPairCount"].as_u64() == Some(0) {
+                    entry["property"].as_str().map(str::to_owned)
+                } else {
+                    None
+                }
             })
-            .expect("the exhaustive property table includes a zero-accepted property");
-        zero_sample["certifiedProperties"]
-            .as_array_mut()
-            .expect("certified property array")
-            .push(serde_json::Value::String(zero_sample_property));
+        });
         assert!(
-            parse_closed_world_keyword_closure_certificate(
-                &serde_json::to_string(&zero_sample).expect("mutated certificate JSON")
-            )
-            .is_none(),
+            zero_sample_property.is_some(),
+            "the exhaustive property table must include a zero-accepted property"
+        );
+        let Some(zero_sample_property) = zero_sample_property else {
+            return;
+        };
+        let certified_properties = zero_sample["certifiedProperties"].as_array_mut();
+        assert!(
+            certified_properties.is_some(),
+            "certified property list must be an array"
+        );
+        let Some(certified_properties) = certified_properties else {
+            return;
+        };
+        certified_properties.push(serde_json::Value::String(zero_sample_property));
+        let zero_sample_source = serde_json::to_string(&zero_sample);
+        assert!(
+            zero_sample_source.is_ok(),
+            "mutated certificate JSON must serialize"
+        );
+        let Ok(zero_sample_source) = zero_sample_source else {
+            return;
+        };
+        assert!(
+            parse_closed_world_keyword_closure_certificate(&zero_sample_source).is_none(),
             "a property with zero tested pairs must never be certified"
         );
     }

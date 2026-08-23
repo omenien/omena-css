@@ -931,7 +931,7 @@
         "reason": "The indexed custom-property dependency graph replaces eight recursive canonical-name traversal carrier lines with integer node indices; raw-string identity and identity-shaped residual counts remain zero."
       }
     ],
-    "authoritySiteCount": 694,
+    "authoritySiteCount": 702,
     "sites": [
       {
         "path": "rust/crates/engine-shadow-runner/src/main.rs",
@@ -1079,7 +1079,15 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 319,
+        "line": 12,
+        "function": "<module>",
+        "operation": "CanonicalStandardPropertyNameV0",
+        "evidence": "CanonicalStandardPropertyNameV0, PropertyNameV0, is_custom_property_name,",
+        "role": "carrier"
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+        "line": 322,
         "function": "match_standard_property_value_v0",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "let property = PropertyNameV0::from_authored(property);",
@@ -1087,7 +1095,7 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 436,
+        "line": 439,
         "function": "validate_standard_property_value_v0",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "let property = PropertyNameV0::from_authored(property);",
@@ -1095,7 +1103,63 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 2086,
+        "line": 1167,
+        "function": "merge",
+        "operation": "CanonicalStandardPropertyNameV0",
+        "evidence": "fn certified_keyword_properties() -> &'static BTreeSet<CanonicalStandardPropertyNameV0> {",
+        "role": "carrier"
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+        "line": 1168,
+        "function": "certified_keyword_properties",
+        "operation": "CanonicalStandardPropertyNameV0",
+        "evidence": "static CERTIFIED: OnceLock<BTreeSet<CanonicalStandardPropertyNameV0>> = OnceLock::new();",
+        "role": "carrier"
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+        "line": 1179,
+        "function": "parse_closed_world_keyword_closure_certificate",
+        "operation": "CanonicalStandardPropertyNameV0",
+        "evidence": ") -> Option<BTreeSet<CanonicalStandardPropertyNameV0>> {",
+        "role": "carrier"
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+        "line": 1278,
+        "function": "standard_property_value_token_kinds_have_closure_authority",
+        "operation": "sealed-property-key",
+        "evidence": "let Some(property_key) = property.as_standard_key() else {",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+        "line": 1281,
+        "function": "standard_property_value_token_kinds_have_closure_authority",
+        "operation": "sealed-property-key",
+        "evidence": "return certified_keyword_properties().contains(property_key);",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+        "line": 1386,
+        "function": "standard_property_closed_world_token_kind_mismatch",
+        "operation": "sealed-property-key",
+        "evidence": "let Some(property_key) = property.as_standard_key() else {",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+        "line": 1389,
+        "function": "standard_property_closed_world_token_kind_mismatch",
+        "operation": "sealed-property-key",
+        "evidence": "if !certified_keyword_properties().contains(property_key) {",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+        "line": 2190,
         "function": "parse_reference",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "name: PropertyNameV0::from_authored(property)",
@@ -6486,9 +6550,9 @@
         "role": "producer"
       }
     ],
-    "siteDigest": "sha256:050193420d9eb00456098f0ebcaada1f454b2a25a372032ea7c8d0ad18688a54",
+    "siteDigest": "sha256:8f8744b9e2c579430fa1d4f52fbe1b41fbf9b998cd3df4cf530703796906ce57",
     "residualRawCarrierDirection": "decrease-only",
-    "residualRawCarrierSiteCount": 197,
+    "residualRawCarrierSiteCount": 198,
     "residualRawCarrierSites": [
       {
         "path": "rust/crates/engine-style-parser/src/lib.rs",
@@ -6627,7 +6691,7 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 318,
+        "line": 321,
         "function": "match_standard_property_value_v0",
         "operation": "residual-property-parameter:match_standard_property_value_v0.property:&str",
         "evidence": "pub fn match_standard_property_value_v0(property: &str, value: &str) -> CssValueGrammarVerdictV0 {",
@@ -6636,7 +6700,7 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 435,
+        "line": 438,
         "function": "validate_standard_property_value_v0",
         "operation": "residual-property-parameter:validate_standard_property_value_v0.property:&str",
         "evidence": "pub fn validate_standard_property_value_v0(property: &str, value: &str) -> CssValueValidationV0 {",
@@ -6645,12 +6709,21 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 669,
+        "line": 672,
         "function": "match_and_type_standard_property_value_v0",
         "operation": "residual-property-parameter:match_and_type_standard_property_value_v0.property:&str",
         "evidence": "property: &str,",
         "disposition": "named-exempt",
         "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+        "line": 1064,
+        "function": "builtin_reference_matcher_coverage_complete",
+        "operation": "residual-property-field:ClosedWorldKeywordClosurePropertyTestV0.property:String",
+        "evidence": "property: String,",
+        "disposition": "named-exempt",
+        "reason": "Generated certificate evidence spelling; the validated loader constructs a sealed CanonicalStandardPropertyNameV0 before product identity lookup."
       },
       {
         "path": "rust/crates/omena-bridge/src/source_syntax.rs",
@@ -8264,7 +8337,7 @@
         "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
       }
     ],
-    "residualRawCarrierSiteDigest": "sha256:0bfdd81ac2fc5ae7de7bd7af0bddecaa67664be899dfa29e025a718a3e391e1e",
+    "residualRawCarrierSiteDigest": "sha256:3986805205bad773491fdd18c669e73c64bdfd8625246ca5d1619fdc0658a9aa",
     "residualCarrierConsumerDerivation": "resolved-type-access-and-parameter-use-scan",
     "residualCarrierConsumerRows": [
       {
@@ -8580,7 +8653,7 @@
       {
         "carrier": {
           "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-          "line": 318,
+          "line": 321,
           "function": "match_standard_property_value_v0",
           "operation": "residual-property-parameter:match_standard_property_value_v0.property:&str",
           "evidence": "pub fn match_standard_property_value_v0(property: &str, value: &str) -> CssValueGrammarVerdictV0 {",
@@ -8590,7 +8663,7 @@
         "consumers": [
           {
             "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-            "line": 319,
+            "line": 322,
             "function": "match_standard_property_value_v0",
             "operation": "residual-property-consumer:presentation",
             "evidence": "let property = PropertyNameV0::from_authored(property);",
@@ -8601,7 +8674,7 @@
       {
         "carrier": {
           "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-          "line": 435,
+          "line": 438,
           "function": "validate_standard_property_value_v0",
           "operation": "residual-property-parameter:validate_standard_property_value_v0.property:&str",
           "evidence": "pub fn validate_standard_property_value_v0(property: &str, value: &str) -> CssValueValidationV0 {",
@@ -8611,7 +8684,7 @@
         "consumers": [
           {
             "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-            "line": 436,
+            "line": 439,
             "function": "validate_standard_property_value_v0",
             "operation": "residual-property-consumer:presentation",
             "evidence": "let property = PropertyNameV0::from_authored(property);",
@@ -8622,7 +8695,7 @@
       {
         "carrier": {
           "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-          "line": 669,
+          "line": 672,
           "function": "match_and_type_standard_property_value_v0",
           "operation": "residual-property-parameter:match_and_type_standard_property_value_v0.property:&str",
           "evidence": "property: &str,",
@@ -8632,13 +8705,25 @@
         "consumers": [
           {
             "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-            "line": 672,
+            "line": 675,
             "function": "match_and_type_standard_property_value_v0",
             "operation": "residual-property-consumer:presentation",
             "evidence": "typed_match_result(match_standard_property_value_v0(property, value), value)",
             "classification": "presentation"
           }
         ]
+      },
+      {
+        "carrier": {
+          "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+          "line": 1064,
+          "function": "builtin_reference_matcher_coverage_complete",
+          "operation": "residual-property-field:ClosedWorldKeywordClosurePropertyTestV0.property:String",
+          "evidence": "property: String,",
+          "disposition": "named-exempt",
+          "reason": "Generated certificate evidence spelling; the validated loader constructs a sealed CanonicalStandardPropertyNameV0 before product identity lookup."
+        },
+        "consumers": []
       },
       {
         "carrier": {
@@ -12601,7 +12686,7 @@
     ],
     "residualCarrierConsumerSiteCount": 229,
     "residualIdentityShapedConsumerCount": 0,
-    "residualCarrierConsumerDigest": "sha256:e0f8518f32f0446c5c8a60b98c54a9fb59d2de01fde209758c17ee7c6d8896ca",
+    "residualCarrierConsumerDigest": "sha256:cdda798ef3ace68fead5bd8736cfe07a401959e3faa232612f150bbddb25fd76",
     "rawStringIdentitySiteCount": 0,
     "rawStringIdentitySites": [],
     "rawStringIdentitySiteDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
