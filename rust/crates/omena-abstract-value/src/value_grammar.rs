@@ -311,23 +311,23 @@ pub fn audit_css_value_grammar_registry_v0(
 /// Matches a standard property's value against the grammar supplied by the
 /// pinned specification registry.
 pub fn match_standard_property_value_v0(property: &str, value: &str) -> CssValueGrammarVerdictV0 {
-    match_standard_property_value_with_coverage_v0(property, value).0
+    let property = PropertyNameV0::from_authored(property);
+    match_standard_property_value_with_coverage_v0(&property, value).0
 }
 
 fn match_standard_property_value_with_coverage_v0(
-    property: &str,
+    property: &PropertyNameV0,
     value: &str,
 ) -> (CssValueGrammarVerdictV0, bool) {
-    let property = PropertyNameV0::from_authored(property);
-    let property = property.canonical_name();
+    let canonical_property = property.canonical_name();
     let registry = spec_grammar_registry();
-    let Some(entry) = registry.entry("properties", property) else {
+    let Some(entry) = registry.entry("properties", canonical_property) else {
         return (
             grammar_defect(
                 "",
                 0,
                 "unknownProperty",
-                format!("property {property:?} is absent from the pinned registry"),
+                format!("property {canonical_property:?} is absent from the pinned registry"),
             ),
             false,
         );
@@ -338,7 +338,7 @@ fn match_standard_property_value_with_coverage_v0(
                 "",
                 0,
                 "missingPropertyGrammar",
-                format!("property {property:?} has no syntax in the pinned registry"),
+                format!("property {canonical_property:?} has no syntax in the pinned registry"),
             ),
             false,
         );
@@ -429,13 +429,13 @@ pub fn match_registered_property_value_v0(syntax: &str, value: &str) -> CssValue
 
 pub fn validate_standard_property_value_v0(property: &str, value: &str) -> CssValueValidationV0 {
     let property = PropertyNameV0::from_authored(property);
-    let property = property.canonical_name();
+    let canonical_property = property.canonical_name();
     let classification = spec_grammar_registry()
-        .entry("properties", property)
+        .entry("properties", canonical_property)
         .map(|entry| entry.boundary.classification)
         .unwrap_or(SpecGrammarBoundaryClassificationV0::InBoundary);
     let (verdict, matcher_coverage_complete) =
-        match_standard_property_value_with_coverage_v0(property, value);
+        match_standard_property_value_with_coverage_v0(&property, value);
     adjudicate_css_value_validation_with_boundary(
         value,
         verdict,
@@ -888,10 +888,10 @@ enum VdsExpression {
 }
 
 fn standard_property_matcher_coverage_complete(
-    property: &str,
+    property: &PropertyNameV0,
     registry: &SpecGrammarRegistryV0,
 ) -> bool {
-    let Some(grammar) = registry.syntax("properties", property) else {
+    let Some(grammar) = registry.syntax("properties", property.canonical_name()) else {
         return false;
     };
     let Ok(expression) = cached_pinned_vds_expression(strip_matching_quotes(grammar.trim())) else {

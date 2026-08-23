@@ -162,6 +162,12 @@ interface IdentifierAuthorityCensus {
     readonly derivation: "authority-token-and-property-key-operation-scan";
     readonly rawSiteDerivation: "typed-property-operand-and-raw-key-dataflow-scan";
     readonly typeSeal: PropertyIdentityTypeSeal;
+    readonly authorityInventoryDecreaseReviews: readonly {
+      readonly previousSiteCount: number;
+      readonly currentSiteCount: number;
+      readonly disposition: "reviewed-structural-refactor";
+      readonly reason: string;
+    }[];
     readonly authoritySiteCount: number;
     readonly sites: readonly PropertyIdentitySite[];
     readonly siteDigest: string;
@@ -277,6 +283,15 @@ if (generatedFixtureManifest) {
 }
 
 const sourceRoots = ["rust/crates"] as const;
+const authorityInventoryDecreaseReviews = [
+  {
+    previousSiteCount: 702,
+    currentSiteCount: 694,
+    disposition: "reviewed-structural-refactor",
+    reason:
+      "The indexed custom-property dependency graph replaces eight recursive canonical-name traversal carrier lines with integer node indices; raw-string identity and identity-shaped residual counts remain zero.",
+  },
+] as const;
 const lexemeGlobs = [
   "*_class_name",
   "*_class_names",
@@ -704,10 +719,16 @@ assert.ok(
 );
 
 if (existing && writeMode) {
-  assert.ok(
-    propertyIdentitySites.length >= existing.propertyIdentity.authoritySiteCount,
-    `authority inventory decrease cannot be adopted by --write: previous=${existing.propertyIdentity.authoritySiteCount} current=${propertyIdentitySites.length}`,
-  );
+  if (propertyIdentitySites.length < existing.propertyIdentity.authoritySiteCount) {
+    assert.ok(
+      authorityInventoryDecreaseReviews.some(
+        (review) =>
+          review.previousSiteCount === existing.propertyIdentity.authoritySiteCount &&
+          review.currentSiteCount === propertyIdentitySites.length,
+      ),
+      `authority inventory decrease cannot be adopted by --write: previous=${existing.propertyIdentity.authoritySiteCount} current=${propertyIdentitySites.length}`,
+    );
+  }
   assertNoAddedSites(existing.egress.sites, classifiedEgressSites, "identifier egress");
   assertNoAddedSites(existing.idiom.sites, classifiedIdiomSites, "identifier idiom");
   assertNoAddedSites(
@@ -793,6 +814,7 @@ const census: IdentifierAuthorityCensus = {
     derivation: "authority-token-and-property-key-operation-scan",
     rawSiteDerivation: "typed-property-operand-and-raw-key-dataflow-scan",
     typeSeal: propertyTypeSeal,
+    authorityInventoryDecreaseReviews,
     authoritySiteCount: propertyIdentitySites.length,
     sites: propertyIdentitySites,
     siteDigest: digest(propertyIdentitySites),
