@@ -1,7 +1,7 @@
 {
   "schemaVersion": "0",
-  "product": "omena-query.tracked-style-diagnostics-three-pin-census",
-  "measuredAt": "2026-08-23",
+  "product": "omena-query.tracked-style-diagnostics-four-pin-census",
+  "measuredAt": "2026-08-24",
   "corpus": {
     "enumeration": "git ls-files -- '*.css' '*.scss' '*.less'",
     "styleExtensions": ["css", "scss", "less"],
@@ -177,6 +177,60 @@
           }
         }
       }
+    },
+    {
+      "id": "type-expanded-keyword-closure",
+      "sourcePin": "76574230a2e807f243f04e09944f6696d51541b8",
+      "measurements": {
+        "recommendedLint": {
+          "findingCount": 25,
+          "countsByRule": {
+            "invalid-property-value": 1,
+            "missing-composed-module": 2,
+            "missing-composed-selector": 3,
+            "missing-imported-value": 1,
+            "missing-keyframes": 1,
+            "missing-module": 5,
+            "missing-resolved-class-domain": 1,
+            "missing-resolved-class-values": 2,
+            "missing-sass-symbol": 3,
+            "missing-static-class": 4,
+            "missing-template-prefix": 1,
+            "missing-value-module": 1
+          }
+        },
+        "defaultStyleDiagnosticsCli": {
+          "findingCount": 72,
+          "countsByRule": {
+            "deprecatedSassImport": 1,
+            "invalidPropertyValue": 1,
+            "missing-module": 7,
+            "missingComposedModule": 2,
+            "missingComposedSelector": 11,
+            "missingCustomProperty": 13,
+            "missingImportedValue": 8,
+            "missingKeyframes": 1,
+            "missingSassSymbol": 5,
+            "missingValueModule": 1,
+            "sassModuleSymlinkResolution": 4,
+            "unreachableDeclaration": 9,
+            "unresolvedExternalReference": 2,
+            "unspecifiedCascadeTie": 7
+          }
+        },
+        "queryStyleDiagnostics": {
+          "findingCount": 37,
+          "countsByRule": {
+            "deprecatedSassImport": 1,
+            "invalidPropertyValue": 1,
+            "missingCustomProperty": 13,
+            "missingKeyframes": 1,
+            "missingSassSymbol": 5,
+            "unreachableDeclaration": 9,
+            "unspecifiedCascadeTie": 7
+          }
+        }
+      }
     }
   ],
   "declaredDeltas": [
@@ -236,6 +290,21 @@
         }
       ],
       "disposition": "An earlier structural evaluator commit reclassified four diagnostics without changing the combined count; this is not attributed to the closed-world certificate."
+    },
+    {
+      "owner": "type-expanded-keyword-closure",
+      "fromPin": "ceb18cd8a723b5153a86ce932d6a88528b76e781",
+      "toPin": "76574230a2e807f243f04e09944f6696d51541b8",
+      "ruleDeltas": [
+        { "surface": "recommendedLint", "ruleId": "invalid-property-value", "delta": -12 },
+        {
+          "surface": "defaultStyleDiagnosticsCli",
+          "ruleId": "invalidPropertyValue",
+          "delta": -12
+        },
+        { "surface": "queryStyleDiagnostics", "ruleId": "invalidPropertyValue", "delta": -12 }
+      ],
+      "disposition": "Recursively expanding css-tree type and property references exposed accepted keywords that the bounded matcher does not recognize. Those properties are no longer certified closed, so twelve formerly definite diagnostics become typed uncertainty on every product surface."
     }
   ]
 }

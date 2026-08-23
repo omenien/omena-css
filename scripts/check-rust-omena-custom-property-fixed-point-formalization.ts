@@ -480,28 +480,28 @@ if (args.has("--inject-reordered-evaluator")) {
     number
   >;
   const currentDiagnosticPin = diagnosticCensus.pins.find(
-    (pin) => pin.sourcePin === "ceb18cd8a723b5153a86ce932d6a88528b76e781",
+    (pin) => pin.sourcePin === "76574230a2e807f243f04e09944f6696d51541b8",
   );
   assert.ok(currentDiagnosticPin, "the current implementation diagnostic pin is absent");
   assert.equal(
     trackedStyleDiagnosticsFileCount,
     diagnosticCensus.corpus.styleFileCount,
-    "the query diagnostic corpus size diverged from the three-pin census",
+    "the query diagnostic corpus size diverged from the four-pin census",
   );
   assert.deepEqual(
     trackedStyleDiagnosticCounts,
     currentDiagnosticPin.measurements.queryStyleDiagnostics.countsByRule,
-    "the query diagnostic counts diverged from the current three-pin measurement",
+    "the query diagnostic counts diverged from the current four-pin measurement",
   );
   assert.equal(
     trackedStyleDiagnosticsCliFileCount,
     diagnosticCensus.corpus.styleFileCount,
-    "the default CLI diagnostic corpus size diverged from the three-pin census",
+    "the default CLI diagnostic corpus size diverged from the four-pin census",
   );
   assert.deepEqual(
     trackedStyleDiagnosticsCliCounts,
     currentDiagnosticPin.measurements.defaultStyleDiagnosticsCli.countsByRule,
-    "the default CLI diagnostic counts diverged from the current three-pin measurement",
+    "the default CLI diagnostic counts diverged from the current four-pin measurement",
   );
   const longChain = runCargo(repoRoot, [
     "test",
@@ -1040,6 +1040,7 @@ function validateDiagnosticCensus(census: DiagnosticCensus, lintSource: string):
     ["pre-structural-evaluator-baseline", "8017f20a60c622161fbdcabb38c2065ce9efc7d1"],
     ["structural-evaluator-and-grammar-port", "caa53005e4414c7c0d89bb12f1a42427e91b8407"],
     ["closed-world-token-certificate", "ceb18cd8a723b5153a86ce932d6a88528b76e781"],
+    ["type-expanded-keyword-closure", "76574230a2e807f243f04e09944f6696d51541b8"],
   ];
   const surfaceIds: DiagnosticSurfaceId[] = [
     "recommendedLint",
@@ -1048,14 +1049,14 @@ function validateDiagnosticCensus(census: DiagnosticCensus, lintSource: string):
   ];
 
   assert.equal(census.schemaVersion, "0");
-  assert.equal(census.product, "omena-query.tracked-style-diagnostics-three-pin-census");
-  assert.equal(census.measuredAt, "2026-08-23");
+  assert.equal(census.product, "omena-query.tracked-style-diagnostics-four-pin-census");
+  assert.equal(census.measuredAt, "2026-08-24");
   assert.equal(census.corpus.styleFileCount, 199);
   assert.equal(census.corpus.recommendedLintSourceFileCount, 1_019);
   assert.deepEqual(
     census.pins.map(({ id, sourcePin }) => [id, sourcePin]),
     expectedPins,
-    "the three historical diagnostic pins changed",
+    "the four diagnostic pins changed",
   );
 
   for (const pin of census.pins) {
@@ -1071,37 +1072,52 @@ function validateDiagnosticCensus(census: DiagnosticCensus, lintSource: string):
     }
   }
 
-  const [baseline, structuralPort, current] = census.pins;
+  const [baseline, structuralPort, closedWorldCertificate, current] = census.pins;
   assert.deepEqual(
     baseline.measurements,
     structuralPort.measurements,
     "the baseline-to-port diagnostic delta must remain empty",
   );
-  const observedDeltas = diagnosticRuleDeltas(structuralPort, current);
-  const declaredDeltas = census.declaredDeltas
-    .flatMap((entry) => entry.ruleDeltas)
-    .map(({ surface, ruleId, delta }) => `${surface}\u0000${ruleId}\u0000${delta}`)
-    .sort();
-  assert.deepEqual(
-    observedDeltas,
-    declaredDeltas,
-    "every diagnostic count change must have an explicitly owned delta",
-  );
-  assert.deepEqual(
-    observedDeltas,
-    [
-      "defaultStyleDiagnosticsCli\u0000invalidPropertyValue\u0000-3",
-      "defaultStyleDiagnosticsCli\u0000sassModuleSymlinkResolution\u00004",
-      "defaultStyleDiagnosticsCli\u0000unresolvedExternalReference\u0000-4",
-      "queryStyleDiagnostics\u0000invalidPropertyValue\u0000-3",
-      "recommendedLint\u0000invalid-property-value\u0000-3",
-    ].sort(),
-    "the measured three-pin diagnostic deltas changed",
-  );
-  for (const entry of census.declaredDeltas) {
-    assert.equal(entry.fromPin, structuralPort.sourcePin);
-    assert.equal(entry.toPin, current.sourcePin);
+  const transitions = [
+    {
+      from: structuralPort,
+      to: closedWorldCertificate,
+      expected: [
+        "defaultStyleDiagnosticsCli\u0000invalidPropertyValue\u0000-3",
+        "defaultStyleDiagnosticsCli\u0000sassModuleSymlinkResolution\u00004",
+        "defaultStyleDiagnosticsCli\u0000unresolvedExternalReference\u0000-4",
+        "queryStyleDiagnostics\u0000invalidPropertyValue\u0000-3",
+        "recommendedLint\u0000invalid-property-value\u0000-3",
+      ].sort(),
+    },
+    {
+      from: closedWorldCertificate,
+      to: current,
+      expected: [
+        "defaultStyleDiagnosticsCli\u0000invalidPropertyValue\u0000-12",
+        "queryStyleDiagnostics\u0000invalidPropertyValue\u0000-12",
+        "recommendedLint\u0000invalid-property-value\u0000-12",
+      ].sort(),
+    },
+  ];
+  for (const transition of transitions) {
+    const observed = diagnosticRuleDeltas(transition.from, transition.to);
+    const declared = census.declaredDeltas
+      .filter(
+        (entry) =>
+          entry.fromPin === transition.from.sourcePin && entry.toPin === transition.to.sourcePin,
+      )
+      .flatMap((entry) => entry.ruleDeltas)
+      .map(({ surface, ruleId, delta }) => `${surface}\u0000${ruleId}\u0000${delta}`)
+      .sort();
+    assert.deepEqual(observed, declared, "every diagnostic count change must have an owner");
+    assert.deepEqual(observed, transition.expected, "the measured diagnostic deltas changed");
   }
+  assert.equal(
+    census.declaredDeltas.length,
+    3,
+    "only the two measured transitions may own diagnostic deltas",
+  );
 
   const certificateDelta = census.declaredDeltas.find(
     (entry) => entry.owner === "closed-world-token-kind-certificate",
