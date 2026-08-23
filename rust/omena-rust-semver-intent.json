@@ -5,6 +5,77 @@
   "targetReleaseVersion": "0.5.0",
   "intents": [
     {
+      "crate": "omena-evidence-graph",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor makes the custom-property transform obligation describe the shipped fallback-inclusive dependency graph and whole-component invalidation contract.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "custom-property-structural-obligation-wording",
+          "kind": "wire-value-order-preserving",
+          "surface": "CustomPropertyFixedPoint obligation-family descriptor",
+          "reason": "The compatibility-named obligation now requires preservation of fallback edges, whole cyclic-component invalidation, and dependency-ordered acyclic substitution instead of an unspecified fixed-point result.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
+              "needles": [
+                "Self::CustomPropertyFixedPoint => descriptor(",
+                "must preserve fallback-inclusive custom-property dependency edges, whole cyclic-component invalidation, and dependency-ordered acyclic substitution"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-transform-cst",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor aligns the static-var-substitution preservation claim with the shipped custom-property dependency graph and strongly connected component semantics.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "static-var-structural-obligation-wording",
+          "kind": "wire-value-order-preserving",
+          "surface": "StaticVarSubstitution preservation obligation",
+          "reason": "Pass descriptions now expose the exact fallback-edge, cyclic-component, and dependency-order preservation requirement consumed by transformation evidence.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
+              "needles": [
+                "TransformPassKind::StaticVarSubstitution => {",
+                "must preserve fallback-inclusive custom-property dependency edges, whole cyclic-component invalidation, and dependency-ordered acyclic substitution"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-rg-flow",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor aligns custom-property complexity observations with the shipped dependency-component schedule instead of treating those rows as Kleene iterations.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "custom-property-component-schedule-projection",
+          "kind": "wire-value-order-preserving",
+          "surface": "BetaFunctionEstimateV0 betaDecl and monotoneKleeneCertificate",
+          "reason": "Component-schedule rows can grow the cumulative changed-declaration count, so the beta projection preserves that observed sign while refusing a non-empty structural summary as a Kleene-iteration certificate.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-rg-flow/src/lib.rs",
+              "needles": [
+                "summary.input_count == 0 && summary.monotone_witness_valid",
+                "fn beta_estimate_reads_cascade_component_schedule_without_mutating_cascade()",
+                "assert_eq!(estimate.sign_witness.beta_decl_sign, 1);",
+                "assert!(!estimate.sign_witness.monotone_kleene_certificate);"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
       "crate": "omena-bridge",
       "releaseClass": "pre1MinorBreaking",
       "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints, binds style and utility projections to Rust-authored declaration identities, and exposes those identities on serialized source-frontend facts.",
@@ -284,7 +355,7 @@
     {
       "crate": "omena-query",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints, requires exact Rust-authored declaration identities for style resolution, preserves analyzed-empty reachability as a closed-world result, and projects typed dialect-cycle evidence instead of a generic pass-unavailable blocker. It also moves custom-property diagnostics and module-interface joins onto the shared decoded, case-preserving property identity.",
+      "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints, requires exact Rust-authored declaration identities for style resolution, preserves analyzed-empty reachability as a closed-world result, and projects typed dialect-cycle evidence instead of a generic pass-unavailable blocker. It also moves custom-property diagnostics and module-interface joins onto the shared decoded, case-preserving property identity and revalidates deferred standard-property values after Salsa-fed var() substitution.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -429,13 +500,36 @@
               ]
             }
           ]
+        },
+        {
+          "id": "query-post-substitution-standard-grammar",
+          "kind": "selection-outcome-changing",
+          "surface": "salsa-backed source element computed values and cascade-at-position computed-value seeds",
+          "reason": "Query paths now carry static custom-property bindings and deferred standard-property verdicts into the spec grammar port, so color:var(--tone) with --tone:12px reports invalid-at-computed-value-time while --tone:red remains resolved.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
+              "needles": [
+                "source_element_static_custom_property_env",
+                "compute_cascade_computed_value_with_standard_value_validator_v0",
+                "fn source_element_computed_value_revalidates_a_substituted_standard_value()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/cascade_position.rs",
+              "needles": [
+                "standard_property_value_verdict_v0(",
+                "SpecStandardPropertyValueValidatorV0"
+              ]
+            }
+          ]
         }
       ]
     },
     {
       "crate": "omena-transform-passes",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor exposes checked module-export preservation evidence, can reject a structural pass candidate whose identity-keyed export observation is not preserved, returns typed dependency-cycle witnesses from checked pass planning, adds independently measured full-CST coverage to external CSS adoption evidence, and routes transform property selection through the shared standard/custom identity authority.",
+      "reason": "The next pre-1.0 minor exposes checked module-export preservation evidence, can reject a structural pass candidate whose identity-keyed export observation is not preserved, returns typed dependency-cycle witnesses from checked pass planning, adds independently measured full-CST coverage to external CSS adoption evidence, routes transform property selection through the shared standard/custom identity authority, and adopts whole-component custom-property cycle invalidation.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -573,6 +667,28 @@
               "sourcePath": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
               "needles": [
                 "custom_property_icss_export_is_reachable(&declaration.export_name, external_roots)"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "static-var-substitution-scc-semantics",
+          "kind": "selection-outcome-changing",
+          "surface": "StaticVarSubstitution emitted CSS and custom-property resolution evidence",
+          "reason": "The transform's existing cascade resolver dependency now invalidates whole cyclic custom-property components and cannot emit clone-start fallback literals from a non-converged approximation.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+              "needles": [
+                "resolve_custom_property_env_least_fixed_point",
+                "substitute_custom_properties"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/custom_property.rs",
+              "needles": [
+                "strongly_connected_components",
+                "whole-cycle guaranteed-invalid assignment"
               ]
             }
           ]
@@ -728,7 +844,7 @@
     {
       "crate": "omena-cascade",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor changes public custom-property environment and var-reference carriers to sealed keys, pairs authored declaration/proof text with canonical keys, and makes cascade selection obey CSS property identity.",
+      "reason": "The next pre-1.0 minor changes public custom-property environment and var-reference carriers to sealed keys, pairs authored declaration/proof text with canonical keys, makes cascade selection obey CSS property identity, and replaces clone-start substitution with whole-component cycle invalidation plus fail-closed computed-value grammar revalidation.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -772,6 +888,50 @@
               "sourcePath": "rust/crates/omena-cascade/src/tests.rs",
               "needles": [
                 "fn cascade_property_ranking_uses_standard_and_custom_canonical_identity()"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "custom-property-scc-resolution",
+          "kind": "selection-outcome-changing",
+          "surface": "custom-property environment resolution, substitution summaries, and guaranteed-invalid diagnostics",
+          "reason": "Fallback references now participate in the canonical-key dependency graph, every member of a cyclic strongly connected component becomes guaranteed-invalid, and only an outer non-member may consume a fallback; no bounded non-converged approximation is returned.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/custom_property.rs",
+              "needles": [
+                "let components = strongly_connected_components(&dependency_graph);",
+                "if component_is_cyclic(component, &dependency_graph)",
+                "resolved_env.insert(name.clone(), CascadeValue::GuaranteedInvalid);",
+                "reached_fixed_point: true"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/tests/custom_property_fixed_point_witness.rs",
+              "needles": ["assert_eq!(receipt.finding_count, 0);", "dependencyGraphSccSchedule"]
+            }
+          ]
+        },
+        {
+          "id": "computed-value-post-substitution-grammar",
+          "kind": "selection-outcome-changing",
+          "surface": "CascadeComputedValueResultV0 status, value, invalidAtComputedValueTime, and derivationSteps",
+          "reason": "A standard-property winner deferred by var() is validated against the spec grammar after substitution, definite mismatch becomes invalid-at-computed-value-time, and an absent verdict becomes typed indeterminate rather than resolved.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/computed_value.rs",
+              "needles": [
+                "pub trait CascadeStandardValueValidatorV0",
+                "postSubstitutionStandardPropertySyntaxUnmatched",
+                "standardPropertySyntaxVerdictUnavailable"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/tests.rs",
+              "needles": [
+                "fn standard_property_syntax_is_revalidated_after_var_substitution()",
+                "fn missing_standard_property_verdict_is_explicitly_unavailable()"
               ]
             }
           ]
