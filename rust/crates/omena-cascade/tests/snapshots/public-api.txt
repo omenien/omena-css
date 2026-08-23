@@ -245,6 +245,7 @@ pub fn omena_cascade::CascadeKey::partial_cmp(&self, &Self) -> core::option::Opt
 pub fn omena_cascade::CascadeProof::eq(&self, &Self) -> bool
 pub fn omena_cascade::CascadeProof::from_declaration(&omena_cascade::CascadeDeclaration) -> Self
 pub fn omena_cascade::CascadeRefinementContextV0::default() -> Self
+pub fn omena_cascade::CascadeStandardValueValidatorV0::validate_standard_property_value(&self, &str, &str) -> omena_cascade::CascadeStandardValueVerdictV0
 pub fn omena_cascade::ElementParentChainV0::is_complete(&self) -> bool
 pub fn omena_cascade::ElementSignature::at_least_classes(impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<alloc::string::String>>) -> Self
 pub fn omena_cascade::ElementSignature::concrete(core::option::Option<impl core::convert::Into<alloc::string::String>>, core::option::Option<impl core::convert::Into<alloc::string::String>>, impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<alloc::string::String>>) -> Self
@@ -393,6 +394,7 @@ pub fn omena_cascade::classify_cascade_ranked_set_loss(&[omena_cascade::CascadeD
 pub fn omena_cascade::classify_kauffman_regime(usize) -> omena_cascade::KauffmanRegimeV0
 pub fn omena_cascade::compare_guarded_cascade_winner_functions_v0(omena_cascade::GuardedCascadeFragmentPredicateV0, omena_cascade::GuardedCascadeWinnerRootV0, omena_cascade::GuardedCascadeWinnerRootV0, bool) -> omena_cascade::GuardedCascadeWinnerFunctionEqualityDecisionV0
 pub fn omena_cascade::compute_cascade_computed_value(omena_cascade::CascadeComputedValueInputV0) -> omena_cascade::CascadeComputedValueResultV0
+pub fn omena_cascade::compute_cascade_computed_value_with_standard_value_validator_v0(omena_cascade::CascadeComputedValueInputV0, &dyn omena_cascade::CascadeStandardValueValidatorV0) -> omena_cascade::CascadeComputedValueResultV0
 pub fn omena_cascade::compute_edit_footprint(alloc::vec::Vec<alloc::string::String>) -> omena_cascade::ModuleFootprintV0
 pub fn omena_cascade::compute_guarded_cascade_robustness_radius_v0(&omena_cascade::GuardedCascadeFragmentV0<omena_cascade::CascadeKey>, &[bool], &omena_cascade::GuardedCascadePerturbationCostModelV0) -> core::result::Result<omena_cascade::GuardedCascadeRobustnessRadiusV0, omena_cascade::GuardedCascadeRobustnessErrorV0>
 pub fn omena_cascade::css_property_initial_value(&str) -> omena_cascade::CssPropertyInitialValueV0
@@ -1545,6 +1547,7 @@ pub struct omena_cascade::first_witness::GuardedCascadeWinnerRootV0(_)
 pub struct omena_cascade::first_witness::IncrementalGuardedCascadeWinnerEditReportV0
 pub struct omena_cascade::first_witness::IncrementalGuardedCascadeWinnerV0<K>
 pub struct omena_cascade::first_witness::VariableOrderRegistrationV0
+pub trait omena_cascade::CascadeStandardValueValidatorV0
 pub type omena_cascade::CustomPropertyBoundedFixedPointComputationWitnessV0 = omena_cascade::CustomPropertyLeastFixedPointProofV0
 pub type omena_cascade::CustomPropertyEnv = alloc::collections::btree::map::BTreeMap<omena_syntax::ident::CanonicalCustomPropertyNameV0, omena_cascade::CascadeValue>
 pub type omena_cascade::LonghandMergeInputV0 = omena_cascade::BoxLonghandInputV0
