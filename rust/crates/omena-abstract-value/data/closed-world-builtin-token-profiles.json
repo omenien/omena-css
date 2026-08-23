@@ -1,0 +1,2453 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-abstract-value.closed-world-builtin-token-profiles",
+  "oracle": {
+    "name": "css-tree",
+    "version": "3.2.1"
+  },
+  "policy": "A builtin token kind is closed only when css-tree rejects every representative; unknown types default every token kind open.",
+  "tokenSamples": {
+    "ident": ["fixture", "--fixture"],
+    "hash": ["#abc"],
+    "dimension": ["12px", "12deg", "12s", "2dppx", "1fr"],
+    "number": ["12"],
+    "percentage": ["12%"],
+    "functionName": ["calc(1px + 2px)", "foo("],
+    "string": ["\"fixture\""],
+    "url": ["url(fixture.png)"]
+  },
+  "structuralSamples": [
+    {
+      "tokenKind": "comma",
+      "sample": ","
+    }
+  ],
+  "profileCount": 33,
+  "witnessDigest": "a506654f57ff548f0e64eb329f4413af2b5cda8b56b796a087f8ff4d9a18d31d",
+  "profiles": [
+    {
+      "name": "declaration-value",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "declaration-value",
+      "openTokenKinds": [
+        "ident",
+        "hash",
+        "dimension",
+        "number",
+        "percentage",
+        "functionName",
+        "string",
+        "url"
+      ],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": true
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": true
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": true
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": true
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": true
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": true
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": true
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": true
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": true
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": true
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": true
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": true
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": true
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": true
+        }
+      ]
+    },
+    {
+      "name": "any-value",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "any-value",
+      "openTokenKinds": [
+        "ident",
+        "hash",
+        "dimension",
+        "number",
+        "percentage",
+        "functionName",
+        "string",
+        "url"
+      ],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": true
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": true
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": true
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": true
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": true
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": true
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": true
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": true
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": true
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": true
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": true
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": true
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": true
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": true
+        }
+      ]
+    },
+    {
+      "name": "whole-value",
+      "authority": "defaultOpen",
+      "cssTreeType": "whole-value",
+      "openTokenKinds": [
+        "ident",
+        "hash",
+        "dimension",
+        "number",
+        "percentage",
+        "functionName",
+        "string",
+        "url"
+      ],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": null
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": null
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": null
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": null
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": null
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": null
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": null
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": null
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": null
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": null
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": null
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": null
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": null
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": null
+        }
+      ]
+    },
+    {
+      "name": "custom-ident",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "custom-ident",
+      "openTokenKinds": ["ident"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": true
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": true
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "ident",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "ident",
+      "openTokenKinds": ["ident"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": true
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": true
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "ident-token",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "ident-token",
+      "openTokenKinds": ["ident"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": true
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": true
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "dashed-ident",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "dashed-ident",
+      "openTokenKinds": ["ident"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": true
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "custom-property-name",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "custom-property-name",
+      "openTokenKinds": ["ident"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": true
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "string",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "string",
+      "openTokenKinds": ["string"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": true
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "string-token",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "string-token",
+      "openTokenKinds": ["string"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": true
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "url",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "url",
+      "openTokenKinds": ["url"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": true
+        }
+      ]
+    },
+    {
+      "name": "url-token",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "url-token",
+      "openTokenKinds": ["url"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": true
+        }
+      ]
+    },
+    {
+      "name": "number",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "number",
+      "openTokenKinds": ["number", "functionName"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": true
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": true
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "number-token",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "number-token",
+      "openTokenKinds": ["number"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": true
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "integer",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "integer",
+      "openTokenKinds": ["number", "functionName"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": true
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": true
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "length",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "length",
+      "openTokenKinds": ["dimension", "functionName"],
+      "allowedValues": {
+        "number": ["0"]
+      },
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": true
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": true
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "angle",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "angle",
+      "openTokenKinds": ["dimension", "functionName"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": true
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": true
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "time",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "time",
+      "openTokenKinds": ["dimension", "functionName"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": true
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": true
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "resolution",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "resolution",
+      "openTokenKinds": ["dimension", "functionName"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": true
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": true
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "flex",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "flex",
+      "openTokenKinds": ["dimension", "functionName"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": true
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": true
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "dimension-token",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "dimension-token",
+      "openTokenKinds": ["dimension"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": true
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": true
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": true
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": true
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": true
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "percentage",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "percentage",
+      "openTokenKinds": ["percentage", "functionName"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": true
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": true
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "percentage-token",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "percentage-token",
+      "openTokenKinds": ["percentage"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": true
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "length-percentage",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "length-percentage",
+      "openTokenKinds": ["dimension", "percentage", "functionName"],
+      "allowedValues": {
+        "number": ["0"]
+      },
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": true
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": true
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": true
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "alpha-value",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "alpha-value",
+      "openTokenKinds": ["number", "percentage", "functionName"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": true
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": true
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": true
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "hex-color",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "hex-color",
+      "openTokenKinds": ["hash"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": true
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "hash-token",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "hash-token",
+      "openTokenKinds": ["hash"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": true
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "function-token",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "function-token",
+      "openTokenKinds": ["functionName"],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": true
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "zero",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "zero",
+      "openTokenKinds": [],
+      "allowedValues": {
+        "number": ["0"]
+      },
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "comma-token",
+      "authority": "cssTreeWitness",
+      "cssTreeType": "comma-token",
+      "openTokenKinds": [],
+      "allowedValues": {},
+      "witnesses": [
+        {
+          "tokenKind": "ident",
+          "sample": "fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "ident",
+          "sample": "--fixture",
+          "accepted": false
+        },
+        {
+          "tokenKind": "hash",
+          "sample": "#abc",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12px",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12deg",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "12s",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "2dppx",
+          "accepted": false
+        },
+        {
+          "tokenKind": "dimension",
+          "sample": "1fr",
+          "accepted": false
+        },
+        {
+          "tokenKind": "number",
+          "sample": "12",
+          "accepted": false
+        },
+        {
+          "tokenKind": "percentage",
+          "sample": "12%",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "calc(1px + 2px)",
+          "accepted": false
+        },
+        {
+          "tokenKind": "functionName",
+          "sample": "foo(",
+          "accepted": false
+        },
+        {
+          "tokenKind": "string",
+          "sample": "\"fixture\"",
+          "accepted": false
+        },
+        {
+          "tokenKind": "url",
+          "sample": "url(fixture.png)",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "name": "named-color",
+      "authority": "registryDerived",
+      "openTokenKinds": [],
+      "allowedValues": {},
+      "witnesses": []
+    },
+    {
+      "name": "image",
+      "authority": "registryDerived",
+      "openTokenKinds": [],
+      "allowedValues": {},
+      "witnesses": []
+    },
+    {
+      "name": "transform-function",
+      "authority": "registryDerived",
+      "openTokenKinds": [],
+      "allowedValues": {},
+      "witnesses": []
+    }
+  ]
+}

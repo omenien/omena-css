@@ -59,6 +59,7 @@ interface CorpusCaseV0 {
   readonly adjudication?: AdjudicationKind;
   readonly reason?: string;
   readonly owner?: string;
+  readonly specUrl?: string;
   readonly notComparableReason?: string;
 }
 
@@ -165,6 +166,7 @@ async function main(): Promise<void> {
           : {}),
         ...(sameTuple && previousEntry?.reason ? { reason: previousEntry.reason } : {}),
         ...(sameTuple && previousEntry?.owner ? { owner: previousEntry.owner } : {}),
+        ...(sameTuple && previousEntry?.specUrl ? { specUrl: previousEntry.specUrl } : {}),
         ...(sameTuple && previousEntry?.notComparableReason
           ? { notComparableReason: previousEntry.notComparableReason }
           : {}),

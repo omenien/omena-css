@@ -1565,10 +1565,13 @@ fn observed_fixed_point_flow(
         .filter(|entry| !cascade_value_contains_var_reference(&entry.resolved))
         .count();
     let fixed_point_residual_l1 = summary.input_count.saturating_sub(settled_entry_count);
-    let independently_derived_component_count = independently_derive_input_component_count(summary);
+    // This recomputation is trace-independent, but intentionally not
+    // summary-independent: it rebuilds the SCC family from `summary.entries`.
+    let recomputed_component_count_from_entries =
+        recompute_input_component_count_from_entries(summary);
     let trace_is_component_schedule = summary.iteration_count == summary.iteration_bound
         && summary.iteration_count == summary.iteration_trace.len()
-        && independently_derived_component_count == Some(summary.iteration_trace.len())
+        && recomputed_component_count_from_entries == Some(summary.iteration_trace.len())
         && summary
             .iteration_trace
             .iter()
@@ -1602,7 +1605,7 @@ fn observed_fixed_point_flow(
     }
 }
 
-fn independently_derive_input_component_count(
+fn recompute_input_component_count_from_entries(
     summary: &CustomPropertyLeastFixedPointSummaryV0,
 ) -> Option<usize> {
     if summary.entries.len() != summary.input_count {

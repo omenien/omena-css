@@ -1,0 +1,2941 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-abstract-value.closed-world-keyword-closure-certificate",
+  "oracle": {
+    "name": "css-tree",
+    "version": "3.2.1"
+  },
+  "source": "cssTree.lexer.properties.directKeywordAcceptance",
+  "propertyCount": 704,
+  "candidatePairCount": 1399,
+  "acceptedPairCount": 1371,
+  "matchedPairCount": 905,
+  "matcherGapCount": 466,
+  "acceptedPairDigest": "7c3989a8c56522799f87d523b041d542eea68d90bc7a15d2dcde930eefb6af27",
+  "certifiedProperties": [
+    "--*",
+    "-moz-border-radius-bottomleft",
+    "-moz-border-radius-bottomright",
+    "-moz-border-radius-topleft",
+    "-moz-border-radius-topright",
+    "-moz-outline-radius",
+    "-moz-outline-radius-bottomleft",
+    "-moz-outline-radius-bottomright",
+    "-moz-outline-radius-topleft",
+    "-moz-outline-radius-topright",
+    "-ms-content-zoom-limit",
+    "-ms-content-zoom-limit-max",
+    "-ms-content-zoom-limit-min",
+    "-ms-content-zoom-snap",
+    "-ms-content-zoom-snap-points",
+    "-ms-filter",
+    "-ms-flex-negative",
+    "-ms-flex-order",
+    "-ms-flex-positive",
+    "-ms-flex-preferred-size",
+    "-ms-hyphenate-limit-zone",
+    "-ms-scroll-limit",
+    "-ms-scroll-limit-x-min",
+    "-ms-scroll-limit-y-min",
+    "-ms-scroll-snap-points-x",
+    "-ms-scroll-snap-points-y",
+    "-ms-scroll-snap-x",
+    "-ms-scroll-snap-y",
+    "-ms-scrollbar-3dlight-color",
+    "-ms-scrollbar-arrow-color",
+    "-ms-scrollbar-base-color",
+    "-ms-scrollbar-darkshadow-color",
+    "-ms-scrollbar-face-color",
+    "-ms-scrollbar-highlight-color",
+    "-ms-scrollbar-shadow-color",
+    "-ms-scrollbar-track-color",
+    "-ms-wrap-margin",
+    "-webkit-border-before",
+    "-webkit-border-before-color",
+    "-webkit-border-before-style",
+    "-webkit-border-before-width",
+    "-webkit-line-clamp",
+    "-webkit-mask",
+    "-webkit-mask-attachment",
+    "-webkit-mask-box-image",
+    "-webkit-mask-composite",
+    "-webkit-mask-image",
+    "-webkit-mask-position",
+    "-webkit-mask-repeat",
+    "-webkit-mask-size",
+    "-webkit-tap-highlight-color",
+    "-webkit-text-fill-color",
+    "-webkit-text-stroke",
+    "-webkit-text-stroke-color",
+    "-webkit-text-stroke-width",
+    "-webkit-user-select",
+    "accent-color",
+    "align-content",
+    "align-self",
+    "all",
+    "anchor-name",
+    "anchor-scope",
+    "animation",
+    "animation-composition",
+    "animation-delay",
+    "animation-direction",
+    "animation-duration",
+    "animation-fill-mode",
+    "animation-iteration-count",
+    "animation-name",
+    "animation-play-state",
+    "animation-range",
+    "animation-range-end",
+    "animation-range-start",
+    "animation-timeline",
+    "animation-timing-function",
+    "animation-trigger",
+    "appearance",
+    "aspect-ratio",
+    "backdrop-filter",
+    "backface-visibility",
+    "background",
+    "background-attachment",
+    "background-blend-mode",
+    "background-clip",
+    "background-color",
+    "background-image",
+    "background-origin",
+    "background-position",
+    "background-position-x",
+    "background-position-y",
+    "background-repeat",
+    "background-size",
+    "baseline-shift",
+    "baseline-source",
+    "behavior",
+    "block-size",
+    "border",
+    "border-block",
+    "border-block-color",
+    "border-block-end",
+    "border-block-end-color",
+    "border-block-end-style",
+    "border-block-end-width",
+    "border-block-start",
+    "border-block-start-color",
+    "border-block-start-style",
+    "border-block-start-width",
+    "border-block-style",
+    "border-block-width",
+    "border-bottom",
+    "border-bottom-color",
+    "border-bottom-left-radius",
+    "border-bottom-right-radius",
+    "border-bottom-style",
+    "border-bottom-width",
+    "border-collapse",
+    "border-color",
+    "border-end-end-radius",
+    "border-end-start-radius",
+    "border-image",
+    "border-image-outset",
+    "border-image-repeat",
+    "border-image-slice",
+    "border-image-source",
+    "border-image-width",
+    "border-inline",
+    "border-inline-color",
+    "border-inline-end",
+    "border-inline-end-color",
+    "border-inline-end-style",
+    "border-inline-end-width",
+    "border-inline-start",
+    "border-inline-start-color",
+    "border-inline-start-style",
+    "border-inline-start-width",
+    "border-inline-style",
+    "border-inline-width",
+    "border-left",
+    "border-left-color",
+    "border-left-style",
+    "border-left-width",
+    "border-radius",
+    "border-right",
+    "border-right-color",
+    "border-right-style",
+    "border-right-width",
+    "border-spacing",
+    "border-start-end-radius",
+    "border-start-start-radius",
+    "border-style",
+    "border-top",
+    "border-top-color",
+    "border-top-left-radius",
+    "border-top-right-radius",
+    "border-top-style",
+    "border-top-width",
+    "border-width",
+    "bottom",
+    "box-decoration-break",
+    "box-flex",
+    "box-flex-group",
+    "box-ordinal-group",
+    "box-shadow",
+    "box-sizing",
+    "break-after",
+    "break-before",
+    "break-inside",
+    "caption-side",
+    "caret",
+    "caret-animation",
+    "caret-color",
+    "caret-shape",
+    "clear",
+    "clip",
+    "clip-path",
+    "clip-rule",
+    "color",
+    "color-interpolation-filters",
+    "color-scheme",
+    "column-count",
+    "column-fill",
+    "column-gap",
+    "column-height",
+    "column-rule",
+    "column-rule-color",
+    "column-rule-style",
+    "column-rule-width",
+    "column-span",
+    "column-width",
+    "column-wrap",
+    "columns",
+    "contain",
+    "contain-intrinsic-block-size",
+    "contain-intrinsic-height",
+    "contain-intrinsic-inline-size",
+    "contain-intrinsic-size",
+    "contain-intrinsic-width",
+    "container",
+    "container-name",
+    "container-type",
+    "content",
+    "content-visibility",
+    "corner-block-end-shape",
+    "corner-block-start-shape",
+    "corner-bottom-left-shape",
+    "corner-bottom-right-shape",
+    "corner-bottom-shape",
+    "corner-end-end-shape",
+    "corner-end-start-shape",
+    "corner-inline-end-shape",
+    "corner-inline-start-shape",
+    "corner-left-shape",
+    "corner-right-shape",
+    "corner-shape",
+    "corner-start-end-shape",
+    "corner-start-start-shape",
+    "corner-top-left-shape",
+    "corner-top-right-shape",
+    "corner-top-shape",
+    "counter-increment",
+    "counter-reset",
+    "counter-set",
+    "cue",
+    "cue-after",
+    "cue-before",
+    "cx",
+    "cy",
+    "d",
+    "direction",
+    "display",
+    "dynamic-range-limit",
+    "empty-cells",
+    "field-sizing",
+    "fill",
+    "fill-opacity",
+    "fill-rule",
+    "filter",
+    "flex",
+    "flex-basis",
+    "flex-direction",
+    "flex-flow",
+    "flex-grow",
+    "flex-shrink",
+    "flex-wrap",
+    "float",
+    "flood-color",
+    "flood-opacity",
+    "font",
+    "font-family",
+    "font-feature-settings",
+    "font-kerning",
+    "font-language-override",
+    "font-optical-sizing",
+    "font-palette",
+    "font-size",
+    "font-size-adjust",
+    "font-stretch",
+    "font-style",
+    "font-synthesis",
+    "font-synthesis-position",
+    "font-synthesis-small-caps",
+    "font-synthesis-style",
+    "font-synthesis-weight",
+    "font-variant",
+    "font-variant-alternates",
+    "font-variant-caps",
+    "font-variant-east-asian",
+    "font-variant-emoji",
+    "font-variant-ligatures",
+    "font-variant-numeric",
+    "font-variant-position",
+    "font-variation-settings",
+    "font-weight",
+    "font-width",
+    "forced-color-adjust",
+    "gap",
+    "glyph-orientation-horizontal",
+    "glyph-orientation-vertical",
+    "grid",
+    "grid-area",
+    "grid-auto-columns",
+    "grid-auto-flow",
+    "grid-auto-rows",
+    "grid-column",
+    "grid-column-end",
+    "grid-column-gap",
+    "grid-column-start",
+    "grid-gap",
+    "grid-row",
+    "grid-row-end",
+    "grid-row-gap",
+    "grid-row-start",
+    "grid-template",
+    "grid-template-areas",
+    "grid-template-columns",
+    "grid-template-rows",
+    "hanging-punctuation",
+    "height",
+    "hyphenate-character",
+    "hyphenate-limit-chars",
+    "hyphens",
+    "image-orientation",
+    "image-resolution",
+    "initial-letter",
+    "inline-size",
+    "inset",
+    "inset-block",
+    "inset-block-end",
+    "inset-block-start",
+    "inset-inline",
+    "inset-inline-end",
+    "inset-inline-start",
+    "interactivity",
+    "interest-delay",
+    "interest-delay-end",
+    "interest-delay-start",
+    "interpolate-size",
+    "isolation",
+    "justify-content",
+    "justify-self",
+    "left",
+    "letter-spacing",
+    "lighting-color",
+    "line-break",
+    "line-clamp",
+    "line-height",
+    "line-height-step",
+    "list-style",
+    "list-style-image",
+    "list-style-position",
+    "list-style-type",
+    "margin",
+    "margin-block",
+    "margin-block-end",
+    "margin-block-start",
+    "margin-bottom",
+    "margin-inline",
+    "margin-inline-end",
+    "margin-inline-start",
+    "margin-left",
+    "margin-right",
+    "margin-top",
+    "marker",
+    "marker-end",
+    "marker-mid",
+    "marker-start",
+    "mask",
+    "mask-border",
+    "mask-border-mode",
+    "mask-border-outset",
+    "mask-border-repeat",
+    "mask-border-slice",
+    "mask-border-source",
+    "mask-border-width",
+    "mask-clip",
+    "mask-composite",
+    "mask-image",
+    "mask-mode",
+    "mask-origin",
+    "mask-position",
+    "mask-repeat",
+    "mask-size",
+    "mask-type",
+    "math-depth",
+    "math-shift",
+    "math-style",
+    "max-block-size",
+    "max-height",
+    "max-inline-size",
+    "max-lines",
+    "max-width",
+    "min-block-size",
+    "min-height",
+    "min-inline-size",
+    "min-width",
+    "object-fit",
+    "object-position",
+    "object-view-box",
+    "offset",
+    "offset-anchor",
+    "offset-distance",
+    "offset-path",
+    "offset-position",
+    "offset-rotate",
+    "opacity",
+    "order",
+    "orphans",
+    "outline",
+    "outline-color",
+    "outline-offset",
+    "outline-style",
+    "outline-width",
+    "overflow",
+    "overflow-anchor",
+    "overflow-block",
+    "overflow-clip-margin",
+    "overflow-inline",
+    "overflow-wrap",
+    "overflow-x",
+    "overflow-y",
+    "overlay",
+    "overscroll-behavior",
+    "overscroll-behavior-block",
+    "overscroll-behavior-inline",
+    "overscroll-behavior-x",
+    "overscroll-behavior-y",
+    "padding",
+    "padding-block",
+    "padding-block-end",
+    "padding-block-start",
+    "padding-bottom",
+    "padding-inline",
+    "padding-inline-end",
+    "padding-inline-start",
+    "padding-left",
+    "padding-right",
+    "padding-top",
+    "page",
+    "page-break-inside",
+    "paint-order",
+    "pause",
+    "pause-after",
+    "pause-before",
+    "perspective",
+    "perspective-origin",
+    "place-content",
+    "place-items",
+    "place-self",
+    "pointer-events",
+    "position-anchor",
+    "position-area",
+    "position-try",
+    "position-try-fallbacks",
+    "position-try-options",
+    "position-try-order",
+    "print-color-adjust",
+    "quotes",
+    "r",
+    "reading-flow",
+    "reading-order",
+    "resize",
+    "rest",
+    "rest-after",
+    "rest-before",
+    "right",
+    "rotate",
+    "row-gap",
+    "ruby-align",
+    "ruby-position",
+    "rx",
+    "ry",
+    "scale",
+    "scroll-behavior",
+    "scroll-initial-target",
+    "scroll-margin",
+    "scroll-margin-block",
+    "scroll-margin-block-end",
+    "scroll-margin-block-start",
+    "scroll-margin-bottom",
+    "scroll-margin-inline",
+    "scroll-margin-inline-end",
+    "scroll-margin-inline-start",
+    "scroll-margin-left",
+    "scroll-margin-right",
+    "scroll-margin-top",
+    "scroll-marker-group",
+    "scroll-padding",
+    "scroll-padding-block",
+    "scroll-padding-block-end",
+    "scroll-padding-block-start",
+    "scroll-padding-bottom",
+    "scroll-padding-inline",
+    "scroll-padding-inline-end",
+    "scroll-padding-inline-start",
+    "scroll-padding-left",
+    "scroll-padding-right",
+    "scroll-padding-top",
+    "scroll-snap-align",
+    "scroll-snap-destination",
+    "scroll-snap-stop",
+    "scroll-snap-type",
+    "scroll-target-group",
+    "scroll-timeline",
+    "scroll-timeline-axis",
+    "scroll-timeline-name",
+    "scrollbar-color",
+    "scrollbar-gutter",
+    "scrollbar-width",
+    "shape-image-threshold",
+    "shape-margin",
+    "shape-outside",
+    "shape-rendering",
+    "speak",
+    "speak-as",
+    "stop-color",
+    "stop-opacity",
+    "stroke",
+    "stroke-color",
+    "stroke-dasharray",
+    "stroke-dashoffset",
+    "stroke-linecap",
+    "stroke-linejoin",
+    "stroke-miterlimit",
+    "stroke-opacity",
+    "stroke-width",
+    "tab-size",
+    "table-layout",
+    "text-align",
+    "text-align-last",
+    "text-anchor",
+    "text-autospace",
+    "text-box",
+    "text-box-edge",
+    "text-box-trim",
+    "text-combine-upright",
+    "text-decoration",
+    "text-decoration-color",
+    "text-decoration-inset",
+    "text-decoration-line",
+    "text-decoration-skip-ink",
+    "text-decoration-style",
+    "text-decoration-thickness",
+    "text-emphasis",
+    "text-emphasis-color",
+    "text-emphasis-style",
+    "text-indent",
+    "text-justify",
+    "text-orientation",
+    "text-overflow",
+    "text-rendering",
+    "text-shadow",
+    "text-size-adjust",
+    "text-spacing-trim",
+    "text-transform",
+    "text-underline-offset",
+    "text-underline-position",
+    "text-wrap",
+    "text-wrap-mode",
+    "text-wrap-style",
+    "timeline-scope",
+    "timeline-trigger",
+    "timeline-trigger-exit-range",
+    "timeline-trigger-name",
+    "timeline-trigger-range",
+    "timeline-trigger-source",
+    "top",
+    "touch-action",
+    "transform",
+    "transform-box",
+    "transform-origin",
+    "transform-style",
+    "transition",
+    "transition-behavior",
+    "transition-delay",
+    "transition-duration",
+    "transition-property",
+    "transition-timing-function",
+    "translate",
+    "trigger-scope",
+    "user-select",
+    "vector-effect",
+    "vertical-align",
+    "view-timeline",
+    "view-timeline-axis",
+    "view-timeline-inset",
+    "view-timeline-name",
+    "view-transition-class",
+    "view-transition-name",
+    "visibility",
+    "voice-balance",
+    "voice-duration",
+    "voice-family",
+    "voice-pitch",
+    "voice-range",
+    "voice-rate",
+    "voice-stress",
+    "voice-volume",
+    "white-space",
+    "white-space-collapse",
+    "white-space-trim",
+    "widows",
+    "width",
+    "will-change",
+    "word-break",
+    "word-spacing",
+    "word-wrap",
+    "writing-mode",
+    "x",
+    "y",
+    "z-index",
+    "zoom"
+  ],
+  "matcherGaps": [
+    {
+      "property": "-moz-appearance",
+      "value": "-moz-mac-unified-toolbar",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "-moz-win-borderless-glass",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "-moz-win-browsertabbar-toolbox",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "-moz-win-communications-toolbox",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "-moz-win-communicationstext",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "-moz-win-exclude-glass",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "-moz-win-glass",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "-moz-win-media-toolbox",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "-moz-win-mediatext",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "-moz-window-button-box",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "-moz-window-button-box-maximized",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "-moz-window-button-close",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "-moz-window-button-maximize",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "-moz-window-button-minimize",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "-moz-window-button-restore",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "-moz-window-frame-bottom",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "-moz-window-frame-left",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "-moz-window-frame-right",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "-moz-window-titlebar",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "-moz-window-titlebar-maximized",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "button",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "button-arrow-down",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "button-arrow-next",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "button-arrow-previous",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "button-arrow-up",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "button-bevel",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "button-focus",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "caret",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "checkbox",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "checkbox-container",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "checkbox-label",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "checkmenuitem",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "dualbutton",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "groupbox",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "listbox",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "listitem",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "menuarrow",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "menubar",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "menucheckbox",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "menuimage",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "menuitem",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "menuitemtext",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "menulist",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "menulist-button",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "menulist-text",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "menulist-textfield",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "menupopup",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "menuradio",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "menuseparator",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "meterbar",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "meterchunk",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "progressbar",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "progressbar-vertical",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "progresschunk",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "progresschunk-vertical",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "radio",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "radio-container",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "radio-label",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "radiomenuitem",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "range",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "range-thumb",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "resizer",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "resizerpanel",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "scale-horizontal",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "scale-vertical",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "scalethumb-horizontal",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "scalethumb-vertical",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "scalethumbend",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "scalethumbstart",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "scalethumbtick",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "scrollbarbutton-down",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "scrollbarbutton-left",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "scrollbarbutton-right",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "scrollbarbutton-up",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "scrollbarthumb-horizontal",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "scrollbarthumb-vertical",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "scrollbartrack-horizontal",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "scrollbartrack-vertical",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "searchfield",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "separator",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "sheet",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "spinner",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "spinner-downbutton",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "spinner-textfield",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "spinner-upbutton",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "splitter",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "statusbar",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "statusbarpanel",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "tab",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "tab-scroll-arrow-back",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "tab-scroll-arrow-forward",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "tabpanel",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "tabpanels",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "textfield",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "textfield-multiline",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "toolbar",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "toolbarbutton",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "toolbarbutton-dropdown",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "toolbargripper",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "toolbox",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "tooltip",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "treeheader",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "treeheadercell",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "treeheadersortarrow",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "treeitem",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "treeline",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "treetwisty",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "treetwistyopen",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-appearance",
+      "value": "treeview",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-background-clip",
+      "value": "border",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-background-clip",
+      "value": "padding",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-binding",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-border-bottom-colors",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-border-left-colors",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-border-right-colors",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-border-top-colors",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-context-properties",
+      "value": "fill",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-context-properties",
+      "value": "fill-opacity",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-context-properties",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-context-properties",
+      "value": "stroke",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-context-properties",
+      "value": "stroke-opacity",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-control-character-visibility",
+      "value": "hidden",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-control-character-visibility",
+      "value": "visible",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-float-edge",
+      "value": "border-box",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-float-edge",
+      "value": "content-box",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-float-edge",
+      "value": "margin-box",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-float-edge",
+      "value": "padding-box",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-force-broken-image-icon",
+      "value": "0",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-force-broken-image-icon",
+      "value": "1",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-orient",
+      "value": "block",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-orient",
+      "value": "horizontal",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-orient",
+      "value": "inline",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-orient",
+      "value": "vertical",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-osx-font-smoothing",
+      "value": "auto",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-osx-font-smoothing",
+      "value": "grayscale",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-stack-sizing",
+      "value": "ignore",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-stack-sizing",
+      "value": "stretch-to-fit",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-text-blink",
+      "value": "blink",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-text-blink",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-user-focus",
+      "value": "ignore",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-user-focus",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-user-focus",
+      "value": "normal",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-user-focus",
+      "value": "select-after",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-user-focus",
+      "value": "select-all",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-user-focus",
+      "value": "select-before",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-user-focus",
+      "value": "select-menu",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-user-focus",
+      "value": "select-same",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-user-input",
+      "value": "auto",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-user-input",
+      "value": "disabled",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-user-input",
+      "value": "enabled",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-user-input",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-user-modify",
+      "value": "read-only",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-user-modify",
+      "value": "read-write",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-user-modify",
+      "value": "write-only",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-user-select",
+      "value": "-moz-none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-user-select",
+      "value": "all",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-user-select",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-user-select",
+      "value": "text",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-window-dragging",
+      "value": "drag",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-window-dragging",
+      "value": "no-drag",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-window-shadow",
+      "value": "default",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-window-shadow",
+      "value": "menu",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-window-shadow",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-window-shadow",
+      "value": "sheet",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-moz-window-shadow",
+      "value": "tooltip",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-accelerator",
+      "value": "false",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-accelerator",
+      "value": "true",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-block-progression",
+      "value": "bt",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-block-progression",
+      "value": "lr",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-block-progression",
+      "value": "rl",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-block-progression",
+      "value": "tb",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-content-zoom-chaining",
+      "value": "chained",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-content-zoom-chaining",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-content-zoom-snap-type",
+      "value": "mandatory",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-content-zoom-snap-type",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-content-zoom-snap-type",
+      "value": "proximity",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-content-zooming",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-content-zooming",
+      "value": "zoom",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-align",
+      "value": "baseline",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-align",
+      "value": "center",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-align",
+      "value": "end",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-align",
+      "value": "start",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-align",
+      "value": "stretch",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-item-align",
+      "value": "auto",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-item-align",
+      "value": "baseline",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-item-align",
+      "value": "center",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-item-align",
+      "value": "end",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-item-align",
+      "value": "start",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-item-align",
+      "value": "stretch",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-line-pack",
+      "value": "center",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-line-pack",
+      "value": "distribute",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-line-pack",
+      "value": "end",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-line-pack",
+      "value": "justify",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-line-pack",
+      "value": "start",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-line-pack",
+      "value": "stretch",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-pack",
+      "value": "center",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-pack",
+      "value": "distribute",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-pack",
+      "value": "end",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-pack",
+      "value": "justify",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flex-pack",
+      "value": "start",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flow-from",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-flow-into",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-grid-column-align",
+      "value": "center",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-grid-column-align",
+      "value": "end",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-grid-column-align",
+      "value": "start",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-grid-column-align",
+      "value": "stretch",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-grid-columns",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-grid-row-align",
+      "value": "center",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-grid-row-align",
+      "value": "end",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-grid-row-align",
+      "value": "start",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-grid-row-align",
+      "value": "stretch",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-grid-rows",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-high-contrast-adjust",
+      "value": "auto",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-high-contrast-adjust",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-hyphenate-limit-chars",
+      "value": "auto",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-hyphenate-limit-last",
+      "value": "always",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-hyphenate-limit-last",
+      "value": "column",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-hyphenate-limit-last",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-hyphenate-limit-last",
+      "value": "page",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-hyphenate-limit-last",
+      "value": "spread",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-hyphenate-limit-lines",
+      "value": "no-limit",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-ime-align",
+      "value": "after",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-ime-align",
+      "value": "auto",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-interpolation-mode",
+      "value": "bicubic",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-interpolation-mode",
+      "value": "nearest-neighbor",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-overflow-style",
+      "value": "-ms-autohiding-scrollbar",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-overflow-style",
+      "value": "auto",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-overflow-style",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-overflow-style",
+      "value": "scrollbar",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-scroll-chaining",
+      "value": "chained",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-scroll-chaining",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-scroll-limit-x-max",
+      "value": "auto",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-scroll-limit-y-max",
+      "value": "auto",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-scroll-rails",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-scroll-rails",
+      "value": "railed",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-scroll-snap-type",
+      "value": "mandatory",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-scroll-snap-type",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-scroll-snap-type",
+      "value": "proximity",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-scroll-translation",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-scroll-translation",
+      "value": "vertical-to-horizontal",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-text-autospace",
+      "value": "ideograph-alpha",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-text-autospace",
+      "value": "ideograph-numeric",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-text-autospace",
+      "value": "ideograph-parenthesis",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-text-autospace",
+      "value": "ideograph-space",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-text-autospace",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-touch-select",
+      "value": "grippers",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-touch-select",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-user-select",
+      "value": "element",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-user-select",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-user-select",
+      "value": "text",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-wrap-flow",
+      "value": "auto",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-wrap-flow",
+      "value": "both",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-wrap-flow",
+      "value": "clear",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-wrap-flow",
+      "value": "end",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-wrap-flow",
+      "value": "maximum",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-wrap-flow",
+      "value": "start",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-wrap-through",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-ms-wrap-through",
+      "value": "wrap",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "-apple-pay-button",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "button-bevel",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "caps-lock-indicator",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "caret",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "default-button",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "inner-spin-button",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "listitem",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "media-controls-background",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "media-controls-fullscreen-background",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "media-current-time-display",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "media-enter-fullscreen-button",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "media-exit-fullscreen-button",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "media-fullscreen-button",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "media-mute-button",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "media-overlay-play-button",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "media-play-button",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "media-seek-back-button",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "media-seek-forward-button",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "media-slider",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "media-sliderthumb",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "media-time-remaining-display",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "media-toggle-closed-captions-button",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "media-volume-slider",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "media-volume-slider-container",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "media-volume-sliderthumb",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "menulist-text",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "menulist-textfield",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "progress-bar-value",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "push-button",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "scrollbarbutton-down",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "scrollbarbutton-left",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "scrollbarbutton-right",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "scrollbarbutton-up",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "scrollbargripper-horizontal",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "scrollbargripper-vertical",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "scrollbarthumb-horizontal",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "scrollbarthumb-vertical",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "scrollbartrack-horizontal",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "scrollbartrack-vertical",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "searchfield-cancel-button",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "searchfield-decoration",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "searchfield-results-button",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "searchfield-results-decoration",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "slider-horizontal",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "slider-vertical",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "sliderthumb-horizontal",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "sliderthumb-vertical",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-appearance",
+      "value": "square-button",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-background-clip",
+      "value": "border",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-background-clip",
+      "value": "content",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-background-clip",
+      "value": "padding",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-box-reflect",
+      "value": "above",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-box-reflect",
+      "value": "below",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-box-reflect",
+      "value": "left",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-box-reflect",
+      "value": "right",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-column-break-after",
+      "value": "always",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-column-break-after",
+      "value": "auto",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-column-break-after",
+      "value": "avoid",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-column-break-before",
+      "value": "always",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-column-break-before",
+      "value": "auto",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-column-break-before",
+      "value": "avoid",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-column-break-inside",
+      "value": "always",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-column-break-inside",
+      "value": "auto",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-column-break-inside",
+      "value": "avoid",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-font-smoothing",
+      "value": "antialiased",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-font-smoothing",
+      "value": "auto",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-font-smoothing",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-font-smoothing",
+      "value": "subpixel-antialiased",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-mask-clip",
+      "value": "border",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-mask-clip",
+      "value": "content",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-mask-clip",
+      "value": "padding",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-mask-clip",
+      "value": "text",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-mask-origin",
+      "value": "border",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-mask-origin",
+      "value": "content",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-mask-origin",
+      "value": "padding",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "-webkit-mask-position-x",
+      "value": "center",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-mask-position-x",
+      "value": "left",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-mask-position-x",
+      "value": "right",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-mask-position-y",
+      "value": "bottom",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-mask-position-y",
+      "value": "center",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-mask-position-y",
+      "value": "top",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-mask-repeat-x",
+      "value": "no-repeat",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-mask-repeat-x",
+      "value": "repeat",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-mask-repeat-x",
+      "value": "round",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-mask-repeat-x",
+      "value": "space",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-mask-repeat-y",
+      "value": "no-repeat",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-mask-repeat-y",
+      "value": "repeat",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-mask-repeat-y",
+      "value": "round",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-mask-repeat-y",
+      "value": "space",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-overflow-scrolling",
+      "value": "auto",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-overflow-scrolling",
+      "value": "touch",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-print-color-adjust",
+      "value": "economy",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-print-color-adjust",
+      "value": "exact",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-text-security",
+      "value": "circle",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-text-security",
+      "value": "disc",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-text-security",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-text-security",
+      "value": "square",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-touch-callout",
+      "value": "default",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-touch-callout",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-user-drag",
+      "value": "auto",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-user-drag",
+      "value": "element",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-user-drag",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-user-modify",
+      "value": "read-only",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-user-modify",
+      "value": "read-write",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "-webkit-user-modify",
+      "value": "read-write-plaintext-only",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "align-items",
+      "value": "anchor-center",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "align-tracks",
+      "value": "normal",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "alignment-baseline",
+      "value": "after-edge",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "alignment-baseline",
+      "value": "auto",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "alignment-baseline",
+      "value": "before-edge",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "alignment-baseline",
+      "value": "text-after-edge",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "alignment-baseline",
+      "value": "text-before-edge",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "box-align",
+      "value": "baseline",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "box-align",
+      "value": "center",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "box-align",
+      "value": "end",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "box-align",
+      "value": "start",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "box-align",
+      "value": "stretch",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "box-direction",
+      "value": "inherit",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "box-direction",
+      "value": "normal",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "box-direction",
+      "value": "reverse",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "box-lines",
+      "value": "multiple",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "box-lines",
+      "value": "single",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "box-orient",
+      "value": "block-axis",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "box-orient",
+      "value": "horizontal",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "box-orient",
+      "value": "inherit",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "box-orient",
+      "value": "inline-axis",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "box-orient",
+      "value": "vertical",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "box-pack",
+      "value": "center",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "box-pack",
+      "value": "end",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "box-pack",
+      "value": "justify",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "box-pack",
+      "value": "start",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "cursor",
+      "value": "-moz-grab",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "cursor",
+      "value": "-moz-grabbing",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "cursor",
+      "value": "-moz-zoom-in",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "cursor",
+      "value": "-moz-zoom-out",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "cursor",
+      "value": "-webkit-grab",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "cursor",
+      "value": "-webkit-grabbing",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "cursor",
+      "value": "-webkit-zoom-in",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "cursor",
+      "value": "-webkit-zoom-out",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "cursor",
+      "value": "hand",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "dominant-baseline",
+      "value": "no-change",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "dominant-baseline",
+      "value": "reset-size",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "dominant-baseline",
+      "value": "text-after-edge",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "dominant-baseline",
+      "value": "text-before-edge",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "dominant-baseline",
+      "value": "use-script",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "font-smooth",
+      "value": "always",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "font-smooth",
+      "value": "auto",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "font-smooth",
+      "value": "never",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "image-rendering",
+      "value": "optimizequality",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "image-rendering",
+      "value": "optimizespeed",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "ime-mode",
+      "value": "active",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "ime-mode",
+      "value": "auto",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "ime-mode",
+      "value": "disabled",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "ime-mode",
+      "value": "inactive",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "ime-mode",
+      "value": "normal",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "initial-letter-align",
+      "value": "auto",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "justify-items",
+      "value": "anchor-center",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "justify-tracks",
+      "value": "left",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "justify-tracks",
+      "value": "normal",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "justify-tracks",
+      "value": "right",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "kerning",
+      "value": "auto",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "margin-trim",
+      "value": "all",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "margin-trim",
+      "value": "in-flow",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "masonry-auto-flow",
+      "value": "definite-first",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "masonry-auto-flow",
+      "value": "next",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "masonry-auto-flow",
+      "value": "ordered",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "masonry-auto-flow",
+      "value": "pack",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "mix-blend-mode",
+      "value": "plus-darker",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "overflow-clip-box",
+      "value": "content-box",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "overflow-clip-box",
+      "value": "padding-box",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "page-break-after",
+      "value": "recto",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "page-break-after",
+      "value": "verso",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "page-break-before",
+      "value": "recto",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "page-break-before",
+      "value": "verso",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "position",
+      "value": "-webkit-sticky",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "position-visibility",
+      "value": "anchors-valid",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "position-visibility",
+      "value": "anchors-visible",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "ruby-merge",
+      "value": "collapse",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "ruby-overhang",
+      "value": "none",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "scroll-snap-coordinate",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "scroll-snap-points-x",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "scroll-snap-points-y",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "scroll-snap-type-x",
+      "value": "mandatory",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "scroll-snap-type-x",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "scroll-snap-type-x",
+      "value": "proximity",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "scroll-snap-type-y",
+      "value": "mandatory",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "scroll-snap-type-y",
+      "value": "none",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "scroll-snap-type-y",
+      "value": "proximity",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "text-decoration-skip",
+      "value": "box-decoration",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "text-decoration-skip",
+      "value": "edges",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "text-decoration-skip",
+      "value": "leading-spaces",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "text-decoration-skip",
+      "value": "objects",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "text-decoration-skip",
+      "value": "spaces",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "text-decoration-skip",
+      "value": "trailing-spaces",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "text-emphasis-position",
+      "value": "auto",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "timeline-trigger-exit-range-end",
+      "value": "auto",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "timeline-trigger-exit-range-end",
+      "value": "normal",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "timeline-trigger-exit-range-start",
+      "value": "auto",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "timeline-trigger-exit-range-start",
+      "value": "normal",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "timeline-trigger-range-end",
+      "value": "normal",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "timeline-trigger-range-start",
+      "value": "normal",
+      "verdict": "grammarDefect"
+    },
+    {
+      "property": "unicode-bidi",
+      "value": "-moz-isolate",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "unicode-bidi",
+      "value": "-moz-isolate-override",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "unicode-bidi",
+      "value": "-moz-plaintext",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "unicode-bidi",
+      "value": "-webkit-isolate",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "unicode-bidi",
+      "value": "-webkit-isolate-override",
+      "verdict": "unmatched"
+    },
+    {
+      "property": "unicode-bidi",
+      "value": "-webkit-plaintext",
+      "verdict": "unmatched"
+    }
+  ]
+}

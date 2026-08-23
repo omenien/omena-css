@@ -18,12 +18,45 @@
       "category": "types",
       "name": "paint",
       "expectedSyntax": "none | <image> | <svg-paint>",
-      "replacementSyntax": "none | <image> | <color> | <svg-paint>",
+      "replacementSyntax": "none | <color> | <url> [ none | <color> ]? | context-fill | context-stroke",
       "sourceUrl": "https://drafts.csswg.org/fill-stroke-3/#typedef-paint",
       "decision": "replace-syntax",
-      "reason": "fill-stroke-paint-includes-color",
+      "reason": "fill-stroke-paint-complete-grammar",
       "reviewer": "maintainer",
-      "reviewedAt": "2026-08-23"
+      "reviewedAt": "2026-08-24"
+    },
+    {
+      "category": "properties",
+      "name": "zoom",
+      "expectedSyntax": "<number [0,∞]> | <percentage [0,∞]>",
+      "replacementSyntax": "normal | reset | <number [0,∞]> | <percentage [0,∞]>",
+      "sourceUrl": "https://drafts.csswg.org/css-viewport/#propdef-zoom",
+      "decision": "replace-syntax",
+      "reason": "css-tree-keyword-closure-normal-reset",
+      "reviewer": "maintainer",
+      "reviewedAt": "2026-08-24"
+    },
+    {
+      "category": "properties",
+      "name": "baseline-shift",
+      "expectedSyntax": "<length-percentage> | sub | super | top | center | bottom",
+      "replacementSyntax": "baseline | <length-percentage> | sub | super | top | center | bottom",
+      "sourceUrl": "https://drafts.csswg.org/css-inline-3/#propdef-baseline-shift",
+      "decision": "replace-syntax",
+      "reason": "css-tree-keyword-closure-baseline",
+      "reviewer": "maintainer",
+      "reviewedAt": "2026-08-24"
+    },
+    {
+      "category": "properties",
+      "name": "-webkit-mask",
+      "expectedSyntax": "<mask-layer>#",
+      "replacementSyntax": "[ <mask-layer> | border | content | padding | text ]#",
+      "sourceUrl": "https://compat.spec.whatwg.org/#propdef--webkit-mask",
+      "decision": "replace-syntax",
+      "reason": "compatibility-keyword-closure-mask-box-aliases",
+      "reviewer": "maintainer",
+      "reviewedAt": "2026-08-24"
     }
   ]
 }

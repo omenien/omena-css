@@ -441,7 +441,8 @@
       },
       "adjudication": "omenaMatcherDefect",
       "reason": "the matcher does not yet recognize the browser-compatible -webkit-focus-ring-color keyword accepted in outline color position",
-      "owner": "value-grammar-vendor-color-compatibility"
+      "owner": "value-grammar-vendor-color-compatibility",
+      "specUrl": "https://drafts.csswg.org/css-ui-4/#outline-props"
     },
     {
       "id": "oss-b3d76346d3187f0ed17f",

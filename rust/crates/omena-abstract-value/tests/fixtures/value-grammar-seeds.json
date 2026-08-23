@@ -53,6 +53,18 @@
       "expectedValid": true
     },
     {
+      "id": "paint-context-fill-valid",
+      "property": "fill",
+      "value": "context-fill",
+      "expectedValid": true
+    },
+    {
+      "id": "paint-context-stroke-valid",
+      "property": "stroke",
+      "value": "context-stroke",
+      "expectedValid": true
+    },
+    {
       "id": "width-clamp-valid",
       "property": "width",
       "value": "clamp(1px, 2px, 3px)",
@@ -142,7 +154,8 @@
       "value": "anchor-size(width)",
       "adjudication": "omenaMatcherDefect",
       "reason": "the pinned width grammar references anchor-size() but the bounded matcher does not yet recognize that function family",
-      "owner": "value-grammar-function-matching"
+      "owner": "value-grammar-function-matching",
+      "specUrl": "https://drafts.csswg.org/css-values-5/#anchor-size"
     },
     {
       "id": "width-round-known-divergence",
@@ -150,7 +163,17 @@
       "value": "round(up, 101px, 10px)",
       "adjudication": "omenaMatcherDefect",
       "reason": "round() remains an explicitly unvalidated standard math-function class and is never promoted to a definite computed-value rejection",
-      "owner": "value-grammar-function-matching"
+      "owner": "value-grammar-function-matching",
+      "specUrl": "https://drafts.csswg.org/css-values-4/#round-func"
+    },
+    {
+      "id": "width-leading-negative-calc-known-divergence",
+      "property": "width",
+      "value": "calc(-8px + 100%)",
+      "adjudication": "omenaMatcherDefect",
+      "reason": "the bounded math parser does not yet split a leading negative dimension from the first calc term, so the externally valid value remains non-definite",
+      "owner": "value-grammar-math-expression-parsing",
+      "specUrl": "https://drafts.csswg.org/css-values-4/#calc-internal"
     },
     {
       "id": "custom-property-not-comparable",

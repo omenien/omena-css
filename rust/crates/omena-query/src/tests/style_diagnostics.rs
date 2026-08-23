@@ -844,6 +844,34 @@ fn closed_token_kind_mismatch_emits_a_definite_product_diagnostic() -> Result<()
 }
 
 #[test]
+fn paint_context_keywords_do_not_emit_invalid_property_value_diagnostics()
+-> Result<(), &'static str> {
+    let source = r#".paint {
+  fill: context-fill;
+  stroke: context-stroke;
+}
+"#;
+    let candidates =
+        crate::summarize_omena_query_style_hover_candidates("Component.module.svg.css", source)
+            .ok_or("style candidates")?;
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.svg.css",
+        source,
+        candidates.candidates.as_slice(),
+    );
+
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "invalidPropertyValue"),
+        "spec-valid paint context keywords must not produce invalidPropertyValue: {:?}",
+        diagnostics.diagnostics
+    );
+    Ok(())
+}
+
+#[test]
 fn workspace_cascade_diagnostics_join_runtime_state_scenarios_and_inline_overrides()
 -> Result<(), &'static str> {
     let target_style_path = "file:///workspace/src/App.module.scss";

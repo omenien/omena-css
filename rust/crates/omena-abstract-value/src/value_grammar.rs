@@ -15,6 +15,11 @@ use omena_value_lattice::{
 };
 use serde::{Deserialize, Serialize};
 
+const CLOSED_WORLD_KEYWORD_CLOSURE_CERTIFICATE_SOURCE: &str =
+    include_str!("../data/closed-world-keyword-closure-certificate.json");
+const CLOSED_WORLD_BUILTIN_TOKEN_PROFILES_SOURCE: &str =
+    include_str!("../data/closed-world-builtin-token-profiles.json");
+
 use crate::{
     AbstractCssTypedScalarValueV0, AbstractCssTypedValueV0, AbstractCssValueV0,
     DeclaredNumericTypeV0, DeclaredValueKindV0, abstract_css_typed_scalar_from_text,
@@ -437,6 +442,8 @@ pub fn validate_standard_property_value_v0(property: &str, value: &str) -> CssVa
         .unwrap_or(SpecGrammarBoundaryClassificationV0::InBoundary);
     let (verdict, matcher_coverage_complete) =
         match_standard_property_value_with_coverage_v0(&property, value);
+    let matcher_coverage_complete = matcher_coverage_complete
+        && standard_property_value_token_kinds_have_closure_authority(&property, value, registry);
     let closed_world_token_kind_mismatch =
         matches!(verdict, CssValueGrammarVerdictV0::Unmatched { .. })
             && standard_property_closed_world_token_kind_mismatch(&property, value, registry);
@@ -1030,6 +1037,41 @@ struct ClosedWorldTokenProfileV0 {
     url: ClosedWorldTokenDomainV0,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ClosedWorldKeywordClosureCertificateV0 {
+    schema_version: String,
+    product: String,
+    oracle: ClosedWorldKeywordClosureOracleV0,
+    property_count: usize,
+    certified_properties: BTreeSet<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ClosedWorldKeywordClosureOracleV0 {
+    name: String,
+    version: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ClosedWorldBuiltinTokenProfilesV0 {
+    schema_version: String,
+    product: String,
+    oracle: ClosedWorldKeywordClosureOracleV0,
+    profile_count: usize,
+    profiles: Vec<ClosedWorldBuiltinTokenProfileV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ClosedWorldBuiltinTokenProfileV0 {
+    name: String,
+    authority: String,
+    open_token_kinds: BTreeSet<String>,
+    allowed_values: HashMap<String, Vec<String>>,
+}
+
 impl ClosedWorldTokenProfileV0 {
     fn domain(&self, kind: ClosedWorldTokenKindV0) -> &ClosedWorldTokenDomainV0 {
         match kind {
@@ -1094,6 +1136,128 @@ const CLOSED_WORLD_TOKEN_KINDS: [ClosedWorldTokenKindV0; 8] = [
     ClosedWorldTokenKindV0::Url,
 ];
 
+fn closed_world_keyword_closure_certified_properties() -> &'static BTreeSet<String> {
+    static CERTIFIED: OnceLock<BTreeSet<String>> = OnceLock::new();
+    CERTIFIED.get_or_init(|| {
+        let Ok(certificate) = serde_json::from_str::<ClosedWorldKeywordClosureCertificateV0>(
+            CLOSED_WORLD_KEYWORD_CLOSURE_CERTIFICATE_SOURCE,
+        ) else {
+            return BTreeSet::new();
+        };
+        if certificate.schema_version != "0"
+            || certificate.product
+                != "omena-abstract-value.closed-world-keyword-closure-certificate"
+            || certificate.oracle.name != "css-tree"
+            || certificate.oracle.version != "3.2.1"
+            || certificate.property_count < certificate.certified_properties.len()
+        {
+            return BTreeSet::new();
+        }
+        certificate.certified_properties
+    })
+}
+
+fn standard_property_value_token_kinds_have_closure_authority(
+    property: &PropertyNameV0,
+    value: &str,
+    registry: &SpecGrammarRegistryV0,
+) -> bool {
+    let Ok(components) = css_value_component_stream(value, 0) else {
+        return false;
+    };
+    if components
+        .iter()
+        .any(|component| matches!(component.kind, CssValueComponentKindV0::Ident))
+    {
+        return closed_world_keyword_closure_certified_properties()
+            .contains(property.canonical_name());
+    }
+    standard_property_grammar_is_machine_imported_without_overrides(property, registry)
+}
+
+fn standard_property_grammar_is_machine_imported_without_overrides(
+    property: &PropertyNameV0,
+    registry: &SpecGrammarRegistryV0,
+) -> bool {
+    let Some(entry) = registry.entry("properties", property.canonical_name()) else {
+        return false;
+    };
+    let Some(source) = entry.syntax.as_deref() else {
+        return false;
+    };
+    if entry.override_provenance.is_some() {
+        return false;
+    }
+    let Ok(expression) = cached_pinned_vds_expression(strip_matching_quotes(source.trim())) else {
+        return false;
+    };
+    let mut visiting = HashSet::new();
+    expression_sources_are_machine_imported_without_overrides(
+        expression.as_ref(),
+        registry,
+        &mut visiting,
+    )
+}
+
+fn expression_sources_are_machine_imported_without_overrides(
+    expression: &VdsExpression,
+    registry: &SpecGrammarRegistryV0,
+    visiting: &mut HashSet<(ReferenceCategory, String)>,
+) -> bool {
+    match expression {
+        VdsExpression::Literal(_) => true,
+        VdsExpression::Reference(reference) => {
+            if is_builtin_reference_name(reference.name.as_str()) {
+                return closed_world_builtin_token_profiles().is_some_and(|manifest| {
+                    manifest
+                        .profiles
+                        .iter()
+                        .any(|profile| profile.name == reference.name)
+                });
+            }
+            let key = (reference.category, reference.name.clone());
+            if !visiting.insert(key.clone()) {
+                return true;
+            }
+            let category = match reference.category {
+                ReferenceCategory::Type => "types",
+                ReferenceCategory::Property => "properties",
+                ReferenceCategory::Function => "functions",
+            };
+            let imported = registry
+                .entry(category, reference.name.as_str())
+                .filter(|entry| entry.override_provenance.is_none())
+                .and_then(|entry| entry.syntax.as_deref())
+                .and_then(|source| cached_pinned_vds_expression(source).ok())
+                .is_some_and(|expression| {
+                    expression_sources_are_machine_imported_without_overrides(
+                        expression.as_ref(),
+                        registry,
+                        visiting,
+                    )
+                });
+            visiting.remove(&key);
+            imported
+        }
+        VdsExpression::Function { arguments, .. }
+        | VdsExpression::Repeat {
+            expression: arguments,
+            ..
+        }
+        | VdsExpression::Required(arguments) => {
+            expression_sources_are_machine_imported_without_overrides(arguments, registry, visiting)
+        }
+        VdsExpression::Sequence(expressions)
+        | VdsExpression::AllInAnyOrder(expressions)
+        | VdsExpression::OneOrMoreInAnyOrder(expressions)
+        | VdsExpression::Choice(expressions) => expressions.iter().all(|expression| {
+            expression_sources_are_machine_imported_without_overrides(
+                expression, registry, visiting,
+            )
+        }),
+    }
+}
+
 fn standard_property_closed_world_token_kind_mismatch(
     property: &PropertyNameV0,
     value: &str,
@@ -1110,6 +1274,12 @@ fn standard_property_closed_world_token_kind_mismatch(
         let Some((kind, value)) = closed_world_component_identity(component) else {
             return false;
         };
+        if kind == ClosedWorldTokenKindV0::Ident
+            && !closed_world_keyword_closure_certified_properties()
+                .contains(property.canonical_name())
+        {
+            return false;
+        }
         let domain = profile.domain(kind);
         !domain.open && !domain.allowed.contains(value.as_str())
     })
@@ -1131,14 +1301,22 @@ fn cached_standard_property_closed_world_token_profile(
         return profile.clone();
     }
     let profile = registry
-        .syntax("properties", property.canonical_name())
-        .and_then(|grammar| {
-            cached_pinned_vds_expression(strip_matching_quotes(grammar.trim())).ok()
+        .entry("properties", property.canonical_name())
+        .and_then(|entry| entry.syntax.as_deref().map(|grammar| (entry, grammar)))
+        .and_then(|(entry, grammar)| {
+            cached_pinned_vds_expression(strip_matching_quotes(grammar.trim()))
+                .ok()
+                .map(|expression| (entry, expression))
         })
-        .map(|expression| {
+        .map(|(entry, expression)| {
             let mut visiting = HashSet::new();
             let mut memo = HashMap::new();
-            closed_world_token_profile(expression.as_ref(), registry, &mut visiting, &mut memo)
+            let mut profile =
+                closed_world_token_profile(expression.as_ref(), registry, &mut visiting, &mut memo);
+            if entry.override_provenance.is_some() {
+                profile.mark_all_open();
+            }
+            profile
         });
     cache
         .write()
@@ -1217,9 +1395,21 @@ fn closed_world_reference_profile(
         ReferenceCategory::Function => unreachable!("function references return above"),
     };
     let mut profile = registry
-        .syntax(category, reference.name.as_str())
-        .and_then(|source| cached_pinned_vds_expression(source).ok())
-        .map(|expression| closed_world_token_profile(expression.as_ref(), registry, visiting, memo))
+        .entry(category, reference.name.as_str())
+        .and_then(|entry| entry.syntax.as_deref().map(|source| (entry, source)))
+        .and_then(|(entry, source)| {
+            cached_pinned_vds_expression(source)
+                .ok()
+                .map(|expression| (entry, expression))
+        })
+        .map(|(entry, expression)| {
+            let mut profile =
+                closed_world_token_profile(expression.as_ref(), registry, visiting, memo);
+            if entry.override_provenance.is_some() {
+                profile.mark_all_open();
+            }
+            profile
+        })
         .unwrap_or_else(|| {
             let mut unknown = ClosedWorldTokenProfileV0::default();
             unknown.mark_all_open();
@@ -1239,49 +1429,93 @@ fn closed_world_reference_profile(
 }
 
 fn closed_world_builtin_profile(name: &str) -> Option<ClosedWorldTokenProfileV0> {
+    let known_builtin = is_builtin_reference_name(name)
+        || matches!(name, "declaration-value" | "any-value" | "whole-value");
+    if !known_builtin {
+        return None;
+    }
+
+    let Some(manifest) = closed_world_builtin_token_profiles() else {
+        return Some(all_open_closed_world_token_profile());
+    };
+    let Some(witnessed) = manifest
+        .profiles
+        .iter()
+        .find(|profile| profile.name == name)
+    else {
+        return Some(all_open_closed_world_token_profile());
+    };
+    if witnessed.authority == "registryDerived" {
+        return None;
+    }
+    if !matches!(
+        witnessed.authority.as_str(),
+        "cssTreeWitness" | "defaultOpen"
+    ) {
+        return Some(all_open_closed_world_token_profile());
+    }
+
     let mut profile = ClosedWorldTokenProfileV0::default();
-    match name {
-        "declaration-value" | "any-value" | "whole-value" => profile.mark_all_open(),
-        "custom-ident" | "ident" | "ident-token" | "dashed-ident" | "custom-property-name" => {
-            profile.mark_open(ClosedWorldTokenKindV0::Ident)
+    for kind in &witnessed.open_token_kinds {
+        let Some(kind) = closed_world_token_kind_from_data_name(kind) else {
+            return Some(all_open_closed_world_token_profile());
+        };
+        profile.mark_open(kind);
+    }
+    for (kind, values) in &witnessed.allowed_values {
+        let Some(kind) = closed_world_token_kind_from_data_name(kind) else {
+            return Some(all_open_closed_world_token_profile());
+        };
+        for value in values {
+            profile.allow(kind, value);
         }
-        "string" | "string-token" => profile.mark_open(ClosedWorldTokenKindV0::String),
-        "url" | "url-token" => profile.mark_open(ClosedWorldTokenKindV0::Url),
-        "number" | "number-token" | "integer" => {
-            profile.mark_open(ClosedWorldTokenKindV0::Number);
-            profile.mark_open(ClosedWorldTokenKindV0::FunctionName);
-        }
-        "length" | "angle" | "time" | "resolution" | "flex" | "dimension-token" => {
-            profile.mark_open(ClosedWorldTokenKindV0::Dimension);
-            profile.allow(ClosedWorldTokenKindV0::Number, "0");
-            profile.mark_open(ClosedWorldTokenKindV0::FunctionName);
-        }
-        "percentage" | "percentage-token" => {
-            profile.mark_open(ClosedWorldTokenKindV0::Percentage);
-            profile.mark_open(ClosedWorldTokenKindV0::FunctionName);
-        }
-        "length-percentage" => {
-            profile.mark_open(ClosedWorldTokenKindV0::Dimension);
-            profile.mark_open(ClosedWorldTokenKindV0::Percentage);
-            profile.allow(ClosedWorldTokenKindV0::Number, "0");
-            profile.mark_open(ClosedWorldTokenKindV0::FunctionName);
-        }
-        "alpha-value" => {
-            profile.mark_open(ClosedWorldTokenKindV0::Number);
-            profile.mark_open(ClosedWorldTokenKindV0::Percentage);
-            profile.mark_open(ClosedWorldTokenKindV0::FunctionName);
-        }
-        "hex-color" | "hash-token" => profile.mark_open(ClosedWorldTokenKindV0::Hash),
-        "function-token" => profile.mark_open(ClosedWorldTokenKindV0::FunctionName),
-        "zero" => profile.allow(ClosedWorldTokenKindV0::Number, "0"),
-        "comma-token" => {}
-        // These semantic families have grammar records in the same registry.
-        // Returning None makes the caller derive their finite function/keyword
-        // surface transitively instead of embedding a second vocabulary.
-        "named-color" | "image" | "transform-function" => return None,
-        _ => return None,
+    }
+    if witnessed.authority == "defaultOpen"
+        && CLOSED_WORLD_TOKEN_KINDS
+            .iter()
+            .any(|kind| !profile.domain(*kind).open)
+    {
+        return Some(all_open_closed_world_token_profile());
     }
     Some(profile)
+}
+
+fn closed_world_builtin_token_profiles() -> Option<&'static ClosedWorldBuiltinTokenProfilesV0> {
+    static PROFILES: OnceLock<Option<ClosedWorldBuiltinTokenProfilesV0>> = OnceLock::new();
+    PROFILES
+        .get_or_init(|| {
+            let profiles = serde_json::from_str::<ClosedWorldBuiltinTokenProfilesV0>(
+                CLOSED_WORLD_BUILTIN_TOKEN_PROFILES_SOURCE,
+            )
+            .ok()?;
+            (profiles.schema_version == "0"
+                && profiles.product == "omena-abstract-value.closed-world-builtin-token-profiles"
+                && profiles.oracle.name == "css-tree"
+                && profiles.oracle.version == "3.2.1"
+                && profiles.profile_count == profiles.profiles.len())
+            .then_some(profiles)
+        })
+        .as_ref()
+}
+
+fn closed_world_token_kind_from_data_name(name: &str) -> Option<ClosedWorldTokenKindV0> {
+    match name {
+        "ident" => Some(ClosedWorldTokenKindV0::Ident),
+        "hash" => Some(ClosedWorldTokenKindV0::Hash),
+        "dimension" => Some(ClosedWorldTokenKindV0::Dimension),
+        "number" => Some(ClosedWorldTokenKindV0::Number),
+        "percentage" => Some(ClosedWorldTokenKindV0::Percentage),
+        "functionName" => Some(ClosedWorldTokenKindV0::FunctionName),
+        "string" => Some(ClosedWorldTokenKindV0::String),
+        "url" => Some(ClosedWorldTokenKindV0::Url),
+        _ => None,
+    }
+}
+
+fn all_open_closed_world_token_profile() -> ClosedWorldTokenProfileV0 {
+    let mut profile = ClosedWorldTokenProfileV0::default();
+    profile.mark_all_open();
+    profile
 }
 
 fn closed_world_literal_profile(literal: &str) -> ClosedWorldTokenProfileV0 {
@@ -2808,7 +3042,7 @@ fn strip_matching_quotes(source: &str) -> &str {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{collections::BTreeSet, sync::Arc};
 
     use omena_cascade::{CascadeStandardValueValidatorV0, CascadeStandardValueVerdictV0};
     use omena_spec_audit::{SpecGrammarBoundaryClassificationV0, spec_grammar_registry};
@@ -2816,15 +3050,17 @@ mod tests {
     use omena_value_lattice::ValueNodeV0;
 
     use super::{
-        CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0, CssValueGrammarBudgetKindV0,
-        CssValueGrammarBudgetV0, CssValueGrammarLocusV0, CssValueGrammarVerdictV0,
-        CssValueValidationClassV0, CssValueValidationReasonV0,
+        CLOSED_WORLD_TOKEN_KINDS, CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0,
+        CssValueGrammarBudgetKindV0, CssValueGrammarBudgetV0, CssValueGrammarLocusV0,
+        CssValueGrammarVerdictV0, CssValueValidationClassV0, CssValueValidationReasonV0,
         SpecStandardPropertyValueValidatorV0, adjudicate_css_value_validation,
         adjudicate_css_value_validation_with_boundary, audit_css_value_grammar_registry_v0,
-        cached_pinned_vds_expression, match_and_type_css_value_grammar_v0,
-        match_and_type_standard_property_value_v0, match_css_value_grammar_v0,
-        match_standard_property_value_v0, standard_property_closed_world_token_kind_mismatch,
-        validate_registered_property_value_v0, validate_standard_property_value_v0,
+        cached_pinned_vds_expression, closed_world_builtin_profile,
+        closed_world_builtin_token_profiles, closed_world_keyword_closure_certified_properties,
+        match_and_type_css_value_grammar_v0, match_and_type_standard_property_value_v0,
+        match_css_value_grammar_v0, match_standard_property_value_v0,
+        standard_property_closed_world_token_kind_mismatch, validate_registered_property_value_v0,
+        validate_standard_property_value_v0,
     };
     use crate::{
         AbstractCssTypedValueV0, AbstractCssValueV0, DeclaredValueKindV0,
@@ -3428,6 +3664,10 @@ mod tests {
         for (property, value) in [
             ("fill", "#ff00aa"),
             ("stroke", "rgb(10 20 30)"),
+            ("fill", "context-fill"),
+            ("fill", "context-stroke"),
+            ("stroke", "context-fill"),
+            ("stroke", "context-stroke"),
             ("width", "calc(1px + 2px)"),
             ("width", "calc(100% - 8px)"),
             ("width", "calc(8px - 4px)"),
@@ -3464,6 +3704,67 @@ mod tests {
                 "dimensionally invalid math was accepted: {property}: {value}: {validation:?}"
             );
         }
+    }
+
+    #[test]
+    fn css_tree_keyword_closure_regressions_are_valid_across_the_validator_adapter() {
+        let validator = SpecStandardPropertyValueValidatorV0;
+        let certified_properties = closed_world_keyword_closure_certified_properties();
+        for property in ["fill", "stroke", "zoom", "baseline-shift", "-webkit-mask"] {
+            assert!(
+                certified_properties.contains(property),
+                "{property} must retain complete css-tree direct-keyword coverage"
+            );
+        }
+        for (property, value) in [
+            ("fill", "context-fill"),
+            ("fill", "context-stroke"),
+            ("stroke", "context-fill"),
+            ("stroke", "context-stroke"),
+            ("zoom", "normal"),
+            ("zoom", "reset"),
+            ("baseline-shift", "baseline"),
+            ("-webkit-mask", "border"),
+            ("-webkit-mask", "content"),
+            ("-webkit-mask", "padding"),
+            ("-webkit-mask", "text"),
+        ] {
+            let validation = validate_standard_property_value_v0(property, value);
+            assert_eq!(
+                validation.class,
+                CssValueValidationClassV0::Valid,
+                "{property}: {value}: {validation:?}"
+            );
+            assert_eq!(
+                validator
+                    .validate_standard_property_value(&PropertyNameV0::standard(property), value,),
+                CascadeStandardValueVerdictV0::Matched,
+                "{property}: {value} must cross the cascade validator adapter as matched"
+            );
+        }
+    }
+
+    #[test]
+    fn closed_world_builtin_domains_are_bound_to_the_css_tree_witness_manifest() {
+        let manifest = closed_world_builtin_token_profiles()
+            .expect("the css-tree builtin token witness manifest must parse");
+        assert_eq!(manifest.profile_count, 33);
+
+        let length = closed_world_builtin_profile("length")
+            .expect("length must have a witnessed builtin profile");
+        assert!(length.dimension.open);
+        assert!(length.function_name.open);
+        assert!(!length.number.open);
+        assert_eq!(length.number.allowed, BTreeSet::from(["0".to_string()]));
+
+        let unknown_css_tree_type = closed_world_builtin_profile("whole-value")
+            .expect("an unknown css-tree type must receive a default-open profile");
+        assert!(
+            CLOSED_WORLD_TOKEN_KINDS
+                .iter()
+                .all(|kind| unknown_css_tree_type.domain(*kind).open)
+        );
+        assert!(closed_world_builtin_profile("named-color").is_none());
     }
 
     #[test]
@@ -3513,7 +3814,7 @@ mod tests {
     }
 
     #[test]
-    fn forty_valid_declaration_corpus_has_no_definite_rejection() {
+    fn valid_declaration_corpus_covers_closed_ident_edges_without_definite_rejection() {
         let declarations = [
             ("color", "red"),
             ("color", "#ff00aa"),
@@ -3555,8 +3856,15 @@ mod tests {
             ("order", "-1"),
             ("transform", "rotate(45deg)"),
             ("background-image", "linear-gradient(red, blue)"),
+            ("color", "CanvasText"),
+            ("fill", "context-fill"),
+            ("stroke", "context-stroke"),
+            ("zoom", "normal"),
+            ("baseline-shift", "baseline"),
+            ("-webkit-mask", "border"),
+            ("-webkit-mask", "text"),
         ];
-        assert_eq!(declarations.len(), 40);
+        assert_eq!(declarations.len(), 47);
         let definite_rejections = declarations
             .iter()
             .filter_map(|(property, value)| {

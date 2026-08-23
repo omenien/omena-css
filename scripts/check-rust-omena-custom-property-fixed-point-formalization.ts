@@ -24,6 +24,7 @@ const allowedOptions = new Set([
   "--inject-cycle-member-shrink",
   "--inject-closed-world-certificate-disable",
   "--inject-close-open-function-kind",
+  "--inject-paint-context-keyword-removal",
   "--inject-linear-component-rescan",
 ]);
 assert.deepEqual(
@@ -45,6 +46,7 @@ const cascadeTestsPath = "rust/crates/omena-cascade/src/tests.rs";
 const cascadeLibPath = "rust/crates/omena-cascade/src/lib.rs";
 const modelPath = "rust/crates/omena-cascade/src/model.rs";
 const grammarPath = "rust/crates/omena-abstract-value/src/value_grammar.rs";
+const grammarOverridePath = "rust/crates/omena-spec-audit/data/value-grammar-overrides.json";
 const cliLintPath = "rust/crates/omena-cli/src/lint.rs";
 const queryCorePath = "rust/crates/omena-query-core/src/lib.rs";
 const salsaPath = "rust/crates/omena-query/src/style/salsa_memo.rs";
@@ -224,7 +226,7 @@ assert.ok(
 );
 assert.ok(
   rgFlow.includes("let trace_is_component_schedule") &&
-    rgFlow.includes("independently_derive_input_component_count") &&
+    rgFlow.includes("recompute_input_component_count_from_entries") &&
     [
       "iteration.settled_count == summary.input_count",
       "!cascade_value_contains_var_reference(&entry.resolved)",
@@ -314,11 +316,12 @@ assert.deepEqual(
   ],
   "the named non-degenerate cycle-shape allowlist changed",
 );
-const novelCycleShapeAllowlist = new Set([
-  "mutuallyRecursiveFallbackChain",
-  "cycleThroughFallback",
-  "threeNodeFallbackCycleEnteredMidChain",
-]);
+const novelCycleShapeAllowlist = new Set(
+  [...frozenCaseShapes.values()].filter(
+    (cycleShape): cycleShape is string =>
+      cycleShape !== null && cycleShape !== "mutualReferenceWithoutFallback",
+  ),
+);
 const evaluatorFunction = extractBetween(
   evaluator,
   "fn evaluate_from_all_bottom(",
@@ -336,13 +339,12 @@ assert.equal(
   "96bea4cb6b02ad22d491b46b4ba632103f4539a27c788002f74523e57beaa486",
   "the independent expectedEvaluator projections changed",
 );
+const canonicalBindingProjection = canonicalJson(
+  corpus.cases.map(({ id, cycleShape, bindings }) => ({ id, cycleShape, bindings })),
+);
 assert.equal(
-  sha256(
-    JSON.stringify(
-      corpus.cases.map(({ id, cycleShape, bindings }) => ({ id, cycleShape, bindings })),
-    ),
-  ),
-  "0edf2cdf53cb5819f2326c12265ee4028486714591e23d3295f829dc1a601e5b",
+  sha256(JSON.stringify(canonicalBindingProjection)),
+  "92feed5fada2ae87cb0aa47fb995bae358f610c5ef375b000b487a2256d18836",
   "the frozen witness bindings or cycle shapes changed",
 );
 assert.ok(
@@ -374,6 +376,8 @@ if (args.has("--inject-reordered-evaluator")) {
   relayMutationResult(runClosedWorldCertificateDisableMutation());
 } else if (args.has("--inject-close-open-function-kind")) {
   relayMutationResult(runCloseOpenFunctionKindMutation());
+} else if (args.has("--inject-paint-context-keyword-removal")) {
+  relayMutationResult(runPaintContextKeywordRemovalMutation());
 } else if (args.has("--inject-linear-component-rescan")) {
   relayMutationResult(runLinearComponentRescanMutation());
 } else if (args.size === 0) {
@@ -496,22 +500,22 @@ if (args.has("--inject-reordered-evaluator")) {
     "--nocapture",
   ]);
   assert.equal(longChain.status, 0, "the 100k iterative alias-chain arm must pass");
-  const flatPerformance = runCargo(repoRoot, [
+  const variableEnvironmentPerformance = runCargo(repoRoot, [
     "test",
     "--release",
     "--manifest-path",
     "rust/Cargo.toml",
     "-p",
     "omena-cascade",
-    "variable_environment_resolution_and_summary_stay_within_a_two_x_growth_ceiling",
+    "variable_environment_resolution_and_summary_stay_within_linear_growth_noise_budget",
     "--",
     "--ignored",
     "--nocapture",
   ]);
   assert.equal(
-    flatPerformance.status,
+    variableEnvironmentPerformance.status,
     0,
-    "the variable-environment request and summary 2x performance ceiling must pass",
+    "the variable-environment request and summary normalized linear-growth budget must pass",
   );
   const traceSchedule = runCargo(repoRoot, [
     "test",
@@ -565,7 +569,8 @@ if (args.has("--inject-reordered-evaluator")) {
       "--inject-close-open-function-kind",
       "outside the derived open/closed token profile",
     ),
-    expectScriptMutationRed("--inject-linear-component-rescan", "exceeded the 2x ceiling"),
+    expectScriptMutationRed("--inject-paint-context-keyword-removal", "context-fill"),
+    expectScriptMutationRed("--inject-linear-component-rescan", "exceeded the 1.10 noise budget"),
   ];
 
   process.stdout.write(
@@ -589,7 +594,7 @@ if (args.has("--inject-reordered-evaluator")) {
       trackedStyleDiagnosticsCliCounts,
       diagnosticThreePinCensus: "GREEN",
       iterativeAliasBoundary: "100000:GREEN",
-      variableEnvironmentPerformanceCeiling: "request-and-summary-2x:GREEN",
+      variableEnvironmentPerformanceCeiling: "normalized-linear-growth<=1.10:GREEN",
       componentScheduleTraceInvariant: "GREEN",
       mutations: mutationReceipts,
       rfcDisposition: gapRegister.rfcDisposition.status,
@@ -605,6 +610,18 @@ function relayMutationResult(result: ReturnType<typeof spawnSync>): void {
     process.stderr.write(result.stderr);
   }
   process.exitCode = result.status ?? 1;
+}
+
+function canonicalJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalJson);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => Buffer.compare(Buffer.from(left), Buffer.from(right)))
+        .map(([key, entry]) => [key, canonicalJson(entry)]),
+    );
+  }
+  return value;
 }
 
 function expectScriptMutationRed(option: string, outputNeedle: string): string {
@@ -809,7 +826,29 @@ function runCloseOpenFunctionKindMutation(): ReturnType<typeof spawnSync> {
       "rust/Cargo.toml",
       "-p",
       "omena-abstract-value",
-      "forty_valid_declaration_corpus_has_no_definite_rejection",
+      "valid_declaration_corpus_covers_closed_ident_edges_without_definite_rejection",
+      "--",
+      "--nocapture",
+    ],
+  );
+}
+
+function runPaintContextKeywordRemovalMutation(): ReturnType<typeof spawnSync> {
+  return runSourceMutation(
+    grammarOverridePath,
+    (source) =>
+      replaceExactly(
+        source,
+        '"replacementSyntax": "none | <color> | <url> [ none | <color> ]? | context-fill | context-stroke"',
+        '"replacementSyntax": "none | <color> | <url> [ none | <color> ]? | context-stroke"',
+      ),
+    [
+      "test",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "omena-query",
+      "read_cascade_at_position_resolves_paint_values_through_the_pinned_matcher",
       "--",
       "--nocapture",
     ],
@@ -837,7 +876,7 @@ function runLinearComponentRescanMutation(): ReturnType<typeof spawnSync> {
       "rust/Cargo.toml",
       "-p",
       "omena-cascade",
-      "variable_environment_resolution_and_summary_stay_within_a_two_x_growth_ceiling",
+      "variable_environment_resolution_and_summary_stay_within_linear_growth_noise_budget",
       "--",
       "--ignored",
       "--nocapture",
@@ -1185,6 +1224,7 @@ type DiagnosticCensus = {
 type WitnessCase = {
   id: string;
   cycleShape: string | null;
+  bindings: Record<string, unknown>;
   expectedDisposition: string;
   expectedEvaluator: unknown;
 };

@@ -65,7 +65,10 @@ The trace fields retain their public compatibility names, but each row is a
 component-schedule observation rather than a Kleene iteration. Downstream
 RG-flow projections therefore keep `monotoneKleeneCertificate` false for
 non-empty structural summaries; a changing declaration count across component
-rows is not presented as convergence evidence.
+rows is not presented as convergence evidence. RG-flow recomputes the SCC
+count from `summary.entries` without reading the compatibility trace. That
+anchor is trace-independent, but it is not summary-independent and does not
+claim a second product oracle.
 
 ## Frozen independent witness
 
@@ -112,12 +115,14 @@ same computation. Its regression case distinguishes `--tone: red`, which keeps
 `color`. An always-valid validator or the former literal-only verdict filter
 makes that product-path test fail.
 
-A definite grammar mismatch is promoted to invalid only when the matcher has a
-complete implementation-coverage certificate for every referenced grammar
-shape. Otherwise the result stays indeterminate. The same pinned registry now
-supplies the reviewed `<paint>` color inclusion and the modeled
-`calc()`/`min()`/`max()`/`clamp()` and grid `repeat()`/`minmax()` paths; no
-parallel property grammar table is consulted.
+A definite grammar mismatch is promoted to invalid only when its closed token
+domains have an external completeness authority. Override-free registry paths
+use the imported grammar, while identifier paths with reviewed overrides need
+the pinned css-tree keyword-closure sweep. Builtin token profiles are generated
+from the same css-tree version; an absent type defaults every token domain to
+open. Otherwise the result stays indeterminate. The reviewed `<paint>` override
+contains the complete SVG paint alternatives, and the matcher models the core
+`calc()`/`min()`/`max()`/`clamp()` and grid `repeat()`/`minmax()` paths.
 
 That path resolves the custom-property environment at every ancestor boundary
 before applying child declarations. An inherited computed value therefore does

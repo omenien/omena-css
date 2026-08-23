@@ -443,9 +443,16 @@ fn read_cascade_at_position_reports_closed_kind_color_mismatch_as_iacvt() {
 
 #[test]
 fn read_cascade_at_position_resolves_paint_values_through_the_pinned_matcher() {
-    let declaration = ".target { fill: var(--h3); stroke: var(--h6); }";
-    let source = format!(":root {{ --h3: #f0f; --h6: #ff00ff; }}\n{declaration}\n");
-    for (name, expected) in [("--h3", "#f0f"), ("--h6", "#ff00ff")] {
+    let declaration = ".target { fill: var(--h3); stroke: var(--h6); fill: var(--context-fill); stroke: var(--context-stroke); }";
+    let source = format!(
+        ":root {{ --h3: #f0f; --h6: #ff00ff; --context-fill: context-fill; --context-stroke: context-stroke; }}\n{declaration}\n"
+    );
+    for (name, expected) in [
+        ("--h3", "#f0f"),
+        ("--h6", "#ff00ff"),
+        ("--context-fill", "context-fill"),
+        ("--context-stroke", "context-stroke"),
+    ] {
         let character = declaration.find(name).expect("paint reference offset");
         let cascade = read_omena_query_cascade_at_position(
             "Component.module.css",

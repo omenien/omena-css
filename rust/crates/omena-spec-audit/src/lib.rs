@@ -1525,8 +1525,8 @@ mod tests {
     #[test]
     fn reviewed_value_grammar_override_preserves_source_and_decision_provenance() {
         let audit = audit_value_grammar_overrides_v0();
-        assert_eq!(audit.entry_count, 2);
-        assert_eq!(audit.applied_entry_count, 2);
+        assert_eq!(audit.entry_count, 5);
+        assert_eq!(audit.applied_entry_count, 5);
         assert!(audit.all_entries_valid);
 
         let registry = spec_grammar_registry();
@@ -1561,7 +1561,7 @@ mod tests {
         };
         assert_eq!(
             paint.syntax.as_deref(),
-            Some("none | <image> | <color> | <svg-paint>")
+            Some("none | <color> | <url> [ none | <color> ]? | context-fill | context-stroke")
         );
         assert_eq!(
             paint
@@ -1574,6 +1574,24 @@ mod tests {
         assert_eq!(provenance.reason, "compatibility-spec-text-value");
         assert_eq!(provenance.reviewer, "maintainer");
         assert_eq!(provenance.reviewed_at, "2026-07-21");
+
+        for (property, expected_keyword) in [
+            ("zoom", "normal"),
+            ("baseline-shift", "baseline"),
+            ("-webkit-mask", "text"),
+        ] {
+            let entry = registry
+                .entry("properties", property)
+                .unwrap_or_else(|| panic!("missing reviewed property override {property}"));
+            assert!(
+                entry
+                    .syntax
+                    .as_deref()
+                    .is_some_and(|syntax| syntax.contains(expected_keyword)),
+                "{property} override must include {expected_keyword}"
+            );
+            assert!(entry.override_provenance.is_some());
+        }
     }
 
     #[test]

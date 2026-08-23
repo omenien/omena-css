@@ -2,7 +2,8 @@ use std::{env, error::Error, fs};
 
 use omena_abstract_value::{
     AbstractCssTypedValueV0, AbstractCssValueV0, CssValueGrammarVerdictV0,
-    match_and_type_standard_property_value_v0,
+    CssValueValidationClassV0, CssValueValidationReasonV0,
+    match_and_type_standard_property_value_v0, validate_standard_property_value_v0,
 };
 use omena_value_lattice::ValueNodeV0;
 use serde::{Deserialize, Serialize};
@@ -43,6 +44,8 @@ struct EvidenceCase {
     value: String,
     expected_valid: bool,
     verdict: &'static str,
+    validation_class: &'static str,
+    validation_reason: &'static str,
     typed: bool,
     typed_kind: Option<&'static str>,
     scalar_leaf_count: usize,
@@ -79,6 +82,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 fn evaluate_case(case: SeedCase) -> EvidenceCase {
     let result = match_and_type_standard_property_value_v0(&case.property, &case.value);
+    let validation = validate_standard_property_value_v0(&case.property, &case.value);
     let matched = result.verdict.is_matched();
     let typed_kind = match &result.abstract_value {
         AbstractCssValueV0::Exact {
@@ -114,12 +118,36 @@ fn evaluate_case(case: SeedCase) -> EvidenceCase {
         value: case.value.clone(),
         expected_valid: case.expected_valid,
         verdict: verdict_kind(&result.verdict),
+        validation_class: validation_class(validation.class),
+        validation_reason: validation_reason(validation.reason),
         typed: typed_kind.is_some(),
         typed_kind,
         scalar_leaf_count,
         root_node_kind,
         raw_preserved,
         expectation_satisfied,
+    }
+}
+
+fn validation_class(class: CssValueValidationClassV0) -> &'static str {
+    match class {
+        CssValueValidationClassV0::Valid => "valid",
+        CssValueValidationClassV0::Invalid => "invalid",
+        CssValueValidationClassV0::NotValidatable => "notValidatable",
+    }
+}
+
+fn validation_reason(reason: CssValueValidationReasonV0) -> &'static str {
+    match reason {
+        CssValueValidationReasonV0::GrammarMatched => "grammarMatched",
+        CssValueValidationReasonV0::GrammarUnmatched => "grammarUnmatched",
+        CssValueValidationReasonV0::GrammarDefect => "grammarDefect",
+        CssValueValidationReasonV0::MatchBudgetExhausted => "matchBudgetExhausted",
+        CssValueValidationReasonV0::DeferredSubstitution => "deferredSubstitution",
+        CssValueValidationReasonV0::VendorExtension => "vendorExtension",
+        CssValueValidationReasonV0::ForwardTierGrammar => "forwardTierGrammar",
+        CssValueValidationReasonV0::UnvalidatedStandardFunction => "unvalidatedStandardFunction",
+        CssValueValidationReasonV0::MatcherCoverageIncomplete => "matcherCoverageIncomplete",
     }
 }
 

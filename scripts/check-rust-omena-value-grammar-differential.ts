@@ -18,6 +18,7 @@ type SeedCase = {
   adjudication?: AdjudicationKind;
   reason?: string;
   owner?: string;
+  specUrl?: string;
   notComparableReason?: string;
   source?: DeclarationSource;
 };
@@ -32,10 +33,34 @@ type SeedManifest = {
 type MatcherCase = {
   id: string;
   verdict: "matched" | "unmatched" | "notMatchedWithinBudget" | "grammarDefect";
+  validationClass: "valid" | "invalid" | "notValidatable";
+  validationReason: string;
 };
 
 type MatcherReport = {
   cases: MatcherCase[];
+};
+
+type KeywordClosurePair = {
+  id: string;
+  property: string;
+  value: string;
+};
+
+type ClosedWorldTokenKind =
+  | "ident"
+  | "hash"
+  | "dimension"
+  | "number"
+  | "percentage"
+  | "functionName"
+  | "string"
+  | "url";
+
+type BuiltinTokenProfileSpec = {
+  name: string;
+  cssTreeType?: string;
+  registryDerived?: true;
 };
 
 type OutcomeKind = "agreeValid" | "agreeInvalid" | "disagree" | "notComparable";
@@ -102,6 +127,14 @@ const ledgerPath = join(
   repoRoot,
   "rust/crates/omena-spec-audit/data/value-grammar-differential.json",
 );
+const keywordClosureCertificatePath = join(
+  repoRoot,
+  "rust/crates/omena-abstract-value/data/closed-world-keyword-closure-certificate.json",
+);
+const builtinTokenProfilePath = join(
+  repoRoot,
+  "rust/crates/omena-abstract-value/data/closed-world-builtin-token-profiles.json",
+);
 const MINIMUM_REAL_DECLARATION_CASE_COUNT = 113;
 const REQUIRED_VALID_CASE_IDS = [
   "padding-unitless-zero-valid",
@@ -142,6 +175,13 @@ async function main(): Promise<void> {
   const seedCases = [...manifest.cases, ...(manifest.differentialCases ?? [])];
   const cases = [...seedCases, ...realDeclarationCorpus.cases];
   assert.equal(new Set(cases.map((entry) => entry.id)).size, cases.length, "duplicate case id");
+  const keywordClosure = keywordClosurePairs();
+  const allMatcherCases = [...cases, ...keywordClosure.pairs];
+  assert.equal(
+    new Set(allMatcherCases.map((entry) => entry.id)).size,
+    allMatcherCases.length,
+    "keyword-closure ids must not collide with the differential corpus",
+  );
   const tempRoot = mkdtempSync(join(tmpdir(), "omena-value-grammar-differential-"));
   const combinedPath = join(tempRoot, "cases.json");
   writeFileSync(
@@ -150,7 +190,7 @@ async function main(): Promise<void> {
       {
         schemaVersion: "0",
         product: manifest.product,
-        cases: cases.map((entry) => ({
+        cases: allMatcherCases.map((entry) => ({
           id: entry.id,
           property: entry.property,
           value: entry.value,
@@ -244,6 +284,9 @@ async function main(): Promise<void> {
         ...(adjudication ? { adjudication } : {}),
         ...(entry.reason ? { reason: entry.reason } : {}),
         ...(entry.owner ? { owner: entry.owner } : {}),
+        ...(entry.specUrl ? { specUrl: entry.specUrl } : {}),
+        validationClass: matcherCase.validationClass,
+        validationReason: matcherCase.validationReason,
         ...(entry.source ? { source: entry.source } : {}),
         ...(outcome === "notComparable"
           ? { notComparableReason: entry.notComparableReason ?? notComparableReason }
@@ -279,9 +322,9 @@ async function main(): Promise<void> {
     const wrongDefiniteUnownedCount = outcomes.filter(
       (entry) =>
         entry.outcome === "disagree" &&
-        entry.omenaValid === false &&
+        entry.validationClass === "invalid" &&
         entry.cssTreeValid === true &&
-        (entry.adjudication !== "omenaMatcherDefect" || !entry.owner),
+        (entry.adjudication !== "omenaMatcherDefect" || !entry.owner || !entry.specUrl),
     ).length;
     if (unadjudicatedDisagreementCount !== 0) {
       violations.push(`${unadjudicatedDisagreementCount} disagreements are unadjudicated`);
@@ -289,6 +332,70 @@ async function main(): Promise<void> {
     if (wrongDefiniteUnownedCount !== 0) {
       violations.push(`${wrongDefiniteUnownedCount} wrong-definite rows lack a matcher owner`);
     }
+    const keywordClosureOutcomes = keywordClosure.pairs.map((entry) => {
+      const matcherCase = matcherById.get(entry.id);
+      assert.ok(matcherCase, `missing keyword-closure matcher output for ${entry.id}`);
+      return {
+        property: entry.property,
+        value: entry.value,
+        validationClass: matcherCase.validationClass,
+        validationReason: matcherCase.validationReason,
+      };
+    });
+    const keywordClosureDefiniteRejections = keywordClosureOutcomes.filter(
+      (entry) => entry.validationClass === "invalid",
+    );
+    const keywordClosureMatcherGaps = keywordClosure.pairs
+      .map((entry) => {
+        const matcherCase = matcherById.get(entry.id);
+        assert.ok(matcherCase, `missing keyword-closure matcher output for ${entry.id}`);
+        return matcherCase.verdict === "matched"
+          ? undefined
+          : {
+              property: entry.property,
+              value: entry.value,
+              verdict: matcherCase.verdict,
+            };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== undefined);
+    const incompleteProperties = new Set(keywordClosureMatcherGaps.map((entry) => entry.property));
+    const certifiedProperties = keywordClosure.properties.filter(
+      (property) => !incompleteProperties.has(property),
+    );
+    if (keywordClosureDefiniteRejections.length !== 0) {
+      violations.push(
+        `${keywordClosureDefiniteRejections.length} css-tree accepted single-keyword pairs were definitely rejected: ${JSON.stringify(keywordClosureDefiniteRejections)}`,
+      );
+    }
+    const keywordClosureSummary = {
+      oracle: `css-tree@${cssTree.version}`,
+      propertyCount: keywordClosure.propertyCount,
+      candidatePairCount: keywordClosure.candidatePairCount,
+      acceptedPairCount: keywordClosure.pairs.length,
+      matchedPairCount: keywordClosure.pairs.length - keywordClosureMatcherGaps.length,
+      matcherGapCount: keywordClosureMatcherGaps.length,
+      definiteRejectionCount: keywordClosureDefiniteRejections.length,
+      acceptedPairDigest: createHash("sha256")
+        .update(
+          JSON.stringify(keywordClosure.pairs.map(({ property, value }) => ({ property, value }))),
+        )
+        .digest("hex"),
+    };
+    const keywordClosureCertificate = {
+      schemaVersion: "0",
+      product: "omena-abstract-value.closed-world-keyword-closure-certificate",
+      oracle: { name: "css-tree", version: cssTree.version },
+      source: "cssTree.lexer.properties.directKeywordAcceptance",
+      propertyCount: keywordClosure.propertyCount,
+      candidatePairCount: keywordClosure.candidatePairCount,
+      acceptedPairCount: keywordClosure.pairs.length,
+      matchedPairCount: keywordClosure.pairs.length - keywordClosureMatcherGaps.length,
+      matcherGapCount: keywordClosureMatcherGaps.length,
+      acceptedPairDigest: keywordClosureSummary.acceptedPairDigest,
+      certifiedProperties,
+      matcherGaps: keywordClosureMatcherGaps,
+    };
+    const builtinTokenProfiles = buildBuiltinTokenProfiles();
 
     const ledger = {
       schemaVersion: "0",
@@ -316,20 +423,45 @@ async function main(): Promise<void> {
       counts,
       unadjudicatedDisagreementCount,
       wrongDefiniteUnownedCount,
+      keywordClosure: keywordClosureSummary,
       witness,
       outcomes,
     };
     const serialized = await formatGeneratedJson(ledgerPath, ledger);
+    const serializedKeywordClosureCertificate = await formatGeneratedJson(
+      keywordClosureCertificatePath,
+      keywordClosureCertificate,
+    );
+    const serializedBuiltinTokenProfiles = await formatGeneratedJson(
+      builtinTokenProfilePath,
+      builtinTokenProfiles,
+    );
     if (write) {
       writeFileSync(ledgerPath, serialized);
+      writeFileSync(keywordClosureCertificatePath, serializedKeywordClosureCertificate);
+      writeFileSync(builtinTokenProfilePath, serializedBuiltinTokenProfiles);
     } else if (!injectDivergence && !injectAdjudicationContradiction) {
       assert.equal(readFileSync(ledgerPath, "utf8"), serialized, "differential ledger drifted");
+      assert.equal(
+        readFileSync(keywordClosureCertificatePath, "utf8"),
+        serializedKeywordClosureCertificate,
+        "keyword-closure certificate drifted",
+      );
+      assert.equal(
+        readFileSync(builtinTokenProfilePath, "utf8"),
+        serializedBuiltinTokenProfiles,
+        "closed-world builtin token profiles drifted",
+      );
     }
 
     process.stdout.write(
       `${JSON.stringify(
         {
           ...ledger,
+          builtinTokenProfiles: {
+            profileCount: builtinTokenProfiles.profiles.length,
+            witnessDigest: builtinTokenProfiles.witnessDigest,
+          },
           violations,
           injectedDivergenceId,
           injectedContradictionId,
@@ -341,6 +473,119 @@ async function main(): Promise<void> {
     assert.deepEqual(violations, []);
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+function buildBuiltinTokenProfiles() {
+  const tokenSamples: Record<ClosedWorldTokenKind, string[]> = {
+    ident: ["fixture", "--fixture"],
+    hash: ["#abc"],
+    dimension: ["12px", "12deg", "12s", "2dppx", "1fr"],
+    number: ["12"],
+    percentage: ["12%"],
+    functionName: ["calc(1px + 2px)", "foo("],
+    string: ['"fixture"'],
+    url: ["url(fixture.png)"],
+  };
+  const profileSpecs: BuiltinTokenProfileSpec[] = [
+    "declaration-value",
+    "any-value",
+    "whole-value",
+    "custom-ident",
+    "ident",
+    "ident-token",
+    "dashed-ident",
+    "custom-property-name",
+    "string",
+    "string-token",
+    "url",
+    "url-token",
+    "number",
+    "number-token",
+    "integer",
+    "length",
+    "angle",
+    "time",
+    "resolution",
+    "flex",
+    "dimension-token",
+    "percentage",
+    "percentage-token",
+    "length-percentage",
+    "alpha-value",
+    "hex-color",
+    "hash-token",
+    "function-token",
+    "zero",
+    "comma-token",
+  ].map((name) => ({ name, cssTreeType: name }));
+  profileSpecs.push(
+    { name: "named-color", registryDerived: true },
+    { name: "image", registryDerived: true },
+    { name: "transform-function", registryDerived: true },
+  );
+
+  const profiles = profileSpecs.map((spec) => {
+    if (spec.registryDerived) {
+      return {
+        name: spec.name,
+        authority: "registryDerived" as const,
+        openTokenKinds: [],
+        allowedValues: {},
+        witnesses: [],
+      };
+    }
+    assert.ok(spec.cssTreeType);
+    const witnesses = Object.entries(tokenSamples).flatMap(([tokenKind, samples]) =>
+      samples.map((sample) => ({
+        tokenKind: tokenKind as ClosedWorldTokenKind,
+        sample,
+        accepted: cssTreeTypeAccepts(spec.cssTreeType!, sample),
+      })),
+    );
+    const cssTreeTypeExists = witnesses.every((witness) => witness.accepted !== null);
+    const openTokenKinds = cssTreeTypeExists
+      ? (Object.keys(tokenSamples) as ClosedWorldTokenKind[]).filter((tokenKind) =>
+          witnesses.some((witness) => witness.tokenKind === tokenKind && witness.accepted === true),
+        )
+      : (Object.keys(tokenSamples) as ClosedWorldTokenKind[]);
+    const zeroAccepted = cssTreeTypeExists
+      ? cssTreeTypeAccepts(spec.cssTreeType, "0") === true
+      : true;
+    const allowedValues =
+      zeroAccepted && !openTokenKinds.includes("number") ? { number: ["0"] } : {};
+    return {
+      name: spec.name,
+      authority: cssTreeTypeExists ? ("cssTreeWitness" as const) : ("defaultOpen" as const),
+      cssTreeType: spec.cssTreeType,
+      openTokenKinds,
+      allowedValues,
+      witnesses,
+    };
+  });
+  const witnessDigest = createHash("sha256").update(JSON.stringify(profiles)).digest("hex");
+  return {
+    schemaVersion: "0",
+    product: "omena-abstract-value.closed-world-builtin-token-profiles",
+    oracle: { name: "css-tree", version: cssTree.version },
+    policy:
+      "A builtin token kind is closed only when css-tree rejects every representative; unknown types default every token kind open.",
+    tokenSamples,
+    structuralSamples: [{ tokenKind: "comma", sample: "," }],
+    profileCount: profiles.length,
+    witnessDigest,
+    profiles,
+  };
+}
+
+function cssTreeTypeAccepts(type: string, value: string): boolean | null {
+  try {
+    const result = cssTree.lexer.matchType(type, value);
+    if (result.error?.message.includes(`Unknown type \`${type}\``)) return null;
+    return result.matched !== null;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes(`Unknown type \`${type}\``)) return null;
+    throw error;
   }
 }
 
@@ -438,6 +683,9 @@ function validateOutcomeAdjudication(options: {
     if (!adjudication) violations.push(`${entry.id}: unexplained disagreement`);
     if (!entry.reason?.trim()) violations.push(`${entry.id}: disagreement has no reviewed reason`);
     if (!entry.owner?.trim()) violations.push(`${entry.id}: disagreement has no follow-up owner`);
+    if (!entry.specUrl?.startsWith("https://")) {
+      violations.push(`${entry.id}: disagreement has no specification citation`);
+    }
     if (omenaValid === false && cssTreeValid === true && adjudication !== "omenaMatcherDefect") {
       violations.push(`${entry.id}: wrong-definite disagreement is not a matcher defect`);
     }
@@ -455,6 +703,60 @@ function validateOutcomeAdjudication(options: {
   } else if (entry.notComparableReason) {
     violations.push(`${entry.id}: expected a not-comparable outcome`);
   }
+}
+
+function keywordClosurePairs(): {
+  propertyCount: number;
+  candidatePairCount: number;
+  properties: string[];
+  pairs: KeywordClosurePair[];
+} {
+  const properties = cssTree.lexer.properties as unknown as Record<string, { syntax: unknown }>;
+  const pairs: KeywordClosurePair[] = [];
+  let candidatePairCount = 0;
+  const propertyNames = Object.keys(properties).sort(codePointCompare);
+  for (const property of propertyNames) {
+    const keywords = new Set<string>();
+    collectDirectGrammarKeywords(properties[property]?.syntax, keywords);
+    candidatePairCount += keywords.size;
+    for (const value of [...keywords].sort(codePointCompare)) {
+      if (cssTreeValidity(property, value).valid !== true) continue;
+      const digest = createHash("sha256")
+        .update(`${property}\0${value}`)
+        .digest("hex")
+        .slice(0, 20);
+      pairs.push({
+        id: `keyword-closure-${digest}`,
+        property,
+        value,
+      });
+    }
+  }
+  return {
+    propertyCount: Object.keys(properties).length,
+    candidatePairCount,
+    properties: propertyNames,
+    pairs,
+  };
+}
+
+function collectDirectGrammarKeywords(node: unknown, keywords: Set<string>): void {
+  if (Array.isArray(node)) {
+    for (const entry of node) collectDirectGrammarKeywords(entry, keywords);
+    return;
+  }
+  if (node === null || typeof node !== "object") return;
+  const record = node as Record<string, unknown>;
+  if (record.type === "Keyword" && typeof record.name === "string") {
+    keywords.add(record.name.toLowerCase());
+    return;
+  }
+  if (record.type === "Type" || record.type === "Property") return;
+  for (const value of Object.values(record)) collectDirectGrammarKeywords(value, keywords);
+}
+
+function codePointCompare(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function runCargoExample(example: string, args: string[]) {

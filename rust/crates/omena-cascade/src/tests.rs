@@ -3749,8 +3749,12 @@ fn flat_environment_resolution_omits_dependency_graph_and_trace_work() {
 
 #[test]
 #[ignore = "explicit release-mode performance receipt"]
-fn variable_environment_resolution_and_summary_stay_within_a_two_x_growth_ceiling() {
+fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_budget() {
     use std::{hint::black_box, time::Instant};
+
+    const SMALL_BINDING_COUNT: usize = 2_200;
+    const LARGE_BINDING_COUNT: usize = 4_000;
+    const LINEAR_GROWTH_NOISE_BUDGET: f64 = 1.10;
 
     fn alias_environment(binding_count: usize) -> CustomPropertyEnv {
         (0..binding_count)
@@ -3842,8 +3846,8 @@ fn variable_environment_resolution_and_summary_stay_within_a_two_x_growth_ceilin
             three_edge_environment as fn(usize) -> CustomPropertyEnv,
         ),
     ] {
-        let small = build(2_200);
-        let large = build(4_000);
+        let small = build(SMALL_BINDING_COUNT);
+        let large = build(LARGE_BINDING_COUNT);
         let request = paired_medians(
             || {
                 black_box(resolve_custom_property_env_least_fixed_point(&small));
@@ -3863,12 +3867,14 @@ fn variable_environment_resolution_and_summary_stay_within_a_two_x_growth_ceilin
         for (path, (small_ns, large_ns, growth_ratio)) in
             [("request", request), ("summary", summary)]
         {
+            let input_growth_ratio = LARGE_BINDING_COUNT as f64 / SMALL_BINDING_COUNT as f64;
+            let normalized_linear_growth_ratio = growth_ratio / input_growth_ratio;
             println!(
-                "shape={shape} path={path} smallBindings=2200 smallMedianNs={small_ns} largeBindings=4000 largeMedianNs={large_ns} pairedGrowthRatio={growth_ratio:.3}"
+                "shape={shape} path={path} smallBindings={SMALL_BINDING_COUNT} smallMedianNs={small_ns} largeBindings={LARGE_BINDING_COUNT} largeMedianNs={large_ns} inputGrowthRatio={input_growth_ratio:.3} pairedGrowthRatio={growth_ratio:.3} normalizedLinearGrowthRatio={normalized_linear_growth_ratio:.3} noiseBudget={LINEAR_GROWTH_NOISE_BUDGET:.2}"
             );
             assert!(
-                growth_ratio <= 2.0,
-                "{shape} {path} paired growth ratio {growth_ratio:.3} exceeded the 2x ceiling"
+                normalized_linear_growth_ratio <= LINEAR_GROWTH_NOISE_BUDGET,
+                "{shape} {path} normalized linear-growth ratio {normalized_linear_growth_ratio:.3} exceeded the {LINEAR_GROWTH_NOISE_BUDGET:.2} noise budget"
             );
         }
     }
