@@ -18,7 +18,7 @@ layers so uncertainty can remain visible.
   editor and CLI results.
 - [Evidence and transform safety](./evidence-and-transform-safety.md) explains
   why transforms can apply, preserve, or reject without inventing certainty.
-- [Custom-property bounded substitution](./custom-property-bounded-substitution.md)
+- [Custom-property dependency resolution](./custom-property-bounded-substitution.md)
   states the shipped substitution loop, its independent all-bottom witness, and
   the explicit research gaps.
 - [Positioning](../positioning.md) compares the product boundary with adjacent

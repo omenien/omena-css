@@ -383,7 +383,7 @@ fn read_cascade_at_position_reports_iacvt_seed() {
         Some("canvastext")
     );
     assert!(cascade.referenced_declaration_invalid_at_computed_value_time);
-    assert!(cascade.custom_property_fixed_point_iteration_count >= 2);
+    assert_eq!(cascade.custom_property_fixed_point_iteration_count, 1);
     assert_eq!(
         cascade.custom_property_fixed_point_guaranteed_invalid_count,
         2

@@ -780,7 +780,7 @@ pub struct CustomPropertyLeastFixedPointSummaryV0 {
     pub ready_surfaces: Vec<&'static str>,
 }
 
-/// Historical compatibility shape for the bounded custom-property computation witness.
+/// Historical compatibility shape for the custom-property structural computation witness.
 ///
 /// New code should prefer [`CustomPropertyBoundedFixedPointComputationWitnessV0`].
 /// The proof-oriented name and fields remain available for 0.x consumers.
@@ -801,7 +801,7 @@ pub struct CustomPropertyLeastFixedPointProofV0 {
     pub proof_obligations: Vec<&'static str>,
 }
 
-/// Preferred machine-readable name for the bounded custom-property computation witness.
+/// Compatibility alias retained for the structural custom-property computation witness.
 pub type CustomPropertyBoundedFixedPointComputationWitnessV0 = CustomPropertyLeastFixedPointProofV0;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

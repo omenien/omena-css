@@ -3301,10 +3301,11 @@ pub fn memo_source_element_computed_value(
     property: String,
 ) -> OmenaQueryElementComputedValueV0 {
     use omena_cascade::{
-        CascadeComputedValueInputV0, CascadeValue, CustomPropertyEnv,
-        compute_cascade_computed_value,
+        CascadeComputedValueInputV0, CascadeStandardValueVerdictV0, CascadeValue,
+        CustomPropertyEnv, compute_cascade_computed_value_with_standard_value_validator_v0,
     };
     use omena_query_checker_orchestrator::standard_property_value_verdict_v0;
+    use omena_query_core::SpecStandardPropertyValueValidatorV0;
 
     #[cfg(test)]
     source_element_computed_value_probe::record();
@@ -3329,8 +3330,17 @@ pub fn memo_source_element_computed_value(
     identities.push(target.clone());
     let mut parent_computed_value = None::<CascadeValue>;
     let mut target_result = None;
+    let mut custom_property_env = CustomPropertyEnv::new();
 
     for identity in identities {
+        match source_element_static_custom_property_env(db, workspace, &identity) {
+            Ok(local_custom_property_env) => custom_property_env.extend(local_custom_property_env),
+            Err(status) => {
+                return element_computed_value_report(target, property, parent_chain, status, None);
+            }
+        }
+        custom_property_env =
+            omena_cascade::resolve_custom_property_env_least_fixed_point(&custom_property_env);
         let projection = memo_source_element_static_declarations(
             db,
             workspace,
@@ -3349,27 +3359,28 @@ pub fn memo_source_element_computed_value(
         let standard_property_value_verdicts = projection
             .declarations
             .iter()
-            .filter_map(|declaration| match &declaration.value {
-                CascadeValue::Literal(value) if declaration.property_key.as_custom().is_none() => {
-                    Some((
-                        declaration.id.clone(),
-                        standard_property_value_verdict_v0(
-                            declaration.property_key.as_str(),
-                            value,
-                        ),
-                    ))
-                }
-                _ => None,
+            .filter(|declaration| declaration.property_key.as_custom().is_none())
+            .map(|declaration| {
+                let verdict = match &declaration.value {
+                    CascadeValue::Literal(value) => {
+                        standard_property_value_verdict_v0(declaration.property_key.as_str(), value)
+                    }
+                    _ => CascadeStandardValueVerdictV0::Unknown,
+                };
+                (declaration.id.clone(), verdict)
             })
             .collect();
-        let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-            property: property.clone(),
-            declarations: projection.declarations,
-            custom_property_env: CustomPropertyEnv::new(),
-            parent_computed_value,
-            registered_custom_property: None,
-            standard_property_value_verdicts,
-        });
+        let result = compute_cascade_computed_value_with_standard_value_validator_v0(
+            CascadeComputedValueInputV0 {
+                property: property.clone(),
+                declarations: projection.declarations,
+                custom_property_env: custom_property_env.clone(),
+                parent_computed_value,
+                registered_custom_property: None,
+                standard_property_value_verdicts,
+            },
+            &SpecStandardPropertyValueValidatorV0,
+        );
         parent_computed_value = Some(result.value.clone());
         target_result = Some(result);
     }
@@ -3381,6 +3392,64 @@ pub fn memo_source_element_computed_value(
         OmenaQueryElementComputedValueStatusV0::Resolved,
         target_result,
     )
+}
+
+fn source_element_static_custom_property_env(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    identity: &omena_cascade::ElementIdentityV0,
+) -> Result<omena_cascade::CustomPropertyEnv, OmenaQueryElementComputedValueStatusV0> {
+    use omena_cascade::{CascadeValue, CustomPropertyEnv};
+    use omena_query_transform_runner::parse_static_css_cascade_value;
+
+    let files_by_path = memo_source_file_by_path(db, workspace);
+    let Some(file) = files_by_path.get(identity.source_path.as_str()).copied() else {
+        return Err(OmenaQueryElementComputedValueStatusV0::MissingElement);
+    };
+    let owned_index;
+    let index = if let Some(index) = file.source_syntax_index(db).as_ref() {
+        index
+    } else {
+        owned_index = summarize_omena_query_source_syntax_index_for_source_language(
+            file.source_path(db),
+            file.source_source(db),
+            None,
+            Vec::new(),
+        );
+        &owned_index
+    };
+    if !index.source_elements.iter().any(|element| {
+        element.identity.source_path == identity.source_path
+            && element.identity.byte_span.start == identity.byte_start
+            && element.identity.byte_span.end == identity.byte_end
+    }) {
+        return Err(OmenaQueryElementComputedValueStatusV0::MissingElement);
+    }
+
+    let mut env = CustomPropertyEnv::new();
+    for declaration in index
+        .inline_style_declarations
+        .iter()
+        .filter(|declaration| {
+            declaration.property_name.starts_with("--")
+                && declaration.byte_span.start >= identity.byte_start
+                && declaration.byte_span.end <= identity.byte_end
+        })
+    {
+        let value = declaration
+            .static_value
+            .then_some(declaration.value.as_deref())
+            .flatten()
+            .and_then(source_inline_css_value)
+            .filter(|_| !declaration.important_suffix_present())
+            .and_then(|value| parse_static_css_cascade_value(value.as_str()))
+            .unwrap_or(CascadeValue::Indeterminate);
+        env.insert(
+            PropertyNameV0::canonical_custom_key(&declaration.property_name),
+            value,
+        );
+    }
+    Ok(env)
 }
 
 #[salsa::tracked(returns(clone))]
@@ -6834,6 +6903,196 @@ $_private-token: changed;
                 true,
             ))
         );
+    }
+
+    #[test]
+    fn source_element_computed_value_revalidates_a_substituted_standard_value() {
+        use omena_cascade::{ComputedCascadeValueStatusV0, ElementIdentityV0};
+
+        for (custom_value, expected_status) in [
+            ("red", ComputedCascadeValueStatusV0::Resolved),
+            (
+                "12px",
+                ComputedCascadeValueStatusV0::InvalidAtComputedValueTime,
+            ),
+        ] {
+            let source_path = format!("/workspace/{custom_value}.tsx");
+            let source = format!(
+                r#"export const App = () => <main style={{{{ "--tone": "{custom_value}", color: "var(--tone)" }}}} />;"#
+            );
+            let index = summarize_omena_query_source_syntax_index_for_source_language(
+                source_path.as_str(),
+                source.as_str(),
+                None,
+                Vec::new(),
+                Vec::new(),
+            );
+            let element = index.source_elements[0].identity.clone();
+            let documents = [OmenaQuerySourceDocumentInputV0 {
+                source_path: source_path.clone(),
+                source_source: source,
+                source_syntax_index: Some(index),
+                has_unresolved_style_import: false,
+            }];
+            let target = ElementIdentityV0 {
+                source_path: element.source_path,
+                byte_start: element.byte_span.start,
+                byte_end: element.byte_span.end,
+            };
+            let mut host = OmenaQueryStyleMemoHostV0::new();
+
+            let color = host.source_element_computed_value(documents.as_slice(), target, "color");
+            assert!(
+                color.computed_value.is_some(),
+                "the static declaration must reach computed-value resolution"
+            );
+            let Some(computed) = color.computed_value else {
+                continue;
+            };
+
+            assert_eq!(computed.status, expected_status, "{custom_value}");
+            assert!(
+                computed
+                    .derivation_steps
+                    .contains(&"standardPropertySyntaxDeferredByVarReference")
+            );
+            if custom_value == "12px" {
+                assert!(computed.invalid_at_computed_value_time);
+                assert!(
+                    computed
+                        .derivation_steps
+                        .contains(&"postSubstitutionStandardPropertySyntaxUnmatched")
+                );
+            } else {
+                assert!(
+                    computed
+                        .derivation_steps
+                        .contains(&"postSubstitutionStandardPropertySyntaxMatched")
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn inherited_custom_property_values_do_not_rebind_to_child_overrides() {
+        use omena_cascade::{CascadeValue, ComputedCascadeValueStatusV0, ElementIdentityV0};
+
+        let child_path = "/workspace/Child.tsx";
+        let parent_path = "/workspace/Parent.tsx";
+        let child_source = r#"export const Child = () => <span style={{ "--base": "blue", color: "var(--tone)" }} />;"#;
+        let parent_source = r#"export const Parent = () => <main style={{ "--tone": "var(--base)", "--base": "red" }} />;"#;
+        let mut child_index = summarize_omena_query_source_syntax_index_for_source_language(
+            child_path,
+            child_source,
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        let parent_index = summarize_omena_query_source_syntax_index_for_source_language(
+            parent_path,
+            parent_source,
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        let child = child_index.source_elements[0].identity.clone();
+        let parent = parent_index.source_elements[0].identity.clone();
+        child_index
+            .element_parent_edges
+            .push(OmenaQuerySourceElementParentFactV0 {
+                child: child.clone(),
+                parent,
+            });
+        let documents = [
+            OmenaQuerySourceDocumentInputV0 {
+                source_path: child_path.to_string(),
+                source_source: child_source.to_string(),
+                source_syntax_index: Some(child_index),
+                has_unresolved_style_import: false,
+            },
+            OmenaQuerySourceDocumentInputV0 {
+                source_path: parent_path.to_string(),
+                source_source: parent_source.to_string(),
+                source_syntax_index: Some(parent_index),
+                has_unresolved_style_import: false,
+            },
+        ];
+        let target = ElementIdentityV0 {
+            source_path: child.source_path,
+            byte_start: child.byte_span.start,
+            byte_end: child.byte_span.end,
+        };
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+
+        let color = host.source_element_computed_value(documents.as_slice(), target, "color");
+
+        assert_eq!(
+            color.computed_value.as_ref().map(|value| (
+                &value.status,
+                &value.value,
+                value.invalid_at_computed_value_time,
+            )),
+            Some((
+                &ComputedCascadeValueStatusV0::Resolved,
+                &CascadeValue::Literal("red".to_string()),
+                false,
+            )),
+            "the parent's computed --tone value must not rebind to the child's --base declaration",
+        );
+    }
+
+    #[test]
+    fn unrelated_dynamic_custom_properties_do_not_block_static_standard_values() {
+        use omena_cascade::{CascadeValue, ComputedCascadeValueStatusV0, ElementIdentityV0};
+
+        for (color_value, expected_status, expected_value) in [
+            (
+                "red",
+                ComputedCascadeValueStatusV0::Resolved,
+                CascadeValue::Literal("red".to_string()),
+            ),
+            (
+                "var(--dynamic-tone)",
+                ComputedCascadeValueStatusV0::Indeterminate,
+                CascadeValue::Indeterminate,
+            ),
+        ] {
+            let source_path = format!("/workspace/{expected_status:?}.tsx");
+            let source = format!(
+                r#"export const App = () => <main style={{{{ "--dynamic-tone": theme.color, color: "{color_value}" }}}} />;"#
+            );
+            let index = summarize_omena_query_source_syntax_index_for_source_language(
+                source_path.as_str(),
+                source.as_str(),
+                None,
+                Vec::new(),
+                Vec::new(),
+            );
+            let element = index.source_elements[0].identity.clone();
+            let documents = [OmenaQuerySourceDocumentInputV0 {
+                source_path: source_path.clone(),
+                source_source: source,
+                source_syntax_index: Some(index),
+                has_unresolved_style_import: false,
+            }];
+            let target = ElementIdentityV0 {
+                source_path: element.source_path,
+                byte_start: element.byte_span.start,
+                byte_end: element.byte_span.end,
+            };
+            let mut host = OmenaQueryStyleMemoHostV0::new();
+
+            let color = host.source_element_computed_value(documents.as_slice(), target, "color");
+
+            assert_eq!(
+                color
+                    .computed_value
+                    .as_ref()
+                    .map(|value| (&value.status, &value.value)),
+                Some((&expected_status, &expected_value)),
+                "{color_value}",
+            );
+        }
     }
 
     #[test]

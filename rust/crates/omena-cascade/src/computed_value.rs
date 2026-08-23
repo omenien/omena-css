@@ -14,8 +14,32 @@ use crate::{
     substitute_custom_properties,
 };
 
+/// Grammar-authority port used after `var()` substitution has made a standard
+/// property value concrete.
+pub trait CascadeStandardValueValidatorV0 {
+    fn validate_standard_property_value(
+        &self,
+        property: &str,
+        value: &str,
+    ) -> CascadeStandardValueVerdictV0;
+}
+
 pub fn compute_cascade_computed_value(
     input: CascadeComputedValueInputV0,
+) -> CascadeComputedValueResultV0 {
+    compute_cascade_computed_value_inner(input, None)
+}
+
+pub fn compute_cascade_computed_value_with_standard_value_validator_v0(
+    input: CascadeComputedValueInputV0,
+    validator: &dyn CascadeStandardValueValidatorV0,
+) -> CascadeComputedValueResultV0 {
+    compute_cascade_computed_value_inner(input, Some(validator))
+}
+
+fn compute_cascade_computed_value_inner(
+    input: CascadeComputedValueInputV0,
+    standard_value_validator: Option<&dyn CascadeStandardValueValidatorV0>,
 ) -> CascadeComputedValueResultV0 {
     let CascadeComputedValueInputV0 {
         property,
@@ -120,6 +144,8 @@ pub fn compute_cascade_computed_value(
         Some(CascadeRegisteredValueVerdictV0::Matched) | None => {}
     }
 
+    let mut standard_syntax_deferred_by_var_reference = false;
+    let mut standard_syntax_verdict_unavailable = false;
     match standard_value_verdict {
         Some(CascadeStandardValueVerdictV0::Unmatched) => {
             derivation_steps.push("standardPropertySyntaxUnmatched");
@@ -137,6 +163,7 @@ pub fn compute_cascade_computed_value(
             if cascade_value_contains_var_reference(&cascaded_value) =>
         {
             derivation_steps.push("standardPropertySyntaxDeferredByVarReference");
+            standard_syntax_deferred_by_var_reference = true;
         }
         Some(CascadeStandardValueVerdictV0::Unknown) => {
             derivation_steps.push("standardPropertySyntaxIndeterminate");
@@ -152,6 +179,7 @@ pub fn compute_cascade_computed_value(
         }
         None if property_identity.kind() == PropertyNameKindV0::Standard => {
             derivation_steps.push("standardPropertySyntaxVerdictUnavailable");
+            standard_syntax_verdict_unavailable = true;
         }
         None => {}
     }
@@ -167,6 +195,61 @@ pub fn compute_cascade_computed_value(
             true,
             derivation_steps,
             registered_custom_property.as_ref(),
+        );
+    }
+
+    if standard_syntax_deferred_by_var_reference
+        && !matches!(
+            substituted_value,
+            CascadeValue::Initial | CascadeValue::Inherit | CascadeValue::Unset
+        )
+    {
+        let post_substitution_verdict = standard_value_validator
+            .and_then(|validator| {
+                render_substituted_standard_value(&substituted_value).map(|value| {
+                    validator.validate_standard_property_value(&property, value.as_str())
+                })
+            })
+            .unwrap_or(CascadeStandardValueVerdictV0::Unknown);
+        match post_substitution_verdict {
+            CascadeStandardValueVerdictV0::Matched => {
+                derivation_steps.push("postSubstitutionStandardPropertySyntaxMatched");
+            }
+            CascadeStandardValueVerdictV0::Unmatched => {
+                derivation_steps.push("postSubstitutionStandardPropertySyntaxUnmatched");
+                derivation_steps.push("invalidAtComputedValueTimeFallsBackAsUnset");
+                return computed_value_from_unset(
+                    property,
+                    winner_declaration_id,
+                    parent_computed_value,
+                    true,
+                    derivation_steps,
+                    registered_custom_property.as_ref(),
+                );
+            }
+            CascadeStandardValueVerdictV0::Unknown => {
+                derivation_steps.push("postSubstitutionStandardPropertySyntaxIndeterminate");
+                return computed_value_from_unknown_metadata(
+                    property,
+                    winner_declaration_id,
+                    ComputedCascadeIndeterminateReasonV0::StandardPropertySyntaxIndeterminate,
+                    derivation_steps,
+                );
+            }
+        }
+    }
+
+    if standard_syntax_verdict_unavailable
+        && !matches!(
+            substituted_value,
+            CascadeValue::Initial | CascadeValue::Inherit | CascadeValue::Unset
+        )
+    {
+        return computed_value_from_unknown_metadata(
+            property,
+            winner_declaration_id,
+            ComputedCascadeIndeterminateReasonV0::StandardPropertySyntaxIndeterminate,
+            derivation_steps,
         );
     }
 
@@ -218,6 +301,22 @@ pub fn compute_cascade_computed_value(
                 derivation_steps,
             }
         }
+    }
+}
+
+fn render_substituted_standard_value(value: &CascadeValue) -> Option<String> {
+    match value {
+        CascadeValue::Literal(value) => Some(value.clone()),
+        CascadeValue::Composite(parts) => parts.iter().try_fold(String::new(), |mut text, part| {
+            text.push_str(render_substituted_standard_value(part)?.as_str());
+            Some(text)
+        }),
+        CascadeValue::Initial => Some("initial".to_string()),
+        CascadeValue::Inherit => Some("inherit".to_string()),
+        CascadeValue::Unset => Some("unset".to_string()),
+        CascadeValue::Var { .. }
+        | CascadeValue::Indeterminate
+        | CascadeValue::GuaranteedInvalid => None,
     }
 }
 

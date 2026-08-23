@@ -63,7 +63,7 @@
       "expectedEvaluator": {
         "--tone": { "literal": "blue" }
       },
-      "expectedImplementationIterations": 2,
+      "expectedImplementationIterations": 1,
       "expectedEvaluatorIterations": 2,
       "expectedImplementationReachedFixedPoint": true,
       "expectedDisposition": "agreement"
@@ -83,7 +83,7 @@
         "--a": "guaranteedInvalid",
         "--b": "guaranteedInvalid"
       },
-      "expectedImplementationIterations": 2,
+      "expectedImplementationIterations": 1,
       "expectedEvaluatorIterations": 1,
       "expectedImplementationReachedFixedPoint": true,
       "expectedDisposition": "agreement"
@@ -106,17 +106,17 @@
         }
       },
       "expectedImplementation": {
-        "--a": { "literal": "blue" },
-        "--b": { "literal": "red" }
+        "--a": "guaranteedInvalid",
+        "--b": "guaranteedInvalid"
       },
       "expectedEvaluator": {
         "--a": "guaranteedInvalid",
         "--b": "guaranteedInvalid"
       },
-      "expectedImplementationIterations": 3,
+      "expectedImplementationIterations": 1,
       "expectedEvaluatorIterations": 1,
-      "expectedImplementationReachedFixedPoint": false,
-      "expectedDisposition": "finding"
+      "expectedImplementationReachedFixedPoint": true,
+      "expectedDisposition": "agreement"
     },
     {
       "id": "cycle-through-fallback",
@@ -136,17 +136,58 @@
         }
       },
       "expectedImplementation": {
-        "--a": { "literal": "green" },
-        "--b": { "literal": "green" }
+        "--a": "guaranteedInvalid",
+        "--b": "guaranteedInvalid"
       },
       "expectedEvaluator": {
         "--a": "guaranteedInvalid",
         "--b": "guaranteedInvalid"
       },
+      "expectedImplementationIterations": 1,
+      "expectedEvaluatorIterations": 1,
+      "expectedImplementationReachedFixedPoint": true,
+      "expectedDisposition": "agreement"
+    },
+    {
+      "id": "three-node-fallback-cycle-entered-mid-chain",
+      "cycleShape": "threeNodeFallbackCycleEnteredMidChain",
+      "bindings": {
+        "--entry": { "var": { "name": "--cycle-b", "fallback": null } },
+        "--cycle-a": {
+          "var": {
+            "name": "--cycle-b",
+            "fallback": { "literal": "red" }
+          }
+        },
+        "--cycle-b": {
+          "var": {
+            "name": "--cycle-c",
+            "fallback": { "literal": "green" }
+          }
+        },
+        "--cycle-c": {
+          "var": {
+            "name": "--cycle-a",
+            "fallback": { "literal": "blue" }
+          }
+        }
+      },
+      "expectedImplementation": {
+        "--cycle-a": "guaranteedInvalid",
+        "--cycle-b": "guaranteedInvalid",
+        "--cycle-c": "guaranteedInvalid",
+        "--entry": "guaranteedInvalid"
+      },
+      "expectedEvaluator": {
+        "--cycle-a": "guaranteedInvalid",
+        "--cycle-b": "guaranteedInvalid",
+        "--cycle-c": "guaranteedInvalid",
+        "--entry": "guaranteedInvalid"
+      },
       "expectedImplementationIterations": 2,
       "expectedEvaluatorIterations": 1,
       "expectedImplementationReachedFixedPoint": true,
-      "expectedDisposition": "finding"
+      "expectedDisposition": "agreement"
     }
   ]
 }

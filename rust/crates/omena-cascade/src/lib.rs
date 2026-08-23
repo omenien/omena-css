@@ -115,8 +115,8 @@ pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
     CascadeBoundarySummary {
         product: "omena-cascade.boundary",
         ordering_model: "lexicographicCascadeKey",
-        substitution_model: "finiteCustomPropertyLeastFixedPoint",
-        least_fixed_point_proof_model: "finite-env monotone custom-property substitution with cycle-to-guaranteed-invalid bottoming and env-size iteration bound",
+        substitution_model: "dependencyGraphSccCustomPropertyResolution",
+        least_fixed_point_proof_model: "canonical custom-property dependency graph with cyclic-SCC invalidation and dependency-ordered acyclic substitution",
         ready_surfaces: vec![
             "cascadeKeyOrdering",
             "specificityOrdering",

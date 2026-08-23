@@ -1,11 +1,12 @@
-//! Custom-property substitution and bounded fixed-point computation summaries.
+//! Custom-property substitution and dependency-graph computation summaries.
 //!
-//! This module keeps custom-property resolution finite by exposing explicit
-//! iteration traces, monotonic progress witnesses, and cycle-to-guaranteed-invalid
-//! behavior. Historical proof-oriented API names remain as compatibility aliases.
+//! Resolution decomposes the canonical custom-property dependency graph into
+//! strongly connected components, invalidates every cyclic member, and then
+//! evaluates the acyclic remainder in dependency order. Historical
+//! proof-oriented API names remain as compatibility aliases.
 
 use omena_syntax::ident::CanonicalCustomPropertyNameV0;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     CascadeValue, CustomPropertyBoundedFixedPointComputationWitnessV0, CustomPropertyEnv,
@@ -14,8 +15,8 @@ use crate::{
 };
 
 pub fn substitute_custom_properties(value: &CascadeValue, env: &CustomPropertyEnv) -> CascadeValue {
-    let mut visiting = BTreeSet::new();
-    substitute_custom_properties_inner(value, env, &mut visiting)
+    let resolved_env = resolve_custom_property_env_least_fixed_point(env);
+    substitute_custom_properties_against_resolved_env(value, &resolved_env)
 }
 
 pub fn resolve_custom_property_env_least_fixed_point(env: &CustomPropertyEnv) -> CustomPropertyEnv {
@@ -89,37 +90,238 @@ struct CustomPropertyLeastFixedPointComputation {
 fn compute_custom_property_env_least_fixed_point(
     env: &CustomPropertyEnv,
 ) -> CustomPropertyLeastFixedPointComputation {
-    let mut current = env.clone();
-    let max_iterations = env.len().saturating_add(1).max(1);
+    let dependency_graph = custom_property_dependency_graph(env);
+    let components = strongly_connected_components(&dependency_graph);
+    let component_schedule = dependency_ordered_components(&dependency_graph, &components);
+    let mut resolved_env = CustomPropertyEnv::new();
     let mut iteration_trace = Vec::new();
 
-    for iteration in 1..=max_iterations {
-        let next = env
-            .iter()
-            .map(|(name, value)| (name.clone(), substitute_custom_properties(value, &current)))
-            .collect::<CustomPropertyEnv>();
-        iteration_trace.push(custom_property_least_fixed_point_iteration_witness(
-            iteration, env, &next,
-        ));
-        if next == current {
-            return CustomPropertyLeastFixedPointComputation {
-                resolved_env: next,
-                iteration_count: iteration,
-                iteration_bound: max_iterations,
-                reached_fixed_point: true,
-                iteration_trace,
-            };
+    for component_index in component_schedule {
+        let component = &components[component_index];
+        if component_is_cyclic(component, &dependency_graph) {
+            for name in component {
+                resolved_env.insert(name.clone(), CascadeValue::GuaranteedInvalid);
+            }
+        } else {
+            for name in component {
+                let Some(value) = env.get(name) else {
+                    continue;
+                };
+                let resolved =
+                    substitute_custom_properties_against_resolved_env(value, &resolved_env);
+                resolved_env.insert(name.clone(), resolved);
+            }
         }
-        current = next;
+
+        let iteration = iteration_trace.len() + 1;
+        iteration_trace.push(custom_property_least_fixed_point_iteration_witness(
+            iteration,
+            env,
+            &resolved_env,
+        ));
     }
 
+    if iteration_trace.is_empty() {
+        iteration_trace.push(custom_property_least_fixed_point_iteration_witness(
+            1,
+            env,
+            &resolved_env,
+        ));
+    }
+
+    assert_eq!(
+        resolved_env.len(),
+        env.len(),
+        "the SCC schedule must evaluate every custom-property binding exactly once"
+    );
+    assert!(
+        resolved_env
+            .values()
+            .all(|value| !cascade_value_contains_var_reference(value)),
+        "the acyclic component schedule must eliminate every var() reference"
+    );
+
     CustomPropertyLeastFixedPointComputation {
-        resolved_env: current,
-        iteration_count: max_iterations,
-        iteration_bound: max_iterations,
-        reached_fixed_point: false,
+        resolved_env,
+        iteration_count: iteration_trace.len(),
+        iteration_bound: components.len().max(1),
+        reached_fixed_point: true,
         iteration_trace,
     }
+}
+
+type CustomPropertyDependencyGraph =
+    BTreeMap<CanonicalCustomPropertyNameV0, BTreeSet<CanonicalCustomPropertyNameV0>>;
+
+fn custom_property_dependency_graph(env: &CustomPropertyEnv) -> CustomPropertyDependencyGraph {
+    env.iter()
+        .map(|(name, value)| {
+            let mut references = BTreeSet::new();
+            collect_custom_property_references(value, &mut references);
+            references.retain(|reference| env.contains_key(reference));
+            (name.clone(), references)
+        })
+        .collect()
+}
+
+fn collect_custom_property_references(
+    value: &CascadeValue,
+    references: &mut BTreeSet<CanonicalCustomPropertyNameV0>,
+) {
+    match value {
+        CascadeValue::Var { name, fallback } => {
+            references.insert(name.clone());
+            if let Some(fallback) = fallback {
+                collect_custom_property_references(fallback, references);
+            }
+        }
+        CascadeValue::Composite(parts) => {
+            for part in parts {
+                collect_custom_property_references(part, references);
+            }
+        }
+        CascadeValue::Literal(_)
+        | CascadeValue::Initial
+        | CascadeValue::Inherit
+        | CascadeValue::Indeterminate
+        | CascadeValue::GuaranteedInvalid
+        | CascadeValue::Unset => {}
+    }
+}
+
+fn strongly_connected_components(
+    graph: &CustomPropertyDependencyGraph,
+) -> Vec<Vec<CanonicalCustomPropertyNameV0>> {
+    fn finish_visit(
+        node: &CanonicalCustomPropertyNameV0,
+        graph: &CustomPropertyDependencyGraph,
+        visited: &mut BTreeSet<CanonicalCustomPropertyNameV0>,
+        finish_order: &mut Vec<CanonicalCustomPropertyNameV0>,
+    ) {
+        if !visited.insert(node.clone()) {
+            return;
+        }
+        if let Some(neighbors) = graph.get(node) {
+            for neighbor in neighbors {
+                finish_visit(neighbor, graph, visited, finish_order);
+            }
+        }
+        finish_order.push(node.clone());
+    }
+
+    fn collect_reverse_component(
+        node: &CanonicalCustomPropertyNameV0,
+        reverse_graph: &CustomPropertyDependencyGraph,
+        visited: &mut BTreeSet<CanonicalCustomPropertyNameV0>,
+        component: &mut Vec<CanonicalCustomPropertyNameV0>,
+    ) {
+        if !visited.insert(node.clone()) {
+            return;
+        }
+        component.push(node.clone());
+        if let Some(neighbors) = reverse_graph.get(node) {
+            for neighbor in neighbors {
+                collect_reverse_component(neighbor, reverse_graph, visited, component);
+            }
+        }
+    }
+
+    let mut finish_order = Vec::with_capacity(graph.len());
+    let mut visited = BTreeSet::new();
+    for node in graph.keys() {
+        finish_visit(node, graph, &mut visited, &mut finish_order);
+    }
+
+    let mut reverse_graph = graph
+        .keys()
+        .cloned()
+        .map(|name| (name, BTreeSet::new()))
+        .collect::<CustomPropertyDependencyGraph>();
+    for (source, targets) in graph {
+        for target in targets {
+            reverse_graph
+                .entry(target.clone())
+                .or_default()
+                .insert(source.clone());
+        }
+    }
+
+    let mut components = Vec::new();
+    visited.clear();
+    while let Some(node) = finish_order.pop() {
+        if visited.contains(&node) {
+            continue;
+        }
+        let mut component = Vec::new();
+        collect_reverse_component(&node, &reverse_graph, &mut visited, &mut component);
+        component.sort();
+        components.push(component);
+    }
+    components
+}
+
+fn dependency_ordered_components(
+    graph: &CustomPropertyDependencyGraph,
+    components: &[Vec<CanonicalCustomPropertyNameV0>],
+) -> Vec<usize> {
+    fn visit_component(
+        component_index: usize,
+        component_dependencies: &[BTreeSet<usize>],
+        visited: &mut BTreeSet<usize>,
+        schedule: &mut Vec<usize>,
+    ) {
+        if !visited.insert(component_index) {
+            return;
+        }
+        for dependency in &component_dependencies[component_index] {
+            visit_component(*dependency, component_dependencies, visited, schedule);
+        }
+        schedule.push(component_index);
+    }
+
+    let component_by_name = components
+        .iter()
+        .enumerate()
+        .flat_map(|(index, component)| component.iter().cloned().map(move |name| (name, index)))
+        .collect::<BTreeMap<_, _>>();
+    let mut component_dependencies = vec![BTreeSet::new(); components.len()];
+    for (source, targets) in graph {
+        let Some(source_component) = component_by_name.get(source).copied() else {
+            continue;
+        };
+        for target in targets {
+            let Some(target_component) = component_by_name.get(target).copied() else {
+                continue;
+            };
+            if source_component != target_component {
+                component_dependencies[source_component].insert(target_component);
+            }
+        }
+    }
+
+    let mut schedule = Vec::with_capacity(components.len());
+    let mut visited = BTreeSet::new();
+    for component_index in 0..components.len() {
+        visit_component(
+            component_index,
+            &component_dependencies,
+            &mut visited,
+            &mut schedule,
+        );
+    }
+    schedule
+}
+
+fn component_is_cyclic(
+    component: &[CanonicalCustomPropertyNameV0],
+    graph: &CustomPropertyDependencyGraph,
+) -> bool {
+    component.len() > 1
+        || component.first().is_some_and(|name| {
+            graph
+                .get(name)
+                .is_some_and(|neighbors| neighbors.contains(name))
+        })
 }
 
 fn custom_property_least_fixed_point_iteration_witness(
@@ -173,25 +375,24 @@ fn cascade_value_contains_var_reference(value: &CascadeValue) -> bool {
     }
 }
 
-/// Describes the finite computation and monotonic progress observations used by
-/// custom-property substitution.
+/// Describes the finite graph computation used by custom-property substitution.
 pub fn custom_property_bounded_fixed_point_computation_witness()
 -> CustomPropertyBoundedFixedPointComputationWitnessV0 {
     CustomPropertyLeastFixedPointProofV0 {
-        finite_domain: "custom-property environment keys are fixed during iteration",
-        transfer_function: "each step substitutes every original binding against the previous environment approximation",
-        bounded_fixed_point_computation_witness: "iteration stops on environment equality or the explicit env-size bound",
-        monotone_witness: "iteration trace records a nondecreasing settled-value count across the fixed-key environment",
-        monotonic_progress_witness: "settled-value count never decreases between recorded iterations",
-        iteration_bound_formula: "max(1, env.len() + 1)",
-        cycle_policy: "recursive var() cycles are detected by the visiting set and collapsed to guaranteed-invalid or fallback",
+        finite_domain: "canonical custom-property environment keys form a fixed finite dependency graph",
+        transfer_function: "strongly connected components are scheduled dependency-first; cyclic components become guaranteed-invalid and acyclic components substitute against memoized dependencies",
+        bounded_fixed_point_computation_witness: "every strongly connected component is processed exactly once; no non-converged approximation is returned",
+        monotone_witness: "the compatibility trace records a nondecreasing count of bindings settled by the component schedule",
+        monotonic_progress_witness: "each scheduled component only adds finalized bindings to the resolved environment",
+        iteration_bound_formula: "max(1, strongly_connected_component_count)",
+        cycle_policy: "fallback references are dependency edges and every member of a cyclic strongly connected component becomes guaranteed-invalid before outer fallbacks are evaluated",
         proof_obligations: vec![
-            "fixed-key environment",
-            "deterministic simultaneous transfer",
-            "nondecreasing settled-value trace",
-            "cycle-to-guaranteed-invalid bottoming",
-            "finite iteration bound",
-            "explicit fixed-point equality check",
+            "canonical-key dependency graph",
+            "fallback-inclusive dependency edges",
+            "complete strongly connected component partition",
+            "whole-cycle guaranteed-invalid assignment",
+            "dependency-ordered acyclic substitution",
+            "no non-converged approximation return",
         ],
     }
 }
@@ -201,10 +402,9 @@ fn custom_property_least_fixed_point_proof() -> CustomPropertyLeastFixedPointPro
     custom_property_bounded_fixed_point_computation_witness()
 }
 
-fn substitute_custom_properties_inner(
+fn substitute_custom_properties_against_resolved_env(
     value: &CascadeValue,
-    env: &CustomPropertyEnv,
-    visiting: &mut BTreeSet<CanonicalCustomPropertyNameV0>,
+    resolved_env: &CustomPropertyEnv,
 ) -> CascadeValue {
     match value {
         CascadeValue::Literal(_)
@@ -216,39 +416,22 @@ fn substitute_custom_properties_inner(
         CascadeValue::Composite(parts) => {
             let resolved_parts = parts
                 .iter()
-                .map(|part| substitute_custom_properties_inner(part, env, visiting))
+                .map(|part| substitute_custom_properties_against_resolved_env(part, resolved_env))
                 .collect::<Vec<_>>();
             if resolved_parts.contains(&CascadeValue::GuaranteedInvalid) {
                 return CascadeValue::GuaranteedInvalid;
             }
             CascadeValue::Composite(resolved_parts)
         }
-        CascadeValue::Var { name, fallback } => {
-            if !visiting.insert(name.clone()) {
-                return CascadeValue::GuaranteedInvalid;
-            }
-            let resolved = match env.get(name) {
-                Some(CascadeValue::Unset) | None => fallback
-                    .as_deref()
-                    .map(|fallback| substitute_custom_properties_inner(fallback, env, visiting))
-                    .unwrap_or(CascadeValue::GuaranteedInvalid),
-                Some(value) => {
-                    let resolved = substitute_custom_properties_inner(value, env, visiting);
-                    if resolved == CascadeValue::GuaranteedInvalid {
-                        fallback
-                            .as_deref()
-                            .map(|fallback| {
-                                substitute_custom_properties_inner(fallback, env, visiting)
-                            })
-                            .unwrap_or(CascadeValue::GuaranteedInvalid)
-                    } else {
-                        resolved
-                    }
-                }
-            };
-            visiting.remove(name);
-            resolved
-        }
+        CascadeValue::Var { name, fallback } => match resolved_env.get(name) {
+            Some(CascadeValue::Unset | CascadeValue::GuaranteedInvalid) | None => fallback
+                .as_deref()
+                .map(|fallback| {
+                    substitute_custom_properties_against_resolved_env(fallback, resolved_env)
+                })
+                .unwrap_or(CascadeValue::GuaranteedInvalid),
+            Some(value) => value.clone(),
+        },
     }
 }
 

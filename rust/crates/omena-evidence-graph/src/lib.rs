@@ -560,7 +560,7 @@ impl ObligationFamilyIdV0 {
             ),
             Self::CustomPropertyFixedPoint => descriptor(
                 self,
-                "must preserve custom-property fixed-point semantics or emit a provenance-backed blocked result",
+                "must preserve fallback-inclusive custom-property dependency edges, whole cyclic-component invalidation, and dependency-ordered acyclic substitution or emit a provenance-backed blocked result",
                 GuaranteeKindV0::for_label_less_family(),
             ),
             Self::SourceClassReachability => descriptor(

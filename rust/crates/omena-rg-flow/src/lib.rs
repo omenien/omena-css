@@ -1,8 +1,10 @@
 //! Design-system complexity diagnostic scaffold over Omena cascade observability.
 //!
 //! The crate is intentionally read-only with respect to `omena-cascade`: it
-//! consumes public fixed-point summaries and emits additive V0 contracts for
-//! beta vectors, tier aggregates, branching estimates, and cross-tier checks.
+//! consumes the compatibility-named custom-property structural summaries and
+//! emits additive V0 contracts for beta vectors, tier aggregates, branching
+//! estimates, and cross-tier checks. Component-schedule observations are not
+//! represented as Kleene-iteration certificates.
 //!
 //! claim_level: opt-in deep-analysis Jacobian-spectrum approximation,
 //! deduplicated against the circular-var warning, not a default product decision
@@ -451,7 +453,11 @@ fn estimate_beta_function_with_wire_v0(
         wire,
     );
     let beta_vector = beta_vector_from_couplings(&before, &after, wire);
-    let sign_witness = beta_sign_witness(&beta_vector, summary.monotone_witness_valid, wire);
+    let sign_witness = beta_sign_witness(
+        &beta_vector,
+        summary.input_count == 0 && summary.monotone_witness_valid,
+        wire,
+    );
 
     BetaFunctionEstimateV0 {
         schema_version: MULTISCALE_COMPLEXITY_HEURISTIC_SCHEMA_VERSION_V0,
@@ -2183,7 +2189,7 @@ mod tests {
 
     #[test]
     #[allow(deprecated)]
-    fn beta_estimate_reads_cascade_fixed_point_trace_without_mutating_cascade() {
+    fn beta_estimate_reads_cascade_component_schedule_without_mutating_cascade() {
         let mut env = CustomPropertyEnv::default();
         env.insert(
             PropertyNameV0::canonical_custom_key("--a"),
@@ -2223,8 +2229,8 @@ mod tests {
             "multiscale-complexity-heuristic"
         );
         assert_eq!(estimate.sign_witness.beta_env_sign, -1);
-        assert!(estimate.sign_witness.beta_decl_sign <= 0);
-        assert!(estimate.sign_witness.monotone_kleene_certificate);
+        assert_eq!(estimate.sign_witness.beta_decl_sign, 1);
+        assert!(!estimate.sign_witness.monotone_kleene_certificate);
         assert_eq!(metric.feature_gate, "multiscale-complexity-heuristic");
         assert!(metric.fixed_point_reached);
         assert_eq!(metric.fixed_point_residual_l1, 0);

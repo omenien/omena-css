@@ -1,6 +1,6 @@
 ---
-title: Custom-property bounded substitution
-description: The shipped custom-property substitution algorithm, its independent all-bottom witness, and the explicit research gaps.
+title: Custom-property dependency resolution
+description: The shipped dependency-graph and strongly connected component algorithm, its independent witness, and the remaining value-domain boundary.
 kind: explanation
 status: stable
 products: [cascade, diagnostics]
@@ -8,103 +8,124 @@ owner: cascade
 sourceOfTruth: authored
 ---
 
-# Custom-property bounded substitution
+# Custom-property dependency resolution
 
-Omena resolves the custom-property environment with a finite, deterministic
-substitution loop. This page describes the code that ships. Historical public
-symbols retain proof-oriented names for compatibility, but those names do not
-upgrade the implementation into a theorem.
+Omena resolves custom properties by the dependency structure required by CSS
+Variables. The file name and several public Rust symbols retain earlier
+fixed-point wording for compatibility; the shipped algorithm no longer returns
+a bounded approximation.
 
 ## Shipped algorithm
 
-The implementation receives a fixed-key `CustomPropertyEnv` and clones the
-original environment into `current`. Its iteration bound is
-`max(1, env.len() + 1)`. On every step it walks the original bindings and
-substitutes each value against the previous `current` environment, producing a
-simultaneous `next` environment.
+The implementation builds a directed graph over the canonical keys in
+`CustomPropertyEnv`. `collect_custom_property_references` visits every
+`CascadeValue::Var`, including references that appear in a fallback, so a
+fallback reference is a dependency edge rather than an escape from a cycle.
+Graph nodes are `CanonicalCustomPropertyNameV0` values produced by
+`PropertyNameV0`, not independently normalized strings.
 
-Substitution follows `CascadeValue::Var` references recursively. A fresh
-`BTreeSet<String>` records names currently visited by one substitution walk. A
-revisit yields `CascadeValue::GuaranteedInvalid`; the surrounding variable may
-then use its own fallback. Missing or `Unset` references use a fallback when
-present and otherwise yield the same guaranteed-invalid value. A composite
-containing that value also becomes guaranteed-invalid.
+`strongly_connected_components` partitions that graph. A component is cyclic
+when it has more than one member or its only member has a self-edge. Every
+member of a cyclic component becomes `CascadeValue::GuaranteedInvalid` before
+any non-member is evaluated. A fallback therefore cannot rescue a declaration
+that belongs to the cycle. A non-member that later references an invalid cycle
+member may use its own fallback, which is the distinct outer-reference rule.
 
-The loop returns when `next == current`. If equality is not observed before the
-explicit bound, it returns the final bounded approximation with
-`reached_fixed_point: false`. The iteration trace counts changed, settled, and
-guaranteed-invalid entries. `custom_property_iteration_trace_is_monotone`
-checks only that the settled-entry count does not decrease; it is not a proof
-that the substitution operator is monotone on `CascadeValue`.
+`dependency_ordered_components` schedules the acyclic remainder after its
+dependencies. Each binding is evaluated once against the memoized resolved
+environment by `substitute_custom_properties_against_resolved_env`. The
+schedule covers every component, and the implementation asserts both complete
+key coverage and the absence of remaining `var()` references. There is no
+non-converged-value return path.
 
 ## Code correspondence
 
-| Formal object                       | Shipped symbol                                            | Correspondence                                                                               |
-| ----------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Environment keys and input bindings | `CustomPropertyEnv`                                       | Fixed `BTreeMap` supplied by the caller.                                                     |
-| Value syntax                        | `CascadeValue`                                            | Literal, composite, variable, CSS-wide states, indeterminate, guaranteed-invalid, and unset. |
-| One substitution query              | `substitute_custom_properties`                            | Creates one visiting set and evaluates one value against an environment.                     |
-| Recursive transfer                  | `substitute_custom_properties_inner`                      | Walks values and references, applies fallbacks, and detects a name revisit.                  |
-| Clone-start iteration               | `compute_custom_property_env_least_fixed_point`           | Initializes `current` with `env.clone()` and computes simultaneous `next` environments.      |
-| Public resolved environment         | `resolve_custom_property_env_least_fixed_point`           | Returns the bounded computation's environment.                                               |
-| Equality-or-bound summary           | `summarize_custom_property_least_fixed_point`             | Exposes counts, trace, equality disposition, and per-entry results.                          |
-| Cycle detector                      | `visiting`                                                | Per-substitution `BTreeSet<String>`; it is not an SCC decomposition.                         |
-| Cycle/invalid value                 | `CascadeValue::GuaranteedInvalid`                         | Result of a revisited, missing-without-fallback, or invalid dependency.                      |
-| Iteration observation               | `CustomPropertyLeastFixedPointIterationV0`                | Records changed, settled, and guaranteed-invalid counts.                                     |
-| Settled-count check                 | `custom_property_iteration_trace_is_monotone`             | Compares adjacent settled counts only.                                                       |
-| Bounded-computation disclosure      | `custom_property_bounded_fixed_point_computation_witness` | States the fixed-key, equality, bound, and cycle policy used by the product.                 |
-| Bound-exhaustion bit                | `reached_fixed_point`                                     | False when equality was not observed within the explicit bound.                              |
+| Semantic object       | Shipped symbol                                            | Correspondence                                                                                |
+| --------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Canonical graph keys  | `CanonicalCustomPropertyNameV0` / `PropertyNameV0`        | Shared standard/custom property identity authority.                                           |
+| Input environment     | `CustomPropertyEnv`                                       | Fixed `BTreeMap` of canonical custom-property keys.                                           |
+| Value syntax          | `CascadeValue`                                            | Literal, composite, variable, CSS-wide states, indeterminate, guaranteed-invalid, and unset.  |
+| Dependency graph      | `custom_property_dependency_graph`                        | Collects references from primary values and fallbacks.                                        |
+| Reference collector   | `collect_custom_property_references`                      | Makes fallback references graph edges.                                                        |
+| SCC partition         | `strongly_connected_components`                           | Computes the complete strongly connected component partition.                                 |
+| Component schedule    | `dependency_ordered_components`                           | Orders distinct components after their dependencies.                                          |
+| Cycle predicate       | `component_is_cyclic`                                     | Detects multi-member components and self-loops.                                               |
+| Resolved substitution | `substitute_custom_properties_against_resolved_env`       | Applies fallbacks only while evaluating an outer, non-cycle value.                            |
+| Public value query    | `substitute_custom_properties`                            | Resolves the environment structurally, then substitutes the requested outer value.            |
+| Public environment    | `resolve_custom_property_env_least_fixed_point`           | Compatibility name returning the complete SCC-scheduled environment.                          |
+| Public summary        | `summarize_custom_property_least_fixed_point`             | Compatibility shape exposing component-schedule observations and results.                     |
+| Schedule observation  | `CustomPropertyLeastFixedPointIterationV0`                | One compatibility trace row per scheduled component.                                          |
+| Structural witness    | `custom_property_bounded_fixed_point_computation_witness` | Compatibility name describing the graph, SCC, and no-approximation invariants.                |
+| Completion bit        | `reached_fixed_point`                                     | Always true for a completed structural schedule; no false-valued approximation branch exists. |
+
+The trace fields retain their public compatibility names, but each row is a
+component-schedule observation rather than a Kleene iteration. Downstream
+RG-flow projections therefore keep `monotoneKleeneCertificate` false for
+non-empty structural summaries; a changing declaration count across component
+rows is not presented as convergence evidence.
 
 ## Frozen independent witness
 
-The committed witness corpus does not reuse the clone-start transfer. Its
-per-variable status order is `Unresolved(bottom) <= Resolved(value)`, its
-environment order is pointwise, and its initial environment is all-bottom. A
-step evaluates every original binding simultaneously against the previous
-status environment. Reading an unresolved variable remains unresolved; a
-missing or guaranteed-invalid variable evaluates its fallback when present.
-At a stable point, remaining unresolved variables are projected to
-`CascadeValue::GuaranteedInvalid`.
+The committed independent oracle remains unchanged. Its five-field `oracle`
+object defines an all-bottom status iteration, and the Rust
+`evaluate_from_all_bottom` function plus every `expectedEvaluator` projection
+are protected by SHA-256 content checks. The six original case IDs and their
+`cycleShape` values are also frozen; additional cases may only grow the corpus.
 
-`CascadeValue` itself has no order relation in the product. The independent
-witness therefore orders statuses, not values. The corpus compares the shipped
-`F^n(original environment)` trajectory with the witness
-`F^n(all-bottom)` trajectory and records disagreement as a finding. The frozen
-six-case corpus currently produces four agreements and two findings.
+The current seven-case corpus reports seven agreements and zero findings. It
+includes the original two fallback-cycle counterexamples and a new three-node
+fallback cycle entered by a non-member chain. A separate set-semantics test
+asserts both sides of the rule: every cycle member is invalid, while a
+non-member that references the invalid component can use its own fallback.
 
-| Corpus case                         | Shipped result                                          | All-bottom witness                 | Disposition |
-| ----------------------------------- | ------------------------------------------------------- | ---------------------------------- | ----------- |
-| `direct-literal`                    | literal `red`                                           | literal `red`                      | agreement   |
-| `acyclic-alias-chain`               | both bindings become literal `red`                      | both bindings become literal `red` | agreement   |
-| `missing-reference-fallback`        | literal `blue`                                          | literal `blue`                     | agreement   |
-| `plain-two-cycle`                   | both guaranteed-invalid                                 | both guaranteed-invalid            | agreement   |
-| `mutually-recursive-fallback-chain` | bounded output `a=blue`, `b=red`; equality not observed | both guaranteed-invalid            | **finding** |
-| `cycle-through-fallback`            | both literal `green`                                    | both guaranteed-invalid            | **finding** |
+The `reordered-in-place` mutation still weakens the independent simultaneous
+transfer and must fail. Product mutations that remove SCC classification or
+reintroduce a cycle-member fallback rescue must also fail.
 
-The two findings are wrong-definite-species candidates for independent review.
-They are not silently resolved by changing the witness toward the implementation.
-The `reordered-in-place` mutation intentionally replaces the
-simultaneous evaluator with an order-sensitive update and must make the harness
-RED.
+## Standard-property validation after substitution
 
-## rfcs#10 gap register
+A cascade winner for a standard property can contain `var()`, so its grammar
+cannot always be decided before custom-property substitution. The cascade
+crate exposes `CascadeStandardValueValidatorV0` as a port; the product adapter
+`SpecStandardPropertyValueValidatorV0` delegates to the spec-derived
+`validate_standard_property_value_v0` authority.
 
-The committed JSON register is
-`rust/omena-custom-property-fixed-point-gap-register.json`. The research track,
-not the product implementation, owns any upgrade decision.
+`compute_cascade_computed_value_with_standard_value_validator_v0` selects the
+winner, substitutes custom properties, and then validates the resulting
+standard-property text. A definite mismatch becomes invalid at computed-value
+time. A validator result that remains unknown becomes typed indeterminate. If
+the caller supplies no standard-property verdict, a literal or composite value
+also becomes typed indeterminate rather than resolved. CSS-wide keywords and a
+definite guaranteed-invalid substitution retain their independently known
+computed-value behavior.
+
+The Salsa source-element path carries inline custom-property bindings into the
+same computation. Its regression case distinguishes `--tone: red`, which keeps
+`color: var(--tone)` resolved, from `--tone: 12px`, which is invalid for
+`color`. An always-valid validator or the former literal-only verdict filter
+makes that product-path test fail.
+
+That path resolves the custom-property environment at every ancestor boundary
+before applying child declarations. An inherited computed value therefore does
+not rebind to a child override of one of its former dependencies. A dynamic
+custom-property declaration is represented as indeterminate for that key, so
+it blocks a value that references it without blocking an unrelated static
+standard-property declaration.
+
+## Remaining rfcs#10 boundary
+
+The committed register is
+`rust/omena-custom-property-fixed-point-gap-register.json`.
 
 <!-- gap-register:start -->
 
-| Gap id                     | Shipped state                                              | Claims-under-test state                                | Observable consequence                                                                                             | Upgrade cost                                                                                                             |
-| -------------------------- | ---------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| `cycle-decomposition`      | Per-substitution DFS visiting set.                         | Tarjan SCC decomposition over a dependency graph.      | No component-level schedule or SCC certificate is produced.                                                        | Build and retain a dependency graph, add SCC scheduling and certificates, and differential-test the new cycle semantics. |
-| `conditional-value-domain` | `CascadeValue` has no conditional `if()` variant.          | Conditional values participate in the transfer domain. | Branch-sensitive conditional dependencies cannot be represented or proved.                                         | Extend parsing and `CascadeValue`, define branch joins, and update all consumers.                                        |
-| `initial-approximation`    | Iteration starts from a clone of the original environment. | Kleene iteration starts from all-bottom.               | Fallback cycles may produce definite values or exhaust the bound while the independent witness remains unresolved. | Introduce an explicit status lattice and all-bottom environment, then revalidate fallback and computed-value behavior.   |
-| `termination-claim`        | Equality check or `max(1, env.len() + 1)` bound.           | A proven least solution is reached.                    | `reached_fixed_point` can be false, so the output is a bounded computation result rather than a theorem.           | Define an ordered value domain, prove convergence under an explicit bound, and validate the result independently.        |
+| Gap id                     | Shipped state                                     | Claims-under-test state                                                               | Observable consequence                                                     | Upgrade cost                                                                                                       |
+| -------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `conditional-value-domain` | `CascadeValue` has no conditional `if()` variant. | Conditional custom-property values participate in the dependency and transfer domain. | Branch-sensitive conditional dependencies cannot be represented or proved. | Extend parsing and `CascadeValue`, define branch joins, and update every substitution and computed-value consumer. |
 
 <!-- gap-register:end -->
 
-The register disposition for rfcs#10 is `claims-under-test-not-shipped`. It
-records research gaps; it does not assert that the current crate implements
-Tarjan SCCs, conditional custom-property values, all-bottom product iteration,
-or a convergence proof.
+The earlier cycle decomposition, clone-start approximation, and bound-
+exhaustion gaps are closed by the structural algorithm. The residual register
+does not claim a conditional-value theorem that the product value domain cannot
+express.

@@ -1,6 +1,7 @@
 use std::collections::{BTreeSet, HashMap};
 use std::sync::{Arc, OnceLock, RwLock};
 
+use omena_cascade::{CascadeStandardValueValidatorV0, CascadeStandardValueVerdictV0};
 use omena_evidence_graph::{
     EvidenceNodeKeyV0, EvidenceNodeSeedV0, ExternalToolRunWitnessV0, FamilyStampV0, GuaranteeKindV0,
 };
@@ -123,7 +124,7 @@ pub struct CssValueValidationConsumerPolicyV0 {
     pub budget_exhausted: &'static str,
 }
 
-pub const CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0: [CssValueValidationConsumerPolicyV0; 4] = [
+pub const CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0: [CssValueValidationConsumerPolicyV0; 5] = [
     CssValueValidationConsumerPolicyV0 {
         consumer: "checker.registeredPropertyTypeMismatch",
         matched: "accept",
@@ -139,6 +140,14 @@ pub const CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0: [CssValueValidationConsumer
         forward_tier_unmatched: "not-validatable",
         grammar_defect: "silent",
         budget_exhausted: "silent",
+    },
+    CssValueValidationConsumerPolicyV0 {
+        consumer: "cascade.postSubstitutionStandardProperty",
+        matched: "accept",
+        unmatched: "reject",
+        forward_tier_unmatched: "not-validatable",
+        grammar_defect: "unknown",
+        budget_exhausted: "unknown",
     },
     CssValueValidationConsumerPolicyV0 {
         consumer: "scss.nativeCssFunctionParameter",
@@ -403,6 +412,25 @@ pub fn validate_standard_property_value_v0(property: &str, value: &str) -> CssVa
         match_standard_property_value_v0(property, value),
         classification,
     )
+}
+
+/// Product adapter from the spec-derived grammar registry to the cascade
+/// computed-value validation port.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SpecStandardPropertyValueValidatorV0;
+
+impl CascadeStandardValueValidatorV0 for SpecStandardPropertyValueValidatorV0 {
+    fn validate_standard_property_value(
+        &self,
+        property: &str,
+        value: &str,
+    ) -> CascadeStandardValueVerdictV0 {
+        match validate_standard_property_value_v0(property, value).class {
+            CssValueValidationClassV0::Valid => CascadeStandardValueVerdictV0::Matched,
+            CssValueValidationClassV0::Invalid => CascadeStandardValueVerdictV0::Unmatched,
+            CssValueValidationClassV0::NotValidatable => CascadeStandardValueVerdictV0::Unknown,
+        }
+    }
 }
 
 pub fn validate_registered_property_value_v0(syntax: &str, value: &str) -> CssValueValidationV0 {
@@ -2018,17 +2046,19 @@ fn strip_matching_quotes(source: &str) -> &str {
 mod tests {
     use std::sync::Arc;
 
+    use omena_cascade::{CascadeStandardValueValidatorV0, CascadeStandardValueVerdictV0};
     use omena_spec_audit::spec_grammar_registry;
     use omena_value_lattice::ValueNodeV0;
 
     use super::{
         CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0, CssValueGrammarBudgetKindV0,
         CssValueGrammarBudgetV0, CssValueGrammarVerdictV0, CssValueValidationClassV0,
-        CssValueValidationReasonV0, adjudicate_css_value_validation,
-        audit_css_value_grammar_registry_v0, cached_pinned_vds_expression,
-        match_and_type_css_value_grammar_v0, match_and_type_standard_property_value_v0,
-        match_css_value_grammar_v0, match_standard_property_value_v0,
-        validate_registered_property_value_v0, validate_standard_property_value_v0,
+        CssValueValidationReasonV0, SpecStandardPropertyValueValidatorV0,
+        adjudicate_css_value_validation, audit_css_value_grammar_registry_v0,
+        cached_pinned_vds_expression, match_and_type_css_value_grammar_v0,
+        match_and_type_standard_property_value_v0, match_css_value_grammar_v0,
+        match_standard_property_value_v0, validate_registered_property_value_v0,
+        validate_standard_property_value_v0,
     };
     use crate::{
         AbstractCssTypedValueV0, AbstractCssValueV0, DeclaredValueKindV0,
@@ -2618,7 +2648,7 @@ mod tests {
 
     #[test]
     fn validation_consumer_policy_table_covers_every_live_consumer() {
-        assert_eq!(CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0.len(), 4);
+        assert_eq!(CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0.len(), 5);
         assert_eq!(
             CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0
                 .iter()
@@ -2627,6 +2657,7 @@ mod tests {
             vec![
                 "checker.registeredPropertyTypeMismatch",
                 "checker.invalidPropertyValue",
+                "cascade.postSubstitutionStandardProperty",
                 "scss.nativeCssFunctionParameter",
                 "scss.nativeCssFunctionReturn",
             ]
@@ -2641,5 +2672,23 @@ mod tests {
             assert!(matches!(policy.grammar_defect, "silent" | "unknown"));
             assert!(matches!(policy.budget_exhausted, "silent" | "unknown"));
         }
+    }
+
+    #[test]
+    fn cascade_validator_adapter_preserves_spec_grammar_outcomes() {
+        let validator = SpecStandardPropertyValueValidatorV0;
+
+        assert_eq!(
+            validator.validate_standard_property_value("color", "red"),
+            CascadeStandardValueVerdictV0::Matched
+        );
+        assert_eq!(
+            validator.validate_standard_property_value("color", "12px"),
+            CascadeStandardValueVerdictV0::Unmatched
+        );
+        assert_eq!(
+            validator.validate_standard_property_value("color", "var(--tone)"),
+            CascadeStandardValueVerdictV0::Unknown
+        );
     }
 }

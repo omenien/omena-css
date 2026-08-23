@@ -11,6 +11,22 @@ fn custom_property_key(name: &str) -> CanonicalCustomPropertyNameV0 {
     PropertyNameV0::canonical_custom_key(name)
 }
 
+struct FixtureStandardValueValidator;
+
+impl CascadeStandardValueValidatorV0 for FixtureStandardValueValidator {
+    fn validate_standard_property_value(
+        &self,
+        property: &str,
+        value: &str,
+    ) -> CascadeStandardValueVerdictV0 {
+        match (property, value) {
+            ("color", "red") => CascadeStandardValueVerdictV0::Matched,
+            ("color", _) => CascadeStandardValueVerdictV0::Unmatched,
+            _ => CascadeStandardValueVerdictV0::Unknown,
+        }
+    }
+}
+
 fn declaration(id: &str, value: &str, key: CascadeKey) -> CascadeDeclaration {
     declaration_with_specificity_exactness(id, value, key, SpecificityExactnessV0::Exact)
 }
@@ -1157,22 +1173,28 @@ fn computes_values_through_var_substitution() {
         CascadeValue::Literal("red".to_string()),
     );
 
-    let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "color".to_string(),
-        declarations: vec![property_declaration(
-            "color-decl",
-            "color",
-            CascadeValue::Var {
-                name: custom_property_key("--brand"),
-                fallback: None,
-            },
-            1,
-        )],
-        custom_property_env: env,
-        parent_computed_value: Some(CascadeValue::Literal("blue".to_string())),
-        registered_custom_property: None,
-        standard_property_value_verdicts: BTreeMap::new(),
-    });
+    let result = compute_cascade_computed_value_with_standard_value_validator_v0(
+        CascadeComputedValueInputV0 {
+            property: "color".to_string(),
+            declarations: vec![property_declaration(
+                "color-decl",
+                "color",
+                CascadeValue::Var {
+                    name: custom_property_key("--brand"),
+                    fallback: None,
+                },
+                1,
+            )],
+            custom_property_env: env,
+            parent_computed_value: Some(CascadeValue::Literal("blue".to_string())),
+            registered_custom_property: None,
+            standard_property_value_verdicts: BTreeMap::from([(
+                "color-decl".to_string(),
+                CascadeStandardValueVerdictV0::Unknown,
+            )]),
+        },
+        &FixtureStandardValueValidator,
+    );
 
     assert_eq!(result.product, "omena-cascade.computed-value");
     assert_eq!(result.status, ComputedCascadeValueStatusV0::Resolved);
@@ -1459,40 +1481,65 @@ fn standard_property_syntax_unknown_is_typed_indeterminate() {
 }
 
 #[test]
-fn standard_property_syntax_unknown_defers_across_var_substitution() {
-    let declaration_id = "variable-color";
-    let mut custom_property_env = CustomPropertyEnv::new();
-    custom_property_env.insert(
-        custom_property_key("--tone"),
-        CascadeValue::Literal("red".to_string()),
-    );
-    let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "color".to_string(),
-        declarations: vec![property_declaration(
-            declaration_id,
-            "color",
-            CascadeValue::Var {
-                name: custom_property_key("--tone"),
-                fallback: None,
+fn standard_property_syntax_is_revalidated_after_var_substitution() {
+    for (custom_value, expected_status) in [
+        ("red", ComputedCascadeValueStatusV0::Resolved),
+        (
+            "12px",
+            ComputedCascadeValueStatusV0::InvalidAtComputedValueTime,
+        ),
+    ] {
+        let declaration_id = format!("variable-color-{custom_value}");
+        let mut custom_property_env = CustomPropertyEnv::new();
+        custom_property_env.insert(
+            custom_property_key("--tone"),
+            CascadeValue::Literal(custom_value.to_string()),
+        );
+        let result = compute_cascade_computed_value_with_standard_value_validator_v0(
+            CascadeComputedValueInputV0 {
+                property: "color".to_string(),
+                declarations: vec![property_declaration(
+                    declaration_id.as_str(),
+                    "color",
+                    CascadeValue::Var {
+                        name: custom_property_key("--tone"),
+                        fallback: None,
+                    },
+                    1,
+                )],
+                custom_property_env,
+                parent_computed_value: None,
+                registered_custom_property: None,
+                standard_property_value_verdicts: BTreeMap::from([(
+                    declaration_id,
+                    CascadeStandardValueVerdictV0::Unknown,
+                )]),
             },
-            1,
-        )],
-        custom_property_env,
-        parent_computed_value: None,
-        registered_custom_property: None,
-        standard_property_value_verdicts: BTreeMap::from([(
-            declaration_id.to_string(),
-            CascadeStandardValueVerdictV0::Unknown,
-        )]),
-    });
+            &FixtureStandardValueValidator,
+        );
 
-    assert_eq!(result.status, ComputedCascadeValueStatusV0::Resolved);
-    assert_eq!(result.value, CascadeValue::Literal("red".to_string()));
-    assert!(
-        result
-            .derivation_steps
-            .contains(&"standardPropertySyntaxDeferredByVarReference")
-    );
+        assert_eq!(result.status, expected_status, "{custom_value}");
+        assert!(
+            result
+                .derivation_steps
+                .contains(&"standardPropertySyntaxDeferredByVarReference")
+        );
+        if custom_value == "12px" {
+            assert!(result.invalid_at_computed_value_time);
+            assert!(
+                result
+                    .derivation_steps
+                    .contains(&"postSubstitutionStandardPropertySyntaxUnmatched")
+            );
+        } else {
+            assert_eq!(result.value, CascadeValue::Literal("red".to_string()));
+            assert!(
+                result
+                    .derivation_steps
+                    .contains(&"postSubstitutionStandardPropertySyntaxMatched")
+            );
+        }
+    }
 }
 
 #[test]
@@ -1511,8 +1558,11 @@ fn missing_standard_property_verdict_is_explicitly_unavailable() {
         standard_property_value_verdicts: BTreeMap::new(),
     });
 
-    // Callers can omit a declaration id. The result may proceed for backward
-    // compatibility, but it must not claim that a grammar match was observed.
+    assert_eq!(result.status, ComputedCascadeValueStatusV0::Indeterminate);
+    assert_eq!(
+        result.indeterminate_reason,
+        Some(ComputedCascadeIndeterminateReasonV0::StandardPropertySyntaxIndeterminate)
+    );
     assert!(
         result
             .derivation_steps
@@ -3355,6 +3405,90 @@ fn substitutes_cycles_to_guaranteed_invalid() {
 }
 
 #[test]
+fn marks_every_cycle_member_invalid_before_resolving_an_outer_fallback() {
+    let mut env = CustomPropertyEnv::new();
+    env.insert(
+        custom_property_key("--cycle-a"),
+        CascadeValue::Var {
+            name: custom_property_key("--cycle-b"),
+            fallback: Some(Box::new(CascadeValue::Literal("red".to_string()))),
+        },
+    );
+    env.insert(
+        custom_property_key("--cycle-b"),
+        CascadeValue::Var {
+            name: custom_property_key("--cycle-a"),
+            fallback: Some(Box::new(CascadeValue::Literal("green".to_string()))),
+        },
+    );
+    env.insert(
+        custom_property_key("--outer"),
+        CascadeValue::Var {
+            name: custom_property_key("--cycle-a"),
+            fallback: Some(Box::new(CascadeValue::Literal("gold".to_string()))),
+        },
+    );
+
+    let resolved = resolve_custom_property_env_least_fixed_point(&env);
+
+    assert_eq!(
+        resolved.get(&custom_property_key("--cycle-a")),
+        Some(&CascadeValue::GuaranteedInvalid)
+    );
+    assert_eq!(
+        resolved.get(&custom_property_key("--cycle-b")),
+        Some(&CascadeValue::GuaranteedInvalid)
+    );
+    assert_eq!(
+        resolved.get(&custom_property_key("--outer")),
+        Some(&CascadeValue::Literal("gold".to_string()))
+    );
+}
+
+#[test]
+fn fallback_edges_make_a_three_node_cycle_invalid_when_entered_mid_chain() {
+    let mut env = CustomPropertyEnv::new();
+    env.insert(
+        custom_property_key("--entry"),
+        CascadeValue::Var {
+            name: custom_property_key("--cycle-b"),
+            fallback: None,
+        },
+    );
+    env.insert(
+        custom_property_key("--cycle-a"),
+        CascadeValue::Var {
+            name: custom_property_key("--cycle-b"),
+            fallback: Some(Box::new(CascadeValue::Literal("red".to_string()))),
+        },
+    );
+    env.insert(
+        custom_property_key("--cycle-b"),
+        CascadeValue::Var {
+            name: custom_property_key("--cycle-c"),
+            fallback: Some(Box::new(CascadeValue::Literal("green".to_string()))),
+        },
+    );
+    env.insert(
+        custom_property_key("--cycle-c"),
+        CascadeValue::Var {
+            name: custom_property_key("--cycle-a"),
+            fallback: Some(Box::new(CascadeValue::Literal("blue".to_string()))),
+        },
+    );
+
+    let resolved = resolve_custom_property_env_least_fixed_point(&env);
+
+    for name in ["--entry", "--cycle-a", "--cycle-b", "--cycle-c"] {
+        assert_eq!(
+            resolved.get(&custom_property_key(name)),
+            Some(&CascadeValue::GuaranteedInvalid),
+            "{name}"
+        );
+    }
+}
+
+#[test]
 fn summarizes_custom_property_least_fixed_point() {
     let mut env = CustomPropertyEnv::new();
     env.insert(
@@ -3402,8 +3536,8 @@ fn summarizes_custom_property_least_fixed_point() {
     assert_eq!(summary.input_count, 5);
     assert_eq!(summary.resolved_count, 3);
     assert_eq!(summary.guaranteed_invalid_count, 2);
-    assert!(summary.iteration_count >= 2);
-    assert_eq!(summary.iteration_bound, 6);
+    assert_eq!(summary.iteration_count, 4);
+    assert_eq!(summary.iteration_bound, 4);
     assert!(summary.reached_fixed_point);
     assert!(summary.monotone_witness_valid);
     assert_eq!(summary.iteration_trace.len(), summary.iteration_count);
@@ -3415,27 +3549,27 @@ fn summarizes_custom_property_least_fixed_point() {
     );
     assert_eq!(
         summary.proof.iteration_bound_formula,
-        "max(1, env.len() + 1)"
+        "max(1, strongly_connected_component_count)"
     );
     assert!(
         summary
             .proof
             .proof_obligations
-            .contains(&"explicit fixed-point equality check")
+            .contains(&"complete strongly connected component partition")
     );
     assert!(
         summary
             .proof
             .proof_obligations
-            .contains(&"nondecreasing settled-value trace")
+            .contains(&"no non-converged approximation return")
     );
     assert_eq!(
         summary.proof.bounded_fixed_point_computation_witness,
-        "iteration stops on environment equality or the explicit env-size bound"
+        "every strongly connected component is processed exactly once; no non-converged approximation is returned"
     );
     assert_eq!(
         summary.proof.monotonic_progress_witness,
-        "settled-value count never decreases between recorded iterations"
+        "each scheduled component only adds finalized bindings to the resolved environment"
     );
     let preferred_witness = custom_property_bounded_fixed_point_computation_witness();
     let legacy_witness: CustomPropertyLeastFixedPointProofV0 = preferred_witness.clone();
@@ -3514,7 +3648,7 @@ fn summarizes_current_boundary_status() {
     assert_eq!(summary.ordering_model, "lexicographicCascadeKey");
     assert_eq!(
         summary.least_fixed_point_proof_model,
-        "finite-env monotone custom-property substitution with cycle-to-guaranteed-invalid bottoming and env-size iteration bound"
+        "canonical custom-property dependency graph with cyclic-SCC invalidation and dependency-ordered acyclic substitution"
     );
     assert!(summary.ready_surfaces.contains(&"cascadeKeyOrdering"));
     assert!(

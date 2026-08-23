@@ -128,7 +128,7 @@ pub fn summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis(
                         ],
                         range,
                         message: format!(
-                            "CSS custom property '{}' resolves to the guaranteed-invalid value.",
+                            "CSS custom property '{}' computes to the guaranteed-invalid value after dependency-graph cycle resolution; every member of a cyclic component is invalidated together.",
                             entry.name
                         ),
                         tags: Vec::new(),

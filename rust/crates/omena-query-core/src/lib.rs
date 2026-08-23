@@ -49,15 +49,16 @@ pub use omena_abstract_value::{
     OmenaAbstractValuePrecisionWitnessV0, PolynomialProvenanceProjectionV0,
     PolynomialProvenanceTermV0, PolynomialProvenanceV0, PolynomialProvenanceVariableV0,
     ProvenanceSemiringLawReportV0, ReducedClassValueProductIterationV0, ReducedClassValueProductV0,
-    SelectorProjectionCertaintyV0, TokenObserverProjectionV0, abstract_class_value_from_facts,
-    abstract_class_value_kind, derive_context_indexed_cascade_restriction_maps_v0,
-    fact_precision_from_class_value, fact_precision_from_class_value_with_witness,
-    iterate_reduced_class_value_product_constraints, join_abstract_class_values,
-    narrow_abstract_property_value_for_cascade_branch,
+    SelectorProjectionCertaintyV0, SpecStandardPropertyValueValidatorV0, TokenObserverProjectionV0,
+    abstract_class_value_from_facts, abstract_class_value_kind,
+    derive_context_indexed_cascade_restriction_maps_v0, fact_precision_from_class_value,
+    fact_precision_from_class_value_with_witness, iterate_reduced_class_value_product_constraints,
+    join_abstract_class_values, narrow_abstract_property_value_for_cascade_branch,
     narrow_abstract_property_value_for_pseudo_state, prefix_suffix_class_value,
     summarize_context_indexed_cascade_value_family_v0,
     summarize_polynomial_provenance_from_linear_v0, top_class_value,
-    validate_registered_property_value_v0, verify_provenance_semiring_laws_on_fixtures,
+    validate_registered_property_value_v0, validate_standard_property_value_v0,
+    verify_provenance_semiring_laws_on_fixtures,
 };
 #[allow(deprecated)]
 #[deprecated(

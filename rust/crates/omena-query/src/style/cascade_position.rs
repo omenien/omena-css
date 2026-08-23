@@ -5,10 +5,12 @@ use omena_bridge::{OmenaBridgeParserRangeV0, StyleSemanticGraphSummaryV0};
 use omena_cascade::{
     CascadeComputedValueInputV0, CascadeDeclaration, CascadeKey, CascadeLevel, CascadeValue,
     ComputedCascadeValueStatusV0, CustomPropertyEnv, CustomPropertyLeastFixedPointEntryV0,
-    LayerOrdinal, OpenWorldTieEvidence, Specificity, compute_cascade_computed_value,
-    normalized_layer_rank, summarize_custom_property_least_fixed_point,
+    LayerOrdinal, OpenWorldTieEvidence, Specificity,
+    compute_cascade_computed_value_with_standard_value_validator_v0, normalized_layer_rank,
+    summarize_custom_property_least_fixed_point,
 };
 use omena_parser::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0};
+use omena_query_core::SpecStandardPropertyValueValidatorV0;
 use omena_query_transform_runner::parse_static_css_cascade_value;
 use omena_semantic::DesignTokenRankedReferenceV0;
 use omena_syntax::ident::{
@@ -287,31 +289,47 @@ fn compute_referenced_declaration_cascade_value_seed(
     let reference_offset = byte_offset_for_parser_position(style_source, reference_range.start)?;
     let declaration = style_declaration_at_byte_offset(style_source, reference_offset)?;
     let cascade_value = parse_static_css_cascade_value(&declaration.value)?;
-    let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: declaration.property.clone(),
-        declarations: vec![CascadeDeclaration {
-            id: format!(
-                "{style_path}:{}:{}",
-                declaration.property, declaration.source_order
+    let declaration_id = format!(
+        "{style_path}:{}:{}",
+        declaration.property, declaration.source_order
+    );
+    let property_key = PropertyNameV0::from_authored(&declaration.property).canonical_key();
+    let standard_property_value_verdicts = if property_key.as_custom().is_none() {
+        BTreeMap::from([(
+            declaration_id.clone(),
+            omena_query_checker_orchestrator::standard_property_value_verdict_v0(
+                property_key.as_str(),
+                &declaration.value,
             ),
-            property: AuthoredPropertyTextV0::new(declaration.property.clone()),
-            property_key: PropertyNameV0::from_authored(&declaration.property).canonical_key(),
-            value: cascade_value,
-            key: CascadeKey::new(
-                CascadeLevel::AuthorNormal,
-                normalized_layer_rank(false, LayerOrdinal::new(0)),
-                0,
-                Specificity::ZERO,
-                declaration.source_order.min(u32::MAX as usize) as u32,
-            ),
-            open_world_tie_evidence: OpenWorldTieEvidence::NONE,
-            specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
-        }],
-        custom_property_env: custom_property_env.clone(),
-        parent_computed_value: None,
-        registered_custom_property: None,
-        standard_property_value_verdicts: BTreeMap::new(),
-    });
+        )])
+    } else {
+        BTreeMap::new()
+    };
+    let result = compute_cascade_computed_value_with_standard_value_validator_v0(
+        CascadeComputedValueInputV0 {
+            property: declaration.property.clone(),
+            declarations: vec![CascadeDeclaration {
+                id: declaration_id,
+                property: AuthoredPropertyTextV0::new(declaration.property.clone()),
+                property_key,
+                value: cascade_value,
+                key: CascadeKey::new(
+                    CascadeLevel::AuthorNormal,
+                    normalized_layer_rank(false, LayerOrdinal::new(0)),
+                    0,
+                    Specificity::ZERO,
+                    declaration.source_order.min(u32::MAX as usize) as u32,
+                ),
+                open_world_tie_evidence: OpenWorldTieEvidence::NONE,
+                specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
+            }],
+            custom_property_env: custom_property_env.clone(),
+            parent_computed_value: None,
+            registered_custom_property: None,
+            standard_property_value_verdicts,
+        },
+        &SpecStandardPropertyValueValidatorV0,
+    );
 
     Some(ReferencedDeclarationComputedValueSeed {
         property: declaration.property,

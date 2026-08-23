@@ -1775,7 +1775,7 @@ fn cascade_safe_obligation_reference(kind: TransformPassKind) -> &'static str {
             "must preserve @value graph resolution and cycle diagnostics"
         }
         TransformPassKind::StaticVarSubstitution => {
-            "must preserve custom-property fixed-point semantics or emit a provenance-backed blocked result"
+            "must preserve fallback-inclusive custom-property dependency edges, whole cyclic-component invalidation, and dependency-ordered acyclic substitution or emit a provenance-backed blocked result"
         }
         TransformPassKind::TreeShakeClass => {
             "may remove classes only when bridge reachability proves no reachable source expression observes them"
