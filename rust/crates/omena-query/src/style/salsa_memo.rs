@@ -6864,12 +6864,11 @@ $_private-token: changed;
     }
 
     #[test]
-    fn source_element_computed_value_consumes_standard_property_verdicts() {
+    fn source_element_computed_value_consumes_definite_standard_property_verdicts() {
         use omena_cascade::{ComputedCascadeValueStatusV0, ElementIdentityV0};
 
         let source_path = "/workspace/App.tsx";
-        let source =
-            r#"export const App = () => <main style={{ color: "definitely-not-a-color" }} />;"#;
+        let source = r#"export const App = () => <main style={{ boxSizing: "inline-box" }} />;"#;
         let index = summarize_omena_query_source_syntax_index_for_source_language(
             source_path,
             source,
@@ -6891,10 +6890,10 @@ $_private-token: changed;
         };
         let mut host = OmenaQueryStyleMemoHostV0::new();
 
-        let color = host.source_element_computed_value(documents.as_slice(), target, "color");
+        let value = host.source_element_computed_value(documents.as_slice(), target, "box-sizing");
 
         assert_eq!(
-            color
+            value
                 .computed_value
                 .as_ref()
                 .map(|value| (&value.status, value.invalid_at_computed_value_time)),
@@ -6911,10 +6910,7 @@ $_private-token: changed;
 
         for (custom_value, expected_status) in [
             ("red", ComputedCascadeValueStatusV0::Resolved),
-            (
-                "12px",
-                ComputedCascadeValueStatusV0::InvalidAtComputedValueTime,
-            ),
+            ("12px", ComputedCascadeValueStatusV0::Indeterminate),
         ] {
             let source_path = format!("/workspace/{custom_value}.tsx");
             let source = format!(
@@ -6957,11 +6953,11 @@ $_private-token: changed;
                     .contains(&"standardPropertySyntaxDeferredByVarReference")
             );
             if custom_value == "12px" {
-                assert!(computed.invalid_at_computed_value_time);
+                assert!(!computed.invalid_at_computed_value_time);
                 assert!(
                     computed
                         .derivation_steps
-                        .contains(&"postSubstitutionStandardPropertySyntaxUnmatched")
+                        .contains(&"postSubstitutionStandardPropertySyntaxIndeterminate")
                 );
             } else {
                 assert!(
@@ -6971,6 +6967,54 @@ $_private-token: changed;
                 );
             }
         }
+    }
+
+    #[test]
+    fn source_element_computed_value_definitely_rejects_substituted_literal_only_grammar() {
+        use omena_cascade::{ComputedCascadeValueStatusV0, ElementIdentityV0};
+
+        let source_path = "/workspace/box-sizing.tsx";
+        let source = r#"export const App = () => <main style={{ "--mode": "inline-box", boxSizing: "var(--mode)" }} />;"#;
+        let index = summarize_omena_query_source_syntax_index_for_source_language(
+            source_path,
+            source,
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        let element = index.source_elements[0].identity.clone();
+        let documents = [OmenaQuerySourceDocumentInputV0 {
+            source_path: source_path.to_string(),
+            source_source: source.to_string(),
+            source_syntax_index: Some(index),
+            has_unresolved_style_import: false,
+        }];
+        let target = ElementIdentityV0 {
+            source_path: element.source_path,
+            byte_start: element.byte_span.start,
+            byte_end: element.byte_span.end,
+        };
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let value = host.source_element_computed_value(documents.as_slice(), target, "box-sizing");
+        let computed = value.computed_value.as_ref();
+        assert!(
+            computed.is_some(),
+            "the static declaration must reach computed-value resolution"
+        );
+        let Some(computed) = computed else {
+            return;
+        };
+
+        assert_eq!(
+            computed.status,
+            ComputedCascadeValueStatusV0::InvalidAtComputedValueTime
+        );
+        assert!(computed.invalid_at_computed_value_time);
+        assert!(
+            computed
+                .derivation_steps
+                .contains(&"postSubstitutionStandardPropertySyntaxUnmatched")
+        );
     }
 
     #[test]

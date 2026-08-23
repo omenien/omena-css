@@ -19,6 +19,8 @@ const allowedOptions = new Set([
   "--inject-delete-scc",
   "--inject-always-valid-validator",
   "--inject-literal-only-verdicts",
+  "--inject-matcher-coverage-promotion",
+  "--inject-nonconverged-return",
 ]);
 assert.deepEqual(
   [...args].filter((argument) => argument.startsWith("--") && !allowedOptions.has(argument)),
@@ -41,13 +43,14 @@ const grammarPath = "rust/crates/omena-abstract-value/src/value_grammar.rs";
 const queryCorePath = "rust/crates/omena-query-core/src/lib.rs";
 const salsaPath = "rust/crates/omena-query/src/style/salsa_memo.rs";
 const cascadePositionPath = "rust/crates/omena-query/src/style/cascade_position.rs";
-const rgFlowPath = "rust/crates/omena-rg-flow/src/lib.rs";
+const compatibilityProjectionPath = "rust/crates/omena-rg-flow/src/lib.rs";
 
 const document = read(documentPath);
-const customProperty = read(customPropertyPath);
+let customProperty = read(customPropertyPath);
 const computedValue = read(computedValuePath);
 const model = read(modelPath);
 let evaluator = read(evaluatorPath);
+const rgFlow = read(compatibilityProjectionPath);
 const conceptsIndex = read("docs/concepts/README.md");
 const conceptsMeta = JSON.parse(read("docs/concepts/meta.json")) as { pages?: string[] };
 const gapRegister = JSON.parse(read(gapRegisterPath)) as GapRegister;
@@ -61,9 +64,29 @@ if (args.has("--inject-case-replacement")) {
   });
 }
 if (args.has("--inject-oracle-weakening")) {
-  evaluator = evaluator.replace(
-    "fn evaluate_from_all_bottom(\n",
-    "fn evaluate_from_all_bottom(\n    // order-dependent approximation accepted\n",
+  evaluator = replaceExactly(
+    evaluator,
+    `Some(OracleStatus::Resolved(FixtureValue::GuaranteedInvalid)) | None => {
+                fallback.as_deref().map_or(
+                    OracleStatus::Resolved(FixtureValue::GuaranteedInvalid),
+                    |fallback| evaluate_fixture_value(fallback, approximation),
+                )
+            }`,
+    `Some(OracleStatus::Resolved(FixtureValue::GuaranteedInvalid)) => {
+                OracleStatus::Resolved(FixtureValue::GuaranteedInvalid)
+            }
+            None => {
+                fallback.as_deref().map_or(
+                    OracleStatus::Resolved(FixtureValue::GuaranteedInvalid),
+                    |fallback| evaluate_fixture_value(fallback, approximation),
+                )
+            }`,
+  );
+}
+if (args.has("--inject-nonconverged-return")) {
+  customProperty = customProperty.replace(
+    "reached_fixed_point: true,",
+    "reached_fixed_point: false,",
   );
 }
 
@@ -85,7 +108,7 @@ const correspondenceSymbols = [
   "CustomPropertyEnv",
   "CascadeValue",
   "custom_property_dependency_graph",
-  "collect_custom_property_references",
+  "collect_custom_property_reference_indices",
   "strongly_connected_components",
   "dependency_ordered_components",
   "component_is_cyclic",
@@ -116,10 +139,21 @@ assert.ok(
 );
 assert.ok(
   customProperty.includes("if let Some(fallback) = fallback") &&
-    customProperty.includes("collect_custom_property_references(fallback, references);") &&
-    customProperty.includes("BTreeMap<CanonicalCustomPropertyNameV0") &&
-    customProperty.includes("BTreeSet<CanonicalCustomPropertyNameV0>"),
+    customProperty.includes(
+      "collect_custom_property_reference_indices(fallback, index_by_name, references);",
+    ) &&
+    customProperty.includes("HashMap<&str, usize>") &&
+    customProperty.includes("edges: Vec<Vec<usize>>"),
   "fallback edges and graph nodes must use the shared canonical custom-property key",
+);
+assert.ok(
+  customProperty.includes("let mut stack = vec![(start, 0usize)];") &&
+    customProperty.includes("let mut stack = vec![node];") &&
+    customProperty.includes("let mut ready = (0..components.len())") &&
+    !customProperty.includes("fn finish_visit(") &&
+    !customProperty.includes("fn collect_reverse_component(") &&
+    !customProperty.includes("fn visit_component("),
+  "SCC partition and component scheduling must remain iterative",
 );
 for (const retiredNeedle of [
   "let mut current = env.clone();",
@@ -180,10 +214,12 @@ assert.ok(
   "the spec grammar authority and salsa-fed custom-property environment must reach the port",
 );
 assert.ok(
-  read(rgFlowPath).includes("summary.input_count == 0 && summary.monotone_witness_valid") &&
-    read(rgFlowPath).includes(
+  rgFlow.includes("let trace_is_component_schedule") &&
+    [
+      "iteration.settled_count == summary.input_count",
+      "!cascade_value_contains_var_reference(&entry.resolved)",
       "fn beta_estimate_reads_cascade_component_schedule_without_mutating_cascade()",
-    ) &&
+    ].every((needle) => rgFlow.includes(needle)) &&
     document.includes("component-schedule observation rather than a Kleene iteration"),
   "downstream RG-flow must not relabel a non-empty component schedule as a Kleene certificate",
 );
@@ -239,9 +275,11 @@ const frozenCaseShapes = new Map<string, string | null>([
   ["direct-literal", null],
   ["acyclic-alias-chain", null],
   ["missing-reference-fallback", null],
-  ["plain-two-cycle", "mutualReferenceWithoutFallback"],
+  ["plain-two-cycle", null],
+  ["outer-fallback-after-invalid-dependency", null],
   ["mutually-recursive-fallback-chain", "mutuallyRecursiveFallbackChain"],
   ["cycle-through-fallback", "cycleThroughFallback"],
+  ["three-node-fallback-cycle-entered-mid-chain", "threeNodeFallbackCycleEnteredMidChain"],
 ]);
 assert.ok(corpus.cases.length >= 6, "the witness corpus may grow but must not shrink");
 for (const [id, cycleShape] of frozenCaseShapes) {
@@ -254,29 +292,32 @@ assert.equal(
   corpus.cases.length,
 );
 assert.equal(corpus.cases.filter((entry) => entry.expectedDisposition === "finding").length, 0);
-assert.ok(
-  corpus.cases.filter((entry) => entry.cycleShape !== null).length >= 2,
-  "the cycle corpus must retain at least two non-degenerate shapes",
-);
-assert.ok(
-  corpus.cases.some((entry) => entry.cycleShape === "threeNodeFallbackCycleEnteredMidChain"),
-  "the three-node fallback-rescue regression shape must remain",
+assert.deepEqual(
+  corpus.cases
+    .map((entry) => entry.cycleShape)
+    .filter((cycleShape): cycleShape is string => cycleShape !== null),
+  [
+    "mutuallyRecursiveFallbackChain",
+    "cycleThroughFallback",
+    "threeNodeFallbackCycleEnteredMidChain",
+  ],
+  "the named non-degenerate cycle-shape allowlist changed",
 );
 const evaluatorFunction = extractBetween(
   evaluator,
   "fn evaluate_from_all_bottom(",
-  "\nfn evaluate_fixture_value(",
+  "\nfn to_cascade_value(",
 );
 assert.equal(
   sha256(evaluatorFunction),
-  "82be635517fcab9e6eeb8c9daacc0fd7486cedf44a1539684b4931e1366af823",
-  "the independent all-bottom evaluator changed",
+  "5fb3d0b7ab8a5d5b80040cba27e04ef7bc4344d341f202cbb10766165d7c60bc",
+  "the independent all-bottom evaluator kernel changed",
 );
 assert.equal(
   sha256(
     JSON.stringify(corpus.cases.map(({ id, expectedEvaluator }) => ({ id, expectedEvaluator }))),
   ),
-  "f23e1f94dfa7d6660777761d08ace58bdb754ef6ff5dadbafc2f98fc85eb4d1a",
+  "96bea4cb6b02ad22d491b46b4ba632103f4539a27c788002f74523e57beaa486",
   "the independent expectedEvaluator projections changed",
 );
 assert.ok(
@@ -300,6 +341,8 @@ if (args.has("--inject-reordered-evaluator")) {
   relayMutationResult(runAlwaysValidValidatorMutation());
 } else if (args.has("--inject-literal-only-verdicts")) {
   relayMutationResult(runLiteralOnlyVerdictMutation());
+} else if (args.has("--inject-matcher-coverage-promotion")) {
+  relayMutationResult(runMatcherCoveragePromotionMutation());
 } else if (args.size === 0) {
   const normal = runWitness(repoRoot, null, "inherit");
   assert.equal(normal.status, 0, "the independent all-bottom witness corpus must pass");
@@ -316,6 +359,52 @@ if (args.has("--inject-reordered-evaluator")) {
   assert.equal(directGrammar.status, 0, "the direct post-substitution grammar arm must pass");
   const salsaGrammar = runSalsaGrammarTest(repoRoot, "inherit");
   assert.equal(salsaGrammar.status, 0, "the salsa-fed post-substitution grammar arm must pass");
+  const coverageCorpus = runCargo(repoRoot, [
+    "test",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "omena-query",
+    "tracked_thirty_six_var_sites_have_no_undeclared_status_delta",
+    "--",
+    "--nocapture",
+  ]);
+  assert.equal(coverageCorpus.status, 0, "the 36-site status corpus must pass");
+  const longChain = runCargo(repoRoot, [
+    "test",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "omena-cascade",
+    "resolves_a_hundred_thousand_binding_alias_chain_without_recursion",
+    "--",
+    "--nocapture",
+  ]);
+  assert.equal(longChain.status, 0, "the 100k iterative alias-chain arm must pass");
+  const flatPerformance = runCargo(repoRoot, [
+    "test",
+    "--release",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "omena-cascade",
+    "flat_environment_resolution_stays_within_twice_the_clone_pickup",
+    "--",
+    "--ignored",
+    "--nocapture",
+  ]);
+  assert.equal(flatPerformance.status, 0, "the flat-environment 2x performance ceiling must pass");
+  const traceSchedule = runCargo(repoRoot, [
+    "test",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "omena-rg-flow",
+    "fixed_point_trace_verification_requires_a_complete_component_schedule",
+    "--",
+    "--nocapture",
+  ]);
+  assert.equal(traceSchedule.status, 0, "the component-schedule trace invariant must pass");
 
   const mutationReceipts = [
     expectScriptMutationRed(
@@ -328,7 +417,7 @@ if (args.has("--inject-reordered-evaluator")) {
     ),
     expectScriptMutationRed(
       "--inject-oracle-weakening",
-      "independent all-bottom evaluator changed",
+      "independent all-bottom evaluator kernel changed",
     ),
     expectScriptMutationRed(
       "--inject-fallback-rescue",
@@ -339,6 +428,11 @@ if (args.has("--inject-reordered-evaluator")) {
     expectScriptMutationRed(
       "--inject-literal-only-verdicts",
       "source_element_computed_value_revalidates_a_substituted_standard_value",
+    ),
+    expectScriptMutationRed("--inject-matcher-coverage-promotion", "MatcherCoverageIncomplete"),
+    expectScriptMutationRed(
+      "--inject-nonconverged-return",
+      "retired iterate-and-rescue code remains: reached_fixed_point: false",
     ),
   ];
 
@@ -353,6 +447,10 @@ if (args.has("--inject-reordered-evaluator")) {
       findingCount: 0,
       novelCycleCaseCount: corpus.cases.filter((entry) => entry.cycleShape !== null).length,
       postSubstitutionGrammar: "direct-and-salsa:GREEN",
+      trackedVarSiteStatusCorpus: "36/36:GREEN",
+      iterativeAliasBoundary: "100000:GREEN",
+      flatEnvironmentPerformanceCeiling: "2x:GREEN",
+      componentScheduleTraceInvariant: "GREEN",
       mutations: mutationReceipts,
       rfcDisposition: gapRegister.rfcDisposition.status,
     })}\n`,
@@ -477,6 +575,28 @@ function runLiteralOnlyVerdictMutation(): ReturnType<typeof spawnSync> {
   );
 }
 
+function runMatcherCoveragePromotionMutation(): ReturnType<typeof spawnSync> {
+  return runSourceMutation(
+    grammarPath,
+    (source) =>
+      replaceExactly(
+        source,
+        "CssValueGrammarVerdictV0::Unmatched { .. } if !matcher_coverage_complete => (",
+        "CssValueGrammarVerdictV0::Unmatched { .. } if false => (",
+      ),
+    [
+      "test",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "omena-abstract-value",
+      "incomplete_matcher_coverage_cannot_promote_unmatched_to_invalid",
+      "--",
+      "--nocapture",
+    ],
+  );
+}
+
 function runSourceMutation(
   targetPath: string,
   mutate: (source: string) => string,
@@ -495,6 +615,7 @@ function runSourceMutation(
       computedValuePath,
       cascadeTestsPath,
       cascadeLibPath,
+      modelPath,
       evaluatorPath,
       corpusPath,
       grammarPath,

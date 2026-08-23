@@ -74,7 +74,7 @@
     {
       "familyId": "f06",
       "sourcePath": "docs/concepts/custom-property-bounded-substitution.md",
-      "line": 63,
+      "line": 66,
       "lineSha256": "36f8ae7e1173df692da1c11840b90be55e14b6ff2622fafb280fa88d8fbfe7bb",
       "occurrenceInLine": 0,
       "justification": "The concept page names the downstream RG-flow compatibility consumer so it can state the observed non-Kleene interpretation of component-schedule traces."
@@ -82,31 +82,31 @@
     {
       "familyId": "f06",
       "sourcePath": "scripts/check-rust-omena-custom-property-fixed-point-formalization.ts",
-      "line": 44,
-      "lineSha256": "166568d25ab7f0b30c059ce140a519bf383860d50db7cfe65f6728e55914283c",
+      "line": 53,
+      "lineSha256": "12d069dadd0e10e7b79a053c44d0c107ba1a3f3606348ecda5f5503366d2024d",
       "occurrenceInLine": 0,
       "justification": "The formalization gate loads the named downstream RG-flow source to pin its compatibility interpretation of cascade component traces."
     },
     {
       "familyId": "f06",
       "sourcePath": "scripts/check-rust-omena-custom-property-fixed-point-formalization.ts",
-      "line": 183,
-      "lineSha256": "7c5fce9934dd9de44a9021e002f1ea060a3a7eaf85b8284534d3be49347e6f2b",
+      "line": 217,
+      "lineSha256": "6a85564cbcbeff18e3122165e54da8bbe53dfe2b684e230a9d3ccf33becbe3ce",
       "occurrenceInLine": 0,
       "justification": "The formalization gate asserts the downstream compatibility source consumes the structural component schedule."
     },
     {
       "familyId": "f06",
       "sourcePath": "scripts/check-rust-omena-custom-property-fixed-point-formalization.ts",
-      "line": 184,
-      "lineSha256": "75eac7d912716a4a035cb41bf16e766d9aada255a0d3ec3044aa53575c16a490",
+      "line": 222,
+      "lineSha256": "e1547b0512734de7a459d6a5089ac6dbf47954ebab253505c58821cfaa23f3b3",
       "occurrenceInLine": 0,
       "justification": "The formalization gate asserts that nonempty component schedules are not represented as Kleene convergence certificates downstream."
     },
     {
       "familyId": "f06",
       "sourcePath": "scripts/check-rust-omena-custom-property-fixed-point-formalization.ts",
-      "line": 188,
+      "line": 224,
       "lineSha256": "0342b6751e71f9fc66118dd86c863a8ade847bd7141c321c9eae391e5ed982e3",
       "occurrenceInLine": 0,
       "justification": "The assertion message explicitly identifies the RG-flow compatibility boundary whose interpretation is being pinned."

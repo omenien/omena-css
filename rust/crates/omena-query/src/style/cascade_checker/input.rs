@@ -657,8 +657,8 @@ mod layer_binding_tests {
 
     #[test]
     fn one_standard_grammar_verdict_drives_checker_and_computed_value() {
-        let declaration_id = "invalid-color";
-        let invalid_value = "definitely-not-a-color";
+        let declaration_id = "invalid-box-sizing";
+        let invalid_value = "inline-box";
         let non_definite_value = "!!! not-a-color 42px };drop";
         assert_eq!(
             omena_query_checker_orchestrator::standard_property_value_verdict_v0(
@@ -671,7 +671,7 @@ mod layer_binding_tests {
             declarations: vec![OmenaCheckerCascadeDeclarationInputV0 {
                 declaration_id: declaration_id.to_string(),
                 selector: CanonicalSelector::from_canonical(".target"),
-                property: "color".to_string(),
+                property: "box-sizing".to_string(),
                 value: invalid_value.to_string(),
                 source_order: 0,
                 condition_context: Vec::new(),
@@ -691,11 +691,11 @@ mod layer_binding_tests {
                 &verdicts,
             );
         let computed = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-            property: "color".to_string(),
+            property: "box-sizing".to_string(),
             declarations: vec![CascadeDeclaration {
                 id: declaration_id.to_string(),
-                property: omena_syntax::ident::AuthoredPropertyTextV0::new("color"),
-                property_key: PropertyNameV0::standard("color").canonical_key(),
+                property: omena_syntax::ident::AuthoredPropertyTextV0::new("box-sizing"),
+                property_key: PropertyNameV0::standard("box-sizing").canonical_key(),
                 value: CascadeValue::Literal(invalid_value.to_string()),
                 key: CascadeKey::new(
                     CascadeLevel::AuthorNormal,
@@ -734,7 +734,7 @@ mod layer_binding_tests {
     fn cascade_input_collection_carries_standard_grammar_verdicts() {
         let collection = collect_query_checker_cascade_input(
             "file:///tmp/invalid.css",
-            ".target { color: definitely-not-a-color; }",
+            ".target { box-sizing: inline-box; }",
         );
         let declaration_id = collection.checker_input.declarations[0]
             .declaration_id

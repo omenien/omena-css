@@ -813,6 +813,15 @@ pub struct CustomPropertyLeastFixedPointIterationV0 {
     pub guaranteed_invalid_count: usize,
 }
 
+/// The structural reason a custom-property binding became guaranteed-invalid.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CustomPropertyGuaranteedInvalidReasonV0 {
+    CycleMember,
+    MissingReference,
+    InvalidDependencyWithoutFallback,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CustomPropertyLeastFixedPointEntryV0 {
@@ -821,6 +830,7 @@ pub struct CustomPropertyLeastFixedPointEntryV0 {
     pub resolved: CascadeValue,
     pub changed: bool,
     pub guaranteed_invalid: bool,
+    pub guaranteed_invalid_reason: Option<CustomPropertyGuaranteedInvalidReasonV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

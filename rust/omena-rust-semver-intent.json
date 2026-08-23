@@ -53,7 +53,7 @@
     {
       "crate": "omena-rg-flow",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor aligns custom-property complexity observations with the shipped dependency-component schedule instead of treating those rows as Kleene iterations.",
+      "reason": "The next pre-1.0 minor aligns custom-property complexity observations with the shipped dependency-component schedule instead of treating those rows as Kleene iterations, and makes fixedPointVerifiedFromTrace certify the complete component schedule and residual-free outputs.",
       "expectedFailures": [],
       "expectedRuntimeValueChanges": [
         {
@@ -69,6 +69,22 @@
                 "fn beta_estimate_reads_cascade_component_schedule_without_mutating_cascade()",
                 "assert_eq!(estimate.sign_witness.beta_decl_sign, 1);",
                 "assert!(!estimate.sign_witness.monotone_kleene_certificate);"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "custom-property-component-schedule-verification",
+          "kind": "wire-value-order-preserving",
+          "surface": "MultiscaleComplexityMetricV0 fixedPointVerifiedFromTrace",
+          "reason": "The compatibility field now requires one sequential trace row per component, strict settled-count progress, exact final counters, complete entry coverage, and no residual var reference; reachedFixedPoint alone is no longer sufficient.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-rg-flow/src/lib.rs",
+              "needles": [
+                "let trace_is_component_schedule",
+                "iteration.settled_count == summary.input_count",
+                "fn fixed_point_trace_verification_requires_a_complete_component_schedule()"
               ]
             }
           ]
@@ -523,6 +539,29 @@
               ]
             }
           ]
+        },
+        {
+          "id": "query-custom-property-invalid-cause-diagnostics",
+          "kind": "wire-value-order-preserving",
+          "surface": "guaranteedInvalidCustomProperty diagnostic message",
+          "reason": "The diagnostic now names cycle membership, a missing reference, or an invalid dependency without fallback instead of attributing every guaranteed-invalid binding to a cycle.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/diagnostics/single_file.rs",
+              "needles": [
+                "guaranteed_invalid_custom_property_message",
+                "references a missing custom property without a fallback",
+                "depends on a guaranteed-invalid custom property without a fallback"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/tests/style_diagnostics.rs",
+              "needles": [
+                "missing custom property without a fallback",
+                "assert!(!missing_message.contains(\"cyclic\"));"
+              ]
+            }
+          ]
         }
       ]
     },
@@ -850,10 +889,15 @@
           "lint": "constructible_struct_adds_field",
           "evidenceNeedles": [
             "field CascadeProof.property_key",
-            "field CascadeDeclaration.property_key"
+            "field CascadeDeclaration.property_key",
+            "field CustomPropertyLeastFixedPointEntryV0.guaranteed_invalid_reason"
           ],
           "witnessLinePrefix": "  field ",
-          "expectedWitnesses": ["CascadeProof.property_key", "CascadeDeclaration.property_key"]
+          "expectedWitnesses": [
+            "CascadeProof.property_key",
+            "CascadeDeclaration.property_key",
+            "CustomPropertyLeastFixedPointEntryV0.guaranteed_invalid_reason"
+          ]
         }
       ],
       "expectedRuntimeValueChanges": [
@@ -935,13 +979,81 @@
               ]
             }
           ]
+        },
+        {
+          "id": "custom-property-invalid-cause-projection",
+          "kind": "wire-value-order-preserving",
+          "surface": "CustomPropertyLeastFixedPointEntryV0 guaranteedInvalidReason",
+          "reason": "Guaranteed-invalid summary entries now distinguish cycle membership, a missing reference, and an invalid dependency without fallback so diagnostics do not label every failure as a cycle.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/model.rs",
+              "needles": [
+                "pub enum CustomPropertyGuaranteedInvalidReasonV0",
+                "pub guaranteed_invalid_reason: Option<CustomPropertyGuaranteedInvalidReasonV0>"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/tests.rs",
+              "needles": ["fn classifies_guaranteed_invalid_custom_property_causes()"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-abstract-value",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor prevents incomplete matcher coverage from becoming a definite rejection and expands the single pinned grammar authority for paint colors, core math functions, and grid track functions.",
+      "expectedFailures": [
+        {
+          "lint": "enum_variant_added",
+          "evidenceNeedles": ["variant CssValueValidationReasonV0:MatcherCoverageIncomplete"]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "standard-value-matcher-coverage-gate",
+          "kind": "selection-outcome-changing",
+          "surface": "CssValueValidationV0 class and reason",
+          "reason": "An in-boundary Unmatched verdict is Invalid only when the transitive pinned grammar has complete matcher coverage; incomplete coverage now yields NotValidatable with MatcherCoverageIncomplete.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+              "needles": [
+                "standard_property_matcher_coverage_complete",
+                "CssValueValidationReasonV0::MatcherCoverageIncomplete",
+                "fn incomplete_matcher_coverage_cannot_promote_unmatched_to_invalid()"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "pinned-paint-math-grid-expansion",
+          "kind": "selection-outcome-changing",
+          "surface": "standard property value matcher and post-substitution cascade validation",
+          "reason": "The reviewed paint grammar includes color, core math functions are validated at numeric reference sites, and grid minmax/repeat values use the same pinned registry instead of becoming indeterminate after var substitution.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-spec-audit/data/value-grammar-overrides.json",
+              "needles": ["fill-stroke-paint-includes-color"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+              "needles": [
+                "math_function_matches_reference",
+                "fn pinned_matcher_resolves_paint_math_and_grid_function_shapes()",
+                "fn forty_valid_declaration_corpus_has_no_definite_rejection()"
+              ]
+            }
+          ]
         }
       ]
     },
     {
       "crate": "omena-checker",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor makes checker registration, dependency, and declaration joins consume the shared property identity authority.",
+      "reason": "The next pre-1.0 minor makes checker registration, dependency, and declaration joins consume the shared property identity authority, and prevents partial standard-value matchers from fabricating definite invalid-value findings.",
       "expectedFailures": [],
       "expectedRuntimeValueChanges": [
         {
@@ -956,6 +1068,22 @@
                 "BTreeMap<CanonicalCustomPropertyNameV0, OmenaCheckerActiveCustomPropertyRegistrationV0>",
                 "let key = PropertyNameV0::canonical_custom_key(*name);",
                 "fn checker_joins_property_identity_without_merging_custom_property_case()"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "checker-value-matcher-coverage-gate",
+          "kind": "selection-outcome-changing",
+          "surface": "InvalidPropertyValue checker findings for standard-property values",
+          "reason": "An unmatched value now produces a definite checker finding only when the pinned matcher transitively certifies complete coverage; partial compound and numeric grammars remain indeterminate instead of emitting false errors.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-checker/src/lib.rs",
+              "needles": [
+                "fn invalid_property_value_keeps_incomplete_compound_grammar_indeterminate()",
+                "fn invalid_property_value_keeps_incomplete_negative_compounds_indeterminate()",
+                "fn invalid_property_value_fires_on_definite_keyword_violation()"
               ]
             }
           ]

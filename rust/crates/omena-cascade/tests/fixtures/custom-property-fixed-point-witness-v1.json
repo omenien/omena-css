@@ -70,7 +70,7 @@
     },
     {
       "id": "plain-two-cycle",
-      "cycleShape": "mutualReferenceWithoutFallback",
+      "cycleShape": null,
       "bindings": {
         "--a": { "var": { "name": "--b", "fallback": null } },
         "--b": { "var": { "name": "--a", "fallback": null } }
@@ -85,6 +85,31 @@
       },
       "expectedImplementationIterations": 1,
       "expectedEvaluatorIterations": 1,
+      "expectedImplementationReachedFixedPoint": true,
+      "expectedDisposition": "agreement"
+    },
+    {
+      "id": "outer-fallback-after-invalid-dependency",
+      "cycleShape": null,
+      "bindings": {
+        "--invalid": "guaranteedInvalid",
+        "--outer": {
+          "var": {
+            "name": "--invalid",
+            "fallback": { "literal": "gold" }
+          }
+        }
+      },
+      "expectedImplementation": {
+        "--invalid": "guaranteedInvalid",
+        "--outer": { "literal": "gold" }
+      },
+      "expectedEvaluator": {
+        "--invalid": "guaranteedInvalid",
+        "--outer": { "literal": "gold" }
+      },
+      "expectedImplementationIterations": 2,
+      "expectedEvaluatorIterations": 3,
       "expectedImplementationReachedFixedPoint": true,
       "expectedDisposition": "agreement"
     },

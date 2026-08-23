@@ -6,12 +6,15 @@
 //! proof-oriented API names remain as compatibility aliases.
 
 use omena_syntax::ident::CanonicalCustomPropertyNameV0;
-use std::collections::{BTreeMap, BTreeSet};
+#[cfg(test)]
+use std::cell::Cell;
+use std::collections::{BTreeMap, HashMap, VecDeque};
 
 use crate::{
     CascadeValue, CustomPropertyBoundedFixedPointComputationWitnessV0, CustomPropertyEnv,
-    CustomPropertyLeastFixedPointEntryV0, CustomPropertyLeastFixedPointIterationV0,
-    CustomPropertyLeastFixedPointProofV0, CustomPropertyLeastFixedPointSummaryV0,
+    CustomPropertyGuaranteedInvalidReasonV0, CustomPropertyLeastFixedPointEntryV0,
+    CustomPropertyLeastFixedPointIterationV0, CustomPropertyLeastFixedPointProofV0,
+    CustomPropertyLeastFixedPointSummaryV0,
 };
 
 pub fn substitute_custom_properties(value: &CascadeValue, env: &CustomPropertyEnv) -> CascadeValue {
@@ -20,13 +23,13 @@ pub fn substitute_custom_properties(value: &CascadeValue, env: &CustomPropertyEn
 }
 
 pub fn resolve_custom_property_env_least_fixed_point(env: &CustomPropertyEnv) -> CustomPropertyEnv {
-    compute_custom_property_env_least_fixed_point(env).resolved_env
+    compute_custom_property_env_least_fixed_point(env, TraceMode::Omit).resolved_env
 }
 
 pub fn summarize_custom_property_least_fixed_point(
     env: &CustomPropertyEnv,
 ) -> CustomPropertyLeastFixedPointSummaryV0 {
-    let computation = compute_custom_property_env_least_fixed_point(env);
+    let computation = compute_custom_property_env_least_fixed_point(env, TraceMode::Record);
     let entries = env
         .iter()
         .map(|(name, input)| {
@@ -40,6 +43,7 @@ pub fn summarize_custom_property_least_fixed_point(
                 input: input.clone(),
                 changed: &resolved != input,
                 guaranteed_invalid: resolved == CascadeValue::GuaranteedInvalid,
+                guaranteed_invalid_reason: computation.invalid_reasons.get(name).copied(),
                 resolved,
             }
         })
@@ -81,52 +85,142 @@ pub fn summarize_custom_property_least_fixed_point(
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CustomPropertyLeastFixedPointComputation {
     resolved_env: CustomPropertyEnv,
+    invalid_reasons:
+        BTreeMap<CanonicalCustomPropertyNameV0, CustomPropertyGuaranteedInvalidReasonV0>,
     iteration_count: usize,
     iteration_bound: usize,
     reached_fixed_point: bool,
     iteration_trace: Vec<CustomPropertyLeastFixedPointIterationV0>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TraceMode {
+    Omit,
+    Record,
+}
+
 fn compute_custom_property_env_least_fixed_point(
     env: &CustomPropertyEnv,
+    trace_mode: TraceMode,
 ) -> CustomPropertyLeastFixedPointComputation {
+    if env
+        .values()
+        .all(|value| !cascade_value_contains_var_reference(value))
+    {
+        let iteration_bound = env.len().max(1);
+        let iteration_trace = match trace_mode {
+            TraceMode::Omit => Vec::new(),
+            TraceMode::Record if env.is_empty() => vec![CustomPropertyLeastFixedPointIterationV0 {
+                iteration: 1,
+                changed_count: 0,
+                settled_count: 0,
+                guaranteed_invalid_count: 0,
+            }],
+            TraceMode::Record => {
+                let mut guaranteed_invalid_count = 0;
+                env.iter()
+                    .enumerate()
+                    .map(|(index, (_, value))| {
+                        guaranteed_invalid_count +=
+                            usize::from(*value == CascadeValue::GuaranteedInvalid);
+                        CustomPropertyLeastFixedPointIterationV0 {
+                            iteration: index + 1,
+                            changed_count: 0,
+                            settled_count: index + 1,
+                            guaranteed_invalid_count,
+                        }
+                    })
+                    .collect()
+            }
+        };
+        let invalid_reasons = env
+            .iter()
+            .filter(|(_, value)| **value == CascadeValue::GuaranteedInvalid)
+            .map(|(name, _)| {
+                (
+                    name.clone(),
+                    CustomPropertyGuaranteedInvalidReasonV0::InvalidDependencyWithoutFallback,
+                )
+            })
+            .collect();
+        return CustomPropertyLeastFixedPointComputation {
+            resolved_env: env.clone(),
+            invalid_reasons,
+            iteration_count: iteration_bound,
+            iteration_bound,
+            reached_fixed_point: true,
+            iteration_trace,
+        };
+    }
     let dependency_graph = custom_property_dependency_graph(env);
     let components = strongly_connected_components(&dependency_graph);
     let component_schedule = dependency_ordered_components(&dependency_graph, &components);
     let mut resolved_env = CustomPropertyEnv::new();
-    let mut iteration_trace = Vec::new();
+    let mut invalid_reasons = BTreeMap::new();
+    let mut iteration_trace = match trace_mode {
+        TraceMode::Omit => Vec::new(),
+        TraceMode::Record => Vec::with_capacity(components.len().max(1)),
+    };
+    let mut changed_count = 0;
+    let mut settled_count = 0;
+    let mut guaranteed_invalid_count = 0;
 
     for component_index in component_schedule {
         let component = &components[component_index];
         if component_is_cyclic(component, &dependency_graph) {
-            for name in component {
+            for node in component {
+                let name = dependency_graph.names[*node];
                 resolved_env.insert(name.clone(), CascadeValue::GuaranteedInvalid);
+                invalid_reasons.insert(
+                    name.clone(),
+                    CustomPropertyGuaranteedInvalidReasonV0::CycleMember,
+                );
             }
         } else {
-            for name in component {
+            for node in component {
+                let name = dependency_graph.names[*node];
                 let Some(value) = env.get(name) else {
                     continue;
                 };
-                let resolved =
-                    substitute_custom_properties_against_resolved_env(value, &resolved_env);
-                resolved_env.insert(name.clone(), resolved);
+                let outcome = substitute_custom_properties_with_reason(
+                    value,
+                    &resolved_env,
+                    &invalid_reasons,
+                );
+                if let Some(reason) = outcome.invalid_reason {
+                    invalid_reasons.insert(name.clone(), reason);
+                }
+                resolved_env.insert(name.clone(), outcome.value);
             }
         }
 
-        let iteration = iteration_trace.len() + 1;
-        iteration_trace.push(custom_property_least_fixed_point_iteration_witness(
-            iteration,
-            env,
-            &resolved_env,
-        ));
+        if trace_mode == TraceMode::Record {
+            for node in component {
+                let name = dependency_graph.names[*node];
+                let Some(resolved) = resolved_env.get(name) else {
+                    continue;
+                };
+                changed_count += usize::from(env.get(name).is_some_and(|input| input != resolved));
+                settled_count += usize::from(!cascade_value_contains_var_reference(resolved));
+                guaranteed_invalid_count +=
+                    usize::from(*resolved == CascadeValue::GuaranteedInvalid);
+            }
+            iteration_trace.push(CustomPropertyLeastFixedPointIterationV0 {
+                iteration: iteration_trace.len() + 1,
+                changed_count,
+                settled_count,
+                guaranteed_invalid_count,
+            });
+        }
     }
 
-    if iteration_trace.is_empty() {
-        iteration_trace.push(custom_property_least_fixed_point_iteration_witness(
-            1,
-            env,
-            &resolved_env,
-        ));
+    if trace_mode == TraceMode::Record && iteration_trace.is_empty() {
+        iteration_trace.push(CustomPropertyLeastFixedPointIterationV0 {
+            iteration: 1,
+            changed_count: 0,
+            settled_count: 0,
+            guaranteed_invalid_count: 0,
+        });
     }
 
     assert_eq!(
@@ -143,41 +237,75 @@ fn compute_custom_property_env_least_fixed_point(
 
     CustomPropertyLeastFixedPointComputation {
         resolved_env,
-        iteration_count: iteration_trace.len(),
+        invalid_reasons,
+        iteration_count: components.len().max(1),
         iteration_bound: components.len().max(1),
         reached_fixed_point: true,
         iteration_trace,
     }
 }
 
-type CustomPropertyDependencyGraph =
-    BTreeMap<CanonicalCustomPropertyNameV0, BTreeSet<CanonicalCustomPropertyNameV0>>;
-
-fn custom_property_dependency_graph(env: &CustomPropertyEnv) -> CustomPropertyDependencyGraph {
-    env.iter()
-        .map(|(name, value)| {
-            let mut references = BTreeSet::new();
-            collect_custom_property_references(value, &mut references);
-            references.retain(|reference| env.contains_key(reference));
-            (name.clone(), references)
-        })
-        .collect()
+struct CustomPropertyDependencyGraph<'a> {
+    names: Vec<&'a CanonicalCustomPropertyNameV0>,
+    edges: Vec<Vec<usize>>,
 }
 
-fn collect_custom_property_references(
+#[cfg(test)]
+thread_local! {
+    static DEPENDENCY_GRAPH_BUILD_COUNT: Cell<usize> = const { Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn reset_custom_property_dependency_graph_build_count() {
+    DEPENDENCY_GRAPH_BUILD_COUNT.set(0);
+}
+
+#[cfg(test)]
+pub(crate) fn custom_property_dependency_graph_build_count() -> usize {
+    DEPENDENCY_GRAPH_BUILD_COUNT.get()
+}
+
+fn custom_property_dependency_graph(env: &CustomPropertyEnv) -> CustomPropertyDependencyGraph<'_> {
+    #[cfg(test)]
+    DEPENDENCY_GRAPH_BUILD_COUNT.set(DEPENDENCY_GRAPH_BUILD_COUNT.get() + 1);
+    let names = env.keys().collect::<Vec<_>>();
+    let index_by_name = names
+        .iter()
+        .enumerate()
+        .map(|(index, name)| (name.as_str(), index))
+        .collect::<HashMap<_, _>>();
+    let edges = names
+        .iter()
+        .map(|name| {
+            let mut references = Vec::new();
+            if let Some(value) = env.get(*name) {
+                collect_custom_property_reference_indices(value, &index_by_name, &mut references);
+            }
+            references.sort_unstable();
+            references.dedup();
+            references
+        })
+        .collect();
+    CustomPropertyDependencyGraph { names, edges }
+}
+
+fn collect_custom_property_reference_indices(
     value: &CascadeValue,
-    references: &mut BTreeSet<CanonicalCustomPropertyNameV0>,
+    index_by_name: &HashMap<&str, usize>,
+    references: &mut Vec<usize>,
 ) {
     match value {
         CascadeValue::Var { name, fallback } => {
-            references.insert(name.clone());
+            if let Some(index) = index_by_name.get(name.as_str()) {
+                references.push(*index);
+            }
             if let Some(fallback) = fallback {
-                collect_custom_property_references(fallback, references);
+                collect_custom_property_reference_indices(fallback, index_by_name, references);
             }
         }
         CascadeValue::Composite(parts) => {
             for part in parts {
-                collect_custom_property_references(part, references);
+                collect_custom_property_reference_indices(part, index_by_name, references);
             }
         }
         CascadeValue::Literal(_)
@@ -189,169 +317,127 @@ fn collect_custom_property_references(
     }
 }
 
-fn strongly_connected_components(
-    graph: &CustomPropertyDependencyGraph,
-) -> Vec<Vec<CanonicalCustomPropertyNameV0>> {
-    fn finish_visit(
-        node: &CanonicalCustomPropertyNameV0,
-        graph: &CustomPropertyDependencyGraph,
-        visited: &mut BTreeSet<CanonicalCustomPropertyNameV0>,
-        finish_order: &mut Vec<CanonicalCustomPropertyNameV0>,
-    ) {
-        if !visited.insert(node.clone()) {
-            return;
+fn strongly_connected_components(graph: &CustomPropertyDependencyGraph<'_>) -> Vec<Vec<usize>> {
+    let mut finish_order = Vec::with_capacity(graph.names.len());
+    let mut visited = vec![false; graph.names.len()];
+    for start in 0..graph.names.len() {
+        if visited[start] {
+            continue;
         }
-        if let Some(neighbors) = graph.get(node) {
-            for neighbor in neighbors {
-                finish_visit(neighbor, graph, visited, finish_order);
-            }
-        }
-        finish_order.push(node.clone());
-    }
-
-    fn collect_reverse_component(
-        node: &CanonicalCustomPropertyNameV0,
-        reverse_graph: &CustomPropertyDependencyGraph,
-        visited: &mut BTreeSet<CanonicalCustomPropertyNameV0>,
-        component: &mut Vec<CanonicalCustomPropertyNameV0>,
-    ) {
-        if !visited.insert(node.clone()) {
-            return;
-        }
-        component.push(node.clone());
-        if let Some(neighbors) = reverse_graph.get(node) {
-            for neighbor in neighbors {
-                collect_reverse_component(neighbor, reverse_graph, visited, component);
+        visited[start] = true;
+        let mut stack = vec![(start, 0usize)];
+        while let Some((node, neighbor_index)) = stack.last_mut() {
+            if let Some(neighbor) = graph.edges[*node].get(*neighbor_index).copied() {
+                *neighbor_index += 1;
+                if !visited[neighbor] {
+                    visited[neighbor] = true;
+                    stack.push((neighbor, 0));
+                }
+            } else {
+                let node = *node;
+                stack.pop();
+                finish_order.push(node);
             }
         }
     }
 
-    let mut finish_order = Vec::with_capacity(graph.len());
-    let mut visited = BTreeSet::new();
-    for node in graph.keys() {
-        finish_visit(node, graph, &mut visited, &mut finish_order);
-    }
-
-    let mut reverse_graph = graph
-        .keys()
-        .cloned()
-        .map(|name| (name, BTreeSet::new()))
-        .collect::<CustomPropertyDependencyGraph>();
-    for (source, targets) in graph {
+    let mut reverse_graph = vec![Vec::new(); graph.names.len()];
+    for (source, targets) in graph.edges.iter().enumerate() {
         for target in targets {
-            reverse_graph
-                .entry(target.clone())
-                .or_default()
-                .insert(source.clone());
+            reverse_graph[*target].push(source);
         }
+    }
+    for neighbors in &mut reverse_graph {
+        neighbors.sort_unstable();
     }
 
     let mut components = Vec::new();
-    visited.clear();
+    visited.fill(false);
     while let Some(node) = finish_order.pop() {
-        if visited.contains(&node) {
+        if visited[node] {
             continue;
         }
         let mut component = Vec::new();
-        collect_reverse_component(&node, &reverse_graph, &mut visited, &mut component);
-        component.sort();
+        visited[node] = true;
+        let mut stack = vec![node];
+        while let Some(current) = stack.pop() {
+            component.push(current);
+            for neighbor in reverse_graph[current].iter().rev() {
+                if !visited[*neighbor] {
+                    visited[*neighbor] = true;
+                    stack.push(*neighbor);
+                }
+            }
+        }
+        component.sort_unstable_by_key(|index| graph.names[*index].as_str());
         components.push(component);
     }
     components
 }
 
 fn dependency_ordered_components(
-    graph: &CustomPropertyDependencyGraph,
-    components: &[Vec<CanonicalCustomPropertyNameV0>],
+    graph: &CustomPropertyDependencyGraph<'_>,
+    components: &[Vec<usize>],
 ) -> Vec<usize> {
-    fn visit_component(
-        component_index: usize,
-        component_dependencies: &[BTreeSet<usize>],
-        visited: &mut BTreeSet<usize>,
-        schedule: &mut Vec<usize>,
-    ) {
-        if !visited.insert(component_index) {
-            return;
+    let mut component_by_node = vec![0; graph.names.len()];
+    for (component_index, component) in components.iter().enumerate() {
+        for node in component {
+            component_by_node[*node] = component_index;
         }
-        for dependency in &component_dependencies[component_index] {
-            visit_component(*dependency, component_dependencies, visited, schedule);
-        }
-        schedule.push(component_index);
     }
-
-    let component_by_name = components
-        .iter()
-        .enumerate()
-        .flat_map(|(index, component)| component.iter().cloned().map(move |name| (name, index)))
-        .collect::<BTreeMap<_, _>>();
-    let mut component_dependencies = vec![BTreeSet::new(); components.len()];
-    for (source, targets) in graph {
-        let Some(source_component) = component_by_name.get(source).copied() else {
-            continue;
-        };
+    let mut component_dependencies = vec![Vec::new(); components.len()];
+    for (source, targets) in graph.edges.iter().enumerate() {
+        let source_component = component_by_node[source];
         for target in targets {
-            let Some(target_component) = component_by_name.get(target).copied() else {
-                continue;
-            };
+            let target_component = component_by_node[*target];
             if source_component != target_component {
-                component_dependencies[source_component].insert(target_component);
+                component_dependencies[source_component].push(target_component);
             }
         }
     }
-
-    let mut schedule = Vec::with_capacity(components.len());
-    let mut visited = BTreeSet::new();
-    for component_index in 0..components.len() {
-        visit_component(
-            component_index,
-            &component_dependencies,
-            &mut visited,
-            &mut schedule,
-        );
+    for dependencies in &mut component_dependencies {
+        dependencies.sort_unstable();
+        dependencies.dedup();
     }
+    let mut dependents = vec![Vec::new(); components.len()];
+    for (component, dependencies) in component_dependencies.iter().enumerate() {
+        for dependency in dependencies {
+            dependents[*dependency].push(component);
+        }
+    }
+    for entries in &mut dependents {
+        entries.sort_unstable();
+    }
+    let mut remaining_dependencies = component_dependencies
+        .iter()
+        .map(Vec::len)
+        .collect::<Vec<_>>();
+    let mut ready = (0..components.len())
+        .filter(|index| remaining_dependencies[*index] == 0)
+        .collect::<VecDeque<_>>();
+    let mut schedule = Vec::with_capacity(components.len());
+    while let Some(component) = ready.pop_front() {
+        schedule.push(component);
+        for dependent in &dependents[component] {
+            remaining_dependencies[*dependent] -= 1;
+            if remaining_dependencies[*dependent] == 0 {
+                ready.push_back(*dependent);
+            }
+        }
+    }
+    assert_eq!(
+        schedule.len(),
+        components.len(),
+        "the SCC condensation graph is acyclic"
+    );
     schedule
 }
 
-fn component_is_cyclic(
-    component: &[CanonicalCustomPropertyNameV0],
-    graph: &CustomPropertyDependencyGraph,
-) -> bool {
+fn component_is_cyclic(component: &[usize], graph: &CustomPropertyDependencyGraph<'_>) -> bool {
     component.len() > 1
-        || component.first().is_some_and(|name| {
-            graph
-                .get(name)
-                .is_some_and(|neighbors| neighbors.contains(name))
-        })
-}
-
-fn custom_property_least_fixed_point_iteration_witness(
-    iteration: usize,
-    input_env: &CustomPropertyEnv,
-    resolved_env: &CustomPropertyEnv,
-) -> CustomPropertyLeastFixedPointIterationV0 {
-    let changed_count = input_env
-        .iter()
-        .filter(|(name, input)| {
-            resolved_env
-                .get(*name)
-                .is_some_and(|resolved| resolved != *input)
-        })
-        .count();
-    let settled_count = resolved_env
-        .values()
-        .filter(|value| !cascade_value_contains_var_reference(value))
-        .count();
-    let guaranteed_invalid_count = resolved_env
-        .values()
-        .filter(|value| **value == CascadeValue::GuaranteedInvalid)
-        .count();
-
-    CustomPropertyLeastFixedPointIterationV0 {
-        iteration,
-        changed_count,
-        settled_count,
-        guaranteed_invalid_count,
-    }
+        || component
+            .first()
+            .is_some_and(|node| graph.edges[*node].contains(node))
 }
 
 fn custom_property_iteration_trace_is_monotone(
@@ -431,6 +517,93 @@ fn substitute_custom_properties_against_resolved_env(
                 })
                 .unwrap_or(CascadeValue::GuaranteedInvalid),
             Some(value) => value.clone(),
+        },
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CustomPropertySubstitutionOutcome {
+    value: CascadeValue,
+    invalid_reason: Option<CustomPropertyGuaranteedInvalidReasonV0>,
+}
+
+fn substitute_custom_properties_with_reason(
+    value: &CascadeValue,
+    resolved_env: &CustomPropertyEnv,
+    invalid_reasons: &BTreeMap<
+        CanonicalCustomPropertyNameV0,
+        CustomPropertyGuaranteedInvalidReasonV0,
+    >,
+) -> CustomPropertySubstitutionOutcome {
+    match value {
+        CascadeValue::Literal(_)
+        | CascadeValue::Initial
+        | CascadeValue::Inherit
+        | CascadeValue::Indeterminate
+        | CascadeValue::Unset => CustomPropertySubstitutionOutcome {
+            value: value.clone(),
+            invalid_reason: None,
+        },
+        CascadeValue::GuaranteedInvalid => CustomPropertySubstitutionOutcome {
+            value: CascadeValue::GuaranteedInvalid,
+            invalid_reason: Some(
+                CustomPropertyGuaranteedInvalidReasonV0::InvalidDependencyWithoutFallback,
+            ),
+        },
+        CascadeValue::Composite(parts) => {
+            let mut resolved_parts = Vec::with_capacity(parts.len());
+            let mut invalid_reason = None;
+            for part in parts {
+                let outcome =
+                    substitute_custom_properties_with_reason(part, resolved_env, invalid_reasons);
+                invalid_reason = invalid_reason.or(outcome.invalid_reason);
+                resolved_parts.push(outcome.value);
+            }
+            if let Some(invalid_reason) = invalid_reason {
+                CustomPropertySubstitutionOutcome {
+                    value: CascadeValue::GuaranteedInvalid,
+                    invalid_reason: Some(invalid_reason),
+                }
+            } else {
+                CustomPropertySubstitutionOutcome {
+                    value: CascadeValue::Composite(resolved_parts),
+                    invalid_reason: None,
+                }
+            }
+        }
+        CascadeValue::Var { name, fallback } => match resolved_env.get(name) {
+            Some(CascadeValue::Unset | CascadeValue::GuaranteedInvalid) => fallback
+                .as_deref()
+                .map(|fallback| {
+                    substitute_custom_properties_with_reason(
+                        fallback,
+                        resolved_env,
+                        invalid_reasons,
+                    )
+                })
+                .unwrap_or(CustomPropertySubstitutionOutcome {
+                    value: CascadeValue::GuaranteedInvalid,
+                    invalid_reason: Some(
+                        CustomPropertyGuaranteedInvalidReasonV0::InvalidDependencyWithoutFallback,
+                    ),
+                }),
+            None => fallback
+                .as_deref()
+                .map(|fallback| {
+                    substitute_custom_properties_with_reason(
+                        fallback,
+                        resolved_env,
+                        invalid_reasons,
+                    )
+                })
+                .unwrap_or(CustomPropertySubstitutionOutcome {
+                    value: CascadeValue::GuaranteedInvalid,
+                    invalid_reason: Some(CustomPropertyGuaranteedInvalidReasonV0::MissingReference),
+                }),
+            Some(resolved) => CustomPropertySubstitutionOutcome {
+                value: resolved.clone(),
+                invalid_reason: invalid_reasons.get(name).copied(),
+            },
         },
     }
 }

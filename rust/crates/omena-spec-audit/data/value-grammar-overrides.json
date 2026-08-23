@@ -13,6 +13,17 @@
       "reason": "compatibility-spec-text-value",
       "reviewer": "maintainer",
       "reviewedAt": "2026-07-21"
+    },
+    {
+      "category": "types",
+      "name": "paint",
+      "expectedSyntax": "none | <image> | <svg-paint>",
+      "replacementSyntax": "none | <image> | <color> | <svg-paint>",
+      "sourceUrl": "https://drafts.csswg.org/fill-stroke-3/#typedef-paint",
+      "decision": "replace-syntax",
+      "reason": "fill-stroke-paint-includes-color",
+      "reviewer": "maintainer",
+      "reviewedAt": "2026-08-23"
     }
   ]
 }

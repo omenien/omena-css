@@ -570,6 +570,7 @@ fn style_diagnostics_for_file_include_cascade_aware_lints() -> Result<(), &'stat
 :root {
   --cycle-a: var(--cycle-b);
   --cycle-b: var(--cycle-a);
+  --cycle-user: var(--cycle-a);
   --bad: var(--missing);
 }
 .card { color: var(--bad); }
@@ -597,8 +598,27 @@ fn style_diagnostics_for_file_include_cascade_aware_lints() -> Result<(), &'stat
             .iter()
             .filter(|diagnostic| diagnostic.code == "guaranteedInvalidCustomProperty")
             .count(),
-        3
+        4
     );
+    let guaranteed_invalid_messages = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "guaranteedInvalidCustomProperty")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert!(guaranteed_invalid_messages.iter().any(|message| {
+        message.contains("'--cycle-a'") && message.contains("cyclic custom-property")
+    }));
+    assert!(guaranteed_invalid_messages.iter().any(|message| {
+        message.contains("'--cycle-user'")
+            && message.contains("guaranteed-invalid custom property without a fallback")
+    }));
+    let missing_message = guaranteed_invalid_messages
+        .iter()
+        .find(|message| message.contains("'--bad'"))
+        .ok_or("missing-reference guaranteed-invalid diagnostic")?;
+    assert!(missing_message.contains("missing custom property without a fallback"));
+    assert!(!missing_message.contains("cyclic"));
     let diagnostic_codes = diagnostics
         .diagnostics
         .iter()
@@ -800,7 +820,8 @@ fn invalid_property_value_surfaces_as_product_diagnostic() -> Result<(), &'stati
 }
 
 #[test]
-fn invalid_negative_compound_surfaces_as_product_diagnostic() -> Result<(), &'static str> {
+fn incomplete_numeric_grammar_does_not_emit_a_definite_product_diagnostic()
+-> Result<(), &'static str> {
     let source = r#".good { margin: -10px; }
 .bad { margin: -10px totally-bogus; }
 "#;
@@ -818,8 +839,7 @@ fn invalid_negative_compound_surfaces_as_product_diagnostic() -> Result<(), &'st
         .filter(|diagnostic| diagnostic.code == "invalidPropertyValue")
         .collect::<Vec<_>>();
 
-    assert_eq!(invalid_value_diagnostics.len(), 1);
-    assert_eq!(invalid_value_diagnostics[0].range.start.line, 1);
+    assert!(invalid_value_diagnostics.is_empty());
     Ok(())
 }
 

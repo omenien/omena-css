@@ -11,7 +11,7 @@
 //! mechanism and not a mathematical scale-transformation theorem.
 
 use omena_cascade::{
-    CascadeReplicaOverlapV0, CustomPropertyLeastFixedPointIterationV0,
+    CascadeReplicaOverlapV0, CascadeValue, CustomPropertyLeastFixedPointIterationV0,
     CustomPropertyLeastFixedPointSummaryV0,
 };
 use serde::Serialize;
@@ -1562,13 +1562,31 @@ fn observed_fixed_point_flow(
         .input_count
         .saturating_sub(summary.resolved_count)
         .saturating_sub(summary.guaranteed_invalid_count);
-    let fixed_point_verified_from_trace = summary.reached_fixed_point
-        && summary.monotone_witness_valid
+    let trace_is_component_schedule = summary.iteration_count == summary.iteration_bound
         && summary.iteration_count == summary.iteration_trace.len()
         && summary
             .iteration_trace
-            .last()
-            .is_some_and(|iteration| iteration.iteration == summary.iteration_count)
+            .iter()
+            .enumerate()
+            .all(|(index, iteration)| iteration.iteration == index + 1)
+        && summary
+            .iteration_trace
+            .windows(2)
+            .all(|pair| pair[0].settled_count < pair[1].settled_count)
+        && summary.iteration_trace.last().is_some_and(|iteration| {
+            iteration.settled_count == summary.input_count
+                && iteration.guaranteed_invalid_count == summary.guaranteed_invalid_count
+                && iteration.changed_count
+                    == summary.entries.iter().filter(|entry| entry.changed).count()
+        });
+    let fixed_point_verified_from_trace = summary.reached_fixed_point
+        && summary.monotone_witness_valid
+        && trace_is_component_schedule
+        && summary.entries.len() == summary.input_count
+        && summary
+            .entries
+            .iter()
+            .all(|entry| !cascade_value_contains_var_reference(&entry.resolved))
         && fixed_point_residual_l1 == 0;
 
     ObservedFixedPointFlowV0 {
@@ -1576,6 +1594,19 @@ fn observed_fixed_point_flow(
         length_l1,
         fixed_point_residual_l1,
         fixed_point_verified_from_trace,
+    }
+}
+
+fn cascade_value_contains_var_reference(value: &CascadeValue) -> bool {
+    match value {
+        CascadeValue::Var { .. } => true,
+        CascadeValue::Composite(parts) => parts.iter().any(cascade_value_contains_var_reference),
+        CascadeValue::Literal(_)
+        | CascadeValue::Initial
+        | CascadeValue::Inherit
+        | CascadeValue::Indeterminate
+        | CascadeValue::GuaranteedInvalid
+        | CascadeValue::Unset => false,
     }
 }
 
@@ -2398,6 +2429,37 @@ mod tests {
         assert_eq!(metric.fixed_point_residual_l1, 0);
         assert!(metric.fixed_point_verified_from_trace);
         assert!(metric.flow_length_bound >= metric.observed_flow_step_count);
+    }
+
+    #[test]
+    fn fixed_point_trace_verification_requires_a_complete_component_schedule() {
+        let mut env = CustomPropertyEnv::default();
+        env.insert(
+            PropertyNameV0::canonical_custom_key("--a"),
+            CascadeValue::Var {
+                name: PropertyNameV0::canonical_custom_key("--b"),
+                fallback: None,
+            },
+        );
+        env.insert(
+            PropertyNameV0::canonical_custom_key("--b"),
+            CascadeValue::Literal("ready".to_string()),
+        );
+        let summary = summarize_custom_property_least_fixed_point(&env);
+        assert!(observed_fixed_point_flow(&summary).fixed_point_verified_from_trace);
+
+        let mut duplicate_schedule_step = summary.clone();
+        duplicate_schedule_step.iteration_trace[1].iteration = 1;
+        assert!(
+            !observed_fixed_point_flow(&duplicate_schedule_step).fixed_point_verified_from_trace
+        );
+
+        let mut residual_reference = summary;
+        residual_reference.entries[0].resolved = CascadeValue::Var {
+            name: PropertyNameV0::canonical_custom_key("--b"),
+            fallback: None,
+        };
+        assert!(!observed_fixed_point_flow(&residual_reference).fixed_point_verified_from_trace);
     }
 
     #[test]

@@ -421,6 +421,153 @@ fn read_cascade_at_position_reports_iacvt_seed() {
 }
 
 #[test]
+fn read_cascade_at_position_keeps_incomplete_color_mismatch_indeterminate() {
+    let source = ":root { --tone: 12px; }\n.target { color: var(--tone); }\n";
+    let cascade = read_omena_query_cascade_at_position(
+        "Component.module.css",
+        source,
+        &sample_input(),
+        ParserPositionV0 {
+            line: 1,
+            character: 24,
+        },
+    )
+    .expect("color var reference");
+
+    assert_eq!(
+        cascade.referenced_declaration_computed_value_status,
+        Some("indeterminate")
+    );
+    assert!(!cascade.referenced_declaration_invalid_at_computed_value_time);
+}
+
+#[test]
+fn read_cascade_at_position_resolves_paint_values_through_the_pinned_matcher() {
+    let declaration = ".target { fill: var(--h3); stroke: var(--h6); }";
+    let source = format!(":root {{ --h3: #f0f; --h6: #ff00ff; }}\n{declaration}\n");
+    for (name, expected) in [("--h3", "#f0f"), ("--h6", "#ff00ff")] {
+        let character = declaration.find(name).expect("paint reference offset");
+        let cascade = read_omena_query_cascade_at_position(
+            "Component.module.css",
+            source.as_str(),
+            &sample_input(),
+            ParserPositionV0 { line: 1, character },
+        )
+        .expect("paint var reference");
+        assert_eq!(
+            cascade.referenced_declaration_computed_value_status,
+            Some("resolved")
+        );
+        assert_eq!(
+            cascade.referenced_declaration_computed_value.as_deref(),
+            Some(expected)
+        );
+        assert!(!cascade.referenced_declaration_invalid_at_computed_value_time);
+    }
+}
+
+#[test]
+fn product_grid_gap_remains_resolved_after_custom_property_substitution() {
+    let source = include_str!(
+        "../../../omena-benchmarks/fixtures/bundler/css-modules-product-grid.module.css"
+    );
+    let cascade = read_omena_query_cascade_at_position(
+        "css-modules-product-grid.module.css",
+        source,
+        &sample_input(),
+        ParserPositionV0 {
+            line: 14,
+            character: 13,
+        },
+    )
+    .expect("product-grid gap var reference");
+
+    assert_eq!(
+        cascade.referenced_declaration_computed_value_status,
+        Some("resolved")
+    );
+    assert_eq!(
+        cascade.referenced_declaration_computed_value.as_deref(),
+        Some("clamp(0.75rem, 1vw, 1.25rem)")
+    );
+}
+
+#[test]
+fn tracked_thirty_six_var_sites_have_no_undeclared_status_delta() {
+    let cases = [
+        ("color", "red"),
+        ("color", "#ff00aa"),
+        ("fill", "#ff00aa"),
+        ("stroke", "rgb(1 2 3)"),
+        ("width", "calc(10px + 2px)"),
+        ("width", "min(10px, 20px)"),
+        ("width", "max(10%, 20%)"),
+        ("width", "clamp(1px, 2px, 3px)"),
+        ("height", "calc(50% + 2px)"),
+        ("margin", "calc(1rem + 2px)"),
+        ("padding", "min(1rem, 2rem)"),
+        ("row-gap", "clamp(1px, 2px, 3px)"),
+        ("column-gap", "max(1%, 2%)"),
+        ("gap", "clamp(1px, 2px, 3px)"),
+        ("opacity", "calc(0.5 + 0.1)"),
+        ("line-height", "min(1.2, 1.5)"),
+        ("animation-duration", "calc(1s + 200ms)"),
+        ("transition-duration", "max(1s, 2s)"),
+        ("rotate", "calc(10deg + 5deg)"),
+        ("grid-template-columns", "minmax(101px, 1fr)"),
+        ("grid-template-columns", "repeat(3, 1fr)"),
+        ("grid-template-columns", "repeat(2, minmax(0, 1fr))"),
+        ("grid-template-columns", "1fr 2fr"),
+        ("border-top", "1px solid red"),
+        ("margin", "0 auto"),
+        ("padding", "1px 2px"),
+        ("display", "grid"),
+        ("position", "absolute"),
+        ("inset", "0"),
+        ("top", "1px"),
+        ("z-index", "2"),
+        ("font-weight", "700"),
+        ("font-size", "16px"),
+        ("background-color", "rebeccapurple"),
+        ("border-radius", "4px"),
+        ("flex-grow", "1"),
+    ];
+    assert_eq!(cases.len(), 36);
+
+    let status_deltas = cases
+        .iter()
+        .enumerate()
+        .filter_map(|(index, (property, value))| {
+            let declaration = format!(".target {{ {property}: var(--tracked); }}");
+            let reference_character = declaration
+                .find("--tracked")
+                .expect("tracked reference offset");
+            let source = format!(":root {{ --tracked: {value}; }}\n{declaration}\n");
+            let cascade = read_omena_query_cascade_at_position(
+                "Tracked.module.css",
+                source.as_str(),
+                &sample_input(),
+                ParserPositionV0 {
+                    line: 1,
+                    character: reference_character,
+                },
+            )?;
+            (cascade.referenced_declaration_computed_value_status != Some("resolved")).then_some((
+                index,
+                *property,
+                *value,
+                cascade.referenced_declaration_computed_value_status,
+            ))
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        status_deltas.is_empty(),
+        "the declared status-delta allowlist is empty: {status_deltas:?}"
+    );
+}
+
+#[test]
 fn read_cascade_at_position_reports_unknown_metadata_as_indeterminate() {
     let source = ".target { future-property: var(--missing, unset); }\n";
     let cascade = read_omena_query_cascade_at_position(

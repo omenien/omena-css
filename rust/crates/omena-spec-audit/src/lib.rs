@@ -1525,8 +1525,8 @@ mod tests {
     #[test]
     fn reviewed_value_grammar_override_preserves_source_and_decision_provenance() {
         let audit = audit_value_grammar_overrides_v0();
-        assert_eq!(audit.entry_count, 1);
-        assert_eq!(audit.applied_entry_count, 1);
+        assert_eq!(audit.entry_count, 2);
+        assert_eq!(audit.applied_entry_count, 2);
         assert!(audit.all_entries_valid);
 
         let registry = spec_grammar_registry();
@@ -1553,6 +1553,23 @@ mod tests {
         };
         assert_eq!(provenance.source_url, entry.source_url);
         assert_eq!(provenance.source_syntax, "<visual-box>#");
+
+        let paint = registry.entry("types", "paint");
+        assert!(paint.is_some(), "paint type must remain in the registry");
+        let Some(paint) = paint else {
+            return;
+        };
+        assert_eq!(
+            paint.syntax.as_deref(),
+            Some("none | <image> | <color> | <svg-paint>")
+        );
+        assert_eq!(
+            paint
+                .override_provenance
+                .as_ref()
+                .map(|provenance| provenance.source_syntax.as_str()),
+            Some("none | <image> | <svg-paint>")
+        );
         assert_eq!(provenance.decision, "replace-syntax");
         assert_eq!(provenance.reason, "compatibility-spec-text-value");
         assert_eq!(provenance.reviewer, "maintainer");

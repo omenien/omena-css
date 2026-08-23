@@ -3623,6 +3623,173 @@ fn summarizes_custom_property_least_fixed_point() {
 }
 
 #[test]
+fn classifies_guaranteed_invalid_custom_property_causes() {
+    let mut env = CustomPropertyEnv::new();
+    env.insert(
+        custom_property_key("--cycle-a"),
+        CascadeValue::Var {
+            name: custom_property_key("--cycle-b"),
+            fallback: None,
+        },
+    );
+    env.insert(
+        custom_property_key("--cycle-b"),
+        CascadeValue::Var {
+            name: custom_property_key("--cycle-a"),
+            fallback: None,
+        },
+    );
+    env.insert(
+        custom_property_key("--missing-user"),
+        CascadeValue::Var {
+            name: custom_property_key("--missing"),
+            fallback: None,
+        },
+    );
+    env.insert(
+        custom_property_key("--cycle-user"),
+        CascadeValue::Var {
+            name: custom_property_key("--cycle-a"),
+            fallback: None,
+        },
+    );
+
+    let reasons = summarize_custom_property_least_fixed_point(&env)
+        .entries
+        .into_iter()
+        .map(|entry| (entry.name, entry.guaranteed_invalid_reason))
+        .collect::<BTreeMap<_, _>>();
+
+    assert_eq!(
+        reasons.get("--cycle-a"),
+        Some(&Some(CustomPropertyGuaranteedInvalidReasonV0::CycleMember))
+    );
+    assert_eq!(
+        reasons.get("--cycle-b"),
+        Some(&Some(CustomPropertyGuaranteedInvalidReasonV0::CycleMember))
+    );
+    assert_eq!(
+        reasons.get("--missing-user"),
+        Some(&Some(
+            CustomPropertyGuaranteedInvalidReasonV0::MissingReference
+        ))
+    );
+    assert_eq!(
+        reasons.get("--cycle-user"),
+        Some(&Some(
+            CustomPropertyGuaranteedInvalidReasonV0::InvalidDependencyWithoutFallback
+        ))
+    );
+}
+
+#[test]
+fn resolves_a_hundred_thousand_binding_alias_chain_without_recursion() {
+    const BINDING_COUNT: usize = 100_000;
+    let mut env = CustomPropertyEnv::new();
+    for index in 0..BINDING_COUNT {
+        let name = custom_property_key(format!("--chain-{index:06}").as_str());
+        let value = if index + 1 == BINDING_COUNT {
+            CascadeValue::Literal("terminal".to_string())
+        } else {
+            CascadeValue::Var {
+                name: custom_property_key(format!("--chain-{:06}", index + 1).as_str()),
+                fallback: None,
+            }
+        };
+        env.insert(name, value);
+    }
+
+    let resolved = resolve_custom_property_env_least_fixed_point(&env);
+
+    assert_eq!(resolved.len(), BINDING_COUNT);
+    assert_eq!(
+        resolved.get(&custom_property_key("--chain-000000")),
+        Some(&CascadeValue::Literal("terminal".to_string()))
+    );
+    assert_eq!(
+        resolved.get(&custom_property_key("--chain-099999")),
+        Some(&CascadeValue::Literal("terminal".to_string()))
+    );
+}
+
+#[test]
+fn flat_environment_resolution_omits_dependency_graph_and_trace_work() {
+    let env = (0..4_000)
+        .map(|index| {
+            (
+                custom_property_key(format!("--flat-{index:04}").as_str()),
+                CascadeValue::Literal(index.to_string()),
+            )
+        })
+        .collect::<CustomPropertyEnv>();
+
+    crate::custom_property::reset_custom_property_dependency_graph_build_count();
+    let resolved = resolve_custom_property_env_least_fixed_point(&env);
+    assert_eq!(resolved, env);
+    assert_eq!(
+        crate::custom_property::custom_property_dependency_graph_build_count(),
+        0,
+        "the flat product path must not construct an SCC graph or compatibility trace"
+    );
+
+    let mut dependent = env;
+    dependent.insert(
+        custom_property_key("--dependent"),
+        CascadeValue::Var {
+            name: custom_property_key("--flat-0000"),
+            fallback: None,
+        },
+    );
+    let _ = resolve_custom_property_env_least_fixed_point(&dependent);
+    assert_eq!(
+        crate::custom_property::custom_property_dependency_graph_build_count(),
+        1
+    );
+}
+
+#[test]
+#[ignore = "explicit release-mode performance receipt"]
+fn flat_environment_resolution_stays_within_twice_the_clone_pickup() {
+    use std::{hint::black_box, time::Instant};
+
+    let env = (0..4_000)
+        .map(|index| {
+            (
+                custom_property_key(format!("--flat-{index:04}").as_str()),
+                CascadeValue::Literal(index.to_string()),
+            )
+        })
+        .collect::<CustomPropertyEnv>();
+    for _ in 0..16 {
+        black_box(env.clone());
+        black_box(resolve_custom_property_env_least_fixed_point(&env));
+    }
+    let mut pickup_ns = Vec::with_capacity(101);
+    let mut resolution_ns = Vec::with_capacity(101);
+    for _ in 0..101 {
+        let started = Instant::now();
+        black_box(env.clone());
+        pickup_ns.push(started.elapsed().as_nanos());
+
+        let started = Instant::now();
+        black_box(resolve_custom_property_env_least_fixed_point(&env));
+        resolution_ns.push(started.elapsed().as_nanos());
+    }
+    pickup_ns.sort_unstable();
+    resolution_ns.sort_unstable();
+    let pickup_median_ns = pickup_ns[pickup_ns.len() / 2];
+    let resolution_median_ns = resolution_ns[resolution_ns.len() / 2];
+    let ratio = resolution_median_ns as f64 / pickup_median_ns as f64;
+    println!(
+        "flatBindings=4000 pickupMedianNs={pickup_median_ns} resolutionMedianNs={resolution_median_ns} ratio={ratio:.3}"
+    );
+    assert!(
+        ratio <= 2.0,
+        "flat resolution ratio {ratio:.3} exceeded the 2x pickup ceiling"
+    );
+}
+
+#[test]
 fn generated_invariant_self_check_corpus_preserves_cascade_and_var_invariants() {
     let report = run_generated_cascade_invariant_self_check_corpus();
 

@@ -47,6 +47,36 @@
   ],
   "differentialCases": [
     {
+      "id": "paint-color-valid",
+      "property": "fill",
+      "value": "#ff00aa",
+      "expectedValid": true
+    },
+    {
+      "id": "width-clamp-valid",
+      "property": "width",
+      "value": "clamp(1px, 2px, 3px)",
+      "expectedValid": true
+    },
+    {
+      "id": "gap-clamp-valid",
+      "property": "gap",
+      "value": "clamp(0.5rem, 1vw, 2rem)",
+      "expectedValid": true
+    },
+    {
+      "id": "grid-minmax-valid",
+      "property": "grid-template-columns",
+      "value": "minmax(101px, 1fr)",
+      "expectedValid": true
+    },
+    {
+      "id": "grid-repeat-valid",
+      "property": "grid-template-columns",
+      "value": "repeat(3, 1fr)",
+      "expectedValid": true
+    },
+    {
       "id": "padding-unitless-zero-valid",
       "property": "padding",
       "value": "0",
@@ -88,6 +118,14 @@
       "value": "anchor-size(width)",
       "adjudication": "omenaMatcherDefect",
       "reason": "the pinned width grammar references anchor-size() but the bounded matcher does not yet recognize that function family",
+      "owner": "value-grammar-function-matching"
+    },
+    {
+      "id": "width-round-known-divergence",
+      "property": "width",
+      "value": "round(up, 101px, 10px)",
+      "adjudication": "omenaMatcherDefect",
+      "reason": "round() remains an explicitly unvalidated standard math-function class and is never promoted to a definite computed-value rejection",
       "owner": "value-grammar-function-matching"
     },
     {

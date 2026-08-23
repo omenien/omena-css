@@ -6,12 +6,12 @@
     "name": "css-tree",
     "version": "3.2.1"
   },
-  "inputDigest": "724f244dbe70ae070bb2ce0e6c5b152dfe5b3a054f45c3d00ee785228ddcff31",
-  "caseCount": 128,
+  "inputDigest": "beabd5fcacac7c1ff3db59a6fba7ced28838f696e9dd48673978fe42d5ddeb21",
+  "caseCount": 134,
   "sources": {
     "seedManifest": {
       "product": "omena-abstract-value.value-grammar-seeds",
-      "caseCount": 15
+      "caseCount": 21
     },
     "realDeclarations": {
       "product": "omena-abstract-value.value-grammar-real-declarations",
@@ -47,9 +47,9 @@
     }
   },
   "counts": {
-    "agreeValid": 111,
+    "agreeValid": 116,
     "agreeInvalid": 14,
-    "disagree": 2,
+    "disagree": 3,
     "notComparable": 1
   },
   "unadjudicatedDisagreementCount": 0,
@@ -57,7 +57,7 @@
   "witness": {
     "key": {
       "queryIdentity": "omena-abstract-value.value-grammar-differential",
-      "inputIdentity": "724f244dbe70ae070bb2ce0e6c5b152dfe5b3a054f45c3d00ee785228ddcff31"
+      "inputIdentity": "beabd5fcacac7c1ff3db59a6fba7ced28838f696e9dd48673978fe42d5ddeb21"
     },
     "provenance": ["externalTool:css-tree", "toolVersion:3.2.1", "exitStatus:0"],
     "guarantee": "floor",
@@ -128,6 +128,51 @@
       "outcome": "agreeValid"
     },
     {
+      "id": "paint-color-valid",
+      "property": "fill",
+      "value": "#ff00aa",
+      "omenaVerdict": "matched",
+      "omenaValid": true,
+      "cssTreeValid": true,
+      "outcome": "agreeValid"
+    },
+    {
+      "id": "width-clamp-valid",
+      "property": "width",
+      "value": "clamp(1px, 2px, 3px)",
+      "omenaVerdict": "matched",
+      "omenaValid": true,
+      "cssTreeValid": true,
+      "outcome": "agreeValid"
+    },
+    {
+      "id": "gap-clamp-valid",
+      "property": "gap",
+      "value": "clamp(0.5rem, 1vw, 2rem)",
+      "omenaVerdict": "matched",
+      "omenaValid": true,
+      "cssTreeValid": true,
+      "outcome": "agreeValid"
+    },
+    {
+      "id": "grid-minmax-valid",
+      "property": "grid-template-columns",
+      "value": "minmax(101px, 1fr)",
+      "omenaVerdict": "matched",
+      "omenaValid": true,
+      "cssTreeValid": true,
+      "outcome": "agreeValid"
+    },
+    {
+      "id": "grid-repeat-valid",
+      "property": "grid-template-columns",
+      "value": "repeat(3, 1fr)",
+      "omenaVerdict": "matched",
+      "omenaValid": true,
+      "cssTreeValid": true,
+      "outcome": "agreeValid"
+    },
+    {
       "id": "padding-unitless-zero-valid",
       "property": "padding",
       "value": "0",
@@ -191,6 +236,18 @@
       "outcome": "disagree",
       "adjudication": "omenaMatcherDefect",
       "reason": "the pinned width grammar references anchor-size() but the bounded matcher does not yet recognize that function family",
+      "owner": "value-grammar-function-matching"
+    },
+    {
+      "id": "width-round-known-divergence",
+      "property": "width",
+      "value": "round(up, 101px, 10px)",
+      "omenaVerdict": "unmatched",
+      "omenaValid": false,
+      "cssTreeValid": true,
+      "outcome": "disagree",
+      "adjudication": "omenaMatcherDefect",
+      "reason": "round() remains an explicitly unvalidated standard math-function class and is never promoted to a definite computed-value rejection",
       "owner": "value-grammar-function-matching"
     },
     {

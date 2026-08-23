@@ -3916,7 +3916,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_property_value_uses_complete_compound_grammar() {
+    fn invalid_property_value_keeps_incomplete_compound_grammar_indeterminate() {
         let decl = |id: &'static str, value: &'static str, order: u32| {
             cascade_declaration(CascadeDeclarationFixture {
                 declaration_id: id,
@@ -3946,12 +3946,11 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert_eq!(findings.len(), 1);
-        assert_eq!(findings[0].declaration_ids, vec!["invalid-compound"]);
+        assert!(findings.is_empty());
     }
 
     #[test]
-    fn invalid_property_value_reports_invalid_negative_compounds() {
+    fn invalid_property_value_keeps_incomplete_negative_compounds_indeterminate() {
         let decl = |id: &'static str, value: &'static str, order: u32| {
             cascade_declaration(CascadeDeclarationFixture {
                 declaration_id: id,
@@ -3981,8 +3980,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert_eq!(findings.len(), 1);
-        assert_eq!(findings[0].declaration_ids, vec!["invalid-negative"]);
+        assert!(findings.is_empty());
     }
 
     #[test]

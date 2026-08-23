@@ -127,10 +127,7 @@ pub fn summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis(
                             "omena-query.cascade-aware-diagnostics",
                         ],
                         range,
-                        message: format!(
-                            "CSS custom property '{}' computes to the guaranteed-invalid value after dependency-graph cycle resolution; every member of a cyclic component is invalidated together.",
-                            entry.name
-                        ),
+                        message: guaranteed_invalid_custom_property_message(&entry),
                         tags: Vec::new(),
                         create_custom_property: None,
                         cascade_narrowing: None,
@@ -150,6 +147,27 @@ pub fn summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis(
     );
 
     diagnostics
+}
+
+fn guaranteed_invalid_custom_property_message(
+    entry: &omena_cascade::CustomPropertyLeastFixedPointEntryV0,
+) -> String {
+    let cause = match entry.guaranteed_invalid_reason {
+        Some(omena_cascade::CustomPropertyGuaranteedInvalidReasonV0::CycleMember) => {
+            "is a member of a cyclic custom-property dependency component"
+        }
+        Some(omena_cascade::CustomPropertyGuaranteedInvalidReasonV0::MissingReference) => {
+            "references a missing custom property without a fallback"
+        }
+        Some(
+            omena_cascade::CustomPropertyGuaranteedInvalidReasonV0::InvalidDependencyWithoutFallback,
+        ) => "depends on a guaranteed-invalid custom property without a fallback",
+        None => "has no classified guaranteed-invalid cause",
+    };
+    format!(
+        "CSS custom property '{}' computes to the guaranteed-invalid value because it {cause}.",
+        entry.name
+    )
 }
 
 pub fn summarize_omena_query_missing_keyframes_diagnostics(

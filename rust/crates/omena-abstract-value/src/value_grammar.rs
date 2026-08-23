@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, OnceLock, RwLock};
 
 use omena_cascade::{CascadeStandardValueValidatorV0, CascadeStandardValueVerdictV0};
@@ -103,6 +103,7 @@ pub enum CssValueValidationReasonV0 {
     VendorExtension,
     ForwardTierGrammar,
     UnvalidatedStandardFunction,
+    MatcherCoverageIncomplete,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -310,42 +311,62 @@ pub fn audit_css_value_grammar_registry_v0(
 /// Matches a standard property's value against the grammar supplied by the
 /// pinned specification registry.
 pub fn match_standard_property_value_v0(property: &str, value: &str) -> CssValueGrammarVerdictV0 {
+    match_standard_property_value_with_coverage_v0(property, value).0
+}
+
+fn match_standard_property_value_with_coverage_v0(
+    property: &str,
+    value: &str,
+) -> (CssValueGrammarVerdictV0, bool) {
     let property = PropertyNameV0::from_authored(property);
     let property = property.canonical_name();
     let registry = spec_grammar_registry();
     let Some(entry) = registry.entry("properties", property) else {
-        return grammar_defect(
-            "",
-            0,
-            "unknownProperty",
-            format!("property {property:?} is absent from the pinned registry"),
+        return (
+            grammar_defect(
+                "",
+                0,
+                "unknownProperty",
+                format!("property {property:?} is absent from the pinned registry"),
+            ),
+            false,
         );
     };
     let Some(grammar) = entry.syntax.as_deref() else {
-        return grammar_defect(
-            "",
-            0,
-            "missingPropertyGrammar",
-            format!("property {property:?} has no syntax in the pinned registry"),
+        return (
+            grammar_defect(
+                "",
+                0,
+                "missingPropertyGrammar",
+                format!("property {property:?} has no syntax in the pinned registry"),
+            ),
+            false,
         );
     };
+    let matcher_coverage_complete = standard_property_matcher_coverage_complete(property, registry);
     if matches!(
         classify_registered_property_declared_value_v0(value),
         DeclaredValueKindV0::CssWide
     ) {
-        return CssValueGrammarVerdictV0::Matched {
-            grammar: grammar.to_string(),
-            consumed_components: 1,
-        };
+        return (
+            CssValueGrammarVerdictV0::Matched {
+                grammar: grammar.to_string(),
+                consumed_components: 1,
+            },
+            matcher_coverage_complete,
+        );
     }
     let components = match css_value_component_stream(value, 0) {
         Ok(components) => components,
         Err(error) => {
-            return grammar_defect(
-                grammar,
-                error.span.start,
-                "invalidValueTokenStream",
-                error.message,
+            return (
+                grammar_defect(
+                    grammar,
+                    error.span.start,
+                    "invalidValueTokenStream",
+                    error.message,
+                ),
+                false,
             );
         }
     };
@@ -353,16 +374,22 @@ pub fn match_standard_property_value_v0(property: &str, value: &str) -> CssValue
     let expression = match cached_pinned_vds_expression(normalized) {
         Ok(expression) => expression,
         Err(error) => {
-            return grammar_defect(grammar, error.offset, error.code, error.detail);
+            return (
+                grammar_defect(grammar, error.offset, error.code, error.detail),
+                false,
+            );
         }
     };
-    match_css_value_grammar_components_with_expression_v0(
-        grammar,
-        &components,
-        registry,
-        CssValueGrammarBudgetV0::default(),
-        expression.as_ref(),
-        true,
+    (
+        match_css_value_grammar_components_with_expression_v0(
+            grammar,
+            &components,
+            registry,
+            CssValueGrammarBudgetV0::default(),
+            expression.as_ref(),
+            true,
+        ),
+        matcher_coverage_complete,
     )
 }
 
@@ -407,10 +434,13 @@ pub fn validate_standard_property_value_v0(property: &str, value: &str) -> CssVa
         .entry("properties", property)
         .map(|entry| entry.boundary.classification)
         .unwrap_or(SpecGrammarBoundaryClassificationV0::InBoundary);
+    let (verdict, matcher_coverage_complete) =
+        match_standard_property_value_with_coverage_v0(property, value);
     adjudicate_css_value_validation_with_boundary(
         value,
-        match_standard_property_value_v0(property, value),
+        verdict,
         classification,
+        matcher_coverage_complete,
     )
 }
 
@@ -445,6 +475,7 @@ fn adjudicate_css_value_validation(
         value,
         verdict,
         SpecGrammarBoundaryClassificationV0::InBoundary,
+        true,
     )
 }
 
@@ -452,6 +483,7 @@ fn adjudicate_css_value_validation_with_boundary(
     value: &str,
     verdict: CssValueGrammarVerdictV0,
     classification: SpecGrammarBoundaryClassificationV0,
+    matcher_coverage_complete: bool,
 ) -> CssValueValidationV0 {
     let components = css_value_component_stream(value, 0).ok();
     let has_unvalidated_standard_function = matches!(
@@ -501,6 +533,10 @@ fn adjudicate_css_value_validation_with_boundary(
                     CssValueValidationReasonV0::ForwardTierGrammar,
                 )
             }
+            CssValueGrammarVerdictV0::Unmatched { .. } if !matcher_coverage_complete => (
+                CssValueValidationClassV0::NotValidatable,
+                CssValueValidationReasonV0::MatcherCoverageIncomplete,
+            ),
             CssValueGrammarVerdictV0::Unmatched { .. } => (
                 CssValueValidationClassV0::Invalid,
                 CssValueValidationReasonV0::GrammarUnmatched,
@@ -579,10 +615,7 @@ fn recognized_standard_function_names() -> &'static BTreeSet<String> {
 }
 
 fn is_deferred_css_function_name(name: &str) -> bool {
-    matches!(
-        name,
-        "var" | "env" | "attr" | "calc" | "min" | "max" | "clamp"
-    )
+    matches!(name, "var" | "env" | "attr")
 }
 
 fn contains_deferred_css_value(components: &[CssValueComponentV0]) -> bool {
@@ -852,6 +885,108 @@ enum VdsExpression {
         comma_separated: bool,
     },
     Required(Box<VdsExpression>),
+}
+
+fn standard_property_matcher_coverage_complete(
+    property: &str,
+    registry: &SpecGrammarRegistryV0,
+) -> bool {
+    let Some(grammar) = registry.syntax("properties", property) else {
+        return false;
+    };
+    let Ok(expression) = cached_pinned_vds_expression(strip_matching_quotes(grammar.trim())) else {
+        return false;
+    };
+    let mut visiting = HashSet::new();
+    let mut memo = HashMap::new();
+    expression_matcher_coverage_complete(expression.as_ref(), registry, &mut visiting, &mut memo)
+}
+
+fn expression_matcher_coverage_complete(
+    expression: &VdsExpression,
+    registry: &SpecGrammarRegistryV0,
+    visiting: &mut HashSet<(ReferenceCategory, String)>,
+    memo: &mut HashMap<(ReferenceCategory, String), bool>,
+) -> bool {
+    match expression {
+        VdsExpression::Literal(_) => true,
+        VdsExpression::Reference(reference) => {
+            if is_builtin_reference_name(reference.name.as_str()) {
+                return builtin_reference_matcher_coverage_complete(reference.name.as_str());
+            }
+            let key = (reference.category, reference.name.clone());
+            if let Some(complete) = memo.get(&key) {
+                return *complete;
+            }
+            if !visiting.insert(key.clone()) {
+                return true;
+            }
+            let category = match reference.category {
+                ReferenceCategory::Type => "types",
+                ReferenceCategory::Property => "properties",
+                ReferenceCategory::Function => "functions",
+            };
+            let complete = registry
+                .syntax(category, reference.name.as_str())
+                .and_then(|source| cached_pinned_vds_expression(source).ok())
+                .is_some_and(|expression| {
+                    expression_matcher_coverage_complete(
+                        expression.as_ref(),
+                        registry,
+                        visiting,
+                        memo,
+                    )
+                });
+            visiting.remove(&key);
+            memo.insert(key, complete);
+            complete
+        }
+        VdsExpression::Function { arguments, .. }
+        | VdsExpression::Repeat {
+            expression: arguments,
+            ..
+        }
+        | VdsExpression::Required(arguments) => {
+            expression_matcher_coverage_complete(arguments, registry, visiting, memo)
+        }
+        VdsExpression::Sequence(expressions)
+        | VdsExpression::AllInAnyOrder(expressions)
+        | VdsExpression::OneOrMoreInAnyOrder(expressions)
+        | VdsExpression::Choice(expressions) => expressions.iter().all(|expression| {
+            expression_matcher_coverage_complete(expression, registry, visiting, memo)
+        }),
+    }
+}
+
+fn builtin_reference_matcher_coverage_complete(name: &str) -> bool {
+    // Only lexical token families and structurally unrestricted values are
+    // certified here. Numeric dimensions admit a wider CSS math language than
+    // the bounded positive matcher below, while semantic families such as
+    // images, colors, custom identifiers, and transforms have extra validity
+    // rules. Their positive matches are useful, but their negative matches
+    // cannot certify a standards-level rejection.
+    matches!(
+        name,
+        "declaration-value"
+            | "any-value"
+            | "whole-value"
+            | "number-token"
+            | "percentage-token"
+            | "ident"
+            | "ident-token"
+            | "dashed-ident"
+            | "custom-property-name"
+            | "string"
+            | "string-token"
+            | "url"
+            | "url-token"
+            | "hex-color"
+            | "zero"
+            | "dimension-token"
+            | "hash-token"
+            | "function-token"
+            | "comma-token"
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1706,7 +1841,9 @@ impl MatchContext<'_> {
         {
             return BTreeSet::from([position + 1]);
         }
-        if let Some(positions) = match_builtin_reference(reference, components, position) {
+        if let Some(positions) =
+            match_builtin_reference(reference, components, position, self.registry)
+        {
             return positions;
         }
         if reference_depth >= self.budget.max_reference_depth {
@@ -1858,6 +1995,7 @@ fn match_builtin_reference(
     reference: &VdsReference,
     components: &[CssValueComponentV0],
     position: usize,
+    registry: &SpecGrammarRegistryV0,
 ) -> Option<BTreeSet<usize>> {
     if reference.category != ReferenceCategory::Type {
         return None;
@@ -1874,6 +2012,9 @@ fn match_builtin_reference(
     let Some(component) = components.get(position) else {
         return Some(BTreeSet::new());
     };
+    if math_function_matches_reference(reference, component, registry) {
+        return Some(BTreeSet::from([position + 1]));
+    }
     let kind = classify_registered_property_declared_value_v0(component.text.as_str());
     let accepted = match reference.name.as_str() {
         "number" | "number-token" => {
@@ -1913,6 +2054,8 @@ fn match_builtin_reference(
             kind,
             DeclaredValueKindV0::Dimension(DeclaredNumericTypeV0::Resolution)
         ),
+        "flex" => parse_numeric_value_with_unit(component.text.as_str())
+            .is_some_and(|numeric| numeric.unit.eq_ignore_ascii_case("fr")),
         "hex-color" => matches!(kind, DeclaredValueKindV0::HexColor),
         "named-color" => matches!(kind, DeclaredValueKindV0::ColorKeyword(_)),
         "custom-ident" => {
@@ -1963,6 +2106,7 @@ fn is_builtin_reference_name(name: &str) -> bool {
             | "angle"
             | "time"
             | "resolution"
+            | "flex"
             | "hex-color"
             | "named-color"
             | "custom-ident"
@@ -1983,6 +2127,274 @@ fn is_builtin_reference_name(name: &str) -> bool {
             | "function-token"
             | "comma-token"
     )
+}
+
+fn math_function_matches_reference(
+    reference: &VdsReference,
+    component: &CssValueComponentV0,
+    registry: &SpecGrammarRegistryV0,
+) -> bool {
+    if reference.category != ReferenceCategory::Type
+        || !matches!(
+            reference.name.as_str(),
+            "number" | "length" | "percentage" | "length-percentage" | "time" | "angle"
+        )
+    {
+        return false;
+    }
+    let CssValueComponentKindV0::Function { name, arguments } = &component.kind else {
+        return false;
+    };
+    if !matches!(name.as_str(), "calc" | "min" | "max" | "clamp") {
+        return false;
+    }
+    let registry_name = format!("{name}()");
+    if !registry
+        .entry("functions", registry_name.as_str())
+        .is_some_and(|entry| {
+            entry.boundary.classification == SpecGrammarBoundaryClassificationV0::InBoundary
+                && entry.syntax.is_some()
+        })
+    {
+        return false;
+    }
+    math_function_result_kind(name, arguments, registry)
+        .is_some_and(|kind| math_kind_matches_reference(kind, reference.name.as_str()))
+        && math_range_is_provably_accepted(reference.range.as_ref(), arguments)
+}
+
+fn split_math_argument_groups(arguments: &[CssValueComponentV0]) -> Vec<&[CssValueComponentV0]> {
+    let mut groups = Vec::new();
+    let mut start = 0;
+    for (index, component) in arguments.iter().enumerate() {
+        if matches!(component.kind, CssValueComponentKindV0::Comma) {
+            groups.push(&arguments[start..index]);
+            start = index + 1;
+        }
+    }
+    groups.push(&arguments[start..]);
+    groups
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MathValueKind {
+    Number,
+    Length,
+    Percentage,
+    LengthPercentage,
+    Time,
+    Angle,
+}
+
+fn math_kind_matches_reference(kind: MathValueKind, reference: &str) -> bool {
+    matches!(
+        (kind, reference),
+        (MathValueKind::Number, "number")
+            | (MathValueKind::Length, "length" | "length-percentage")
+            | (
+                MathValueKind::Percentage,
+                "percentage" | "length-percentage"
+            )
+            | (MathValueKind::LengthPercentage, "length-percentage")
+            | (MathValueKind::Time, "time")
+            | (MathValueKind::Angle, "angle")
+    )
+}
+
+fn math_function_result_kind(
+    name: &str,
+    arguments: &[CssValueComponentV0],
+    registry: &SpecGrammarRegistryV0,
+) -> Option<MathValueKind> {
+    if !matches!(name, "calc" | "min" | "max" | "clamp") {
+        return None;
+    }
+    let registry_name = format!("{name}()");
+    if !registry
+        .entry("functions", registry_name.as_str())
+        .is_some_and(|entry| {
+            entry.boundary.classification == SpecGrammarBoundaryClassificationV0::InBoundary
+                && entry.syntax.is_some()
+        })
+    {
+        return None;
+    }
+    let groups = split_math_argument_groups(arguments);
+    let arity_matches = match name {
+        "calc" => groups.len() == 1,
+        "min" | "max" => !groups.is_empty(),
+        "clamp" => groups.len() == 3,
+        _ => false,
+    };
+    if !arity_matches {
+        return None;
+    }
+    let mut kinds = groups
+        .iter()
+        .map(|group| MathExpressionParser::new(group, registry).parse())
+        .collect::<Option<Vec<_>>>()?
+        .into_iter();
+    let first = kinds.next()?;
+    kinds.try_fold(first, unify_additive_math_kinds)
+}
+
+fn unify_additive_math_kinds(left: MathValueKind, right: MathValueKind) -> Option<MathValueKind> {
+    if left == right {
+        return Some(left);
+    }
+    if matches!(
+        (left, right),
+        (MathValueKind::Length, MathValueKind::Percentage)
+            | (MathValueKind::Percentage, MathValueKind::Length)
+            | (MathValueKind::LengthPercentage, MathValueKind::Length)
+            | (MathValueKind::Length, MathValueKind::LengthPercentage)
+            | (MathValueKind::LengthPercentage, MathValueKind::Percentage)
+            | (MathValueKind::Percentage, MathValueKind::LengthPercentage)
+    ) {
+        return Some(MathValueKind::LengthPercentage);
+    }
+    None
+}
+
+struct MathExpressionParser<'a> {
+    components: &'a [CssValueComponentV0],
+    cursor: usize,
+    registry: &'a SpecGrammarRegistryV0,
+}
+
+impl<'a> MathExpressionParser<'a> {
+    fn new(components: &'a [CssValueComponentV0], registry: &'a SpecGrammarRegistryV0) -> Self {
+        Self {
+            components,
+            cursor: 0,
+            registry,
+        }
+    }
+
+    fn parse(mut self) -> Option<MathValueKind> {
+        let kind = self.parse_sum()?;
+        (self.cursor == self.components.len()).then_some(kind)
+    }
+
+    fn parse_sum(&mut self) -> Option<MathValueKind> {
+        let mut left = self.parse_product()?;
+        while self.peek_operator(&["+", "-"]).is_some() {
+            self.cursor += 1;
+            let right = self.parse_product()?;
+            left = unify_additive_math_kinds(left, right)?;
+        }
+        Some(left)
+    }
+
+    fn parse_product(&mut self) -> Option<MathValueKind> {
+        let mut left = self.parse_unary()?;
+        while let Some(operator) = self.peek_operator(&["*", "/"]).map(str::to_owned) {
+            self.cursor += 1;
+            let right = self.parse_unary()?;
+            left = match operator.as_str() {
+                "*" if left == MathValueKind::Number => right,
+                "*" if right == MathValueKind::Number => left,
+                "/" if right == MathValueKind::Number => left,
+                _ => return None,
+            };
+        }
+        Some(left)
+    }
+
+    fn parse_unary(&mut self) -> Option<MathValueKind> {
+        if self.peek_operator(&["+", "-"]).is_some() {
+            self.cursor += 1;
+            return self.parse_unary();
+        }
+        self.parse_operand()
+    }
+
+    fn parse_operand(&mut self) -> Option<MathValueKind> {
+        let component = self.components.get(self.cursor)?;
+        self.cursor += 1;
+        match &component.kind {
+            CssValueComponentKindV0::Number => Some(MathValueKind::Number),
+            CssValueComponentKindV0::Percentage => Some(MathValueKind::Percentage),
+            CssValueComponentKindV0::Dimension => {
+                match classify_registered_property_declared_value_v0(component.text.as_str()) {
+                    DeclaredValueKindV0::Dimension(DeclaredNumericTypeV0::Length) => {
+                        Some(MathValueKind::Length)
+                    }
+                    DeclaredValueKindV0::Dimension(DeclaredNumericTypeV0::Percentage) => {
+                        Some(MathValueKind::Percentage)
+                    }
+                    DeclaredValueKindV0::Dimension(DeclaredNumericTypeV0::Time) => {
+                        Some(MathValueKind::Time)
+                    }
+                    DeclaredValueKindV0::Dimension(DeclaredNumericTypeV0::Angle) => {
+                        Some(MathValueKind::Angle)
+                    }
+                    _ => None,
+                }
+            }
+            CssValueComponentKindV0::Function { name, arguments } => {
+                math_function_result_kind(name, arguments, self.registry)
+            }
+            CssValueComponentKindV0::Parenthesized { values } => {
+                MathExpressionParser::new(values, self.registry).parse()
+            }
+            CssValueComponentKindV0::Ident
+            | CssValueComponentKindV0::Hash
+            | CssValueComponentKindV0::String
+            | CssValueComponentKindV0::Url
+            | CssValueComponentKindV0::Bracketed { .. }
+            | CssValueComponentKindV0::Braced { .. }
+            | CssValueComponentKindV0::Comma
+            | CssValueComponentKindV0::Slash
+            | CssValueComponentKindV0::Delimiter => None,
+        }
+    }
+
+    fn peek_operator(&self, expected: &[&str]) -> Option<&str> {
+        let component = self.components.get(self.cursor)?;
+        matches!(
+            component.kind,
+            CssValueComponentKindV0::Delimiter | CssValueComponentKindV0::Slash
+        )
+        .then_some(component.text.as_str())
+        .filter(|operator| expected.contains(operator))
+    }
+}
+
+fn math_range_is_provably_accepted(
+    range: Option<&NumericRange>,
+    components: &[CssValueComponentV0],
+) -> bool {
+    let Some(range) = range else {
+        return true;
+    };
+    if !range
+        .min
+        .as_deref()
+        .and_then(parse_numeric_value_with_unit)
+        .is_some_and(|numeric| numeric.value == 0.0)
+        || range.max.is_some()
+    {
+        return false;
+    }
+    components.iter().all(|component| match &component.kind {
+        CssValueComponentKindV0::Number
+        | CssValueComponentKindV0::Percentage
+        | CssValueComponentKindV0::Dimension => parse_numeric_value_with_unit(&component.text)
+            .is_some_and(|numeric| numeric.value >= 0.0),
+        CssValueComponentKindV0::Function { arguments, .. }
+        | CssValueComponentKindV0::Parenthesized { values: arguments } => {
+            math_range_is_provably_accepted(Some(range), arguments)
+        }
+        CssValueComponentKindV0::Delimiter => component.text != "-",
+        CssValueComponentKindV0::Comma | CssValueComponentKindV0::Slash => true,
+        CssValueComponentKindV0::Ident
+        | CssValueComponentKindV0::Hash
+        | CssValueComponentKindV0::String
+        | CssValueComponentKindV0::Url
+        | CssValueComponentKindV0::Bracketed { .. }
+        | CssValueComponentKindV0::Braced { .. } => false,
+    })
 }
 
 fn numeric_range_accepts(range: Option<&NumericRange>, source: &str) -> bool {
@@ -2047,15 +2459,16 @@ mod tests {
     use std::sync::Arc;
 
     use omena_cascade::{CascadeStandardValueValidatorV0, CascadeStandardValueVerdictV0};
-    use omena_spec_audit::spec_grammar_registry;
+    use omena_spec_audit::{SpecGrammarBoundaryClassificationV0, spec_grammar_registry};
     use omena_syntax::ident::PropertyNameV0;
     use omena_value_lattice::ValueNodeV0;
 
     use super::{
         CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0, CssValueGrammarBudgetKindV0,
-        CssValueGrammarBudgetV0, CssValueGrammarVerdictV0, CssValueValidationClassV0,
-        CssValueValidationReasonV0, SpecStandardPropertyValueValidatorV0,
-        adjudicate_css_value_validation, audit_css_value_grammar_registry_v0,
+        CssValueGrammarBudgetV0, CssValueGrammarLocusV0, CssValueGrammarVerdictV0,
+        CssValueValidationClassV0, CssValueValidationReasonV0,
+        SpecStandardPropertyValueValidatorV0, adjudicate_css_value_validation,
+        adjudicate_css_value_validation_with_boundary, audit_css_value_grammar_registry_v0,
         cached_pinned_vds_expression, match_and_type_css_value_grammar_v0,
         match_and_type_standard_property_value_v0, match_css_value_grammar_v0,
         match_standard_property_value_v0, validate_registered_property_value_v0,
@@ -2220,17 +2633,18 @@ mod tests {
             spec_grammar_registry(),
             CssValueGrammarBudgetV0::default(),
         );
-        let calc_bytes = serde_json::to_vec(&calc_verdict);
         assert!(
-            calc_bytes.is_ok(),
-            "calc matcher verdict must remain serializable: {calc_bytes:?}"
+            !calc_verdict.is_matched(),
+            "unitless zero cannot be added to a dimension inside calc(): {calc_verdict:?}"
         );
-        let Ok(calc_bytes) = calc_bytes else {
-            return;
-        };
-        assert_eq!(
-            calc_bytes,
-            br#"{"kind":"grammarDefect","grammar":"<length> | <calc-sum>","offset":0,"code":"missingReferencedGrammar","detail":"types reference <dimension> has no syntax"}"#
+        assert!(
+            match_css_value_grammar_v0(
+                "<length> | <calc-sum>",
+                "calc(0px + 2px)",
+                spec_grammar_registry(),
+                CssValueGrammarBudgetV0::default(),
+            )
+            .is_matched()
         );
     }
 
@@ -2341,10 +2755,10 @@ mod tests {
         assert!(forward_tier.verdict.is_definite_mismatch());
 
         let in_boundary = validate_standard_property_value_v0("border-top", "1px nonsense red");
-        assert_eq!(in_boundary.class, CssValueValidationClassV0::Invalid);
+        assert_eq!(in_boundary.class, CssValueValidationClassV0::NotValidatable);
         assert_eq!(
             in_boundary.reason,
-            CssValueValidationReasonV0::GrammarUnmatched
+            CssValueValidationReasonV0::MatcherCoverageIncomplete
         );
     }
 
@@ -2458,9 +2872,16 @@ mod tests {
 
     #[test]
     fn validation_keeps_invalid_and_not_validatable_outcomes_distinct() {
-        let invalid = validate_standard_property_value_v0("border-top", "1px nonsense red");
+        let invalid = validate_standard_property_value_v0("box-sizing", "inline-box");
         assert_eq!(invalid.class, CssValueValidationClassV0::Invalid);
         assert_eq!(invalid.reason, CssValueValidationReasonV0::GrammarUnmatched);
+
+        let incomplete = validate_standard_property_value_v0("border-top", "1px nonsense red");
+        assert_eq!(incomplete.class, CssValueValidationClassV0::NotValidatable);
+        assert_eq!(
+            incomplete.reason,
+            CssValueValidationReasonV0::MatcherCoverageIncomplete
+        );
 
         let defect = validate_registered_property_value_v0("<future-value>", "1px");
         assert_eq!(defect.class, CssValueValidationClassV0::NotValidatable);
@@ -2501,10 +2922,13 @@ mod tests {
         assert!(valid_negative.verdict.is_matched());
 
         let invalid_negative = validate_standard_property_value_v0("margin", "-10px totally-bogus");
-        assert_eq!(invalid_negative.class, CssValueValidationClassV0::Invalid);
+        assert_eq!(
+            invalid_negative.class,
+            CssValueValidationClassV0::NotValidatable
+        );
         assert_eq!(
             invalid_negative.reason,
-            CssValueValidationReasonV0::GrammarUnmatched
+            CssValueValidationReasonV0::MatcherCoverageIncomplete
         );
         assert!(invalid_negative.verdict.is_definite_mismatch());
 
@@ -2544,18 +2968,11 @@ mod tests {
 
         let grid_function =
             validate_standard_property_value_v0("grid-template-columns", "minmax(101px, 1fr)");
-        assert_eq!(
-            grid_function.class,
-            CssValueValidationClassV0::NotValidatable
-        );
+        assert_eq!(grid_function.class, CssValueValidationClassV0::Valid);
         assert_eq!(
             grid_function.reason,
-            CssValueValidationReasonV0::GrammarDefect
+            CssValueValidationReasonV0::GrammarMatched
         );
-        assert!(matches!(
-            grid_function.verdict,
-            CssValueGrammarVerdictV0::GrammarDefect { .. }
-        ));
     }
 
     #[test]
@@ -2585,21 +3002,24 @@ mod tests {
 
         let adjacent_scalar =
             validate_standard_property_value_v0("width", "round(1, 2) totally-bogus");
-        assert_eq!(adjacent_scalar.class, CssValueValidationClassV0::Invalid);
+        assert_eq!(
+            adjacent_scalar.class,
+            CssValueValidationClassV0::NotValidatable
+        );
         assert_eq!(
             adjacent_scalar.reason,
-            CssValueValidationReasonV0::GrammarUnmatched
+            CssValueValidationReasonV0::MatcherCoverageIncomplete
         );
 
         let unregistered_function =
             validate_standard_property_value_v0("width", "totally-unknown(1px)");
         assert_eq!(
             unregistered_function.class,
-            CssValueValidationClassV0::Invalid
+            CssValueValidationClassV0::NotValidatable
         );
         assert_eq!(
             unregistered_function.reason,
-            CssValueValidationReasonV0::GrammarUnmatched
+            CssValueValidationReasonV0::MatcherCoverageIncomplete
         );
 
         let compound_value =
@@ -2620,11 +3040,6 @@ mod tests {
             "var(--width)",
             "env(safe-area-inset-top)",
             "attr(data-width type(<length>))",
-            "calc(1px + 2px)",
-            "min(1px, 2px)",
-            "max(1px, 2px)",
-            "clamp(1px, 2px, 3px)",
-            "round(up, calc(101px), 10px)",
         ] {
             let validation = validate_standard_property_value_v0("width", value);
             assert_eq!(
@@ -2639,11 +3054,142 @@ mod tests {
             );
         }
 
+        let unvalidated_outer_function =
+            validate_standard_property_value_v0("width", "round(up, calc(101px), 10px)");
+        assert_eq!(
+            unvalidated_outer_function.class,
+            CssValueValidationClassV0::NotValidatable
+        );
+        assert_eq!(
+            unvalidated_outer_function.reason,
+            CssValueValidationReasonV0::UnvalidatedStandardFunction
+        );
+
         let similarly_named =
             validate_standard_property_value_v0("grid-template-columns", "minmax(101px, 1fr)");
         assert_eq!(
             similarly_named.reason,
-            CssValueValidationReasonV0::GrammarDefect
+            CssValueValidationReasonV0::GrammarMatched
+        );
+    }
+
+    #[test]
+    fn pinned_matcher_resolves_paint_math_and_grid_function_shapes() {
+        for (property, value) in [
+            ("fill", "#ff00aa"),
+            ("stroke", "rgb(10 20 30)"),
+            ("width", "calc(1px + 2px)"),
+            ("width", "min(1px, 2px)"),
+            ("width", "max(10%, 20%)"),
+            ("width", "clamp(1px, 2px, 3px)"),
+            ("opacity", "calc(0.4 + 0.1)"),
+            ("animation-duration", "max(1s, 2s)"),
+            ("rotate", "calc(10deg + 5deg)"),
+            ("grid-template-columns", "minmax(101px, 1fr)"),
+            ("grid-template-columns", "repeat(3, 1fr)"),
+            ("grid-template-columns", "repeat(2, minmax(0, 1fr))"),
+        ] {
+            let validation = validate_standard_property_value_v0(property, value);
+            assert_eq!(
+                validation.class,
+                CssValueValidationClassV0::Valid,
+                "{property}: {value}: {validation:?}"
+            );
+        }
+
+        for (property, value) in [
+            ("width", "calc(1px + 2)"),
+            ("width", "calc(1px * 2px)"),
+            ("opacity", "calc(1 + 1px)"),
+            ("animation-duration", "min(1s, 2px)"),
+        ] {
+            let validation = validate_standard_property_value_v0(property, value);
+            assert_ne!(
+                validation.class,
+                CssValueValidationClassV0::Valid,
+                "dimensionally invalid math was accepted: {property}: {value}: {validation:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn incomplete_matcher_coverage_cannot_promote_unmatched_to_invalid() {
+        let validation = adjudicate_css_value_validation_with_boundary(
+            "fixture-value",
+            CssValueGrammarVerdictV0::Unmatched {
+                grammar: "<partially-modeled-type>".to_string(),
+                locus: CssValueGrammarLocusV0 { start: 0, end: 13 },
+            },
+            SpecGrammarBoundaryClassificationV0::InBoundary,
+            false,
+        );
+        assert_eq!(
+            validation.class,
+            CssValueValidationClassV0::NotValidatable,
+            "MatcherCoverageIncomplete must remain non-definite"
+        );
+        assert_eq!(
+            validation.reason,
+            CssValueValidationReasonV0::MatcherCoverageIncomplete
+        );
+    }
+
+    #[test]
+    fn forty_valid_declaration_corpus_has_no_definite_rejection() {
+        let declarations = [
+            ("color", "red"),
+            ("color", "#ff00aa"),
+            ("fill", "#f0f"),
+            ("stroke", "#ff00ff"),
+            ("width", "calc(10px + 2px)"),
+            ("width", "min(10px, 20px)"),
+            ("width", "max(10%, 20%)"),
+            ("width", "clamp(1px, 2px, 3px)"),
+            ("height", "calc(50% + 2px)"),
+            ("margin", "calc(1rem + 2px)"),
+            ("padding", "min(1rem, 2rem)"),
+            ("row-gap", "clamp(1px, 2px, 3px)"),
+            ("column-gap", "max(1%, 2%)"),
+            ("gap", "clamp(1px, 2px, 3px)"),
+            ("opacity", "calc(0.5 + 0.1)"),
+            ("line-height", "min(1.2, 1.5)"),
+            ("animation-duration", "calc(1s + 200ms)"),
+            ("transition-duration", "max(1s, 2s)"),
+            ("rotate", "calc(10deg + 5deg)"),
+            ("grid-template-columns", "minmax(101px, 1fr)"),
+            ("grid-template-columns", "repeat(3, 1fr)"),
+            ("grid-template-columns", "repeat(2, minmax(0, 1fr))"),
+            ("grid-template-columns", "1fr 2fr"),
+            ("border-top", "1px solid red"),
+            ("margin", "0 auto"),
+            ("padding", "1px 2px"),
+            ("display", "grid"),
+            ("position", "absolute"),
+            ("inset", "0"),
+            ("top", "1px"),
+            ("z-index", "2"),
+            ("font-weight", "700"),
+            ("font-size", "16px"),
+            ("background-color", "rebeccapurple"),
+            ("border-radius", "4px"),
+            ("flex-grow", "1"),
+            ("flex-shrink", "0"),
+            ("order", "-1"),
+            ("transform", "rotate(45deg)"),
+            ("background-image", "linear-gradient(red, blue)"),
+        ];
+        assert_eq!(declarations.len(), 40);
+        let definite_rejections = declarations
+            .iter()
+            .filter_map(|(property, value)| {
+                let validation = validate_standard_property_value_v0(property, value);
+                (validation.class == CssValueValidationClassV0::Invalid)
+                    .then_some((*property, *value, validation))
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            definite_rejections.is_empty(),
+            "valid declarations were definitely rejected: {definite_rejections:?}"
         );
     }
 
@@ -2685,6 +3231,13 @@ mod tests {
         );
         assert_eq!(
             validator.validate_standard_property_value(&PropertyNameV0::standard("color"), "12px"),
+            CascadeStandardValueVerdictV0::Unknown
+        );
+        assert_eq!(
+            validator.validate_standard_property_value(
+                &PropertyNameV0::standard("box-sizing"),
+                "inline-box",
+            ),
             CascadeStandardValueVerdictV0::Unmatched
         );
         assert_eq!(

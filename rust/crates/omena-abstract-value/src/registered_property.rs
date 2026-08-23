@@ -949,16 +949,13 @@ mod tests {
             standard_property_syntax_match("box-sizing", "Border-Box"),
             RegisteredSyntaxMatchV0::Accepts
         );
-        // Deferred values stay silent because their computed substitution is not
-        // statically validatable.
-        for value in ["var(--x)", "calc(1px)"] {
-            assert_eq!(
-                standard_property_syntax_match("box-sizing", value),
-                RegisteredSyntaxMatchV0::Unknown,
-                "box-sizing: {value} must stay silent"
-            );
-        }
-        for value in ["10px", "content-box border-box"] {
+        // var() remains deferred; calc() is modeled and is definitely
+        // incompatible with this closed keyword grammar.
+        assert_eq!(
+            standard_property_syntax_match("box-sizing", "var(--x)"),
+            RegisteredSyntaxMatchV0::Unknown
+        );
+        for value in ["calc(1px)", "10px", "content-box border-box"] {
             assert_eq!(
                 standard_property_syntax_match("box-sizing", value),
                 RegisteredSyntaxMatchV0::Rejects,
@@ -1035,14 +1032,14 @@ mod tests {
     }
 
     #[test]
-    fn standard_property_syntax_match_keeps_negative_dimensions_decidable() {
+    fn standard_property_syntax_match_keeps_incomplete_numeric_grammars_conservative() {
         assert_eq!(
             standard_property_syntax_match("margin", "-10px"),
             RegisteredSyntaxMatchV0::Accepts
         );
         assert_eq!(
             standard_property_syntax_match("margin", "-10px totally-bogus"),
-            RegisteredSyntaxMatchV0::Rejects
+            RegisteredSyntaxMatchV0::Unknown
         );
     }
 

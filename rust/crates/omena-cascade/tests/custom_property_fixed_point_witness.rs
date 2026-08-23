@@ -222,7 +222,19 @@ fn custom_property_fixed_point_witness_corpus_matches_frozen_oracle() -> Result<
     assert!(receipt.case_count >= 6);
     assert_eq!(receipt.agreement_count, receipt.case_count);
     assert_eq!(receipt.finding_count, 0);
-    assert!(receipt.novel_cycle_case_count >= 2);
+    assert_eq!(receipt.novel_cycle_case_count, 3);
+    assert_eq!(
+        receipt
+            .rows
+            .iter()
+            .filter_map(|row| row.cycle_shape.as_deref())
+            .collect::<Vec<_>>(),
+        vec![
+            "mutuallyRecursiveFallbackChain",
+            "cycleThroughFallback",
+            "threeNodeFallbackCycleEnteredMidChain",
+        ]
+    );
     println!("{}", serde_json::to_string(&receipt)?);
     Ok(())
 }

@@ -18,7 +18,7 @@ a bounded approximation.
 ## Shipped algorithm
 
 The implementation builds a directed graph over the canonical keys in
-`CustomPropertyEnv`. `collect_custom_property_references` visits every
+`CustomPropertyEnv`. `collect_custom_property_reference_indices` visits every
 `CascadeValue::Var`, including references that appear in a fallback, so a
 fallback reference is a dependency edge rather than an escape from a cycle.
 Graph nodes are `CanonicalCustomPropertyNameV0` values produced by
@@ -36,7 +36,10 @@ dependencies. Each binding is evaluated once against the memoized resolved
 environment by `substitute_custom_properties_against_resolved_env`. The
 schedule covers every component, and the implementation asserts both complete
 key coverage and the absence of remaining `var()` references. There is no
-non-converged-value return path.
+non-converged-value return path. Both Kosaraju passes and the condensation-graph
+schedule are iterative, so a long alias chain does not consume the Rust call
+stack. Product value resolution omits the compatibility trace; summaries build
+each trace row from incremental counters instead of rescanning the environment.
 
 ## Code correspondence
 
@@ -46,7 +49,7 @@ non-converged-value return path.
 | Input environment     | `CustomPropertyEnv`                                       | Fixed `BTreeMap` of canonical custom-property keys.                                           |
 | Value syntax          | `CascadeValue`                                            | Literal, composite, variable, CSS-wide states, indeterminate, guaranteed-invalid, and unset.  |
 | Dependency graph      | `custom_property_dependency_graph`                        | Collects references from primary values and fallbacks.                                        |
-| Reference collector   | `collect_custom_property_references`                      | Makes fallback references graph edges.                                                        |
+| Reference collector   | `collect_custom_property_reference_indices`               | Maps primary and fallback references to canonical graph indices.                              |
 | SCC partition         | `strongly_connected_components`                           | Computes the complete strongly connected component partition.                                 |
 | Component schedule    | `dependency_ordered_components`                           | Orders distinct components after their dependencies.                                          |
 | Cycle predicate       | `component_is_cyclic`                                     | Detects multi-member components and self-loops.                                               |
@@ -66,17 +69,18 @@ rows is not presented as convergence evidence.
 
 ## Frozen independent witness
 
-The committed independent oracle remains unchanged. Its five-field `oracle`
-object defines an all-bottom status iteration, and the Rust
-`evaluate_from_all_bottom` function plus every `expectedEvaluator` projection
-are protected by SHA-256 content checks. The six original case IDs and their
-`cycleShape` values are also frozen; additional cases may only grow the corpus.
+The committed independent oracle's five-field `oracle` object defines an
+all-bottom status iteration. The complete evaluator kernel—from
+`evaluate_from_all_bottom` through `evaluate_fixture_value` and
+`finalize_oracle_environment`—and every `expectedEvaluator` projection are
+protected by separate SHA-256 checks.
 
-The current seven-case corpus reports seven agreements and zero findings. It
-includes the original two fallback-cycle counterexamples and a new three-node
-fallback cycle entered by a non-member chain. A separate set-semantics test
-asserts both sides of the rule: every cycle member is invalid, while a
-non-member that references the invalid component can use its own fallback.
+The current eight-case corpus reports eight agreements and zero findings. Its
+named non-degenerate cycle-shape allowlist is exactly
+`mutuallyRecursiveFallbackChain`, `cycleThroughFallback`, and
+`threeNodeFallbackCycleEnteredMidChain`. The plain two-cycle remains a baseline
+case without a novel-shape label. An outer-reference case separately proves
+that a non-member may use its fallback after its dependency is invalid.
 
 The `reordered-in-place` mutation still weakens the independent simultaneous
 transfer and must fail. Product mutations that remove SCC classification or
@@ -104,6 +108,13 @@ same computation. Its regression case distinguishes `--tone: red`, which keeps
 `color: var(--tone)` resolved, from `--tone: 12px`, which is invalid for
 `color`. An always-valid validator or the former literal-only verdict filter
 makes that product-path test fail.
+
+A definite grammar mismatch is promoted to invalid only when the matcher has a
+complete implementation-coverage certificate for every referenced grammar
+shape. Otherwise the result stays indeterminate. The same pinned registry now
+supplies the reviewed `<paint>` color inclusion and the modeled
+`calc()`/`min()`/`max()`/`clamp()` and grid `repeat()`/`minmax()` paths; no
+parallel property grammar table is consulted.
 
 That path resolves the custom-property environment at every ancestor boundary
 before applying child declarations. An inherited computed value therefore does
