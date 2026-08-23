@@ -123,7 +123,7 @@
         "compatCount": 247,
         "identityEscalationCount": 179,
         "governanceDataCount": 79,
-        "siteSetSha256": "dead37e391717be482bcea121e465e1fb50aef43c86ea0196b5593d543c3c1e6"
+        "siteSetSha256": "a634019382e98bea34e3d03c20487a6a293818b38c3089979a33428df738080e"
       },
       {
         "familyId": "f04",
@@ -132,7 +132,7 @@
         "compatCount": 264,
         "identityEscalationCount": 182,
         "governanceDataCount": 97,
-        "siteSetSha256": "cea100fea80cf7aa7e482126cfdf860e0aa4e7270a3f83b1738c63f1174c775e"
+        "siteSetSha256": "c4f8ecc06c964a6d7bb5a221f65afa60018321865472343061ca6486cc9d5878"
       },
       {
         "familyId": "f05",
@@ -141,7 +141,7 @@
         "compatCount": 188,
         "identityEscalationCount": 0,
         "governanceDataCount": 50,
-        "siteSetSha256": "98fad46994bfd289a6e9dc217bcf997f9aaa2a38be42cff050a5691b505d99a3"
+        "siteSetSha256": "44efde1283c583e2a5657f1a14e05d4cda7bc22d87c3df0371d37d79ea5f8115"
       },
       {
         "familyId": "f06",
@@ -150,11 +150,11 @@
         "compatCount": 170,
         "identityEscalationCount": 101,
         "governanceDataCount": 56,
-        "siteSetSha256": "11effbfd99435e7cb1731fbad4f0a46f50c71fc72723c823b964483113947f9f"
+        "siteSetSha256": "1c8ccd5b02e6c0c6c18a6909402453426d1dbac2885ce7f116050056b95dbb1d"
       }
     ],
-    "siteSetSha256": "c3bbb0cee926a0733af1dd6731e3115ea9f4a6f7e7433dc7bfec9a95d065c451",
-    "claimSiteSetSha256": "4b4004dead8febbffeb0ef882c9e1318c9da2aba10c63148915ed8c0a6fa23b2",
+    "siteSetSha256": "cdf8482622ac686301af41b28fccb4e6b5c425dd0d3f5e6ef5c263a698ced117",
+    "claimSiteSetSha256": "74120ce426e61354d62d766c0dafdc18a09bae4ec19318e5b794e1ad9d2481de",
     "compatDeclarationSetSha256": "83276fa27e53d092ba713ed2c1ab5a81df822763a1d9ca5a4a15d09e30ca1dd0",
     "identityCrateSetSha256": "301477ffa6f128519a55a9aa55d336d35400f48ae4fd73cd66b4d2fcc60ae772",
     "governanceRuleSetSha256": "4a10b35bcc737fb53fbe9f7b71d598130b780f31aa3d0ab0beee345b9cdda74d"

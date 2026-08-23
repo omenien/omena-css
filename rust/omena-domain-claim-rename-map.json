@@ -90,7 +90,7 @@
     {
       "familyId": "f06",
       "sourcePath": "scripts/check-rust-omena-custom-property-fixed-point-formalization.ts",
-      "line": 180,
+      "line": 183,
       "lineSha256": "7c5fce9934dd9de44a9021e002f1ea060a3a7eaf85b8284534d3be49347e6f2b",
       "occurrenceInLine": 0,
       "justification": "The formalization gate asserts the downstream compatibility source consumes the structural component schedule."
@@ -98,7 +98,7 @@
     {
       "familyId": "f06",
       "sourcePath": "scripts/check-rust-omena-custom-property-fixed-point-formalization.ts",
-      "line": 181,
+      "line": 184,
       "lineSha256": "75eac7d912716a4a035cb41bf16e766d9aada255a0d3ec3044aa53575c16a490",
       "occurrenceInLine": 0,
       "justification": "The formalization gate asserts that nonempty component schedules are not represented as Kleene convergence certificates downstream."
@@ -106,7 +106,7 @@
     {
       "familyId": "f06",
       "sourcePath": "scripts/check-rust-omena-custom-property-fixed-point-formalization.ts",
-      "line": 185,
+      "line": 188,
       "lineSha256": "0342b6751e71f9fc66118dd86c863a8ade847bd7141c321c9eae391e5ed982e3",
       "occurrenceInLine": 0,
       "justification": "The assertion message explicitly identifies the RG-flow compatibility boundary whose interpretation is being pinned."
