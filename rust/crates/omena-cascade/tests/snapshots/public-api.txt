@@ -203,6 +203,7 @@ pub enum omena_cascade::ComputedCascadeIndeterminateReasonV0
 pub enum omena_cascade::ComputedCascadeValueStatusV0
 pub enum omena_cascade::CssPropertyInheritanceV0
 pub enum omena_cascade::CssPropertyInitialValueV0
+pub enum omena_cascade::CustomPropertyGuaranteedInvalidReasonV0
 pub enum omena_cascade::DomClassTokenizationUnknownCauseV0
 pub enum omena_cascade::DomClassTokenizationV0
 pub enum omena_cascade::ElementParentChainStatusV0
@@ -858,8 +859,12 @@ pub omena_cascade::CssPropertyMetadataV1Json::schema_version: alloc::string::Str
 pub omena_cascade::CssPropertyMetadataV1Json::source: omena_cascade::CssPropertyMetadataSourceV1Json
 pub omena_cascade::CustomPropertyEvidenceV0::custom_property_name: alloc::string::String
 pub omena_cascade::CustomPropertyEvidenceV0::dependency_names: alloc::vec::Vec<alloc::string::String>
+pub omena_cascade::CustomPropertyGuaranteedInvalidReasonV0::CycleMember
+pub omena_cascade::CustomPropertyGuaranteedInvalidReasonV0::InvalidDependencyWithoutFallback
+pub omena_cascade::CustomPropertyGuaranteedInvalidReasonV0::MissingReference
 pub omena_cascade::CustomPropertyLeastFixedPointEntryV0::changed: bool
 pub omena_cascade::CustomPropertyLeastFixedPointEntryV0::guaranteed_invalid: bool
+pub omena_cascade::CustomPropertyLeastFixedPointEntryV0::guaranteed_invalid_reason: core::option::Option<omena_cascade::CustomPropertyGuaranteedInvalidReasonV0>
 pub omena_cascade::CustomPropertyLeastFixedPointEntryV0::input: omena_cascade::CascadeValue
 pub omena_cascade::CustomPropertyLeastFixedPointEntryV0::name: alloc::string::String
 pub omena_cascade::CustomPropertyLeastFixedPointEntryV0::resolved: omena_cascade::CascadeValue
