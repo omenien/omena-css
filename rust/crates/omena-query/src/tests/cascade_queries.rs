@@ -463,13 +463,18 @@ fn read_cascade_at_position_resolves_paint_values_through_the_pinned_matcher() {
         .expect("paint var reference");
         assert_eq!(
             cascade.referenced_declaration_computed_value_status,
-            Some("resolved")
+            Some("resolved"),
+            "{name} must keep the spec-valid paint value {expected} resolved"
         );
         assert_eq!(
             cascade.referenced_declaration_computed_value.as_deref(),
-            Some(expected)
+            Some(expected),
+            "{name} must preserve the computed paint value"
         );
-        assert!(!cascade.referenced_declaration_invalid_at_computed_value_time);
+        assert!(
+            !cascade.referenced_declaration_invalid_at_computed_value_time,
+            "{name} must not become invalid at computed-value time"
+        );
     }
 }
 
