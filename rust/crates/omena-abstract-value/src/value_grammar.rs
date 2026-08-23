@@ -3746,19 +3746,37 @@ mod tests {
 
     #[test]
     fn closed_world_builtin_domains_are_bound_to_the_css_tree_witness_manifest() {
-        let manifest = closed_world_builtin_token_profiles()
-            .expect("the css-tree builtin token witness manifest must parse");
+        let manifest = closed_world_builtin_token_profiles();
+        assert!(
+            manifest.is_some(),
+            "the css-tree builtin token witness manifest must parse"
+        );
+        let Some(manifest) = manifest else {
+            return;
+        };
         assert_eq!(manifest.profile_count, 33);
 
-        let length = closed_world_builtin_profile("length")
-            .expect("length must have a witnessed builtin profile");
+        let length = closed_world_builtin_profile("length");
+        assert!(
+            length.is_some(),
+            "length must have a witnessed builtin profile"
+        );
+        let Some(length) = length else {
+            return;
+        };
         assert!(length.dimension.open);
         assert!(length.function_name.open);
         assert!(!length.number.open);
         assert_eq!(length.number.allowed, BTreeSet::from(["0".to_string()]));
 
-        let unknown_css_tree_type = closed_world_builtin_profile("whole-value")
-            .expect("an unknown css-tree type must receive a default-open profile");
+        let unknown_css_tree_type = closed_world_builtin_profile("whole-value");
+        assert!(
+            unknown_css_tree_type.is_some(),
+            "an unknown css-tree type must receive a default-open profile"
+        );
+        let Some(unknown_css_tree_type) = unknown_css_tree_type else {
+            return;
+        };
         assert!(
             CLOSED_WORLD_TOKEN_KINDS
                 .iter()

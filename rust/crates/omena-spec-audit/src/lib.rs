@@ -1580,9 +1580,14 @@ mod tests {
             ("baseline-shift", "baseline"),
             ("-webkit-mask", "text"),
         ] {
-            let entry = registry
-                .entry("properties", property)
-                .unwrap_or_else(|| panic!("missing reviewed property override {property}"));
+            let entry = registry.entry("properties", property);
+            assert!(
+                entry.is_some(),
+                "missing reviewed property override {property}"
+            );
+            let Some(entry) = entry else {
+                return;
+            };
             assert!(
                 entry
                     .syntax
