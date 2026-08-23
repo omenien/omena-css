@@ -1,0 +1,241 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-query.tracked-style-diagnostics-three-pin-census",
+  "measuredAt": "2026-08-23",
+  "corpus": {
+    "enumeration": "git ls-files -- '*.css' '*.scss' '*.less'",
+    "styleExtensions": ["css", "scss", "less"],
+    "excludedDirectoryComponents": [
+      "node_modules",
+      "target",
+      "dist",
+      "build",
+      "coverage",
+      ".next",
+      ".turbo"
+    ],
+    "styleFileCount": 199,
+    "recommendedLintSourceFileCount": 1019
+  },
+  "pins": [
+    {
+      "id": "pre-structural-evaluator-baseline",
+      "sourcePin": "8017f20a60c622161fbdcabb38c2065ce9efc7d1",
+      "measurements": {
+        "recommendedLint": {
+          "findingCount": 40,
+          "countsByRule": {
+            "invalid-property-value": 16,
+            "missing-composed-module": 2,
+            "missing-composed-selector": 3,
+            "missing-imported-value": 1,
+            "missing-keyframes": 1,
+            "missing-module": 5,
+            "missing-resolved-class-domain": 1,
+            "missing-resolved-class-values": 2,
+            "missing-sass-symbol": 3,
+            "missing-static-class": 4,
+            "missing-template-prefix": 1,
+            "missing-value-module": 1
+          }
+        },
+        "defaultStyleDiagnosticsCli": {
+          "findingCount": 87,
+          "countsByRule": {
+            "deprecatedSassImport": 1,
+            "invalidPropertyValue": 16,
+            "missing-module": 7,
+            "missingComposedModule": 2,
+            "missingComposedSelector": 11,
+            "missingCustomProperty": 13,
+            "missingImportedValue": 8,
+            "missingKeyframes": 1,
+            "missingSassSymbol": 5,
+            "missingValueModule": 1,
+            "unreachableDeclaration": 9,
+            "unresolvedExternalReference": 6,
+            "unspecifiedCascadeTie": 7
+          }
+        },
+        "queryStyleDiagnostics": {
+          "findingCount": 52,
+          "countsByRule": {
+            "deprecatedSassImport": 1,
+            "invalidPropertyValue": 16,
+            "missingCustomProperty": 13,
+            "missingKeyframes": 1,
+            "missingSassSymbol": 5,
+            "unreachableDeclaration": 9,
+            "unspecifiedCascadeTie": 7
+          }
+        }
+      }
+    },
+    {
+      "id": "structural-evaluator-and-grammar-port",
+      "sourcePin": "caa53005e4414c7c0d89bb12f1a42427e91b8407",
+      "measurements": {
+        "recommendedLint": {
+          "findingCount": 40,
+          "countsByRule": {
+            "invalid-property-value": 16,
+            "missing-composed-module": 2,
+            "missing-composed-selector": 3,
+            "missing-imported-value": 1,
+            "missing-keyframes": 1,
+            "missing-module": 5,
+            "missing-resolved-class-domain": 1,
+            "missing-resolved-class-values": 2,
+            "missing-sass-symbol": 3,
+            "missing-static-class": 4,
+            "missing-template-prefix": 1,
+            "missing-value-module": 1
+          }
+        },
+        "defaultStyleDiagnosticsCli": {
+          "findingCount": 87,
+          "countsByRule": {
+            "deprecatedSassImport": 1,
+            "invalidPropertyValue": 16,
+            "missing-module": 7,
+            "missingComposedModule": 2,
+            "missingComposedSelector": 11,
+            "missingCustomProperty": 13,
+            "missingImportedValue": 8,
+            "missingKeyframes": 1,
+            "missingSassSymbol": 5,
+            "missingValueModule": 1,
+            "unreachableDeclaration": 9,
+            "unresolvedExternalReference": 6,
+            "unspecifiedCascadeTie": 7
+          }
+        },
+        "queryStyleDiagnostics": {
+          "findingCount": 52,
+          "countsByRule": {
+            "deprecatedSassImport": 1,
+            "invalidPropertyValue": 16,
+            "missingCustomProperty": 13,
+            "missingKeyframes": 1,
+            "missingSassSymbol": 5,
+            "unreachableDeclaration": 9,
+            "unspecifiedCascadeTie": 7
+          }
+        }
+      }
+    },
+    {
+      "id": "closed-world-token-certificate",
+      "sourcePin": "ceb18cd8a723b5153a86ce932d6a88528b76e781",
+      "measurements": {
+        "recommendedLint": {
+          "findingCount": 37,
+          "countsByRule": {
+            "invalid-property-value": 13,
+            "missing-composed-module": 2,
+            "missing-composed-selector": 3,
+            "missing-imported-value": 1,
+            "missing-keyframes": 1,
+            "missing-module": 5,
+            "missing-resolved-class-domain": 1,
+            "missing-resolved-class-values": 2,
+            "missing-sass-symbol": 3,
+            "missing-static-class": 4,
+            "missing-template-prefix": 1,
+            "missing-value-module": 1
+          }
+        },
+        "defaultStyleDiagnosticsCli": {
+          "findingCount": 84,
+          "countsByRule": {
+            "deprecatedSassImport": 1,
+            "invalidPropertyValue": 13,
+            "missing-module": 7,
+            "missingComposedModule": 2,
+            "missingComposedSelector": 11,
+            "missingCustomProperty": 13,
+            "missingImportedValue": 8,
+            "missingKeyframes": 1,
+            "missingSassSymbol": 5,
+            "missingValueModule": 1,
+            "sassModuleSymlinkResolution": 4,
+            "unreachableDeclaration": 9,
+            "unresolvedExternalReference": 2,
+            "unspecifiedCascadeTie": 7
+          }
+        },
+        "queryStyleDiagnostics": {
+          "findingCount": 49,
+          "countsByRule": {
+            "deprecatedSassImport": 1,
+            "invalidPropertyValue": 13,
+            "missingCustomProperty": 13,
+            "missingKeyframes": 1,
+            "missingSassSymbol": 5,
+            "unreachableDeclaration": 9,
+            "unspecifiedCascadeTie": 7
+          }
+        }
+      }
+    }
+  ],
+  "declaredDeltas": [
+    {
+      "owner": "closed-world-token-kind-certificate",
+      "fromPin": "caa53005e4414c7c0d89bb12f1a42427e91b8407",
+      "toPin": "ceb18cd8a723b5153a86ce932d6a88528b76e781",
+      "ruleDeltas": [
+        { "surface": "recommendedLint", "ruleId": "invalid-property-value", "delta": -3 },
+        {
+          "surface": "defaultStyleDiagnosticsCli",
+          "ruleId": "invalidPropertyValue",
+          "delta": -3
+        },
+        { "surface": "queryStyleDiagnostics", "ruleId": "invalidPropertyValue", "delta": -3 }
+      ],
+      "locations": [
+        {
+          "path": "examples/src/scenarios/18-less-module/LessModule.module.less",
+          "line": 8,
+          "character": 3,
+          "coordinateSystem": "one-based",
+          "uncertainty": "unevaluated Less fade()"
+        },
+        {
+          "path": "examples/src/scenarios/18-less-module/LessModule.module.less",
+          "line": 13,
+          "character": 5,
+          "coordinateSystem": "one-based",
+          "uncertainty": "unevaluated Less fade()"
+        },
+        {
+          "path": "test/_fixtures/sdk-cross-surface-parity/mixins.module.less",
+          "line": 7,
+          "character": 5,
+          "coordinateSystem": "one-based",
+          "uncertainty": "unexpanded Less variable"
+        }
+      ],
+      "disposition": "The observed function or identifier kind remains open, so these values are no longer promoted from matcher uncertainty to a definite error."
+    },
+    {
+      "owner": "structural-evaluator-file-resolution",
+      "introducedBy": "7e0fd4b598da6be773554224447a0d37b8561d09",
+      "fromPin": "caa53005e4414c7c0d89bb12f1a42427e91b8407",
+      "toPin": "ceb18cd8a723b5153a86ce932d6a88528b76e781",
+      "ruleDeltas": [
+        {
+          "surface": "defaultStyleDiagnosticsCli",
+          "ruleId": "unresolvedExternalReference",
+          "delta": -4
+        },
+        {
+          "surface": "defaultStyleDiagnosticsCli",
+          "ruleId": "sassModuleSymlinkResolution",
+          "delta": 4
+        }
+      ],
+      "disposition": "An earlier structural evaluator commit reclassified four diagnostics without changing the combined count; this is not attributed to the closed-world certificate."
+    }
+  ]
+}

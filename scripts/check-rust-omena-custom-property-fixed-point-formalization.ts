@@ -35,6 +35,7 @@ assert.ok(args.size <= 1, "inject exactly one custom-property mutation at a time
 
 const documentPath = "docs/concepts/custom-property-bounded-substitution.md";
 const gapRegisterPath = "rust/omena-custom-property-fixed-point-gap-register.json";
+const diagnosticCensusPath = "rust/omena-custom-property-diagnostic-census.json";
 const corpusPath =
   "rust/crates/omena-cascade/tests/fixtures/custom-property-fixed-point-witness-v1.json";
 const evaluatorPath = "rust/crates/omena-cascade/tests/custom_property_fixed_point_witness.rs";
@@ -44,6 +45,7 @@ const cascadeTestsPath = "rust/crates/omena-cascade/src/tests.rs";
 const cascadeLibPath = "rust/crates/omena-cascade/src/lib.rs";
 const modelPath = "rust/crates/omena-cascade/src/model.rs";
 const grammarPath = "rust/crates/omena-abstract-value/src/value_grammar.rs";
+const cliLintPath = "rust/crates/omena-cli/src/lint.rs";
 const queryCorePath = "rust/crates/omena-query-core/src/lib.rs";
 const salsaPath = "rust/crates/omena-query/src/style/salsa_memo.rs";
 const cascadePositionPath = "rust/crates/omena-query/src/style/cascade_position.rs";
@@ -58,7 +60,11 @@ const rgFlow = read(compatibilityProjectionPath);
 const conceptsIndex = read("docs/concepts/README.md");
 const conceptsMeta = JSON.parse(read("docs/concepts/meta.json")) as { pages?: string[] };
 const gapRegister = JSON.parse(read(gapRegisterPath)) as GapRegister;
+const diagnosticCensus = JSON.parse(read(diagnosticCensusPath)) as DiagnosticCensus;
 const corpus = JSON.parse(read(corpusPath)) as WitnessCorpus;
+const cliLint = read(cliLintPath);
+
+validateDiagnosticCensus(diagnosticCensus, cliLint);
 
 if (args.has("--inject-case-replacement")) {
   corpus.cases = corpus.cases.filter((entry) => entry.id !== "cycle-through-fallback");
@@ -455,6 +461,30 @@ if (args.has("--inject-reordered-evaluator")) {
     string,
     number
   >;
+  const currentDiagnosticPin = diagnosticCensus.pins.find(
+    (pin) => pin.sourcePin === "ceb18cd8a723b5153a86ce932d6a88528b76e781",
+  );
+  assert.ok(currentDiagnosticPin, "the current implementation diagnostic pin is absent");
+  assert.equal(
+    trackedStyleDiagnosticsFileCount,
+    diagnosticCensus.corpus.styleFileCount,
+    "the query diagnostic corpus size diverged from the three-pin census",
+  );
+  assert.deepEqual(
+    trackedStyleDiagnosticCounts,
+    currentDiagnosticPin.measurements.queryStyleDiagnostics.countsByRule,
+    "the query diagnostic counts diverged from the current three-pin measurement",
+  );
+  assert.equal(
+    trackedStyleDiagnosticsCliFileCount,
+    diagnosticCensus.corpus.styleFileCount,
+    "the default CLI diagnostic corpus size diverged from the three-pin census",
+  );
+  assert.deepEqual(
+    trackedStyleDiagnosticsCliCounts,
+    currentDiagnosticPin.measurements.defaultStyleDiagnosticsCli.countsByRule,
+    "the default CLI diagnostic counts diverged from the current three-pin measurement",
+  );
   const longChain = runCargo(repoRoot, [
     "test",
     "--manifest-path",
@@ -557,6 +587,7 @@ if (args.has("--inject-reordered-evaluator")) {
       trackedStyleDiagnosticCounts,
       trackedStyleDiagnosticsCliFileCount,
       trackedStyleDiagnosticsCliCounts,
+      diagnosticThreePinCensus: "GREEN",
       iterativeAliasBoundary: "100000:GREEN",
       variableEnvironmentPerformanceCeiling: "request-and-summary-2x:GREEN",
       componentScheduleTraceInvariant: "GREEN",
@@ -929,6 +960,139 @@ function runCargo(
   });
 }
 
+function validateDiagnosticCensus(census: DiagnosticCensus, lintSource: string): void {
+  const expectedPins = [
+    ["pre-structural-evaluator-baseline", "8017f20a60c622161fbdcabb38c2065ce9efc7d1"],
+    ["structural-evaluator-and-grammar-port", "caa53005e4414c7c0d89bb12f1a42427e91b8407"],
+    ["closed-world-token-certificate", "ceb18cd8a723b5153a86ce932d6a88528b76e781"],
+  ];
+  const surfaceIds: DiagnosticSurfaceId[] = [
+    "recommendedLint",
+    "defaultStyleDiagnosticsCli",
+    "queryStyleDiagnostics",
+  ];
+
+  assert.equal(census.schemaVersion, "0");
+  assert.equal(census.product, "omena-query.tracked-style-diagnostics-three-pin-census");
+  assert.equal(census.measuredAt, "2026-08-23");
+  assert.equal(census.corpus.styleFileCount, 199);
+  assert.equal(census.corpus.recommendedLintSourceFileCount, 1_019);
+  assert.deepEqual(
+    census.pins.map(({ id, sourcePin }) => [id, sourcePin]),
+    expectedPins,
+    "the three historical diagnostic pins changed",
+  );
+
+  for (const pin of census.pins) {
+    assert.match(pin.sourcePin, /^[0-9a-f]{40}$/u);
+    assert.deepEqual(Object.keys(pin.measurements).sort(), [...surfaceIds].sort());
+    for (const surface of surfaceIds) {
+      const measurement = pin.measurements[surface];
+      assert.equal(
+        Object.values(measurement.countsByRule).reduce((sum, count) => sum + count, 0),
+        measurement.findingCount,
+        `${pin.id}/${surface} finding count is not the sum of its rule counts`,
+      );
+    }
+  }
+
+  const [baseline, structuralPort, current] = census.pins;
+  assert.deepEqual(
+    baseline.measurements,
+    structuralPort.measurements,
+    "the baseline-to-port diagnostic delta must remain empty",
+  );
+  const observedDeltas = diagnosticRuleDeltas(structuralPort, current);
+  const declaredDeltas = census.declaredDeltas
+    .flatMap((entry) => entry.ruleDeltas)
+    .map(({ surface, ruleId, delta }) => `${surface}\u0000${ruleId}\u0000${delta}`)
+    .sort();
+  assert.deepEqual(
+    observedDeltas,
+    declaredDeltas,
+    "every diagnostic count change must have an explicitly owned delta",
+  );
+  assert.deepEqual(
+    observedDeltas,
+    [
+      "defaultStyleDiagnosticsCli\u0000invalidPropertyValue\u0000-3",
+      "defaultStyleDiagnosticsCli\u0000sassModuleSymlinkResolution\u00004",
+      "defaultStyleDiagnosticsCli\u0000unresolvedExternalReference\u0000-4",
+      "queryStyleDiagnostics\u0000invalidPropertyValue\u0000-3",
+      "recommendedLint\u0000invalid-property-value\u0000-3",
+    ].sort(),
+    "the measured three-pin diagnostic deltas changed",
+  );
+  for (const entry of census.declaredDeltas) {
+    assert.equal(entry.fromPin, structuralPort.sourcePin);
+    assert.equal(entry.toPin, current.sourcePin);
+  }
+
+  const certificateDelta = census.declaredDeltas.find(
+    (entry) => entry.owner === "closed-world-token-kind-certificate",
+  );
+  assert.ok(certificateDelta, "the closed-world diagnostic delta owner is absent");
+  assert.deepEqual(
+    certificateDelta.locations?.map(({ path: sourcePath, line, character }) => ({
+      sourcePath,
+      line,
+      character,
+    })),
+    [
+      {
+        sourcePath: "examples/src/scenarios/18-less-module/LessModule.module.less",
+        line: 8,
+        character: 3,
+      },
+      {
+        sourcePath: "examples/src/scenarios/18-less-module/LessModule.module.less",
+        line: 13,
+        character: 5,
+      },
+      {
+        sourcePath: "test/_fixtures/sdk-cross-surface-parity/mixins.module.less",
+        line: 7,
+        character: 5,
+      },
+    ],
+    "the three reviewed uncertainty reductions changed",
+  );
+
+  assert.ok(
+    lintSource.includes("fn tracked_workspace_recommended_lint_preserves_the_pinned_rule_census()"),
+    "the full recommended-lint receipt arm is absent",
+  );
+  assert.ok(lintSource.includes("assert_eq!(report.style_file_count, 199);"));
+  assert.ok(lintSource.includes("assert_eq!(report.source_file_count, 1_019);"));
+  assert.ok(
+    lintSource.includes(
+      `assert_eq!(report.finding_count, ${current.measurements.recommendedLint.findingCount});`,
+    ),
+  );
+  for (const [ruleId, count] of Object.entries(current.measurements.recommendedLint.countsByRule)) {
+    assert.ok(
+      lintSource.includes(`("${ruleId}".to_string(), ${count}),`),
+      `the full recommended-lint arm does not pin ${ruleId}=${count}`,
+    );
+  }
+}
+
+function diagnosticRuleDeltas(from: DiagnosticPin, to: DiagnosticPin): string[] {
+  const surfaces = Object.keys(from.measurements) as DiagnosticSurfaceId[];
+  return surfaces
+    .flatMap((surface) => {
+      const fromCounts = from.measurements[surface].countsByRule;
+      const toCounts = to.measurements[surface].countsByRule;
+      return [...new Set([...Object.keys(fromCounts), ...Object.keys(toCounts)])].flatMap(
+        (ruleId) => {
+          const delta = (toCounts[ruleId] ?? 0) - (fromCounts[ruleId] ?? 0);
+          return delta === 0 ? [] : [`${surface}\u0000${ruleId}\u0000${delta}`];
+        },
+      );
+    })
+    .sort();
+}
+
 function read(filePath: string): string {
   return readFileSync(path.join(repoRoot, filePath), "utf8");
 }
@@ -974,6 +1138,48 @@ type GapRegister = {
     decisionOwner: string;
     implementationUpgrade: string;
   };
+};
+
+type DiagnosticSurfaceId =
+  | "recommendedLint"
+  | "defaultStyleDiagnosticsCli"
+  | "queryStyleDiagnostics";
+
+type DiagnosticMeasurement = {
+  findingCount: number;
+  countsByRule: Record<string, number>;
+};
+
+type DiagnosticPin = {
+  id: string;
+  sourcePin: string;
+  measurements: Record<DiagnosticSurfaceId, DiagnosticMeasurement>;
+};
+
+type DiagnosticCensus = {
+  schemaVersion: string;
+  product: string;
+  measuredAt: string;
+  corpus: {
+    styleFileCount: number;
+    recommendedLintSourceFileCount: number;
+  };
+  pins: DiagnosticPin[];
+  declaredDeltas: Array<{
+    owner: string;
+    fromPin: string;
+    toPin: string;
+    ruleDeltas: Array<{
+      surface: DiagnosticSurfaceId;
+      ruleId: string;
+      delta: number;
+    }>;
+    locations?: Array<{
+      path: string;
+      line: number;
+      character: number;
+    }>;
+  }>;
 };
 
 type WitnessCase = {
