@@ -14,6 +14,7 @@ use omena_value_lattice::{
     css_value_component_stream, declaration_value_lens, parse_numeric_value_with_unit,
 };
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 const CLOSED_WORLD_KEYWORD_CLOSURE_CERTIFICATE_SOURCE: &str =
     include_str!("../data/closed-world-keyword-closure-certificate.json");
@@ -1043,8 +1044,27 @@ struct ClosedWorldKeywordClosureCertificateV0 {
     schema_version: String,
     product: String,
     oracle: ClosedWorldKeywordClosureOracleV0,
+    source: String,
+    maximum_reference_depth: usize,
     property_count: usize,
+    candidate_pair_count: usize,
+    accepted_pair_count: usize,
+    matched_pair_count: usize,
+    matcher_gap_count: usize,
+    accepted_pair_digest: String,
     certified_properties: BTreeSet<String>,
+    property_tests: Vec<ClosedWorldKeywordClosurePropertyTestV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ClosedWorldKeywordClosurePropertyTestV0 {
+    property: String,
+    candidate_pair_count: usize,
+    tested_pair_count: usize,
+    matched_pair_count: usize,
+    matcher_gap_count: usize,
+    accepted_keywords: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1145,22 +1165,92 @@ const CLOSED_WORLD_TOKEN_KINDS: [ClosedWorldTokenKindV0; 8] = [
 fn closed_world_keyword_closure_certified_properties() -> &'static BTreeSet<String> {
     static CERTIFIED: OnceLock<BTreeSet<String>> = OnceLock::new();
     CERTIFIED.get_or_init(|| {
-        let Ok(certificate) = serde_json::from_str::<ClosedWorldKeywordClosureCertificateV0>(
+        parse_closed_world_keyword_closure_certificate(
             CLOSED_WORLD_KEYWORD_CLOSURE_CERTIFICATE_SOURCE,
-        ) else {
-            return BTreeSet::new();
-        };
-        if certificate.schema_version != "0"
-            || certificate.product
-                != "omena-abstract-value.closed-world-keyword-closure-certificate"
-            || certificate.oracle.name != ClosedWorldKeywordClosureOracleNameV0::CssTree
-            || certificate.oracle.version != "3.2.1"
-            || certificate.property_count < certificate.certified_properties.len()
-        {
-            return BTreeSet::new();
-        }
-        certificate.certified_properties
+        )
+        .unwrap_or_default()
     })
+}
+
+fn parse_closed_world_keyword_closure_certificate(source: &str) -> Option<BTreeSet<String>> {
+    let certificate =
+        serde_json::from_str::<ClosedWorldKeywordClosureCertificateV0>(source).ok()?;
+    if certificate.schema_version != "0"
+        || certificate.product != "omena-abstract-value.closed-world-keyword-closure-certificate"
+        || certificate.oracle.name != ClosedWorldKeywordClosureOracleNameV0::CssTree
+        || certificate.oracle.version != "3.2.1"
+        || certificate.source != "cssTree.lexer.properties.typeAndPropertyReferenceClosure"
+        || certificate.maximum_reference_depth != 12
+        || certificate.property_count != 704
+        || certificate.candidate_pair_count != 23_178
+        || certificate.accepted_pair_count != 16_445
+        || certificate.property_count != certificate.property_tests.len()
+    {
+        return None;
+    }
+
+    let mut previous_property: Option<&str> = None;
+    let mut candidate_pair_count = 0usize;
+    let mut accepted_pair_count = 0usize;
+    let mut matched_pair_count = 0usize;
+    let mut matcher_gap_count = 0usize;
+    let mut derived_certified_properties = BTreeSet::new();
+    let mut digest = Sha256::new();
+
+    for property_test in &certificate.property_tests {
+        if property_test.property.is_empty()
+            || previous_property.is_some_and(|previous| previous >= property_test.property.as_str())
+            || property_test.tested_pair_count != property_test.accepted_keywords.len()
+            || property_test
+                .matched_pair_count
+                .checked_add(property_test.matcher_gap_count)
+                != Some(property_test.tested_pair_count)
+            || property_test.candidate_pair_count < property_test.tested_pair_count
+            || property_test
+                .accepted_keywords
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
+            || property_test
+                .accepted_keywords
+                .iter()
+                .any(|keyword| keyword.is_empty())
+        {
+            return None;
+        }
+        previous_property = Some(&property_test.property);
+        candidate_pair_count =
+            candidate_pair_count.checked_add(property_test.candidate_pair_count)?;
+        accepted_pair_count = accepted_pair_count.checked_add(property_test.tested_pair_count)?;
+        matched_pair_count = matched_pair_count.checked_add(property_test.matched_pair_count)?;
+        matcher_gap_count = matcher_gap_count.checked_add(property_test.matcher_gap_count)?;
+
+        for keyword in &property_test.accepted_keywords {
+            digest.update(property_test.property.as_bytes());
+            digest.update([0]);
+            digest.update(keyword.as_bytes());
+            digest.update([b'\n']);
+        }
+        if property_test.tested_pair_count > 0 && property_test.matcher_gap_count == 0 {
+            derived_certified_properties.insert(property_test.property.clone());
+        }
+    }
+
+    let accepted_pair_digest = digest
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    if certificate.candidate_pair_count != candidate_pair_count
+        || certificate.accepted_pair_count != accepted_pair_count
+        || certificate.matched_pair_count != matched_pair_count
+        || certificate.matcher_gap_count != matcher_gap_count
+        || certificate.accepted_pair_digest != accepted_pair_digest
+        || certificate.certified_properties != derived_certified_properties
+    {
+        return None;
+    }
+
+    Some(certificate.certified_properties)
 }
 
 fn standard_property_value_token_kinds_have_closure_authority(
@@ -3056,15 +3146,16 @@ mod tests {
     use omena_value_lattice::ValueNodeV0;
 
     use super::{
-        CLOSED_WORLD_TOKEN_KINDS, CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0,
-        CssValueGrammarBudgetKindV0, CssValueGrammarBudgetV0, CssValueGrammarLocusV0,
-        CssValueGrammarVerdictV0, CssValueValidationClassV0, CssValueValidationReasonV0,
+        CLOSED_WORLD_KEYWORD_CLOSURE_CERTIFICATE_SOURCE, CLOSED_WORLD_TOKEN_KINDS,
+        CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0, CssValueGrammarBudgetKindV0,
+        CssValueGrammarBudgetV0, CssValueGrammarLocusV0, CssValueGrammarVerdictV0,
+        CssValueValidationClassV0, CssValueValidationReasonV0,
         SpecStandardPropertyValueValidatorV0, adjudicate_css_value_validation,
         adjudicate_css_value_validation_with_boundary, audit_css_value_grammar_registry_v0,
         cached_pinned_vds_expression, closed_world_builtin_profile,
-        closed_world_builtin_token_profiles, closed_world_keyword_closure_certified_properties,
-        match_and_type_css_value_grammar_v0, match_and_type_standard_property_value_v0,
-        match_css_value_grammar_v0, match_standard_property_value_v0,
+        closed_world_builtin_token_profiles, match_and_type_css_value_grammar_v0,
+        match_and_type_standard_property_value_v0, match_css_value_grammar_v0,
+        match_standard_property_value_v0, parse_closed_world_keyword_closure_certificate,
         standard_property_closed_world_token_kind_mismatch, validate_registered_property_value_v0,
         validate_standard_property_value_v0,
     };
@@ -3348,7 +3439,7 @@ mod tests {
         );
         assert!(forward_tier.verdict.is_definite_mismatch());
 
-        let in_boundary = validate_standard_property_value_v0("border-top", "1px nonsense red");
+        let in_boundary = validate_standard_property_value_v0("box-sizing", "inline-box");
         assert_eq!(in_boundary.class, CssValueValidationClassV0::Invalid);
         assert_eq!(
             in_boundary.reason,
@@ -3470,8 +3561,7 @@ mod tests {
         assert_eq!(invalid.class, CssValueValidationClassV0::Invalid);
         assert_eq!(invalid.reason, CssValueValidationReasonV0::GrammarUnmatched);
 
-        let closed_world_mismatch =
-            validate_standard_property_value_v0("border-top", "1px nonsense red");
+        let closed_world_mismatch = validate_standard_property_value_v0("z-index", "banana");
         assert_eq!(
             closed_world_mismatch.class,
             CssValueValidationClassV0::Invalid
@@ -3596,7 +3686,7 @@ mod tests {
         }
 
         let adjacent_scalar =
-            validate_standard_property_value_v0("width", "round(1, 2) totally-bogus");
+            validate_standard_property_value_v0("margin", "round(1, 2) totally-bogus");
         assert_eq!(adjacent_scalar.class, CssValueValidationClassV0::Invalid);
         assert_eq!(
             adjacent_scalar.reason,
@@ -3715,14 +3805,7 @@ mod tests {
     #[test]
     fn css_tree_keyword_closure_regressions_are_valid_across_the_validator_adapter() {
         let validator = SpecStandardPropertyValueValidatorV0;
-        let certified_properties = closed_world_keyword_closure_certified_properties();
-        for property in ["fill", "stroke", "zoom", "baseline-shift", "-webkit-mask"] {
-            assert!(
-                certified_properties.contains(property),
-                "{property} must retain complete css-tree direct-keyword coverage"
-            );
-        }
-        for (property, value) in [
+        let regressions = [
             ("fill", "context-fill"),
             ("fill", "context-stroke"),
             ("stroke", "context-fill"),
@@ -3734,7 +3817,17 @@ mod tests {
             ("-webkit-mask", "content"),
             ("-webkit-mask", "padding"),
             ("-webkit-mask", "text"),
-        ] {
+        ];
+        assert_eq!(regressions.len(), 11);
+        assert_eq!(
+            regressions
+                .iter()
+                .map(|(_, value)| *value)
+                .collect::<BTreeSet<_>>()
+                .len(),
+            9
+        );
+        for (property, value) in regressions {
             let validation = validate_standard_property_value_v0(property, value);
             assert_eq!(
                 validation.class,
@@ -3748,6 +3841,58 @@ mod tests {
                 "{property}: {value} must cross the cascade validator adapter as matched"
             );
         }
+    }
+
+    #[test]
+    fn keyword_closure_certificate_binds_the_tested_pairs_and_nonempty_certification() {
+        assert!(
+            parse_closed_world_keyword_closure_certificate(
+                CLOSED_WORLD_KEYWORD_CLOSURE_CERTIFICATE_SOURCE
+            )
+            .is_some(),
+            "the embedded keyword-closure certificate must pass its in-binary integrity checks"
+        );
+
+        let mut wrong_digest = serde_json::from_str::<serde_json::Value>(
+            CLOSED_WORLD_KEYWORD_CLOSURE_CERTIFICATE_SOURCE,
+        )
+        .expect("embedded certificate JSON");
+        wrong_digest["acceptedPairDigest"] = serde_json::Value::String("0".repeat(64));
+        assert!(
+            parse_closed_world_keyword_closure_certificate(
+                &serde_json::to_string(&wrong_digest).expect("mutated certificate JSON")
+            )
+            .is_none(),
+            "the accepted-pair digest must be checked by the in-binary loader"
+        );
+
+        let mut zero_sample = serde_json::from_str::<serde_json::Value>(
+            CLOSED_WORLD_KEYWORD_CLOSURE_CERTIFICATE_SOURCE,
+        )
+        .expect("embedded certificate JSON");
+        let zero_sample_property = zero_sample["propertyTests"]
+            .as_array()
+            .and_then(|entries| {
+                entries.iter().find_map(|entry| {
+                    if entry["testedPairCount"].as_u64() == Some(0) {
+                        entry["property"].as_str().map(str::to_owned)
+                    } else {
+                        None
+                    }
+                })
+            })
+            .expect("the exhaustive property table includes a zero-accepted property");
+        zero_sample["certifiedProperties"]
+            .as_array_mut()
+            .expect("certified property array")
+            .push(serde_json::Value::String(zero_sample_property));
+        assert!(
+            parse_closed_world_keyword_closure_certificate(
+                &serde_json::to_string(&zero_sample).expect("mutated certificate JSON")
+            )
+            .is_none(),
+            "a property with zero tested pairs must never be certified"
+        );
     }
 
     #[test]
@@ -3818,9 +3963,7 @@ mod tests {
     fn closed_world_token_kinds_certify_impossible_standard_values() {
         for (property, value) in [
             ("color", "12px"),
-            ("color", "definitely-not-a-color"),
             ("z-index", "banana"),
-            ("border-top", "1px nonsense red"),
             ("margin", "-10px totally-bogus"),
         ] {
             let validation = validate_standard_property_value_v0(property, value);
@@ -3832,6 +3975,23 @@ mod tests {
             assert_eq!(
                 validation.reason,
                 CssValueValidationReasonV0::GrammarUnmatched,
+                "{property}: {value}: {validation:?}"
+            );
+        }
+
+        for (property, value) in [
+            ("color", "definitely-not-a-color"),
+            ("border-top", "1px nonsense red"),
+        ] {
+            let validation = validate_standard_property_value_v0(property, value);
+            assert_eq!(
+                validation.class,
+                CssValueValidationClassV0::NotValidatable,
+                "{property}: {value}: {validation:?}"
+            );
+            assert_eq!(
+                validation.reason,
+                CssValueValidationReasonV0::MatcherCoverageIncomplete,
                 "{property}: {value}: {validation:?}"
             );
         }
@@ -3887,8 +4047,9 @@ mod tests {
             ("baseline-shift", "baseline"),
             ("-webkit-mask", "border"),
             ("-webkit-mask", "text"),
+            ("content", "open-quote"),
         ];
-        assert_eq!(declarations.len(), 47);
+        assert_eq!(declarations.len(), 48);
         let definite_rejections = declarations
             .iter()
             .filter_map(|(property, value)| {

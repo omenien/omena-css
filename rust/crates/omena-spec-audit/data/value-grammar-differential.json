@@ -6,12 +6,12 @@
     "name": "css-tree",
     "version": "3.2.1"
   },
-  "inputDigest": "4d842582b1b5fe7bcba091e66efed7f150a01275638f176b121d7878d33a5260",
-  "caseCount": 141,
+  "inputDigest": "beefaf59ceaea6f0b8946789d6ae70bf6351a516c50c2c321659e5acdeeb2e40",
+  "caseCount": 142,
   "sources": {
     "seedManifest": {
       "product": "omena-abstract-value.value-grammar-seeds",
-      "caseCount": 28
+      "caseCount": 29
     },
     "realDeclarations": {
       "product": "omena-abstract-value.value-grammar-real-declarations",
@@ -49,25 +49,29 @@
   "counts": {
     "agreeValid": 122,
     "agreeInvalid": 14,
-    "disagree": 4,
+    "disagree": 5,
     "notComparable": 1
   },
   "unadjudicatedDisagreementCount": 0,
-  "wrongDefiniteUnownedCount": 0,
+  "wrongDefiniteCount": 0,
   "keywordClosure": {
     "oracle": "css-tree@3.2.1",
+    "source": "cssTree.lexer.properties.typeAndPropertyReferenceClosure",
+    "maximumReferenceDepth": 12,
     "propertyCount": 704,
-    "candidatePairCount": 1399,
-    "acceptedPairCount": 1371,
-    "matchedPairCount": 905,
-    "matcherGapCount": 466,
+    "candidatePairCount": 23178,
+    "acceptedPairCount": 16445,
+    "matchedPairCount": 10060,
+    "matcherGapCount": 6385,
     "definiteRejectionCount": 0,
-    "acceptedPairDigest": "7c3989a8c56522799f87d523b041d542eea68d90bc7a15d2dcde930eefb6af27"
+    "acceptedPairDigest": "46dbff9beab3c89e2d84fe2cdea2356479221588c0cdf5b080152fe63e3b86cc",
+    "certifiedPropertyCount": 388,
+    "zeroTestedPairPropertyCount": 104
   },
   "witness": {
     "key": {
       "queryIdentity": "omena-abstract-value.value-grammar-differential",
-      "inputIdentity": "4d842582b1b5fe7bcba091e66efed7f150a01275638f176b121d7878d33a5260"
+      "inputIdentity": "beefaf59ceaea6f0b8946789d6ae70bf6351a516c50c2c321659e5acdeeb2e40"
     },
     "provenance": ["externalTool:css-tree", "toolVersion:3.2.1", "exitStatus:0"],
     "guarantee": "floor",
@@ -93,8 +97,8 @@
       "omenaValid": false,
       "cssTreeValid": false,
       "outcome": "agreeInvalid",
-      "validationClass": "invalid",
-      "validationReason": "grammarUnmatched"
+      "validationClass": "notValidatable",
+      "validationReason": "matcherCoverageIncomplete"
     },
     {
       "id": "font-list-valid",
@@ -337,6 +341,21 @@
       "outcome": "agreeValid",
       "validationClass": "valid",
       "validationReason": "grammarMatched"
+    },
+    {
+      "id": "content-open-quote-known-divergence",
+      "property": "content",
+      "value": "open-quote",
+      "omenaVerdict": "unmatched",
+      "omenaValid": false,
+      "cssTreeValid": true,
+      "outcome": "disagree",
+      "adjudication": "omenaMatcherDefect",
+      "reason": "the bounded matcher does not yet expand the quote keyword branch used by the imported content grammar, so the externally valid value remains non-definite",
+      "owner": "value-grammar-reference-expansion",
+      "specUrl": "https://drafts.csswg.org/css-content-3/#typedef-content-list",
+      "validationClass": "notValidatable",
+      "validationReason": "matcherCoverageIncomplete"
     },
     {
       "id": "width-anchor-size-known-divergence",
@@ -1001,8 +1020,8 @@
       "reason": "the matcher does not yet recognize the browser-compatible -webkit-focus-ring-color keyword accepted in outline color position",
       "owner": "value-grammar-vendor-color-compatibility",
       "specUrl": "https://drafts.csswg.org/css-ui-4/#outline-props",
-      "validationClass": "invalid",
-      "validationReason": "grammarUnmatched",
+      "validationClass": "notValidatable",
+      "validationReason": "matcherCoverageIncomplete",
       "source": {
         "repository": "https://github.com/Viijay-Kr/react-ts-css",
         "pin": "Viijay-Kr/react-ts-css@8bf4e2091a6ca1fe28e8517d1c059691337ece74",

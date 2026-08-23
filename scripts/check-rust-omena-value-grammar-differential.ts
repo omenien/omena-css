@@ -47,6 +47,12 @@ type KeywordClosurePair = {
   value: string;
 };
 
+type KeywordClosureProperty = {
+  property: string;
+  candidatePairCount: number;
+  acceptedKeywords: string[];
+};
+
 type ClosedWorldTokenKind =
   | "ident"
   | "hash"
@@ -136,6 +142,11 @@ const builtinTokenProfilePath = join(
   "rust/crates/omena-abstract-value/data/closed-world-builtin-token-profiles.json",
 );
 const MINIMUM_REAL_DECLARATION_CASE_COUNT = 113;
+const PINNED_KEYWORD_CLOSURE_COUNTS = {
+  propertyCount: 704,
+  candidatePairCount: 23_178,
+  acceptedPairCount: 16_445,
+} as const;
 const REQUIRED_VALID_CASE_IDS = [
   "padding-unitless-zero-valid",
   "margin-unitless-zero-auto-valid",
@@ -153,9 +164,18 @@ const write = process.argv.includes("--write");
 const injectDivergence = process.env.OMENA_VALUE_GRAMMAR_TEST_INJECT_MATCHER_DIVERGENCE === "1";
 const injectAdjudicationContradiction =
   process.env.OMENA_VALUE_GRAMMAR_TEST_INJECT_ADJUDICATION_CONTRADICTION === "1";
+const injectOracleValidDefinite =
+  process.env.OMENA_VALUE_GRAMMAR_TEST_INJECT_ORACLE_VALID_DEFINITE === "1";
+const dropReferenceClosure = process.env.OMENA_VALUE_GRAMMAR_TEST_DROP_REFERENCE_CLOSURE === "1";
 
 assert.ok(
-  !(write && (injectDivergence || injectAdjudicationContradiction)),
+  !(
+    write &&
+    (injectDivergence ||
+      injectAdjudicationContradiction ||
+      injectOracleValidDefinite ||
+      dropReferenceClosure)
+  ),
   "fault injection cannot update the committed differential ledger",
 );
 
@@ -176,6 +196,15 @@ async function main(): Promise<void> {
   const cases = [...seedCases, ...realDeclarationCorpus.cases];
   assert.equal(new Set(cases.map((entry) => entry.id)).size, cases.length, "duplicate case id");
   const keywordClosure = keywordClosurePairs();
+  assert.deepEqual(
+    {
+      propertyCount: keywordClosure.propertyCount,
+      candidatePairCount: keywordClosure.candidatePairCount,
+      acceptedPairCount: keywordClosure.pairs.length,
+    },
+    PINNED_KEYWORD_CLOSURE_COUNTS,
+    "the pinned css-tree type/property reference closure changed",
+  );
   const allMatcherCases = [...cases, ...keywordClosure.pairs];
   assert.equal(
     new Set(allMatcherCases.map((entry) => entry.id)).size,
@@ -225,6 +254,7 @@ async function main(): Promise<void> {
     const violations: string[] = [];
     let injectedDivergenceId: string | undefined;
     let injectedContradictionId: string | undefined;
+    let injectedOracleValidDefiniteId: string | undefined;
     const outcomes = cases.map((entry) => {
       const matcherCase = matcherById.get(entry.id);
       assert.ok(matcherCase, `missing matcher output for ${entry.id}`);
@@ -273,6 +303,17 @@ async function main(): Promise<void> {
         violations,
       });
 
+      let validationClass = matcherCase.validationClass;
+      if (
+        injectOracleValidDefinite &&
+        injectedOracleValidDefiniteId === undefined &&
+        outcome === "disagree" &&
+        external.valid === true &&
+        entry.owner
+      ) {
+        validationClass = "invalid";
+        injectedOracleValidDefiniteId = entry.id;
+      }
       return {
         id: entry.id,
         property: entry.property,
@@ -285,7 +326,7 @@ async function main(): Promise<void> {
         ...(entry.reason ? { reason: entry.reason } : {}),
         ...(entry.owner ? { owner: entry.owner } : {}),
         ...(entry.specUrl ? { specUrl: entry.specUrl } : {}),
-        validationClass: matcherCase.validationClass,
+        validationClass,
         validationReason: matcherCase.validationReason,
         ...(entry.source ? { source: entry.source } : {}),
         ...(outcome === "notComparable"
@@ -309,6 +350,9 @@ async function main(): Promise<void> {
     if (injectAdjudicationContradiction && injectedContradictionId === undefined) {
       violations.push("adjudication contradiction injection did not reach a disagreement");
     }
+    if (injectOracleValidDefinite && injectedOracleValidDefiniteId === undefined) {
+      violations.push("wrong-definite injection did not reach an owned oracle-valid disagreement");
+    }
     for (const id of REQUIRED_VALID_CASE_IDS) {
       const outcome = outcomes.find((entry) => entry.id === id);
       if (outcome?.outcome !== "agreeValid") {
@@ -319,18 +363,17 @@ async function main(): Promise<void> {
     const unadjudicatedDisagreementCount = outcomes.filter(
       (entry) => entry.outcome === "disagree" && !entry.adjudication,
     ).length;
-    const wrongDefiniteUnownedCount = outcomes.filter(
+    const wrongDefiniteCount = outcomes.filter(
       (entry) =>
         entry.outcome === "disagree" &&
         entry.validationClass === "invalid" &&
-        entry.cssTreeValid === true &&
-        (entry.adjudication !== "omenaMatcherDefect" || !entry.owner || !entry.specUrl),
+        entry.cssTreeValid === true,
     ).length;
     if (unadjudicatedDisagreementCount !== 0) {
       violations.push(`${unadjudicatedDisagreementCount} disagreements are unadjudicated`);
     }
-    if (wrongDefiniteUnownedCount !== 0) {
-      violations.push(`${wrongDefiniteUnownedCount} wrong-definite rows lack a matcher owner`);
+    if (wrongDefiniteCount !== 0) {
+      violations.push(`${wrongDefiniteCount} oracle-valid rows were definitely rejected`);
     }
     const keywordClosureOutcomes = keywordClosure.pairs.map((entry) => {
       const matcherCase = matcherById.get(entry.id);
@@ -358,34 +401,57 @@ async function main(): Promise<void> {
             };
       })
       .filter((entry): entry is NonNullable<typeof entry> => entry !== undefined);
-    const incompleteProperties = new Set(keywordClosureMatcherGaps.map((entry) => entry.property));
-    const certifiedProperties = keywordClosure.properties.filter(
-      (property) => !incompleteProperties.has(property),
-    );
-    if (keywordClosureDefiniteRejections.length !== 0) {
-      violations.push(
-        `${keywordClosureDefiniteRejections.length} css-tree accepted single-keyword pairs were definitely rejected: ${JSON.stringify(keywordClosureDefiniteRejections)}`,
+    const matcherGapCountByProperty = new Map<string, number>();
+    for (const gap of keywordClosureMatcherGaps) {
+      matcherGapCountByProperty.set(
+        gap.property,
+        (matcherGapCountByProperty.get(gap.property) ?? 0) + 1,
       );
     }
+    const propertyTests = keywordClosure.propertyTests.map((propertyTest) => {
+      const testedPairCount = propertyTest.acceptedKeywords.length;
+      const matcherGapCount = matcherGapCountByProperty.get(propertyTest.property) ?? 0;
+      return {
+        ...propertyTest,
+        testedPairCount,
+        matchedPairCount: testedPairCount - matcherGapCount,
+        matcherGapCount,
+      };
+    });
+    const certifiedProperties = propertyTests
+      .filter((entry) => entry.testedPairCount > 0 && entry.matcherGapCount === 0)
+      .map((entry) => entry.property);
+    const certifiedPropertySet = new Set(certifiedProperties);
+    const unresolvedKeywordClosureDefiniteRejections = keywordClosureDefiniteRejections.filter(
+      (entry) => certifiedPropertySet.has(entry.property),
+    );
+    if (unresolvedKeywordClosureDefiniteRejections.length !== 0) {
+      violations.push(
+        `${unresolvedKeywordClosureDefiniteRejections.length} certified css-tree accepted single-keyword pairs were definitely rejected: ${JSON.stringify(unresolvedKeywordClosureDefiniteRejections)}`,
+      );
+    }
+    const acceptedPairDigest = keywordClosureAcceptedPairDigest(keywordClosure.pairs);
     const keywordClosureSummary = {
       oracle: `css-tree@${cssTree.version}`,
+      source: "cssTree.lexer.properties.typeAndPropertyReferenceClosure",
+      maximumReferenceDepth: 12,
       propertyCount: keywordClosure.propertyCount,
       candidatePairCount: keywordClosure.candidatePairCount,
       acceptedPairCount: keywordClosure.pairs.length,
       matchedPairCount: keywordClosure.pairs.length - keywordClosureMatcherGaps.length,
       matcherGapCount: keywordClosureMatcherGaps.length,
-      definiteRejectionCount: keywordClosureDefiniteRejections.length,
-      acceptedPairDigest: createHash("sha256")
-        .update(
-          JSON.stringify(keywordClosure.pairs.map(({ property, value }) => ({ property, value }))),
-        )
-        .digest("hex"),
+      definiteRejectionCount: unresolvedKeywordClosureDefiniteRejections.length,
+      acceptedPairDigest,
+      certifiedPropertyCount: certifiedProperties.length,
+      zeroTestedPairPropertyCount: propertyTests.filter((entry) => entry.testedPairCount === 0)
+        .length,
     };
     const keywordClosureCertificate = {
       schemaVersion: "0",
       product: "omena-abstract-value.closed-world-keyword-closure-certificate",
       oracle: { name: "css-tree", version: cssTree.version },
-      source: "cssTree.lexer.properties.directKeywordAcceptance",
+      source: "cssTree.lexer.properties.typeAndPropertyReferenceClosure",
+      maximumReferenceDepth: 12,
       propertyCount: keywordClosure.propertyCount,
       candidatePairCount: keywordClosure.candidatePairCount,
       acceptedPairCount: keywordClosure.pairs.length,
@@ -393,7 +459,7 @@ async function main(): Promise<void> {
       matcherGapCount: keywordClosureMatcherGaps.length,
       acceptedPairDigest: keywordClosureSummary.acceptedPairDigest,
       certifiedProperties,
-      matcherGaps: keywordClosureMatcherGaps,
+      propertyTests,
     };
     const builtinTokenProfiles = buildBuiltinTokenProfiles();
 
@@ -422,7 +488,7 @@ async function main(): Promise<void> {
       },
       counts,
       unadjudicatedDisagreementCount,
-      wrongDefiniteUnownedCount,
+      wrongDefiniteCount,
       keywordClosure: keywordClosureSummary,
       witness,
       outcomes,
@@ -440,7 +506,11 @@ async function main(): Promise<void> {
       writeFileSync(ledgerPath, serialized);
       writeFileSync(keywordClosureCertificatePath, serializedKeywordClosureCertificate);
       writeFileSync(builtinTokenProfilePath, serializedBuiltinTokenProfiles);
-    } else if (!injectDivergence && !injectAdjudicationContradiction) {
+    } else if (
+      !injectDivergence &&
+      !injectAdjudicationContradiction &&
+      !injectOracleValidDefinite
+    ) {
       assert.equal(readFileSync(ledgerPath, "utf8"), serialized, "differential ledger drifted");
       assert.equal(
         readFileSync(keywordClosureCertificatePath, "utf8"),
@@ -465,6 +535,7 @@ async function main(): Promise<void> {
           violations,
           injectedDivergenceId,
           injectedContradictionId,
+          injectedOracleValidDefiniteId,
         },
         null,
         2,
@@ -708,19 +779,28 @@ function validateOutcomeAdjudication(options: {
 function keywordClosurePairs(): {
   propertyCount: number;
   candidatePairCount: number;
-  properties: string[];
+  propertyTests: KeywordClosureProperty[];
   pairs: KeywordClosurePair[];
 } {
   const properties = cssTree.lexer.properties as unknown as Record<string, { syntax: unknown }>;
+  const types = cssTree.lexer.types as unknown as Record<string, { syntax: unknown }>;
   const pairs: KeywordClosurePair[] = [];
+  const propertyTests: KeywordClosureProperty[] = [];
   let candidatePairCount = 0;
   const propertyNames = Object.keys(properties).sort(codePointCompare);
   for (const property of propertyNames) {
     const keywords = new Set<string>();
-    collectDirectGrammarKeywords(properties[property]?.syntax, keywords);
+    collectGrammarKeywordClosure(properties[property]?.syntax, keywords, {
+      properties,
+      types,
+      visitingReferences: new Set<string>(),
+      referenceDepth: 0,
+    });
     candidatePairCount += keywords.size;
+    const acceptedKeywords: string[] = [];
     for (const value of [...keywords].sort(codePointCompare)) {
       if (cssTreeValidity(property, value).valid !== true) continue;
+      acceptedKeywords.push(value);
       const digest = createHash("sha256")
         .update(`${property}\0${value}`)
         .digest("hex")
@@ -731,18 +811,28 @@ function keywordClosurePairs(): {
         value,
       });
     }
+    propertyTests.push({ property, candidatePairCount: keywords.size, acceptedKeywords });
   }
   return {
     propertyCount: Object.keys(properties).length,
     candidatePairCount,
-    properties: propertyNames,
+    propertyTests,
     pairs,
   };
 }
 
-function collectDirectGrammarKeywords(node: unknown, keywords: Set<string>): void {
+function collectGrammarKeywordClosure(
+  node: unknown,
+  keywords: Set<string>,
+  context: {
+    properties: Record<string, { syntax: unknown }>;
+    types: Record<string, { syntax: unknown }>;
+    visitingReferences: Set<string>;
+    referenceDepth: number;
+  },
+): void {
   if (Array.isArray(node)) {
-    for (const entry of node) collectDirectGrammarKeywords(entry, keywords);
+    for (const entry of node) collectGrammarKeywordClosure(entry, keywords, context);
     return;
   }
   if (node === null || typeof node !== "object") return;
@@ -751,8 +841,37 @@ function collectDirectGrammarKeywords(node: unknown, keywords: Set<string>): voi
     keywords.add(record.name.toLowerCase());
     return;
   }
-  if (record.type === "Type" || record.type === "Property") return;
-  for (const value of Object.values(record)) collectDirectGrammarKeywords(value, keywords);
+  if ((record.type === "Type" || record.type === "Property") && typeof record.name === "string") {
+    if (dropReferenceClosure) return;
+    if (context.referenceDepth >= 12) return;
+    const referenceKind = record.type === "Type" ? "type" : "property";
+    const referenceKey = `${referenceKind}:${record.name}`;
+    if (context.visitingReferences.has(referenceKey)) return;
+    const target =
+      record.type === "Type"
+        ? context.types[record.name]?.syntax
+        : context.properties[record.name]?.syntax;
+    if (target === undefined) return;
+    context.visitingReferences.add(referenceKey);
+    collectGrammarKeywordClosure(target, keywords, {
+      ...context,
+      referenceDepth: context.referenceDepth + 1,
+    });
+    context.visitingReferences.delete(referenceKey);
+    return;
+  }
+  for (const value of Object.values(record)) collectGrammarKeywordClosure(value, keywords, context);
+}
+
+function keywordClosureAcceptedPairDigest(pairs: KeywordClosurePair[]): string {
+  const digest = createHash("sha256");
+  for (const { property, value } of pairs) {
+    digest.update(property);
+    digest.update("\0");
+    digest.update(value);
+    digest.update("\n");
+  }
+  return digest.digest("hex");
 }
 
 function codePointCompare(left: string, right: string): number {
@@ -774,7 +893,7 @@ function runCargoExample(example: string, args: string[]) {
       "--",
       ...args,
     ],
-    { cwd: repoRoot, encoding: "utf8" },
+    { cwd: repoRoot, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
   );
   assert.equal(run.status, 0, run.stderr || run.stdout);
   return run;

@@ -10,6 +10,10 @@ const scriptPath = path.join(
   repoRoot,
   "scripts/check-rust-omena-custom-property-fixed-point-formalization.ts",
 );
+const valueGrammarDifferentialPath = path.join(
+  repoRoot,
+  "scripts/check-rust-omena-value-grammar-differential.ts",
+);
 const args = new Set(process.argv.slice(2).filter((argument) => argument !== "--"));
 const allowedOptions = new Set([
   "--inject-reordered-evaluator",
@@ -26,6 +30,8 @@ const allowedOptions = new Set([
   "--inject-close-open-function-kind",
   "--inject-paint-context-keyword-removal",
   "--inject-linear-component-rescan",
+  "--inject-keyword-reference-closure-drop",
+  "--inject-owned-wrong-definite",
 ]);
 assert.deepEqual(
   [...args].filter((argument) => argument.startsWith("--") && !allowedOptions.has(argument)),
@@ -380,6 +386,14 @@ if (args.has("--inject-reordered-evaluator")) {
   relayMutationResult(runPaintContextKeywordRemovalMutation());
 } else if (args.has("--inject-linear-component-rescan")) {
   relayMutationResult(runLinearComponentRescanMutation());
+} else if (args.has("--inject-keyword-reference-closure-drop")) {
+  relayMutationResult(
+    runValueGrammarDifferentialFault("OMENA_VALUE_GRAMMAR_TEST_DROP_REFERENCE_CLOSURE"),
+  );
+} else if (args.has("--inject-owned-wrong-definite")) {
+  relayMutationResult(
+    runValueGrammarDifferentialFault("OMENA_VALUE_GRAMMAR_TEST_INJECT_ORACLE_VALID_DEFINITE"),
+  );
 } else if (args.size === 0) {
   const normal = runWitness(repoRoot, null, "inherit");
   assert.equal(normal.status, 0, "the independent all-bottom witness corpus must pass");
@@ -573,6 +587,14 @@ if (args.has("--inject-reordered-evaluator")) {
     expectScriptMutationRed(
       "--inject-linear-component-rescan",
       "exceeded the 1.10 linear-growth ceiling",
+    ),
+    expectScriptMutationRed(
+      "--inject-keyword-reference-closure-drop",
+      "the pinned css-tree type/property reference closure changed",
+    ),
+    expectScriptMutationRed(
+      "--inject-owned-wrong-definite",
+      "1 oracle-valid rows were definitely rejected",
     ),
   ];
 
@@ -885,6 +907,17 @@ function runLinearComponentRescanMutation(): ReturnType<typeof spawnSync> {
       "--nocapture",
     ],
   );
+}
+
+function runValueGrammarDifferentialFault(environmentName: string): ReturnType<typeof spawnSync> {
+  return spawnSync(process.execPath, ["--import", "tsx", valueGrammarDifferentialPath], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      [environmentName]: "1",
+    },
+  });
 }
 
 function runSourceMutation(

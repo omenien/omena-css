@@ -118,11 +118,22 @@ makes that product-path test fail.
 A definite grammar mismatch is promoted to invalid only when its closed token
 domains have an external completeness authority. Override-free registry paths
 use the imported grammar, while identifier paths with reviewed overrides need
-the pinned css-tree keyword-closure sweep. Builtin token profiles are generated
-from the same css-tree version; an absent type defaults every token domain to
-open. Otherwise the result stays indeterminate. The reviewed `<paint>` override
-contains the complete SVG paint alternatives, and the matcher models the core
-`calc()`/`min()`/`max()`/`clamp()` and grid `repeat()`/`minmax()` paths.
+the pinned css-tree keyword-closure sweep. That sweep follows both type and
+property references (with a recursion guard and a maximum reference depth of
+12), records a tested-pair count for every property, and certifies only a
+nonempty property whose accepted single-keyword pairs all match. At the pinned
+css-tree 3.2.1 input, it tests 16,445 accepted pairs from 23,178 candidates
+across 704 properties. The executable compatibility regression is deliberately
+narrower: 11 property/value pairs containing 9 distinct keywords, not a claim
+that those samples cover each referenced grammar.
+
+Builtin token profiles are generated from the same css-tree version. Their
+finite token samples witness representative token shapes; they are not an
+exhaustive enumeration of values within a token class. An absent type therefore
+defaults every token domain to open. Otherwise the result stays indeterminate.
+The reviewed `<paint>` override contains the complete SVG paint alternatives,
+and the matcher models the core `calc()`/`min()`/`max()`/`clamp()` and grid
+`repeat()`/`minmax()` paths.
 
 That path resolves the custom-property environment at every ancestor boundary
 before applying child declarations. An inherited computed value therefore does

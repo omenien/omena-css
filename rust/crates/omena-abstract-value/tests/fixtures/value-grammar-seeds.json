@@ -149,6 +149,16 @@
       "expectedValid": true
     },
     {
+      "id": "content-open-quote-known-divergence",
+      "property": "content",
+      "value": "open-quote",
+      "expectedValid": true,
+      "adjudication": "omenaMatcherDefect",
+      "reason": "the bounded matcher does not yet expand the quote keyword branch used by the imported content grammar, so the externally valid value remains non-definite",
+      "owner": "value-grammar-reference-expansion",
+      "specUrl": "https://drafts.csswg.org/css-content-3/#typedef-content-list"
+    },
+    {
       "id": "width-anchor-size-known-divergence",
       "property": "width",
       "value": "anchor-size(width)",

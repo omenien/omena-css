@@ -3916,7 +3916,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_property_value_uses_a_closed_token_kind_certificate_for_compounds() {
+    fn invalid_property_value_skips_compounds_when_keyword_closure_has_gaps() {
         let decl = |id: &'static str, value: &'static str, order: u32| {
             cascade_declaration(CascadeDeclarationFixture {
                 declaration_id: id,
@@ -3946,8 +3946,10 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert_eq!(findings.len(), 1);
-        assert_eq!(findings[0].declaration_ids, vec!["invalid-compound"]);
+        assert!(
+            findings.is_empty(),
+            "a property with accepted keywords that the matcher cannot recognize is not closed"
+        );
     }
 
     #[test]
@@ -4036,6 +4038,13 @@ mod tests {
                 decl("substituted", "box-sizing", "var(--x)", 3),
                 decl("open-grammar", "color", "rebeccapurple", 4),
                 decl("custom-prop", "--tone", "anything-goes", 5),
+                decl("indirect-content-keyword", "content", "open-quote", 6),
+                decl(
+                    "vendor-outline-color",
+                    "outline",
+                    "4px auto -webkit-focus-ring-color",
+                    7,
+                ),
             ],
             custom_properties: Vec::new(),
             custom_property_registrations: Vec::new(),

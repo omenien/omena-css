@@ -1018,7 +1018,7 @@
     {
       "crate": "omena-abstract-value",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor derives closed-world contradictions only from override-free imported grammar or pinned css-tree closure evidence, defaults unwitnessed builtin token domains open, and expands the reviewed paint and compatibility keyword grammars.",
+      "reason": "The next pre-1.0 minor derives closed-world contradictions only from override-free imported grammar or a nonempty, gap-free css-tree keyword closure that recursively follows type and property references, defaults unwitnessed builtin token domains open, and expands the reviewed paint and compatibility keyword grammars.",
       "expectedFailures": [
         {
           "lint": "enum_variant_added",
@@ -1030,7 +1030,7 @@
           "id": "standard-value-matcher-coverage-gate",
           "kind": "selection-outcome-changing",
           "surface": "CssValueValidationV0 class and reason",
-          "reason": "An in-boundary Unmatched verdict is Invalid only when its token domain has imported or css-tree-backed closure authority. Reviewed overrides, matcher gaps, and unknown builtin types default to NotValidatable or OPEN instead of manufacturing a definite rejection.",
+          "reason": "An in-boundary Unmatched verdict is Invalid only when its token domain has imported or css-tree-backed closure authority. The embedded css-tree certificate validates the accepted-pair digest and per-property tested counts, and grants closure only to nonempty properties with no matcher gap. Reviewed overrides, matcher gaps, zero-sample properties, and unknown builtin types default to NotValidatable or OPEN instead of manufacturing a definite rejection.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
@@ -1041,6 +1041,14 @@
                 "closed_world_builtin_token_profiles",
                 "CssValueValidationReasonV0::MatcherCoverageIncomplete",
                 "fn incomplete_matcher_coverage_cannot_promote_unmatched_to_invalid()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/data/closed-world-keyword-closure-certificate.json",
+              "needles": [
+                "typeAndPropertyReferenceClosure",
+                "testedPairCount",
+                "acceptedPairDigest"
               ]
             },
             {
