@@ -70,7 +70,7 @@
     },
     {
       "id": "plain-two-cycle",
-      "cycleShape": null,
+      "cycleShape": "mutualReferenceWithoutFallback",
       "bindings": {
         "--a": { "var": { "name": "--b", "fallback": null } },
         "--b": { "var": { "name": "--a", "fallback": null } }

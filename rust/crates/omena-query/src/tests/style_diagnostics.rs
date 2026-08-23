@@ -820,8 +820,7 @@ fn invalid_property_value_surfaces_as_product_diagnostic() -> Result<(), &'stati
 }
 
 #[test]
-fn incomplete_numeric_grammar_does_not_emit_a_definite_product_diagnostic()
--> Result<(), &'static str> {
+fn closed_token_kind_mismatch_emits_a_definite_product_diagnostic() -> Result<(), &'static str> {
     let source = r#".good { margin: -10px; }
 .bad { margin: -10px totally-bogus; }
 "#;
@@ -839,7 +838,8 @@ fn incomplete_numeric_grammar_does_not_emit_a_definite_product_diagnostic()
         .filter(|diagnostic| diagnostic.code == "invalidPropertyValue")
         .collect::<Vec<_>>();
 
-    assert!(invalid_value_diagnostics.is_empty());
+    assert_eq!(invalid_value_diagnostics.len(), 1);
+    assert_eq!(invalid_value_diagnostics[0].range.start.line, 1);
     Ok(())
 }
 

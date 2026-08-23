@@ -6,12 +6,12 @@
     "name": "css-tree",
     "version": "3.2.1"
   },
-  "inputDigest": "beabd5fcacac7c1ff3db59a6fba7ced28838f696e9dd48673978fe42d5ddeb21",
-  "caseCount": 134,
+  "inputDigest": "120d163b2d7a3357422bbde9e0a4ed41b5fe9bb8402462862a1314e797cc5a21",
+  "caseCount": 138,
   "sources": {
     "seedManifest": {
       "product": "omena-abstract-value.value-grammar-seeds",
-      "caseCount": 21
+      "caseCount": 25
     },
     "realDeclarations": {
       "product": "omena-abstract-value.value-grammar-real-declarations",
@@ -47,7 +47,7 @@
     }
   },
   "counts": {
-    "agreeValid": 116,
+    "agreeValid": 120,
     "agreeInvalid": 14,
     "disagree": 3,
     "notComparable": 1
@@ -57,7 +57,7 @@
   "witness": {
     "key": {
       "queryIdentity": "omena-abstract-value.value-grammar-differential",
-      "inputIdentity": "beabd5fcacac7c1ff3db59a6fba7ced28838f696e9dd48673978fe42d5ddeb21"
+      "inputIdentity": "120d163b2d7a3357422bbde9e0a4ed41b5fe9bb8402462862a1314e797cc5a21"
     },
     "provenance": ["externalTool:css-tree", "toolVersion:3.2.1", "exitStatus:0"],
     "guarantee": "floor",
@@ -149,6 +149,42 @@
       "id": "gap-clamp-valid",
       "property": "gap",
       "value": "clamp(0.5rem, 1vw, 2rem)",
+      "omenaVerdict": "matched",
+      "omenaValid": true,
+      "cssTreeValid": true,
+      "outcome": "agreeValid"
+    },
+    {
+      "id": "width-subtract-length-from-percentage-valid",
+      "property": "width",
+      "value": "calc(100% - 8px)",
+      "omenaVerdict": "matched",
+      "omenaValid": true,
+      "cssTreeValid": true,
+      "outcome": "agreeValid"
+    },
+    {
+      "id": "width-subtract-length-valid",
+      "property": "width",
+      "value": "calc(8px - 4px)",
+      "omenaVerdict": "matched",
+      "omenaValid": true,
+      "cssTreeValid": true,
+      "outcome": "agreeValid"
+    },
+    {
+      "id": "opacity-subtract-number-valid",
+      "property": "opacity",
+      "value": "calc(1 - 0.25)",
+      "omenaVerdict": "matched",
+      "omenaValid": true,
+      "cssTreeValid": true,
+      "outcome": "agreeValid"
+    },
+    {
+      "id": "duration-subtract-time-valid",
+      "property": "animation-duration",
+      "value": "calc(2s - 250ms)",
       "omenaVerdict": "matched",
       "omenaValid": true,
       "cssTreeValid": true,

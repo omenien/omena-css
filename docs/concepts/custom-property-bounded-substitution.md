@@ -73,13 +73,16 @@ The committed independent oracle's five-field `oracle` object defines an
 all-bottom status iteration. The complete evaluator kernel—from
 `evaluate_from_all_bottom` through `evaluate_fixture_value` and
 `finalize_oracle_environment`—and every `expectedEvaluator` projection are
-protected by separate SHA-256 checks.
+protected by separate SHA-256 checks. Every frozen case's authored `bindings`
+and `cycleShape` are covered by a third seal, so deleting a cycle edge or
+silently relabeling a structural control changes executable evidence.
 
 The current eight-case corpus reports eight agreements and zero findings. Its
 named non-degenerate cycle-shape allowlist is exactly
 `mutuallyRecursiveFallbackChain`, `cycleThroughFallback`, and
-`threeNodeFallbackCycleEnteredMidChain`. The plain two-cycle remains a baseline
-case without a novel-shape label. An outer-reference case separately proves
+`threeNodeFallbackCycleEnteredMidChain`. The plain two-cycle retains the frozen
+baseline label `mutualReferenceWithoutFallback`, but that label is deliberately
+excluded from the novel-shape count. An outer-reference case separately proves
 that a non-member may use its fallback after its dependency is invalid.
 
 The `reordered-in-place` mutation still weakens the independent simultaneous

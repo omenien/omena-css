@@ -251,7 +251,7 @@ fn is_ident_text(text: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{CssValueComponentKindV0, css_value_component_stream};
+    use super::{CssValueComponentKindV0, CssValueComponentV0, css_value_component_stream};
 
     #[test]
     fn component_stream_preserves_compounds_and_nested_functions() -> Result<(), String> {
@@ -283,6 +283,24 @@ mod tests {
         };
         assert!(error.message.contains("missing closing token"));
         assert_eq!(error.span.start, 44);
+        Ok(())
+    }
+
+    #[test]
+    fn component_stream_exposes_spaced_calc_subtraction_to_math_consumers() -> Result<(), String> {
+        let values =
+            css_value_component_stream("calc(100% - 8px)", 0).map_err(|error| error.message)?;
+        let [
+            CssValueComponentV0 {
+                kind: CssValueComponentKindV0::Function { arguments, .. },
+                ..
+            },
+        ] = values.as_slice()
+        else {
+            return Err("expected one calc() component".to_string());
+        };
+        assert_eq!(arguments.len(), 3);
+        assert_eq!(arguments[1].text, "-");
         Ok(())
     }
 }

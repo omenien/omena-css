@@ -12,7 +12,7 @@
   ],
   "entryCount": 3,
   "captureStateRecoveryCount": 0,
-  "measurementInvocationCount": 21,
+  "measurementInvocationCount": 27,
   "rankedSetOutcomeCount": 10,
   "multiCandidateInexactRankedSetCount": 8,
   "layerSyntaxFileCount": 1,
@@ -60,7 +60,7 @@
     {
       "id": "local-examples-lint-census",
       "captureStateRecoveryCount": 0,
-      "measurementInvocationCount": 0,
+      "measurementInvocationCount": 5,
       "rankedSetOutcomeCount": 0,
       "multiCandidateInexactRankedSetCount": 0,
       "rowCount": 0,
@@ -69,7 +69,7 @@
     {
       "id": "local-real-workspace-lint-census",
       "captureStateRecoveryCount": 0,
-      "measurementInvocationCount": 21,
+      "measurementInvocationCount": 22,
       "rankedSetOutcomeCount": 10,
       "multiCandidateInexactRankedSetCount": 8,
       "rowCount": 10,

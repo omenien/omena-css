@@ -1032,14 +1032,14 @@ mod tests {
     }
 
     #[test]
-    fn standard_property_syntax_match_keeps_incomplete_numeric_grammars_conservative() {
+    fn standard_property_syntax_match_rejects_closed_kind_numeric_compounds() {
         assert_eq!(
             standard_property_syntax_match("margin", "-10px"),
             RegisteredSyntaxMatchV0::Accepts
         );
         assert_eq!(
             standard_property_syntax_match("margin", "-10px totally-bogus"),
-            RegisteredSyntaxMatchV0::Unknown
+            RegisteredSyntaxMatchV0::Rejects
         );
     }
 

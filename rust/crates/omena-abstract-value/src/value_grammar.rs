@@ -430,17 +430,22 @@ pub fn match_registered_property_value_v0(syntax: &str, value: &str) -> CssValue
 pub fn validate_standard_property_value_v0(property: &str, value: &str) -> CssValueValidationV0 {
     let property = PropertyNameV0::from_authored(property);
     let canonical_property = property.canonical_name();
-    let classification = spec_grammar_registry()
+    let registry = spec_grammar_registry();
+    let classification = registry
         .entry("properties", canonical_property)
         .map(|entry| entry.boundary.classification)
         .unwrap_or(SpecGrammarBoundaryClassificationV0::InBoundary);
     let (verdict, matcher_coverage_complete) =
         match_standard_property_value_with_coverage_v0(&property, value);
+    let closed_world_token_kind_mismatch =
+        matches!(verdict, CssValueGrammarVerdictV0::Unmatched { .. })
+            && standard_property_closed_world_token_kind_mismatch(&property, value, registry);
     adjudicate_css_value_validation_with_boundary(
         value,
         verdict,
         classification,
         matcher_coverage_complete,
+        closed_world_token_kind_mismatch,
     )
 }
 
@@ -476,6 +481,7 @@ fn adjudicate_css_value_validation(
         verdict,
         SpecGrammarBoundaryClassificationV0::InBoundary,
         true,
+        false,
     )
 }
 
@@ -484,6 +490,7 @@ fn adjudicate_css_value_validation_with_boundary(
     verdict: CssValueGrammarVerdictV0,
     classification: SpecGrammarBoundaryClassificationV0,
     matcher_coverage_complete: bool,
+    closed_world_token_kind_mismatch: bool,
 ) -> CssValueValidationV0 {
     let components = css_value_component_stream(value, 0).ok();
     let has_unvalidated_standard_function = matches!(
@@ -533,10 +540,14 @@ fn adjudicate_css_value_validation_with_boundary(
                     CssValueValidationReasonV0::ForwardTierGrammar,
                 )
             }
-            CssValueGrammarVerdictV0::Unmatched { .. } if !matcher_coverage_complete => (
-                CssValueValidationClassV0::NotValidatable,
-                CssValueValidationReasonV0::MatcherCoverageIncomplete,
-            ),
+            CssValueGrammarVerdictV0::Unmatched { .. }
+                if !matcher_coverage_complete && !closed_world_token_kind_mismatch =>
+            {
+                (
+                    CssValueValidationClassV0::NotValidatable,
+                    CssValueValidationReasonV0::MatcherCoverageIncomplete,
+                )
+            }
             CssValueGrammarVerdictV0::Unmatched { .. } => (
                 CssValueValidationClassV0::Invalid,
                 CssValueValidationReasonV0::GrammarUnmatched,
@@ -987,6 +998,330 @@ fn builtin_reference_matcher_coverage_complete(name: &str) -> bool {
             | "function-token"
             | "comma-token"
     )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ClosedWorldTokenKindV0 {
+    Ident,
+    Hash,
+    Dimension,
+    Number,
+    Percentage,
+    FunctionName,
+    String,
+    Url,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct ClosedWorldTokenDomainV0 {
+    open: bool,
+    allowed: BTreeSet<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct ClosedWorldTokenProfileV0 {
+    ident: ClosedWorldTokenDomainV0,
+    hash: ClosedWorldTokenDomainV0,
+    dimension: ClosedWorldTokenDomainV0,
+    number: ClosedWorldTokenDomainV0,
+    percentage: ClosedWorldTokenDomainV0,
+    function_name: ClosedWorldTokenDomainV0,
+    string: ClosedWorldTokenDomainV0,
+    url: ClosedWorldTokenDomainV0,
+}
+
+impl ClosedWorldTokenProfileV0 {
+    fn domain(&self, kind: ClosedWorldTokenKindV0) -> &ClosedWorldTokenDomainV0 {
+        match kind {
+            ClosedWorldTokenKindV0::Ident => &self.ident,
+            ClosedWorldTokenKindV0::Hash => &self.hash,
+            ClosedWorldTokenKindV0::Dimension => &self.dimension,
+            ClosedWorldTokenKindV0::Number => &self.number,
+            ClosedWorldTokenKindV0::Percentage => &self.percentage,
+            ClosedWorldTokenKindV0::FunctionName => &self.function_name,
+            ClosedWorldTokenKindV0::String => &self.string,
+            ClosedWorldTokenKindV0::Url => &self.url,
+        }
+    }
+
+    fn domain_mut(&mut self, kind: ClosedWorldTokenKindV0) -> &mut ClosedWorldTokenDomainV0 {
+        match kind {
+            ClosedWorldTokenKindV0::Ident => &mut self.ident,
+            ClosedWorldTokenKindV0::Hash => &mut self.hash,
+            ClosedWorldTokenKindV0::Dimension => &mut self.dimension,
+            ClosedWorldTokenKindV0::Number => &mut self.number,
+            ClosedWorldTokenKindV0::Percentage => &mut self.percentage,
+            ClosedWorldTokenKindV0::FunctionName => &mut self.function_name,
+            ClosedWorldTokenKindV0::String => &mut self.string,
+            ClosedWorldTokenKindV0::Url => &mut self.url,
+        }
+    }
+
+    fn allow(&mut self, kind: ClosedWorldTokenKindV0, value: &str) {
+        self.domain_mut(kind)
+            .allowed
+            .insert(value.to_ascii_lowercase());
+    }
+
+    fn mark_open(&mut self, kind: ClosedWorldTokenKindV0) {
+        self.domain_mut(kind).open = true;
+    }
+
+    fn mark_all_open(&mut self) {
+        for kind in CLOSED_WORLD_TOKEN_KINDS {
+            self.mark_open(kind);
+        }
+    }
+
+    fn merge(&mut self, other: Self) {
+        for kind in CLOSED_WORLD_TOKEN_KINDS {
+            let other_domain = other.domain(kind);
+            let domain = self.domain_mut(kind);
+            domain.open |= other_domain.open;
+            domain.allowed.extend(other_domain.allowed.iter().cloned());
+        }
+    }
+}
+
+const CLOSED_WORLD_TOKEN_KINDS: [ClosedWorldTokenKindV0; 8] = [
+    ClosedWorldTokenKindV0::Ident,
+    ClosedWorldTokenKindV0::Hash,
+    ClosedWorldTokenKindV0::Dimension,
+    ClosedWorldTokenKindV0::Number,
+    ClosedWorldTokenKindV0::Percentage,
+    ClosedWorldTokenKindV0::FunctionName,
+    ClosedWorldTokenKindV0::String,
+    ClosedWorldTokenKindV0::Url,
+];
+
+fn standard_property_closed_world_token_kind_mismatch(
+    property: &PropertyNameV0,
+    value: &str,
+    registry: &SpecGrammarRegistryV0,
+) -> bool {
+    let Ok(components) = css_value_component_stream(value, 0) else {
+        return false;
+    };
+    let Some(profile) = cached_standard_property_closed_world_token_profile(property, registry)
+    else {
+        return false;
+    };
+    components.iter().any(|component| {
+        let Some((kind, value)) = closed_world_component_identity(component) else {
+            return false;
+        };
+        let domain = profile.domain(kind);
+        !domain.open && !domain.allowed.contains(value.as_str())
+    })
+}
+
+fn cached_standard_property_closed_world_token_profile(
+    property: &PropertyNameV0,
+    registry: &SpecGrammarRegistryV0,
+) -> Option<ClosedWorldTokenProfileV0> {
+    static CACHE: OnceLock<RwLock<HashMap<String, Option<ClosedWorldTokenProfileV0>>>> =
+        OnceLock::new();
+    let cache = CACHE.get_or_init(|| RwLock::new(HashMap::new()));
+    let key = property.canonical_name().to_string();
+    if let Some(profile) = cache
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(&key)
+    {
+        return profile.clone();
+    }
+    let profile = registry
+        .syntax("properties", property.canonical_name())
+        .and_then(|grammar| {
+            cached_pinned_vds_expression(strip_matching_quotes(grammar.trim())).ok()
+        })
+        .map(|expression| {
+            let mut visiting = HashSet::new();
+            let mut memo = HashMap::new();
+            closed_world_token_profile(expression.as_ref(), registry, &mut visiting, &mut memo)
+        });
+    cache
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .entry(key)
+        .or_insert_with(|| profile.clone());
+    profile
+}
+
+fn closed_world_token_profile(
+    expression: &VdsExpression,
+    registry: &SpecGrammarRegistryV0,
+    visiting: &mut HashSet<(ReferenceCategory, String)>,
+    memo: &mut HashMap<(ReferenceCategory, String), ClosedWorldTokenProfileV0>,
+) -> ClosedWorldTokenProfileV0 {
+    match expression {
+        VdsExpression::Literal(literal) => closed_world_literal_profile(literal),
+        VdsExpression::Reference(reference) => {
+            closed_world_reference_profile(reference, registry, visiting, memo)
+        }
+        VdsExpression::Function { name, .. } => {
+            let mut profile = ClosedWorldTokenProfileV0::default();
+            profile.allow(ClosedWorldTokenKindV0::FunctionName, name);
+            profile
+        }
+        VdsExpression::Sequence(expressions)
+        | VdsExpression::AllInAnyOrder(expressions)
+        | VdsExpression::OneOrMoreInAnyOrder(expressions)
+        | VdsExpression::Choice(expressions) => {
+            let mut profile = ClosedWorldTokenProfileV0::default();
+            for expression in expressions {
+                profile.merge(closed_world_token_profile(
+                    expression, registry, visiting, memo,
+                ));
+            }
+            profile
+        }
+        VdsExpression::Repeat { expression, .. } | VdsExpression::Required(expression) => {
+            closed_world_token_profile(expression, registry, visiting, memo)
+        }
+    }
+}
+
+fn closed_world_reference_profile(
+    reference: &VdsReference,
+    registry: &SpecGrammarRegistryV0,
+    visiting: &mut HashSet<(ReferenceCategory, String)>,
+    memo: &mut HashMap<(ReferenceCategory, String), ClosedWorldTokenProfileV0>,
+) -> ClosedWorldTokenProfileV0 {
+    if reference.category == ReferenceCategory::Function {
+        let mut profile = ClosedWorldTokenProfileV0::default();
+        profile.allow(
+            ClosedWorldTokenKindV0::FunctionName,
+            reference.name.trim_end_matches("()"),
+        );
+        return profile;
+    }
+    if reference.category == ReferenceCategory::Type
+        && let Some(profile) = closed_world_builtin_profile(reference.name.as_str())
+    {
+        return profile;
+    }
+
+    let key = (reference.category, reference.name.clone());
+    if let Some(profile) = memo.get(&key) {
+        return profile.clone();
+    }
+    if !visiting.insert(key.clone()) {
+        let mut profile = ClosedWorldTokenProfileV0::default();
+        profile.mark_all_open();
+        return profile;
+    }
+    let category = match reference.category {
+        ReferenceCategory::Type => "types",
+        ReferenceCategory::Property => "properties",
+        ReferenceCategory::Function => unreachable!("function references return above"),
+    };
+    let mut profile = registry
+        .syntax(category, reference.name.as_str())
+        .and_then(|source| cached_pinned_vds_expression(source).ok())
+        .map(|expression| closed_world_token_profile(expression.as_ref(), registry, visiting, memo))
+        .unwrap_or_else(|| {
+            let mut unknown = ClosedWorldTokenProfileV0::default();
+            unknown.mark_all_open();
+            unknown
+        });
+    visiting.remove(&key);
+    if reference.category == ReferenceCategory::Type
+        && matches!(
+            reference.name.as_str(),
+            "number" | "integer" | "length" | "percentage" | "length-percentage" | "angle" | "time"
+        )
+    {
+        profile.mark_open(ClosedWorldTokenKindV0::FunctionName);
+    }
+    memo.insert(key, profile.clone());
+    profile
+}
+
+fn closed_world_builtin_profile(name: &str) -> Option<ClosedWorldTokenProfileV0> {
+    let mut profile = ClosedWorldTokenProfileV0::default();
+    match name {
+        "declaration-value" | "any-value" | "whole-value" => profile.mark_all_open(),
+        "custom-ident" | "ident" | "ident-token" | "dashed-ident" | "custom-property-name" => {
+            profile.mark_open(ClosedWorldTokenKindV0::Ident)
+        }
+        "string" | "string-token" => profile.mark_open(ClosedWorldTokenKindV0::String),
+        "url" | "url-token" => profile.mark_open(ClosedWorldTokenKindV0::Url),
+        "number" | "number-token" | "integer" => {
+            profile.mark_open(ClosedWorldTokenKindV0::Number);
+            profile.mark_open(ClosedWorldTokenKindV0::FunctionName);
+        }
+        "length" | "angle" | "time" | "resolution" | "flex" | "dimension-token" => {
+            profile.mark_open(ClosedWorldTokenKindV0::Dimension);
+            profile.allow(ClosedWorldTokenKindV0::Number, "0");
+            profile.mark_open(ClosedWorldTokenKindV0::FunctionName);
+        }
+        "percentage" | "percentage-token" => {
+            profile.mark_open(ClosedWorldTokenKindV0::Percentage);
+            profile.mark_open(ClosedWorldTokenKindV0::FunctionName);
+        }
+        "length-percentage" => {
+            profile.mark_open(ClosedWorldTokenKindV0::Dimension);
+            profile.mark_open(ClosedWorldTokenKindV0::Percentage);
+            profile.allow(ClosedWorldTokenKindV0::Number, "0");
+            profile.mark_open(ClosedWorldTokenKindV0::FunctionName);
+        }
+        "alpha-value" => {
+            profile.mark_open(ClosedWorldTokenKindV0::Number);
+            profile.mark_open(ClosedWorldTokenKindV0::Percentage);
+            profile.mark_open(ClosedWorldTokenKindV0::FunctionName);
+        }
+        "hex-color" | "hash-token" => profile.mark_open(ClosedWorldTokenKindV0::Hash),
+        "function-token" => profile.mark_open(ClosedWorldTokenKindV0::FunctionName),
+        "zero" => profile.allow(ClosedWorldTokenKindV0::Number, "0"),
+        "comma-token" => {}
+        // These semantic families have grammar records in the same registry.
+        // Returning None makes the caller derive their finite function/keyword
+        // surface transitively instead of embedding a second vocabulary.
+        "named-color" | "image" | "transform-function" => return None,
+        _ => return None,
+    }
+    Some(profile)
+}
+
+fn closed_world_literal_profile(literal: &str) -> ClosedWorldTokenProfileV0 {
+    let mut profile = ClosedWorldTokenProfileV0::default();
+    let Ok(components) = css_value_component_stream(literal, 0) else {
+        return profile;
+    };
+    if let [component] = components.as_slice()
+        && let Some((kind, value)) = closed_world_component_identity(component)
+    {
+        profile.allow(kind, value.as_str());
+    }
+    profile
+}
+
+fn closed_world_component_identity(
+    component: &CssValueComponentV0,
+) -> Option<(ClosedWorldTokenKindV0, String)> {
+    let kind = match &component.kind {
+        CssValueComponentKindV0::Ident => ClosedWorldTokenKindV0::Ident,
+        CssValueComponentKindV0::Hash => ClosedWorldTokenKindV0::Hash,
+        CssValueComponentKindV0::Dimension => ClosedWorldTokenKindV0::Dimension,
+        CssValueComponentKindV0::Number => ClosedWorldTokenKindV0::Number,
+        CssValueComponentKindV0::Percentage => ClosedWorldTokenKindV0::Percentage,
+        CssValueComponentKindV0::Function { name, .. } => {
+            return Some((
+                ClosedWorldTokenKindV0::FunctionName,
+                name.to_ascii_lowercase(),
+            ));
+        }
+        CssValueComponentKindV0::String => ClosedWorldTokenKindV0::String,
+        CssValueComponentKindV0::Url => ClosedWorldTokenKindV0::Url,
+        CssValueComponentKindV0::Parenthesized { .. }
+        | CssValueComponentKindV0::Bracketed { .. }
+        | CssValueComponentKindV0::Braced { .. }
+        | CssValueComponentKindV0::Comma
+        | CssValueComponentKindV0::Slash
+        | CssValueComponentKindV0::Delimiter => return None,
+    };
+    Some((kind, component.text.to_ascii_lowercase()))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2278,7 +2613,10 @@ impl<'a> MathExpressionParser<'a> {
 
     fn parse_sum(&mut self) -> Option<MathValueKind> {
         let mut left = self.parse_product()?;
-        while self.peek_operator(&["+", "-"]).is_some() {
+        loop {
+            if self.peek_binary_additive_operator().is_none() {
+                break;
+            }
             self.cursor += 1;
             let right = self.parse_product()?;
             left = unify_additive_math_kinds(left, right)?;
@@ -2352,12 +2690,26 @@ impl<'a> MathExpressionParser<'a> {
 
     fn peek_operator(&self, expected: &[&str]) -> Option<&str> {
         let component = self.components.get(self.cursor)?;
-        matches!(
+        (matches!(
             component.kind,
             CssValueComponentKindV0::Delimiter | CssValueComponentKindV0::Slash
-        )
+        ) || (matches!(component.kind, CssValueComponentKindV0::Ident)
+            && matches!(component.text.as_str(), "+" | "-")))
         .then_some(component.text.as_str())
         .filter(|operator| expected.contains(operator))
+    }
+
+    fn peek_binary_additive_operator(&self) -> Option<&str> {
+        let previous = self
+            .cursor
+            .checked_sub(1)
+            .and_then(|index| self.components.get(index))?;
+        let operator_component = self.components.get(self.cursor)?;
+        let next = self.components.get(self.cursor + 1)?;
+        self.peek_operator(&["+", "-"]).filter(|_| {
+            previous.span.end < operator_component.span.start
+                && operator_component.span.end < next.span.start
+        })
     }
 }
 
@@ -2386,10 +2738,10 @@ fn math_range_is_provably_accepted(
         | CssValueComponentKindV0::Parenthesized { values: arguments } => {
             math_range_is_provably_accepted(Some(range), arguments)
         }
-        CssValueComponentKindV0::Delimiter => component.text != "-",
+        CssValueComponentKindV0::Delimiter => matches!(component.text.as_str(), "+" | "-"),
         CssValueComponentKindV0::Comma | CssValueComponentKindV0::Slash => true,
-        CssValueComponentKindV0::Ident
-        | CssValueComponentKindV0::Hash
+        CssValueComponentKindV0::Ident => matches!(component.text.as_str(), "+" | "-"),
+        CssValueComponentKindV0::Hash
         | CssValueComponentKindV0::String
         | CssValueComponentKindV0::Url
         | CssValueComponentKindV0::Bracketed { .. }
@@ -2471,8 +2823,8 @@ mod tests {
         adjudicate_css_value_validation_with_boundary, audit_css_value_grammar_registry_v0,
         cached_pinned_vds_expression, match_and_type_css_value_grammar_v0,
         match_and_type_standard_property_value_v0, match_css_value_grammar_v0,
-        match_standard_property_value_v0, validate_registered_property_value_v0,
-        validate_standard_property_value_v0,
+        match_standard_property_value_v0, standard_property_closed_world_token_kind_mismatch,
+        validate_registered_property_value_v0, validate_standard_property_value_v0,
     };
     use crate::{
         AbstractCssTypedValueV0, AbstractCssValueV0, DeclaredValueKindV0,
@@ -2755,10 +3107,10 @@ mod tests {
         assert!(forward_tier.verdict.is_definite_mismatch());
 
         let in_boundary = validate_standard_property_value_v0("border-top", "1px nonsense red");
-        assert_eq!(in_boundary.class, CssValueValidationClassV0::NotValidatable);
+        assert_eq!(in_boundary.class, CssValueValidationClassV0::Invalid);
         assert_eq!(
             in_boundary.reason,
-            CssValueValidationReasonV0::MatcherCoverageIncomplete
+            CssValueValidationReasonV0::GrammarUnmatched
         );
     }
 
@@ -2876,11 +3228,15 @@ mod tests {
         assert_eq!(invalid.class, CssValueValidationClassV0::Invalid);
         assert_eq!(invalid.reason, CssValueValidationReasonV0::GrammarUnmatched);
 
-        let incomplete = validate_standard_property_value_v0("border-top", "1px nonsense red");
-        assert_eq!(incomplete.class, CssValueValidationClassV0::NotValidatable);
+        let closed_world_mismatch =
+            validate_standard_property_value_v0("border-top", "1px nonsense red");
         assert_eq!(
-            incomplete.reason,
-            CssValueValidationReasonV0::MatcherCoverageIncomplete
+            closed_world_mismatch.class,
+            CssValueValidationClassV0::Invalid
+        );
+        assert_eq!(
+            closed_world_mismatch.reason,
+            CssValueValidationReasonV0::GrammarUnmatched
         );
 
         let defect = validate_registered_property_value_v0("<future-value>", "1px");
@@ -2922,13 +3278,10 @@ mod tests {
         assert!(valid_negative.verdict.is_matched());
 
         let invalid_negative = validate_standard_property_value_v0("margin", "-10px totally-bogus");
-        assert_eq!(
-            invalid_negative.class,
-            CssValueValidationClassV0::NotValidatable
-        );
+        assert_eq!(invalid_negative.class, CssValueValidationClassV0::Invalid);
         assert_eq!(
             invalid_negative.reason,
-            CssValueValidationReasonV0::MatcherCoverageIncomplete
+            CssValueValidationReasonV0::GrammarUnmatched
         );
         assert!(invalid_negative.verdict.is_definite_mismatch());
 
@@ -3002,13 +3355,10 @@ mod tests {
 
         let adjacent_scalar =
             validate_standard_property_value_v0("width", "round(1, 2) totally-bogus");
-        assert_eq!(
-            adjacent_scalar.class,
-            CssValueValidationClassV0::NotValidatable
-        );
+        assert_eq!(adjacent_scalar.class, CssValueValidationClassV0::Invalid);
         assert_eq!(
             adjacent_scalar.reason,
-            CssValueValidationReasonV0::MatcherCoverageIncomplete
+            CssValueValidationReasonV0::GrammarUnmatched
         );
 
         let unregistered_function =
@@ -3079,6 +3429,8 @@ mod tests {
             ("fill", "#ff00aa"),
             ("stroke", "rgb(10 20 30)"),
             ("width", "calc(1px + 2px)"),
+            ("width", "calc(100% - 8px)"),
+            ("width", "calc(8px - 4px)"),
             ("width", "min(1px, 2px)"),
             ("width", "max(10%, 20%)"),
             ("width", "clamp(1px, 2px, 3px)"),
@@ -3100,6 +3452,8 @@ mod tests {
         for (property, value) in [
             ("width", "calc(1px + 2)"),
             ("width", "calc(1px * 2px)"),
+            ("width", "calc(100% -8px)"),
+            ("width", "calc(100%- 8px)"),
             ("opacity", "calc(1 + 1px)"),
             ("animation-duration", "min(1s, 2px)"),
         ] {
@@ -3122,6 +3476,7 @@ mod tests {
             },
             SpecGrammarBoundaryClassificationV0::InBoundary,
             false,
+            false,
         );
         assert_eq!(
             validation.class,
@@ -3132,6 +3487,29 @@ mod tests {
             validation.reason,
             CssValueValidationReasonV0::MatcherCoverageIncomplete
         );
+    }
+
+    #[test]
+    fn closed_world_token_kinds_certify_impossible_standard_values() {
+        for (property, value) in [
+            ("color", "12px"),
+            ("color", "definitely-not-a-color"),
+            ("z-index", "banana"),
+            ("border-top", "1px nonsense red"),
+            ("margin", "-10px totally-bogus"),
+        ] {
+            let validation = validate_standard_property_value_v0(property, value);
+            assert_eq!(
+                validation.class,
+                CssValueValidationClassV0::Invalid,
+                "{property}: {value}: {validation:?}"
+            );
+            assert_eq!(
+                validation.reason,
+                CssValueValidationReasonV0::GrammarUnmatched,
+                "{property}: {value}: {validation:?}"
+            );
+        }
     }
 
     #[test]
@@ -3182,6 +3560,15 @@ mod tests {
         let definite_rejections = declarations
             .iter()
             .filter_map(|(property, value)| {
+                let property_name = PropertyNameV0::from_authored(*property);
+                assert!(
+                    !standard_property_closed_world_token_kind_mismatch(
+                        &property_name,
+                        value,
+                        spec_grammar_registry(),
+                    ),
+                    "a valid declaration was outside the derived open/closed token profile: {property}: {value}"
+                );
                 let validation = validate_standard_property_value_v0(property, value);
                 (validation.class == CssValueValidationClassV0::Invalid)
                     .then_some((*property, *value, validation))
@@ -3231,7 +3618,7 @@ mod tests {
         );
         assert_eq!(
             validator.validate_standard_property_value(&PropertyNameV0::standard("color"), "12px"),
-            CascadeStandardValueVerdictV0::Unknown
+            CascadeStandardValueVerdictV0::Unmatched
         );
         assert_eq!(
             validator.validate_standard_property_value(

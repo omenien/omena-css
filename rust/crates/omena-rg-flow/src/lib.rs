@@ -15,6 +15,7 @@ use omena_cascade::{
     CustomPropertyLeastFixedPointSummaryV0,
 };
 use serde::Serialize;
+use std::collections::HashMap;
 
 pub const MULTISCALE_COMPLEXITY_HEURISTIC_SCHEMA_VERSION_V0: &str = "0";
 #[deprecated(
@@ -1558,12 +1559,16 @@ fn observed_fixed_point_flow(
         .map(|iteration| iteration.changed_count + iteration.guaranteed_invalid_count)
         .map(|count| count as f64)
         .sum::<f64>();
-    let fixed_point_residual_l1 = summary
-        .input_count
-        .saturating_sub(summary.resolved_count)
-        .saturating_sub(summary.guaranteed_invalid_count);
+    let settled_entry_count = summary
+        .entries
+        .iter()
+        .filter(|entry| !cascade_value_contains_var_reference(&entry.resolved))
+        .count();
+    let fixed_point_residual_l1 = summary.input_count.saturating_sub(settled_entry_count);
+    let independently_derived_component_count = independently_derive_input_component_count(summary);
     let trace_is_component_schedule = summary.iteration_count == summary.iteration_bound
         && summary.iteration_count == summary.iteration_trace.len()
+        && independently_derived_component_count == Some(summary.iteration_trace.len())
         && summary
             .iteration_trace
             .iter()
@@ -1595,6 +1600,100 @@ fn observed_fixed_point_flow(
         fixed_point_residual_l1,
         fixed_point_verified_from_trace,
     }
+}
+
+fn independently_derive_input_component_count(
+    summary: &CustomPropertyLeastFixedPointSummaryV0,
+) -> Option<usize> {
+    if summary.entries.len() != summary.input_count {
+        return None;
+    }
+    if summary.entries.is_empty() {
+        return Some(1);
+    }
+    let index_by_name = summary
+        .entries
+        .iter()
+        .enumerate()
+        .map(|(index, entry)| (entry.name.as_str(), index))
+        .collect::<HashMap<_, _>>();
+    if index_by_name.len() != summary.entries.len() {
+        return None;
+    }
+    let mut edges = Vec::with_capacity(summary.entries.len());
+    for entry in &summary.entries {
+        let mut references = Vec::new();
+        let mut values = vec![&entry.input];
+        while let Some(value) = values.pop() {
+            match value {
+                CascadeValue::Var { name, fallback } => {
+                    if let Some(index) = index_by_name.get(name.as_str()) {
+                        references.push(*index);
+                    }
+                    if let Some(fallback) = fallback.as_deref() {
+                        values.push(fallback);
+                    }
+                }
+                CascadeValue::Composite(parts) => values.extend(parts.iter()),
+                CascadeValue::Literal(_)
+                | CascadeValue::Initial
+                | CascadeValue::Inherit
+                | CascadeValue::Indeterminate
+                | CascadeValue::GuaranteedInvalid
+                | CascadeValue::Unset => {}
+            }
+        }
+        references.sort_unstable();
+        references.dedup();
+        edges.push(references);
+    }
+
+    let mut finish_order = Vec::with_capacity(edges.len());
+    let mut visited = vec![false; edges.len()];
+    for start in 0..edges.len() {
+        if visited[start] {
+            continue;
+        }
+        visited[start] = true;
+        let mut stack = vec![(start, 0usize)];
+        while let Some((node, neighbor_index)) = stack.last_mut() {
+            if let Some(neighbor) = edges[*node].get(*neighbor_index).copied() {
+                *neighbor_index += 1;
+                if !visited[neighbor] {
+                    visited[neighbor] = true;
+                    stack.push((neighbor, 0));
+                }
+            } else {
+                finish_order.push(*node);
+                stack.pop();
+            }
+        }
+    }
+    let mut reverse_edges = vec![Vec::new(); edges.len()];
+    for (source, targets) in edges.iter().enumerate() {
+        for target in targets {
+            reverse_edges[*target].push(source);
+        }
+    }
+    visited.fill(false);
+    let mut component_count = 0;
+    while let Some(start) = finish_order.pop() {
+        if visited[start] {
+            continue;
+        }
+        component_count += 1;
+        visited[start] = true;
+        let mut stack = vec![start];
+        while let Some(node) = stack.pop() {
+            for neighbor in &reverse_edges[node] {
+                if !visited[*neighbor] {
+                    visited[*neighbor] = true;
+                    stack.push(*neighbor);
+                }
+            }
+        }
+    }
+    Some(component_count.max(1))
 }
 
 fn cascade_value_contains_var_reference(value: &CascadeValue) -> bool {
@@ -2448,6 +2547,18 @@ mod tests {
         let summary = summarize_custom_property_least_fixed_point(&env);
         assert!(observed_fixed_point_flow(&summary).fixed_point_verified_from_trace);
 
+        let mut deleted_schedule_step = summary.clone();
+        deleted_schedule_step.iteration_trace.remove(0);
+        for (index, iteration) in deleted_schedule_step.iteration_trace.iter_mut().enumerate() {
+            iteration.iteration = index + 1;
+        }
+        deleted_schedule_step.iteration_count = deleted_schedule_step.iteration_trace.len();
+        deleted_schedule_step.iteration_bound = deleted_schedule_step.iteration_trace.len();
+        assert!(
+            !observed_fixed_point_flow(&deleted_schedule_step).fixed_point_verified_from_trace,
+            "renumbering cannot hide a deleted component-schedule row"
+        );
+
         let mut duplicate_schedule_step = summary.clone();
         duplicate_schedule_step.iteration_trace[1].iteration = 1;
         assert!(
@@ -2460,6 +2571,32 @@ mod tests {
             fallback: None,
         };
         assert!(!observed_fixed_point_flow(&residual_reference).fixed_point_verified_from_trace);
+    }
+
+    #[test]
+    fn css_wide_and_indeterminate_custom_property_states_are_settled_trace_values() {
+        let mut env = CustomPropertyEnv::default();
+        for (name, value) in [
+            ("--initial", CascadeValue::Initial),
+            ("--inherit", CascadeValue::Inherit),
+            ("--unset", CascadeValue::Unset),
+            ("--indeterminate", CascadeValue::Indeterminate),
+            ("--u", CascadeValue::Literal("ok".to_string())),
+            (
+                "--v",
+                CascadeValue::Var {
+                    name: PropertyNameV0::canonical_custom_key("--u"),
+                    fallback: None,
+                },
+            ),
+        ] {
+            env.insert(PropertyNameV0::canonical_custom_key(name), value);
+        }
+        let summary = summarize_custom_property_least_fixed_point(&env);
+        let observed = observed_fixed_point_flow(&summary);
+
+        assert_eq!(observed.fixed_point_residual_l1, 0);
+        assert!(observed.fixed_point_verified_from_trace);
     }
 
     #[test]

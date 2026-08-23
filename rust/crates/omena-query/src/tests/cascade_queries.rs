@@ -421,7 +421,7 @@ fn read_cascade_at_position_reports_iacvt_seed() {
 }
 
 #[test]
-fn read_cascade_at_position_keeps_incomplete_color_mismatch_indeterminate() {
+fn read_cascade_at_position_reports_closed_kind_color_mismatch_as_iacvt() {
     let source = ":root { --tone: 12px; }\n.target { color: var(--tone); }\n";
     let cascade = read_omena_query_cascade_at_position(
         "Component.module.css",
@@ -436,9 +436,9 @@ fn read_cascade_at_position_keeps_incomplete_color_mismatch_indeterminate() {
 
     assert_eq!(
         cascade.referenced_declaration_computed_value_status,
-        Some("indeterminate")
+        Some("invalidAtComputedValueTime")
     );
-    assert!(!cascade.referenced_declaration_invalid_at_computed_value_time);
+    assert!(cascade.referenced_declaration_invalid_at_computed_value_time);
 }
 
 #[test]
@@ -493,77 +493,139 @@ fn product_grid_gap_remains_resolved_after_custom_property_substitution() {
 }
 
 #[test]
-fn tracked_thirty_six_var_sites_have_no_undeclared_status_delta() {
-    let cases = [
-        ("color", "red"),
-        ("color", "#ff00aa"),
-        ("fill", "#ff00aa"),
-        ("stroke", "rgb(1 2 3)"),
-        ("width", "calc(10px + 2px)"),
-        ("width", "min(10px, 20px)"),
-        ("width", "max(10%, 20%)"),
-        ("width", "clamp(1px, 2px, 3px)"),
-        ("height", "calc(50% + 2px)"),
-        ("margin", "calc(1rem + 2px)"),
-        ("padding", "min(1rem, 2rem)"),
-        ("row-gap", "clamp(1px, 2px, 3px)"),
-        ("column-gap", "max(1%, 2%)"),
-        ("gap", "clamp(1px, 2px, 3px)"),
-        ("opacity", "calc(0.5 + 0.1)"),
-        ("line-height", "min(1.2, 1.5)"),
-        ("animation-duration", "calc(1s + 200ms)"),
-        ("transition-duration", "max(1s, 2s)"),
-        ("rotate", "calc(10deg + 5deg)"),
-        ("grid-template-columns", "minmax(101px, 1fr)"),
-        ("grid-template-columns", "repeat(3, 1fr)"),
-        ("grid-template-columns", "repeat(2, minmax(0, 1fr))"),
-        ("grid-template-columns", "1fr 2fr"),
-        ("border-top", "1px solid red"),
-        ("margin", "0 auto"),
-        ("padding", "1px 2px"),
-        ("display", "grid"),
-        ("position", "absolute"),
-        ("inset", "0"),
-        ("top", "1px"),
-        ("z-index", "2"),
-        ("font-weight", "700"),
-        ("font-size", "16px"),
-        ("background-color", "rebeccapurple"),
-        ("border-radius", "4px"),
-        ("flex-grow", "1"),
-    ];
-    assert_eq!(cases.len(), 36);
+fn tracked_style_var_sites_have_the_pinned_product_status_distribution() {
+    use std::{collections::BTreeMap, fs, path::PathBuf, process::Command};
 
-    let status_deltas = cases
-        .iter()
-        .enumerate()
-        .filter_map(|(index, (property, value))| {
-            let declaration = format!(".target {{ {property}: var(--tracked); }}");
-            let reference_character = declaration
-                .find("--tracked")
-                .expect("tracked reference offset");
-            let source = format!(":root {{ --tracked: {value}; }}\n{declaration}\n");
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../..")
+        .canonicalize()
+        .expect("repository root");
+    let tracked = Command::new("git")
+        .args(["ls-files", "--", "*.css", "*.scss", "*.less"])
+        .current_dir(&repo_root)
+        .output()
+        .expect("git ls-files for tracked style corpus");
+    assert!(tracked.status.success());
+
+    let mut site_count = 0usize;
+    let mut statuses = BTreeMap::<String, usize>::new();
+    for relative_path in String::from_utf8(tracked.stdout)
+        .expect("tracked paths are UTF-8")
+        .lines()
+    {
+        let source = fs::read_to_string(repo_root.join(relative_path));
+        assert!(
+            source.is_ok(),
+            "cannot read {relative_path}: {:?}",
+            source.as_ref().err()
+        );
+        let source = source.expect("tracked style source should be readable");
+        for (offset, _) in source.match_indices("var(") {
+            site_count += 1;
+            let line = source[..offset]
+                .bytes()
+                .filter(|byte| *byte == b'\n')
+                .count();
+            let line_start = source[..offset].rfind('\n').map_or(0, |index| index + 1);
+            let character = source[line_start..offset + "var(".len()].chars().count();
             let cascade = read_omena_query_cascade_at_position(
-                "Tracked.module.css",
+                relative_path,
                 source.as_str(),
                 &sample_input(),
-                ParserPositionV0 {
-                    line: 1,
-                    character: reference_character,
-                },
-            )?;
-            (cascade.referenced_declaration_computed_value_status != Some("resolved")).then_some((
-                index,
-                *property,
-                *value,
-                cascade.referenced_declaration_computed_value_status,
-            ))
-        })
-        .collect::<Vec<_>>();
+                ParserPositionV0 { line, character },
+            );
+            assert!(
+                cascade.is_some(),
+                "{relative_path}:{line}:{character} has no cascade report"
+            );
+            let cascade = cascade.expect("tracked var() site should have a cascade report");
+            let status = cascade
+                .referenced_declaration_computed_value_status
+                .unwrap_or("none")
+                .to_string();
+            *statuses.entry(status).or_default() += 1;
+        }
+    }
 
-    assert!(
-        status_deltas.is_empty(),
-        "the declared status-delta allowlist is empty: {status_deltas:?}"
+    println!("trackedVarSiteCount={site_count} statuses={statuses:?}");
+    assert_eq!(site_count, 40, "the git-tracked var() site census changed");
+    assert_eq!(
+        statuses,
+        BTreeMap::from([
+            ("initial".to_string(), 1),
+            ("invalidAtComputedValueTime".to_string(), 15),
+            ("resolved".to_string(), 24),
+        ]),
+        "the product status distribution for tracked var() sites changed"
+    );
+}
+
+#[test]
+fn tracked_style_diagnostics_preserve_the_pinned_rule_census() {
+    use std::{collections::BTreeMap, fs, path::PathBuf, process::Command};
+
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../..")
+        .canonicalize()
+        .expect("repository root");
+    let tracked = Command::new("git")
+        .args(["ls-files", "--", "*.css", "*.scss", "*.less"])
+        .current_dir(&repo_root)
+        .output()
+        .expect("git ls-files for tracked style diagnostics corpus");
+    assert!(tracked.status.success());
+
+    let paths = String::from_utf8(tracked.stdout).expect("tracked paths are UTF-8");
+    let mut counts = BTreeMap::<String, usize>::new();
+    let mut analyzed_file_count = 0usize;
+    for relative_path in paths.lines() {
+        if relative_path.split('/').any(|component| {
+            matches!(
+                component,
+                "node_modules" | "target" | "dist" | "build" | "coverage" | ".next" | ".turbo"
+            )
+        }) {
+            continue;
+        }
+        let source = fs::read_to_string(repo_root.join(relative_path));
+        assert!(
+            source.is_ok(),
+            "cannot read {relative_path}: {:?}",
+            source.as_ref().err()
+        );
+        let source = source.expect("tracked style source should be readable");
+        let candidates =
+            crate::summarize_omena_query_style_hover_candidates(relative_path, &source);
+        assert!(
+            candidates.is_some(),
+            "cannot derive hover candidates for {relative_path}"
+        );
+        let candidates = candidates.expect("tracked style source should have hover candidates");
+        let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+            format!("file://{relative_path}").as_str(),
+            &source,
+            candidates.candidates.as_slice(),
+        );
+        analyzed_file_count += 1;
+        for diagnostic in diagnostics.diagnostics {
+            *counts.entry(diagnostic.code.to_string()).or_default() += 1;
+        }
+    }
+
+    println!("trackedStyleDiagnosticsFileCount={analyzed_file_count} ruleCounts={counts:?}");
+    assert_eq!(analyzed_file_count, 199);
+    assert_eq!(
+        counts,
+        BTreeMap::from([
+            ("deprecatedSassImport".to_string(), 1),
+            ("invalidPropertyValue".to_string(), 13),
+            ("missingCustomProperty".to_string(), 13),
+            ("missingKeyframes".to_string(), 1),
+            ("missingSassSymbol".to_string(), 5),
+            ("unreachableDeclaration".to_string(), 9),
+            ("unspecifiedCascadeTie".to_string(), 7),
+        ]),
+        "the product style-diagnostics rule census changed"
     );
 }
 

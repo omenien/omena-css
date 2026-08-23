@@ -6910,7 +6910,10 @@ $_private-token: changed;
 
         for (custom_value, expected_status) in [
             ("red", ComputedCascadeValueStatusV0::Resolved),
-            ("12px", ComputedCascadeValueStatusV0::Indeterminate),
+            (
+                "12px",
+                ComputedCascadeValueStatusV0::InvalidAtComputedValueTime,
+            ),
         ] {
             let source_path = format!("/workspace/{custom_value}.tsx");
             let source = format!(
@@ -6953,11 +6956,11 @@ $_private-token: changed;
                     .contains(&"standardPropertySyntaxDeferredByVarReference")
             );
             if custom_value == "12px" {
-                assert!(!computed.invalid_at_computed_value_time);
+                assert!(computed.invalid_at_computed_value_time);
                 assert!(
                     computed
                         .derivation_steps
-                        .contains(&"postSubstitutionStandardPropertySyntaxIndeterminate")
+                        .contains(&"postSubstitutionStandardPropertySyntaxUnmatched")
                 );
             } else {
                 assert!(

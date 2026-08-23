@@ -3749,44 +3749,103 @@ fn flat_environment_resolution_omits_dependency_graph_and_trace_work() {
 
 #[test]
 #[ignore = "explicit release-mode performance receipt"]
-fn flat_environment_resolution_stays_within_twice_the_clone_pickup() {
+fn variable_environment_resolution_and_summary_stay_within_a_two_x_growth_ceiling() {
     use std::{hint::black_box, time::Instant};
 
-    let env = (0..4_000)
-        .map(|index| {
-            (
-                custom_property_key(format!("--flat-{index:04}").as_str()),
-                CascadeValue::Literal(index.to_string()),
-            )
-        })
-        .collect::<CustomPropertyEnv>();
-    for _ in 0..16 {
-        black_box(env.clone());
-        black_box(resolve_custom_property_env_least_fixed_point(&env));
+    fn alias_environment(binding_count: usize) -> CustomPropertyEnv {
+        (0..binding_count)
+            .map(|index| {
+                let name = custom_property_key(format!("--alias-{index:04}").as_str());
+                let value = if index + 1 == binding_count {
+                    CascadeValue::Literal("terminal".to_string())
+                } else {
+                    CascadeValue::Var {
+                        name: custom_property_key(format!("--alias-{:04}", index + 1).as_str()),
+                        fallback: None,
+                    }
+                };
+                (name, value)
+            })
+            .collect()
     }
-    let mut pickup_ns = Vec::with_capacity(101);
-    let mut resolution_ns = Vec::with_capacity(101);
-    for _ in 0..101 {
-        let started = Instant::now();
-        black_box(env.clone());
-        pickup_ns.push(started.elapsed().as_nanos());
 
-        let started = Instant::now();
-        black_box(resolve_custom_property_env_least_fixed_point(&env));
-        resolution_ns.push(started.elapsed().as_nanos());
+    fn three_edge_environment(binding_count: usize) -> CustomPropertyEnv {
+        (0..binding_count)
+            .map(|index| {
+                let name = custom_property_key(format!("--dense-{index:04}").as_str());
+                let value = if index < 3 {
+                    CascadeValue::Literal(format!("root-{index}"))
+                } else {
+                    CascadeValue::Composite(
+                        (0..3)
+                            .map(|root| CascadeValue::Var {
+                                name: custom_property_key(format!("--dense-{root:04}").as_str()),
+                                fallback: None,
+                            })
+                            .collect(),
+                    )
+                };
+                (name, value)
+            })
+            .collect()
     }
-    pickup_ns.sort_unstable();
-    resolution_ns.sort_unstable();
-    let pickup_median_ns = pickup_ns[pickup_ns.len() / 2];
-    let resolution_median_ns = resolution_ns[resolution_ns.len() / 2];
-    let ratio = resolution_median_ns as f64 / pickup_median_ns as f64;
-    println!(
-        "flatBindings=4000 pickupMedianNs={pickup_median_ns} resolutionMedianNs={resolution_median_ns} ratio={ratio:.3}"
-    );
-    assert!(
-        ratio <= 2.0,
-        "flat resolution ratio {ratio:.3} exceeded the 2x pickup ceiling"
-    );
+
+    fn median_ns(mut operation: impl FnMut()) -> u128 {
+        for _ in 0..8 {
+            operation();
+        }
+        let mut samples = Vec::with_capacity(31);
+        for _ in 0..31 {
+            let started = Instant::now();
+            operation();
+            samples.push(started.elapsed().as_nanos());
+        }
+        samples.sort_unstable();
+        samples[samples.len() / 2]
+    }
+
+    for (shape, build) in [
+        (
+            "alias-chain",
+            alias_environment as fn(usize) -> CustomPropertyEnv,
+        ),
+        (
+            "three-edge-dense",
+            three_edge_environment as fn(usize) -> CustomPropertyEnv,
+        ),
+    ] {
+        let small = build(2_200);
+        let large = build(4_000);
+        for (path, small_ns, large_ns) in [
+            (
+                "request",
+                median_ns(|| {
+                    black_box(resolve_custom_property_env_least_fixed_point(&small));
+                }),
+                median_ns(|| {
+                    black_box(resolve_custom_property_env_least_fixed_point(&large));
+                }),
+            ),
+            (
+                "summary",
+                median_ns(|| {
+                    black_box(summarize_custom_property_least_fixed_point(&small));
+                }),
+                median_ns(|| {
+                    black_box(summarize_custom_property_least_fixed_point(&large));
+                }),
+            ),
+        ] {
+            let doubling_ratio = large_ns as f64 / small_ns as f64;
+            println!(
+                "shape={shape} path={path} smallBindings=2200 smallMedianNs={small_ns} largeBindings=4000 largeMedianNs={large_ns} growthRatio={doubling_ratio:.3}"
+            );
+            assert!(
+                doubling_ratio <= 2.0,
+                "{shape} {path} doubling ratio {doubling_ratio:.3} exceeded the 2x ceiling"
+            );
+        }
+    }
 }
 
 #[test]

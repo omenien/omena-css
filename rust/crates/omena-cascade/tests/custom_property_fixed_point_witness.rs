@@ -214,7 +214,19 @@ fn custom_property_fixed_point_witness_corpus_matches_frozen_oracle() -> Result<
             .iter()
             .filter(|row| row.disposition == "finding")
             .count(),
-        novel_cycle_case_count: rows.iter().filter(|row| row.cycle_shape.is_some()).count(),
+        novel_cycle_case_count: rows
+            .iter()
+            .filter(|row| {
+                row.cycle_shape.as_deref().is_some_and(|shape| {
+                    matches!(
+                        shape,
+                        "mutuallyRecursiveFallbackChain"
+                            | "cycleThroughFallback"
+                            | "threeNodeFallbackCycleEnteredMidChain"
+                    )
+                })
+            })
+            .count(),
         implementation_start: "dependencyGraphSccSchedule",
         evaluator_start: "allBottom",
         rows,
@@ -230,6 +242,7 @@ fn custom_property_fixed_point_witness_corpus_matches_frozen_oracle() -> Result<
             .filter_map(|row| row.cycle_shape.as_deref())
             .collect::<Vec<_>>(),
         vec![
+            "mutualReferenceWithoutFallback",
             "mutuallyRecursiveFallbackChain",
             "cycleThroughFallback",
             "threeNodeFallbackCycleEnteredMidChain",

@@ -21,6 +21,10 @@ const allowedOptions = new Set([
   "--inject-literal-only-verdicts",
   "--inject-matcher-coverage-promotion",
   "--inject-nonconverged-return",
+  "--inject-cycle-member-shrink",
+  "--inject-closed-world-certificate-disable",
+  "--inject-close-open-function-kind",
+  "--inject-linear-component-rescan",
 ]);
 assert.deepEqual(
   [...args].filter((argument) => argument.startsWith("--") && !allowedOptions.has(argument)),
@@ -83,11 +87,10 @@ if (args.has("--inject-oracle-weakening")) {
             }`,
   );
 }
-if (args.has("--inject-nonconverged-return")) {
-  customProperty = customProperty.replace(
-    "reached_fixed_point: true,",
-    "reached_fixed_point: false,",
-  );
+if (args.has("--inject-cycle-member-shrink")) {
+  const plainCycle = corpus.cases.find((entry) => entry.id === "plain-two-cycle");
+  assert.ok(plainCycle, "plain-two-cycle fixture is absent");
+  delete plainCycle.bindings["--b"];
 }
 
 assert.ok(
@@ -215,6 +218,7 @@ assert.ok(
 );
 assert.ok(
   rgFlow.includes("let trace_is_component_schedule") &&
+    rgFlow.includes("independently_derive_input_component_count") &&
     [
       "iteration.settled_count == summary.input_count",
       "!cascade_value_contains_var_reference(&entry.resolved)",
@@ -275,7 +279,7 @@ const frozenCaseShapes = new Map<string, string | null>([
   ["direct-literal", null],
   ["acyclic-alias-chain", null],
   ["missing-reference-fallback", null],
-  ["plain-two-cycle", null],
+  ["plain-two-cycle", "mutualReferenceWithoutFallback"],
   ["outer-fallback-after-invalid-dependency", null],
   ["mutually-recursive-fallback-chain", "mutuallyRecursiveFallbackChain"],
   ["cycle-through-fallback", "cycleThroughFallback"],
@@ -297,12 +301,18 @@ assert.deepEqual(
     .map((entry) => entry.cycleShape)
     .filter((cycleShape): cycleShape is string => cycleShape !== null),
   [
+    "mutualReferenceWithoutFallback",
     "mutuallyRecursiveFallbackChain",
     "cycleThroughFallback",
     "threeNodeFallbackCycleEnteredMidChain",
   ],
   "the named non-degenerate cycle-shape allowlist changed",
 );
+const novelCycleShapeAllowlist = new Set([
+  "mutuallyRecursiveFallbackChain",
+  "cycleThroughFallback",
+  "threeNodeFallbackCycleEnteredMidChain",
+]);
 const evaluatorFunction = extractBetween(
   evaluator,
   "fn evaluate_from_all_bottom(",
@@ -319,6 +329,15 @@ assert.equal(
   ),
   "96bea4cb6b02ad22d491b46b4ba632103f4539a27c788002f74523e57beaa486",
   "the independent expectedEvaluator projections changed",
+);
+assert.equal(
+  sha256(
+    JSON.stringify(
+      corpus.cases.map(({ id, cycleShape, bindings }) => ({ id, cycleShape, bindings })),
+    ),
+  ),
+  "0edf2cdf53cb5819f2326c12265ee4028486714591e23d3295f829dc1a601e5b",
+  "the frozen witness bindings or cycle shapes changed",
 );
 assert.ok(
   evaluator.includes(
@@ -343,6 +362,14 @@ if (args.has("--inject-reordered-evaluator")) {
   relayMutationResult(runLiteralOnlyVerdictMutation());
 } else if (args.has("--inject-matcher-coverage-promotion")) {
   relayMutationResult(runMatcherCoveragePromotionMutation());
+} else if (args.has("--inject-nonconverged-return")) {
+  relayMutationResult(runNonconvergedReturnMutation());
+} else if (args.has("--inject-closed-world-certificate-disable")) {
+  relayMutationResult(runClosedWorldCertificateDisableMutation());
+} else if (args.has("--inject-close-open-function-kind")) {
+  relayMutationResult(runCloseOpenFunctionKindMutation());
+} else if (args.has("--inject-linear-component-rescan")) {
+  relayMutationResult(runLinearComponentRescanMutation());
 } else if (args.size === 0) {
   const normal = runWitness(repoRoot, null, "inherit");
   assert.equal(normal.status, 0, "the independent all-bottom witness corpus must pass");
@@ -351,25 +378,83 @@ if (args.has("--inject-reordered-evaluator")) {
     "--manifest-path",
     "rust/Cargo.toml",
     "-p",
-    "omena-cascade",
-    "standard_property_syntax_is_revalidated_after_var_substitution",
+    "omena-abstract-value",
+    "cascade_validator_adapter_preserves_spec_grammar_outcomes",
     "--",
     "--nocapture",
   ]);
   assert.equal(directGrammar.status, 0, "the direct post-substitution grammar arm must pass");
   const salsaGrammar = runSalsaGrammarTest(repoRoot, "inherit");
   assert.equal(salsaGrammar.status, 0, "the salsa-fed post-substitution grammar arm must pass");
-  const coverageCorpus = runCargo(repoRoot, [
-    "test",
-    "--manifest-path",
-    "rust/Cargo.toml",
-    "-p",
-    "omena-query",
-    "tracked_thirty_six_var_sites_have_no_undeclared_status_delta",
-    "--",
-    "--nocapture",
-  ]);
-  assert.equal(coverageCorpus.status, 0, "the 36-site status corpus must pass");
+  const coverageCorpus = runCargo(
+    repoRoot,
+    [
+      "test",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "omena-query",
+      "tracked_style_var_sites_have_the_pinned_product_status_distribution",
+      "--",
+      "--nocapture",
+    ],
+    "pipe",
+  );
+  assert.equal(coverageCorpus.status, 0, "the tracked var() site status corpus must pass");
+  const coverageOutput = `${coverageCorpus.stdout ?? ""}\n${coverageCorpus.stderr ?? ""}`;
+  const coverageMatch = coverageOutput.match(/trackedVarSiteCount=(\d+) statuses=(\{[^\n]+\})/u);
+  assert.ok(coverageMatch, "the tracked var() site receipt is absent");
+  const trackedVarSiteCount = Number(coverageMatch[1]);
+  const trackedVarSiteStatuses = JSON.parse(coverageMatch[2]) as Record<string, number>;
+  const diagnosticCorpus = runCargo(
+    repoRoot,
+    [
+      "test",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "omena-query",
+      "tracked_style_diagnostics_preserve_the_pinned_rule_census",
+      "--",
+      "--nocapture",
+    ],
+    "pipe",
+  );
+  assert.equal(diagnosticCorpus.status, 0, "the tracked style-diagnostics census must pass");
+  const diagnosticOutput = `${diagnosticCorpus.stdout ?? ""}\n${diagnosticCorpus.stderr ?? ""}`;
+  const diagnosticMatch = diagnosticOutput.match(
+    /trackedStyleDiagnosticsFileCount=(\d+) ruleCounts=(\{[^\n]+\})/u,
+  );
+  assert.ok(diagnosticMatch, "the tracked style-diagnostics receipt is absent");
+  const trackedStyleDiagnosticsFileCount = Number(diagnosticMatch[1]);
+  const trackedStyleDiagnosticCounts = JSON.parse(diagnosticMatch[2]) as Record<string, number>;
+  const cliDiagnosticCorpus = runCargo(
+    repoRoot,
+    [
+      "test",
+      "--release",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "omena-cli",
+      "tracked_style_diagnostics_default_cli_preserves_the_pinned_rule_census",
+      "--",
+      "--ignored",
+      "--nocapture",
+    ],
+    "pipe",
+  );
+  assert.equal(cliDiagnosticCorpus.status, 0, "the tracked CLI style-diagnostics census must pass");
+  const cliDiagnosticOutput = `${cliDiagnosticCorpus.stdout ?? ""}\n${cliDiagnosticCorpus.stderr ?? ""}`;
+  const cliDiagnosticMatch = cliDiagnosticOutput.match(
+    /trackedStyleDiagnosticsDefaultCliFileCount=(\d+) ruleCounts=(\{[^\n]+\})/u,
+  );
+  assert.ok(cliDiagnosticMatch, "the tracked CLI style-diagnostics receipt is absent");
+  const trackedStyleDiagnosticsCliFileCount = Number(cliDiagnosticMatch[1]);
+  const trackedStyleDiagnosticsCliCounts = JSON.parse(cliDiagnosticMatch[2]) as Record<
+    string,
+    number
+  >;
   const longChain = runCargo(repoRoot, [
     "test",
     "--manifest-path",
@@ -388,12 +473,16 @@ if (args.has("--inject-reordered-evaluator")) {
     "rust/Cargo.toml",
     "-p",
     "omena-cascade",
-    "flat_environment_resolution_stays_within_twice_the_clone_pickup",
+    "variable_environment_resolution_and_summary_stay_within_a_two_x_growth_ceiling",
     "--",
     "--ignored",
     "--nocapture",
   ]);
-  assert.equal(flatPerformance.status, 0, "the flat-environment 2x performance ceiling must pass");
+  assert.equal(
+    flatPerformance.status,
+    0,
+    "the variable-environment request and summary 2x performance ceiling must pass",
+  );
   const traceSchedule = runCargo(repoRoot, [
     "test",
     "--manifest-path",
@@ -432,8 +521,21 @@ if (args.has("--inject-reordered-evaluator")) {
     expectScriptMutationRed("--inject-matcher-coverage-promotion", "MatcherCoverageIncomplete"),
     expectScriptMutationRed(
       "--inject-nonconverged-return",
-      "retired iterate-and-rescue code remains: reached_fixed_point: false",
+      "summarizes_custom_property_least_fixed_point",
     ),
+    expectScriptMutationRed(
+      "--inject-cycle-member-shrink",
+      "the frozen witness bindings or cycle shapes changed",
+    ),
+    expectScriptMutationRed(
+      "--inject-closed-world-certificate-disable",
+      "cascade_validator_adapter_preserves_spec_grammar_outcomes",
+    ),
+    expectScriptMutationRed(
+      "--inject-close-open-function-kind",
+      "outside the derived open/closed token profile",
+    ),
+    expectScriptMutationRed("--inject-linear-component-rescan", "exceeded the 2x ceiling"),
   ];
 
   process.stdout.write(
@@ -445,11 +547,18 @@ if (args.has("--inject-reordered-evaluator")) {
       caseCount: corpus.cases.length,
       agreementCount: corpus.cases.length,
       findingCount: 0,
-      novelCycleCaseCount: corpus.cases.filter((entry) => entry.cycleShape !== null).length,
+      novelCycleCaseCount: corpus.cases.filter(
+        (entry) => entry.cycleShape !== null && novelCycleShapeAllowlist.has(entry.cycleShape),
+      ).length,
       postSubstitutionGrammar: "direct-and-salsa:GREEN",
-      trackedVarSiteStatusCorpus: "36/36:GREEN",
+      trackedVarSiteCount,
+      trackedVarSiteStatuses,
+      trackedStyleDiagnosticsFileCount,
+      trackedStyleDiagnosticCounts,
+      trackedStyleDiagnosticsCliFileCount,
+      trackedStyleDiagnosticsCliCounts,
       iterativeAliasBoundary: "100000:GREEN",
-      flatEnvironmentPerformanceCeiling: "2x:GREEN",
+      variableEnvironmentPerformanceCeiling: "request-and-summary-2x:GREEN",
       componentScheduleTraceInvariant: "GREEN",
       mutations: mutationReceipts,
       rfcDisposition: gapRegister.rfcDisposition.status,
@@ -581,8 +690,10 @@ function runMatcherCoveragePromotionMutation(): ReturnType<typeof spawnSync> {
     (source) =>
       replaceExactly(
         source,
-        "CssValueGrammarVerdictV0::Unmatched { .. } if !matcher_coverage_complete => (",
-        "CssValueGrammarVerdictV0::Unmatched { .. } if false => (",
+        `CssValueGrammarVerdictV0::Unmatched { .. }
+                if !matcher_coverage_complete && !closed_world_token_kind_mismatch =>
+            {`,
+        `CssValueGrammarVerdictV0::Unmatched { .. } if false => {`,
       ),
     [
       "test",
@@ -592,6 +703,112 @@ function runMatcherCoveragePromotionMutation(): ReturnType<typeof spawnSync> {
       "omena-abstract-value",
       "incomplete_matcher_coverage_cannot_promote_unmatched_to_invalid",
       "--",
+      "--nocapture",
+    ],
+  );
+}
+
+function runNonconvergedReturnMutation(): ReturnType<typeof spawnSync> {
+  return runSourceMutation(
+    customPropertyPath,
+    (source) =>
+      replaceExactly(
+        source,
+        `iteration_bound: components.len().max(1),
+        reached_fixed_point: true,`,
+        `iteration_bound: components.len().max(1),
+        reached_fixed_point: false,`,
+      ),
+    [
+      "test",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "omena-cascade",
+      "summarizes_custom_property_least_fixed_point",
+      "--",
+      "--nocapture",
+    ],
+  );
+}
+
+function runClosedWorldCertificateDisableMutation(): ReturnType<typeof spawnSync> {
+  return runSourceMutation(
+    grammarPath,
+    (source) =>
+      replaceExactly(
+        source,
+        `let closed_world_token_kind_mismatch =
+        matches!(verdict, CssValueGrammarVerdictV0::Unmatched { .. })
+            && standard_property_closed_world_token_kind_mismatch(&property, value, registry);`,
+        `let closed_world_token_kind_mismatch = false;`,
+      ),
+    [
+      "test",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "omena-abstract-value",
+      "cascade_validator_adapter_preserves_spec_grammar_outcomes",
+      "--",
+      "--nocapture",
+    ],
+  );
+}
+
+function runCloseOpenFunctionKindMutation(): ReturnType<typeof spawnSync> {
+  return runSourceMutation(
+    grammarPath,
+    (source) =>
+      replaceExactly(
+        source,
+        `let Some(profile) = cached_standard_property_closed_world_token_profile(property, registry)
+    else {
+        return false;
+    };`,
+        `let Some(mut profile) = cached_standard_property_closed_world_token_profile(property, registry)
+    else {
+        return false;
+    };
+    profile.function_name.open = false;`,
+      ),
+    [
+      "test",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "omena-abstract-value",
+      "forty_valid_declaration_corpus_has_no_definite_rejection",
+      "--",
+      "--nocapture",
+    ],
+  );
+}
+
+function runLinearComponentRescanMutation(): ReturnType<typeof spawnSync> {
+  return runSourceMutation(
+    customPropertyPath,
+    (source) =>
+      replaceExactly(
+        source,
+        "for component_index in component_schedule {",
+        `for component_index in component_schedule {
+        let _remaining_var_count = std::hint::black_box(
+            env.values()
+                .filter(|value| cascade_value_contains_var_reference(value))
+                .count(),
+        );`,
+      ),
+    [
+      "test",
+      "--release",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "omena-cascade",
+      "variable_environment_resolution_and_summary_stay_within_a_two_x_growth_ceiling",
+      "--",
+      "--ignored",
       "--nocapture",
     ],
   );

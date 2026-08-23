@@ -46,6 +46,7 @@ use omena_zk_audit::{
 #[cfg(unix)]
 use std::os::unix::fs as unix_fs;
 use std::{
+    collections::BTreeMap,
     fs,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
@@ -3287,6 +3288,80 @@ fn style_diagnostics_command_reads_query_owned_diagnostics() -> Result<(), Strin
     assert!(result.is_ok(), "{result:?}");
 
     cleanup(&source_path);
+    Ok(())
+}
+
+#[test]
+#[ignore = "explicit tracked-style default CLI diagnostics census receipt"]
+fn tracked_style_diagnostics_default_cli_preserves_the_pinned_rule_census() -> Result<(), String> {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../..")
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+    let tracked = std::process::Command::new("git")
+        .args(["ls-files", "--", "*.css", "*.scss", "*.less"])
+        .current_dir(&repo_root)
+        .output()
+        .map_err(|error| error.to_string())?;
+    if !tracked.status.success() {
+        return Err(format!(
+            "cannot enumerate tracked styles: {}",
+            String::from_utf8_lossy(&tracked.stderr)
+        ));
+    }
+
+    let mut analyzed_file_count = 0usize;
+    let mut counts = BTreeMap::<String, usize>::new();
+    for relative_path in String::from_utf8(tracked.stdout)
+        .map_err(|error| error.to_string())?
+        .lines()
+    {
+        if relative_path.split('/').any(|component| {
+            matches!(
+                component,
+                "node_modules" | "target" | "dist" | "build" | "coverage" | ".next" | ".turbo"
+            )
+        }) {
+            continue;
+        }
+        let summary = style_diagnostics_summary(
+            repo_root.join(relative_path),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            CliExternalSifSelectionV0::none(),
+            None,
+            false,
+        )?;
+        analyzed_file_count += 1;
+        for diagnostic in summary.diagnostics {
+            *counts.entry(diagnostic.code.to_string()).or_default() += 1;
+        }
+    }
+
+    println!(
+        "trackedStyleDiagnosticsDefaultCliFileCount={analyzed_file_count} ruleCounts={counts:?}"
+    );
+    assert_eq!(analyzed_file_count, 199);
+    assert_eq!(
+        counts,
+        BTreeMap::from([
+            ("deprecatedSassImport".to_string(), 1),
+            ("invalidPropertyValue".to_string(), 13),
+            ("missing-module".to_string(), 7),
+            ("missingComposedModule".to_string(), 2),
+            ("missingComposedSelector".to_string(), 11),
+            ("missingCustomProperty".to_string(), 13),
+            ("missingImportedValue".to_string(), 8),
+            ("missingKeyframes".to_string(), 1),
+            ("missingSassSymbol".to_string(), 5),
+            ("missingValueModule".to_string(), 1),
+            ("sassModuleSymlinkResolution".to_string(), 4),
+            ("unreachableDeclaration".to_string(), 9),
+            ("unresolvedExternalReference".to_string(), 2),
+            ("unspecifiedCascadeTie".to_string(), 7),
+        ])
+    );
     Ok(())
 }
 

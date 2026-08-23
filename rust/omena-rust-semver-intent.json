@@ -1004,7 +1004,7 @@
     {
       "crate": "omena-abstract-value",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor prevents incomplete matcher coverage from becoming a definite rejection and expands the single pinned grammar authority for paint colors, core math functions, and grid track functions.",
+      "reason": "The next pre-1.0 minor derives closed-world token-kind contradictions from the pinned grammar registry while keeping genuinely open matcher gaps non-definite, and expands that authority for paint colors, core math functions, and grid track functions.",
       "expectedFailures": [
         {
           "lint": "enum_variant_added",
@@ -1016,12 +1016,13 @@
           "id": "standard-value-matcher-coverage-gate",
           "kind": "selection-outcome-changing",
           "surface": "CssValueValidationV0 class and reason",
-          "reason": "An in-boundary Unmatched verdict is Invalid only when the transitive pinned grammar has complete matcher coverage; incomplete coverage now yields NotValidatable with MatcherCoverageIncomplete.",
+          "reason": "An in-boundary Unmatched verdict is Invalid when the transitive matcher is complete or when the same pinned grammar derives a closed token kind that excludes an observed token; unmatched values without either certificate remain NotValidatable with MatcherCoverageIncomplete.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
               "needles": [
                 "standard_property_matcher_coverage_complete",
+                "standard_property_closed_world_token_kind_mismatch",
                 "CssValueValidationReasonV0::MatcherCoverageIncomplete",
                 "fn incomplete_matcher_coverage_cannot_promote_unmatched_to_invalid()"
               ]
@@ -1076,13 +1077,13 @@
           "id": "checker-value-matcher-coverage-gate",
           "kind": "selection-outcome-changing",
           "surface": "InvalidPropertyValue checker findings for standard-property values",
-          "reason": "An unmatched value now produces a definite checker finding only when the pinned matcher transitively certifies complete coverage; partial compound and numeric grammars remain indeterminate instead of emitting false errors.",
+          "reason": "An unmatched value produces a definite checker finding when the pinned matcher is complete or its transitive grammar proves that an observed token lies outside a closed token-kind set; genuinely open matcher gaps remain indeterminate.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-checker/src/lib.rs",
               "needles": [
-                "fn invalid_property_value_keeps_incomplete_compound_grammar_indeterminate()",
-                "fn invalid_property_value_keeps_incomplete_negative_compounds_indeterminate()",
+                "fn invalid_property_value_uses_a_closed_token_kind_certificate_for_compounds()",
+                "fn invalid_property_value_reports_closed_kind_negative_compounds()",
                 "fn invalid_property_value_fires_on_definite_keyword_violation()"
               ]
             }

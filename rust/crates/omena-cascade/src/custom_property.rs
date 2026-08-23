@@ -32,19 +32,19 @@ pub fn summarize_custom_property_least_fixed_point(
     let computation = compute_custom_property_env_least_fixed_point(env, TraceMode::Record);
     let entries = env
         .iter()
-        .map(|(name, input)| {
-            let resolved = computation
-                .resolved_env
-                .get(name)
-                .cloned()
-                .unwrap_or(CascadeValue::GuaranteedInvalid);
+        .zip(computation.resolved_env.iter())
+        .map(|((name, input), (resolved_name, resolved))| {
+            assert_eq!(
+                name, resolved_name,
+                "the resolved environment must preserve the canonical input key set"
+            );
             CustomPropertyLeastFixedPointEntryV0 {
                 name: name.as_str().to_string(),
                 input: input.clone(),
-                changed: &resolved != input,
-                guaranteed_invalid: resolved == CascadeValue::GuaranteedInvalid,
+                changed: resolved != input,
+                guaranteed_invalid: *resolved == CascadeValue::GuaranteedInvalid,
                 guaranteed_invalid_reason: computation.invalid_reasons.get(name).copied(),
-                resolved,
+                resolved: resolved.clone(),
             }
         })
         .collect::<Vec<_>>();

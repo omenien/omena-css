@@ -512,6 +512,7 @@ fn print_text_report(report: &LintReportV0) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{collections::BTreeMap, process::Command, time::SystemTime};
 
     #[test]
     fn config_profile_is_used_and_cli_profile_wins() -> Result<(), String> {
@@ -572,5 +573,83 @@ mod tests {
             Some("missing-static-class")
         );
         assert_eq!(checker_rule_id_for_diagnostic("notCheckerOwned"), None);
+    }
+
+    #[test]
+    #[ignore = "explicit full tracked-workspace lint census receipt"]
+    fn tracked_workspace_recommended_lint_preserves_the_pinned_rule_census() -> Result<(), String> {
+        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../..")
+            .canonicalize()
+            .map_err(|error| error.to_string())?;
+        let nonce = SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|error| error.to_string())?
+            .as_nanos();
+        let scratch = std::env::temp_dir().join(format!(
+            "omena-tracked-lint-census-{}-{nonce}",
+            std::process::id()
+        ));
+        let worktree = scratch.join("worktree");
+        fs::create_dir_all(&scratch).map_err(|error| error.to_string())?;
+        let added = Command::new("git")
+            .args(["worktree", "add", "--detach"])
+            .arg(&worktree)
+            .arg("HEAD")
+            .current_dir(&repo_root)
+            .output()
+            .map_err(|error| error.to_string())?;
+        if !added.status.success() {
+            return Err(format!(
+                "cannot create tracked lint worktree: {}",
+                String::from_utf8_lossy(&added.stderr)
+            ));
+        }
+
+        let measurement = lint_report(Some(worktree.clone()), Some(LintProfile::Recommended), None);
+        let removed = Command::new("git")
+            .args(["worktree", "remove", "--force"])
+            .arg(&worktree)
+            .current_dir(&repo_root)
+            .output()
+            .map_err(|error| error.to_string())?;
+        let _ = fs::remove_dir_all(&scratch);
+        if !removed.status.success() {
+            return Err(format!(
+                "cannot remove tracked lint worktree: {}",
+                String::from_utf8_lossy(&removed.stderr)
+            ));
+        }
+
+        let report = measurement?;
+        let mut counts = BTreeMap::<String, usize>::new();
+        for finding in report.tiers.iter().flat_map(|tier| &tier.findings) {
+            *counts.entry(finding.rule_id.clone()).or_default() += 1;
+        }
+        println!(
+            "trackedLintStyleFileCount={} trackedLintSourceFileCount={} trackedLintFindingCount={} ruleCounts={counts:?}",
+            report.style_file_count, report.source_file_count, report.finding_count
+        );
+        assert_eq!(report.style_file_count, 199);
+        assert_eq!(report.source_file_count, 1_019);
+        assert_eq!(report.finding_count, 37);
+        assert_eq!(
+            counts,
+            BTreeMap::from([
+                ("invalid-property-value".to_string(), 13),
+                ("missing-composed-module".to_string(), 2),
+                ("missing-composed-selector".to_string(), 3),
+                ("missing-imported-value".to_string(), 1),
+                ("missing-keyframes".to_string(), 1),
+                ("missing-module".to_string(), 5),
+                ("missing-resolved-class-domain".to_string(), 1),
+                ("missing-resolved-class-values".to_string(), 2),
+                ("missing-sass-symbol".to_string(), 3),
+                ("missing-static-class".to_string(), 4),
+                ("missing-template-prefix".to_string(), 1),
+                ("missing-value-module".to_string(), 1),
+            ])
+        );
+        Ok(())
     }
 }
