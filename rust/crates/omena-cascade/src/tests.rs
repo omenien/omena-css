@@ -3790,18 +3790,46 @@ fn variable_environment_resolution_and_summary_stay_within_a_two_x_growth_ceilin
             .collect()
     }
 
-    fn median_ns(mut operation: impl FnMut()) -> u128 {
-        for _ in 0..8 {
-            operation();
-        }
-        let mut samples = Vec::with_capacity(31);
-        for _ in 0..31 {
+    fn paired_medians(
+        mut small_operation: impl FnMut(),
+        mut large_operation: impl FnMut(),
+    ) -> (u128, u128, f64) {
+        fn measure_ns(mut operation: impl FnMut()) -> u128 {
             let started = Instant::now();
             operation();
-            samples.push(started.elapsed().as_nanos());
+            started.elapsed().as_nanos()
         }
-        samples.sort_unstable();
-        samples[samples.len() / 2]
+
+        for _ in 0..8 {
+            small_operation();
+            large_operation();
+        }
+        let mut small_samples = Vec::with_capacity(31);
+        let mut large_samples = Vec::with_capacity(31);
+        let mut paired_ratios = Vec::with_capacity(31);
+        for sample_index in 0..31 {
+            let (small_ns, large_ns) = if sample_index % 2 == 0 {
+                (
+                    measure_ns(&mut small_operation),
+                    measure_ns(&mut large_operation),
+                )
+            } else {
+                let large_ns = measure_ns(&mut large_operation);
+                let small_ns = measure_ns(&mut small_operation);
+                (small_ns, large_ns)
+            };
+            small_samples.push(small_ns);
+            large_samples.push(large_ns);
+            paired_ratios.push(large_ns as f64 / small_ns as f64);
+        }
+        small_samples.sort_unstable();
+        large_samples.sort_unstable();
+        paired_ratios.sort_by(f64::total_cmp);
+        (
+            small_samples[small_samples.len() / 2],
+            large_samples[large_samples.len() / 2],
+            paired_ratios[paired_ratios.len() / 2],
+        )
     }
 
     for (shape, build) in [
@@ -3816,33 +3844,31 @@ fn variable_environment_resolution_and_summary_stay_within_a_two_x_growth_ceilin
     ] {
         let small = build(2_200);
         let large = build(4_000);
-        for (path, small_ns, large_ns) in [
-            (
-                "request",
-                median_ns(|| {
-                    black_box(resolve_custom_property_env_least_fixed_point(&small));
-                }),
-                median_ns(|| {
-                    black_box(resolve_custom_property_env_least_fixed_point(&large));
-                }),
-            ),
-            (
-                "summary",
-                median_ns(|| {
-                    black_box(summarize_custom_property_least_fixed_point(&small));
-                }),
-                median_ns(|| {
-                    black_box(summarize_custom_property_least_fixed_point(&large));
-                }),
-            ),
-        ] {
-            let doubling_ratio = large_ns as f64 / small_ns as f64;
+        let request = paired_medians(
+            || {
+                black_box(resolve_custom_property_env_least_fixed_point(&small));
+            },
+            || {
+                black_box(resolve_custom_property_env_least_fixed_point(&large));
+            },
+        );
+        let summary = paired_medians(
+            || {
+                black_box(summarize_custom_property_least_fixed_point(&small));
+            },
+            || {
+                black_box(summarize_custom_property_least_fixed_point(&large));
+            },
+        );
+        for (path, (small_ns, large_ns, growth_ratio)) in
+            [("request", request), ("summary", summary)]
+        {
             println!(
-                "shape={shape} path={path} smallBindings=2200 smallMedianNs={small_ns} largeBindings=4000 largeMedianNs={large_ns} growthRatio={doubling_ratio:.3}"
+                "shape={shape} path={path} smallBindings=2200 smallMedianNs={small_ns} largeBindings=4000 largeMedianNs={large_ns} pairedGrowthRatio={growth_ratio:.3}"
             );
             assert!(
-                doubling_ratio <= 2.0,
-                "{shape} {path} doubling ratio {doubling_ratio:.3} exceeded the 2x ceiling"
+                growth_ratio <= 2.0,
+                "{shape} {path} paired growth ratio {growth_ratio:.3} exceeded the 2x ceiling"
             );
         }
     }
