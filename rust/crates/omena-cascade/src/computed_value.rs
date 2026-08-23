@@ -19,7 +19,7 @@ use crate::{
 pub trait CascadeStandardValueValidatorV0 {
     fn validate_standard_property_value(
         &self,
-        property: &str,
+        property: &PropertyNameV0,
         value: &str,
     ) -> CascadeStandardValueVerdictV0;
 }
@@ -207,7 +207,7 @@ fn compute_cascade_computed_value_inner(
         let post_substitution_verdict = standard_value_validator
             .and_then(|validator| {
                 render_substituted_standard_value(&substituted_value).map(|value| {
-                    validator.validate_standard_property_value(&property, value.as_str())
+                    validator.validate_standard_property_value(&property_identity, value.as_str())
                 })
             })
             .unwrap_or(CascadeStandardValueVerdictV0::Unknown);

@@ -16,10 +16,10 @@ struct FixtureStandardValueValidator;
 impl CascadeStandardValueValidatorV0 for FixtureStandardValueValidator {
     fn validate_standard_property_value(
         &self,
-        property: &str,
+        property: &PropertyNameV0,
         value: &str,
     ) -> CascadeStandardValueVerdictV0 {
-        match (property, value) {
+        match (property.canonical_name(), value) {
             ("color", "red") => CascadeStandardValueVerdictV0::Matched,
             ("color", _) => CascadeStandardValueVerdictV0::Unmatched,
             _ => CascadeStandardValueVerdictV0::Unknown,

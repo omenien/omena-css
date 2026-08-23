@@ -170,7 +170,10 @@ assert.ok(
   read(grammarPath).includes(
     "impl CascadeStandardValueValidatorV0 for SpecStandardPropertyValueValidatorV0",
   ) &&
-    read(grammarPath).includes("validate_standard_property_value_v0(property, value).class") &&
+    read(grammarPath).includes(
+      "validate_standard_property_value_v0(property.canonical_name(), value).class",
+    ) &&
+    computedValue.includes("property: &PropertyNameV0") &&
     read(queryCorePath).includes("SpecStandardPropertyValueValidatorV0") &&
     read(salsaPath).includes("source_element_static_custom_property_env") &&
     read(salsaPath).includes("CascadeStandardValueVerdictV0::Unknown"),
@@ -445,7 +448,7 @@ function runAlwaysValidValidatorMutation(): ReturnType<typeof spawnSync> {
       const replacement = `impl CascadeStandardValueValidatorV0 for SpecStandardPropertyValueValidatorV0 {
     fn validate_standard_property_value(
         &self,
-        _property: &str,
+        _property: &PropertyNameV0,
         _value: &str,
     ) -> CascadeStandardValueVerdictV0 {
         CascadeStandardValueVerdictV0::Matched

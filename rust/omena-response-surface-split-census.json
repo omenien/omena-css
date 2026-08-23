@@ -45,10 +45,10 @@
     "OmenaWorkspaceSnapshotIdV0"
   ],
   "internalTypeCountByCrate": {
-    "omena-abstract-value": 168,
+    "omena-abstract-value": 169,
     "omena-bridge": 121,
     "omena-bundler": 62,
-    "omena-cascade": 188,
+    "omena-cascade": 190,
     "omena-cascade-proof": 60,
     "omena-checker": 69,
     "omena-cross-file-summary": 27,
@@ -265,7 +265,7 @@
       "crate": "omena-abstract-value",
       "typeName": "CachedVdsExpression",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 856
+      "line": 884
     },
     {
       "crate": "omena-abstract-value",
@@ -475,79 +475,79 @@
       "crate": "omena-abstract-value",
       "typeName": "CssValueGrammarBudgetKindV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 43
+      "line": 44
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueGrammarBudgetV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 25
+      "line": 26
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueGrammarCategoryAuditV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 203
+      "line": 212
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueGrammarDefectV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 213
+      "line": 222
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueGrammarLocusV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 51
+      "line": 52
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueGrammarRegistryAuditV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 192
+      "line": 201
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueGrammarTypedMatchV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 222
+      "line": 231
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueGrammarVerdictV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 62
+      "line": 63
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueTypedProjectionV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 229
+      "line": 238
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueValidationClassV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 88
+      "line": 89
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueValidationConsumerPolicyV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 117
+      "line": 118
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueValidationReasonV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 96
+      "line": 97
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueValidationV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 109
+      "line": 110
     },
     {
       "crate": "omena-abstract-value",
@@ -721,13 +721,13 @@
       "crate": "omena-abstract-value",
       "typeName": "MatchContext",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 1427
+      "line": 1455
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "MatchStop",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 1414
+      "line": 1442
     },
     {
       "crate": "omena-abstract-value",
@@ -739,7 +739,7 @@
       "crate": "omena-abstract-value",
       "typeName": "NumericRange",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 844
+      "line": 872
     },
     {
       "crate": "omena-abstract-value",
@@ -919,7 +919,7 @@
       "crate": "omena-abstract-value",
       "typeName": "ReferenceCategory",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 837
+      "line": 865
     },
     {
       "crate": "omena-abstract-value",
@@ -967,7 +967,7 @@
       "crate": "omena-abstract-value",
       "typeName": "RepeatMatchPlan",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 1438
+      "line": 1466
     },
     {
       "crate": "omena-abstract-value",
@@ -992,6 +992,12 @@
       "typeName": "SelectorProjectionCertaintyV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/types.rs",
       "line": 1278
+    },
+    {
+      "crate": "omena-abstract-value",
+      "typeName": "SpecStandardPropertyValueValidatorV0",
+      "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+      "line": 420
     },
     {
       "crate": "omena-abstract-value",
@@ -1051,37 +1057,37 @@
       "crate": "omena-abstract-value",
       "typeName": "VdsExpression",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 809
+      "line": 837
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "VdsParseError",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 850
+      "line": 878
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "VdsParser",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 905
+      "line": 933
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "VdsReference",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 830
+      "line": 858
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "VdsToken",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 879
+      "line": 907
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "VdsTokenKind",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 885
+      "line": 913
     },
     {
       "crate": "omena-abstract-value",
@@ -3011,6 +3017,12 @@
     },
     {
       "crate": "omena-cascade",
+      "typeName": "CustomPropertyDependencyGraph",
+      "sourcePath": "rust/crates/omena-cascade/src/custom_property.rs",
+      "line": 153
+    },
+    {
+      "crate": "omena-cascade",
       "typeName": "CustomPropertyEnv",
       "sourcePath": "rust/crates/omena-cascade/src/model.rs",
       "line": 1042
@@ -3025,7 +3037,7 @@
       "crate": "omena-cascade",
       "typeName": "CustomPropertyLeastFixedPointComputation",
       "sourcePath": "rust/crates/omena-cascade/src/custom_property.rs",
-      "line": 81
+      "line": 82
     },
     {
       "crate": "omena-cascade",
@@ -3164,6 +3176,12 @@
       "typeName": "FirstWitnessTerminalBehaviorV0",
       "sourcePath": "rust/crates/omena-cascade/src/first_witness.rs",
       "line": 796
+    },
+    {
+      "crate": "omena-cascade",
+      "typeName": "FixtureStandardValueValidator",
+      "sourcePath": "rust/crates/omena-cascade/src/tests.rs",
+      "line": 14
     },
     {
       "crate": "omena-cascade",
@@ -6991,61 +7009,61 @@
       "crate": "omena-query-core",
       "typeName": "ExpressionDomainSelectorCertaintyFlowHedgeV0",
       "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
-      "line": 238
+      "line": 239
     },
     {
       "crate": "omena-query-core",
       "typeName": "OmenaQueryAnalysisPrecisionV0",
       "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
-      "line": 116
+      "line": 117
     },
     {
       "crate": "omena-query-core",
       "typeName": "OmenaQueryAnalysisResultV0",
       "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
-      "line": 146
+      "line": 147
     },
     {
       "crate": "omena-query-core",
       "typeName": "OmenaQueryExpressionDomainFlowRuntimeV0",
       "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
-      "line": 244
+      "line": 245
     },
     {
       "crate": "omena-query-core",
       "typeName": "OmenaQueryExpressionDomainIncrementalFlowAnalysisEntryV0",
       "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
-      "line": 199
+      "line": 200
     },
     {
       "crate": "omena-query-core",
       "typeName": "OmenaQueryExpressionDomainIncrementalFlowAnalysisV0",
       "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
-      "line": 186
+      "line": 187
     },
     {
       "crate": "omena-query-core",
       "typeName": "OmenaQueryExpressionDomainSelectorPrecisionV0",
       "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
-      "line": 231
+      "line": 232
     },
     {
       "crate": "omena-query-core",
       "typeName": "OmenaQueryExpressionDomainSelectorProjectionEntryV0",
       "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
-      "line": 217
+      "line": 218
     },
     {
       "crate": "omena-query-core",
       "typeName": "OmenaQueryExpressionDomainSelectorProjectionV0",
       "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
-      "line": 207
+      "line": 208
     },
     {
       "crate": "omena-query-core",
       "typeName": "OmenaQueryFragmentBundleV0",
       "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
-      "line": 175
+      "line": 176
     },
     {
       "crate": "omena-query-transform-runner",
@@ -7225,7 +7243,7 @@
       "crate": "omena-query",
       "typeName": "CustomPropertyReferenceFactView",
       "sourcePath": "rust/crates/omena-query/src/style/cascade_position.rs",
-      "line": 511
+      "line": 529
     },
     {
       "crate": "omena-query",
@@ -8971,7 +8989,7 @@
       "crate": "omena-query",
       "typeName": "ReferencedDeclarationComputedValueSeed",
       "sourcePath": "rust/crates/omena-query/src/style/cascade_position.rs",
-      "line": 263
+      "line": 265
     },
     {
       "crate": "omena-query",
@@ -9109,7 +9127,7 @@
       "crate": "omena-query",
       "typeName": "StyleDeclarationAtOffset",
       "sourcePath": "rust/crates/omena-query/src/style/cascade_position.rs",
-      "line": 275
+      "line": 277
     },
     {
       "crate": "omena-query",

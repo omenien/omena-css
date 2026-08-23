@@ -422,10 +422,10 @@ pub struct SpecStandardPropertyValueValidatorV0;
 impl CascadeStandardValueValidatorV0 for SpecStandardPropertyValueValidatorV0 {
     fn validate_standard_property_value(
         &self,
-        property: &str,
+        property: &PropertyNameV0,
         value: &str,
     ) -> CascadeStandardValueVerdictV0 {
-        match validate_standard_property_value_v0(property, value).class {
+        match validate_standard_property_value_v0(property.canonical_name(), value).class {
             CssValueValidationClassV0::Valid => CascadeStandardValueVerdictV0::Matched,
             CssValueValidationClassV0::Invalid => CascadeStandardValueVerdictV0::Unmatched,
             CssValueValidationClassV0::NotValidatable => CascadeStandardValueVerdictV0::Unknown,
@@ -2048,6 +2048,7 @@ mod tests {
 
     use omena_cascade::{CascadeStandardValueValidatorV0, CascadeStandardValueVerdictV0};
     use omena_spec_audit::spec_grammar_registry;
+    use omena_syntax::ident::PropertyNameV0;
     use omena_value_lattice::ValueNodeV0;
 
     use super::{
@@ -2679,15 +2680,18 @@ mod tests {
         let validator = SpecStandardPropertyValueValidatorV0;
 
         assert_eq!(
-            validator.validate_standard_property_value("color", "red"),
+            validator.validate_standard_property_value(&PropertyNameV0::standard("color"), "red"),
             CascadeStandardValueVerdictV0::Matched
         );
         assert_eq!(
-            validator.validate_standard_property_value("color", "12px"),
+            validator.validate_standard_property_value(&PropertyNameV0::standard("color"), "12px"),
             CascadeStandardValueVerdictV0::Unmatched
         );
         assert_eq!(
-            validator.validate_standard_property_value("color", "var(--tone)"),
+            validator.validate_standard_property_value(
+                &PropertyNameV0::standard("color"),
+                "var(--tone)",
+            ),
             CascadeStandardValueVerdictV0::Unknown
         );
     }
