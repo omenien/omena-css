@@ -3,11 +3,11 @@
   "product": "omena-diff-test.real-workspace-lint-census",
   "generatedBy": "scripts/oss-corpus-farm.ts",
   "coverageDigest": "3b5f821de0f1dadebbf463d3aba45c6b4a1e42da1c339f61985d1ce5441b2db4",
-  "policyDigest": "6dc9697910387a02ee4b66914502fa938539b18976320a07c56c91af1cdb7c2a",
+  "policyDigest": "8daf8caada79f5300e92adf40f38a4455ef02c4aee91139d604ef0db87e70d2e",
   "entryCount": 3,
-  "totalFindingCount": 13,
-  "truePositiveCount": 6,
-  "knownFalsePositiveCount": 7,
+  "totalFindingCount": 5,
+  "truePositiveCount": 5,
+  "knownFalsePositiveCount": 0,
   "unclassifiedCount": 0,
   "zeroBudgetViolationCount": 0,
   "entries": [
@@ -16,34 +16,29 @@
       "corpusDigest": "c061f53f8ba66dfd9e78e6b5e302f37a49ef2ffbcd9a584f7ce674167ab1cda2",
       "styleFileCount": 27,
       "sourceFileCount": 30,
-      "findingCount": 10,
+      "findingCount": 3,
       "truePositiveCount": 3,
-      "knownFalsePositiveCount": 7,
+      "knownFalsePositiveCount": 0,
       "unclassifiedCount": 0,
       "zeroBudgetViolationCount": 0,
       "findingCountsByRule": {
-        "invalid-property-value": 7,
         "missing-composed-module": 1,
         "missing-composed-selector": 1,
         "missing-static-class": 1
       },
-      "knownFalsePositiveCountsByClass": {
-        "invalid-property-value/icss-value-references-not-expanded": 5,
-        "invalid-property-value/less-function-values-not-expanded": 2
-      }
+      "knownFalsePositiveCountsByClass": {}
     },
     {
       "id": "local-real-workspace-lint-census",
       "corpusDigest": "6973809e5e66c54047cd5ba0359879067d4f2bbb7e69126b6f60c1471f13e961",
       "styleFileCount": 3,
       "sourceFileCount": 2,
-      "findingCount": 2,
-      "truePositiveCount": 2,
+      "findingCount": 1,
+      "truePositiveCount": 1,
       "knownFalsePositiveCount": 0,
       "unclassifiedCount": 0,
       "zeroBudgetViolationCount": 0,
       "findingCountsByRule": {
-        "invalid-property-value": 1,
         "missing-module": 1
       },
       "knownFalsePositiveCountsByClass": {}

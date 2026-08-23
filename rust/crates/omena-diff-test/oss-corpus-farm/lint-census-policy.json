@@ -34,91 +34,11 @@
           "messageSha256": "210cb372f9166d73b1b156f0f0bb76dc3c322265c249af25c29f7de61f0dc9b7"
         }
       ],
-      "knownFalsePositivePins": [
-        {
-          "ruleId": "invalid-property-value",
-          "causeClass": "icss-value-references-not-expanded",
-          "filePath": "plugin-consumers/src/App.module.scss",
-          "range": {
-            "start": { "line": 13, "character": 2 },
-            "end": { "line": 13, "character": 14 }
-          },
-          "messageSha256": "506229c3b2dcae73c2eb24722dcdeb2827f61c3a4e66ff9f2a864bcae101e068"
-        },
-        {
-          "ruleId": "invalid-property-value",
-          "causeClass": "less-function-values-not-expanded",
-          "filePath": "src/scenarios/18-less-module/LessModule.module.less",
-          "range": {
-            "start": { "line": 7, "character": 2 },
-            "end": { "line": 7, "character": 38 }
-          },
-          "messageSha256": "506229c3b2dcae73c2eb24722dcdeb2827f61c3a4e66ff9f2a864bcae101e068"
-        },
-        {
-          "ruleId": "invalid-property-value",
-          "causeClass": "less-function-values-not-expanded",
-          "filePath": "src/scenarios/18-less-module/LessModule.module.less",
-          "range": {
-            "start": { "line": 12, "character": 4 },
-            "end": { "line": 12, "character": 50 }
-          },
-          "messageSha256": "506229c3b2dcae73c2eb24722dcdeb2827f61c3a4e66ff9f2a864bcae101e068"
-        },
-        {
-          "ruleId": "invalid-property-value",
-          "causeClass": "icss-value-references-not-expanded",
-          "filePath": "src/scenarios/20-value/Value.module.scss",
-          "range": {
-            "start": { "line": 16, "character": 2 },
-            "end": { "line": 16, "character": 34 }
-          },
-          "messageSha256": "506229c3b2dcae73c2eb24722dcdeb2827f61c3a4e66ff9f2a864bcae101e068"
-        },
-        {
-          "ruleId": "invalid-property-value",
-          "causeClass": "icss-value-references-not-expanded",
-          "filePath": "src/scenarios/20-value/Value.module.scss",
-          "range": {
-            "start": { "line": 19, "character": 2 },
-            "end": { "line": 19, "character": 23 }
-          },
-          "messageSha256": "506229c3b2dcae73c2eb24722dcdeb2827f61c3a4e66ff9f2a864bcae101e068"
-        },
-        {
-          "ruleId": "invalid-property-value",
-          "causeClass": "icss-value-references-not-expanded",
-          "filePath": "src/scenarios/20-value/Value.module.scss",
-          "range": {
-            "start": { "line": 28, "character": 2 },
-            "end": { "line": 28, "character": 36 }
-          },
-          "messageSha256": "506229c3b2dcae73c2eb24722dcdeb2827f61c3a4e66ff9f2a864bcae101e068"
-        },
-        {
-          "ruleId": "invalid-property-value",
-          "causeClass": "icss-value-references-not-expanded",
-          "filePath": "src/scenarios/20-value/Value.module.scss",
-          "range": {
-            "start": { "line": 37, "character": 2 },
-            "end": { "line": 37, "character": 23 }
-          },
-          "messageSha256": "506229c3b2dcae73c2eb24722dcdeb2827f61c3a4e66ff9f2a864bcae101e068"
-        }
-      ]
+      "knownFalsePositivePins": []
     },
     {
       "id": "local-real-workspace-lint-census",
       "truePositivePins": [
-        {
-          "ruleId": "invalid-property-value",
-          "filePath": "src/styles/Card.module.scss",
-          "range": {
-            "start": { "line": 11, "character": 2 },
-            "end": { "line": 11, "character": 31 }
-          },
-          "messageSha256": "506229c3b2dcae73c2eb24722dcdeb2827f61c3a4e66ff9f2a864bcae101e068"
-        },
         {
           "ruleId": "missing-module",
           "filePath": "src/BrokenImport.tsx",
@@ -147,24 +67,7 @@
       "knownFalsePositivePins": []
     }
   ],
-  "knownFalsePositiveClasses": [
-    {
-      "ruleId": "invalid-property-value",
-      "causeClass": "less-function-values-not-expanded",
-      "baselineCount": 2,
-      "firstSeen": "2026-07-22",
-      "owner": "follow-up:less-function-evaluation",
-      "adjudicationNote": "The lint surface validates raw Less fade() expressions before Less function evaluation. Keep the findings visible and decrease-only until that evaluator reaches the product path."
-    },
-    {
-      "ruleId": "invalid-property-value",
-      "causeClass": "icss-value-references-not-expanded",
-      "baselineCount": 5,
-      "firstSeen": "2026-07-22",
-      "owner": "follow-up:icss-value-reference-evaluation",
-      "adjudicationNote": "The lint surface validates ICSS @value references before substituting their declarations. The exact findings remain reviewed data until the value-resolution path is integrated."
-    }
-  ],
+  "knownFalsePositiveClasses": [],
   "zeroBudgetClasses": [
     {
       "ruleId": "invalid-property-value",
