@@ -617,7 +617,7 @@ if (args.has("--inject-reordered-evaluator")) {
       trackedStyleDiagnosticCounts,
       trackedStyleDiagnosticsCliFileCount,
       trackedStyleDiagnosticsCliCounts,
-      diagnosticThreePinCensus: "GREEN",
+      diagnosticFourPinCensus: "GREEN",
       iterativeAliasBoundary: "100000:GREEN",
       variableEnvironmentPerformanceCeiling: "three-size-log-log-growth-exponent<=1.10:GREEN",
       componentScheduleTraceInvariant: "GREEN",
