@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import {
@@ -11,6 +11,7 @@ import {
 } from "./coverage-gap-report";
 
 const root = process.cwd();
+const write = process.argv.includes("--write");
 const fixturePath = "crates/omena-abstract-value/tests/fixtures/value-grammar-seeds.json";
 const checkerSource = readFileSync(
   path.join(root, "rust/crates/omena-checker/src/lib.rs"),
@@ -70,11 +71,15 @@ const generated = execFileSync(
   },
 );
 const committed = readFileSync(path.join(root, VALUE_GRAMMAR_EVIDENCE_PATH), "utf8");
-assert.equal(
-  generated,
-  committed,
-  `${VALUE_GRAMMAR_EVIDENCE_PATH} is stale; regenerate it through the Rust matcher`,
-);
+if (write) {
+  writeFileSync(path.join(root, VALUE_GRAMMAR_EVIDENCE_PATH), generated);
+} else {
+  assert.equal(
+    generated,
+    committed,
+    `${VALUE_GRAMMAR_EVIDENCE_PATH} is stale; regenerate it through the Rust matcher`,
+  );
+}
 
 const evidence = JSON.parse(generated) as ValueGrammarEvidenceReport;
 assert.equal(evidence.caseCount, 7);
