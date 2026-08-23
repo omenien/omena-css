@@ -1079,7 +1079,7 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 314,
+        "line": 319,
         "function": "match_standard_property_value_v0",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "let property = PropertyNameV0::from_authored(property);",
@@ -1087,7 +1087,7 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 431,
+        "line": 436,
         "function": "validate_standard_property_value_v0",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "let property = PropertyNameV0::from_authored(property);",
@@ -1095,7 +1095,7 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 1846,
+        "line": 2086,
         "function": "parse_reference",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "name: PropertyNameV0::from_authored(property)",
@@ -6486,7 +6486,7 @@
         "role": "producer"
       }
     ],
-    "siteDigest": "sha256:d54b6afb00151d333bd74338afa951f2cd6a8cf576fa64a756de2386fb73d8dc",
+    "siteDigest": "sha256:050193420d9eb00456098f0ebcaada1f454b2a25a372032ea7c8d0ad18688a54",
     "residualRawCarrierDirection": "decrease-only",
     "residualRawCarrierSiteCount": 197,
     "residualRawCarrierSites": [
@@ -6627,7 +6627,7 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 313,
+        "line": 318,
         "function": "match_standard_property_value_v0",
         "operation": "residual-property-parameter:match_standard_property_value_v0.property:&str",
         "evidence": "pub fn match_standard_property_value_v0(property: &str, value: &str) -> CssValueGrammarVerdictV0 {",
@@ -6636,7 +6636,7 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 430,
+        "line": 435,
         "function": "validate_standard_property_value_v0",
         "operation": "residual-property-parameter:validate_standard_property_value_v0.property:&str",
         "evidence": "pub fn validate_standard_property_value_v0(property: &str, value: &str) -> CssValueValidationV0 {",
@@ -6645,7 +6645,7 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 662,
+        "line": 669,
         "function": "match_and_type_standard_property_value_v0",
         "operation": "residual-property-parameter:match_and_type_standard_property_value_v0.property:&str",
         "evidence": "property: &str,",
@@ -8264,7 +8264,7 @@
         "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
       }
     ],
-    "residualRawCarrierSiteDigest": "sha256:ecf66ffcdda1d61f17d7fa51210d51926aad1d7d9eaf81e16f5a92d84e46a604",
+    "residualRawCarrierSiteDigest": "sha256:0bfdd81ac2fc5ae7de7bd7af0bddecaa67664be899dfa29e025a718a3e391e1e",
     "residualCarrierConsumerDerivation": "resolved-type-access-and-parameter-use-scan",
     "residualCarrierConsumerRows": [
       {
@@ -8580,7 +8580,7 @@
       {
         "carrier": {
           "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-          "line": 313,
+          "line": 318,
           "function": "match_standard_property_value_v0",
           "operation": "residual-property-parameter:match_standard_property_value_v0.property:&str",
           "evidence": "pub fn match_standard_property_value_v0(property: &str, value: &str) -> CssValueGrammarVerdictV0 {",
@@ -8590,7 +8590,7 @@
         "consumers": [
           {
             "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-            "line": 314,
+            "line": 319,
             "function": "match_standard_property_value_v0",
             "operation": "residual-property-consumer:presentation",
             "evidence": "let property = PropertyNameV0::from_authored(property);",
@@ -8601,7 +8601,7 @@
       {
         "carrier": {
           "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-          "line": 430,
+          "line": 435,
           "function": "validate_standard_property_value_v0",
           "operation": "residual-property-parameter:validate_standard_property_value_v0.property:&str",
           "evidence": "pub fn validate_standard_property_value_v0(property: &str, value: &str) -> CssValueValidationV0 {",
@@ -8611,7 +8611,7 @@
         "consumers": [
           {
             "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-            "line": 431,
+            "line": 436,
             "function": "validate_standard_property_value_v0",
             "operation": "residual-property-consumer:presentation",
             "evidence": "let property = PropertyNameV0::from_authored(property);",
@@ -8622,7 +8622,7 @@
       {
         "carrier": {
           "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-          "line": 662,
+          "line": 669,
           "function": "match_and_type_standard_property_value_v0",
           "operation": "residual-property-parameter:match_and_type_standard_property_value_v0.property:&str",
           "evidence": "property: &str,",
@@ -8632,7 +8632,7 @@
         "consumers": [
           {
             "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-            "line": 665,
+            "line": 672,
             "function": "match_and_type_standard_property_value_v0",
             "operation": "residual-property-consumer:presentation",
             "evidence": "typed_match_result(match_standard_property_value_v0(property, value), value)",
@@ -12601,7 +12601,7 @@
     ],
     "residualCarrierConsumerSiteCount": 229,
     "residualIdentityShapedConsumerCount": 0,
-    "residualCarrierConsumerDigest": "sha256:6f8dd994febbc54a40a9c0478210eae2035f315ca648bd457271145cc0a261f4",
+    "residualCarrierConsumerDigest": "sha256:e0f8518f32f0446c5c8a60b98c54a9fb59d2de01fde209758c17ee7c6d8896ca",
     "rawStringIdentitySiteCount": 0,
     "rawStringIdentitySites": [],
     "rawStringIdentitySiteDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"

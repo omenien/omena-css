@@ -83,19 +83,19 @@
   "exit": {
     "sourceRef": null,
     "domain": {
-      "trackedFileCount": 2603,
-      "textualFileCount": 2603,
+      "trackedFileCount": 2605,
+      "textualFileCount": 2605,
       "nulExcludedCount": 0,
       "bootstrapUntrackedFileCount": 0,
       "deletedTrackedFileCount": 0,
-      "fileListSha256": "0800b39923ca91b1d29d8e2bf71d0a3241e6d07c8f092f762d9f428c5d178bd3"
+      "fileListSha256": "c2e6a08300a1af1ee61d57db0aac68141355c59a1259d1811a480a14448fe0c7"
     },
-    "occurrenceCount": 1695,
+    "occurrenceCount": 1697,
     "dispositionCounts": {
-      "claim": 6,
+      "claim": 7,
       "compat": 919,
       "identityEscalation": 464,
-      "governanceData": 306
+      "governanceData": 307
     },
     "families": [
       {
@@ -114,7 +114,7 @@
         "compatCount": 48,
         "identityEscalationCount": 0,
         "governanceDataCount": 21,
-        "siteSetSha256": "2cc1f775be6e29cb06b03cdd1c784a0e30c4990dbd7a5e03107d42c964f4c97e"
+        "siteSetSha256": "a05ccf03dcc71984e3d59315d3bf8ba785b3137b4a39cb01557e86a4bd76b618"
       },
       {
         "familyId": "f03",
@@ -123,7 +123,7 @@
         "compatCount": 247,
         "identityEscalationCount": 179,
         "governanceDataCount": 79,
-        "siteSetSha256": "c814abbe0b33aaf79bdb6f2ffdd186fe8f46b75090ffe5fd52db8d75460119cd"
+        "siteSetSha256": "f5d594df5621b71d352be03573f83dd0b54d262b5583c0c8364362edad6d6a94"
       },
       {
         "familyId": "f04",
@@ -132,7 +132,7 @@
         "compatCount": 264,
         "identityEscalationCount": 182,
         "governanceDataCount": 97,
-        "siteSetSha256": "b06229a78e24d99e7621cf73acad7a188a682268328d750dc3733e546762523d"
+        "siteSetSha256": "d5765884a6ba365ce1393faf26a74da6beef067aaa594364281724b5ba186e44"
       },
       {
         "familyId": "f05",
@@ -141,20 +141,20 @@
         "compatCount": 188,
         "identityEscalationCount": 0,
         "governanceDataCount": 50,
-        "siteSetSha256": "0c281bd13a48948e2eda33807a403388259a74fb5e97f7761fa5d3c4511744a3"
+        "siteSetSha256": "9c8f45d9d9ca858b7e0a78e567a2e0fc22fff8d44e974c72dceb2ce7a875f013"
       },
       {
         "familyId": "f06",
-        "occurrenceCount": 336,
-        "claimCount": 6,
+        "occurrenceCount": 338,
+        "claimCount": 7,
         "compatCount": 170,
         "identityEscalationCount": 103,
-        "governanceDataCount": 57,
-        "siteSetSha256": "91dc0e7a8af1962167bbf7b8b814a249d1288eb357ab7069490873d74b83daf4"
+        "governanceDataCount": 58,
+        "siteSetSha256": "21cd2dd1c9424ed3243bf83b1faa31246baefeafcd729585da121a9b15233c61"
       }
     ],
-    "siteSetSha256": "2c8a40e481d0fa2cdfc93d844a8c1df6ecadb7cbaa45aac98de5997c175632fe",
-    "claimSiteSetSha256": "50dcdcb538eeb5ee823a1b2375a10190eb77c97a53c1be0fbea09e1e882dbbdd",
+    "siteSetSha256": "4959147838e10d2a2c9ccce224f62a40cb1bfe583048bfe2ddcefbceb323e99c",
+    "claimSiteSetSha256": "b188487e28971ebfdc08d59fa5e3385edfd58303ec3b5be469681fd969fd54a9",
     "compatDeclarationSetSha256": "83276fa27e53d092ba713ed2c1ab5a81df822763a1d9ca5a4a15d09e30ca1dd0",
     "identityCrateSetSha256": "301477ffa6f128519a55a9aa55d336d35400f48ae4fd73cd66b4d2fcc60ae772",
     "governanceRuleSetSha256": "4a10b35bcc737fb53fbe9f7b71d598130b780f31aa3d0ab0beee345b9cdda74d"
