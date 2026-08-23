@@ -3752,9 +3752,8 @@ fn flat_environment_resolution_omits_dependency_graph_and_trace_work() {
 fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_budget() {
     use std::{hint::black_box, time::Instant};
 
-    const SMALL_BINDING_COUNT: usize = 2_200;
-    const LARGE_BINDING_COUNT: usize = 4_000;
-    const LINEAR_GROWTH_NOISE_BUDGET: f64 = 1.10;
+    const BINDING_COUNTS: [usize; 3] = [1_200, 2_200, 4_000];
+    const MAX_LINEAR_GROWTH_EXPONENT: f64 = 1.10;
 
     fn alias_environment(binding_count: usize) -> CustomPropertyEnv {
         (0..binding_count)
@@ -3794,10 +3793,11 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
             .collect()
     }
 
-    fn paired_medians(
+    fn three_size_median_slope(
         mut small_operation: impl FnMut(),
+        mut medium_operation: impl FnMut(),
         mut large_operation: impl FnMut(),
-    ) -> (u128, u128, f64) {
+    ) -> ([u128; 3], f64) {
         fn measure_ns(mut operation: impl FnMut()) -> u128 {
             let started = Instant::now();
             operation();
@@ -3806,33 +3806,76 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
 
         for _ in 0..8 {
             small_operation();
+            medium_operation();
             large_operation();
         }
-        let mut small_samples = Vec::with_capacity(31);
-        let mut large_samples = Vec::with_capacity(31);
-        let mut paired_ratios = Vec::with_capacity(31);
-        for sample_index in 0..31 {
-            let (small_ns, large_ns) = if sample_index % 2 == 0 {
-                (
+        let mut duration_samples = std::array::from_fn(|_| Vec::with_capacity(41));
+        let mut growth_exponents = Vec::with_capacity(41);
+        let input_logs = BINDING_COUNTS.map(|count| (count as f64).ln());
+        let input_log_mean = input_logs.iter().sum::<f64>() / input_logs.len() as f64;
+        let input_variance = input_logs
+            .iter()
+            .map(|value| (value - input_log_mean).powi(2))
+            .sum::<f64>();
+
+        for sample_index in 0..41 {
+            let durations = match sample_index % 6 {
+                0 => [
                     measure_ns(&mut small_operation),
+                    measure_ns(&mut medium_operation),
                     measure_ns(&mut large_operation),
-                )
-            } else {
-                let large_ns = measure_ns(&mut large_operation);
-                let small_ns = measure_ns(&mut small_operation);
-                (small_ns, large_ns)
+                ],
+                1 => {
+                    let large = measure_ns(&mut large_operation);
+                    let medium = measure_ns(&mut medium_operation);
+                    let small = measure_ns(&mut small_operation);
+                    [small, medium, large]
+                }
+                2 => {
+                    let medium = measure_ns(&mut medium_operation);
+                    let small = measure_ns(&mut small_operation);
+                    let large = measure_ns(&mut large_operation);
+                    [small, medium, large]
+                }
+                3 => {
+                    let medium = measure_ns(&mut medium_operation);
+                    let large = measure_ns(&mut large_operation);
+                    let small = measure_ns(&mut small_operation);
+                    [small, medium, large]
+                }
+                4 => {
+                    let small = measure_ns(&mut small_operation);
+                    let large = measure_ns(&mut large_operation);
+                    let medium = measure_ns(&mut medium_operation);
+                    [small, medium, large]
+                }
+                _ => {
+                    let large = measure_ns(&mut large_operation);
+                    let small = measure_ns(&mut small_operation);
+                    let medium = measure_ns(&mut medium_operation);
+                    [small, medium, large]
+                }
             };
-            small_samples.push(small_ns);
-            large_samples.push(large_ns);
-            paired_ratios.push(large_ns as f64 / small_ns as f64);
+            for (samples, duration) in duration_samples.iter_mut().zip(durations) {
+                samples.push(duration);
+            }
+            let duration_logs = durations.map(|duration| (duration as f64).ln());
+            let duration_log_mean = duration_logs.iter().sum::<f64>() / duration_logs.len() as f64;
+            let covariance = input_logs
+                .iter()
+                .zip(duration_logs)
+                .map(|(input, duration)| (input - input_log_mean) * (duration - duration_log_mean))
+                .sum::<f64>();
+            growth_exponents.push(covariance / input_variance);
         }
-        small_samples.sort_unstable();
-        large_samples.sort_unstable();
-        paired_ratios.sort_by(f64::total_cmp);
+        let median_durations = duration_samples.map(|mut samples| {
+            samples.sort_unstable();
+            samples[samples.len() / 2]
+        });
+        growth_exponents.sort_by(f64::total_cmp);
         (
-            small_samples[small_samples.len() / 2],
-            large_samples[large_samples.len() / 2],
-            paired_ratios[paired_ratios.len() / 2],
+            median_durations,
+            growth_exponents[growth_exponents.len() / 2],
         )
     }
 
@@ -3846,35 +3889,46 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
             three_edge_environment as fn(usize) -> CustomPropertyEnv,
         ),
     ] {
-        let small = build(SMALL_BINDING_COUNT);
-        let large = build(LARGE_BINDING_COUNT);
-        let request = paired_medians(
+        let small = build(BINDING_COUNTS[0]);
+        let medium = build(BINDING_COUNTS[1]);
+        let large = build(BINDING_COUNTS[2]);
+        let request = three_size_median_slope(
             || {
                 black_box(resolve_custom_property_env_least_fixed_point(&small));
+            },
+            || {
+                black_box(resolve_custom_property_env_least_fixed_point(&medium));
             },
             || {
                 black_box(resolve_custom_property_env_least_fixed_point(&large));
             },
         );
-        let summary = paired_medians(
+        let summary = three_size_median_slope(
             || {
                 black_box(summarize_custom_property_least_fixed_point(&small));
+            },
+            || {
+                black_box(summarize_custom_property_least_fixed_point(&medium));
             },
             || {
                 black_box(summarize_custom_property_least_fixed_point(&large));
             },
         );
-        for (path, (small_ns, large_ns, growth_ratio)) in
+        for (path, (median_durations, growth_exponent)) in
             [("request", request), ("summary", summary)]
         {
-            let input_growth_ratio = LARGE_BINDING_COUNT as f64 / SMALL_BINDING_COUNT as f64;
-            let normalized_linear_growth_ratio = growth_ratio / input_growth_ratio;
             println!(
-                "shape={shape} path={path} smallBindings={SMALL_BINDING_COUNT} smallMedianNs={small_ns} largeBindings={LARGE_BINDING_COUNT} largeMedianNs={large_ns} inputGrowthRatio={input_growth_ratio:.3} pairedGrowthRatio={growth_ratio:.3} normalizedLinearGrowthRatio={normalized_linear_growth_ratio:.3} noiseBudget={LINEAR_GROWTH_NOISE_BUDGET:.2}"
+                "shape={shape} path={path} smallBindings={} smallMedianNs={} mediumBindings={} mediumMedianNs={} largeBindings={} largeMedianNs={} medianLogLogGrowthExponent={growth_exponent:.3} maximumLinearGrowthExponent={MAX_LINEAR_GROWTH_EXPONENT:.2}",
+                BINDING_COUNTS[0],
+                median_durations[0],
+                BINDING_COUNTS[1],
+                median_durations[1],
+                BINDING_COUNTS[2],
+                median_durations[2],
             );
             assert!(
-                normalized_linear_growth_ratio <= LINEAR_GROWTH_NOISE_BUDGET,
-                "{shape} {path} normalized linear-growth ratio {normalized_linear_growth_ratio:.3} exceeded the {LINEAR_GROWTH_NOISE_BUDGET:.2} noise budget"
+                growth_exponent <= MAX_LINEAR_GROWTH_EXPONENT,
+                "{shape} {path} median log-log growth exponent {growth_exponent:.3} exceeded the {MAX_LINEAR_GROWTH_EXPONENT:.2} linear-growth ceiling"
             );
         }
     }

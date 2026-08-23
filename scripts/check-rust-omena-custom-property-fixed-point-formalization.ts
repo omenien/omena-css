@@ -570,7 +570,10 @@ if (args.has("--inject-reordered-evaluator")) {
       "outside the derived open/closed token profile",
     ),
     expectScriptMutationRed("--inject-paint-context-keyword-removal", "context-fill"),
-    expectScriptMutationRed("--inject-linear-component-rescan", "exceeded the 1.10 noise budget"),
+    expectScriptMutationRed(
+      "--inject-linear-component-rescan",
+      "exceeded the 1.10 linear-growth ceiling",
+    ),
   ];
 
   process.stdout.write(
@@ -594,7 +597,7 @@ if (args.has("--inject-reordered-evaluator")) {
       trackedStyleDiagnosticsCliCounts,
       diagnosticThreePinCensus: "GREEN",
       iterativeAliasBoundary: "100000:GREEN",
-      variableEnvironmentPerformanceCeiling: "normalized-linear-growth<=1.10:GREEN",
+      variableEnvironmentPerformanceCeiling: "three-size-log-log-growth-exponent<=1.10:GREEN",
       componentScheduleTraceInvariant: "GREEN",
       mutations: mutationReceipts,
       rfcDisposition: gapRegister.rfcDisposition.status,
