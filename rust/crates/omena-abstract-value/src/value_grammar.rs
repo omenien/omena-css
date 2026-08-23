@@ -1049,8 +1049,14 @@ struct ClosedWorldKeywordClosureCertificateV0 {
 
 #[derive(Debug, Deserialize)]
 struct ClosedWorldKeywordClosureOracleV0 {
-    name: String,
+    name: ClosedWorldKeywordClosureOracleNameV0,
     version: String,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+enum ClosedWorldKeywordClosureOracleNameV0 {
+    #[serde(rename = "css-tree")]
+    CssTree,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1147,7 +1153,7 @@ fn closed_world_keyword_closure_certified_properties() -> &'static BTreeSet<Stri
         if certificate.schema_version != "0"
             || certificate.product
                 != "omena-abstract-value.closed-world-keyword-closure-certificate"
-            || certificate.oracle.name != "css-tree"
+            || certificate.oracle.name != ClosedWorldKeywordClosureOracleNameV0::CssTree
             || certificate.oracle.version != "3.2.1"
             || certificate.property_count < certificate.certified_properties.len()
         {
@@ -1490,7 +1496,7 @@ fn closed_world_builtin_token_profiles() -> Option<&'static ClosedWorldBuiltinTo
             .ok()?;
             (profiles.schema_version == "0"
                 && profiles.product == "omena-abstract-value.closed-world-builtin-token-profiles"
-                && profiles.oracle.name == "css-tree"
+                && profiles.oracle.name == ClosedWorldKeywordClosureOracleNameV0::CssTree
                 && profiles.oracle.version == "3.2.1"
                 && profiles.profile_count == profiles.profiles.len())
             .then_some(profiles)
