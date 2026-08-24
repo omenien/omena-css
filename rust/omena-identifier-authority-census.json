@@ -1342,7 +1342,7 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/custom_property.rs",
-        "line": 249,
+        "line": 255,
         "function": "compute_custom_property_env_least_fixed_point",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "names: Vec<&'a CanonicalCustomPropertyNameV0>,",
@@ -1350,7 +1350,7 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/custom_property.rs",
-        "line": 534,
+        "line": 562,
         "function": "substitute_custom_properties_with_reason",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "CanonicalCustomPropertyNameV0,",
@@ -6605,7 +6605,7 @@
         "role": "producer"
       }
     ],
-    "siteDigest": "sha256:7920993b16064701b2f4fd219e9a4eb3629faf88f9e68afc4a7f0d77f9e33056",
+    "siteDigest": "sha256:8f131efba9904670e0e79d7373e93cb907d468580bc6ff5a12d38f824245e3af",
     "residualRawCarrierDirection": "decrease-only",
     "residualRawCarrierSiteCount": 198,
     "residualRawCarrierSites": [
