@@ -150,11 +150,11 @@
         "compatCount": 170,
         "identityEscalationCount": 103,
         "governanceDataCount": 58,
-        "siteSetSha256": "79c503db151860fdf6c4550cd780a2a9d866a957f3b71b67d383f3b5ee6d93fd"
+        "siteSetSha256": "e918cecc01a7ad6e67402bf91a74f6548f91ba988c9287e74456c17e19ef6ebb"
       }
     ],
-    "siteSetSha256": "adb44826ce477fc01cd3da26663b20ee2465c19b7d5db3c2eb3d5ad37b09c870",
-    "claimSiteSetSha256": "ad5471bd750b6da7adb346232fb38ed630a8b13b49217f0216de00d2228f55df",
+    "siteSetSha256": "b17323322a9865b9311f158f8c05e34c622b184e6a3c68796eec3fbb5dc984d1",
+    "claimSiteSetSha256": "c033ceb57db5a8e25e12d0a32bd31127574bd426634144373bace86edc4f49d4",
     "compatDeclarationSetSha256": "83276fa27e53d092ba713ed2c1ab5a81df822763a1d9ca5a4a15d09e30ca1dd0",
     "identityCrateSetSha256": "301477ffa6f128519a55a9aa55d336d35400f48ae4fd73cd66b4d2fcc60ae772",
     "governanceRuleSetSha256": "4a10b35bcc737fb53fbe9f7b71d598130b780f31aa3d0ab0beee345b9cdda74d"
