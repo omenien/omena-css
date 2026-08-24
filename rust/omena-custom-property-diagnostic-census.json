@@ -432,8 +432,8 @@
           "uncertainty": "unexpanded ICSS @value reference"
         },
         {
-          "path": "test/_fixtures/semantic-smoke/ValueSmoke.module.scss",
-          "line": 5,
+          "path": "test/_fixtures/stylelint-plugin-smoke/src/ValueMissingModule.module.css",
+          "line": 4,
           "character": 3,
           "coordinateSystem": "one-based",
           "classification": "knownFalsePositive",
@@ -467,104 +467,7 @@
         { "surface": "defaultStyleDiagnosticsCli", "ruleId": "invalidPropertyValue", "delta": 12 },
         { "surface": "queryStyleDiagnostics", "ruleId": "invalidPropertyValue", "delta": 12 }
       ],
-      "locations": [
-        {
-          "path": "examples/plugin-consumers/src/App.module.scss",
-          "line": 14,
-          "character": 3,
-          "coordinateSystem": "one-based",
-          "classification": "knownFalsePositive",
-          "uncertainty": "unexpanded ICSS @value reference"
-        },
-        {
-          "path": "examples/src/scenarios/20-value/Value.module.scss",
-          "line": 17,
-          "character": 3,
-          "coordinateSystem": "one-based",
-          "classification": "knownFalsePositive",
-          "uncertainty": "unexpanded ICSS @value reference"
-        },
-        {
-          "path": "examples/src/scenarios/20-value/Value.module.scss",
-          "line": 20,
-          "character": 3,
-          "coordinateSystem": "one-based",
-          "classification": "knownFalsePositive",
-          "uncertainty": "unexpanded ICSS @value reference"
-        },
-        {
-          "path": "examples/src/scenarios/20-value/Value.module.scss",
-          "line": 29,
-          "character": 3,
-          "coordinateSystem": "one-based",
-          "classification": "knownFalsePositive",
-          "uncertainty": "unexpanded ICSS @value reference"
-        },
-        {
-          "path": "examples/src/scenarios/20-value/Value.module.scss",
-          "line": 38,
-          "character": 3,
-          "coordinateSystem": "one-based",
-          "classification": "knownFalsePositive",
-          "uncertainty": "unexpanded ICSS @value reference"
-        },
-        {
-          "path": "test/_fixtures/real-project-corpus/StatusChip.module.scss",
-          "line": 26,
-          "character": 3,
-          "coordinateSystem": "one-based",
-          "classification": "knownFalsePositive",
-          "uncertainty": "unexpanded ICSS @value reference"
-        },
-        {
-          "path": "test/_fixtures/real-project-corpus/StatusChip.module.scss",
-          "line": 30,
-          "character": 3,
-          "coordinateSystem": "one-based",
-          "classification": "knownFalsePositive",
-          "uncertainty": "unexpanded ICSS @value reference"
-        },
-        {
-          "path": "test/_fixtures/real-project-corpus/StatusChip.module.scss",
-          "line": 34,
-          "character": 3,
-          "coordinateSystem": "one-based",
-          "classification": "knownFalsePositive",
-          "uncertainty": "unexpanded ICSS @value reference"
-        },
-        {
-          "path": "test/_fixtures/semantic-smoke/ValueSmoke.module.scss",
-          "line": 4,
-          "character": 3,
-          "coordinateSystem": "one-based",
-          "classification": "knownFalsePositive",
-          "uncertainty": "unexpanded ICSS @value reference"
-        },
-        {
-          "path": "test/_fixtures/semantic-smoke/ValueSmoke.module.scss",
-          "line": 5,
-          "character": 3,
-          "coordinateSystem": "one-based",
-          "classification": "knownFalsePositive",
-          "uncertainty": "unexpanded ICSS @value reference"
-        },
-        {
-          "path": "test/_fixtures/stylelint-plugin-smoke/src/ValueMissingImported.module.css",
-          "line": 4,
-          "character": 3,
-          "coordinateSystem": "one-based",
-          "classification": "knownFalsePositive",
-          "uncertainty": "unexpanded ICSS @value reference"
-        },
-        {
-          "path": "scripts/fixtures/real-workspace-lint-corpus/src/styles/Card.module.scss",
-          "line": 12,
-          "character": 3,
-          "coordinateSystem": "one-based",
-          "classification": "truePositive",
-          "uncertainty": "none; oracle-invalid color identifier"
-        }
-      ],
+      "locationSetOwner": "type-expanded-keyword-closure",
       "disposition": "Identifier rejection now uses the expanded grammar's open-ident fact and the certificate's accepted-keyword set. Eleven ICSS references remain explicitly classified known false positives, while the oracle-invalid Card color is restored as a true positive."
     }
   ]

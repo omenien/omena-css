@@ -14,6 +14,10 @@ const valueGrammarDifferentialPath = path.join(
   repoRoot,
   "scripts/check-rust-omena-value-grammar-differential.ts",
 );
+const diagnosticTransitionAttributionPath = path.join(
+  repoRoot,
+  "scripts/check-rust-omena-diagnostic-transition-attribution.ts",
+);
 const args = new Set(process.argv.slice(2).filter((argument) => argument !== "--"));
 const allowedOptions = new Set([
   "--inject-reordered-evaluator",
@@ -506,6 +510,50 @@ if (args.has("--inject-reordered-evaluator")) {
     currentDiagnosticPin.measurements.defaultStyleDiagnosticsCli.countsByRule,
     "the default CLI diagnostic counts diverged from the current five-pin measurement",
   );
+  const diagnosticTransitionAttribution = spawnSync(
+    process.execPath,
+    ["--import", "tsx", diagnosticTransitionAttributionPath],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+    },
+  );
+  const diagnosticTransitionAttributionOutput = `${diagnosticTransitionAttribution.stdout ?? ""}\n${diagnosticTransitionAttribution.stderr ?? ""}`;
+  assert.equal(
+    diagnosticTransitionAttribution.status,
+    0,
+    `the measured diagnostic transition attribution must pass:\n${diagnosticTransitionAttributionOutput.slice(-8_000)}`,
+  );
+  const diagnosticTransitionAttributionMatch = diagnosticTransitionAttributionOutput.match(
+    /(\{"schemaVersion":"1","product":"omena-query\.diagnostic-transition-attribution"[^\n]+\})/u,
+  );
+  assert.ok(
+    diagnosticTransitionAttributionMatch,
+    "the measured diagnostic transition attribution receipt is absent",
+  );
+  const diagnosticTransitionAttributionReceipt = JSON.parse(
+    diagnosticTransitionAttributionMatch[1],
+  ) as {
+    addedLocationCount: number;
+    removedLocationCount: number;
+    attribution: string;
+    locationSubstitutionMutation: string;
+  };
+  assert.deepEqual(
+    {
+      addedLocationCount: diagnosticTransitionAttributionReceipt.addedLocationCount,
+      removedLocationCount: diagnosticTransitionAttributionReceipt.removedLocationCount,
+      attribution: diagnosticTransitionAttributionReceipt.attribution,
+      locationSubstitutionMutation:
+        diagnosticTransitionAttributionReceipt.locationSubstitutionMutation,
+    },
+    {
+      addedLocationCount: 12,
+      removedLocationCount: 0,
+      attribution: "measured-two-pin-diff:GREEN",
+      locationSubstitutionMutation: "RED",
+    },
+  );
   const longChain = runCargo(repoRoot, [
     "test",
     "--manifest-path",
@@ -625,6 +673,9 @@ if (args.has("--inject-reordered-evaluator")) {
       trackedStyleDiagnosticsCliFileCount,
       trackedStyleDiagnosticsCliCounts,
       diagnosticFivePinCensus: "GREEN",
+      diagnosticTransitionAttribution: diagnosticTransitionAttributionReceipt.attribution,
+      diagnosticLocationSubstitutionMutation:
+        diagnosticTransitionAttributionReceipt.locationSubstitutionMutation,
       iterativeAliasBoundary: "100000:GREEN",
       variableEnvironmentPerformanceCeiling: "three-size-log-log-growth-exponent<=1.10:GREEN",
       componentScheduleTraceInvariant: "GREEN",
@@ -1197,43 +1248,40 @@ function validateDiagnosticCensus(census: DiagnosticCensus, lintSource: string):
     "the three reviewed uncertainty reductions changed",
   );
 
-  const twelveIdentifierLocations = [
-    ["examples/plugin-consumers/src/App.module.scss", 14, "knownFalsePositive"],
-    ["examples/src/scenarios/20-value/Value.module.scss", 17, "knownFalsePositive"],
-    ["examples/src/scenarios/20-value/Value.module.scss", 20, "knownFalsePositive"],
-    ["examples/src/scenarios/20-value/Value.module.scss", 29, "knownFalsePositive"],
-    ["examples/src/scenarios/20-value/Value.module.scss", 38, "knownFalsePositive"],
-    ["test/_fixtures/real-project-corpus/StatusChip.module.scss", 26, "knownFalsePositive"],
-    ["test/_fixtures/real-project-corpus/StatusChip.module.scss", 30, "knownFalsePositive"],
-    ["test/_fixtures/real-project-corpus/StatusChip.module.scss", 34, "knownFalsePositive"],
-    ["test/_fixtures/semantic-smoke/ValueSmoke.module.scss", 4, "knownFalsePositive"],
-    ["test/_fixtures/semantic-smoke/ValueSmoke.module.scss", 5, "knownFalsePositive"],
+  const locationOwner = census.declaredDeltas.find(
+    (entry) => entry.owner === "type-expanded-keyword-closure",
+  );
+  const replayOwner = census.declaredDeltas.find(
+    (entry) => entry.owner === "accepted-keyword-rejection-authority",
+  );
+  assert.ok(locationOwner?.locations, "the measured diagnostic location set is absent");
+  assert.equal(locationOwner.locationSetOwner, undefined);
+  assert.ok(replayOwner, "the accepted-keyword diagnostic delta owner is absent");
+  assert.equal(replayOwner.locations, undefined, "the diagnostic location set must not be copied");
+  assert.equal(replayOwner.locationSetOwner, locationOwner.owner);
+  assert.equal(locationOwner.locations.length, 12);
+  assert.equal(
+    locationOwner.locations.filter(({ classification }) => classification === "knownFalsePositive")
+      .length,
+    11,
+  );
+  assert.deepEqual(
+    locationOwner.locations
+      .filter(({ classification }) => classification === "truePositive")
+      .map(({ path: sourcePath, line, character }) => ({ sourcePath, line, character })),
     [
-      "test/_fixtures/stylelint-plugin-smoke/src/ValueMissingImported.module.css",
-      4,
-      "knownFalsePositive",
+      {
+        sourcePath: "scripts/fixtures/real-workspace-lint-corpus/src/styles/Card.module.scss",
+        line: 12,
+        character: 3,
+      },
     ],
-    ["scripts/fixtures/real-workspace-lint-corpus/src/styles/Card.module.scss", 12, "truePositive"],
-  ];
-  for (const owner of ["type-expanded-keyword-closure", "accepted-keyword-rejection-authority"]) {
-    const delta = census.declaredDeltas.find((entry) => entry.owner === owner);
-    assert.ok(delta, `${owner} diagnostic delta owner is absent`);
-    assert.deepEqual(
-      delta.locations?.map(({ path: sourcePath, line, character, classification }) => [
-        sourcePath,
-        line,
-        character,
-        classification,
-      ]),
-      twelveIdentifierLocations.map(([sourcePath, line, classification]) => [
-        sourcePath,
-        line,
-        3,
-        classification,
-      ]),
-      `${owner} per-input attribution changed`,
-    );
-  }
+    "the pinned true-positive diagnostic attribution changed",
+  );
+  assert.ok(
+    locationOwner.locations.every(({ coordinateSystem }) => coordinateSystem === "one-based"),
+    "diagnostic attribution coordinates must remain one-based",
+  );
 
   assert.ok(
     lintSource.includes("fn tracked_workspace_recommended_lint_preserves_the_pinned_rule_census()"),
@@ -1355,8 +1403,10 @@ type DiagnosticCensus = {
       path: string;
       line: number;
       character: number;
+      coordinateSystem?: string;
       classification?: string;
     }>;
+    locationSetOwner?: string;
   }>;
 };
 
