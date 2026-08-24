@@ -3754,6 +3754,8 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
 
     const BINDING_COUNTS: [usize; 3] = [1_200, 2_200, 4_000];
     const MAX_LINEAR_GROWTH_EXPONENT: f64 = 1.10;
+    const TARGET_SAMPLE_BATCH_NS: u128 = 10_000_000;
+    const MAX_SAMPLE_BATCH_INVOCATIONS: usize = 256;
 
     fn alias_environment(binding_count: usize) -> CustomPropertyEnv {
         (0..binding_count)
@@ -3805,29 +3807,42 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
     fn paired_measurement(
         mut measured_operation: impl FnMut(),
         mut control_operation: impl FnMut(),
-    ) -> (u128, u128, f64) {
-        fn measure_ns(mut operation: impl FnMut()) -> u128 {
+    ) -> (u128, u128, f64, usize, usize) {
+        fn calibrate_batch(operation: &mut impl FnMut()) -> usize {
             let started = Instant::now();
             operation();
-            started.elapsed().as_nanos()
+            let single_invocation_ns = started.elapsed().as_nanos().max(1);
+            usize::try_from(TARGET_SAMPLE_BATCH_NS.div_ceil(single_invocation_ns))
+                .unwrap_or(MAX_SAMPLE_BATCH_INVOCATIONS)
+                .clamp(1, MAX_SAMPLE_BATCH_INVOCATIONS)
+        }
+
+        fn measure_ns(operation: &mut impl FnMut(), batch_invocations: usize) -> u128 {
+            let started = Instant::now();
+            for _ in 0..batch_invocations {
+                operation();
+            }
+            started.elapsed().as_nanos() / batch_invocations as u128
         }
 
         for _ in 0..8 {
             measured_operation();
             control_operation();
         }
+        let measured_batch_invocations = calibrate_batch(&mut measured_operation);
+        let control_batch_invocations = calibrate_batch(&mut control_operation);
         let mut measured_samples = Vec::with_capacity(41);
         let mut control_samples = Vec::with_capacity(41);
         let mut ratios = Vec::with_capacity(41);
         for sample_index in 0..41 {
             let (measured, control) = if sample_index % 2 == 0 {
                 (
-                    measure_ns(&mut measured_operation),
-                    measure_ns(&mut control_operation),
+                    measure_ns(&mut measured_operation, measured_batch_invocations),
+                    measure_ns(&mut control_operation, control_batch_invocations),
                 )
             } else {
-                let control = measure_ns(&mut control_operation);
-                let measured = measure_ns(&mut measured_operation);
+                let control = measure_ns(&mut control_operation, control_batch_invocations);
+                let measured = measure_ns(&mut measured_operation, measured_batch_invocations);
                 (measured, control)
             };
             measured_samples.push(measured);
@@ -3842,10 +3857,12 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
             measured_samples[measured_samples.len() / 2],
             control_samples[control_samples.len() / 2],
             sorted_ratios[sorted_ratios.len() / 2],
+            measured_batch_invocations,
+            control_batch_invocations,
         )
     }
 
-    fn normalized_three_size_slope(measurements: &[(u128, u128, f64); 3]) -> f64 {
+    fn normalized_three_size_slope(measurements: &[(u128, u128, f64, usize, usize); 3]) -> f64 {
         let input_logs = BINDING_COUNTS.map(|count| (count as f64).ln());
         let input_log_mean = input_logs.iter().sum::<f64>() / input_logs.len() as f64;
         let input_variance = input_logs
@@ -3869,19 +3886,27 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
         measured: [&CustomPropertyEnv; 3],
         controls: [&CustomPropertyEnv; 3],
         operation: fn(&CustomPropertyEnv),
-    ) -> [(u128, u128, f64); 3] {
+    ) -> [(u128, u128, f64, usize, usize); 3] {
         std::array::from_fn(|index| {
             paired_measurement(|| operation(measured[index]), || operation(controls[index]))
         })
     }
 
-    fn print_and_assert_measurement(shape: &str, path: &str, measurements: [(u128, u128, f64); 3]) {
+    fn print_and_assert_measurement(
+        shape: &str,
+        path: &str,
+        measurements: [(u128, u128, f64, usize, usize); 3],
+    ) {
         let measured_medians: [u128; 3] = std::array::from_fn(|index| measurements[index].0);
         let control_medians: [u128; 3] = std::array::from_fn(|index| measurements[index].1);
         let paired_median_ratios: [f64; 3] = std::array::from_fn(|index| measurements[index].2);
+        let measured_batch_invocations: [usize; 3] =
+            std::array::from_fn(|index| measurements[index].3);
+        let control_batch_invocations: [usize; 3] =
+            std::array::from_fn(|index| measurements[index].4);
         let growth_exponent = normalized_three_size_slope(&measurements);
         println!(
-            "shape={shape} path={path} bindings={BINDING_COUNTS:?} measuredMedianNs={measured_medians:?} flatControlMedianNs={control_medians:?} pairedMedianRatios={paired_median_ratios:.3?} medianNormalizedLogLogGrowthExponent={growth_exponent:.3} maximumLinearGrowthExponent={MAX_LINEAR_GROWTH_EXPONENT:.2}"
+            "shape={shape} path={path} bindings={BINDING_COUNTS:?} targetSampleBatchNs={TARGET_SAMPLE_BATCH_NS} measuredBatchInvocations={measured_batch_invocations:?} flatControlBatchInvocations={control_batch_invocations:?} measuredMedianNs={measured_medians:?} flatControlMedianNs={control_medians:?} pairedMedianRatios={paired_median_ratios:.3?} medianNormalizedLogLogGrowthExponent={growth_exponent:.3} maximumLinearGrowthExponent={MAX_LINEAR_GROWTH_EXPONENT:.2}"
         );
         assert!(
             growth_exponent <= MAX_LINEAR_GROWTH_EXPONENT,
