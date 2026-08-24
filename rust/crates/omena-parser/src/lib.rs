@@ -7,12 +7,14 @@
 pub(crate) use omena_syntax::SyntaxKind;
 pub use omena_syntax::{CssKeywordText, StyleDialect, css_keyword};
 
+mod canonical_selector;
 mod closed_world;
 mod cst;
 mod extension;
 mod facts;
 mod instrumentation;
 mod language;
+mod layer_path;
 mod lex;
 mod parse;
 mod parse_tree_contract_idl_generated;
@@ -26,6 +28,10 @@ mod spans;
 mod summaries;
 mod syntax_helpers;
 mod value_names;
+pub use canonical_selector::{
+    canonical_selector_ast_from_source, canonical_selector_asts_from_cst,
+    expand_nested_selector_from_cst,
+};
 pub use closed_world::{
     ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldComposesEdgeV0,
     ClosedWorldComposesScanStateV0, ClosedWorldInterfaceHashAvailabilityV0,
@@ -92,6 +98,7 @@ pub(crate) use instrumentation::{
     record_omena_parser_parse_materialization, record_omena_parser_syntax_root_materialization,
 };
 pub use language::StyleLanguage;
+pub use layer_path::layer_paths_from_cst;
 pub use lex::{LexResult, LexedToken};
 pub(crate) use lex::{Token, Tokenizer, public_token_text};
 pub use parse::{

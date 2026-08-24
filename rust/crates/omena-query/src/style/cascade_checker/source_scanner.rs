@@ -1,5 +1,5 @@
-//! Retired declaration-string scanner retained only as the S2 differential
-//! oracle. The parent module compiles this file under `cfg(test)`; product
+//! Retired declaration-string scanner retained only as the selector-scanning
+//! differential oracle. The parent module compiles this file under `cfg(test)`; product
 //! cascade inputs come from parser CST declaration facts.
 
 use omena_query_transform_runner::expand_css_nested_selector;
@@ -73,11 +73,7 @@ pub(super) fn canonical_query_checker_selector(
 }
 
 fn fallback_expand_query_nested_selector(parent_selector: &str, selector: &str) -> String {
-    if selector.contains('&') {
-        selector.replace('&', parent_selector)
-    } else {
-        format!("{parent_selector} {selector}")
-    }
+    format!("{parent_selector} {selector}")
 }
 
 pub(super) fn query_value_has_important_suffix(value: &str) -> bool {

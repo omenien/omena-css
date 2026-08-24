@@ -6,6 +6,7 @@
 
 use std::collections::BTreeSet;
 
+use omena_syntax::ident::{CanonicalClassKeyV0, ClassNameV0};
 use serde::Serialize;
 
 use crate::StyleSelectorIdentityFactsV0;
@@ -30,6 +31,27 @@ pub struct SelectorCanonicalIdentityV0 {
     pub blockers: Vec<&'static str>,
 }
 
+impl SelectorCanonicalIdentityV0 {
+    fn from_canonical_key(
+        key: &CanonicalClassKeyV0,
+        identity_kind: &'static str,
+        blockers: Vec<&'static str>,
+    ) -> Self {
+        let local_name = key.as_str().to_string();
+        Self {
+            canonical_id: format!("selector:{local_name}"),
+            local_name,
+            identity_kind,
+            rewrite_safety: if blockers.is_empty() {
+                "safe"
+            } else {
+                "blocked"
+            },
+            blockers,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectorIdentityRewriteSafetyV0 {
@@ -52,6 +74,11 @@ pub fn summarize_selector_identity_engine(
         .iter()
         .cloned()
         .collect::<BTreeSet<_>>();
+    let ast_keys = facts
+        .selector_asts
+        .iter()
+        .flat_map(|ast| ast.canonical_class_keys().cloned())
+        .collect::<BTreeSet<_>>();
 
     let canonical_ids = facts
         .canonical_names
@@ -62,21 +89,17 @@ pub fn summarize_selector_identity_engine(
             } else {
                 Vec::new()
             };
-            SelectorCanonicalIdentityV0 {
-                canonical_id: format!("selector:{name}"),
-                local_name: name.clone(),
-                identity_kind: if bem_safe.contains(name) {
+            let decoded_key = ClassNameV0::new(name).canonical_key();
+            let authority_key = ast_keys.get(&decoded_key).unwrap_or(&decoded_key);
+            SelectorCanonicalIdentityV0::from_canonical_key(
+                authority_key,
+                if bem_safe.contains(name) {
                     "bemSuffix"
                 } else {
                     "localClass"
                 },
-                rewrite_safety: if blockers.is_empty() {
-                    "safe"
-                } else {
-                    "blocked"
-                },
                 blockers,
-            }
+            )
         })
         .collect::<Vec<_>>();
 

@@ -16,7 +16,7 @@ use omena_parser::{
     ParsedCssModuleComposesFactKind, ParsedCssModuleValueFactKind, ParsedCst,
     ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind, ParsedSelectorFactKind,
     ParsedStyleFacts, ParsedVariableFactKind, ParserDeclarationSyntaxFactV0, ProductSyntaxIndexV0,
-    StyleDialect, facts_from_cst, parse,
+    StyleDialect, canonical_selector_asts_from_cst, facts_from_cst, parse,
 };
 use omena_syntax::{SyntaxKind, SyntaxNode, css_keyword};
 use serde::Serialize;
@@ -610,6 +610,7 @@ fn summarize_omena_parser_semantic_facts(
         summarize_omena_parser_sass_selector_resolution(facts, &sass_same_file_resolution, cst);
     StyleSemanticFactsV0 {
         selector_identity: StyleSelectorIdentityFactsV0 {
+            selector_asts: canonical_selector_asts_from_cst(cst),
             canonical_names: parser_facts.selectors.names.clone(),
             bem_suffix_safe_names: parser_facts.selectors.bem_suffix_safe_names.clone(),
             bem_suffix_parent_names: parser_facts.selectors.bem_suffix_parent_names.clone(),

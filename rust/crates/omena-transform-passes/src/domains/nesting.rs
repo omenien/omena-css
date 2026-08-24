@@ -722,23 +722,42 @@ pub(crate) fn expand_nested_selector(
     parent_selector: &str,
     nested_selector: &str,
 ) -> Option<String> {
-    let parent_selectors = split_css_selector_list(parent_selector)?;
-    let nested_selectors = split_css_selector_list(nested_selector)?;
-    let mut expanded_selectors = Vec::new();
+    omena_parser::expand_nested_selector_from_cst(
+        parent_selector,
+        nested_selector,
+        StyleDialect::Scss,
+    )
+}
 
-    for parent in &parent_selectors {
-        for nested in &nested_selectors {
-            if nested.contains('&') {
-                expanded_selectors.push(nested.replace('&', parent));
-            } else {
-                expanded_selectors.push(format!("{parent} {nested}"));
-            }
-        }
-    }
+#[cfg(test)]
+mod tests {
+    use super::expand_nested_selector;
 
-    if expanded_selectors.is_empty() {
-        None
-    } else {
-        Some(expanded_selectors.join(", "))
+    #[test]
+    fn nesting_expansion_only_substitutes_nesting_selector_tokens() {
+        assert_eq!(
+            expand_nested_selector(".card", r#"&[data-label="&"].icon\&tail"#,).as_deref(),
+            Some(r#".card[data-label="&"].icon\&tail"#),
+        );
+        assert_eq!(
+            expand_nested_selector(".card, .panel", ".title:hover").as_deref(),
+            Some(".card .title:hover, .panel .title:hover"),
+            "a selector without a nesting token keeps the established expansion bytes",
+        );
+        assert_eq!(
+            expand_nested_selector(".card", r#"&.active, &[data-label="&"]"#).as_deref(),
+            Some(r#".card.active, .card[data-label="&"]"#),
+            "selector-list trivia must not shift CST nesting-token spans",
+        );
+        assert_eq!(
+            expand_nested_selector(".card", "&--open").as_deref(),
+            Some(".card--open"),
+            "BEM suffixes must retain the parser-issued nesting token",
+        );
+        assert_eq!(
+            expand_nested_selector(".card .title", "&__icon").as_deref(),
+            Some(".card .title__icon"),
+            "BEM element suffixes must retain the parser-issued nesting token",
+        );
     }
 }

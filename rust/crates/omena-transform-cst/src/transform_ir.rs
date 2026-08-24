@@ -2,7 +2,8 @@
 
 use omena_parser::{
     ParsedCssModuleComposesFactKind, ParsedCssModuleValueFactKind, ParsedIcssFactKind,
-    ParsedStyleFacts, StyleDialect, TypedCstNode, facts_from_cst, parse_only,
+    ParsedStyleFacts, StyleDialect, TypedCstNode, expand_nested_selector_from_cst, facts_from_cst,
+    parse_only,
 };
 use omena_syntax::{SyntaxKind, SyntaxNode};
 use serde::Serialize;
@@ -2834,11 +2835,8 @@ fn expanded_style_rule_selector(ir: &TransformIrV0, node: &IrNodeV0) -> Option<S
             .or_else(|| nearest_ancestor_style_rule_selector(ir, parent))?,
         _ => return Some(selector.to_string()),
     };
-    if selector.contains('&') {
-        Some(selector.replace('&', parent_selector.as_str()))
-    } else {
-        Some(format!("{parent_selector} {selector}"))
-    }
+    expand_nested_selector_from_cst(parent_selector.as_str(), selector, StyleDialect::Scss)
+        .or_else(|| Some(format!("{parent_selector} {selector}")))
 }
 
 fn at_rule_offsets_in_dirty_node(
@@ -2941,11 +2939,12 @@ fn expanded_nest_at_rule_selector(ir: &TransformIrV0, node: &IrNodeV0) -> Option
         return None;
     }
     let ancestor_selector = nearest_ancestor_style_rule_selector(ir, node)?;
-    if nest_selector.contains('&') {
-        Some(nest_selector.replace('&', ancestor_selector.as_str()))
-    } else {
-        Some(format!("{ancestor_selector} {nest_selector}"))
-    }
+    expand_nested_selector_from_cst(
+        ancestor_selector.as_str(),
+        nest_selector,
+        StyleDialect::Scss,
+    )
+    .or_else(|| Some(format!("{ancestor_selector} {nest_selector}")))
 }
 
 fn nearest_ancestor_style_rule_selector(ir: &TransformIrV0, node: &IrNodeV0) -> Option<String> {
@@ -3634,11 +3633,11 @@ mod tests {
         IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrTransactionErrorV0, IrTransactionV0,
         IrTransactionValidationErrorV0, NodeTextOriginV0, TRANSACTION_VALIDATION_PASSES_V0,
         TransformIrParseErrorSpanV0, TransformIrPrintErrorV0, build_indexes,
-        has_less_mixin_declaration_owner, lower_transform_ir_from_source,
-        materialize_transform_ir_printed_source, print_transform_ir_css,
-        reset_transform_ir_transaction_cost_telemetry, summarize_transform_ir_identity_round_trip,
-        transaction_validation_pass_counts, transform_ir_transaction_cost_telemetry_snapshot,
-        validate_transaction_commit,
+        expanded_style_rule_selector, has_less_mixin_declaration_owner,
+        lower_transform_ir_from_source, materialize_transform_ir_printed_source,
+        print_transform_ir_css, reset_transform_ir_transaction_cost_telemetry,
+        summarize_transform_ir_identity_round_trip, transaction_validation_pass_counts,
+        transform_ir_transaction_cost_telemetry_snapshot, validate_transaction_commit,
     };
     use omena_parser::StyleDialect;
     use std::collections::{BTreeMap, BTreeSet};
@@ -4642,6 +4641,27 @@ mod tests {
         assert_eq!(printed, canonical_text);
         assert!(ir.all_nodes_original());
         assert!(ir.source_text().contains(".dashboard__card0--active"));
+        Ok(())
+    }
+
+    #[test]
+    fn expanded_ir_selector_only_substitutes_cst_nesting_tokens() -> Result<(), String> {
+        let source = r#".card {
+  &[data-label="&"].icon\&tail { color: red; }
+}"#;
+        let ir =
+            lower_transform_ir_from_source(source, StyleDialect::Scss, "selector-token-expansion");
+        let nested = ir
+            .nodes
+            .iter()
+            .filter(|node| node.kind == IrNodeKindV0::StyleRule)
+            .nth(1)
+            .ok_or_else(|| "nested style rule should be present".to_string())?;
+
+        assert_eq!(
+            expanded_style_rule_selector(&ir, nested).as_deref(),
+            Some(r#".card[data-label="&"].icon\&tail"#),
+        );
         Ok(())
     }
 

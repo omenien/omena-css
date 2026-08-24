@@ -461,7 +461,7 @@ fn nearer_derived_scope_root_wins_between_equal_declarations() {
 #[test]
 fn keeps_scope_proximity_unknown_for_inexact_dynamic_classes() {
     let mut signature = ElementSignature::at_least_classes(Vec::<String>::new());
-    signature.tag = Some("section".to_string());
+    signature.tag = Some(omena_syntax::ident::CanonicalTypeSelectorKeyV0::from_authored("section"));
     signature.tag_is_exact = true;
     let result = scope_proximity_from_ancestor_signatures(
         ".scope-root",
@@ -2702,9 +2702,15 @@ fn parses_simple_selector_specificity() {
     let signature = parse_simple_selector_signature("button#save.primary[data-state]:hover");
     assert!(signature.is_some());
     if let Some(signature) = signature {
-        assert_eq!(signature.required_tag.as_deref(), Some("button"));
-        assert_eq!(signature.required_id.as_deref(), Some("save"));
-        assert!(signature.required_classes.contains("primary"));
+        assert_eq!(
+            signature.required_tag.as_ref().map(|key| key.as_str()),
+            Some("button")
+        );
+        assert_eq!(
+            signature.required_id.as_ref().map(|key| key.as_str()),
+            Some("save")
+        );
+        assert!(signature.requires_class("primary"));
         assert!(signature.required_attributes.contains("data-state"));
         assert!(signature.required_pseudo_states.contains("hover"));
         assert_eq!(signature.specificity, Specificity::new(1, 3, 1));
@@ -2721,9 +2727,41 @@ fn simple_selector_signature_uses_escape_aware_class_names() {
     if let Some(signature) = signature {
         // Both class spellings are emitted directly by this selector; an ASCII or
         // non-escape-aware extractor makes one of these assertions false.
-        assert!(signature.required_classes.contains(r"a\.b"));
-        assert!(signature.required_classes.contains("카드"));
+        assert!(signature.requires_class("a.b"));
+        assert!(signature.requires_class("카드"));
     }
+}
+
+#[test]
+fn escaped_class_selectors_match_canonical_element_identity() {
+    let element = ElementSignature::concrete(None::<String>, None::<String>, ["a.b"]);
+
+    for selector in [r".a\.b", r".a\00002eb", r".a\2e b"] {
+        let witness = selector_match_witness(selector, &element);
+        assert_eq!(
+            witness.verdict,
+            SelectorMatchVerdict::Yes,
+            "escaped spelling must join through the canonical class key: {selector}",
+        );
+    }
+
+    assert_eq!(
+        selector_match_witness(".ab", &element).verdict,
+        SelectorMatchVerdict::No,
+        "canonical decoding must not over-match a distinct class",
+    );
+}
+
+#[test]
+fn escaped_id_and_type_selectors_match_canonical_element_identity() {
+    let element = ElementSignature::concrete(Some("button"), Some("save.id"), ["primary"]);
+    let witness = selector_match_witness(r"b\75 tton#save\.id.primary", &element);
+
+    assert_eq!(witness.verdict, SelectorMatchVerdict::Yes);
+    assert_eq!(
+        selector_match_witness("button#saveid.primary", &element).verdict,
+        SelectorMatchVerdict::No,
+    );
 }
 
 #[test]

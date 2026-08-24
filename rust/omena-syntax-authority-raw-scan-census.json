@@ -124,7 +124,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 1207,
+      "line": 1208,
       "idiom": "brace-list-search",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -133,7 +133,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 4063,
+      "line": 4068,
       "idiom": "brace-find",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -142,7 +142,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 4119,
+      "line": 4124,
       "idiom": "brace-find",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -151,7 +151,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 4205,
+      "line": 4210,
       "idiom": "brace-contains",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -160,7 +160,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_checker/source_scanner.rs",
-      "line": 221,
+      "line": 217,
       "idiom": "brace-list-search",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -286,7 +286,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1696,
+      "line": 1697,
       "idiom": "brace-list-search",
       "family": "semantic-model",
       "disposition": "named-exempt",
@@ -295,7 +295,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1702,
+      "line": 1703,
       "idiom": "brace-find",
       "family": "semantic-model",
       "disposition": "named-exempt",
@@ -1302,7 +1302,7 @@
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
     }
   ],
-  "siteDigest": "sha256:1cf7b5c84e5deeae754f0de05a2ad4356bf4196d35389b5ebdca58f30b13edbf",
+  "siteDigest": "sha256:4545be518896dbc6f2931dd3dbe55f609d04398bcfba70cbd7ab69934ab8a1ff",
   "classSelectorScanner": {
     "policy": "decrease-only",
     "baselineSiteCount": 3,
@@ -1310,7 +1310,7 @@
     "sites": [
       {
         "path": "rust/crates/omena-cascade/src/selector.rs",
-        "line": 753,
+        "line": 770,
         "idiom": "char-identifier-reader",
         "family": "cascade-analysis",
         "disposition": "named-exempt",
@@ -1319,7 +1319,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1604,
+        "line": 1605,
         "idiom": "class-dot-byte-walk",
         "family": "semantic-model",
         "disposition": "named-exempt",
@@ -1328,7 +1328,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1608,
+        "line": 1609,
         "idiom": "class-dot-byte-walk",
         "family": "semantic-model",
         "disposition": "named-exempt",
@@ -1336,7 +1336,16 @@
         "reason": "Semantic-model source scanning remains a named consumer follow-up."
       }
     ],
-    "siteDigest": "sha256:4e4517c3742c1256b112e15db6e4b8b3b5cddc113c3c45d309eebc3df48f4cbe"
+    "siteDigest": "sha256:0816381d1f6d6c9b3ae6a7bcadc80c1e015faaa6c212cfa39925fcfdccebde7d"
+  },
+  "selectorAuthority": {
+    "policy": "single-cst-projected-authority",
+    "ownerPath": "rust/crates/omena-syntax/src/selector.rs",
+    "typeName": "CanonicalSelectorAst",
+    "authorityTypeCount": 1,
+    "parserCstProducerCallCount": 2,
+    "reportProjectionCallCount": 1,
+    "rawNestingReplaceSiteCount": 0
   },
   "moduleInterfaceLessScanner": {
     "policy": "single-named-seam",

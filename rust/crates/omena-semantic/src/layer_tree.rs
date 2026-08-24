@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_cascade::LayerOrdinal;
-use omena_parser::ParsedCst;
-use omena_syntax::{SyntaxKind, SyntaxNode, css_keyword};
+use omena_parser::{ParsedCst, layer_paths_from_cst};
+use omena_syntax::{LayerPathV0, SyntaxKind, SyntaxNode};
 
 use crate::{ParserByteSpanV0, StyleLayerBlockBindingV0, StyleLayerIndexV0, StyleLayerOrderNodeV0};
 
@@ -50,20 +50,19 @@ pub(crate) struct LayerOrderFactsV0 {
 struct LayerBlockDraftV0 {
     context_id: String,
     node: SyntaxNode,
-    local_path: Option<String>,
-    canonical_name: Option<String>,
+    local_path: Option<LayerPathV0>,
+    canonical_path: Option<LayerPathV0>,
 }
 
 #[derive(Clone)]
 struct LayerNodeDraftV0 {
-    canonical_name: String,
-    local_name: String,
-    parent_name: Option<String>,
+    canonical_path: LayerPathV0,
+    parent_path: Option<LayerPathV0>,
     first_source_order: usize,
     implicit_prefix: bool,
 }
 
-pub(crate) fn summarize_layer_order_from_cst(_source: &str, cst: &ParsedCst) -> LayerOrderFactsV0 {
+pub(crate) fn summarize_layer_order_from_cst(source: &str, cst: &ParsedCst) -> LayerOrderFactsV0 {
     let mut all_context_order = 0usize;
     let mut blocks = Vec::<LayerBlockDraftV0>::new();
     for node in cst.root().descendants().filter(|node| {
@@ -73,12 +72,12 @@ pub(crate) fn summarize_layer_order_from_cst(_source: &str, cst: &ParsedCst) -> 
         ) && node_has_block(node)
     }) {
         if node.kind() == SyntaxKind::LayerRule {
-            let names = layer_names(node);
+            let paths = layer_paths_from_cst(source, node);
             blocks.push(LayerBlockDraftV0 {
                 context_id: format!("layer:{all_context_order}"),
                 node: node.clone(),
-                local_path: (names.len() == 1).then(|| names[0].clone()),
-                canonical_name: None,
+                local_path: (paths.len() == 1).then(|| paths[0].clone()),
+                canonical_path: None,
             });
         }
         all_context_order = all_context_order.saturating_add(1);
@@ -95,19 +94,16 @@ pub(crate) fn summarize_layer_order_from_cst(_source: &str, cst: &ParsedCst) -> 
     let mut unresolved_topology_count = 0usize;
     for index in 0..blocks.len() {
         let parent = nearest_enclosing_block(index, blocks.as_slice());
-        let parent_name = parent.and_then(|parent| blocks[parent].canonical_name.as_deref());
-        let Some(local_path) = blocks[index].local_path.as_deref() else {
+        let parent_path = parent.and_then(|parent| blocks[parent].canonical_path.as_ref());
+        let Some(local_path) = blocks[index].local_path.as_ref() else {
             unresolved_topology_count = unresolved_topology_count.saturating_add(1);
             continue;
         };
-        if parent.is_some() && parent_name.is_none() {
+        if parent.is_some() && parent_path.is_none() {
             unresolved_topology_count = unresolved_topology_count.saturating_add(1);
             continue;
         }
-        blocks[index].canonical_name = canonical_layer_path(parent_name, local_path);
-        if blocks[index].canonical_name.is_none() {
-            unresolved_topology_count = unresolved_topology_count.saturating_add(1);
-        }
+        blocks[index].canonical_path = Some(canonical_layer_path(parent_path, local_path));
     }
 
     let mut events = cst
@@ -117,33 +113,29 @@ pub(crate) fn summarize_layer_order_from_cst(_source: &str, cst: &ParsedCst) -> 
         .collect::<Vec<_>>();
     events.sort_by_key(|node| u32::from(node.text_range().start()) as usize);
 
-    let mut nodes = BTreeMap::<String, LayerNodeDraftV0>::new();
+    let mut nodes = BTreeMap::<LayerPathV0, LayerNodeDraftV0>::new();
     let mut source_order = 0usize;
     for event in events {
         let parent = nearest_enclosing_block_for_node(event, blocks.as_slice());
-        if parent.is_some_and(|block| block.canonical_name.is_none()) {
+        if parent.is_some_and(|block| block.canonical_path.is_none()) {
             unresolved_topology_count = unresolved_topology_count.saturating_add(1);
             continue;
         }
-        let parent_name = parent.and_then(|block| block.canonical_name.clone());
-        let names = layer_names(event);
+        let parent_path = parent.and_then(|block| block.canonical_path.as_ref());
+        let paths = layer_paths_from_cst(source, event);
         let has_block = node_has_block(event);
-        if names.is_empty() {
+        if paths.is_empty() {
             if !has_block {
                 unresolved_topology_count = unresolved_topology_count.saturating_add(1);
             }
             continue;
         }
-        if has_block && names.len() != 1 {
+        if has_block && paths.len() != 1 {
             continue;
         }
-        for name in names {
-            let Some(canonical_name) = canonical_layer_path(parent_name.as_deref(), name.as_str())
-            else {
-                unresolved_topology_count = unresolved_topology_count.saturating_add(1);
-                continue;
-            };
-            register_layer_path(&mut nodes, canonical_name.as_str(), source_order);
+        for path in paths {
+            let canonical_path = canonical_layer_path(parent_path, &path);
+            register_layer_path(&mut nodes, &canonical_path, source_order);
             source_order = source_order.saturating_add(1);
         }
     }
@@ -151,17 +143,17 @@ pub(crate) fn summarize_layer_order_from_cst(_source: &str, cst: &ParsedCst) -> 
     let ranks = cascade_ranks(nodes.values());
     let mut order_nodes = nodes
         .into_values()
-        .map(|node| StyleLayerOrderNodeV0 {
-            cascade_rank: ranks
-                .get(node.canonical_name.as_str())
-                .copied()
-                .unwrap_or(0),
-            nesting_depth: node.canonical_name.split('.').count().saturating_sub(1),
-            canonical_name: node.canonical_name,
-            local_name: node.local_name,
-            parent_name: node.parent_name,
-            first_source_order: node.first_source_order,
-            implicit_prefix: node.implicit_prefix,
+        .map(|node| {
+            let canonical_name = node.canonical_path.canonical_name();
+            StyleLayerOrderNodeV0 {
+                cascade_rank: ranks.get(&node.canonical_path).copied().unwrap_or(0),
+                nesting_depth: node.canonical_path.nesting_depth(),
+                canonical_name,
+                local_name: node.canonical_path.local_name().to_string(),
+                parent_name: node.parent_path.as_ref().map(LayerPathV0::canonical_name),
+                first_source_order: node.first_source_order,
+                implicit_prefix: node.implicit_prefix,
+            }
         })
         .collect::<Vec<_>>();
     order_nodes.sort_by_key(|node| node.cascade_rank);
@@ -169,13 +161,14 @@ pub(crate) fn summarize_layer_order_from_cst(_source: &str, cst: &ParsedCst) -> 
     let mut block_bindings = blocks
         .iter()
         .filter_map(|block| {
-            let canonical_name = block.canonical_name.as_ref()?;
+            let canonical_path = block.canonical_path.as_ref()?;
+            let canonical_name = canonical_path.canonical_name();
             let range = block.node.text_range();
             Some(StyleLayerBlockBindingV0 {
                 context_id: block.context_id.clone(),
                 canonical_name: canonical_name.clone(),
-                cascade_rank: ranks.get(canonical_name.as_str()).copied().unwrap_or(0),
-                nesting_depth: canonical_name.split('.').count().saturating_sub(1),
+                cascade_rank: ranks.get(canonical_path).copied().unwrap_or(0),
+                nesting_depth: canonical_path.nesting_depth(),
                 byte_span: ParserByteSpanV0 {
                     start: u32::from(range.start()) as usize,
                     end: u32::from(range.end()) as usize,
@@ -228,63 +221,49 @@ fn nearest_enclosing_block_for_node<'a>(
         })
 }
 
-fn canonical_layer_path(parent: Option<&str>, local_path: &str) -> Option<String> {
-    let local_path = local_path.trim();
-    if !plain_layer_path(local_path) {
-        return None;
-    }
-    Some(match parent {
-        Some(parent) => format!("{parent}.{local_path}"),
-        None => local_path.to_string(),
-    })
-}
-
-fn plain_layer_path(path: &str) -> bool {
-    path.split('.').all(|segment| {
-        !segment.is_empty()
-            && segment
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-    })
+fn canonical_layer_path(parent: Option<&LayerPathV0>, local_path: &LayerPathV0) -> LayerPathV0 {
+    parent.map_or_else(|| local_path.clone(), |parent| parent.joined(local_path))
 }
 
 fn register_layer_path(
-    nodes: &mut BTreeMap<String, LayerNodeDraftV0>,
-    canonical_name: &str,
+    nodes: &mut BTreeMap<LayerPathV0, LayerNodeDraftV0>,
+    canonical_path: &LayerPathV0,
     source_order: usize,
 ) {
-    let segments = canonical_name.split('.').collect::<Vec<_>>();
-    for length in 1..=segments.len() {
-        let name = segments[..length].join(".");
-        let parent_name = (length > 1).then(|| segments[..length - 1].join("."));
-        let implicit_prefix = length != segments.len();
-        nodes.entry(name.clone()).or_insert(LayerNodeDraftV0 {
-            canonical_name: name,
-            local_name: segments[length - 1].to_string(),
-            parent_name,
+    for length in 1..=canonical_path.segments().len() {
+        let Some(path) = canonical_path.prefix(length) else {
+            continue;
+        };
+        let parent_path = path.parent();
+        let implicit_prefix = length != canonical_path.segments().len();
+        nodes.entry(path.clone()).or_insert(LayerNodeDraftV0 {
+            canonical_path: path,
+            parent_path,
             first_source_order: source_order,
             implicit_prefix,
         });
     }
 }
 
-fn cascade_ranks<'a>(nodes: impl Iterator<Item = &'a LayerNodeDraftV0>) -> BTreeMap<String, usize> {
+fn cascade_ranks<'a>(
+    nodes: impl Iterator<Item = &'a LayerNodeDraftV0>,
+) -> BTreeMap<LayerPathV0, usize> {
     let nodes = nodes
-        .map(|node| (node.canonical_name.clone(), node.clone()))
+        .map(|node| (node.canonical_path.clone(), node.clone()))
         .collect::<BTreeMap<_, _>>();
-    let mut children = BTreeMap::<Option<String>, Vec<String>>::new();
+    let mut children = BTreeMap::<Option<LayerPathV0>, Vec<LayerPathV0>>::new();
     for node in nodes.values() {
         children
-            .entry(node.parent_name.clone())
+            .entry(node.parent_path.clone())
             .or_default()
-            .push(node.canonical_name.clone());
+            .push(node.canonical_path.clone());
     }
-    for names in children.values_mut() {
-        names.sort_by_key(|name| {
+    for paths in children.values_mut() {
+        paths.sort_by_key(|path| {
             nodes
-                .get(name)
-                .map(|node| (node.first_source_order, node.canonical_name.clone()))
-                .unwrap_or((usize::MAX, name.clone()))
+                .get(path)
+                .map(|node| (node.first_source_order, node.canonical_path.clone()))
+                .unwrap_or((usize::MAX, path.clone()))
         });
     }
 
@@ -298,12 +277,12 @@ fn cascade_ranks<'a>(nodes: impl Iterator<Item = &'a LayerNodeDraftV0>) -> BTree
 }
 
 fn append_postorder(
-    parent: Option<&str>,
-    children: &BTreeMap<Option<String>, Vec<String>>,
-    ordered: &mut Vec<String>,
-    visited: &mut BTreeSet<String>,
+    parent: Option<&LayerPathV0>,
+    children: &BTreeMap<Option<LayerPathV0>, Vec<LayerPathV0>>,
+    ordered: &mut Vec<LayerPathV0>,
+    visited: &mut BTreeSet<LayerPathV0>,
 ) {
-    let key = parent.map(ToString::to_string);
+    let key = parent.cloned();
     let Some(names) = children.get(&key) else {
         return;
     };
@@ -311,35 +290,13 @@ fn append_postorder(
         if !visited.insert(name.clone()) {
             continue;
         }
-        append_postorder(Some(name.as_str()), children, ordered, visited);
+        append_postorder(Some(name), children, ordered, visited);
         ordered.push(name.clone());
     }
-}
-
-fn layer_names(node: &SyntaxNode) -> Vec<String> {
-    let text = syntax_node_text(node);
-    let Some(rest) = css_keyword(text.trim_start()).strip_prefix("@layer") else {
-        return Vec::new();
-    };
-    rest.split(['{', ';', '\n'])
-        .next()
-        .unwrap_or_default()
-        .split(',')
-        .filter_map(|name| {
-            let name = name.trim();
-            (!name.is_empty()).then(|| name.to_string())
-        })
-        .collect()
 }
 
 fn node_has_block(node: &SyntaxNode) -> bool {
     node.descendants_with_tokens()
         .filter_map(|element| element.into_token())
         .any(|token| matches!(token.kind(), SyntaxKind::LeftBrace | SyntaxKind::SassIndent))
-}
-
-fn syntax_node_text(node: &SyntaxNode) -> String {
-    node.try_resolved()
-        .map(|resolved| resolved.text().to_string())
-        .unwrap_or_default()
 }

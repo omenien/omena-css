@@ -138,13 +138,8 @@ fn canonical_selectors_for_syntax_fact(fact: &ParserDeclarationSyntaxFactV0) -> 
                 continue;
             }
             for parent in &parents {
-                let expanded = expand_css_nested_selector(parent, member).unwrap_or_else(|| {
-                    if member.contains('&') {
-                        member.replace('&', parent)
-                    } else {
-                        format!("{parent} {member}")
-                    }
-                });
+                let expanded = expand_css_nested_selector(parent, member)
+                    .unwrap_or_else(|| format!("{parent} {member}"));
                 push_unique(&mut next, expanded);
             }
         }
@@ -337,6 +332,19 @@ mod tests {
             "{:?}",
             facts[0].semantic_context_ids
         );
+    }
+
+    #[test]
+    fn cst_join_preserves_non_nesting_ampersands_during_selector_expansion() {
+        let source = r#"
+.card {
+  &[data-label="&"].icon\&tail { color: red; }
+}
+"#;
+        let facts = collect_parsed_declaration_facts("fixture.scss", source, StyleDialect::Scss);
+
+        assert_eq!(facts.len(), 1, "{facts:#?}");
+        assert_eq!(facts[0].selector, r#".card[data-label="&"].icon\&tail"#,);
     }
 
     #[test]

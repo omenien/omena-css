@@ -18,6 +18,7 @@ use omena_query::{
     OmenaQueryStyleSourceInputV0, summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index_and_definitions,
 };
+use omena_syntax::ident::{CanonicalClassKeyV0, ClassNameV0};
 use serde_json::{Value, json};
 
 pub(crate) struct LspSourceDiagnosticsRenderInputsV0<'inputs> {
@@ -137,8 +138,9 @@ fn gather_source_diagnostics_render_inputs(
             let is_property_access = property_access_ranges
                 .iter()
                 .any(|range| parser_range_contains(range, &candidate.range));
+            let candidate_key = ClassNameV0::new(candidate.name.to_string()).canonical_key();
             if !is_property_access
-                && let Some(global_uri) = global_class_definitions.get(&candidate.name.to_string())
+                && let Some(global_uri) = global_class_definitions.get(&candidate_key)
             {
                 global_class_fallthroughs.push(crate::LspGlobalClassFallthroughCandidateV0 {
                     selector_name: candidate.name.to_string(),
@@ -349,7 +351,7 @@ fn source_selector_diagnostic_target<'a>(
 fn global_class_definitions_for_workspace(
     state: &LspShellState,
     workspace_folder_uri: Option<&str>,
-) -> std::collections::BTreeMap<String, String> {
+) -> std::collections::BTreeMap<CanonicalClassKeyV0, String> {
     let mut definitions = std::collections::BTreeMap::new();
     for document in state.documents.values() {
         if !is_style_document_uri(document.uri.as_str())
@@ -361,7 +363,7 @@ fn global_class_definitions_for_workspace(
         for candidate in &document.style_candidates {
             if candidate.kind == "selector" {
                 definitions
-                    .entry(candidate.name.to_string())
+                    .entry(ClassNameV0::new(candidate.name.to_string()).canonical_key())
                     .or_insert_with(|| document.uri.clone());
             }
         }

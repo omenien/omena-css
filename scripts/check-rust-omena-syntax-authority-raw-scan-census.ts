@@ -68,6 +68,15 @@ interface RawScanCensus {
     readonly sites: readonly RawScanSite[];
     readonly siteDigest: string;
   };
+  readonly selectorAuthority: {
+    readonly policy: "single-cst-projected-authority";
+    readonly ownerPath: "rust/crates/omena-syntax/src/selector.rs";
+    readonly typeName: "CanonicalSelectorAst";
+    readonly authorityTypeCount: 1;
+    readonly parserCstProducerCallCount: number;
+    readonly reportProjectionCallCount: 1;
+    readonly rawNestingReplaceSiteCount: 0;
+  };
   readonly moduleInterfaceLessScanner: {
     readonly policy: "single-named-seam";
     readonly path: "rust/crates/omena-sif/src/generator.rs";
@@ -134,6 +143,10 @@ const injectModuleInterfaceLessScannerCall =
   process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_LESS_SCANNER_CALL === "1";
 const injectClassSelectorScanner =
   process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_CLASS_SCANNER === "1";
+const injectSecondSelectorAuthority =
+  process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_SECOND_SELECTOR_AUTHORITY === "1";
+const injectRawNestingReplace =
+  process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_RAW_NESTING_REPLACE === "1";
 
 const sourceRoots = ["rust/crates"] as const;
 const productPathMatrix = JSON.parse(
@@ -236,6 +249,7 @@ const sites = scanRawSyntaxSites();
 const classSelectorScannerSites = scanClassSelectorScannerSites();
 const tokenCaseOperations = scanTokenCaseOperations();
 const moduleInterfaceLessScanner = scanModuleInterfaceLessScanner();
+const selectorAuthority = scanSelectorAuthority();
 const tokenCaseComparisonSites = tokenCaseOperations.adHocSites;
 const currentNamedExemptSiteCount = sites.filter(
   (site) => site.disposition === "named-exempt",
@@ -254,6 +268,25 @@ assert.ok(sites.length > 0, "raw syntax scan census must be non-vacuous");
 assert.ok(
   sites.some((site) => site.disposition === "named-exempt"),
   "raw syntax scan census must include named exemptions",
+);
+assert.equal(
+  selectorAuthority.authorityTypeCount,
+  1,
+  "selector canonicalization must have exactly one CanonicalSelectorAst authority",
+);
+assert.ok(
+  selectorAuthority.parserCstProducerCallCount > 0,
+  "the parser must project CanonicalSelectorAst from selector CST nodes",
+);
+assert.equal(
+  selectorAuthority.reportProjectionCallCount,
+  1,
+  "SelectorCanonicalIdentityV0 must remain one projection of the canonical authority",
+);
+assert.equal(
+  selectorAuthority.rawNestingReplaceSiteCount,
+  0,
+  "nesting expansion must not retain raw replace('&', ...) sites",
 );
 assert.ok(
   sites.length <= baselineSiteCount,
@@ -327,6 +360,7 @@ const census: RawScanCensus = {
       .update(JSON.stringify(classSelectorScannerSites))
       .digest("hex")}`,
   },
+  selectorAuthority,
   moduleInterfaceLessScanner,
   tokenCaseComparison: {
     policy: "helper-only",
@@ -346,7 +380,9 @@ if (writeMode) {
       !injectLexerCaseComparison &&
       !injectNamedTokenCaseExemptionDrift &&
       !injectModuleInterfaceLessScannerCall &&
-      !injectClassSelectorScanner,
+      !injectClassSelectorScanner &&
+      !injectSecondSelectorAuthority &&
+      !injectRawNestingReplace,
     "test injection cannot be combined with --write",
   );
   writeFileSync(censusPath, expected);
@@ -382,6 +418,10 @@ process.stdout.write(
       siteDigest: census.siteDigest,
       classSelectorScannerSiteCount: census.classSelectorScanner.currentSiteCount,
       classSelectorScannerSiteDigest: census.classSelectorScanner.siteDigest,
+      selectorAuthorityTypeCount: census.selectorAuthority.authorityTypeCount,
+      selectorParserCstProducerCallCount: census.selectorAuthority.parserCstProducerCallCount,
+      selectorReportProjectionCallCount: census.selectorAuthority.reportProjectionCallCount,
+      rawNestingReplaceSiteCount: census.selectorAuthority.rawNestingReplaceSiteCount,
       moduleInterfaceLessScannerCallCount: census.moduleInterfaceLessScanner.directCallCount,
       direction: census.policy.direction,
       enforced: census.policy.enforced,
@@ -456,7 +496,61 @@ function readExistingCensus(): RawScanCensus | undefined {
       "committed class selector scanner site digest",
     );
   }
+  if (parsed.selectorAuthority !== undefined) {
+    assert.equal(parsed.selectorAuthority.authorityTypeCount, 1, "committed selector authority");
+    assert.equal(
+      parsed.selectorAuthority.reportProjectionCallCount,
+      1,
+      "committed selector report projection",
+    );
+    assert.equal(
+      parsed.selectorAuthority.rawNestingReplaceSiteCount,
+      0,
+      "committed raw nesting replacement count",
+    );
+  }
   return parsed;
+}
+
+function scanSelectorAuthority(): RawScanCensus["selectorAuthority"] {
+  const ownerPath = "rust/crates/omena-syntax/src/selector.rs" as const;
+  let ownerSource = readFileSync(path.join(repoRoot, ownerPath), "utf8");
+  if (injectSecondSelectorAuthority) {
+    ownerSource += "\npub struct CanonicalSelectorAst;\n";
+  }
+  const authorityTypeCount = [...ownerSource.matchAll(/\bpub\s+struct\s+CanonicalSelectorAst\b/gu)]
+    .length;
+  const parserSource = readFileSync(
+    path.join(repoRoot, "rust/crates/omena-parser/src/canonical_selector.rs"),
+    "utf8",
+  );
+  const parserCstProducerCallCount = [
+    ...parserSource.matchAll(/\bCanonicalSelectorAst::from_cst\s*\(/gu),
+  ].length;
+  const reportSource = readFileSync(
+    path.join(repoRoot, "rust/crates/omena-semantic/src/selector_identity.rs"),
+    "utf8",
+  );
+  const reportProjectionCallCount = [
+    ...reportSource.matchAll(/\bSelectorCanonicalIdentityV0::from_canonical_key\s*\(/gu),
+  ].length;
+  let rawNestingReplaceSiteCount = trackedRustSources("rust/crates")
+    .map((relativePath) => readFileSync(path.join(repoRoot, relativePath), "utf8"))
+    .reduce(
+      (count, source) => count + [...source.matchAll(/\.replace\s*\(\s*'&'\s*,/gu)].length,
+      0,
+    );
+  if (injectRawNestingReplace) rawNestingReplaceSiteCount += 1;
+
+  return {
+    policy: "single-cst-projected-authority",
+    ownerPath,
+    typeName: "CanonicalSelectorAst",
+    authorityTypeCount: authorityTypeCount as 1,
+    parserCstProducerCallCount,
+    reportProjectionCallCount: reportProjectionCallCount as 1,
+    rawNestingReplaceSiteCount: rawNestingReplaceSiteCount as 0,
+  };
 }
 
 function scanModuleInterfaceLessScanner(): RawScanCensus["moduleInterfaceLessScanner"] {

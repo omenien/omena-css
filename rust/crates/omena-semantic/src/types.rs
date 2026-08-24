@@ -6,7 +6,7 @@
 //! internal parser state.
 
 use omena_parser::StyleDialect;
-use omena_syntax::ident::CanonicalCustomPropertyNameV0;
+use omena_syntax::{CanonicalSelectorAst, ident::CanonicalCustomPropertyNameV0};
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -410,6 +410,11 @@ pub struct StyleContextSelectorMembershipV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StyleSelectorIdentityFactsV0 {
+    /// CST-issued canonical selector structures. Serialization remains on the
+    /// compatibility projection below; identity decisions re-key through this
+    /// authority rather than exposing a second report schema.
+    #[serde(skip)]
+    pub selector_asts: Vec<CanonicalSelectorAst>,
     pub canonical_names: Vec<String>,
     pub bem_suffix_safe_names: Vec<String>,
     pub bem_suffix_parent_names: Vec<String>,

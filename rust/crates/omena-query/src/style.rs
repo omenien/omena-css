@@ -1,6 +1,7 @@
 use super::*;
 use omena_parser::{
     ParsedSassIncludeFact, ParsedSelectorFact, ParsedStyleFacts, ParsedVariableFact,
+    expand_nested_selector_from_cst,
 };
 use omena_syntax::{
     css_keyword,
@@ -1246,8 +1247,12 @@ fn split_hover_selector_list(prelude: &str) -> Vec<String> {
 fn canonical_hover_selector(parent_selector: Option<&str>, selector: &str) -> String {
     let selector = selector.trim();
     match parent_selector {
-        Some(parent_selector) if selector.contains('&') => selector.replace('&', parent_selector),
-        Some(parent_selector) => format!("{parent_selector} {selector}"),
+        Some(parent_selector) => expand_nested_selector_from_cst(
+            parent_selector,
+            selector,
+            omena_parser::StyleDialect::Scss,
+        )
+        .unwrap_or_else(|| format!("{parent_selector} {selector}")),
         None => selector.to_string(),
     }
 }

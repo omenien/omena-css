@@ -6,7 +6,10 @@
 
 use std::collections::BTreeSet;
 
-use omena_syntax::ident::{class_selector_name_end, is_css_name_continue, is_css_name_start};
+use omena_syntax::ident::{
+    CanonicalIdKeyV0, CanonicalTypeSelectorKeyV0, ClassNameV0, class_selector_name_end,
+    css_identifier_escape_sequence_end, is_css_name_continue, is_css_name_start,
+};
 
 use crate::{
     ElementIdentityV0, ElementSignature, ScopeProximityStatusV0, ScopeProximityV0,
@@ -359,33 +362,33 @@ fn selector_match_branch_witness(
     };
 
     if let Some(required_tag) = &signature.required_tag {
-        match element.tag.as_deref() {
+        match element.tag.as_ref() {
             Some(tag) if tag == required_tag => {}
             _ if !element.tag_is_exact => {
                 witness.verdict = SelectorMatchVerdict::Maybe;
                 witness.reason = SelectorMatchReason::MissingTag;
-                witness.missing_tag = Some(required_tag.clone());
+                witness.missing_tag = Some(required_tag.as_str().to_string());
             }
             _ => {
                 witness.verdict = SelectorMatchVerdict::No;
                 witness.reason = SelectorMatchReason::MissingTag;
-                witness.missing_tag = Some(required_tag.clone());
+                witness.missing_tag = Some(required_tag.as_str().to_string());
             }
         }
     }
 
     if let Some(required_id) = &signature.required_id {
-        match element.id.as_deref() {
+        match element.id.as_ref() {
             Some(id) if id == required_id => {}
             _ if !element.id_is_exact && witness.verdict != SelectorMatchVerdict::No => {
                 witness.verdict = SelectorMatchVerdict::Maybe;
                 witness.reason = SelectorMatchReason::MissingId;
-                witness.missing_id = Some(required_id.clone());
+                witness.missing_id = Some(required_id.as_str().to_string());
             }
             _ => {
                 witness.verdict = SelectorMatchVerdict::No;
                 witness.reason = SelectorMatchReason::MissingId;
-                witness.missing_id = Some(required_id.clone());
+                witness.missing_id = Some(required_id.as_str().to_string());
             }
         }
     }
@@ -400,7 +403,9 @@ fn selector_match_branch_witness(
             witness.verdict = SelectorMatchVerdict::No;
         }
         witness.reason = SelectorMatchReason::MissingClass;
-        witness.missing_classes.insert(required_class.clone());
+        witness
+            .missing_classes
+            .insert(required_class.as_str().to_string());
     }
 
     for required_attribute in &signature.required_attributes {
@@ -477,14 +482,14 @@ fn parse_simple_selector_signature_inner(selector: &str) -> Option<SelectorSigna
                 index += 1;
                 let (name, next) = read_class_identifier(selector, index)?;
                 specificity.classes += 1;
-                required_classes.insert(name);
+                required_classes.insert(ClassNameV0::new(name).canonical_key());
                 index = next;
             }
             '#' => {
                 index += 1;
-                let (name, next) = read_identifier(&chars, index)?;
+                let (name, next) = read_class_identifier(selector, index)?;
                 specificity.ids += 1;
-                required_id = Some(name);
+                required_id = Some(CanonicalIdKeyV0::from_authored(name.as_str()));
                 index = next;
             }
             '[' => {
@@ -529,12 +534,12 @@ fn parse_simple_selector_signature_inner(selector: &str) -> Option<SelectorSigna
                 }
             }
             ch if is_css_name_start(ch) => {
-                let (name, next) = read_identifier(&chars, index)?;
+                let (name, next) = read_class_identifier(selector, index)?;
                 if required_tag.is_some() {
                     return None;
                 }
                 specificity.elements += 1;
-                required_tag = Some(name);
+                required_tag = Some(CanonicalTypeSelectorKeyV0::from_authored(name.as_str()));
                 index = next;
             }
             _ => return None,
@@ -588,7 +593,18 @@ fn split_selector_list(selector: &str) -> Vec<String> {
 fn selector_has_unsupported_top_level_syntax(selector: &str) -> bool {
     let mut paren_depth: usize = 0;
     let mut bracket_depth: usize = 0;
-    for ch in selector.chars() {
+    let mut index = 0usize;
+    while index < selector.len() {
+        let Some(ch) = selector[index..].chars().next() else {
+            break;
+        };
+        if ch == '\\' {
+            let Some(end) = css_identifier_escape_sequence_end(selector, index) else {
+                return true;
+            };
+            index = end;
+            continue;
+        }
         match ch {
             '(' => paren_depth += 1,
             ')' => paren_depth = paren_depth.saturating_sub(1),
@@ -598,6 +614,7 @@ fn selector_has_unsupported_top_level_syntax(selector: &str) -> bool {
             ch if ch.is_whitespace() && paren_depth == 0 && bracket_depth == 0 => return true,
             _ => {}
         }
+        index += ch.len_utf8();
     }
     false
 }

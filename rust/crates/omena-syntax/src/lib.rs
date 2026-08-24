@@ -12,8 +12,15 @@ use cstree::{RawSyntaxKind, Syntax};
 
 pub mod ident;
 mod keyword;
+mod layer;
+mod selector;
 
 pub use keyword::{CssKeywordText, css_keyword};
+pub use layer::{CanonicalLayerIdentifierKeyV0, LayerPathV0};
+pub use selector::{
+    CanonicalCompoundSelectorV0, CanonicalSelectorAst, CanonicalSelectorBranchV0,
+    CanonicalSelectorCombinatorV0, CanonicalSelectorSpecificityWitnessV0, NestingTokenV0,
+};
 
 pub const TOKEN_START: u32 = 0x0000;
 pub const TOKEN_END: u32 = 0x03ff;

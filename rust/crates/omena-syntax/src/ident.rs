@@ -69,6 +69,73 @@ impl CanonicalClassKeyV0 {
     }
 }
 
+impl serde::Serialize for CanonicalClassKeyV0 {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct CanonicalIdKeySealV0(());
+
+/// A sealed, CSS-escape-decoded id-selector identity key.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CanonicalIdKeyV0(String, CanonicalIdKeySealV0);
+
+impl CanonicalIdKeyV0 {
+    pub fn from_authored(authored: &str) -> Self {
+        Self(
+            decode_css_identifier_escapes(authored).into_owned(),
+            CanonicalIdKeySealV0(()),
+        )
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl serde::Serialize for CanonicalIdKeyV0 {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct CanonicalTypeSelectorKeySealV0(());
+
+/// A sealed, CSS-escape-decoded type-selector identity key.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CanonicalTypeSelectorKeyV0(String, CanonicalTypeSelectorKeySealV0);
+
+impl CanonicalTypeSelectorKeyV0 {
+    pub fn from_authored(authored: &str) -> Self {
+        Self(
+            decode_css_identifier_escapes(authored).into_owned(),
+            CanonicalTypeSelectorKeySealV0(()),
+        )
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl serde::Serialize for CanonicalTypeSelectorKeyV0 {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
 /// Whether a declaration name belongs to the standard-property or custom-property
 /// identity domain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

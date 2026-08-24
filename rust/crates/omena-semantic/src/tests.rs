@@ -1142,6 +1142,52 @@ fn resolves_mixed_case_layer_keywords_from_statements_and_blocks() {
 }
 
 #[test]
+fn resolves_decoded_non_ascii_layer_paths_from_parser_cst() {
+    let summary = summarize_omena_parser_style_semantic_boundary_from_source(
+        "layers.css",
+        r"@layer \66 oo.하위 { .card { color: red; } }",
+    );
+    let layers = summary.semantic_facts.context_index.layer_index;
+
+    assert!(layers.topology_complete);
+    assert_eq!(layers.unresolved_topology_count, 0);
+    assert_eq!(
+        layers
+            .order_nodes
+            .iter()
+            .map(|node| node.canonical_name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["foo.하위", "foo"],
+    );
+    assert!(
+        layers
+            .block_bindings
+            .iter()
+            .any(|binding| binding.canonical_name == "foo.하위")
+    );
+}
+
+#[test]
+fn escaped_dot_layer_identity_stays_distinct_from_nested_layer_identity() {
+    let summary = summarize_omena_parser_style_semantic_boundary_from_source(
+        "layers.css",
+        r"@layer foo\.bar, foo.bar;",
+    );
+    let names = summary
+        .semantic_facts
+        .context_index
+        .layer_index
+        .order_nodes
+        .iter()
+        .map(|node| node.canonical_name.as_str())
+        .collect::<Vec<_>>();
+
+    assert!(names.contains(&r"foo\00002ebar"));
+    assert!(names.contains(&"foo.bar"));
+    assert_eq!(names.iter().filter(|name| **name == "foo").count(), 1);
+}
+
+#[test]
 fn layer_statement_order_is_a_load_bearing_rank_fact() {
     let ranks = |statement: &str| {
         summarize_omena_parser_style_semantic_boundary_from_source(
@@ -1479,6 +1525,26 @@ fn exposes_selector_identity_as_dedicated_semantic_sub_engine() -> Result<(), St
     assert_eq!(
         selector_identity.rewrite_safety.blockers,
         vec!["nested-expansion"]
+    );
+    Ok(())
+}
+
+#[test]
+fn selector_identity_projection_bytes_survive_the_authority_rekey() -> Result<(), String> {
+    let sheet = parse_style_module(
+        "Component.module.scss",
+        ".button { &__icon {} &.active {} }",
+    )
+    .ok_or_else(|| "SCSS module path should parse".to_string())?;
+    let semantic_facts = summarize_style_semantic_facts(&sheet);
+    let bytes = serde_json::to_string(&summarize_selector_identity_engine(
+        &semantic_facts.selector_identity,
+    ))
+    .map_err(|error| error.to_string())?;
+
+    assert_eq!(
+        bytes,
+        r#"{"schemaVersion":"0","product":"omena-semantic.selector-identity","canonicalIdCount":3,"canonicalIds":[{"canonicalId":"selector:active","localName":"active","identityKind":"localClass","rewriteSafety":"blocked","blockers":["nested-expansion"]},{"canonicalId":"selector:button","localName":"button","identityKind":"localClass","rewriteSafety":"safe","blockers":[]},{"canonicalId":"selector:button__icon","localName":"button__icon","identityKind":"bemSuffix","rewriteSafety":"safe","blockers":[]}],"rewriteSafety":{"allCanonicalIdsRewriteSafe":false,"safeCanonicalIds":["selector:button","selector:button__icon"],"blockedCanonicalIds":["selector:active"],"blockers":["nested-expansion"]}}"#,
     );
     Ok(())
 }

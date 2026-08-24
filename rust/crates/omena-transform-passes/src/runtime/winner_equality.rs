@@ -1193,18 +1193,7 @@ mod tests {
     #[test]
     fn candidate_selection_keeps_custom_property_identity_case_sensitive() {
         let pair = TransformWinnerEqualityAffectedPairV0 {
-            element_signature: ElementSignature {
-                tag: None,
-                id: None,
-                classes: BTreeSet::from(["a".to_string()]),
-                attributes: BTreeSet::new(),
-                pseudo_states: BTreeSet::new(),
-                classes_are_exact: true,
-                attributes_are_exact: true,
-                pseudo_states_are_exact: true,
-                tag_is_exact: true,
-                id_is_exact: true,
-            },
+            element_signature: ElementSignature::concrete(None::<String>, None::<String>, ["a"]),
             property: "--FOO".to_string(),
         };
         let candidates = ["--foo", "--FOO"].map(|property| SemanticCascadeCandidateV0 {
@@ -1548,7 +1537,7 @@ mod tests {
             })
             .count();
 
-        // The pre-S5 implementation emitted this absence for all three rows.
+        // The earlier all-or-nothing implementation emitted this absence for all three rows.
         // Media and supports are admitted now; container remains outside v0.
         assert_eq!(exit_absence_count, 1);
     }

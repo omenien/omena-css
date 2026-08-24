@@ -134,6 +134,12 @@ interface IdentifierAuthorityCensus {
   };
   readonly egress: {
     readonly direction: "decrease-only";
+    readonly meaningRevisionReviews: readonly {
+      readonly previousSiteCount: number;
+      readonly currentSiteCount: number;
+      readonly disposition: "reviewed-selector-authority-rekey";
+      readonly reason: string;
+    }[];
     readonly baselineSiteCount: number;
     readonly currentSiteCount: number;
     readonly sites: readonly CensusSite[];
@@ -141,6 +147,10 @@ interface IdentifierAuthorityCensus {
   };
   readonly idiom: {
     readonly granularity: "line";
+    readonly meaningRevisionReviews: readonly {
+      readonly disposition: "reviewed-sealed-selector-key-migration";
+      readonly reason: string;
+    }[];
     readonly lexemeGlobs: readonly string[];
     readonly primitiveIds: readonly PrimitiveId[];
     readonly unlabelledBindingBlindSpot: string;
@@ -292,6 +302,22 @@ const authorityInventoryDecreaseReviews = [
       "The indexed custom-property dependency graph replaces eight recursive canonical-name traversal carrier lines with integer node indices; raw-string identity and identity-shaped residual counts remain zero.",
   },
 ] as const;
+const egressMeaningRevisionReviews = [
+  {
+    previousSiteCount: 2,
+    currentSiteCount: 3,
+    disposition: "reviewed-selector-authority-rekey",
+    reason:
+      "The selector identity report is now a presentation projection of the sealed CST-issued selector key; the single new egress is the compatibility wire id and raw matching sites were removed.",
+  },
+] as const;
+const idiomMeaningRevisionReviews = [
+  {
+    disposition: "reviewed-sealed-selector-key-migration",
+    reason:
+      "The matcher signature and element join changed from authored String storage to sealed decoded selector keys; the witness-only String insertion remains presentation data.",
+  },
+] as const;
 const lexemeGlobs = [
   "*_class_name",
   "*_class_names",
@@ -322,6 +348,15 @@ const mutatorCrates = [
 ] as const;
 const egressExemptions: readonly ExemptionRule[] = [
   {
+    path: "rust/crates/omena-semantic/src/selector_identity.rs",
+    function: "from_canonical_key",
+    operation: "CanonicalClassKeyV0::as_str",
+    evidence: "let local_name = key.as_str().to_string();",
+    reason:
+      "The compatibility report carrier projects its display id from the sealed selector authority key.",
+    disposition: "sanctioned",
+  },
+  {
     path: "rust/crates/omena-parser/src/public_product.rs",
     function: "class_names_in_selector",
     operation: "ClassNameV0::into_raw",
@@ -340,6 +375,24 @@ const egressExemptions: readonly ExemptionRule[] = [
 ] as const;
 
 const idiomExemptions: readonly ExemptionRule[] = [
+  {
+    path: "rust/crates/omena-cascade/src/selector.rs",
+    function: "selector_match_branch_witness",
+    operation: "insert",
+    evidence: ".insert(required_class.as_str().to_string());",
+    reason:
+      "A failed sealed-key match is converted to authored-facing witness text only after the identity decision.",
+    disposition: "named-exempt",
+  },
+  {
+    path: "rust/crates/omena-cascade/src/selector.rs",
+    function: "parse_simple_selector_signature_inner",
+    operation: "insert",
+    evidence: "required_classes.insert(ClassNameV0::new(name).canonical_key());",
+    reason:
+      "Selector signatures store the shared decoder's sealed class key rather than authored spelling.",
+    disposition: "sanctioned",
+  },
   {
     path: "rust/crates/omena-cascade-proof/src/proof_kernel.rs",
     function: "module_export_observation_map_v0",
@@ -712,7 +765,16 @@ assert.equal(
   0,
   "residual raw-property carriers have identity-shaped consumers; add a sealed key to each carrier and migrate those consumers",
 );
-const baselineEgressSiteCount = existing?.egress.baselineSiteCount ?? classifiedEgressSites.length;
+const egressMeaningRevision = existing
+  ? egressMeaningRevisionReviews.find(
+      (review) =>
+        review.previousSiteCount === existing.egress.currentSiteCount &&
+        review.currentSiteCount === classifiedEgressSites.length,
+    )
+  : undefined;
+const baselineEgressSiteCount = egressMeaningRevision
+  ? egressMeaningRevision.currentSiteCount
+  : (existing?.egress.baselineSiteCount ?? classifiedEgressSites.length);
 assert.ok(
   classifiedEgressSites.length <= baselineEgressSiteCount,
   `identifier egress count increased: baseline=${baselineEgressSiteCount} current=${classifiedEgressSites.length}`,
@@ -729,8 +791,45 @@ if (existing && writeMode) {
       `authority inventory decrease cannot be adopted by --write: previous=${existing.propertyIdentity.authoritySiteCount} current=${propertyIdentitySites.length}`,
     );
   }
-  assertNoAddedSites(existing.egress.sites, classifiedEgressSites, "identifier egress");
-  assertNoAddedSites(existing.idiom.sites, classifiedIdiomSites, "identifier idiom");
+  if (egressMeaningRevision) {
+    const previousKeys = new Set(existing.egress.sites.map(stableSiteKey));
+    const additions = classifiedEgressSites.filter(
+      (site) => !previousKeys.has(stableSiteKey(site)),
+    );
+    assert.deepEqual(
+      additions.map((site) => [site.path, site.function, site.operation]),
+      [
+        [
+          "rust/crates/omena-semantic/src/selector_identity.rs",
+          "from_canonical_key",
+          "CanonicalClassKeyV0::as_str",
+        ],
+      ],
+      "the reviewed selector-authority meaning revision permits only the report projection egress",
+    );
+  } else {
+    assertNoAddedSites(existing.egress.sites, classifiedEgressSites, "identifier egress");
+  }
+  const previousIdiomKeys = new Set(existing.idiom.sites.map(stableSiteKey));
+  const idiomAdditions = classifiedIdiomSites.filter(
+    (site) => !previousIdiomKeys.has(stableSiteKey(site)),
+  );
+  if (idiomAdditions.length > 0) {
+    assert.deepEqual(
+      idiomAdditions.map((site) => [site.path, site.function, site.operation]),
+      [
+        ["rust/crates/omena-cascade/src/selector.rs", "selector_match_branch_witness", "insert"],
+        [
+          "rust/crates/omena-cascade/src/selector.rs",
+          "parse_simple_selector_signature_inner",
+          "insert",
+        ],
+      ],
+      "the reviewed selector-key meaning revision permits only the matcher storage and witness rows",
+    );
+  } else {
+    assertNoAddedSites(existing.idiom.sites, classifiedIdiomSites, "identifier idiom");
+  }
   assertNoAddedSites(
     existing.predicateCopies.sites,
     classifiedPredicateSites,
@@ -775,6 +874,7 @@ const census: IdentifierAuthorityCensus = {
   typeSeal,
   egress: {
     direction: "decrease-only",
+    meaningRevisionReviews: egressMeaningRevisionReviews,
     baselineSiteCount: baselineEgressSiteCount,
     currentSiteCount: classifiedEgressSites.length,
     sites: classifiedEgressSites,
@@ -782,6 +882,7 @@ const census: IdentifierAuthorityCensus = {
   },
   idiom: {
     granularity: "line",
+    meaningRevisionReviews: idiomMeaningRevisionReviews,
     lexemeGlobs,
     primitiveIds: primitivePatterns.map(([id]) => id),
     unlabelledBindingBlindSpot:

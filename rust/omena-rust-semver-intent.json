@@ -30,7 +30,7 @@
     {
       "crate": "omena-transform-cst",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor aligns the static-var-substitution preservation claim with the shipped custom-property dependency graph and strongly connected component semantics.",
+      "reason": "The next pre-1.0 minor aligns the static-var-substitution preservation claim with the shipped custom-property dependency graph and strongly connected component semantics, and makes transform-IR nesting expansion consume parser-issued selector tokens.",
       "expectedFailures": [],
       "expectedRuntimeValueChanges": [
         {
@@ -44,6 +44,21 @@
               "needles": [
                 "TransformPassKind::StaticVarSubstitution => {",
                 "must preserve fallback-inclusive custom-property dependency edges, whole cyclic-component invalidation, and dependency-ordered acyclic substitution"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "transform-ir-token-aware-nesting-expansion",
+          "kind": "selection-outcome-changing",
+          "surface": "expanded transform-IR style-rule and @nest selectors",
+          "reason": "Nesting expansion now substitutes only parser CST NestingSelectorNode spans, preserving ampersands in attribute strings and escaped identifiers instead of rewriting every byte.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+              "needles": [
+                "expand_nested_selector_from_cst(parent_selector.as_str(), selector, StyleDialect::Scss)",
+                "fn expanded_ir_selector_only_substitutes_cst_nesting_tokens()"
               ]
             }
           ]
@@ -576,13 +591,31 @@
               ]
             }
           ]
+        },
+        {
+          "id": "query-token-aware-nesting-expansion",
+          "kind": "selection-outcome-changing",
+          "surface": "query hover and cascade-checker canonical selector expansion",
+          "reason": "Query selector expansion now delegates to the parser CST authority, so selector-token ampersands expand while attribute and escaped ampersands retain their authored bytes.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style.rs",
+              "needles": ["expand_nested_selector_from_cst(", "fn canonical_hover_selector("]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/cascade_checker/declaration_facts.rs",
+              "needles": [
+                "fn cst_join_preserves_non_nesting_ampersands_during_selector_expansion()"
+              ]
+            }
+          ]
         }
       ]
     },
     {
       "crate": "omena-transform-passes",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor exposes checked module-export preservation evidence, can reject a structural pass candidate whose identity-keyed export observation is not preserved, returns typed dependency-cycle witnesses from checked pass planning, adds independently measured full-CST coverage to external CSS adoption evidence, routes transform property selection through the shared standard/custom identity authority, and adopts whole-component custom-property cycle invalidation.",
+      "reason": "The next pre-1.0 minor exposes checked module-export preservation evidence, can reject a structural pass candidate whose identity-keyed export observation is not preserved, returns typed dependency-cycle witnesses from checked pass planning, adds independently measured full-CST coverage to external CSS adoption evidence, routes transform property selection through shared property and selector authorities, and adopts whole-component custom-property cycle invalidation.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -745,6 +778,21 @@
               ]
             }
           ]
+        },
+        {
+          "id": "transform-token-aware-nesting-expansion",
+          "kind": "selection-outcome-changing",
+          "surface": "nesting transform selector expansion",
+          "reason": "The nesting pass consumes parser-issued NestingSelectorNode spans, preventing raw ampersand replacement inside attribute values and escaped identifiers while preserving no-nesting expansion bytes.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/domains/nesting.rs",
+              "needles": [
+                "omena_parser::expand_nested_selector_from_cst(",
+                "fn nesting_expansion_only_substitutes_nesting_selector_tokens()"
+              ]
+            }
+          ]
         }
       ]
     },
@@ -824,7 +872,7 @@
     {
       "crate": "omena-syntax",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor adds the sole public property-name identity authority with separate standard and custom canonical key domains.",
+      "reason": "The next pre-1.0 minor adds sole public property-name and selector authorities, sealed selector identity keys, token-aware nesting structure, and decoded cascade-layer paths.",
       "expectedFailures": [],
       "expectedRuntimeValueChanges": [
         {
@@ -847,13 +895,41 @@
               ]
             }
           ]
+        },
+        {
+          "id": "canonical-selector-and-layer-authority",
+          "kind": "selection-outcome-changing",
+          "surface": "CanonicalSelectorAst, sealed class/id/type keys, NestingTokenV0, and LayerPathV0",
+          "reason": "One CST-backed selector authority now owns structural selector identity and nesting spans, while layer paths retain decoded identifier segments and serialize an unambiguous compatibility name.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-syntax/src/selector.rs",
+              "needles": [
+                "pub struct CanonicalSelectorAst",
+                "pub fn expand_with_parent(&self, parent: &Self) -> Option<String>",
+                "SyntaxKind::NestingSelectorNode"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-syntax/src/layer.rs",
+              "needles": [
+                "pub struct LayerPathV0",
+                "pub fn canonical_name(&self) -> String",
+                "fn canonical_css_identifier(identifier: &str) -> String"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-syntax/src/ident.rs",
+              "needles": ["pub struct CanonicalIdKeyV0", "pub struct CanonicalTypeSelectorKeyV0"]
+            }
+          ]
         }
       ]
     },
     {
       "crate": "omena-parser",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor preserves authored custom-property spelling and adds sealed property keys to public parser facts.",
+      "reason": "The next pre-1.0 minor preserves authored custom-property spelling, adds sealed property keys to public parser facts, and exposes CST-issued selector and cascade-layer projections.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -891,13 +967,32 @@
               ]
             }
           ]
+        },
+        {
+          "id": "parser-selector-and-layer-cst-projections",
+          "kind": "selection-outcome-changing",
+          "surface": "canonical selector construction, nesting expansion, and decoded layer-path producers",
+          "reason": "Parser entry points now project the shared selector authority and decoded layer paths directly from CST nodes, replacing raw string substitution and ASCII-only layer splitting in consumers.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-parser/src/canonical_selector.rs",
+              "needles": [
+                "pub fn canonical_selector_asts_from_cst",
+                "pub fn expand_nested_selector_from_cst"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-parser/src/layer_path.rs",
+              "needles": ["pub fn layer_paths_from_cst"]
+            }
+          ]
         }
       ]
     },
     {
       "crate": "omena-cascade",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor changes public custom-property environment and var-reference carriers to sealed keys, pairs authored declaration/proof text with canonical keys, makes cascade selection obey CSS property identity, and replaces clone-start substitution with whole-component cycle invalidation plus fail-closed computed-value grammar revalidation.",
+      "reason": "The next pre-1.0 minor changes public custom-property and selector carriers to sealed keys, makes cascade selection obey CSS property and selector identity, and replaces clone-start substitution with whole-component cycle invalidation plus fail-closed computed-value grammar revalidation.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -1010,6 +1105,28 @@
             {
               "sourcePath": "rust/crates/omena-cascade/src/tests.rs",
               "needles": ["fn classifies_guaranteed_invalid_custom_property_causes()"]
+            }
+          ]
+        },
+        {
+          "id": "cascade-sealed-selector-identity",
+          "kind": "selection-outcome-changing",
+          "surface": "ElementSignature, SelectorSignature, and selector_match_witness",
+          "reason": "Element and selector signatures compare shared escape-decoded class, id, and type keys; escape-equivalent selectors now match, distinct decoded names remain separate, and escape terminator whitespace is no longer an incidental unsupported-syntax bailout.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/model.rs",
+              "needles": [
+                "pub classes: BTreeSet<CanonicalClassKeyV0>",
+                "pub required_classes: BTreeSet<CanonicalClassKeyV0>"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/tests.rs",
+              "needles": [
+                "fn escaped_class_selectors_match_canonical_element_identity()",
+                "fn escaped_id_and_type_selectors_match_canonical_element_identity()"
+              ]
             }
           ]
         }
@@ -1127,22 +1244,60 @@
       ]
     },
     {
+      "crate": "omena-lsp-server",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor joins global class source diagnostics through the shared escape-decoded selector identity.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": ["field LspStyleHoverCandidate.property_key"],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": ["LspStyleHoverCandidate.property_key"]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "lsp-canonical-global-class-join",
+          "kind": "selection-outcome-changing",
+          "surface": "source diagnostic global-class fallthrough",
+          "reason": "Authored escaped stylesheet spellings and decoded source references now join through CanonicalClassKeyV0, replacing a false missing-selector diagnostic with the existing global-class fallthrough result.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-lsp-server/src/source_diagnostics.rs",
+              "needles": [
+                "BTreeMap<CanonicalClassKeyV0, String>",
+                "ClassNameV0::new(candidate.name.to_string()).canonical_key()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-lsp-server/src/tests/diagnostics_publish.rs",
+              "needles": [
+                "fn escaped_global_class_spelling_joins_source_diagnostics_by_canonical_identity()"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
       "crate": "omena-semantic",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor adds sealed custom-property keys to public semantic facts while preserving authored names for presentation.",
+      "reason": "The next pre-1.0 minor adds sealed custom-property keys and CST selector authority facts while preserving authored presentation, and resolves decoded cascade-layer paths.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
           "evidenceNeedles": [
             "field ParserIndexCustomPropertyRefFactV0.property_key",
             "field DesignTokenWorkspaceDeclarationFactV0.property_key",
-            "field ParserIndexCustomPropertyDeclFactV0.property_key"
+            "field ParserIndexCustomPropertyDeclFactV0.property_key",
+            "field StyleSelectorIdentityFactsV0.selector_asts"
           ],
           "witnessLinePrefix": "  field ",
           "expectedWitnesses": [
             "ParserIndexCustomPropertyDeclFactV0.property_key",
             "ParserIndexCustomPropertyRefFactV0.property_key",
-            "DesignTokenWorkspaceDeclarationFactV0.property_key"
+            "DesignTokenWorkspaceDeclarationFactV0.property_key",
+            "StyleSelectorIdentityFactsV0.selector_asts"
           ]
         }
       ],
@@ -1166,6 +1321,26 @@
               "needles": [
                 "pub struct DesignTokenWorkspaceDeclarationFactV0",
                 "pub property_key: CanonicalCustomPropertyNameV0"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "semantic-selector-identity-and-layer-path-projection",
+          "kind": "selection-outcome-changing",
+          "surface": "StyleSelectorIdentityFactsV0, selector identity summary, and StyleLayerIndexV0",
+          "reason": "Selector identity summaries re-key through CST-issued sealed keys without changing established report bytes, while escaped and non-ASCII layer identifiers now form complete typed topology instead of an incomplete ASCII-only result.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-semantic/src/types.rs",
+              "needles": ["pub selector_asts: Vec<CanonicalSelectorAst>"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-semantic/src/tests.rs",
+              "needles": [
+                "fn selector_identity_projection_bytes_survive_the_authority_rekey()",
+                "fn resolves_decoded_non_ascii_layer_paths_from_parser_cst()",
+                "fn escaped_dot_layer_identity_stays_distinct_from_nested_layer_identity()"
               ]
             }
           ]

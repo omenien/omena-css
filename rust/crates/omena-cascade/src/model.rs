@@ -6,7 +6,8 @@
 //! cascade-sensitive rewrite was accepted or blocked.
 
 use omena_syntax::ident::{
-    AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0,
+    AuthoredPropertyTextV0, CanonicalClassKeyV0, CanonicalCustomPropertyNameV0, CanonicalIdKeyV0,
+    CanonicalPropertyKeyV0, CanonicalTypeSelectorKeyV0, ClassNameV0,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -492,9 +493,9 @@ impl SelectorContextWitness {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ElementSignature {
-    pub tag: Option<String>,
-    pub id: Option<String>,
-    pub classes: BTreeSet<String>,
+    pub tag: Option<CanonicalTypeSelectorKeyV0>,
+    pub id: Option<CanonicalIdKeyV0>,
+    pub classes: BTreeSet<CanonicalClassKeyV0>,
     pub attributes: BTreeSet<String>,
     pub pseudo_states: BTreeSet<String>,
     pub classes_are_exact: bool,
@@ -582,9 +583,12 @@ impl ElementSignature {
         classes: impl IntoIterator<Item = impl Into<String>>,
     ) -> Self {
         Self {
-            tag: tag.map(Into::into),
-            id: id.map(Into::into),
-            classes: classes.into_iter().map(Into::into).collect(),
+            tag: tag.map(|tag| CanonicalTypeSelectorKeyV0::from_authored(&tag.into())),
+            id: id.map(|id| CanonicalIdKeyV0::from_authored(&id.into())),
+            classes: classes
+                .into_iter()
+                .map(|class| ClassNameV0::new(class.into()).canonical_key())
+                .collect(),
             attributes: BTreeSet::new(),
             pseudo_states: BTreeSet::new(),
             classes_are_exact: true,
@@ -614,14 +618,21 @@ pub struct SelectorFunctionalPseudoConstraintV0 {
 #[serde(rename_all = "camelCase")]
 pub struct SelectorSignature {
     pub selector: String,
-    pub required_tag: Option<String>,
-    pub required_id: Option<String>,
-    pub required_classes: BTreeSet<String>,
+    pub required_tag: Option<CanonicalTypeSelectorKeyV0>,
+    pub required_id: Option<CanonicalIdKeyV0>,
+    pub required_classes: BTreeSet<CanonicalClassKeyV0>,
     pub required_attributes: BTreeSet<String>,
     pub required_pseudo_states: BTreeSet<String>,
     pub functional_pseudo_constraints: Vec<SelectorFunctionalPseudoConstraintV0>,
     pub specificity: Specificity,
     pub specificity_exactness: SpecificityExactnessV0,
+}
+
+impl SelectorSignature {
+    pub fn requires_class(&self, authored: &str) -> bool {
+        self.required_classes
+            .contains(&ClassNameV0::new(authored).canonical_key())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]

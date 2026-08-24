@@ -149,8 +149,16 @@
   },
   "egress": {
     "direction": "decrease-only",
-    "baselineSiteCount": 2,
-    "currentSiteCount": 2,
+    "meaningRevisionReviews": [
+      {
+        "previousSiteCount": 2,
+        "currentSiteCount": 3,
+        "disposition": "reviewed-selector-authority-rekey",
+        "reason": "The selector identity report is now a presentation projection of the sealed CST-issued selector key; the single new egress is the compatibility wire id and raw matching sites were removed."
+      }
+    ],
+    "baselineSiteCount": 3,
+    "currentSiteCount": 3,
     "sites": [
       {
         "path": "rust/crates/omena-parser/src/public_product.rs",
@@ -169,12 +177,27 @@
         "evidence": "names.insert(entry.name.into_raw());",
         "disposition": "named-exempt",
         "reason": "Cascade diagnostics preserve authored selector spelling after shared lexical extraction."
+      },
+      {
+        "path": "rust/crates/omena-semantic/src/selector_identity.rs",
+        "line": 40,
+        "function": "from_canonical_key",
+        "operation": "CanonicalClassKeyV0::as_str",
+        "evidence": "let local_name = key.as_str().to_string();",
+        "disposition": "sanctioned",
+        "reason": "The compatibility report carrier projects its display id from the sealed selector authority key."
       }
     ],
-    "siteDigest": "sha256:af9cf484e467c74c784dd9224d430a715dcccc811d05497f1e12c909e8845f06"
+    "siteDigest": "sha256:141cef9c315ffbee63228d772f2fb1b60a81b44f7d0a1395028435c8b04da614"
   },
   "idiom": {
     "granularity": "line",
+    "meaningRevisionReviews": [
+      {
+        "disposition": "reviewed-sealed-selector-key-migration",
+        "reason": "The matcher signature and element join changed from authored String storage to sealed decoded selector keys; the witness-only String insertion remains presentation data."
+      }
+    ],
     "lexemeGlobs": [
       "*_class_name",
       "*_class_names",
@@ -194,8 +217,8 @@
       "map-get": 6,
       "cmp": 2
     },
-    "sanctionedSiteCount": 44,
-    "namedExemptSiteCount": 22,
+    "sanctionedSiteCount": 43,
+    "namedExemptSiteCount": 23,
     "sites": [
       {
         "path": "rust/crates/engine-style-parser/src/lib.rs",
@@ -298,7 +321,7 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/selector.rs",
-        "line": 394,
+        "line": 397,
         "function": "selector_match_branch_witness",
         "operation": "contains",
         "evidence": "if element.classes.contains(required_class) {",
@@ -307,21 +330,21 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/selector.rs",
-        "line": 403,
+        "line": 408,
         "function": "selector_match_branch_witness",
         "operation": "insert",
-        "evidence": "witness.missing_classes.insert(required_class.clone());",
-        "disposition": "sanctioned",
-        "reason": "idiom site reviewed in the initial authored census."
+        "evidence": ".insert(required_class.as_str().to_string());",
+        "disposition": "named-exempt",
+        "reason": "A failed sealed-key match is converted to authored-facing witness text only after the identity decision."
       },
       {
         "path": "rust/crates/omena-cascade/src/selector.rs",
-        "line": 480,
+        "line": 485,
         "function": "parse_simple_selector_signature_inner",
         "operation": "insert",
-        "evidence": "required_classes.insert(name);",
+        "evidence": "required_classes.insert(ClassNameV0::new(name).canonical_key());",
         "disposition": "sanctioned",
-        "reason": "idiom site reviewed in the initial authored census."
+        "reason": "Selector signatures store the shared decoder's sealed class key rather than authored spelling."
       },
       {
         "path": "rust/crates/omena-cli/src/migrate/mod.rs",
@@ -469,7 +492,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1712,
+        "line": 1717,
         "function": "summarize_omena_query_css_modules_interface_bundle_inner",
         "operation": "insert",
         "evidence": "emitted_class_names.insert(",
@@ -478,7 +501,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3507,
+        "line": 3512,
         "function": "collect_css_modules_composes_adjacency_with_path_mappings",
         "operation": "str-eq",
         "evidence": "let target_class_names = if target_style_path == *style_path {",
@@ -487,7 +510,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3522,
+        "line": 3527,
         "function": "collect_css_modules_composes_adjacency_with_path_mappings",
         "operation": "contains",
         "evidence": "if !class_names.contains(&canonical_class_key(owner_selector_name)) {",
@@ -496,7 +519,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3528,
+        "line": 3533,
         "function": "collect_css_modules_composes_adjacency_with_path_mappings",
         "operation": "contains",
         "evidence": "if !target_class_names.contains(&canonical_class_key(target_selector_name)) {",
@@ -505,7 +528,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3887,
+        "line": 3892,
         "function": "collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts",
         "operation": "insert",
         "evidence": "if seen.insert((range_span.start, range_span.end, selector_name.clone())) {",
@@ -792,7 +815,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:291e5d1db985548e1e1cfba59def432a2ce68cbde275f9758afbfb918fe0b7e0"
+    "siteDigest": "sha256:70ee9c3fd018bf3e33cbbb16bedcd374e8e762e624b5cc06568bb27c4dc12d4f"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
@@ -876,7 +899,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 466,
+        "line": 533,
         "function": "is_css_name_continue",
         "operation": "character-predicate-copy",
         "evidence": "fn is_css_name_continue(ch: char) -> bool { is_css_name_start(ch) || ch.is_ascii_digit() }",
@@ -885,7 +908,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 475,
+        "line": 542,
         "function": "is_ascii_word_continue",
         "operation": "character-predicate-copy",
         "evidence": "fn is_ascii_word_continue(ch: char) -> bool { ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-') }",
@@ -894,7 +917,7 @@
       },
       {
         "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-        "line": 2063,
+        "line": 2064,
         "function": "is_parse_error_context_byte",
         "operation": "character-predicate-copy",
         "evidence": "fn is_parse_error_context_byte(byte: u8) -> bool { byte.is_ascii_alphanumeric() || matches!( byte, b'-' | b'_' | b'.' | b'$' | b'#' | b'%' | b'@' | b'/' | b'\\\\' ) }",
@@ -902,7 +925,7 @@
         "reason": "omena-transform-cst owns diagnostic context extraction, whose punctuation set is intentionally broader than a CSS identifier."
       }
     ],
-    "siteDigest": "sha256:56ef19be7c63db59ed4618c84e5fd41ebe771f85d5ddcd11e61ea4e6a7c34a18"
+    "siteDigest": "sha256:edd0402b4b2b307378941a606079184107f656e432cf6beb1cf97a4dd581394f"
   },
   "propertyIdentity": {
     "derivation": "authority-token-and-property-key-operation-scan",
@@ -931,7 +954,7 @@
         "reason": "The indexed custom-property dependency graph replaces eight recursive canonical-name traversal carrier lines with integer node indices; raw-string identity and identity-shaped residual counts remain zero."
       }
     ],
-    "authoritySiteCount": 705,
+    "authoritySiteCount": 706,
     "sites": [
       {
         "path": "rust/crates/engine-shadow-runner/src/main.rs",
@@ -1393,13 +1416,21 @@
         "path": "rust/crates/omena-cascade/src/model.rs",
         "line": 9,
         "function": "<module>",
-        "operation": "CanonicalPropertyKeyV0",
-        "evidence": "AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0,",
+        "operation": "CanonicalCustomPropertyNameV0",
+        "evidence": "AuthoredPropertyTextV0, CanonicalClassKeyV0, CanonicalCustomPropertyNameV0, CanonicalIdKeyV0,",
         "role": "carrier"
       },
       {
         "path": "rust/crates/omena-cascade/src/model.rs",
-        "line": 251,
+        "line": 10,
+        "function": "<module>",
+        "operation": "CanonicalPropertyKeyV0",
+        "evidence": "CanonicalPropertyKeyV0, CanonicalTypeSelectorKeyV0, ClassNameV0,",
+        "role": "carrier"
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/model.rs",
+        "line": 252,
         "function": "partial_cmp",
         "operation": "sealed-property-key",
         "evidence": "pub property_key: CanonicalPropertyKeyV0,",
@@ -1407,7 +1438,7 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/model.rs",
-        "line": 278,
+        "line": 279,
         "function": "eq",
         "operation": "sealed-property-key",
         "evidence": "pub property_key: CanonicalPropertyKeyV0,",
@@ -1415,7 +1446,7 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/model.rs",
-        "line": 290,
+        "line": 291,
         "function": "eq",
         "operation": "sealed-property-key",
         "evidence": "&& self.property_key == other.property_key",
@@ -1423,7 +1454,7 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/model.rs",
-        "line": 312,
+        "line": 313,
         "function": "from_declaration",
         "operation": "sealed-property-key",
         "evidence": "property_key: declaration.property_key.clone(),",
@@ -1431,7 +1462,7 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/model.rs",
-        "line": 342,
+        "line": 343,
         "function": "from_declaration",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "name: CanonicalCustomPropertyNameV0,",
@@ -1439,7 +1470,7 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/model.rs",
-        "line": 1052,
+        "line": 1063,
         "function": "default",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "pub type CustomPropertyEnv = BTreeMap<CanonicalCustomPropertyNameV0, CascadeValue>;",
@@ -2119,7 +2150,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 8,
+        "line": 9,
         "function": "<module>",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "AuthoredPropertyTextV0, CanonicalClassKeyV0, CanonicalCustomPropertyNameV0,",
@@ -2127,7 +2158,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 9,
+        "line": 10,
         "function": "<module>",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "CanonicalPropertyKeyV0, ClassNameV0, PropertyNameV0, is_ascii_word_continue,",
@@ -2135,7 +2166,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 334,
+        "line": 335,
         "function": "summarize_omena_query_custom_property_occurrence_index",
         "operation": "sealed-property-key",
         "evidence": "let Some(property_key) = fact.property_key else {",
@@ -2143,7 +2174,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 346,
+        "line": 347,
         "function": "summarize_omena_query_custom_property_occurrence_index",
         "operation": "sealed-property-key",
         "evidence": "property_key,",
@@ -2151,7 +2182,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 638,
+        "line": 639,
         "function": "summarize_omena_query_style_hover_render_parts_for_target_with_substrate",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "CanonicalPropertyKeyV0,",
@@ -2159,7 +2190,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 802,
+        "line": 803,
         "function": "selector_property_value_narrowings_from_declarations",
         "operation": "sealed-property-key",
         "evidence": "declaration.property_key.clone(),",
@@ -2167,7 +2198,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 830,
+        "line": 831,
         "function": "selector_property_value_narrowings_from_declarations",
         "operation": "sealed-property-key",
         "evidence": "|(property_key, condition_context, layer_name, layer_order)| {",
@@ -2175,7 +2206,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 833,
+        "line": 834,
         "function": "selector_property_value_narrowings_from_declarations",
         "operation": "sealed-property-key",
         "evidence": ".filter(|declaration| declaration.property_key == property_key)",
@@ -2183,7 +2214,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 847,
+        "line": 848,
         "function": "selector_property_value_narrowings_from_declarations",
         "operation": "sealed-property-key",
         "evidence": "property_key.as_str(),",
@@ -2191,7 +2222,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 946,
+        "line": 947,
         "function": "module_graph_narrowings_from_matching_declarations",
         "operation": "sealed-property-key",
         "evidence": "declaration.property_key.clone(),",
@@ -2199,7 +2230,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 974,
+        "line": 975,
         "function": "module_graph_narrowings_from_matching_declarations",
         "operation": "sealed-property-key",
         "evidence": "|(property_key, condition_context, layer_name, layer_order)| {",
@@ -2207,7 +2238,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 977,
+        "line": 978,
         "function": "module_graph_narrowings_from_matching_declarations",
         "operation": "sealed-property-key",
         "evidence": ".filter(|declaration| declaration.property_key == property_key)",
@@ -2215,7 +2246,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 991,
+        "line": 992,
         "function": "module_graph_narrowings_from_matching_declarations",
         "operation": "sealed-property-key",
         "evidence": "property_key.as_str(),",
@@ -2223,7 +2254,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1501,
+        "line": 1506,
         "function": "parser_materialization_weak",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "pub custom_property_decl_names: BTreeSet<CanonicalCustomPropertyNameV0>,",
@@ -2231,7 +2262,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1502,
+        "line": 1507,
         "function": "parser_materialization_weak",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "pub custom_property_ref_names: BTreeSet<CanonicalCustomPropertyNameV0>,",
@@ -2239,7 +2270,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1824,
+        "line": 1829,
         "function": "custom_property_decl_names_for_query",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": ") -> BTreeSet<CanonicalCustomPropertyNameV0> {",
@@ -2247,7 +2278,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1840,
+        "line": 1845,
         "function": "custom_property_decl_names_for_query",
         "operation": "PropertyNameV0::from_authored",
         "evidence": ".filter_map(|name| PropertyNameV0::from_authored(name).as_custom_key())",
@@ -2255,7 +2286,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1847,
+        "line": 1852,
         "function": "custom_property_ref_names_for_query",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": ") -> BTreeSet<CanonicalCustomPropertyNameV0> {",
@@ -2263,7 +2294,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1863,
+        "line": 1868,
         "function": "custom_property_ref_names_for_query",
         "operation": "PropertyNameV0::from_authored",
         "evidence": ".filter_map(|name| PropertyNameV0::from_authored(name).as_custom_key())",
@@ -2271,7 +2302,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3786,
+        "line": 3791,
         "function": "collect_style_selector_hover_candidates_from_omena_parser_facts",
         "operation": "sealed-property-key",
         "evidence": "property_key: None,",
@@ -2279,7 +2310,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3817,
+        "line": 3822,
         "function": "collect_custom_property_hover_candidates_from_omena_parser_facts",
         "operation": "sealed-property-key",
         "evidence": "property_key: fact.property_key.clone(),",
@@ -2287,7 +2318,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3864,
+        "line": 3869,
         "function": "collect_sass_symbol_hover_candidates_from_omena_parser_facts",
         "operation": "sealed-property-key",
         "evidence": "property_key: None,",
@@ -2295,7 +2326,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3891,
+        "line": 3896,
         "function": "collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts",
         "operation": "sealed-property-key",
         "evidence": "property_key: None,",
@@ -3935,7 +3966,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1195,
+        "line": 1196,
         "function": "summarize_omena_parser_custom_property_facts",
         "operation": "sealed-property-key",
         "evidence": "let Some(property_key) = variable.property_key.clone() else {",
@@ -3943,7 +3974,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1201,
+        "line": 1202,
         "function": "summarize_omena_parser_custom_property_facts",
         "operation": "sealed-property-key",
         "evidence": ".entry(property_key.clone())",
@@ -3951,7 +3982,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1205,
+        "line": 1206,
         "function": "summarize_omena_parser_custom_property_facts",
         "operation": "sealed-property-key",
         "evidence": "property_key,",
@@ -3959,7 +3990,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1254,
+        "line": 1255,
         "function": "summarize_omena_parser_custom_property_facts",
         "operation": "sealed-property-key",
         "evidence": ".map(|declaration| (declaration.property_key.clone(), declaration.name.clone()))",
@@ -3967,7 +3998,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1431,
+        "line": 1432,
         "function": "summarize_omena_parser_custom_property_semantic_facts",
         "operation": "sealed-property-key",
         "evidence": ".entry(reference.property_key.clone())",
@@ -3975,7 +4006,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1519,
+        "line": 1520,
         "function": "custom_property_context_matches",
         "operation": "sealed-property-key",
         "evidence": "if declaration.property_key != reference.property_key {",
@@ -3986,7 +4017,7 @@
         "line": 9,
         "function": "<module>",
         "operation": "CanonicalCustomPropertyNameV0",
-        "evidence": "use omena_syntax::ident::CanonicalCustomPropertyNameV0;",
+        "evidence": "use omena_syntax::{CanonicalSelectorAst, ident::CanonicalCustomPropertyNameV0};",
         "role": "carrier"
       },
       {
@@ -4015,7 +4046,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 182,
+        "line": 249,
         "function": "fmt",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "canonical: CanonicalStandardPropertyNameV0,",
@@ -4023,7 +4054,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 187,
+        "line": 254,
         "function": "fmt",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "canonical: CanonicalCustomPropertyNameV0,",
@@ -4031,7 +4062,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 216,
+        "line": 283,
         "function": "from_decoded",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "canonical: CanonicalStandardPropertyNameV0(",
@@ -4039,7 +4070,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 224,
+        "line": 291,
         "function": "from_decoded",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "canonical: CanonicalCustomPropertyNameV0(",
@@ -4047,7 +4078,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 290,
+        "line": 357,
         "function": "same_as",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "pub fn canonical_key(&self) -> CanonicalPropertyKeyV0 {",
@@ -4055,7 +4086,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 292,
+        "line": 359,
         "function": "canonical_key",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "Self::Standard { canonical, .. } => CanonicalPropertyKeyV0::Standard(canonical.clone()),",
@@ -4063,7 +4094,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 293,
+        "line": 360,
         "function": "canonical_key",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "Self::Custom { canonical, .. } => CanonicalPropertyKeyV0::Custom(canonical.clone()),",
@@ -4071,7 +4102,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 297,
+        "line": 364,
         "function": "canonical_key",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "pub fn as_custom_key(&self) -> Option<CanonicalCustomPropertyNameV0> {",
@@ -4079,7 +4110,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 304,
+        "line": 371,
         "function": "as_custom_key",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "pub fn as_standard_key(&self) -> Option<&CanonicalStandardPropertyNameV0> {",
@@ -4087,7 +4118,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 311,
+        "line": 378,
         "function": "as_standard_key",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "pub fn canonical_custom_key(authored: impl Into<String>) -> CanonicalCustomPropertyNameV0 {",
@@ -4095,7 +4126,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 318,
+        "line": 385,
         "function": "canonical_custom_key",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "pub fn canonical_standard_key(authored: impl Into<String>) -> CanonicalStandardPropertyNameV0 {",
@@ -4103,7 +4134,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 343,
+        "line": 410,
         "function": "canonical_standard_key",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "pub struct CanonicalStandardPropertyNameV0(String, CanonicalStandardPropertyNameSealV0);",
@@ -4111,7 +4142,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 345,
+        "line": 412,
         "function": "canonical_standard_key",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "impl CanonicalStandardPropertyNameV0 {",
@@ -4119,7 +4150,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 351,
+        "line": 418,
         "function": "as_str",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "impl serde::Serialize for CanonicalStandardPropertyNameV0 {",
@@ -4127,7 +4158,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 374,
+        "line": 441,
         "function": "serialize",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "pub struct CanonicalCustomPropertyNameV0(String, CanonicalCustomPropertyNameSealV0);",
@@ -4135,7 +4166,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 376,
+        "line": 443,
         "function": "serialize",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "impl CanonicalCustomPropertyNameV0 {",
@@ -4143,7 +4174,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 382,
+        "line": 449,
         "function": "as_str",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "impl serde::Serialize for CanonicalCustomPropertyNameV0 {",
@@ -4151,7 +4182,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 392,
+        "line": 459,
         "function": "serialize",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "pub enum CanonicalPropertyKeyV0 {",
@@ -4159,7 +4190,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 393,
+        "line": 460,
         "function": "serialize",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "Standard(CanonicalStandardPropertyNameV0),",
@@ -4167,7 +4198,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 394,
+        "line": 461,
         "function": "serialize",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "Custom(CanonicalCustomPropertyNameV0),",
@@ -4175,7 +4206,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 397,
+        "line": 464,
         "function": "serialize",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "impl CanonicalPropertyKeyV0 {",
@@ -4183,7 +4214,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 412,
+        "line": 479,
         "function": "kind",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "pub fn as_custom(&self) -> Option<&CanonicalCustomPropertyNameV0> {",
@@ -4191,7 +4222,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 419,
+        "line": 486,
         "function": "as_custom",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "pub fn as_standard(&self) -> Option<&CanonicalStandardPropertyNameV0> {",
@@ -4199,7 +4230,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 427,
+        "line": 494,
         "function": "as_standard",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "impl serde::Serialize for CanonicalPropertyKeyV0 {",
@@ -4207,7 +4238,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 438,
+        "line": 505,
         "function": "serialize",
         "operation": "property_names_same",
         "evidence": "pub fn property_names_same(left: &str, right: &str) -> bool {",
@@ -4215,7 +4246,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 439,
+        "line": 506,
         "function": "property_names_same",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "PropertyNameV0::from_authored(left).same_as(&PropertyNameV0::from_authored(right))",
@@ -4223,7 +4254,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 445,
+        "line": 512,
         "function": "is_custom_property_name",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "PropertyNameV0::from_authored(authored).kind() == PropertyNameKindV0::Custom",
@@ -6574,7 +6605,7 @@
         "role": "producer"
       }
     ],
-    "siteDigest": "sha256:6ca9ad9eac9e5ed6659925a0bc90fc731625f956514fbabe2f5d9d43e0a1b650",
+    "siteDigest": "sha256:7920993b16064701b2f4fd219e9a4eb3629faf88f9e68afc4a7f0d77f9e33056",
     "residualRawCarrierDirection": "decrease-only",
     "residualRawCarrierSiteCount": 198,
     "residualRawCarrierSites": [
@@ -6976,7 +7007,7 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/model.rs",
-        "line": 411,
+        "line": 412,
         "function": "wire_name",
         "operation": "residual-property-field:CascadeRegisteredCustomPropertyV0.name:String",
         "evidence": "pub name: String,",
@@ -6985,7 +7016,7 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/model.rs",
-        "line": 420,
+        "line": 421,
         "function": "wire_name",
         "operation": "residual-property-field:CascadeComputedValueInputV0.property:String",
         "evidence": "pub property: String,",
@@ -6994,7 +7025,7 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/model.rs",
-        "line": 439,
+        "line": 440,
         "function": "wire_name",
         "operation": "residual-property-field:CascadeComputedValueResultV0.property:String",
         "evidence": "pub property: String,",
@@ -7003,7 +7034,7 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/model.rs",
-        "line": 700,
+        "line": 711,
         "function": "unsupported",
         "operation": "residual-property-field:CascadeConformanceSeedCase.property:&'static str",
         "evidence": "pub property: &'static str,",
@@ -7012,7 +7043,7 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/model.rs",
-        "line": 828,
+        "line": 839,
         "function": "unsupported",
         "operation": "residual-property-field:CustomPropertyLeastFixedPointEntryV0.name:String",
         "evidence": "pub name: String,",
@@ -7021,7 +7052,7 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/model.rs",
-        "line": 851,
+        "line": 862,
         "function": "unsupported",
         "operation": "residual-property-field:BoxLonghandInputV0.property:String",
         "evidence": "pub property: String,",
@@ -7030,7 +7061,7 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/model.rs",
-        "line": 864,
+        "line": 875,
         "function": "unsupported",
         "operation": "residual-property-field:ShorthandCombinationProofV0.shorthand_property:String",
         "evidence": "pub shorthand_property: String,",
@@ -7435,7 +7466,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 121,
+        "line": 122,
         "function": "canonical_class_key",
         "operation": "residual-property-field:OmenaQueryCascadeSectionOutcomeV0.property:String",
         "evidence": "pub property: String,",
@@ -7444,7 +7475,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 139,
+        "line": 140,
         "function": "canonical_class_key",
         "operation": "residual-property-field:OmenaQueryCascadeSiteOutcomeV0.property:String",
         "evidence": "pub property: String,",
@@ -7831,7 +7862,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 438,
+        "line": 505,
         "function": "property_names_same",
         "operation": "residual-property-parameter:property_names_same.left:&str",
         "evidence": "pub fn property_names_same(left: &str, right: &str) -> bool {",
@@ -7840,7 +7871,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 438,
+        "line": 505,
         "function": "property_names_same",
         "operation": "residual-property-parameter:property_names_same.right:&str",
         "evidence": "pub fn property_names_same(left: &str, right: &str) -> bool {",
@@ -8361,7 +8392,7 @@
         "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
       }
     ],
-    "residualRawCarrierSiteDigest": "sha256:3986805205bad773491fdd18c669e73c64bdfd8625246ca5d1619fdc0658a9aa",
+    "residualRawCarrierSiteDigest": "sha256:265ecf248e7aab50be03b850b79f6a80b6f4946c5f7e9f4237dcf9629c0c7a86",
     "residualCarrierConsumerDerivation": "resolved-type-access-and-parameter-use-scan",
     "residualCarrierConsumerRows": [
       {
@@ -9336,7 +9367,7 @@
       {
         "carrier": {
           "path": "rust/crates/omena-cascade/src/model.rs",
-          "line": 411,
+          "line": 412,
           "function": "wire_name",
           "operation": "residual-property-field:CascadeRegisteredCustomPropertyV0.name:String",
           "evidence": "pub name: String,",
@@ -9348,7 +9379,7 @@
       {
         "carrier": {
           "path": "rust/crates/omena-cascade/src/model.rs",
-          "line": 420,
+          "line": 421,
           "function": "wire_name",
           "operation": "residual-property-field:CascadeComputedValueInputV0.property:String",
           "evidence": "pub property: String,",
@@ -9360,7 +9391,7 @@
       {
         "carrier": {
           "path": "rust/crates/omena-cascade/src/model.rs",
-          "line": 439,
+          "line": 440,
           "function": "wire_name",
           "operation": "residual-property-field:CascadeComputedValueResultV0.property:String",
           "evidence": "pub property: String,",
@@ -9372,7 +9403,7 @@
       {
         "carrier": {
           "path": "rust/crates/omena-cascade/src/model.rs",
-          "line": 700,
+          "line": 711,
           "function": "unsupported",
           "operation": "residual-property-field:CascadeConformanceSeedCase.property:&'static str",
           "evidence": "pub property: &'static str,",
@@ -9393,7 +9424,7 @@
       {
         "carrier": {
           "path": "rust/crates/omena-cascade/src/model.rs",
-          "line": 828,
+          "line": 839,
           "function": "unsupported",
           "operation": "residual-property-field:CustomPropertyLeastFixedPointEntryV0.name:String",
           "evidence": "pub name: String,",
@@ -9414,7 +9445,7 @@
       {
         "carrier": {
           "path": "rust/crates/omena-cascade/src/model.rs",
-          "line": 851,
+          "line": 862,
           "function": "unsupported",
           "operation": "residual-property-field:BoxLonghandInputV0.property:String",
           "evidence": "pub property: String,",
@@ -9426,7 +9457,7 @@
       {
         "carrier": {
           "path": "rust/crates/omena-cascade/src/model.rs",
-          "line": 864,
+          "line": 875,
           "function": "unsupported",
           "operation": "residual-property-field:ShorthandCombinationProofV0.shorthand_property:String",
           "evidence": "pub shorthand_property: String,",
@@ -10343,7 +10374,7 @@
       {
         "carrier": {
           "path": "rust/crates/omena-query/src/style.rs",
-          "line": 121,
+          "line": 122,
           "function": "canonical_class_key",
           "operation": "residual-property-field:OmenaQueryCascadeSectionOutcomeV0.property:String",
           "evidence": "pub property: String,",
@@ -10355,7 +10386,7 @@
       {
         "carrier": {
           "path": "rust/crates/omena-query/src/style.rs",
-          "line": 139,
+          "line": 140,
           "function": "canonical_class_key",
           "operation": "residual-property-field:OmenaQueryCascadeSiteOutcomeV0.property:String",
           "evidence": "pub property: String,",
@@ -11362,7 +11393,7 @@
       {
         "carrier": {
           "path": "rust/crates/omena-syntax/src/ident.rs",
-          "line": 438,
+          "line": 505,
           "function": "property_names_same",
           "operation": "residual-property-parameter:property_names_same.left:&str",
           "evidence": "pub fn property_names_same(left: &str, right: &str) -> bool {",
@@ -11372,7 +11403,7 @@
         "consumers": [
           {
             "path": "rust/crates/omena-syntax/src/ident.rs",
-            "line": 439,
+            "line": 506,
             "function": "property_names_same",
             "operation": "residual-property-consumer:presentation",
             "evidence": "PropertyNameV0::from_authored(left).same_as(&PropertyNameV0::from_authored(right))",
@@ -11383,7 +11414,7 @@
       {
         "carrier": {
           "path": "rust/crates/omena-syntax/src/ident.rs",
-          "line": 438,
+          "line": 505,
           "function": "property_names_same",
           "operation": "residual-property-parameter:property_names_same.right:&str",
           "evidence": "pub fn property_names_same(left: &str, right: &str) -> bool {",
@@ -11393,7 +11424,7 @@
         "consumers": [
           {
             "path": "rust/crates/omena-syntax/src/ident.rs",
-            "line": 439,
+            "line": 506,
             "function": "property_names_same",
             "operation": "residual-property-consumer:presentation",
             "evidence": "PropertyNameV0::from_authored(left).same_as(&PropertyNameV0::from_authored(right))",
@@ -12710,7 +12741,7 @@
     ],
     "residualCarrierConsumerSiteCount": 229,
     "residualIdentityShapedConsumerCount": 0,
-    "residualCarrierConsumerDigest": "sha256:cdda798ef3ace68fead5bd8736cfe07a401959e3faa232612f150bbddb25fd76",
+    "residualCarrierConsumerDigest": "sha256:5b9f83f989540f4eeda761b22d2518e7267f4b1a50dcb4aa86441e823ab88d1b",
     "rawStringIdentitySiteCount": 0,
     "rawStringIdentitySites": [],
     "rawStringIdentitySiteDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"

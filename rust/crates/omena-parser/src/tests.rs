@@ -4107,6 +4107,30 @@ fn decomposes_nested_and_pseudo_element_selectors() {
 }
 
 #[test]
+fn canonical_selector_authority_is_projected_from_selector_cst() {
+    let ast = crate::canonical_selector_ast_from_source(
+        r#"&[data-label="&"].a\.b > #target"#,
+        StyleDialect::Scss,
+    )
+    .unwrap_or_else(|| panic!("selector CST should produce a canonical authority"));
+
+    assert_eq!(ast.nesting_token_count(), 1);
+    assert_eq!(ast.branches().len(), 1);
+    assert_eq!(ast.branches()[0].compounds().len(), 2);
+    assert_eq!(
+        ast.branches()[0].combinators(),
+        &[omena_syntax::CanonicalSelectorCombinatorV0::Child]
+    );
+    assert_eq!(
+        ast.canonical_class_keys()
+            .map(|key| key.as_str())
+            .collect::<Vec<_>>(),
+        vec!["a.b"]
+    );
+    assert_eq!(ast.branches()[0].specificity().ids, 1);
+}
+
+#[test]
 fn parses_sass_indented_blocks_as_rule_declaration_lists() {
     let result = parse(
         ".card\n  color: red\n  .title\n    color: blue\n",

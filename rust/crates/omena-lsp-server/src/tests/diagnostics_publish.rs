@@ -1445,3 +1445,67 @@ fn bind_reference_to_global_class_discloses_fallthrough_instead_of_missing() {
         "property access has no fall-through and stays strict even for global names: {codes_by_line:?}"
     );
 }
+
+#[test]
+fn escaped_global_class_spelling_joins_source_diagnostics_by_canonical_identity() {
+    let mut state = LspShellState::default();
+    let open = |state: &mut LspShellState, uri: &str, language: &str, text: &str| {
+        handle_lsp_message(
+            state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": language,
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+    };
+
+    open(
+        &mut state,
+        "file:///ws-escaped/src/_globals.scss",
+        "scss",
+        r".f\6f o { display: block; }",
+    );
+    open(
+        &mut state,
+        "file:///ws-escaped/src/App.module.scss",
+        "scss",
+        ".root { color: red; }",
+    );
+    open(
+        &mut state,
+        "file:///ws-escaped/src/App.tsx",
+        "typescriptreact",
+        concat!(
+            "import styles from \"./App.module.scss\";\n",
+            "import classNames from \"classnames/bind\";\n",
+            "const cx = classNames.bind(styles);\n",
+            "const value = cx(\"foo\");\n",
+        ),
+    );
+
+    let diagnostics =
+        crate::resolve_source_diagnostics_for_uri(&state, "file:///ws-escaped/src/App.tsx");
+    let codes = diagnostics
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|diagnostic| diagnostic.pointer("/code")?.as_str())
+        .collect::<Vec<_>>();
+
+    assert!(
+        codes.contains(&"globalClassFallthrough"),
+        "escaped authored spelling and decoded source spelling must join: {diagnostics}",
+    );
+    assert!(
+        !codes.iter().any(|code| code.starts_with("missing")),
+        "the canonical global hit must replace the missing-selector diagnostic: {diagnostics}",
+    );
+}
