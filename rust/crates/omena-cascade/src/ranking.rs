@@ -71,10 +71,12 @@ pub(crate) fn adjudicate_inexact_specificity_v0(
     if winner.specificity_exactness == SpecificityExactnessV0::Inexact {
         return InexactSpecificityAdjudicationV0::AxisWinnerInexact;
     }
+    let Some(deciding_axis) = deciding_axis else {
+        return InexactSpecificityAdjudicationV0::NoStrictAxisDominance;
+    };
     InexactSpecificityAdjudicationV0::Recoverable {
         winner_index,
-        deciding_axis: deciding_axis
-            .expect("an exact recovery winner must dominate an inexact challenger"),
+        deciding_axis,
     }
 }
 
@@ -174,7 +176,7 @@ fn axis_position(axis: CascadeKeyAxisV0) -> usize {
     cascade_key_axis_order_v0()
         .iter()
         .position(|candidate| *candidate == axis)
-        .expect("cascade axis must belong to the canonical order")
+        .unwrap_or(cascade_key_axis_order_v0().len())
 }
 
 fn compare_open_world_declarations(
