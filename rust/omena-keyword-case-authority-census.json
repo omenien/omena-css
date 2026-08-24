@@ -2023,7 +2023,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-      "line": 492,
+      "line": 484,
       "function": "winner_for_pair",
       "idiom": "contains",
       "keyword": "@scope",
@@ -2034,7 +2034,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-      "line": 927,
+      "line": 926,
       "function": "guarded_conditions_from_context",
       "idiom": "strip-prefix",
       "keyword": "@supports",
@@ -2045,7 +2045,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-      "line": 1167,
+      "line": 1166,
       "function": "conditional_context_is_open",
       "idiom": "contains",
       "keyword": "@supports",
@@ -2099,7 +2099,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:0899dac5134e30461e3216430c4e294812c092857a9b63e74a0574439c2e3194",
+  "siteDigest": "sha256:36f9e9274d3348ada86e32dfdbb2c21f3c666a1a2eb79023b095f94c9dbc9bb5",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
