@@ -97,8 +97,8 @@
       "omenaValid": false,
       "cssTreeValid": false,
       "outcome": "agreeInvalid",
-      "validationClass": "notValidatable",
-      "validationReason": "matcherCoverageIncomplete"
+      "validationClass": "invalid",
+      "validationReason": "grammarUnmatched"
     },
     {
       "id": "font-list-valid",

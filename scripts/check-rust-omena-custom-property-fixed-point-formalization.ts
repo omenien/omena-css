@@ -31,6 +31,7 @@ const allowedOptions = new Set([
   "--inject-paint-context-keyword-removal",
   "--inject-linear-component-rescan",
   "--inject-keyword-reference-closure-drop",
+  "--inject-accepted-keyword-removal",
   "--inject-owned-wrong-definite",
 ]);
 assert.deepEqual(
@@ -390,6 +391,8 @@ if (args.has("--inject-reordered-evaluator")) {
   relayMutationResult(
     runValueGrammarDifferentialFault("OMENA_VALUE_GRAMMAR_TEST_DROP_REFERENCE_CLOSURE"),
   );
+} else if (args.has("--inject-accepted-keyword-removal")) {
+  relayMutationResult(runAcceptedKeywordRemovalMutation());
 } else if (args.has("--inject-owned-wrong-definite")) {
   relayMutationResult(
     runValueGrammarDifferentialFault("OMENA_VALUE_GRAMMAR_TEST_INJECT_ORACLE_VALID_DEFINITE"),
@@ -591,6 +594,10 @@ if (args.has("--inject-reordered-evaluator")) {
     expectScriptMutationRed(
       "--inject-keyword-reference-closure-drop",
       "the pinned css-tree type/property reference closure changed",
+    ),
+    expectScriptMutationRed(
+      "--inject-accepted-keyword-removal",
+      "an oracle-accepted matcher gap cannot become a definite rejection",
     ),
     expectScriptMutationRed(
       "--inject-owned-wrong-definite",
@@ -874,6 +881,36 @@ function runPaintContextKeywordRemovalMutation(): ReturnType<typeof spawnSync> {
       "-p",
       "omena-query",
       "read_cascade_at_position_resolves_paint_values_through_the_pinned_matcher",
+      "--",
+      "--nocapture",
+    ],
+  );
+}
+
+function runAcceptedKeywordRemovalMutation(): ReturnType<typeof spawnSync> {
+  return runSourceMutation(
+    grammarPath,
+    (source) =>
+      replaceExactly(
+        source,
+        `property_test.accepted_keywords.iter().cloned().collect(),`,
+        `property_test
+                    .accepted_keywords
+                    .iter()
+                    .filter(|keyword| {
+                        !(property_test.property == "content"
+                            && keyword.as_str() == "open-quote")
+                    })
+                    .cloned()
+                    .collect(),`,
+      ),
+    [
+      "test",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "omena-abstract-value",
+      "accepted_keyword_authority_prevents_oracle_valid_ident_rejection",
       "--",
       "--nocapture",
     ],

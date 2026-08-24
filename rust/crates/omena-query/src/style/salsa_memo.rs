@@ -6973,6 +6973,62 @@ $_private-token: changed;
     }
 
     #[test]
+    fn source_element_computed_value_definitely_rejects_substituted_identifiers_outside_oracle_keywords()
+     {
+        use omena_cascade::{ComputedCascadeValueStatusV0, ElementIdentityV0};
+
+        for (property, authored_property, custom_value) in [
+            ("color", "color", "definitely-not-a-color"),
+            ("width", "width", "red"),
+            ("border-top", "\"border-top\"", "1px nonsense red"),
+            ("fill", "fill", "bogusvalue"),
+        ] {
+            let source_path = format!("/workspace/{property}.tsx");
+            let source = format!(
+                r#"export const App = () => <main style={{{{ "--fixture-value": "{custom_value}", {authored_property}: "var(--fixture-value)" }}}} />;"#
+            );
+            let index = summarize_omena_query_source_syntax_index_for_source_language(
+                source_path.as_str(),
+                source.as_str(),
+                None,
+                Vec::new(),
+                Vec::new(),
+            );
+            let element = index.source_elements[0].identity.clone();
+            let documents = [OmenaQuerySourceDocumentInputV0 {
+                source_path: source_path.clone(),
+                source_source: source,
+                source_syntax_index: Some(index),
+                has_unresolved_style_import: false,
+            }];
+            let target = ElementIdentityV0 {
+                source_path: element.source_path,
+                byte_start: element.byte_span.start,
+                byte_end: element.byte_span.end,
+            };
+            let mut host = OmenaQueryStyleMemoHostV0::new();
+
+            let value = host.source_element_computed_value(documents.as_slice(), target, property);
+            let computed = value.computed_value.as_ref();
+            assert!(computed.is_some(), "{property}: {custom_value}");
+            let Some(computed) = computed else {
+                continue;
+            };
+            assert_eq!(
+                computed.status,
+                ComputedCascadeValueStatusV0::InvalidAtComputedValueTime,
+                "{property}: {custom_value}: {computed:?}"
+            );
+            assert!(computed.invalid_at_computed_value_time);
+            assert!(
+                computed
+                    .derivation_steps
+                    .contains(&"postSubstitutionStandardPropertySyntaxUnmatched")
+            );
+        }
+    }
+
+    #[test]
     fn source_element_computed_value_definitely_rejects_substituted_literal_only_grammar() {
         use omena_cascade::{ComputedCascadeValueStatusV0, ElementIdentityV0};
 

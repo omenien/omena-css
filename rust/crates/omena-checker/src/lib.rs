@@ -3916,12 +3916,12 @@ mod tests {
     }
 
     #[test]
-    fn invalid_property_value_skips_compounds_when_keyword_closure_has_gaps() {
-        let decl = |id: &'static str, value: &'static str, order: u32| {
+    fn invalid_property_value_rejects_identifiers_outside_oracle_accepted_keywords() {
+        let decl = |id: &'static str, property: &'static str, value: &'static str, order: u32| {
             cascade_declaration(CascadeDeclarationFixture {
                 declaration_id: id,
                 selector: ".s",
-                property: "border-top",
+                property,
                 value,
                 source_order: order,
                 condition_context: &[],
@@ -3933,8 +3933,11 @@ mod tests {
         };
         let evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
             declarations: vec![
-                decl("invalid-compound", "1px nonsense red", 1),
-                decl("valid-compound", "1px solid red", 2),
+                decl("invalid-color", "color", "definitely-not-a-color", 1),
+                decl("invalid-width", "width", "red", 2),
+                decl("invalid-compound", "border-top", "1px nonsense red", 3),
+                decl("invalid-fill", "fill", "bogusvalue", 4),
+                decl("valid-compound", "border-top", "1px solid red", 5),
             ],
             custom_properties: Vec::new(),
             custom_property_registrations: Vec::new(),
@@ -3946,9 +3949,18 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert!(
-            findings.is_empty(),
-            "a property with accepted keywords that the matcher cannot recognize is not closed"
+        assert_eq!(findings.len(), 4);
+        assert_eq!(
+            findings
+                .iter()
+                .flat_map(|finding| finding.declaration_ids.iter().map(String::as_str))
+                .collect::<Vec<_>>(),
+            vec![
+                "invalid-color",
+                "invalid-width",
+                "invalid-compound",
+                "invalid-fill",
+            ]
         );
     }
 

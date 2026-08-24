@@ -630,7 +630,7 @@ fn tracked_style_diagnostics_preserve_the_pinned_rule_census() {
         counts,
         BTreeMap::from([
             ("deprecatedSassImport".to_string(), 1),
-            ("invalidPropertyValue".to_string(), 1),
+            ("invalidPropertyValue".to_string(), 13),
             ("missingCustomProperty".to_string(), 13),
             ("missingKeyframes".to_string(), 1),
             ("missingSassSymbol".to_string(), 5),

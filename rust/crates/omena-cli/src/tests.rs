@@ -3347,7 +3347,7 @@ fn tracked_style_diagnostics_default_cli_preserves_the_pinned_rule_census() -> R
         counts,
         BTreeMap::from([
             ("deprecatedSassImport".to_string(), 1),
-            ("invalidPropertyValue".to_string(), 1),
+            ("invalidPropertyValue".to_string(), 13),
             ("missing-module".to_string(), 7),
             ("missingComposedModule".to_string(), 2),
             ("missingComposedSelector".to_string(), 11),

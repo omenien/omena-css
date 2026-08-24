@@ -931,7 +931,7 @@
         "reason": "The indexed custom-property dependency graph replaces eight recursive canonical-name traversal carrier lines with integer node indices; raw-string identity and identity-shaped residual counts remain zero."
       }
     ],
-    "authoritySiteCount": 702,
+    "authoritySiteCount": 705,
     "sites": [
       {
         "path": "rust/crates/engine-shadow-runner/src/main.rs",
@@ -1103,7 +1103,23 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 1167,
+        "line": 1074,
+        "function": "builtin_reference_matcher_coverage_complete",
+        "operation": "CanonicalStandardPropertyNameV0",
+        "evidence": "certified_properties: BTreeSet<CanonicalStandardPropertyNameV0>,",
+        "role": "carrier"
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+        "line": 1075,
+        "function": "builtin_reference_matcher_coverage_complete",
+        "operation": "CanonicalStandardPropertyNameV0",
+        "evidence": "accepted_keywords_by_property: BTreeMap<CanonicalStandardPropertyNameV0, BTreeSet<String>>,",
+        "role": "carrier"
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+        "line": 1173,
         "function": "merge",
         "operation": "CanonicalStandardPropertyNameV0",
         "evidence": "fn certified_keyword_properties() -> &'static BTreeSet<CanonicalStandardPropertyNameV0> {",
@@ -1111,23 +1127,31 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 1168,
+        "line": 1174,
         "function": "certified_keyword_properties",
         "operation": "CanonicalStandardPropertyNameV0",
-        "evidence": "static CERTIFIED: OnceLock<BTreeSet<CanonicalStandardPropertyNameV0>> = OnceLock::new();",
+        "evidence": "static EMPTY: OnceLock<BTreeSet<CanonicalStandardPropertyNameV0>> = OnceLock::new();",
         "role": "carrier"
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 1179,
+        "line": 1252,
         "function": "parse_closed_world_keyword_closure_certificate",
-        "operation": "CanonicalStandardPropertyNameV0",
-        "evidence": ") -> Option<BTreeSet<CanonicalStandardPropertyNameV0>> {",
-        "role": "carrier"
+        "operation": "PropertyNameV0::canonical_standard_key",
+        "evidence": "let property_key = PropertyNameV0::canonical_standard_key(&property_test.property);",
+        "role": "consumer"
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 1278,
+        "line": 1255,
+        "function": "parse_closed_world_keyword_closure_certificate",
+        "operation": "sealed-property-key",
+        "evidence": "property_key,",
+        "role": "consumer"
+      },
+      {
+        "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+        "line": 1304,
         "function": "standard_property_value_token_kinds_have_closure_authority",
         "operation": "sealed-property-key",
         "evidence": "let Some(property_key) = property.as_standard_key() else {",
@@ -1135,7 +1159,7 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 1281,
+        "line": 1307,
         "function": "standard_property_value_token_kinds_have_closure_authority",
         "operation": "sealed-property-key",
         "evidence": "return certified_keyword_properties().contains(property_key);",
@@ -1143,7 +1167,7 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 1386,
+        "line": 1422,
         "function": "standard_property_closed_world_token_kind_mismatch",
         "operation": "sealed-property-key",
         "evidence": "let Some(property_key) = property.as_standard_key() else {",
@@ -1151,15 +1175,15 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 1389,
+        "line": 1426,
         "function": "standard_property_closed_world_token_kind_mismatch",
         "operation": "sealed-property-key",
-        "evidence": "if !certified_keyword_properties().contains(property_key) {",
+        "evidence": ".and_then(|authority| authority.accepted_keywords_by_property.get(property_key))",
         "role": "consumer"
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 2190,
+        "line": 2307,
         "function": "parse_reference",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "name: PropertyNameV0::from_authored(property)",
@@ -6550,7 +6574,7 @@
         "role": "producer"
       }
     ],
-    "siteDigest": "sha256:8f8744b9e2c579430fa1d4f52fbe1b41fbf9b998cd3df4cf530703796906ce57",
+    "siteDigest": "sha256:523bc700dd70f152ff9376040c889e8ebffaa1cfaea791a6ffe3b786173b9a4f",
     "residualRawCarrierDirection": "decrease-only",
     "residualRawCarrierSiteCount": 198,
     "residualRawCarrierSites": [

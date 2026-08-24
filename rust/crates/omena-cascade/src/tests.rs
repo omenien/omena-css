@@ -3753,6 +3753,9 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
     use std::{hint::black_box, time::Instant};
 
     const BINDING_COUNTS: [usize; 3] = [1_200, 2_200, 4_000];
+    // The 1.10 ceiling absorbs same-host timing variance in this three-size
+    // median regression; the observed final-pin exponent 1.077 leaves about
+    // 2.1% headroom without weakening the asymptotic linearity claim.
     const MAX_LINEAR_GROWTH_EXPONENT: f64 = 1.10;
 
     fn alias_environment(binding_count: usize) -> CustomPropertyEnv {

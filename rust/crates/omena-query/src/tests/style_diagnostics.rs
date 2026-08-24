@@ -872,6 +872,34 @@ fn paint_context_keywords_do_not_emit_invalid_property_value_diagnostics()
 }
 
 #[test]
+fn oracle_accepted_matcher_gaps_remain_non_definite_on_the_query_surface()
+-> Result<(), &'static str> {
+    let source = r#".compatibility {
+  content: open-quote;
+  outline: 4px auto -webkit-focus-ring-color;
+}
+"#;
+    let candidates =
+        crate::summarize_omena_query_style_hover_candidates("Component.module.css", source)
+            .ok_or("style candidates")?;
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.css",
+        source,
+        candidates.candidates.as_slice(),
+    );
+
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "invalidPropertyValue"),
+        "oracle-accepted or vendor matcher gaps must stay non-definite: {:?}",
+        diagnostics.diagnostics
+    );
+    Ok(())
+}
+
+#[test]
 fn workspace_cascade_diagnostics_join_runtime_state_scenarios_and_inline_overrides()
 -> Result<(), &'static str> {
     let target_style_path = "file:///workspace/src/App.module.scss";

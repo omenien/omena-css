@@ -632,11 +632,11 @@ mod tests {
         );
         assert_eq!(report.style_file_count, 199);
         assert_eq!(report.source_file_count, 1_019);
-        assert_eq!(report.finding_count, 25);
+        assert_eq!(report.finding_count, 37);
         assert_eq!(
             counts,
             BTreeMap::from([
-                ("invalid-property-value".to_string(), 1),
+                ("invalid-property-value".to_string(), 13),
                 ("missing-composed-module".to_string(), 2),
                 ("missing-composed-selector".to_string(), 3),
                 ("missing-imported-value".to_string(), 1),

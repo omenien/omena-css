@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, OnceLock, RwLock};
 
 use omena_cascade::{CascadeStandardValueValidatorV0, CascadeStandardValueVerdictV0};
@@ -1069,6 +1069,12 @@ struct ClosedWorldKeywordClosurePropertyTestV0 {
     accepted_keywords: Vec<String>,
 }
 
+#[derive(Debug, Default, PartialEq, Eq)]
+struct ClosedWorldKeywordAuthorityV0 {
+    certified_properties: BTreeSet<CanonicalStandardPropertyNameV0>,
+    accepted_keywords_by_property: BTreeMap<CanonicalStandardPropertyNameV0, BTreeSet<String>>,
+}
+
 #[derive(Debug, Deserialize)]
 struct ClosedWorldKeywordClosureOracleV0 {
     name: ClosedWorldKeywordClosureOracleNameV0,
@@ -1165,18 +1171,26 @@ const CLOSED_WORLD_TOKEN_KINDS: [ClosedWorldTokenKindV0; 8] = [
 ];
 
 fn certified_keyword_properties() -> &'static BTreeSet<CanonicalStandardPropertyNameV0> {
-    static CERTIFIED: OnceLock<BTreeSet<CanonicalStandardPropertyNameV0>> = OnceLock::new();
-    CERTIFIED.get_or_init(|| {
-        parse_closed_world_keyword_closure_certificate(
-            CLOSED_WORLD_KEYWORD_CLOSURE_CERTIFICATE_SOURCE,
-        )
-        .unwrap_or_default()
-    })
+    static EMPTY: OnceLock<BTreeSet<CanonicalStandardPropertyNameV0>> = OnceLock::new();
+    closed_world_keyword_authority()
+        .map(|authority| &authority.certified_properties)
+        .unwrap_or_else(|| EMPTY.get_or_init(BTreeSet::new))
+}
+
+fn closed_world_keyword_authority() -> Option<&'static ClosedWorldKeywordAuthorityV0> {
+    static AUTHORITY: OnceLock<Option<ClosedWorldKeywordAuthorityV0>> = OnceLock::new();
+    AUTHORITY
+        .get_or_init(|| {
+            parse_closed_world_keyword_closure_certificate(
+                CLOSED_WORLD_KEYWORD_CLOSURE_CERTIFICATE_SOURCE,
+            )
+        })
+        .as_ref()
 }
 
 fn parse_closed_world_keyword_closure_certificate(
     source: &str,
-) -> Option<BTreeSet<CanonicalStandardPropertyNameV0>> {
+) -> Option<ClosedWorldKeywordAuthorityV0> {
     let certificate =
         serde_json::from_str::<ClosedWorldKeywordClosureCertificateV0>(source).ok()?;
     if certificate.schema_version != "0"
@@ -1199,6 +1213,7 @@ fn parse_closed_world_keyword_closure_certificate(
     let mut matched_pair_count = 0usize;
     let mut matcher_gap_count = 0usize;
     let mut derived_certified_properties = BTreeSet::new();
+    let mut accepted_keywords_by_property = BTreeMap::new();
     let mut digest = Sha256::new();
 
     for property_test in &certificate.property_tests {
@@ -1234,6 +1249,16 @@ fn parse_closed_world_keyword_closure_certificate(
             digest.update(keyword.as_bytes());
             digest.update([b'\n']);
         }
+        let property_key = PropertyNameV0::canonical_standard_key(&property_test.property);
+        if accepted_keywords_by_property
+            .insert(
+                property_key,
+                property_test.accepted_keywords.iter().cloned().collect(),
+            )
+            .is_some()
+        {
+            return None;
+        }
         if property_test.tested_pair_count > 0 && property_test.matcher_gap_count == 0 {
             derived_certified_properties.insert(property_test.property.clone());
         }
@@ -1254,13 +1279,14 @@ fn parse_closed_world_keyword_closure_certificate(
         return None;
     }
 
-    Some(
-        certificate
+    Some(ClosedWorldKeywordAuthorityV0 {
+        certified_properties: certificate
             .certified_properties
             .into_iter()
             .map(PropertyNameV0::canonical_standard_key)
             .collect(),
-    )
+        accepted_keywords_by_property,
+    })
 }
 
 fn standard_property_value_token_kinds_have_closure_authority(
@@ -1378,6 +1404,16 @@ fn standard_property_closed_world_token_kind_mismatch(
     else {
         return false;
     };
+    if components.iter().any(|component| {
+        closed_world_component_identity(component).is_some_and(|(kind, value)| {
+            let domain = profile.domain(kind);
+            kind == ClosedWorldTokenKindV0::FunctionName
+                && domain.open
+                && !domain.allowed.contains(value.as_str())
+        })
+    }) {
+        return false;
+    }
     components.iter().any(|component| {
         let Some((kind, value)) = closed_world_component_identity(component) else {
             return false;
@@ -1386,9 +1422,13 @@ fn standard_property_closed_world_token_kind_mismatch(
             let Some(property_key) = property.as_standard_key() else {
                 return false;
             };
-            if !certified_keyword_properties().contains(property_key) {
+            let Some(accepted_keywords) = closed_world_keyword_authority()
+                .and_then(|authority| authority.accepted_keywords_by_property.get(property_key))
+            else {
                 return false;
-            }
+            };
+            let domain = profile.domain(kind);
+            return !domain.open && !accepted_keywords.contains(value.as_str());
         }
         let domain = profile.domain(kind);
         !domain.open && !domain.allowed.contains(value.as_str())
@@ -1419,6 +1459,14 @@ fn cached_standard_property_closed_world_token_profile(
                 .map(|expression| (entry, expression))
         })
         .map(|(entry, expression)| {
+            let mut ident_visiting = HashSet::new();
+            let mut ident_memo = HashMap::new();
+            let ident_open = expression_has_open_ident_production(
+                expression.as_ref(),
+                registry,
+                &mut ident_visiting,
+                &mut ident_memo,
+            );
             let mut visiting = HashSet::new();
             let mut memo = HashMap::new();
             let mut profile =
@@ -1426,6 +1474,12 @@ fn cached_standard_property_closed_world_token_profile(
             if entry.override_provenance.is_some() {
                 profile.mark_all_open();
             }
+            // A reviewed syntax replacement is conservative for the generic
+            // token-kind profile, but it does not itself introduce an open
+            // identifier production. Identifier rejection uses the expanded
+            // grammar plus the independently authenticated accepted-keyword
+            // table, so preserve that narrower fact after the broad fallback.
+            profile.ident.open = ident_open;
             profile
         });
     cache
@@ -1434,6 +1488,69 @@ fn cached_standard_property_closed_world_token_profile(
         .entry(key)
         .or_insert_with(|| profile.clone());
     profile
+}
+
+fn expression_has_open_ident_production(
+    expression: &VdsExpression,
+    registry: &SpecGrammarRegistryV0,
+    visiting: &mut HashSet<(ReferenceCategory, String)>,
+    memo: &mut HashMap<(ReferenceCategory, String), bool>,
+) -> bool {
+    match expression {
+        VdsExpression::Literal(_) | VdsExpression::Function { .. } => false,
+        VdsExpression::Reference(reference) => {
+            reference_has_open_ident_production(reference, registry, visiting, memo)
+        }
+        VdsExpression::Sequence(expressions)
+        | VdsExpression::AllInAnyOrder(expressions)
+        | VdsExpression::OneOrMoreInAnyOrder(expressions)
+        | VdsExpression::Choice(expressions) => expressions.iter().any(|expression| {
+            expression_has_open_ident_production(expression, registry, visiting, memo)
+        }),
+        VdsExpression::Repeat { expression, .. } | VdsExpression::Required(expression) => {
+            expression_has_open_ident_production(expression, registry, visiting, memo)
+        }
+    }
+}
+
+fn reference_has_open_ident_production(
+    reference: &VdsReference,
+    registry: &SpecGrammarRegistryV0,
+    visiting: &mut HashSet<(ReferenceCategory, String)>,
+    memo: &mut HashMap<(ReferenceCategory, String), bool>,
+) -> bool {
+    if reference.category == ReferenceCategory::Function {
+        return false;
+    }
+    if reference.category == ReferenceCategory::Type
+        && let Some(profile) = closed_world_builtin_profile(reference.name.as_str())
+    {
+        return profile.ident.open;
+    }
+
+    let key = (reference.category, reference.name.clone());
+    if let Some(open) = memo.get(&key) {
+        return *open;
+    }
+    if !visiting.insert(key.clone()) {
+        return true;
+    }
+    let category = match reference.category {
+        ReferenceCategory::Type => "types",
+        ReferenceCategory::Property => "properties",
+        ReferenceCategory::Function => unreachable!("function references return above"),
+    };
+    let open = registry
+        .entry(category, reference.name.as_str())
+        .and_then(|entry| entry.syntax.as_deref())
+        .and_then(|source| cached_pinned_vds_expression(source).ok())
+        .map(|expression| {
+            expression_has_open_ident_production(expression.as_ref(), registry, visiting, memo)
+        })
+        .unwrap_or(true);
+    visiting.remove(&key);
+    memo.insert(key, open);
+    open
 }
 
 fn closed_world_token_profile(
@@ -3859,12 +3976,31 @@ mod tests {
 
     #[test]
     fn keyword_closure_certificate_binds_the_tested_pairs_and_nonempty_certification() {
+        let authority = parse_closed_world_keyword_closure_certificate(
+            CLOSED_WORLD_KEYWORD_CLOSURE_CERTIFICATE_SOURCE,
+        );
         assert!(
-            parse_closed_world_keyword_closure_certificate(
-                CLOSED_WORLD_KEYWORD_CLOSURE_CERTIFICATE_SOURCE
-            )
-            .is_some(),
+            authority.is_some(),
             "the embedded keyword-closure certificate must pass its in-binary integrity checks"
+        );
+        let Some(authority) = authority else {
+            return;
+        };
+        assert_eq!(authority.certified_properties.len(), 388);
+        assert_eq!(authority.accepted_keywords_by_property.len(), 704);
+        assert_eq!(
+            authority
+                .accepted_keywords_by_property
+                .values()
+                .map(BTreeSet::len)
+                .sum::<usize>(),
+            16_445
+        );
+        assert!(
+            authority
+                .accepted_keywords_by_property
+                .get(&PropertyNameV0::canonical_standard_key("content"))
+                .is_some_and(|keywords| keywords.contains("open-quote"))
         );
 
         let wrong_digest = serde_json::from_str::<serde_json::Value>(
@@ -3999,9 +4135,42 @@ mod tests {
     }
 
     #[test]
+    fn accepted_keyword_authority_prevents_oracle_valid_ident_rejection() {
+        let validation = validate_standard_property_value_v0("content", "open-quote");
+        assert_eq!(
+            validation.class,
+            CssValueValidationClassV0::NotValidatable,
+            "an oracle-accepted matcher gap cannot become a definite rejection: {validation:?}"
+        );
+        assert_eq!(
+            validation.reason,
+            CssValueValidationReasonV0::MatcherCoverageIncomplete
+        );
+    }
+
+    #[test]
+    fn open_preprocessor_function_keeps_compound_ident_rejection_non_definite() {
+        let validation =
+            validate_standard_property_value_v0("box-shadow", "inset 0 0 0 2px fade(#0ea5e9, 24%)");
+        assert_eq!(
+            validation.class,
+            CssValueValidationClassV0::NotValidatable,
+            "an unevaluated preprocessor function must preserve uncertainty: {validation:?}"
+        );
+        assert_eq!(
+            validation.reason,
+            CssValueValidationReasonV0::MatcherCoverageIncomplete
+        );
+    }
+
+    #[test]
     fn closed_world_token_kinds_certify_impossible_standard_values() {
         for (property, value) in [
             ("color", "12px"),
+            ("color", "definitely-not-a-color"),
+            ("width", "red"),
+            ("border-top", "1px nonsense red"),
+            ("fill", "bogusvalue"),
             ("z-index", "banana"),
             ("margin", "-10px totally-bogus"),
         ] {
@@ -4014,23 +4183,6 @@ mod tests {
             assert_eq!(
                 validation.reason,
                 CssValueValidationReasonV0::GrammarUnmatched,
-                "{property}: {value}: {validation:?}"
-            );
-        }
-
-        for (property, value) in [
-            ("color", "definitely-not-a-color"),
-            ("border-top", "1px nonsense red"),
-        ] {
-            let validation = validate_standard_property_value_v0(property, value);
-            assert_eq!(
-                validation.class,
-                CssValueValidationClassV0::NotValidatable,
-                "{property}: {value}: {validation:?}"
-            );
-            assert_eq!(
-                validation.reason,
-                CssValueValidationReasonV0::MatcherCoverageIncomplete,
                 "{property}: {value}: {validation:?}"
             );
         }
