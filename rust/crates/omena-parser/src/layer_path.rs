@@ -30,7 +30,7 @@ pub fn layer_paths_from_cst(source: &str, layer_rule: &SyntaxNode) -> Vec<LayerP
         }
         match kind {
             SyntaxKind::Ident | SyntaxKind::CustomPropertyName => {
-                if let Some(text) = source_text_for_token(source, &token) {
+                if let Some(text) = source_text_for_token(source, token) {
                     authored_segments.push(text.to_string());
                 } else {
                     path_valid = false;

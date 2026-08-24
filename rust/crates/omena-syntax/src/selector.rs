@@ -239,18 +239,18 @@ fn build_branch(
     let compounds = complex
         .children()
         .filter(|child| child.kind() == SyntaxKind::CompoundSelector)
-        .filter_map(|compound| build_compound(&compound, authority_start))
+        .filter_map(|compound| build_compound(compound, authority_start))
         .collect::<Vec<_>>();
     let combinators = complex
         .children()
         .filter(|child| child.kind() == SyntaxKind::Combinator)
-        .map(|node| classify_combinator(syntax_node_text(&node).as_deref().unwrap_or_default()))
+        .map(|node| classify_combinator(syntax_node_text(node).as_deref().unwrap_or_default()))
         .collect::<Vec<_>>();
     let nesting_tokens = branch
         .descendants()
         .filter(|node| node.kind() == SyntaxKind::NestingSelectorNode)
         .filter_map(|node| {
-            relative_range(&node, authority_start).map(|byte_range| NestingTokenV0 { byte_range })
+            relative_range(node, authority_start).map(|byte_range| NestingTokenV0 { byte_range })
         })
         .collect::<Vec<_>>();
     let specificity = specificity_witness(branch);
@@ -275,21 +275,21 @@ fn build_compound(
     for node in compound.children() {
         match node.kind() {
             SyntaxKind::ClassSelector => {
-                if let Some(text) = syntax_node_text(&node)
+                if let Some(text) = syntax_node_text(node)
                     && let Some(raw) = text.strip_prefix('.')
                 {
                     required_classes.push(ClassNameV0::new(raw).canonical_key());
                 }
             }
             SyntaxKind::IdSelector => {
-                if let Some(text) = syntax_node_text(&node)
+                if let Some(text) = syntax_node_text(node)
                     && let Some(raw) = text.strip_prefix('#')
                 {
                     required_id = Some(CanonicalIdKeyV0::from_authored(raw));
                 }
             }
             SyntaxKind::TypeSelector => {
-                if let Some(text) = syntax_node_text(&node) {
+                if let Some(text) = syntax_node_text(node) {
                     let raw = text.rsplit('|').next().unwrap_or(text.as_str()).trim();
                     if raw != "*" && !raw.is_empty() {
                         required_tag = Some(CanonicalTypeSelectorKeyV0::from_authored(raw));
@@ -297,7 +297,7 @@ fn build_compound(
                 }
             }
             SyntaxKind::NestingSelectorNode => {
-                if let Some(byte_range) = relative_range(&node, authority_start) {
+                if let Some(byte_range) = relative_range(node, authority_start) {
                     nesting_tokens.push(NestingTokenV0 { byte_range });
                 }
             }

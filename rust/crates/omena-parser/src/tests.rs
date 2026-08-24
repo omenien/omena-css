@@ -4107,12 +4107,12 @@ fn decomposes_nested_and_pseudo_element_selectors() {
 }
 
 #[test]
-fn canonical_selector_authority_is_projected_from_selector_cst() {
+fn canonical_selector_authority_is_projected_from_selector_cst() -> Result<(), String> {
     let ast = crate::canonical_selector_ast_from_source(
         r#"&[data-label="&"].a\.b > #target"#,
         StyleDialect::Scss,
     )
-    .unwrap_or_else(|| panic!("selector CST should produce a canonical authority"));
+    .ok_or_else(|| "selector CST should produce a canonical authority".to_string())?;
 
     assert_eq!(ast.nesting_token_count(), 1);
     assert_eq!(ast.branches().len(), 1);
@@ -4128,6 +4128,7 @@ fn canonical_selector_authority_is_projected_from_selector_cst() {
         vec!["a.b"]
     );
     assert_eq!(ast.branches()[0].specificity().ids, 1);
+    Ok(())
 }
 
 #[test]

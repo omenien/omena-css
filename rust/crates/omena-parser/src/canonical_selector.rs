@@ -22,7 +22,7 @@ pub fn canonical_selector_asts_from_cst(cst: &ParsedCst) -> Vec<CanonicalSelecto
                 )
             })
         })
-        .filter_map(|node| CanonicalSelectorAst::from_cst(&node))
+        .filter_map(CanonicalSelectorAst::from_cst)
         .collect()
 }
 
