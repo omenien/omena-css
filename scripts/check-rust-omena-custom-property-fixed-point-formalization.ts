@@ -677,7 +677,8 @@ if (args.has("--inject-reordered-evaluator")) {
       diagnosticLocationSubstitutionMutation:
         diagnosticTransitionAttributionReceipt.locationSubstitutionMutation,
       iterativeAliasBoundary: "100000:GREEN",
-      variableEnvironmentPerformanceCeiling: "three-size-log-log-growth-exponent<=1.10:GREEN",
+      variableEnvironmentPerformanceCeiling:
+        "three-size-flat-control-normalized-log-log-growth-exponent<=1.10:GREEN",
       componentScheduleTraceInvariant: "GREEN",
       mutations: mutationReceipts,
       rfcDisposition: gapRegister.rfcDisposition.status,

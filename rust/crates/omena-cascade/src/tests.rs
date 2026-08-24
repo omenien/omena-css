@@ -3753,9 +3753,6 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
     use std::{hint::black_box, time::Instant};
 
     const BINDING_COUNTS: [usize; 3] = [1_200, 2_200, 4_000];
-    // Five independent 41-sample epochs absorb whole-epoch hosted-runner variance without
-    // changing the three-size corpus, the 1.10 ceiling, or the superlinear fault sensitivity.
-    const MEASUREMENT_EPOCH_COUNT: usize = 5;
     const MAX_LINEAR_GROWTH_EXPONENT: f64 = 1.10;
 
     fn alias_environment(binding_count: usize) -> CustomPropertyEnv {
@@ -3796,11 +3793,25 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
             .collect()
     }
 
-    fn three_size_median_slope(
-        mut small_operation: impl FnMut(),
-        mut medium_operation: impl FnMut(),
-        mut large_operation: impl FnMut(),
-    ) -> ([u128; 3], f64) {
+    fn flat_control_environment(env: &CustomPropertyEnv) -> CustomPropertyEnv {
+        // The control keeps the same canonical keys and output-building costs while taking the
+        // no-var fast path. Pairing each measured call with this control removes host scheduling
+        // and ordered-map scaling from the graph/schedule growth signal.
+        env.keys()
+            .map(|name| (name.clone(), CascadeValue::Literal("control".to_string())))
+            .collect()
+    }
+
+    struct PairedMeasurement {
+        measured_median_ns: u128,
+        control_median_ns: u128,
+        median_ratio: f64,
+    }
+
+    fn paired_measurement(
+        mut measured_operation: impl FnMut(),
+        mut control_operation: impl FnMut(),
+    ) -> PairedMeasurement {
         fn measure_ns(mut operation: impl FnMut()) -> u128 {
             let started = Instant::now();
             operation();
@@ -3808,103 +3819,83 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
         }
 
         for _ in 0..8 {
-            small_operation();
-            medium_operation();
-            large_operation();
+            measured_operation();
+            control_operation();
         }
-        let mut duration_samples = std::array::from_fn(|_| Vec::with_capacity(41));
-        let mut growth_exponents = Vec::with_capacity(41);
+        let mut measured_samples = Vec::with_capacity(41);
+        let mut control_samples = Vec::with_capacity(41);
+        let mut ratios = Vec::with_capacity(41);
+        for sample_index in 0..41 {
+            let (measured, control) = if sample_index % 2 == 0 {
+                (
+                    measure_ns(&mut measured_operation),
+                    measure_ns(&mut control_operation),
+                )
+            } else {
+                let control = measure_ns(&mut control_operation);
+                let measured = measure_ns(&mut measured_operation);
+                (measured, control)
+            };
+            measured_samples.push(measured);
+            control_samples.push(control);
+            ratios.push(measured as f64 / control as f64);
+        }
+        measured_samples.sort_unstable();
+        control_samples.sort_unstable();
+        let mut sorted_ratios = ratios.clone();
+        sorted_ratios.sort_by(f64::total_cmp);
+        PairedMeasurement {
+            measured_median_ns: measured_samples[measured_samples.len() / 2],
+            control_median_ns: control_samples[control_samples.len() / 2],
+            median_ratio: sorted_ratios[sorted_ratios.len() / 2],
+        }
+    }
+
+    fn normalized_three_size_slope(measurements: &[PairedMeasurement; 3]) -> f64 {
         let input_logs = BINDING_COUNTS.map(|count| (count as f64).ln());
         let input_log_mean = input_logs.iter().sum::<f64>() / input_logs.len() as f64;
         let input_variance = input_logs
             .iter()
             .map(|value| (value - input_log_mean).powi(2))
             .sum::<f64>();
-
-        for sample_index in 0..41 {
-            let durations = match sample_index % 6 {
-                0 => [
-                    measure_ns(&mut small_operation),
-                    measure_ns(&mut medium_operation),
-                    measure_ns(&mut large_operation),
-                ],
-                1 => {
-                    let large = measure_ns(&mut large_operation);
-                    let medium = measure_ns(&mut medium_operation);
-                    let small = measure_ns(&mut small_operation);
-                    [small, medium, large]
-                }
-                2 => {
-                    let medium = measure_ns(&mut medium_operation);
-                    let small = measure_ns(&mut small_operation);
-                    let large = measure_ns(&mut large_operation);
-                    [small, medium, large]
-                }
-                3 => {
-                    let medium = measure_ns(&mut medium_operation);
-                    let large = measure_ns(&mut large_operation);
-                    let small = measure_ns(&mut small_operation);
-                    [small, medium, large]
-                }
-                4 => {
-                    let small = measure_ns(&mut small_operation);
-                    let large = measure_ns(&mut large_operation);
-                    let medium = measure_ns(&mut medium_operation);
-                    [small, medium, large]
-                }
-                _ => {
-                    let large = measure_ns(&mut large_operation);
-                    let small = measure_ns(&mut small_operation);
-                    let medium = measure_ns(&mut medium_operation);
-                    [small, medium, large]
-                }
-            };
-            for (samples, duration) in duration_samples.iter_mut().zip(durations) {
-                samples.push(duration);
-            }
-            let duration_logs = durations.map(|duration| (duration as f64).ln());
-            let duration_log_mean = duration_logs.iter().sum::<f64>() / duration_logs.len() as f64;
-            let covariance = input_logs
-                .iter()
-                .zip(duration_logs)
-                .map(|(input, duration)| (input - input_log_mean) * (duration - duration_log_mean))
-                .sum::<f64>();
-            growth_exponents.push(covariance / input_variance);
-        }
-        let median_durations = duration_samples.map(|mut samples| {
-            samples.sort_unstable();
-            samples[samples.len() / 2]
+        let normalized_cost_logs: [f64; 3] = std::array::from_fn(|size_index| {
+            (measurements[size_index].median_ratio * BINDING_COUNTS[size_index] as f64).ln()
         });
-        growth_exponents.sort_by(f64::total_cmp);
-        (
-            median_durations,
-            growth_exponents[growth_exponents.len() / 2],
-        )
+        let cost_log_mean =
+            normalized_cost_logs.iter().sum::<f64>() / normalized_cost_logs.len() as f64;
+        let covariance = input_logs
+            .iter()
+            .zip(normalized_cost_logs)
+            .map(|(input, cost)| (input - input_log_mean) * (cost - cost_log_mean))
+            .sum::<f64>();
+        covariance / input_variance
     }
 
-    fn median_measurement_epochs(
-        mut measure: impl FnMut() -> ([u128; 3], f64),
-    ) -> ([u128; 3], f64, Vec<f64>) {
-        let mut duration_samples =
-            std::array::from_fn(|_| Vec::with_capacity(MEASUREMENT_EPOCH_COUNT));
-        let mut growth_exponents = Vec::with_capacity(MEASUREMENT_EPOCH_COUNT);
-        for _ in 0..MEASUREMENT_EPOCH_COUNT {
-            let (durations, growth_exponent) = measure();
-            for (samples, duration) in duration_samples.iter_mut().zip(durations) {
-                samples.push(duration);
-            }
-            growth_exponents.push(growth_exponent);
-        }
-        let median_durations = duration_samples.map(|mut samples| {
-            samples.sort_unstable();
-            samples[samples.len() / 2]
-        });
-        growth_exponents.sort_by(f64::total_cmp);
-        (
-            median_durations,
-            growth_exponents[growth_exponents.len() / 2],
-            growth_exponents,
-        )
+    fn measure_path(
+        measured: [&CustomPropertyEnv; 3],
+        controls: [&CustomPropertyEnv; 3],
+        operation: fn(&CustomPropertyEnv),
+    ) -> [PairedMeasurement; 3] {
+        std::array::from_fn(|index| {
+            paired_measurement(|| operation(measured[index]), || operation(controls[index]))
+        })
+    }
+
+    fn print_and_assert_measurement(shape: &str, path: &str, measurements: [PairedMeasurement; 3]) {
+        let measured_medians: [u128; 3] =
+            std::array::from_fn(|index| measurements[index].measured_median_ns);
+        let control_medians: [u128; 3] =
+            std::array::from_fn(|index| measurements[index].control_median_ns);
+        let paired_median_ratios: [f64; 3] =
+            std::array::from_fn(|index| measurements[index].median_ratio);
+        let growth_exponent = normalized_three_size_slope(&measurements);
+        println!(
+            "shape={shape} path={path} bindings={BINDING_COUNTS:?} measuredMedianNs={measured_medians:?} flatControlMedianNs={control_medians:?} pairedMedianRatios={paired_median_ratios:.3?} medianNormalizedLogLogGrowthExponent={growth_exponent:.3} maximumLinearGrowthExponent={MAX_LINEAR_GROWTH_EXPONENT:.2}"
+        );
+        assert!(
+            growth_exponent <= MAX_LINEAR_GROWTH_EXPONENT,
+            "{shape} {path} median flat-control-normalized log-log growth exponent {growth_exponent:.3} exceeded the {MAX_LINEAR_GROWTH_EXPONENT:.2} linear-growth ceiling"
+        );
     }
 
     for (shape, build) in [
@@ -3917,51 +3908,19 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
             three_edge_environment as fn(usize) -> CustomPropertyEnv,
         ),
     ] {
-        let small = build(BINDING_COUNTS[0]);
-        let medium = build(BINDING_COUNTS[1]);
-        let large = build(BINDING_COUNTS[2]);
-        let request = median_measurement_epochs(|| {
-            three_size_median_slope(
-                || {
-                    black_box(resolve_custom_property_env_least_fixed_point(&small));
-                },
-                || {
-                    black_box(resolve_custom_property_env_least_fixed_point(&medium));
-                },
-                || {
-                    black_box(resolve_custom_property_env_least_fixed_point(&large));
-                },
-            )
+        let measured = BINDING_COUNTS.map(build);
+        let controls = measured.each_ref().map(flat_control_environment);
+        let measured_refs = measured.each_ref();
+        let control_refs = controls.each_ref();
+
+        let request = measure_path(measured_refs, control_refs, |env| {
+            black_box(resolve_custom_property_env_least_fixed_point(env));
         });
-        let summary = median_measurement_epochs(|| {
-            three_size_median_slope(
-                || {
-                    black_box(summarize_custom_property_least_fixed_point(&small));
-                },
-                || {
-                    black_box(summarize_custom_property_least_fixed_point(&medium));
-                },
-                || {
-                    black_box(summarize_custom_property_least_fixed_point(&large));
-                },
-            )
+        let summary = measure_path(measured_refs, control_refs, |env| {
+            black_box(summarize_custom_property_least_fixed_point(env));
         });
-        for (path, (median_durations, growth_exponent, epoch_growth_exponents)) in
-            [("request", request), ("summary", summary)]
-        {
-            println!(
-                "shape={shape} path={path} smallBindings={} smallMedianNs={} mediumBindings={} mediumMedianNs={} largeBindings={} largeMedianNs={} epochCount={MEASUREMENT_EPOCH_COUNT} epochLogLogGrowthExponents={epoch_growth_exponents:.3?} medianLogLogGrowthExponent={growth_exponent:.3} maximumLinearGrowthExponent={MAX_LINEAR_GROWTH_EXPONENT:.2}",
-                BINDING_COUNTS[0],
-                median_durations[0],
-                BINDING_COUNTS[1],
-                median_durations[1],
-                BINDING_COUNTS[2],
-                median_durations[2],
-            );
-            assert!(
-                growth_exponent <= MAX_LINEAR_GROWTH_EXPONENT,
-                "{shape} {path} median log-log growth exponent {growth_exponent:.3} exceeded the {MAX_LINEAR_GROWTH_EXPONENT:.2} linear-growth ceiling"
-            );
+        for (path, measurements) in [("request", request), ("summary", summary)] {
+            print_and_assert_measurement(shape, path, measurements);
         }
     }
 }
