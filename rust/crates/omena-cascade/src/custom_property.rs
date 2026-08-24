@@ -155,8 +155,8 @@ fn compute_custom_property_env_least_fixed_point(
     let dependency_graph = custom_property_dependency_graph(env);
     let components = strongly_connected_components(&dependency_graph);
     let component_schedule = dependency_ordered_components(&dependency_graph, &components);
-    let mut resolved_env = CustomPropertyEnv::new();
-    let mut invalid_reasons = BTreeMap::new();
+    let mut resolved_values = vec![None; dependency_graph.names.len()];
+    let mut invalid_reasons_by_node = vec![None; dependency_graph.names.len()];
     let mut iteration_trace = match trace_mode {
         TraceMode::Omit => Vec::new(),
         TraceMode::Record => Vec::with_capacity(components.len().max(1)),
@@ -169,7 +169,6 @@ fn compute_custom_property_env_least_fixed_point(
         let component = &components[component_index];
         if component_is_cyclic(component, &dependency_graph) {
             for node in component {
-                let name = dependency_graph.names[*node];
                 let input = dependency_graph.values[*node];
                 let resolved = CascadeValue::GuaranteedInvalid;
                 record_custom_property_settlement(
@@ -180,23 +179,21 @@ fn compute_custom_property_env_least_fixed_point(
                     &mut settled_count,
                     &mut guaranteed_invalid_count,
                 );
-                resolved_env.insert(name.clone(), CascadeValue::GuaranteedInvalid);
-                invalid_reasons.insert(
-                    name.clone(),
-                    CustomPropertyGuaranteedInvalidReasonV0::CycleMember,
-                );
+                resolved_values[*node] = Some(resolved);
+                invalid_reasons_by_node[*node] =
+                    Some(CustomPropertyGuaranteedInvalidReasonV0::CycleMember);
             }
         } else {
             for node in component {
-                let name = dependency_graph.names[*node];
                 let value = dependency_graph.values[*node];
                 let outcome = substitute_custom_properties_with_reason(
                     value,
-                    &resolved_env,
-                    &invalid_reasons,
+                    &dependency_graph,
+                    &resolved_values,
+                    &invalid_reasons_by_node,
                 );
                 if let Some(reason) = outcome.invalid_reason {
-                    invalid_reasons.insert(name.clone(), reason);
+                    invalid_reasons_by_node[*node] = Some(reason);
                 }
                 record_custom_property_settlement(
                     trace_mode,
@@ -206,7 +203,7 @@ fn compute_custom_property_env_least_fixed_point(
                     &mut settled_count,
                     &mut guaranteed_invalid_count,
                 );
-                resolved_env.insert(name.clone(), outcome.value);
+                resolved_values[*node] = Some(outcome.value);
             }
         }
 
@@ -228,6 +225,29 @@ fn compute_custom_property_env_least_fixed_point(
             guaranteed_invalid_count: 0,
         });
     }
+
+    assert!(
+        resolved_values.iter().all(Option::is_some),
+        "the SCC schedule must evaluate every custom-property binding exactly once"
+    );
+    let mut resolved_env = env.clone();
+    for (index, ((name, resolved), scheduled)) in
+        resolved_env.iter_mut().zip(resolved_values).enumerate()
+    {
+        assert_eq!(
+            name, dependency_graph.names[index],
+            "the indexed result must preserve canonical input-key order"
+        );
+        if let Some(scheduled) = scheduled {
+            *resolved = scheduled;
+        }
+    }
+    let invalid_reasons = dependency_graph
+        .names
+        .iter()
+        .zip(invalid_reasons_by_node)
+        .filter_map(|(name, reason)| reason.map(|reason| ((*name).clone(), reason)))
+        .collect::<BTreeMap<_, _>>();
 
     assert_eq!(
         resolved_env.len(),
@@ -254,6 +274,7 @@ fn compute_custom_property_env_least_fixed_point(
 struct CustomPropertyDependencyGraph<'a> {
     names: Vec<&'a CanonicalCustomPropertyNameV0>,
     values: Vec<&'a CascadeValue>,
+    index_by_name: HashMap<&'a str, usize>,
     edges: Vec<Vec<usize>>,
 }
 
@@ -296,6 +317,7 @@ fn custom_property_dependency_graph(env: &CustomPropertyEnv) -> CustomPropertyDe
     CustomPropertyDependencyGraph {
         names,
         values,
+        index_by_name,
         edges,
     }
 }
@@ -557,11 +579,9 @@ struct CustomPropertySubstitutionOutcome {
 
 fn substitute_custom_properties_with_reason(
     value: &CascadeValue,
-    resolved_env: &CustomPropertyEnv,
-    invalid_reasons: &BTreeMap<
-        CanonicalCustomPropertyNameV0,
-        CustomPropertyGuaranteedInvalidReasonV0,
-    >,
+    graph: &CustomPropertyDependencyGraph<'_>,
+    resolved_values: &[Option<CascadeValue>],
+    invalid_reasons: &[Option<CustomPropertyGuaranteedInvalidReasonV0>],
 ) -> CustomPropertySubstitutionOutcome {
     match value {
         CascadeValue::Literal(_)
@@ -582,8 +602,12 @@ fn substitute_custom_properties_with_reason(
             let mut resolved_parts = Vec::with_capacity(parts.len());
             let mut invalid_reason = None;
             for part in parts {
-                let outcome =
-                    substitute_custom_properties_with_reason(part, resolved_env, invalid_reasons);
+                let outcome = substitute_custom_properties_with_reason(
+                    part,
+                    graph,
+                    resolved_values,
+                    invalid_reasons,
+                );
                 invalid_reason = invalid_reason.or(outcome.invalid_reason);
                 resolved_parts.push(outcome.value);
             }
@@ -599,40 +623,58 @@ fn substitute_custom_properties_with_reason(
                 }
             }
         }
-        CascadeValue::Var { name, fallback } => match resolved_env.get(name) {
-            Some(CascadeValue::Unset | CascadeValue::GuaranteedInvalid) => fallback
-                .as_deref()
-                .map(|fallback| {
-                    substitute_custom_properties_with_reason(
-                        fallback,
-                        resolved_env,
-                        invalid_reasons,
-                    )
-                })
-                .unwrap_or(CustomPropertySubstitutionOutcome {
-                    value: CascadeValue::GuaranteedInvalid,
-                    invalid_reason: Some(
-                        CustomPropertyGuaranteedInvalidReasonV0::InvalidDependencyWithoutFallback,
-                    ),
-                }),
-            None => fallback
-                .as_deref()
-                .map(|fallback| {
-                    substitute_custom_properties_with_reason(
-                        fallback,
-                        resolved_env,
-                        invalid_reasons,
-                    )
-                })
-                .unwrap_or(CustomPropertySubstitutionOutcome {
-                    value: CascadeValue::GuaranteedInvalid,
-                    invalid_reason: Some(CustomPropertyGuaranteedInvalidReasonV0::MissingReference),
-                }),
-            Some(resolved) => CustomPropertySubstitutionOutcome {
-                value: resolved.clone(),
-                invalid_reason: invalid_reasons.get(name).copied(),
-            },
-        },
+        CascadeValue::Var { name, fallback } => {
+            let Some(index) = graph.index_by_name.get(name.as_str()).copied() else {
+                return fallback
+                    .as_deref()
+                    .map(|fallback| {
+                        substitute_custom_properties_with_reason(
+                            fallback,
+                            graph,
+                            resolved_values,
+                            invalid_reasons,
+                        )
+                    })
+                    .unwrap_or(CustomPropertySubstitutionOutcome {
+                        value: CascadeValue::GuaranteedInvalid,
+                        invalid_reason: Some(
+                            CustomPropertyGuaranteedInvalidReasonV0::MissingReference,
+                        ),
+                    });
+            };
+            assert!(
+                resolved_values[index].is_some(),
+                "the component schedule must settle dependencies before their consumers"
+            );
+            let Some(resolved) = resolved_values[index].as_ref() else {
+                return CustomPropertySubstitutionOutcome {
+                    value: CascadeValue::Indeterminate,
+                    invalid_reason: None,
+                };
+            };
+            match resolved {
+                CascadeValue::Unset | CascadeValue::GuaranteedInvalid => fallback
+                    .as_deref()
+                    .map(|fallback| {
+                        substitute_custom_properties_with_reason(
+                            fallback,
+                            graph,
+                            resolved_values,
+                            invalid_reasons,
+                        )
+                    })
+                    .unwrap_or(CustomPropertySubstitutionOutcome {
+                        value: CascadeValue::GuaranteedInvalid,
+                        invalid_reason: Some(
+                            CustomPropertyGuaranteedInvalidReasonV0::InvalidDependencyWithoutFallback,
+                        ),
+                    }),
+                resolved => CustomPropertySubstitutionOutcome {
+                    value: resolved.clone(),
+                    invalid_reason: invalid_reasons[index],
+                },
+            }
+        }
     }
 }
 
