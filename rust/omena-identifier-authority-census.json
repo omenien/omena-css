@@ -957,13 +957,19 @@
     },
     "authorityInventoryDecreaseReviews": [
       {
+        "previousSiteCount": 706,
+        "currentSiteCount": 705,
+        "disposition": "reviewed-indexed-custom-property-resolution",
+        "reason": "The custom-property SCC evaluator now resolves dependencies through the canonical graph node index and materializes the ordered environment once, removing one intermediate canonical-name carrier while raw-string identity and identity-shaped residual counts remain zero."
+      },
+      {
         "previousSiteCount": 702,
         "currentSiteCount": 694,
         "disposition": "reviewed-structural-refactor",
         "reason": "The indexed custom-property dependency graph replaces eight recursive canonical-name traversal carrier lines with integer node indices; raw-string identity and identity-shaped residual counts remain zero."
       }
     ],
-    "authoritySiteCount": 706,
+    "authoritySiteCount": 705,
     "sites": [
       {
         "path": "rust/crates/engine-shadow-runner/src/main.rs",
@@ -1351,18 +1357,10 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/custom_property.rs",
-        "line": 255,
+        "line": 275,
         "function": "compute_custom_property_env_least_fixed_point",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "names: Vec<&'a CanonicalCustomPropertyNameV0>,",
-        "role": "carrier"
-      },
-      {
-        "path": "rust/crates/omena-cascade/src/custom_property.rs",
-        "line": 562,
-        "function": "substitute_custom_properties_with_reason",
-        "operation": "CanonicalCustomPropertyNameV0",
-        "evidence": "CanonicalCustomPropertyNameV0,",
         "role": "carrier"
       },
       {
@@ -6614,7 +6612,7 @@
         "role": "producer"
       }
     ],
-    "siteDigest": "sha256:029ba6f8cf510cf0cb3ef5dc5613fa0b289c1c042e3f72d35c81508f4f042f15",
+    "siteDigest": "sha256:4e855ac3d338602768a38e02b2d00a543d2701a6fe7208fd43a8b03f93aaf038",
     "residualRawCarrierDirection": "decrease-only",
     "residualRawCarrierSiteCount": 198,
     "residualRawCarrierSites": [

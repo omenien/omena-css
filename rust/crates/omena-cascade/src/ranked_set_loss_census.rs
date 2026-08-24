@@ -464,10 +464,13 @@ mod tests {
             Specificity::ZERO,
             SpecificityExactnessV0::Exact,
         );
-        let (outcome, capture) = capture_cascade_ranked_set_losses(|| {
+        let captured = capture_cascade_ranked_set_losses(|| {
             cascade_property([inexact_lower, exact_winner], "color")
-        })
-        .expect("capture should be exclusive");
+        });
+        assert!(captured.is_ok(), "capture should be exclusive");
+        let Ok((outcome, capture)) = captured else {
+            return;
+        };
 
         assert!(matches!(outcome, CascadeOutcome::Definite { .. }));
         assert_eq!(capture.ranked_set_outcome_count, 0);

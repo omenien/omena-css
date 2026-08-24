@@ -295,6 +295,13 @@ if (generatedFixtureManifest) {
 const sourceRoots = ["rust/crates"] as const;
 const authorityInventoryDecreaseReviews = [
   {
+    previousSiteCount: 706,
+    currentSiteCount: 705,
+    disposition: "reviewed-indexed-custom-property-resolution",
+    reason:
+      "The custom-property SCC evaluator now resolves dependencies through the canonical graph node index and materializes the ordered environment once, removing one intermediate canonical-name carrier while raw-string identity and identity-shaped residual counts remain zero.",
+  },
+  {
     previousSiteCount: 702,
     currentSiteCount: 694,
     disposition: "reviewed-structural-refactor",

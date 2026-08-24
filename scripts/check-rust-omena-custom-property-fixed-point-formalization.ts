@@ -158,7 +158,8 @@ assert.ok(
       "let component_schedule = dependency_ordered_components(&dependency_graph, &components);",
     ) &&
     customProperty.includes("if component_is_cyclic(component, &dependency_graph)") &&
-    customProperty.includes("resolved_env.insert(name.clone(), CascadeValue::GuaranteedInvalid);"),
+    customProperty.includes("resolved_values[*node] = Some(resolved);") &&
+    customProperty.includes("Some(CustomPropertyGuaranteedInvalidReasonV0::CycleMember);"),
   "the product must execute graph, SCC, cyclic-set invalidation, and component scheduling",
 );
 assert.ok(
@@ -619,7 +620,10 @@ if (args.has("--inject-reordered-evaluator")) {
         "--inject-fallback-rescue",
         "fallback_edges_make_a_three_node_cycle_invalid_when_entered_mid_chain",
       ),
-      expectScriptMutationRed("--inject-delete-scc", "implementation projection"),
+      expectScriptMutationRed(
+        "--inject-delete-scc",
+        "the component schedule must settle dependencies before their consumers",
+      ),
       expectScriptMutationRed("--inject-always-valid-validator", "12px"),
       expectScriptMutationRed(
         "--inject-literal-only-verdicts",
@@ -744,18 +748,15 @@ function runFallbackRescueMutation(): ReturnType<typeof spawnSync> {
     (source) =>
       replaceExactly(
         source,
-        "resolved_env.insert(name.clone(), CascadeValue::GuaranteedInvalid);",
-        `let rescued = env
-                    .get(name)
-                    .and_then(|value| match value {
-                        CascadeValue::Var {
-                            fallback: Some(fallback),
-                            ..
-                        } => Some((**fallback).clone()),
-                        _ => None,
-                    })
-                    .unwrap_or(CascadeValue::GuaranteedInvalid);
-                resolved_env.insert(name.clone(), rescued);`,
+        "resolved_values[*node] = Some(resolved);",
+        `let rescued = match input {
+                    CascadeValue::Var {
+                        fallback: Some(fallback),
+                        ..
+                    } => (**fallback).clone(),
+                    _ => CascadeValue::GuaranteedInvalid,
+                };
+                resolved_values[*node] = Some(rescued);`,
       ),
     [
       "test",
