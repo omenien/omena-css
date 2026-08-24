@@ -194,6 +194,7 @@ pub enum omena_cascade::CascadeAxisPrefixV0
 pub enum omena_cascade::CascadeLevel
 pub enum omena_cascade::CascadeOriginV0
 pub enum omena_cascade::CascadeOutcome
+pub enum omena_cascade::CascadeRankedSetFinalOutcomeV0
 pub enum omena_cascade::CascadeRankedSetFunctionV0
 pub enum omena_cascade::CascadeRankedSetLossClassV0
 pub enum omena_cascade::CascadeRegisteredValueVerdictV0
@@ -676,6 +677,8 @@ pub omena_cascade::CascadeProof::property_key: omena_syntax::ident::CanonicalPro
 pub omena_cascade::CascadeProof::scope_proximity: u32
 pub omena_cascade::CascadeProof::source_order: u32
 pub omena_cascade::CascadeProof::specificity: omena_cascade::Specificity
+pub omena_cascade::CascadeRankedSetFinalOutcomeV0::Definite
+pub omena_cascade::CascadeRankedSetFinalOutcomeV0::RankedSet
 pub omena_cascade::CascadeRankedSetFunctionV0::CascadeProperty
 pub omena_cascade::CascadeRankedSetFunctionV0::CascadePropertyOpenWorld
 pub omena_cascade::CascadeRankedSetLossCandidateV0::declaration_id: alloc::string::String
@@ -688,12 +691,15 @@ pub omena_cascade::CascadeRankedSetLossCaptureV0::measurement_invocation_count: 
 pub omena_cascade::CascadeRankedSetLossCaptureV0::multi_candidate_inexact_ranked_set_count: usize
 pub omena_cascade::CascadeRankedSetLossCaptureV0::product: &'static str
 pub omena_cascade::CascadeRankedSetLossCaptureV0::ranked_set_outcome_count: usize
+pub omena_cascade::CascadeRankedSetLossCaptureV0::recovered_definite_outcome_count: usize
 pub omena_cascade::CascadeRankedSetLossCaptureV0::rows: alloc::vec::Vec<omena_cascade::CascadeRankedSetLossCensusRowV0>
 pub omena_cascade::CascadeRankedSetLossCaptureV0::schema_version: &'static str
 pub omena_cascade::CascadeRankedSetLossCensusRowV0::candidate_count: usize
 pub omena_cascade::CascadeRankedSetLossCensusRowV0::candidates: alloc::vec::Vec<omena_cascade::CascadeRankedSetLossCandidateV0>
 pub omena_cascade::CascadeRankedSetLossCensusRowV0::classification: omena_cascade::CascadeRankedSetLossClassV0
 pub omena_cascade::CascadeRankedSetLossCensusRowV0::declaration_ids: alloc::vec::Vec<alloc::string::String>
+pub omena_cascade::CascadeRankedSetLossCensusRowV0::definite_winner_declaration_id: core::option::Option<alloc::string::String>
+pub omena_cascade::CascadeRankedSetLossCensusRowV0::final_outcome: omena_cascade::CascadeRankedSetFinalOutcomeV0
 pub omena_cascade::CascadeRankedSetLossCensusRowV0::function: omena_cascade::CascadeRankedSetFunctionV0
 pub omena_cascade::CascadeRankedSetLossCensusRowV0::invocation_site: &'static str
 pub omena_cascade::CascadeRankedSetLossCensusRowV0::property: alloc::string::String
