@@ -3792,7 +3792,8 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
 
     const BINDING_COUNTS: [usize; 3] = [1_200, 2_200, 4_000];
     const MAX_LINEAR_GROWTH_EXPONENT: f64 = 1.10;
-    const TARGET_SAMPLE_BATCH_NS: u128 = 10_000_000;
+    const TARGET_SAMPLE_BATCH_NS: u128 = 20_000_000;
+    const MIN_SAMPLE_BATCH_INVOCATIONS: usize = 8;
     const MAX_SAMPLE_BATCH_INVOCATIONS: usize = 256;
 
     fn alias_environment(binding_count: usize) -> CustomPropertyEnv {
@@ -3852,7 +3853,7 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
             let single_invocation_ns = started.elapsed().as_nanos().max(1);
             usize::try_from(TARGET_SAMPLE_BATCH_NS.div_ceil(single_invocation_ns))
                 .unwrap_or(MAX_SAMPLE_BATCH_INVOCATIONS)
-                .clamp(1, MAX_SAMPLE_BATCH_INVOCATIONS)
+                .clamp(MIN_SAMPLE_BATCH_INVOCATIONS, MAX_SAMPLE_BATCH_INVOCATIONS)
         }
 
         fn measure_ns(operation: &mut impl FnMut(), batch_invocations: usize) -> u128 {
