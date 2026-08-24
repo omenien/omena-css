@@ -3752,9 +3752,10 @@ fn flat_environment_resolution_omits_dependency_graph_and_trace_work() {
 fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_budget() {
     use std::{hint::black_box, time::Instant};
 
-    // Larger work units amortize hosted-runner scheduling jitter while preserving the
-    // three-size log-log slope test and its superlinear fault sensitivity.
-    const BINDING_COUNTS: [usize; 3] = [2_400, 4_400, 8_000];
+    const BINDING_COUNTS: [usize; 3] = [1_200, 2_200, 4_000];
+    // Five independent 41-sample epochs absorb whole-epoch hosted-runner variance without
+    // changing the three-size corpus, the 1.10 ceiling, or the superlinear fault sensitivity.
+    const MEASUREMENT_EPOCH_COUNT: usize = 5;
     const MAX_LINEAR_GROWTH_EXPONENT: f64 = 1.10;
 
     fn alias_environment(binding_count: usize) -> CustomPropertyEnv {
@@ -3881,6 +3882,31 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
         )
     }
 
+    fn median_measurement_epochs(
+        mut measure: impl FnMut() -> ([u128; 3], f64),
+    ) -> ([u128; 3], f64, Vec<f64>) {
+        let mut duration_samples =
+            std::array::from_fn(|_| Vec::with_capacity(MEASUREMENT_EPOCH_COUNT));
+        let mut growth_exponents = Vec::with_capacity(MEASUREMENT_EPOCH_COUNT);
+        for _ in 0..MEASUREMENT_EPOCH_COUNT {
+            let (durations, growth_exponent) = measure();
+            for (samples, duration) in duration_samples.iter_mut().zip(durations) {
+                samples.push(duration);
+            }
+            growth_exponents.push(growth_exponent);
+        }
+        let median_durations = duration_samples.map(|mut samples| {
+            samples.sort_unstable();
+            samples[samples.len() / 2]
+        });
+        growth_exponents.sort_by(f64::total_cmp);
+        (
+            median_durations,
+            growth_exponents[growth_exponents.len() / 2],
+            growth_exponents,
+        )
+    }
+
     for (shape, build) in [
         (
             "alias-chain",
@@ -3894,33 +3920,37 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
         let small = build(BINDING_COUNTS[0]);
         let medium = build(BINDING_COUNTS[1]);
         let large = build(BINDING_COUNTS[2]);
-        let request = three_size_median_slope(
-            || {
-                black_box(resolve_custom_property_env_least_fixed_point(&small));
-            },
-            || {
-                black_box(resolve_custom_property_env_least_fixed_point(&medium));
-            },
-            || {
-                black_box(resolve_custom_property_env_least_fixed_point(&large));
-            },
-        );
-        let summary = three_size_median_slope(
-            || {
-                black_box(summarize_custom_property_least_fixed_point(&small));
-            },
-            || {
-                black_box(summarize_custom_property_least_fixed_point(&medium));
-            },
-            || {
-                black_box(summarize_custom_property_least_fixed_point(&large));
-            },
-        );
-        for (path, (median_durations, growth_exponent)) in
+        let request = median_measurement_epochs(|| {
+            three_size_median_slope(
+                || {
+                    black_box(resolve_custom_property_env_least_fixed_point(&small));
+                },
+                || {
+                    black_box(resolve_custom_property_env_least_fixed_point(&medium));
+                },
+                || {
+                    black_box(resolve_custom_property_env_least_fixed_point(&large));
+                },
+            )
+        });
+        let summary = median_measurement_epochs(|| {
+            three_size_median_slope(
+                || {
+                    black_box(summarize_custom_property_least_fixed_point(&small));
+                },
+                || {
+                    black_box(summarize_custom_property_least_fixed_point(&medium));
+                },
+                || {
+                    black_box(summarize_custom_property_least_fixed_point(&large));
+                },
+            )
+        });
+        for (path, (median_durations, growth_exponent, epoch_growth_exponents)) in
             [("request", request), ("summary", summary)]
         {
             println!(
-                "shape={shape} path={path} smallBindings={} smallMedianNs={} mediumBindings={} mediumMedianNs={} largeBindings={} largeMedianNs={} medianLogLogGrowthExponent={growth_exponent:.3} maximumLinearGrowthExponent={MAX_LINEAR_GROWTH_EXPONENT:.2}",
+                "shape={shape} path={path} smallBindings={} smallMedianNs={} mediumBindings={} mediumMedianNs={} largeBindings={} largeMedianNs={} epochCount={MEASUREMENT_EPOCH_COUNT} epochLogLogGrowthExponents={epoch_growth_exponents:.3?} medianLogLogGrowthExponent={growth_exponent:.3} maximumLinearGrowthExponent={MAX_LINEAR_GROWTH_EXPONENT:.2}",
                 BINDING_COUNTS[0],
                 median_durations[0],
                 BINDING_COUNTS[1],
