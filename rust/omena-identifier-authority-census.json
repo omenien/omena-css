@@ -195,7 +195,7 @@
     "meaningRevisionReviews": [
       {
         "disposition": "reviewed-sealed-selector-key-migration",
-        "reason": "The matcher signature and element join changed from authored String storage to sealed decoded selector keys; the witness-only String insertion remains presentation data."
+        "reason": "The matcher signature and element join changed from authored String storage to sealed decoded selector keys; the witness-only String insertion remains presentation data, and the CST authority now verifies its compound key before issuing the semantic projection key."
       }
     ],
     "lexemeGlobs": [
@@ -209,15 +209,15 @@
     ],
     "primitiveIds": ["str-eq", "contains", "insert", "map-get", "cmp"],
     "unlabelledBindingBlindSpot": "Bindings without a class or selector label are intentionally invisible; typed carriers and API egresses are the backstops.",
-    "currentSiteCount": 66,
+    "currentSiteCount": 67,
     "primitiveCounts": {
       "str-eq": 26,
-      "contains": 19,
+      "contains": 20,
       "insert": 13,
       "map-get": 6,
       "cmp": 2
     },
-    "sanctionedSiteCount": 43,
+    "sanctionedSiteCount": 44,
     "namedExemptSiteCount": 23,
     "sites": [
       {
@@ -707,6 +707,15 @@
         "reason": "This is a cardinality check, not selector-name equality."
       },
       {
+        "path": "rust/crates/omena-syntax/src/selector.rs",
+        "line": 242,
+        "function": "canonical_class_key_for_source_span",
+        "operation": "contains",
+        "evidence": "&& compound.required_classes.contains(&key)",
+        "disposition": "sanctioned",
+        "reason": "The sole selector authority verifies that a parser definition span names a class key carried by the same CST compound before issuing that key."
+      },
+      {
         "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
         "line": 1096,
         "function": "local_css_module_composes_resolutions_from_edges",
@@ -815,7 +824,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:70ee9c3fd018bf3e33cbbb16bedcd374e8e762e624b5cc06568bb27c4dc12d4f"
+    "siteDigest": "sha256:cc9d700aecf677c163bbecba38ab36c4d589f24c487dd6fd67a0d919d49f90a1"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
@@ -3966,7 +3975,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1196,
+        "line": 1197,
         "function": "summarize_omena_parser_custom_property_facts",
         "operation": "sealed-property-key",
         "evidence": "let Some(property_key) = variable.property_key.clone() else {",
@@ -3974,7 +3983,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1202,
+        "line": 1203,
         "function": "summarize_omena_parser_custom_property_facts",
         "operation": "sealed-property-key",
         "evidence": ".entry(property_key.clone())",
@@ -3982,7 +3991,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1206,
+        "line": 1207,
         "function": "summarize_omena_parser_custom_property_facts",
         "operation": "sealed-property-key",
         "evidence": "property_key,",
@@ -3990,7 +3999,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1255,
+        "line": 1256,
         "function": "summarize_omena_parser_custom_property_facts",
         "operation": "sealed-property-key",
         "evidence": ".map(|declaration| (declaration.property_key.clone(), declaration.name.clone()))",
@@ -3998,7 +4007,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1432,
+        "line": 1433,
         "function": "summarize_omena_parser_custom_property_semantic_facts",
         "operation": "sealed-property-key",
         "evidence": ".entry(reference.property_key.clone())",
@@ -4006,7 +4015,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1520,
+        "line": 1521,
         "function": "custom_property_context_matches",
         "operation": "sealed-property-key",
         "evidence": "if declaration.property_key != reference.property_key {",
@@ -6605,7 +6614,7 @@
         "role": "producer"
       }
     ],
-    "siteDigest": "sha256:671b811733743edeb048c6fbde17ec83cfc60378769ddf6660728c513178dd28",
+    "siteDigest": "sha256:029ba6f8cf510cf0cb3ef5dc5613fa0b289c1c042e3f72d35c81508f4f042f15",
     "residualRawCarrierDirection": "decrease-only",
     "residualRawCarrierSiteCount": 198,
     "residualRawCarrierSites": [
@@ -7142,7 +7151,7 @@
       },
       {
         "path": "rust/crates/omena-cascade/src/ranked_set_loss_census.rs",
-        "line": 67,
+        "line": 75,
         "function": "<module>",
         "operation": "residual-property-field:CascadeRankedSetLossCensusRowV0.property:String",
         "evidence": "pub property: String,",
@@ -8392,7 +8401,7 @@
         "reason": "Borrowed authored boundary spelling; the consumer must construct a sealed key before identity use."
       }
     ],
-    "residualRawCarrierSiteDigest": "sha256:a90b9fa0b8dc37a2bebf46bc68577d72e98da2bccd560bd3eee0ad3c19ad18e9",
+    "residualRawCarrierSiteDigest": "sha256:08b6da8fa94274fb76efb1e6b5656029d68e7b3270c5b29c2de398125ffb5316",
     "residualCarrierConsumerDerivation": "resolved-type-access-and-parameter-use-scan",
     "residualCarrierConsumerRows": [
       {
@@ -9661,7 +9670,7 @@
       {
         "carrier": {
           "path": "rust/crates/omena-cascade/src/ranked_set_loss_census.rs",
-          "line": 67,
+          "line": 75,
           "function": "<module>",
           "operation": "residual-property-field:CascadeRankedSetLossCensusRowV0.property:String",
           "evidence": "pub property: String,",
@@ -12741,7 +12750,7 @@
     ],
     "residualCarrierConsumerSiteCount": 229,
     "residualIdentityShapedConsumerCount": 0,
-    "residualCarrierConsumerDigest": "sha256:85ef6bfea0b573d12e99d7d60beea7b5f69f4bcddd35e5f8de36a51b983f17a4",
+    "residualCarrierConsumerDigest": "sha256:b9c12225aaafa8ac18173f5209c91dafce2804f241b755d7fef955a31bdb51dc",
     "rawStringIdentitySiteCount": 0,
     "rawStringIdentitySites": [],
     "rawStringIdentitySiteDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"

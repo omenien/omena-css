@@ -14,25 +14,26 @@
   "captureStateRecoveryCount": 0,
   "measurementInvocationCount": 27,
   "rankedSetOutcomeCount": 6,
+  "recoveredDefiniteOutcomeCount": 4,
   "multiCandidateInexactRankedSetCount": 4,
   "layerSyntaxFileCount": 1,
   "importantSyntaxFileCount": 1,
   "scopeSyntaxFileCount": 1,
-  "rowCount": 6,
-  "recoverableCount": 0,
+  "rowCount": 10,
+  "recoverableCount": 4,
   "undecidableCount": 6,
   "classCounts": {
-    "recoverableAxisDominant": 0,
+    "recoverableAxisDominant": 4,
     "axisWinnerInexact": 2,
     "noStrictAxisDominance": 2,
     "singleInexactCandidate": 2
   },
   "functionPopulations": {
-    "cascadeProperty": 6,
+    "cascadeProperty": 10,
     "cascadePropertyOpenWorld": 0
   },
   "invocationSitePopulations": {
-    "queryRuntimeStateScenarioEvaluation": 2,
+    "queryRuntimeStateScenarioEvaluation": 6,
     "queryCascadeMarginForEvaluation": 1,
     "collectQueryReplicaEnsembleSiteOutcomes": 3,
     "computeCascadeComputedValue": 0,
@@ -40,14 +41,14 @@
     "unclassified": 0
   },
   "decidingAxisCounts": {
-    "level": 0,
-    "layerRank": 0
+    "level": 2,
+    "layerRank": 2
   },
   "observedCascadeLevelCounts": {
     "userAgentNormal": 0,
     "userNormal": 0,
-    "authorNormal": 9,
-    "inlineNormal": 0,
+    "authorNormal": 21,
+    "inlineNormal": 2,
     "animation": 0,
     "authorImportant": 3,
     "inlineImportant": 0,
@@ -62,6 +63,7 @@
       "captureStateRecoveryCount": 0,
       "measurementInvocationCount": 5,
       "rankedSetOutcomeCount": 0,
+      "recoveredDefiniteOutcomeCount": 0,
       "multiCandidateInexactRankedSetCount": 0,
       "rowCount": 0,
       "rows": []
@@ -71,8 +73,9 @@
       "captureStateRecoveryCount": 0,
       "measurementInvocationCount": 22,
       "rankedSetOutcomeCount": 6,
+      "recoveredDefiniteOutcomeCount": 4,
       "multiCandidateInexactRankedSetCount": 4,
-      "rowCount": 6,
+      "rowCount": 10,
       "rows": [
         {
           "function": "cascadeProperty",
@@ -90,7 +93,9 @@
               "specificityExactness": "inexact"
             }
           ],
-          "classification": "singleInexactCandidate"
+          "classification": "singleInexactCandidate",
+          "finalOutcome": "rankedSet",
+          "definiteWinnerDeclarationId": null
         },
         {
           "function": "cascadeProperty",
@@ -108,7 +113,9 @@
               "specificityExactness": "inexact"
             }
           ],
-          "classification": "singleInexactCandidate"
+          "classification": "singleInexactCandidate",
+          "finalOutcome": "rankedSet",
+          "definiteWinnerDeclarationId": null
         },
         {
           "function": "cascadeProperty",
@@ -133,7 +140,9 @@
               "specificityExactness": "inexact"
             }
           ],
-          "classification": "noStrictAxisDominance"
+          "classification": "noStrictAxisDominance",
+          "finalOutcome": "rankedSet",
+          "definiteWinnerDeclarationId": null
         },
         {
           "function": "cascadeProperty",
@@ -158,7 +167,9 @@
               "specificityExactness": "inexact"
             }
           ],
-          "classification": "noStrictAxisDominance"
+          "classification": "noStrictAxisDominance",
+          "finalOutcome": "rankedSet",
+          "definiteWinnerDeclarationId": null
         },
         {
           "function": "cascadeProperty",
@@ -190,7 +201,9 @@
               "specificityExactness": "exact"
             }
           ],
-          "classification": "axisWinnerInexact"
+          "classification": "axisWinnerInexact",
+          "finalOutcome": "rankedSet",
+          "definiteWinnerDeclarationId": null
         },
         {
           "function": "cascadeProperty",
@@ -222,7 +235,185 @@
               "specificityExactness": "exact"
             }
           ],
-          "classification": "axisWinnerInexact"
+          "classification": "axisWinnerInexact",
+          "finalOutcome": "rankedSet",
+          "definiteWinnerDeclarationId": null
+        },
+        {
+          "function": "cascadeProperty",
+          "invocationSite": "queryRuntimeStateScenarioEvaluation",
+          "sourcePath": "crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+          "property": "outline-color",
+          "declarationIds": ["decl-10", "decl-8", "decl-7"],
+          "candidateCount": 3,
+          "candidates": [
+            {
+              "declarationId": "decl-10",
+              "level": "authorNormal",
+              "layerRank": 1,
+              "scopeProximity": 0,
+              "specificityExactness": "exact"
+            },
+            {
+              "declarationId": "decl-8",
+              "level": "authorNormal",
+              "layerRank": 0,
+              "scopeProximity": 0,
+              "specificityExactness": "inexact"
+            },
+            {
+              "declarationId": "decl-7",
+              "level": "authorNormal",
+              "layerRank": 0,
+              "scopeProximity": 0,
+              "specificityExactness": "inexact"
+            }
+          ],
+          "classification": {
+            "recoverableAxisDominant": {
+              "axis": "layerRank"
+            }
+          },
+          "finalOutcome": "definite",
+          "definiteWinnerDeclarationId": "decl-10"
+        },
+        {
+          "function": "cascadeProperty",
+          "invocationSite": "queryRuntimeStateScenarioEvaluation",
+          "sourcePath": "crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+          "property": "outline-color",
+          "declarationIds": ["decl-10", "decl-8", "decl-7"],
+          "candidateCount": 3,
+          "candidates": [
+            {
+              "declarationId": "decl-10",
+              "level": "authorNormal",
+              "layerRank": 1,
+              "scopeProximity": 0,
+              "specificityExactness": "exact"
+            },
+            {
+              "declarationId": "decl-8",
+              "level": "authorNormal",
+              "layerRank": 0,
+              "scopeProximity": 0,
+              "specificityExactness": "inexact"
+            },
+            {
+              "declarationId": "decl-7",
+              "level": "authorNormal",
+              "layerRank": 0,
+              "scopeProximity": 0,
+              "specificityExactness": "inexact"
+            }
+          ],
+          "classification": {
+            "recoverableAxisDominant": {
+              "axis": "layerRank"
+            }
+          },
+          "finalOutcome": "definite",
+          "definiteWinnerDeclarationId": "decl-10"
+        },
+        {
+          "function": "cascadeProperty",
+          "invocationSite": "queryRuntimeStateScenarioEvaluation",
+          "sourcePath": "crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+          "property": "outline-color",
+          "declarationIds": [
+            "inline-style:scripts/fixtures/real-workspace-lint-corpus/src/App.tsx:4:43",
+            "decl-10",
+            "decl-8",
+            "decl-7"
+          ],
+          "candidateCount": 4,
+          "candidates": [
+            {
+              "declarationId": "inline-style:scripts/fixtures/real-workspace-lint-corpus/src/App.tsx:4:43",
+              "level": "inlineNormal",
+              "layerRank": 2147483647,
+              "scopeProximity": 0,
+              "specificityExactness": "exact"
+            },
+            {
+              "declarationId": "decl-10",
+              "level": "authorNormal",
+              "layerRank": 1,
+              "scopeProximity": 0,
+              "specificityExactness": "exact"
+            },
+            {
+              "declarationId": "decl-8",
+              "level": "authorNormal",
+              "layerRank": 0,
+              "scopeProximity": 0,
+              "specificityExactness": "inexact"
+            },
+            {
+              "declarationId": "decl-7",
+              "level": "authorNormal",
+              "layerRank": 0,
+              "scopeProximity": 0,
+              "specificityExactness": "inexact"
+            }
+          ],
+          "classification": {
+            "recoverableAxisDominant": {
+              "axis": "level"
+            }
+          },
+          "finalOutcome": "definite",
+          "definiteWinnerDeclarationId": "inline-style:scripts/fixtures/real-workspace-lint-corpus/src/App.tsx:4:43"
+        },
+        {
+          "function": "cascadeProperty",
+          "invocationSite": "queryRuntimeStateScenarioEvaluation",
+          "sourcePath": "crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+          "property": "outline-color",
+          "declarationIds": [
+            "inline-style:scripts/fixtures/real-workspace-lint-corpus/src/App.tsx:4:43",
+            "decl-10",
+            "decl-8",
+            "decl-7"
+          ],
+          "candidateCount": 4,
+          "candidates": [
+            {
+              "declarationId": "inline-style:scripts/fixtures/real-workspace-lint-corpus/src/App.tsx:4:43",
+              "level": "inlineNormal",
+              "layerRank": 2147483647,
+              "scopeProximity": 0,
+              "specificityExactness": "exact"
+            },
+            {
+              "declarationId": "decl-10",
+              "level": "authorNormal",
+              "layerRank": 1,
+              "scopeProximity": 0,
+              "specificityExactness": "exact"
+            },
+            {
+              "declarationId": "decl-8",
+              "level": "authorNormal",
+              "layerRank": 0,
+              "scopeProximity": 0,
+              "specificityExactness": "inexact"
+            },
+            {
+              "declarationId": "decl-7",
+              "level": "authorNormal",
+              "layerRank": 0,
+              "scopeProximity": 0,
+              "specificityExactness": "inexact"
+            }
+          ],
+          "classification": {
+            "recoverableAxisDominant": {
+              "axis": "level"
+            }
+          },
+          "finalOutcome": "definite",
+          "definiteWinnerDeclarationId": "inline-style:scripts/fixtures/real-workspace-lint-corpus/src/App.tsx:4:43"
         }
       ]
     },
@@ -231,6 +422,7 @@
       "captureStateRecoveryCount": 0,
       "measurementInvocationCount": 0,
       "rankedSetOutcomeCount": 0,
+      "recoveredDefiniteOutcomeCount": 0,
       "multiCandidateInexactRankedSetCount": 0,
       "rowCount": 0,
       "rows": []
