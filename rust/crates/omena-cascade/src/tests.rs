@@ -3802,16 +3802,10 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
             .collect()
     }
 
-    struct PairedMeasurement {
-        measured_median_ns: u128,
-        control_median_ns: u128,
-        median_ratio: f64,
-    }
-
     fn paired_measurement(
         mut measured_operation: impl FnMut(),
         mut control_operation: impl FnMut(),
-    ) -> PairedMeasurement {
+    ) -> (u128, u128, f64) {
         fn measure_ns(mut operation: impl FnMut()) -> u128 {
             let started = Instant::now();
             operation();
@@ -3844,14 +3838,14 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
         control_samples.sort_unstable();
         let mut sorted_ratios = ratios.clone();
         sorted_ratios.sort_by(f64::total_cmp);
-        PairedMeasurement {
-            measured_median_ns: measured_samples[measured_samples.len() / 2],
-            control_median_ns: control_samples[control_samples.len() / 2],
-            median_ratio: sorted_ratios[sorted_ratios.len() / 2],
-        }
+        (
+            measured_samples[measured_samples.len() / 2],
+            control_samples[control_samples.len() / 2],
+            sorted_ratios[sorted_ratios.len() / 2],
+        )
     }
 
-    fn normalized_three_size_slope(measurements: &[PairedMeasurement; 3]) -> f64 {
+    fn normalized_three_size_slope(measurements: &[(u128, u128, f64); 3]) -> f64 {
         let input_logs = BINDING_COUNTS.map(|count| (count as f64).ln());
         let input_log_mean = input_logs.iter().sum::<f64>() / input_logs.len() as f64;
         let input_variance = input_logs
@@ -3859,7 +3853,7 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
             .map(|value| (value - input_log_mean).powi(2))
             .sum::<f64>();
         let normalized_cost_logs: [f64; 3] = std::array::from_fn(|size_index| {
-            (measurements[size_index].median_ratio * BINDING_COUNTS[size_index] as f64).ln()
+            (measurements[size_index].2 * BINDING_COUNTS[size_index] as f64).ln()
         });
         let cost_log_mean =
             normalized_cost_logs.iter().sum::<f64>() / normalized_cost_logs.len() as f64;
@@ -3875,19 +3869,16 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
         measured: [&CustomPropertyEnv; 3],
         controls: [&CustomPropertyEnv; 3],
         operation: fn(&CustomPropertyEnv),
-    ) -> [PairedMeasurement; 3] {
+    ) -> [(u128, u128, f64); 3] {
         std::array::from_fn(|index| {
             paired_measurement(|| operation(measured[index]), || operation(controls[index]))
         })
     }
 
-    fn print_and_assert_measurement(shape: &str, path: &str, measurements: [PairedMeasurement; 3]) {
-        let measured_medians: [u128; 3] =
-            std::array::from_fn(|index| measurements[index].measured_median_ns);
-        let control_medians: [u128; 3] =
-            std::array::from_fn(|index| measurements[index].control_median_ns);
-        let paired_median_ratios: [f64; 3] =
-            std::array::from_fn(|index| measurements[index].median_ratio);
+    fn print_and_assert_measurement(shape: &str, path: &str, measurements: [(u128, u128, f64); 3]) {
+        let measured_medians: [u128; 3] = std::array::from_fn(|index| measurements[index].0);
+        let control_medians: [u128; 3] = std::array::from_fn(|index| measurements[index].1);
+        let paired_median_ratios: [f64; 3] = std::array::from_fn(|index| measurements[index].2);
         let growth_exponent = normalized_three_size_slope(&measurements);
         println!(
             "shape={shape} path={path} bindings={BINDING_COUNTS:?} measuredMedianNs={measured_medians:?} flatControlMedianNs={control_medians:?} pairedMedianRatios={paired_median_ratios:.3?} medianNormalizedLogLogGrowthExponent={growth_exponent:.3} maximumLinearGrowthExponent={MAX_LINEAR_GROWTH_EXPONENT:.2}"
