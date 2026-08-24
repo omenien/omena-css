@@ -1410,6 +1410,7 @@ fn standard_property_closed_world_token_kind_mismatch(
             kind == ClosedWorldTokenKindV0::FunctionName
                 && domain.open
                 && !domain.allowed.contains(value.as_str())
+                && !recognized_standard_function_names().contains(value.as_str())
         })
     }) {
         return false;
@@ -4157,10 +4158,11 @@ mod tests {
             .iter()
             .filter(|entry| {
                 let property = PropertyNameV0::standard(entry.name.as_str());
+                let property_key = PropertyNameV0::canonical_standard_key(entry.name.as_str());
                 closed_world_keyword_authority().is_some_and(|authority| {
                     authority
                         .accepted_keywords_by_property
-                        .contains_key(property.as_standard_key().expect("standard property key"))
+                        .contains_key(&property_key)
                 }) && cached_standard_property_closed_world_token_profile(&property, registry)
                     .is_some_and(|profile| !profile.ident.open)
             })

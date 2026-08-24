@@ -1018,7 +1018,7 @@
     {
       "crate": "omena-abstract-value",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor derives closed-world contradictions only from override-free imported grammar or a nonempty, gap-free css-tree keyword closure that recursively follows type and property references, defaults unwitnessed builtin token domains open, and expands the reviewed paint and compatibility keyword grammars.",
+      "reason": "The next pre-1.0 minor separates positive matcher-completeness certification from identifier rejection authority: a bare identifier is definitely rejected only when the expanded property grammar has no open identifier production and the identifier is absent from the pinned css-tree accepted-keyword set. Other token kinds retain their imported-grammar closure rules, and unwitnessed builtin domains remain open.",
       "expectedFailures": [
         {
           "lint": "enum_variant_added",
@@ -1030,17 +1030,19 @@
           "id": "standard-value-matcher-coverage-gate",
           "kind": "selection-outcome-changing",
           "surface": "CssValueValidationV0 class and reason",
-          "reason": "An in-boundary Unmatched verdict is Invalid only when its token domain has imported or css-tree-backed closure authority. The embedded css-tree certificate validates the accepted-pair digest and per-property tested counts, and grants closure only to nonempty properties with no matcher gap. Reviewed overrides, matcher gaps, zero-sample properties, and unknown builtin types default to NotValidatable or OPEN instead of manufacturing a definite rejection.",
+          "reason": "An in-boundary unmatched bare identifier is Invalid only when the recursively expanded grammar has no open identifier production and the identifier is absent from the certificate's per-property accepted-keyword set. The separate 388-property positive matcher-completeness certification is retained for acceptance evidence but does not gate identifier rejection. Accepted matcher gaps, reviewed open functions, zero-sample properties, and unknown builtin types remain NotValidatable or OPEN.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
               "needles": [
                 "standard_property_matcher_coverage_complete",
                 "standard_property_closed_world_token_kind_mismatch",
-                "certified_keyword_properties",
+                "accepted_keywords_by_property",
+                "expression_has_open_ident_production",
                 "closed_world_builtin_token_profiles",
                 "CssValueValidationReasonV0::MatcherCoverageIncomplete",
-                "fn incomplete_matcher_coverage_cannot_promote_unmatched_to_invalid()"
+                "fn accepted_keyword_authority_prevents_oracle_valid_ident_rejection()",
+                "fn identifier_rejection_authority_property_surface_is_pinned()"
               ]
             },
             {
@@ -1110,12 +1112,12 @@
           "id": "checker-value-matcher-coverage-gate",
           "kind": "selection-outcome-changing",
           "surface": "InvalidPropertyValue checker findings for standard-property values",
-          "reason": "An unmatched value produces a definite checker finding when the pinned matcher is complete or its transitive grammar proves that an observed token lies outside a closed token-kind set; genuinely open matcher gaps remain indeterminate.",
+          "reason": "An unmatched bare identifier produces a definite checker finding only when the expanded grammar has no open identifier production and the candidate is absent from the pinned oracle-accepted keyword set; accepted matcher gaps remain indeterminate while oracle-invalid identifiers remain reportable.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-checker/src/lib.rs",
               "needles": [
-                "fn invalid_property_value_skips_compounds_when_keyword_closure_has_gaps()",
+                "fn invalid_property_value_rejects_identifiers_outside_oracle_accepted_keywords()",
                 "fn invalid_property_value_reports_closed_kind_negative_compounds()",
                 "fn invalid_property_value_fires_on_definite_keyword_violation()"
               ]

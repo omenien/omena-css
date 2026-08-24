@@ -1167,7 +1167,7 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 1422,
+        "line": 1423,
         "function": "standard_property_closed_world_token_kind_mismatch",
         "operation": "sealed-property-key",
         "evidence": "let Some(property_key) = property.as_standard_key() else {",
@@ -1175,7 +1175,7 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 1426,
+        "line": 1427,
         "function": "standard_property_closed_world_token_kind_mismatch",
         "operation": "sealed-property-key",
         "evidence": ".and_then(|authority| authority.accepted_keywords_by_property.get(property_key))",
@@ -1183,7 +1183,7 @@
       },
       {
         "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "line": 2307,
+        "line": 2308,
         "function": "parse_reference",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "name: PropertyNameV0::from_authored(property)",
@@ -6574,7 +6574,7 @@
         "role": "producer"
       }
     ],
-    "siteDigest": "sha256:523bc700dd70f152ff9376040c889e8ebffaa1cfaea791a6ffe3b786173b9a4f",
+    "siteDigest": "sha256:6ca9ad9eac9e5ed6659925a0bc90fc731625f956514fbabe2f5d9d43e0a1b650",
     "residualRawCarrierDirection": "decrease-only",
     "residualRawCarrierSiteCount": 198,
     "residualRawCarrierSites": [
