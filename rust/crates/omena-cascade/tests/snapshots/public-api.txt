@@ -84,6 +84,7 @@ impl omena_cascade::OrderedTokenWordV0
 impl omena_cascade::OrderedTokenWordV0
 impl omena_cascade::ScopeProximityV0
 impl omena_cascade::SelectorContextWitness
+impl omena_cascade::SelectorSignature
 impl omena_cascade::Specificity
 impl omena_cascade::SupportsTargetCapabilityV0
 impl omena_cascade::TokenSupportV0
@@ -357,6 +358,7 @@ pub fn omena_cascade::OrderedTokenWordV0::serialize<S>(&self, S) -> core::result
 pub fn omena_cascade::OrderedTokenWordV0::tokens(&self) -> &[omena_syntax::ident::CanonicalClassKeyV0]
 pub fn omena_cascade::OrderedTokenWordV0::tokens(&self) -> &[omena_syntax::ident::CanonicalClassKeyV0]
 pub fn omena_cascade::SelectorContextWitness::no_match() -> Self
+pub fn omena_cascade::SelectorSignature::requires_class(&self, &str) -> bool
 pub fn omena_cascade::Specificity::cmp(&self, &Self) -> core::cmp::Ordering
 pub fn omena_cascade::Specificity::partial_cmp(&self, &Self) -> core::option::Option<core::cmp::Ordering>
 pub fn omena_cascade::SupportsTargetCapabilityV0::default() -> Self
@@ -927,13 +929,13 @@ pub omena_cascade::ElementParentChainV0::status: omena_cascade::ElementParentCha
 pub omena_cascade::ElementParentChainV0::target: omena_cascade::ElementIdentityV0
 pub omena_cascade::ElementSignature::attributes: alloc::collections::btree::set::BTreeSet<alloc::string::String>
 pub omena_cascade::ElementSignature::attributes_are_exact: bool
-pub omena_cascade::ElementSignature::classes: alloc::collections::btree::set::BTreeSet<alloc::string::String>
+pub omena_cascade::ElementSignature::classes: alloc::collections::btree::set::BTreeSet<omena_syntax::ident::CanonicalClassKeyV0>
 pub omena_cascade::ElementSignature::classes_are_exact: bool
-pub omena_cascade::ElementSignature::id: core::option::Option<alloc::string::String>
+pub omena_cascade::ElementSignature::id: core::option::Option<omena_syntax::ident::CanonicalIdKeyV0>
 pub omena_cascade::ElementSignature::id_is_exact: bool
 pub omena_cascade::ElementSignature::pseudo_states: alloc::collections::btree::set::BTreeSet<alloc::string::String>
 pub omena_cascade::ElementSignature::pseudo_states_are_exact: bool
-pub omena_cascade::ElementSignature::tag: core::option::Option<alloc::string::String>
+pub omena_cascade::ElementSignature::tag: core::option::Option<omena_syntax::ident::CanonicalTypeSelectorKeyV0>
 pub omena_cascade::ElementSignature::tag_is_exact: bool
 pub omena_cascade::ElementSignatureWithParentsV0::identity: omena_cascade::ElementIdentityV0
 pub omena_cascade::ElementSignatureWithParentsV0::parent_chain: alloc::vec::Vec<omena_cascade::ElementIdentityV0>
@@ -1257,10 +1259,10 @@ pub omena_cascade::SelectorMatchWitness::unsupported_branches: alloc::vec::Vec<a
 pub omena_cascade::SelectorMatchWitness::verdict: omena_cascade::SelectorMatchVerdict
 pub omena_cascade::SelectorSignature::functional_pseudo_constraints: alloc::vec::Vec<omena_cascade::SelectorFunctionalPseudoConstraintV0>
 pub omena_cascade::SelectorSignature::required_attributes: alloc::collections::btree::set::BTreeSet<alloc::string::String>
-pub omena_cascade::SelectorSignature::required_classes: alloc::collections::btree::set::BTreeSet<alloc::string::String>
-pub omena_cascade::SelectorSignature::required_id: core::option::Option<alloc::string::String>
+pub omena_cascade::SelectorSignature::required_classes: alloc::collections::btree::set::BTreeSet<omena_syntax::ident::CanonicalClassKeyV0>
+pub omena_cascade::SelectorSignature::required_id: core::option::Option<omena_syntax::ident::CanonicalIdKeyV0>
 pub omena_cascade::SelectorSignature::required_pseudo_states: alloc::collections::btree::set::BTreeSet<alloc::string::String>
-pub omena_cascade::SelectorSignature::required_tag: core::option::Option<alloc::string::String>
+pub omena_cascade::SelectorSignature::required_tag: core::option::Option<omena_syntax::ident::CanonicalTypeSelectorKeyV0>
 pub omena_cascade::SelectorSignature::selector: alloc::string::String
 pub omena_cascade::SelectorSignature::specificity: omena_cascade::Specificity
 pub omena_cascade::SelectorSignature::specificity_exactness: omena_cascade::SpecificityExactnessV0
