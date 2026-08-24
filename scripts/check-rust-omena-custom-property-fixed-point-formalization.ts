@@ -18,6 +18,8 @@ const diagnosticTransitionAttributionPath = path.join(
   repoRoot,
   "scripts/measure-rust-omena-diagnostic-transition-attribution.ts",
 );
+const sharedMutationTargetEnvironment = "OMENA_CUSTOM_PROPERTY_FORMALIZATION_MUTATION_TARGET_DIR";
+let sharedMutationTargetDirectory: string | null = null;
 const args = new Set(process.argv.slice(2).filter((argument) => argument !== "--"));
 const allowedOptions = new Set([
   "--inject-reordered-evaluator",
@@ -594,64 +596,74 @@ if (args.has("--inject-reordered-evaluator")) {
   ]);
   assert.equal(traceSchedule.status, 0, "the component-schedule trace invariant must pass");
 
-  const mutationReceipts = [
-    expectScriptMutationRed(
-      "--inject-reordered-evaluator",
-      "acyclic-alias-chain evaluator iterations",
-    ),
-    expectScriptMutationRed(
-      "--inject-case-replacement",
-      "frozen witness case cycle-through-fallback",
-    ),
-    expectScriptMutationRed(
-      "--inject-oracle-weakening",
-      "independent all-bottom evaluator kernel changed",
-    ),
-    expectScriptMutationRed(
-      "--inject-fallback-rescue",
-      "fallback_edges_make_a_three_node_cycle_invalid_when_entered_mid_chain",
-    ),
-    expectScriptMutationRed("--inject-delete-scc", "implementation projection"),
-    expectScriptMutationRed("--inject-always-valid-validator", "12px"),
-    expectScriptMutationRed(
-      "--inject-literal-only-verdicts",
-      "source_element_computed_value_revalidates_a_substituted_standard_value",
-    ),
-    expectScriptMutationRed("--inject-matcher-coverage-promotion", "MatcherCoverageIncomplete"),
-    expectScriptMutationRed(
-      "--inject-nonconverged-return",
-      "summarizes_custom_property_least_fixed_point",
-    ),
-    expectScriptMutationRed(
-      "--inject-cycle-member-shrink",
-      "the frozen witness bindings or cycle shapes changed",
-    ),
-    expectScriptMutationRed(
-      "--inject-closed-world-certificate-disable",
-      "cascade_validator_adapter_preserves_spec_grammar_outcomes",
-    ),
-    expectScriptMutationRed(
-      "--inject-close-open-function-kind",
-      "outside the derived open/closed token profile",
-    ),
-    expectScriptMutationRed("--inject-paint-context-keyword-removal", "context-fill"),
-    expectScriptMutationRed(
-      "--inject-linear-component-rescan",
-      "exceeded the 1.10 linear-growth ceiling",
-    ),
-    expectScriptMutationRed(
-      "--inject-keyword-reference-closure-drop",
-      "the pinned css-tree type/property reference closure changed",
-    ),
-    expectScriptMutationRed(
-      "--inject-accepted-keyword-removal",
-      "an oracle-accepted matcher gap cannot become a definite rejection",
-    ),
-    expectScriptMutationRed(
-      "--inject-owned-wrong-definite",
-      "1 oracle-valid rows were definitely rejected",
-    ),
-  ];
+  const mutationTargetScratch = mkdtempSync(
+    path.join(tmpdir(), "omena-custom-property-mutation-suite-"),
+  );
+  let mutationReceipts: string[];
+  try {
+    sharedMutationTargetDirectory = path.join(mutationTargetScratch, "target");
+    mutationReceipts = [
+      expectScriptMutationRed(
+        "--inject-reordered-evaluator",
+        "acyclic-alias-chain evaluator iterations",
+      ),
+      expectScriptMutationRed(
+        "--inject-case-replacement",
+        "frozen witness case cycle-through-fallback",
+      ),
+      expectScriptMutationRed(
+        "--inject-oracle-weakening",
+        "independent all-bottom evaluator kernel changed",
+      ),
+      expectScriptMutationRed(
+        "--inject-fallback-rescue",
+        "fallback_edges_make_a_three_node_cycle_invalid_when_entered_mid_chain",
+      ),
+      expectScriptMutationRed("--inject-delete-scc", "implementation projection"),
+      expectScriptMutationRed("--inject-always-valid-validator", "12px"),
+      expectScriptMutationRed(
+        "--inject-literal-only-verdicts",
+        "source_element_computed_value_revalidates_a_substituted_standard_value",
+      ),
+      expectScriptMutationRed("--inject-matcher-coverage-promotion", "MatcherCoverageIncomplete"),
+      expectScriptMutationRed(
+        "--inject-nonconverged-return",
+        "summarizes_custom_property_least_fixed_point",
+      ),
+      expectScriptMutationRed(
+        "--inject-cycle-member-shrink",
+        "the frozen witness bindings or cycle shapes changed",
+      ),
+      expectScriptMutationRed(
+        "--inject-closed-world-certificate-disable",
+        "cascade_validator_adapter_preserves_spec_grammar_outcomes",
+      ),
+      expectScriptMutationRed(
+        "--inject-close-open-function-kind",
+        "outside the derived open/closed token profile",
+      ),
+      expectScriptMutationRed("--inject-paint-context-keyword-removal", "context-fill"),
+      expectScriptMutationRed(
+        "--inject-linear-component-rescan",
+        "exceeded the 1.10 linear-growth ceiling",
+      ),
+      expectScriptMutationRed(
+        "--inject-keyword-reference-closure-drop",
+        "the pinned css-tree type/property reference closure changed",
+      ),
+      expectScriptMutationRed(
+        "--inject-accepted-keyword-removal",
+        "an oracle-accepted matcher gap cannot become a definite rejection",
+      ),
+      expectScriptMutationRed(
+        "--inject-owned-wrong-definite",
+        "1 oracle-valid rows were definitely rejected",
+      ),
+    ];
+  } finally {
+    sharedMutationTargetDirectory = null;
+    rmSync(mutationTargetScratch, { recursive: true, force: true });
+  }
 
   process.stdout.write(
     `${JSON.stringify({
@@ -712,6 +724,13 @@ function expectScriptMutationRed(option: string, outputNeedle: string): string {
   const result = spawnSync(process.execPath, ["--import", "tsx", scriptPath, option], {
     cwd: repoRoot,
     encoding: "utf8",
+    env:
+      sharedMutationTargetDirectory === null
+        ? process.env
+        : {
+            ...process.env,
+            [sharedMutationTargetEnvironment]: sharedMutationTargetDirectory,
+          },
   });
   const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
   assert.notEqual(result.status, 0, `${option} must be RED`);
@@ -1039,7 +1058,13 @@ function runSourceMutation(
     }
     const mutationTarget = path.join(worktree, targetPath);
     writeFileSync(mutationTarget, mutate(readFileSync(mutationTarget, "utf8")));
-    return runCargo(worktree, cargoArgs, "pipe", process.env, path.join(scratch, "target"));
+    return runCargo(
+      worktree,
+      cargoArgs,
+      "pipe",
+      process.env,
+      process.env[sharedMutationTargetEnvironment] ?? path.join(scratch, "target"),
+    );
   } finally {
     spawnSync("git", ["worktree", "remove", "--force", worktree], {
       cwd: repoRoot,
