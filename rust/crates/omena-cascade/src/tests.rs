@@ -3752,10 +3752,9 @@ fn flat_environment_resolution_omits_dependency_graph_and_trace_work() {
 fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_budget() {
     use std::{hint::black_box, time::Instant};
 
-    const BINDING_COUNTS: [usize; 3] = [1_200, 2_200, 4_000];
-    // The 1.10 ceiling absorbs same-host timing variance in this three-size
-    // median regression; the observed final-pin exponent 1.077 leaves about
-    // 2.1% headroom without weakening the asymptotic linearity claim.
+    // Larger work units amortize hosted-runner scheduling jitter while preserving the
+    // three-size log-log slope test and its superlinear fault sensitivity.
+    const BINDING_COUNTS: [usize; 3] = [2_400, 4_400, 8_000];
     const MAX_LINEAR_GROWTH_EXPONENT: f64 = 1.10;
 
     fn alias_environment(binding_count: usize) -> CustomPropertyEnv {
