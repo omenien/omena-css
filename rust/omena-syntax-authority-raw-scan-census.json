@@ -1343,7 +1343,7 @@
     "ownerPath": "rust/crates/omena-syntax/src/selector.rs",
     "typeName": "CanonicalSelectorAst",
     "authorityTypeCount": 1,
-    "parserCstProducerCallCount": 2,
+    "parserCstProducerCallCount": 1,
     "reportProjectionCallCount": 1,
     "rawNestingReplaceSiteCount": 0
   },
