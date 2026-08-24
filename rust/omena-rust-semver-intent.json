@@ -1056,7 +1056,7 @@
               "needles": [
                 "let components = strongly_connected_components(&dependency_graph);",
                 "if component_is_cyclic(component, &dependency_graph)",
-                "resolved_env.insert(name.clone(), CascadeValue::GuaranteedInvalid);",
+                "resolved_values[*node] = Some(resolved);",
                 "reached_fixed_point: true"
               ]
             },
