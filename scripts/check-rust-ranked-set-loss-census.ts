@@ -321,6 +321,14 @@ const expected: readonly FixtureResultV0[] = [
     },
   },
   {
+    name: "exactLayerWinner",
+    classification: {
+      recoverableAxisDominant: {
+        axis: "layerRank",
+      },
+    },
+  },
+  {
     name: "specificityOnlyWinner",
     classification: "noStrictAxisDominance",
   },
@@ -396,15 +404,16 @@ assert.ok(
   artifact.multiCandidateInexactRankedSetCount > 0,
   "the bounded census must reach a multi-candidate inexact RankedSet before judgment",
 );
-assert.ok(
-  (artifact.decidingAxisCounts.layerRank ?? 0) > 0,
-  "the bounded census must observe a layer-rank deciding row before judgment",
+assert.equal(
+  artifact.recoverableCount,
+  0,
+  "production cascade ranking must consume every axis-dominant recovery before census capture",
 );
 assert.ok(
   (artifact.classCounts.axisWinnerInexact ?? 0) > 0,
   "the bounded census must retain a wrong-definite guard class before judgment",
 );
-for (const level of ["authorNormal", "authorImportant", "inlineNormal"]) {
+for (const level of ["authorNormal", "authorImportant"]) {
   assert.ok(
     (artifact.observedCascadeLevelCounts[level] ?? 0) > 0,
     `the bounded census must observe ${level} candidates before judgment`,
@@ -624,13 +633,16 @@ function classifyArtifactRow(row: RankedSetLossCensusRowV0): FixtureResultV0["cl
 
   const ranked = row.candidates.toSorted((left, right) => compareAxisPrefix(right, left));
   const winner = ranked[0];
-  const runnerUp = ranked[1];
-  assert.ok(winner && runnerUp, "multi-candidate row must contain a winner and runner-up");
-  if (compareAxisPrefix(winner, runnerUp) !== 1) return "noStrictAxisDominance";
+  assert.ok(winner, "multi-candidate row must contain a winner");
+  if (ranked.slice(1).some((challenger) => compareAxisPrefix(winner, challenger) !== 1)) {
+    return "noStrictAxisDominance";
+  }
   if (winner.specificityExactness === "inexact") return "axisWinnerInexact";
 
-  const axis = strictAxisPrefix.find(
-    (candidate) => axisValue(winner, candidate) !== axisValue(runnerUp, candidate),
+  const axis = strictAxisPrefix.find((candidate) =>
+    ranked
+      .slice(1)
+      .some((challenger) => axisValue(winner, candidate) !== axisValue(challenger, candidate)),
   );
   assert.ok(axis, "strict axis-prefix winner must have a deciding authority axis");
   return { recoverableAxisDominant: { axis } };
@@ -1796,7 +1808,11 @@ function cascadeAxisOrderSiteDispositionsV0(): readonly AxisOrderSiteDisposition
       disposition: "consumer",
     },
     {
-      id: "rust/crates/omena-cascade/src/model.rs#compare_cascade_axis_prefix",
+      id: "rust/crates/omena-cascade/src/ranking.rs#adjudicate_inexact_specificity_v0",
+      disposition: "consumer",
+    },
+    {
+      id: "rust/crates/omena-cascade/src/ranking.rs#axis_position",
       disposition: "consumer",
     },
     {
@@ -1805,14 +1821,6 @@ function cascadeAxisOrderSiteDispositionsV0(): readonly AxisOrderSiteDisposition
     },
     {
       id: "rust/crates/omena-cascade/src/ranking.rs#dominant_cascade_key_margin",
-      disposition: "consumer",
-    },
-    {
-      id: "rust/crates/omena-cascade/src/ranked_set_loss_census.rs#deciding_axis",
-      disposition: "consumer",
-    },
-    {
-      id: "rust/crates/omena-cascade/src/ranked_set_loss_census.rs#strict_axis_prefix_winner",
       disposition: "consumer",
     },
     {
@@ -1948,12 +1956,15 @@ function cascadeAxisOrderSiteCensus(sourceRef?: string): {
     sources.set(testPath, drifted);
   }
   if (args.has("--inject-axis-consumer-detachment")) {
-    const censusPath = "rust/crates/omena-cascade/src/ranked_set_loss_census.rs";
-    const source = sources.get(censusPath);
-    assert.ok(source, `missing injected consumer source ${censusPath}`);
-    const detached = source.replaceAll("compare_cascade_axis_prefix", "detached_axis_prefix");
+    const rankingPath = "rust/crates/omena-cascade/src/ranking.rs";
+    const source = sources.get(rankingPath);
+    assert.ok(source, `missing injected consumer source ${rankingPath}`);
+    const detached = source.replaceAll(
+      "compare_cascade_declaration_axes_v0",
+      "detached_cascade_declaration_axes_v0",
+    );
     assert.notEqual(detached, source, "axis consumer falsifier needle is stale");
-    sources.set(censusPath, detached);
+    sources.set(rankingPath, detached);
   }
   if (args.has("--inject-axis-authority-and-oracle-revert")) {
     const authorityPath = "rust/crates/omena-cascade/src/axis_order.rs";
@@ -2373,7 +2384,7 @@ function hasAxisAuthorityLink(source: string): boolean {
     /fn\s+summarize_cascade_margin_schema_v0\s*\(/u,
     "fn schema_declaration(",
   );
-  return /(?:compare_specificity_axes_v0|compare_cascade_key_axes_v0|compare_cascade_axis_prefix(?:_v0)?|first_deciding_cascade_key_axis_v0|cascade_key_axis_order_v0|cascade_key_axis_signed_distance_v0|summarize_cascade_margin_schema_v0|cascade-key-axis-order\.json|rankedSetPrefixAxisVocabulary|strictAxisPrefix)/u.test(
+  return /(?:compare_specificity_axes_v0|compare_cascade_key_axes_v0|compare_cascade_declaration_axes_v0|first_deciding_cascade_key_axis_v0|cascade_key_axis_order_v0|cascade_key_axis_signed_distance_v0|summarize_cascade_margin_schema_v0|cascade-key-axis-order\.json|rankedSetPrefixAxisVocabulary|strictAxisPrefix)/u.test(
     withoutSchemaDeclaration,
   );
 }

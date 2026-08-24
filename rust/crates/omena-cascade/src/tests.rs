@@ -2972,6 +2972,111 @@ fn inexact_specificity_cannot_produce_a_definite_winner() {
 }
 
 #[test]
+fn exact_higher_axis_winner_is_definite_despite_inexact_lower_specificity() {
+    let inexact_author = declaration_with_specificity_exactness(
+        "inexact-author-normal",
+        "red",
+        key(
+            CascadeLevel::AuthorNormal,
+            0,
+            0,
+            Specificity::new(u32::MAX, u32::MAX, u32::MAX),
+            u32::MAX,
+        ),
+        SpecificityExactnessV0::Inexact,
+    );
+    let exact_user_important = declaration(
+        "exact-user-important",
+        "blue",
+        key(
+            CascadeLevel::UserImportant,
+            0,
+            u32::MAX,
+            Specificity::ZERO,
+            0,
+        ),
+    );
+
+    for outcome in [
+        cascade_property(
+            [inexact_author.clone(), exact_user_important.clone()],
+            "color",
+        ),
+        cascade_property_open_world(
+            [inexact_author.clone(), exact_user_important.clone()],
+            "color",
+        ),
+    ] {
+        assert!(matches!(
+            outcome,
+            CascadeOutcome::Definite { ref winner, .. }
+                if winner.id == "exact-user-important"
+        ));
+    }
+
+    for completed_specificity in [
+        Specificity::ZERO,
+        Specificity::new(u32::MAX, u32::MAX, u32::MAX),
+    ] {
+        let mut completed_author = inexact_author.clone();
+        completed_author.key.specificity = completed_specificity;
+        completed_author.specificity_exactness = SpecificityExactnessV0::Exact;
+        let CascadeOutcome::Definite { winner, .. } =
+            cascade_property([completed_author, exact_user_important.clone()], "color")
+        else {
+            unreachable!("each boundary completion must have a definite winner")
+        };
+        assert_eq!(
+            winner.id, "exact-user-important",
+            "the higher cascade level wins at both specificity-domain boundaries"
+        );
+    }
+}
+
+#[test]
+fn unknown_specificity_axis_blocks_later_scope_when_boundary_completions_disagree() {
+    let exact_near_scope = declaration(
+        "exact-near-scope",
+        "blue",
+        key(CascadeLevel::AuthorNormal, 0, 0, Specificity::ZERO, 1),
+    );
+    let inexact_far_scope = declaration_with_specificity_exactness(
+        "inexact-far-scope",
+        "red",
+        key(CascadeLevel::AuthorNormal, 0, 1, Specificity::ZERO, 0),
+        SpecificityExactnessV0::Inexact,
+    );
+
+    assert!(matches!(
+        cascade_property(
+            [exact_near_scope.clone(), inexact_far_scope.clone()],
+            "color"
+        ),
+        CascadeOutcome::RankedSet(_)
+    ));
+
+    let completion_winners = [Specificity::ZERO, Specificity::new(1, 0, 0)].map(|specificity| {
+        let mut completed = inexact_far_scope.clone();
+        completed.key.specificity = specificity;
+        completed.specificity_exactness = SpecificityExactnessV0::Exact;
+        let CascadeOutcome::Definite { winner, .. } =
+            cascade_property([exact_near_scope.clone(), completed], "color")
+        else {
+            unreachable!("each exact completion has a definite winner")
+        };
+        winner.id
+    });
+    assert_eq!(
+        completion_winners,
+        [
+            "exact-near-scope".to_string(),
+            "inexact-far-scope".to_string(),
+        ],
+        "no winner is sound across every completion of the unknown specificity axis"
+    );
+}
+
+#[test]
 fn inexact_specificity_reaches_computed_value_as_indeterminate() {
     let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
         property: "color".to_string(),
@@ -3035,7 +3140,7 @@ fn inexact_specificity_reaches_computed_value_as_indeterminate() {
 }
 
 #[test]
-fn open_world_inexact_specificity_cannot_be_promoted() {
+fn inexact_higher_axis_winner_cannot_be_promoted() {
     let inexact = declaration_with_specificity_exactness(
         "inexact",
         "red",
@@ -3051,6 +3156,20 @@ fn open_world_inexact_specificity_cannot_be_promoted() {
 
     assert!(matches!(
         cascade_property_open_world([inexact.clone()], "color"),
+        CascadeOutcome::RankedSet(_)
+    ));
+    assert!(matches!(
+        cascade_property(
+            [
+                inexact.clone(),
+                declaration(
+                    "exact-weaker",
+                    "blue",
+                    key(CascadeLevel::AuthorNormal, 0, 0, Specificity::ZERO, 1,),
+                ),
+            ],
+            "color",
+        ),
         CascadeOutcome::RankedSet(_)
     ));
     assert!(matches!(

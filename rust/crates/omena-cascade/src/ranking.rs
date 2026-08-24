@@ -11,10 +11,72 @@ use crate::{
     CascadeDeclaration, CascadeKey, CascadeMarginSchemaV0, CascadeMarginV0, CascadeOutcome,
     CascadeProof, OpenWorldTieEvidence, SpecificityExactnessV0,
     axis_order::{
-        cascade_key_axis_name_v0, cascade_key_axis_order_v0, cascade_key_axis_signed_distance_v0,
+        AxisComparisonV0, CascadeKeyAxisV0, cascade_key_axis_name_v0, cascade_key_axis_order_v0,
+        cascade_key_axis_signed_distance_v0, compare_cascade_declaration_axes_v0,
         first_deciding_cascade_key_axis_v0,
     },
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum InexactSpecificityAdjudicationV0 {
+    Recoverable {
+        winner_index: usize,
+        deciding_axis: CascadeKeyAxisV0,
+    },
+    AxisWinnerInexact,
+    NoStrictAxisDominance,
+    SingleInexactCandidate,
+}
+
+pub(crate) fn adjudicate_inexact_specificity_v0(
+    declarations: &[CascadeDeclaration],
+) -> InexactSpecificityAdjudicationV0 {
+    assert!(
+        declarations.iter().any(|declaration| {
+            declaration.specificity_exactness == SpecificityExactnessV0::Inexact
+        }),
+        "ranked-set loss classification requires an inexact declaration",
+    );
+    if declarations.len() == 1 {
+        return InexactSpecificityAdjudicationV0::SingleInexactCandidate;
+    }
+
+    let Some((winner_index, winner)) = declarations
+        .iter()
+        .enumerate()
+        .max_by(|(_, left), (_, right)| left.key.cmp(&right.key))
+    else {
+        return InexactSpecificityAdjudicationV0::SingleInexactCandidate;
+    };
+    let mut deciding_axis = None;
+    for (challenger_index, challenger) in declarations.iter().enumerate() {
+        if challenger_index == winner_index {
+            continue;
+        }
+        let AxisComparisonV0::Decided {
+            ordering: Ordering::Greater,
+            axis,
+        } = compare_cascade_declaration_axes_v0(winner, challenger)
+        else {
+            return InexactSpecificityAdjudicationV0::NoStrictAxisDominance;
+        };
+        if challenger.specificity_exactness == SpecificityExactnessV0::Inexact {
+            deciding_axis = Some(match deciding_axis {
+                Some(current) if axis_position(current) >= axis_position(axis) => current,
+                Some(_) | None => axis,
+            });
+        }
+    }
+
+    if winner.specificity_exactness == SpecificityExactnessV0::Inexact {
+        return InexactSpecificityAdjudicationV0::AxisWinnerInexact;
+    }
+    InexactSpecificityAdjudicationV0::Recoverable {
+        winner_index,
+        deciding_axis: deciding_axis
+            .expect("an exact recovery winner must dominate an inexact challenger"),
+    }
+}
 
 pub fn cascade_property(
     declarations: impl IntoIterator<Item = CascadeDeclaration>,
@@ -35,15 +97,18 @@ pub fn cascade_property(
         .iter()
         .any(|declaration| declaration.specificity_exactness == SpecificityExactnessV0::Inexact)
     {
-        return CascadeOutcome::RankedSet(matching);
+        return match adjudicate_inexact_specificity_v0(&matching) {
+            InexactSpecificityAdjudicationV0::Recoverable { winner_index, .. } => {
+                definite_outcome(matching, winner_index)
+            }
+            InexactSpecificityAdjudicationV0::AxisWinnerInexact
+            | InexactSpecificityAdjudicationV0::NoStrictAxisDominance
+            | InexactSpecificityAdjudicationV0::SingleInexactCandidate => {
+                CascadeOutcome::RankedSet(matching)
+            }
+        };
     }
-    let winner = matching.remove(0);
-    let proof = CascadeProof::from_declaration(&winner);
-    CascadeOutcome::Definite {
-        winner,
-        proof: Box::new(proof),
-        also_considered: matching,
-    }
+    definite_outcome(matching, 0)
 }
 
 pub fn cascade_property_open_world(
@@ -65,7 +130,16 @@ pub fn cascade_property_open_world(
         .iter()
         .any(|declaration| declaration.specificity_exactness == SpecificityExactnessV0::Inexact)
     {
-        return CascadeOutcome::RankedSet(matching);
+        return match adjudicate_inexact_specificity_v0(&matching) {
+            InexactSpecificityAdjudicationV0::Recoverable { winner_index, .. } => {
+                definite_outcome(matching, winner_index)
+            }
+            InexactSpecificityAdjudicationV0::AxisWinnerInexact
+            | InexactSpecificityAdjudicationV0::NoStrictAxisDominance
+            | InexactSpecificityAdjudicationV0::SingleInexactCandidate => {
+                CascadeOutcome::RankedSet(matching)
+            }
+        };
     }
     let has_strict_base_key_winner = matching
         .get(1)
@@ -81,6 +155,26 @@ pub fn cascade_property_open_world(
     }
 
     CascadeOutcome::RankedSet(matching)
+}
+
+fn definite_outcome(
+    mut declarations: Vec<CascadeDeclaration>,
+    winner_index: usize,
+) -> CascadeOutcome {
+    let winner = declarations.remove(winner_index);
+    let proof = CascadeProof::from_declaration(&winner);
+    CascadeOutcome::Definite {
+        winner,
+        proof: Box::new(proof),
+        also_considered: declarations,
+    }
+}
+
+fn axis_position(axis: CascadeKeyAxisV0) -> usize {
+    cascade_key_axis_order_v0()
+        .iter()
+        .position(|candidate| *candidate == axis)
+        .expect("cascade axis must belong to the canonical order")
 }
 
 fn compare_open_world_declarations(

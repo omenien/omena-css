@@ -1,5 +1,4 @@
 use std::{
-    cmp::Ordering,
     panic::Location,
     sync::{
         Mutex,
@@ -11,8 +10,8 @@ use serde::Serialize;
 
 use crate::{
     CascadeDeclaration, CascadeLevel, CascadeOutcome, SpecificityExactnessV0,
-    axis_order::{CascadeKeyAxisV0, first_deciding_cascade_key_axis_v0},
-    model::compare_cascade_axis_prefix,
+    axis_order::CascadeKeyAxisV0,
+    ranking::{InexactSpecificityAdjudicationV0, adjudicate_inexact_specificity_v0},
 };
 
 static CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);
@@ -140,24 +139,30 @@ pub fn capture_cascade_ranked_set_losses<R>(
 pub fn classify_cascade_ranked_set_loss(
     declarations: &[CascadeDeclaration],
 ) -> CascadeRankedSetLossClassV0 {
-    assert!(
-        declarations.iter().any(|declaration| {
-            declaration.specificity_exactness == SpecificityExactnessV0::Inexact
-        }),
-        "ranked-set loss classification requires an inexact declaration",
-    );
-    if declarations.len() == 1 {
-        return CascadeRankedSetLossClassV0::SingleInexactCandidate;
-    }
-
-    let Some((winner_index, deciding_axis)) = strict_axis_prefix_winner(declarations) else {
-        return CascadeRankedSetLossClassV0::NoStrictAxisDominance;
-    };
-    if declarations[winner_index].specificity_exactness == SpecificityExactnessV0::Inexact {
-        CascadeRankedSetLossClassV0::AxisWinnerInexact
-    } else {
-        CascadeRankedSetLossClassV0::RecoverableAxisDominant {
-            axis: deciding_axis,
+    match adjudicate_inexact_specificity_v0(declarations) {
+        InexactSpecificityAdjudicationV0::Recoverable { deciding_axis, .. } => {
+            CascadeRankedSetLossClassV0::RecoverableAxisDominant {
+                axis: match deciding_axis {
+                    CascadeKeyAxisV0::Level => CascadeAxisPrefixV0::Level,
+                    CascadeKeyAxisV0::LayerRank => CascadeAxisPrefixV0::LayerRank,
+                    CascadeKeyAxisV0::ScopeProximity
+                    | CascadeKeyAxisV0::SpecificityIds
+                    | CascadeKeyAxisV0::SpecificityClasses
+                    | CascadeKeyAxisV0::SpecificityElements
+                    | CascadeKeyAxisV0::SourceOrder => unreachable!(
+                        "an exact winner cannot cross inexact specificity to recover on a later axis"
+                    ),
+                },
+            }
+        }
+        InexactSpecificityAdjudicationV0::AxisWinnerInexact => {
+            CascadeRankedSetLossClassV0::AxisWinnerInexact
+        }
+        InexactSpecificityAdjudicationV0::NoStrictAxisDominance => {
+            CascadeRankedSetLossClassV0::NoStrictAxisDominance
+        }
+        InexactSpecificityAdjudicationV0::SingleInexactCandidate => {
+            CascadeRankedSetLossClassV0::SingleInexactCandidate
         }
     }
 }
@@ -210,31 +215,6 @@ pub(crate) fn observe_cascade_outcome(
         classification: classify_cascade_ranked_set_loss(declarations),
     };
     captured_rows().push(row);
-}
-
-fn strict_axis_prefix_winner(
-    declarations: &[CascadeDeclaration],
-) -> Option<(usize, CascadeAxisPrefixV0)> {
-    let mut ranked = declarations.iter().enumerate().collect::<Vec<_>>();
-    ranked.sort_by(|(_, left), (_, right)| compare_cascade_axis_prefix(&right.key, &left.key));
-    let [(winner_index, winner), (_, runner_up), ..] = ranked.as_slice() else {
-        return None;
-    };
-    let ordering = compare_cascade_axis_prefix(&winner.key, &runner_up.key);
-    if ordering != Ordering::Greater {
-        return None;
-    }
-    let deciding_axis = deciding_axis(&winner.key, &runner_up.key);
-    Some((*winner_index, deciding_axis))
-}
-
-fn deciding_axis(winner: &crate::CascadeKey, runner_up: &crate::CascadeKey) -> CascadeAxisPrefixV0 {
-    match first_deciding_cascade_key_axis_v0(winner, runner_up) {
-        Some(CascadeKeyAxisV0::Level) => CascadeAxisPrefixV0::Level,
-        Some(CascadeKeyAxisV0::LayerRank) => CascadeAxisPrefixV0::LayerRank,
-        Some(CascadeKeyAxisV0::ScopeProximity) => CascadeAxisPrefixV0::ScopeProximity,
-        _ => unreachable!("a strict cascade axis-prefix winner must differ on one prefix axis"),
-    }
 }
 
 fn invocation_site(source_path: &str) -> &'static str {

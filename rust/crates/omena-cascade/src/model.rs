@@ -228,10 +228,6 @@ impl CascadeKey {
     }
 }
 
-pub(crate) fn compare_cascade_axis_prefix(left: &CascadeKey, right: &CascadeKey) -> Ordering {
-    crate::axis_order::compare_cascade_axis_prefix_v0(left, right)
-}
-
 impl Ord for CascadeKey {
     fn cmp(&self, other: &Self) -> Ordering {
         crate::axis_order::compare_cascade_key_axes_v0(self, other)

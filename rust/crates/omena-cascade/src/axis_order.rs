@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use crate::{CascadeKey, CascadeLevel, Specificity};
+use crate::{CascadeDeclaration, CascadeKey, CascadeLevel, Specificity, SpecificityExactnessV0};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CascadeKeyAxisV0 {
@@ -11,6 +11,16 @@ pub(crate) enum CascadeKeyAxisV0 {
     SpecificityClasses,
     SpecificityElements,
     SourceOrder,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AxisComparisonV0 {
+    Decided {
+        ordering: Ordering,
+        axis: CascadeKeyAxisV0,
+    },
+    Equal,
+    Unknown,
 }
 
 pub(crate) const CASCADE_KEY_AXIS_ORDER_V0: [CascadeKeyAxisV0; 7] = [
@@ -43,15 +53,23 @@ pub(crate) fn compare_cascade_key_axes_v0(left: &CascadeKey, right: &CascadeKey)
     compare_axes(left, right, cascade_key_axis_order_v0().iter().copied())
 }
 
-pub(crate) fn compare_cascade_axis_prefix_v0(left: &CascadeKey, right: &CascadeKey) -> Ordering {
-    compare_axes(
-        left,
-        right,
-        cascade_key_axis_order_v0()
-            .iter()
-            .copied()
-            .take_while(|axis| !is_specificity_axis(*axis)),
-    )
+pub(crate) fn compare_cascade_declaration_axes_v0(
+    left: &CascadeDeclaration,
+    right: &CascadeDeclaration,
+) -> AxisComparisonV0 {
+    for axis in cascade_key_axis_order_v0().iter().copied() {
+        if is_specificity_axis(axis)
+            && (left.specificity_exactness == SpecificityExactnessV0::Inexact
+                || right.specificity_exactness == SpecificityExactnessV0::Inexact)
+        {
+            return AxisComparisonV0::Unknown;
+        }
+        let ordering = compare_axis(axis, &left.key, &right.key);
+        if ordering != Ordering::Equal {
+            return AxisComparisonV0::Decided { ordering, axis };
+        }
+    }
+    AxisComparisonV0::Equal
 }
 
 pub(crate) fn compare_specificity_axes_v0(left: &Specificity, right: &Specificity) -> Ordering {
