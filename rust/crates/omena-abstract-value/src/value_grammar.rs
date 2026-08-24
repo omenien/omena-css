@@ -3283,8 +3283,9 @@ mod tests {
         CssValueValidationClassV0, CssValueValidationReasonV0,
         SpecStandardPropertyValueValidatorV0, adjudicate_css_value_validation,
         adjudicate_css_value_validation_with_boundary, audit_css_value_grammar_registry_v0,
-        cached_pinned_vds_expression, closed_world_builtin_profile,
-        closed_world_builtin_token_profiles, match_and_type_css_value_grammar_v0,
+        cached_pinned_vds_expression, cached_standard_property_closed_world_token_profile,
+        closed_world_builtin_profile, closed_world_builtin_token_profiles,
+        closed_world_keyword_authority, match_and_type_css_value_grammar_v0,
         match_and_type_standard_property_value_v0, match_css_value_grammar_v0,
         match_standard_property_value_v0, parse_closed_world_keyword_closure_certificate,
         standard_property_closed_world_token_kind_mismatch, validate_registered_property_value_v0,
@@ -4146,6 +4147,27 @@ mod tests {
             validation.reason,
             CssValueValidationReasonV0::MatcherCoverageIncomplete
         );
+    }
+
+    #[test]
+    fn identifier_rejection_authority_property_surface_is_pinned() {
+        let registry = spec_grammar_registry();
+        let property_count = registry
+            .entries("properties")
+            .iter()
+            .filter(|entry| {
+                let property = PropertyNameV0::standard(entry.name.as_str());
+                closed_world_keyword_authority().is_some_and(|authority| {
+                    authority
+                        .accepted_keywords_by_property
+                        .contains_key(property.as_standard_key().expect("standard property key"))
+                }) && cached_standard_property_closed_world_token_profile(&property, registry)
+                    .is_some_and(|profile| !profile.ident.open)
+            })
+            .count();
+
+        println!("identifierRejectionAuthorityPropertyCount={property_count}");
+        assert_eq!(property_count, 505);
     }
 
     #[test]
