@@ -115,17 +115,23 @@ same computation. Its regression case distinguishes `--tone: red`, which keeps
 `color`. An always-valid validator or the former literal-only verdict filter
 makes that product-path test fail.
 
-A definite grammar mismatch is promoted to invalid only when its closed token
-domains have an external completeness authority. Override-free registry paths
-use the imported grammar, while identifier paths with reviewed overrides need
-the pinned css-tree keyword-closure sweep. That sweep follows both type and
-property references (with a recursion guard and a maximum reference depth of
-12), records a tested-pair count for every property, and certifies only a
-nonempty property whose accepted single-keyword pairs all match. At the pinned
-css-tree 3.2.1 input, it tests 16,445 accepted pairs from 23,178 candidates
-across 704 properties. The executable compatibility regression is deliberately
-narrower: 11 property/value pairs containing 9 distinct keywords, not a claim
-that those samples cover each referenced grammar.
+Value certainty separates two independent questions. Acceptance completeness
+asks whether the bounded matcher accepts every oracle-accepted keyword of a
+property; the pinned css-tree keyword-closure sweep answers it by following
+both type and property references (with a recursion guard and a maximum
+reference depth of 12), recording a tested-pair count for every property, and
+certifying only a nonempty property whose accepted single-keyword pairs all
+match. Identifier rejection is a separate authority that does not depend on
+that certification: a bare identifier is definitely invalid only when the
+recursively expanded property grammar has no open identifier production and
+the candidate is absent from that property's certificate-bound accepted
+keywords. A property with accepted matcher gaps therefore still rejects
+identifiers the oracle itself rejects, while every oracle-accepted keyword
+stays non-definite. At the pinned css-tree 3.2.1 input, the sweep tests
+16,445 accepted pairs from 23,178 candidates across 704 properties. The
+executable compatibility regression is deliberately narrower: 11
+property/value pairs containing 9 distinct keywords, not a claim that those
+samples cover each referenced grammar.
 
 Builtin token profiles are generated from the same css-tree version. Their
 finite token samples witness representative token shapes; they are not an
