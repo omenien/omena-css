@@ -125,6 +125,7 @@ interface ParserIndexSummaryV0 {
 
 interface CustomPropertyContextFactV0 {
   readonly name: string;
+  readonly propertyKey: string;
   readonly sourceOrder: number;
   readonly byteSpan?: {
     readonly start: number;
@@ -597,6 +598,7 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
   const customPropertyDeclFacts = document.customPropertyDecls
     .map((entry, sourceOrder) => ({
       name: entry.name,
+      propertyKey: entry.name,
       sourceOrder,
       byteSpan: byteSpanForRange(source, entry.range),
       range: entry.range,
@@ -613,6 +615,7 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
   const customPropertyRefFacts = document.customPropertyRefs
     .map((entry, sourceOrder) => ({
       name: entry.name,
+      propertyKey: entry.name,
       sourceOrder,
       selectorContexts: customPropertySelectorContextsForRange(
         document,
