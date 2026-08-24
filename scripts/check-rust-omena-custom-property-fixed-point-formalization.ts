@@ -483,28 +483,28 @@ if (args.has("--inject-reordered-evaluator")) {
     number
   >;
   const currentDiagnosticPin = diagnosticCensus.pins.find(
-    (pin) => pin.sourcePin === "76574230a2e807f243f04e09944f6696d51541b8",
+    (pin) => pin.sourcePin === "26450dbf146807be958b14547393dd57852dbc45",
   );
   assert.ok(currentDiagnosticPin, "the current implementation diagnostic pin is absent");
   assert.equal(
     trackedStyleDiagnosticsFileCount,
     diagnosticCensus.corpus.styleFileCount,
-    "the query diagnostic corpus size diverged from the four-pin census",
+    "the query diagnostic corpus size diverged from the five-pin census",
   );
   assert.deepEqual(
     trackedStyleDiagnosticCounts,
     currentDiagnosticPin.measurements.queryStyleDiagnostics.countsByRule,
-    "the query diagnostic counts diverged from the current four-pin measurement",
+    "the query diagnostic counts diverged from the current five-pin measurement",
   );
   assert.equal(
     trackedStyleDiagnosticsCliFileCount,
     diagnosticCensus.corpus.styleFileCount,
-    "the default CLI diagnostic corpus size diverged from the four-pin census",
+    "the default CLI diagnostic corpus size diverged from the five-pin census",
   );
   assert.deepEqual(
     trackedStyleDiagnosticsCliCounts,
     currentDiagnosticPin.measurements.defaultStyleDiagnosticsCli.countsByRule,
-    "the default CLI diagnostic counts diverged from the current four-pin measurement",
+    "the default CLI diagnostic counts diverged from the current five-pin measurement",
   );
   const longChain = runCargo(repoRoot, [
     "test",
@@ -624,7 +624,7 @@ if (args.has("--inject-reordered-evaluator")) {
       trackedStyleDiagnosticCounts,
       trackedStyleDiagnosticsCliFileCount,
       trackedStyleDiagnosticsCliCounts,
-      diagnosticFourPinCensus: "GREEN",
+      diagnosticFivePinCensus: "GREEN",
       iterativeAliasBoundary: "100000:GREEN",
       variableEnvironmentPerformanceCeiling: "three-size-log-log-growth-exponent<=1.10:GREEN",
       componentScheduleTraceInvariant: "GREEN",
@@ -1078,6 +1078,7 @@ function validateDiagnosticCensus(census: DiagnosticCensus, lintSource: string):
     ["structural-evaluator-and-grammar-port", "caa53005e4414c7c0d89bb12f1a42427e91b8407"],
     ["closed-world-token-certificate", "ceb18cd8a723b5153a86ce932d6a88528b76e781"],
     ["type-expanded-keyword-closure", "76574230a2e807f243f04e09944f6696d51541b8"],
+    ["accepted-keyword-rejection-authority", "26450dbf146807be958b14547393dd57852dbc45"],
   ];
   const surfaceIds: DiagnosticSurfaceId[] = [
     "recommendedLint",
@@ -1086,14 +1087,14 @@ function validateDiagnosticCensus(census: DiagnosticCensus, lintSource: string):
   ];
 
   assert.equal(census.schemaVersion, "0");
-  assert.equal(census.product, "omena-query.tracked-style-diagnostics-four-pin-census");
+  assert.equal(census.product, "omena-query.tracked-style-diagnostics-five-pin-census");
   assert.equal(census.measuredAt, "2026-08-24");
   assert.equal(census.corpus.styleFileCount, 199);
   assert.equal(census.corpus.recommendedLintSourceFileCount, 1_019);
   assert.deepEqual(
     census.pins.map(({ id, sourcePin }) => [id, sourcePin]),
     expectedPins,
-    "the four diagnostic pins changed",
+    "the five diagnostic pins changed",
   );
 
   for (const pin of census.pins) {
@@ -1109,7 +1110,8 @@ function validateDiagnosticCensus(census: DiagnosticCensus, lintSource: string):
     }
   }
 
-  const [baseline, structuralPort, closedWorldCertificate, current] = census.pins;
+  const [baseline, structuralPort, closedWorldCertificate, typeExpandedClosure, current] =
+    census.pins;
   assert.deepEqual(
     baseline.measurements,
     structuralPort.measurements,
@@ -1129,11 +1131,20 @@ function validateDiagnosticCensus(census: DiagnosticCensus, lintSource: string):
     },
     {
       from: closedWorldCertificate,
-      to: current,
+      to: typeExpandedClosure,
       expected: [
         "defaultStyleDiagnosticsCli\u0000invalidPropertyValue\u0000-12",
         "queryStyleDiagnostics\u0000invalidPropertyValue\u0000-12",
         "recommendedLint\u0000invalid-property-value\u0000-12",
+      ].sort(),
+    },
+    {
+      from: typeExpandedClosure,
+      to: current,
+      expected: [
+        "defaultStyleDiagnosticsCli\u0000invalidPropertyValue\u000012",
+        "queryStyleDiagnostics\u0000invalidPropertyValue\u000012",
+        "recommendedLint\u0000invalid-property-value\u000012",
       ].sort(),
     },
   ];
@@ -1152,8 +1163,8 @@ function validateDiagnosticCensus(census: DiagnosticCensus, lintSource: string):
   }
   assert.equal(
     census.declaredDeltas.length,
-    3,
-    "only the two measured transitions may own diagnostic deltas",
+    4,
+    "only the three measured transitions may own diagnostic deltas",
   );
 
   const certificateDelta = census.declaredDeltas.find(
@@ -1185,6 +1196,44 @@ function validateDiagnosticCensus(census: DiagnosticCensus, lintSource: string):
     ],
     "the three reviewed uncertainty reductions changed",
   );
+
+  const twelveIdentifierLocations = [
+    ["examples/plugin-consumers/src/App.module.scss", 14, "knownFalsePositive"],
+    ["examples/src/scenarios/20-value/Value.module.scss", 17, "knownFalsePositive"],
+    ["examples/src/scenarios/20-value/Value.module.scss", 20, "knownFalsePositive"],
+    ["examples/src/scenarios/20-value/Value.module.scss", 29, "knownFalsePositive"],
+    ["examples/src/scenarios/20-value/Value.module.scss", 38, "knownFalsePositive"],
+    ["test/_fixtures/real-project-corpus/StatusChip.module.scss", 26, "knownFalsePositive"],
+    ["test/_fixtures/real-project-corpus/StatusChip.module.scss", 30, "knownFalsePositive"],
+    ["test/_fixtures/real-project-corpus/StatusChip.module.scss", 34, "knownFalsePositive"],
+    ["test/_fixtures/semantic-smoke/ValueSmoke.module.scss", 4, "knownFalsePositive"],
+    ["test/_fixtures/semantic-smoke/ValueSmoke.module.scss", 5, "knownFalsePositive"],
+    [
+      "test/_fixtures/stylelint-plugin-smoke/src/ValueMissingImported.module.css",
+      4,
+      "knownFalsePositive",
+    ],
+    ["scripts/fixtures/real-workspace-lint-corpus/src/styles/Card.module.scss", 12, "truePositive"],
+  ];
+  for (const owner of ["type-expanded-keyword-closure", "accepted-keyword-rejection-authority"]) {
+    const delta = census.declaredDeltas.find((entry) => entry.owner === owner);
+    assert.ok(delta, `${owner} diagnostic delta owner is absent`);
+    assert.deepEqual(
+      delta.locations?.map(({ path: sourcePath, line, character, classification }) => [
+        sourcePath,
+        line,
+        character,
+        classification,
+      ]),
+      twelveIdentifierLocations.map(([sourcePath, line, classification]) => [
+        sourcePath,
+        line,
+        3,
+        classification,
+      ]),
+      `${owner} per-input attribution changed`,
+    );
+  }
 
   assert.ok(
     lintSource.includes("fn tracked_workspace_recommended_lint_preserves_the_pinned_rule_census()"),
@@ -1306,6 +1355,7 @@ type DiagnosticCensus = {
       path: string;
       line: number;
       character: number;
+      classification?: string;
     }>;
   }>;
 };
