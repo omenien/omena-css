@@ -117,13 +117,8 @@ pub fn summarize_selector_identity_engine(
                         )
                     })
                 })
-                .filter(|authority_key| authority_key == &decoded_key)
-                .unwrap_or_else(|| {
-                    panic!(
-                        "selector projection name has no CST-issued canonical authority binding: {name}"
-                    )
-                });
-            SelectorCanonicalIdentityV0::from_canonical_key(
+                .filter(|authority_key| authority_key == &decoded_key)?;
+            Some(SelectorCanonicalIdentityV0::from_canonical_key(
                 &authority_key,
                 if bem_safe.contains(name) {
                     "bemSuffix"
@@ -131,9 +126,23 @@ pub fn summarize_selector_identity_engine(
                     "localClass"
                 },
                 blockers,
-            )
+            ))
         })
-        .collect::<Vec<_>>();
+        .collect::<Option<Vec<_>>>();
+    let Some(canonical_ids) = canonical_ids else {
+        return SelectorIdentityEngineSummaryV0 {
+            schema_version: "0",
+            product: "omena-semantic.selector-identity",
+            canonical_id_count: 0,
+            canonical_ids: Vec::new(),
+            rewrite_safety: SelectorIdentityRewriteSafetyV0 {
+                all_canonical_ids_rewrite_safe: false,
+                safe_canonical_ids: Vec::new(),
+                blocked_canonical_ids: Vec::new(),
+                blockers: vec!["authority-binding-missing"],
+            },
+        };
+    };
 
     let safe_canonical_ids = canonical_ids
         .iter()

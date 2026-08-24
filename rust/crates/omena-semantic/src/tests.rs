@@ -1586,12 +1586,12 @@ fn selector_identity_projection_refuses_a_missing_authority_binding() -> Result<
     let mut selector_identity = summarize_style_semantic_facts(&sheet).selector_identity;
     selector_identity.selector_asts.clear();
 
-    let result = std::panic::catch_unwind(|| {
-        let _ = summarize_selector_identity_engine(&selector_identity);
-    });
-    assert!(
-        result.is_err(),
-        "a report name without a CST-issued authority binding must hard-fail"
+    let result = summarize_selector_identity_engine(&selector_identity);
+    assert_eq!(result.canonical_id_count, 0);
+    assert!(!result.rewrite_safety.all_canonical_ids_rewrite_safe);
+    assert_eq!(
+        result.rewrite_safety.blockers,
+        vec!["authority-binding-missing"]
     );
     Ok(())
 }
@@ -1605,7 +1605,7 @@ fn selector_identity_projection_refuses_a_mismatched_authority_span() -> Result<
         .selector_authority_definitions
         .iter()
         .find(|definition| definition.name == "other")
-        .map(|definition| definition.byte_span.clone())
+        .map(|definition| definition.byte_span)
         .ok_or_else(|| "other selector definition should exist".to_string())?;
     selector_identity
         .selector_authority_definitions
@@ -1614,12 +1614,12 @@ fn selector_identity_projection_refuses_a_mismatched_authority_span() -> Result<
         .ok_or_else(|| "button selector definition should exist".to_string())?
         .byte_span = other_span;
 
-    let result = std::panic::catch_unwind(|| {
-        let _ = summarize_selector_identity_engine(&selector_identity);
-    });
-    assert!(
-        result.is_err(),
-        "a source span cannot borrow authority from a different selector AST"
+    let result = summarize_selector_identity_engine(&selector_identity);
+    assert_eq!(result.canonical_id_count, 0);
+    assert!(!result.rewrite_safety.all_canonical_ids_rewrite_safe);
+    assert_eq!(
+        result.rewrite_safety.blockers,
+        vec!["authority-binding-missing"]
     );
     Ok(())
 }
