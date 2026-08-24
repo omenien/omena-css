@@ -28,6 +28,10 @@ assert.deepEqual(
   "the replayed diagnostic transition must reference the measured location set",
 );
 
+for (const pin of [fromPin, toPin]) {
+  ensureCommitAvailable(pin);
+}
+
 const scratch = mkdtempSync(path.join(tmpdir(), "omena-diagnostic-transition-"));
 const worktree = path.join(scratch, "worktree");
 const targetDirectory = path.join(repoRoot, "rust/target/diagnostic-transition-attribution");
@@ -126,6 +130,28 @@ try {
     encoding: "utf8",
   });
   rmSync(scratch, { recursive: true, force: true });
+}
+
+function ensureCommitAvailable(pin: string): void {
+  const present = spawnSync("git", ["cat-file", "-e", `${pin}^{commit}`], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  if (present.status === 0) {
+    return;
+  }
+
+  const fetch = spawnSync("git", ["fetch", "--no-tags", "--depth=1", "origin", pin], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  assert.equal(fetch.status, 0, `cannot fetch diagnostic measurement pin ${pin}: ${fetch.stderr}`);
+
+  const fetched = spawnSync("git", ["cat-file", "-e", `${pin}^{commit}`], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  assert.equal(fetched.status, 0, `diagnostic measurement pin ${pin} is unavailable after fetch`);
 }
 
 function installMeasurementProbe(worktreeRoot: string): void {
