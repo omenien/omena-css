@@ -16,7 +16,7 @@ const valueGrammarDifferentialPath = path.join(
 );
 const diagnosticTransitionAttributionPath = path.join(
   repoRoot,
-  "scripts/check-rust-omena-diagnostic-transition-attribution.ts",
+  "scripts/measure-rust-omena-diagnostic-transition-attribution.ts",
 );
 const args = new Set(process.argv.slice(2).filter((argument) => argument !== "--"));
 const allowedOptions = new Set([
