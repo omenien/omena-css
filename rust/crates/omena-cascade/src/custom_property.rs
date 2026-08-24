@@ -170,6 +170,16 @@ fn compute_custom_property_env_least_fixed_point(
         if component_is_cyclic(component, &dependency_graph) {
             for node in component {
                 let name = dependency_graph.names[*node];
+                let input = dependency_graph.values[*node];
+                let resolved = CascadeValue::GuaranteedInvalid;
+                record_custom_property_settlement(
+                    trace_mode,
+                    input,
+                    &resolved,
+                    &mut changed_count,
+                    &mut settled_count,
+                    &mut guaranteed_invalid_count,
+                );
                 resolved_env.insert(name.clone(), CascadeValue::GuaranteedInvalid);
                 invalid_reasons.insert(
                     name.clone(),
@@ -179,9 +189,7 @@ fn compute_custom_property_env_least_fixed_point(
         } else {
             for node in component {
                 let name = dependency_graph.names[*node];
-                let Some(value) = env.get(name) else {
-                    continue;
-                };
+                let value = dependency_graph.values[*node];
                 let outcome = substitute_custom_properties_with_reason(
                     value,
                     &resolved_env,
@@ -190,21 +198,19 @@ fn compute_custom_property_env_least_fixed_point(
                 if let Some(reason) = outcome.invalid_reason {
                     invalid_reasons.insert(name.clone(), reason);
                 }
+                record_custom_property_settlement(
+                    trace_mode,
+                    value,
+                    &outcome.value,
+                    &mut changed_count,
+                    &mut settled_count,
+                    &mut guaranteed_invalid_count,
+                );
                 resolved_env.insert(name.clone(), outcome.value);
             }
         }
 
         if trace_mode == TraceMode::Record {
-            for node in component {
-                let name = dependency_graph.names[*node];
-                let Some(resolved) = resolved_env.get(name) else {
-                    continue;
-                };
-                changed_count += usize::from(env.get(name).is_some_and(|input| input != resolved));
-                settled_count += usize::from(!cascade_value_contains_var_reference(resolved));
-                guaranteed_invalid_count +=
-                    usize::from(*resolved == CascadeValue::GuaranteedInvalid);
-            }
             iteration_trace.push(CustomPropertyLeastFixedPointIterationV0 {
                 iteration: iteration_trace.len() + 1,
                 changed_count,
@@ -247,6 +253,7 @@ fn compute_custom_property_env_least_fixed_point(
 
 struct CustomPropertyDependencyGraph<'a> {
     names: Vec<&'a CanonicalCustomPropertyNameV0>,
+    values: Vec<&'a CascadeValue>,
     edges: Vec<Vec<usize>>,
 }
 
@@ -268,25 +275,46 @@ pub(crate) fn custom_property_dependency_graph_build_count() -> usize {
 fn custom_property_dependency_graph(env: &CustomPropertyEnv) -> CustomPropertyDependencyGraph<'_> {
     #[cfg(test)]
     DEPENDENCY_GRAPH_BUILD_COUNT.set(DEPENDENCY_GRAPH_BUILD_COUNT.get() + 1);
-    let names = env.keys().collect::<Vec<_>>();
+    let entries = env.iter().collect::<Vec<_>>();
+    let names = entries.iter().map(|(name, _)| *name).collect::<Vec<_>>();
+    let values = entries.iter().map(|(_, value)| *value).collect::<Vec<_>>();
     let index_by_name = names
         .iter()
         .enumerate()
         .map(|(index, name)| (name.as_str(), index))
         .collect::<HashMap<_, _>>();
-    let edges = names
+    let edges = values
         .iter()
-        .map(|name| {
+        .map(|value| {
             let mut references = Vec::new();
-            if let Some(value) = env.get(*name) {
-                collect_custom_property_reference_indices(value, &index_by_name, &mut references);
-            }
+            collect_custom_property_reference_indices(value, &index_by_name, &mut references);
             references.sort_unstable();
             references.dedup();
             references
         })
         .collect();
-    CustomPropertyDependencyGraph { names, edges }
+    CustomPropertyDependencyGraph {
+        names,
+        values,
+        edges,
+    }
+}
+
+#[inline]
+fn record_custom_property_settlement(
+    trace_mode: TraceMode,
+    input: &CascadeValue,
+    resolved: &CascadeValue,
+    changed_count: &mut usize,
+    settled_count: &mut usize,
+    guaranteed_invalid_count: &mut usize,
+) {
+    if trace_mode == TraceMode::Omit {
+        return;
+    }
+    *changed_count += usize::from(input != resolved);
+    *settled_count += usize::from(!cascade_value_contains_var_reference(resolved));
+    *guaranteed_invalid_count += usize::from(*resolved == CascadeValue::GuaranteedInvalid);
 }
 
 fn collect_custom_property_reference_indices(
