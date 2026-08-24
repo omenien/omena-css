@@ -19,6 +19,7 @@ static CAPTURED_ROWS: Mutex<Vec<CascadeRankedSetLossCensusRowV0>> = Mutex::new(V
 static CAPTURE_STATE_RECOVERY_COUNT: AtomicUsize = AtomicUsize::new(0);
 static MEASUREMENT_INVOCATION_COUNT: AtomicUsize = AtomicUsize::new(0);
 static RANKED_SET_OUTCOME_COUNT: AtomicUsize = AtomicUsize::new(0);
+static RECOVERED_DEFINITE_OUTCOME_COUNT: AtomicUsize = AtomicUsize::new(0);
 static MULTI_CANDIDATE_INEXACT_RANKED_SET_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -48,6 +49,13 @@ pub enum CascadeRankedSetLossClassV0 {
     SingleInexactCandidate,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CascadeRankedSetFinalOutcomeV0 {
+    RankedSet,
+    Definite,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeRankedSetLossCandidateV0 {
@@ -69,6 +77,8 @@ pub struct CascadeRankedSetLossCensusRowV0 {
     pub candidate_count: usize,
     pub candidates: Vec<CascadeRankedSetLossCandidateV0>,
     pub classification: CascadeRankedSetLossClassV0,
+    pub final_outcome: CascadeRankedSetFinalOutcomeV0,
+    pub definite_winner_declaration_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -79,6 +89,7 @@ pub struct CascadeRankedSetLossCaptureV0 {
     pub capture_state_recovery_count: usize,
     pub measurement_invocation_count: usize,
     pub ranked_set_outcome_count: usize,
+    pub recovered_definite_outcome_count: usize,
     pub multi_candidate_inexact_ranked_set_count: usize,
     pub rows: Vec<CascadeRankedSetLossCensusRowV0>,
 }
@@ -98,6 +109,7 @@ pub fn capture_cascade_ranked_set_losses<R>(
     captured_rows().clear();
     MEASUREMENT_INVOCATION_COUNT.store(0, AtomicOrdering::Release);
     RANKED_SET_OUTCOME_COUNT.store(0, AtomicOrdering::Release);
+    RECOVERED_DEFINITE_OUTCOME_COUNT.store(0, AtomicOrdering::Release);
     MULTI_CANDIDATE_INEXACT_RANKED_SET_COUNT.store(0, AtomicOrdering::Release);
     let guard = CaptureGuard;
     let result = operation();
@@ -129,6 +141,8 @@ pub fn capture_cascade_ranked_set_losses<R>(
             measurement_invocation_count: MEASUREMENT_INVOCATION_COUNT
                 .load(AtomicOrdering::Acquire),
             ranked_set_outcome_count: RANKED_SET_OUTCOME_COUNT.load(AtomicOrdering::Acquire),
+            recovered_definite_outcome_count: RECOVERED_DEFINITE_OUTCOME_COUNT
+                .load(AtomicOrdering::Acquire),
             multi_candidate_inexact_ranked_set_count: MULTI_CANDIDATE_INEXACT_RANKED_SET_COUNT
                 .load(AtomicOrdering::Acquire),
             rows,
@@ -176,17 +190,55 @@ pub(crate) fn observe_cascade_outcome(
         return;
     }
     MEASUREMENT_INVOCATION_COUNT.fetch_add(1, AtomicOrdering::AcqRel);
-    let CascadeOutcome::RankedSet(declarations) = outcome else {
-        return;
+    let (declarations, final_outcome, definite_winner_declaration_id) = match outcome {
+        CascadeOutcome::RankedSet(declarations) => {
+            RANKED_SET_OUTCOME_COUNT.fetch_add(1, AtomicOrdering::AcqRel);
+            (
+                declarations.clone(),
+                CascadeRankedSetFinalOutcomeV0::RankedSet,
+                None,
+            )
+        }
+        CascadeOutcome::Definite {
+            winner,
+            also_considered,
+            ..
+        } => {
+            let mut declarations = Vec::with_capacity(also_considered.len().saturating_add(1));
+            declarations.push(winner.clone());
+            declarations.extend(also_considered.iter().cloned());
+            if !declarations.iter().any(|declaration| {
+                declaration.specificity_exactness == SpecificityExactnessV0::Inexact
+            }) {
+                return;
+            }
+            let classification = classify_cascade_ranked_set_loss(&declarations);
+            if !matches!(
+                classification,
+                CascadeRankedSetLossClassV0::RecoverableAxisDominant { .. }
+            ) {
+                debug_assert!(
+                    false,
+                    "a definite inexact outcome must be justified by an earlier exact axis"
+                );
+                return;
+            }
+            RECOVERED_DEFINITE_OUTCOME_COUNT.fetch_add(1, AtomicOrdering::AcqRel);
+            (
+                declarations,
+                CascadeRankedSetFinalOutcomeV0::Definite,
+                Some(winner.id.clone()),
+            )
+        }
+        CascadeOutcome::Inherit | CascadeOutcome::Top => return,
     };
-    RANKED_SET_OUTCOME_COUNT.fetch_add(1, AtomicOrdering::AcqRel);
     if !declarations
         .iter()
         .any(|declaration| declaration.specificity_exactness == SpecificityExactnessV0::Inexact)
     {
         return;
     }
-    if declarations.len() > 1 {
+    if final_outcome == CascadeRankedSetFinalOutcomeV0::RankedSet && declarations.len() > 1 {
         MULTI_CANDIDATE_INEXACT_RANKED_SET_COUNT.fetch_add(1, AtomicOrdering::AcqRel);
     }
     let row = CascadeRankedSetLossCensusRowV0 {
@@ -212,7 +264,9 @@ pub(crate) fn observe_cascade_outcome(
                 specificity_exactness: declaration.specificity_exactness,
             })
             .collect(),
-        classification: classify_cascade_ranked_set_loss(declarations),
+        classification: classify_cascade_ranked_set_loss(&declarations),
+        final_outcome,
+        definite_winner_declaration_id,
     };
     captured_rows().push(row);
 }
@@ -270,12 +324,14 @@ impl Drop for CaptureGuard {
 #[cfg(test)]
 mod tests {
     use super::{
-        CascadeAxisPrefixV0, CascadeRankedSetLossCensusRowV0, CascadeRankedSetLossClassV0,
+        CascadeAxisPrefixV0, CascadeRankedSetFinalOutcomeV0, CascadeRankedSetLossCensusRowV0,
+        CascadeRankedSetLossClassV0, capture_cascade_ranked_set_losses,
         classify_cascade_ranked_set_loss, recover_captured_rows,
     };
     use crate::{
-        CascadeDeclaration, CascadeKey, CascadeLevel, CascadeValue, LayerOrdinal,
-        OpenWorldTieEvidence, Specificity, SpecificityExactnessV0, normalized_layer_rank,
+        CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue, LayerOrdinal,
+        OpenWorldTieEvidence, Specificity, SpecificityExactnessV0, cascade_property,
+        normalized_layer_rank,
     };
 
     fn declaration(
@@ -388,6 +444,50 @@ mod tests {
             SpecificityExactnessV0::Exact,
         );
         let _ = classify_cascade_ranked_set_loss(&[candidate]);
+    }
+
+    #[test]
+    fn capture_retains_the_row_that_product_ranking_recovers_to_definite() {
+        let inexact_lower = declaration(
+            "inexact-lower",
+            CascadeLevel::UserNormal,
+            0,
+            0,
+            Specificity::new(9, 9, 9),
+            SpecificityExactnessV0::Inexact,
+        );
+        let exact_winner = declaration(
+            "exact-winner",
+            CascadeLevel::AuthorNormal,
+            0,
+            0,
+            Specificity::ZERO,
+            SpecificityExactnessV0::Exact,
+        );
+        let (outcome, capture) = capture_cascade_ranked_set_losses(|| {
+            cascade_property([inexact_lower, exact_winner], "color")
+        })
+        .expect("capture should be exclusive");
+
+        assert!(matches!(outcome, CascadeOutcome::Definite { .. }));
+        assert_eq!(capture.ranked_set_outcome_count, 0);
+        assert_eq!(capture.recovered_definite_outcome_count, 1);
+        assert_eq!(capture.multi_candidate_inexact_ranked_set_count, 0);
+        assert_eq!(capture.rows.len(), 1);
+        assert_eq!(
+            capture.rows[0].classification,
+            CascadeRankedSetLossClassV0::RecoverableAxisDominant {
+                axis: CascadeAxisPrefixV0::Level
+            }
+        );
+        assert_eq!(
+            capture.rows[0].final_outcome,
+            CascadeRankedSetFinalOutcomeV0::Definite
+        );
+        assert_eq!(
+            capture.rows[0].definite_winner_declaration_id.as_deref(),
+            Some("exact-winner")
+        );
     }
 
     #[test]

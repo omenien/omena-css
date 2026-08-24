@@ -611,6 +611,7 @@ fn summarize_omena_parser_semantic_facts(
     StyleSemanticFactsV0 {
         selector_identity: StyleSelectorIdentityFactsV0 {
             selector_asts: canonical_selector_asts_from_cst(cst),
+            selector_authority_definitions: parser_facts.selectors.definition_facts.clone(),
             canonical_names: parser_facts.selectors.names.clone(),
             bem_suffix_safe_names: parser_facts.selectors.bem_suffix_safe_names.clone(),
             bem_suffix_parent_names: parser_facts.selectors.bem_suffix_parent_names.clone(),

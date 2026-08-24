@@ -1584,6 +1584,34 @@ fn validates_layer_rule_preludes() {
 }
 
 #[test]
+fn rejects_trivia_in_layer_name_dot_separators() {
+    let result = parse(
+        "@layer a b; @layer a . b; @layer a/* comment */b; @layer a.b; @layer foo\\.bar;",
+        StyleDialect::Css,
+    );
+    let kinds = node_kinds(&result.syntax());
+    let invalid_layer_errors = result
+        .errors()
+        .iter()
+        .filter(|error| error.message == "invalid @layer prelude")
+        .count();
+    let bogus_layer_names = kinds
+        .iter()
+        .filter(|kind| **kind == SyntaxKind::BogusLayerName)
+        .count();
+
+    assert_eq!(invalid_layer_errors, 3);
+    assert_eq!(bogus_layer_names, 3);
+    assert_eq!(
+        kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::LayerName)
+            .count(),
+        2
+    );
+}
+
+#[test]
 fn validates_scope_rule_preludes() {
     let result = parse(
         "@scope { .a { color: red; } } @scope .a { .b { color: blue; } } @scope (.a) to { .c { color: green; } } @scope (.a) to (.b) { .d { color: black; } }",
@@ -4129,6 +4157,67 @@ fn canonical_selector_authority_is_projected_from_selector_cst() -> Result<(), S
     );
     assert_eq!(ast.branches()[0].specificity().ids, 1);
     Ok(())
+}
+
+#[test]
+fn nesting_expansion_preserves_a_leading_selector_comment_without_ampersand() {
+    assert_eq!(
+        crate::expand_nested_selector_from_cst(
+            ".card",
+            "/* leading */ .title:hover",
+            StyleDialect::Scss,
+        )
+        .as_deref(),
+        Some(".card /* leading */ .title:hover")
+    );
+}
+
+#[test]
+fn nesting_expansion_matches_the_no_ampersand_byte_oracle_for_99_cases() {
+    let leading_trivia = [
+        "",
+        "/* a */ ",
+        "/* b */\n",
+        "/**/ ",
+        "/* selector */\t",
+        "/* one *//* two */ ",
+        "/* line\ncomment */ ",
+        "/* unicode 한 */ ",
+        "/* punctuation: , > + ~ */ ",
+    ];
+    let selector_bodies = [
+        ".title",
+        ".title:hover",
+        "[data-x]",
+        "button",
+        "#target",
+        ".a > .b",
+        ".a + .b",
+        ":is(.a, .b)",
+        ".a::before",
+        "[data-label=\",\"]",
+        ".a ~ .b",
+    ];
+
+    let mut checked = 0usize;
+    for prefix in leading_trivia {
+        for body in selector_bodies {
+            let nested = format!("{prefix}{body}");
+            let expected = format!(".parent {}", nested.trim());
+            assert_eq!(
+                crate::expand_nested_selector_from_cst(
+                    ".parent",
+                    nested.as_str(),
+                    StyleDialect::Scss,
+                )
+                .as_deref(),
+                Some(expected.as_str()),
+                "no-& byte oracle diverged for {nested:?}"
+            );
+            checked += 1;
+        }
+    }
+    assert_eq!(checked, 99);
 }
 
 #[test]

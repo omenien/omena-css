@@ -24,11 +24,11 @@ pub struct SelectorIdentityEngineSummaryV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectorCanonicalIdentityV0 {
-    pub canonical_id: String,
-    pub local_name: String,
-    pub identity_kind: &'static str,
-    pub rewrite_safety: &'static str,
-    pub blockers: Vec<&'static str>,
+    canonical_id: String,
+    local_name: String,
+    identity_kind: &'static str,
+    rewrite_safety: &'static str,
+    blockers: Vec<&'static str>,
 }
 
 impl SelectorCanonicalIdentityV0 {
@@ -49,6 +49,26 @@ impl SelectorCanonicalIdentityV0 {
             },
             blockers,
         }
+    }
+
+    pub fn canonical_id(&self) -> &str {
+        self.canonical_id.as_str()
+    }
+
+    pub fn local_name(&self) -> &str {
+        self.local_name.as_str()
+    }
+
+    pub fn identity_kind(&self) -> &'static str {
+        self.identity_kind
+    }
+
+    pub fn rewrite_safety(&self) -> &'static str {
+        self.rewrite_safety
+    }
+
+    pub fn blockers(&self) -> &[&'static str] {
+        self.blockers.as_slice()
     }
 }
 
@@ -74,12 +94,6 @@ pub fn summarize_selector_identity_engine(
         .iter()
         .cloned()
         .collect::<BTreeSet<_>>();
-    let ast_keys = facts
-        .selector_asts
-        .iter()
-        .flat_map(|ast| ast.canonical_class_keys().cloned())
-        .collect::<BTreeSet<_>>();
-
     let canonical_ids = facts
         .canonical_names
         .iter()
@@ -90,9 +104,27 @@ pub fn summarize_selector_identity_engine(
                 Vec::new()
             };
             let decoded_key = ClassNameV0::new(name).canonical_key();
-            let authority_key = ast_keys.get(&decoded_key).unwrap_or(&decoded_key);
+            let authority_key = facts
+                .selector_authority_definitions
+                .iter()
+                .filter(|definition| definition.name == *name)
+                .find_map(|definition| {
+                    facts.selector_asts.iter().find_map(|ast| {
+                        ast.canonical_class_key_for_source_span(
+                            name,
+                            definition.byte_span.start..definition.byte_span.end,
+                            definition.bem_suffix_parent_name.as_deref(),
+                        )
+                    })
+                })
+                .filter(|authority_key| authority_key == &decoded_key)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "selector projection name has no CST-issued canonical authority binding: {name}"
+                    )
+                });
             SelectorCanonicalIdentityV0::from_canonical_key(
-                authority_key,
+                &authority_key,
                 if bem_safe.contains(name) {
                     "bemSuffix"
                 } else {

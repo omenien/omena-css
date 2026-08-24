@@ -91,6 +91,8 @@ interface CascadeRankedSetLossCaptureRowV0 {
   readonly candidateCount: number;
   readonly candidates: readonly CascadeRankedSetLossCandidateV0[];
   readonly classification: CascadeRankedSetLossClassV0;
+  readonly finalOutcome: "rankedSet" | "definite";
+  readonly definiteWinnerDeclarationId: string | null;
 }
 
 interface CascadeRankedSetLossCaptureV0 {
@@ -99,6 +101,7 @@ interface CascadeRankedSetLossCaptureV0 {
   readonly captureStateRecoveryCount: number;
   readonly measurementInvocationCount: number;
   readonly rankedSetOutcomeCount: number;
+  readonly recoveredDefiniteOutcomeCount: number;
   readonly multiCandidateInexactRankedSetCount: number;
   readonly rows: readonly CascadeRankedSetLossCaptureRowV0[];
 }
@@ -113,6 +116,7 @@ interface RankedSetLossCensusArtifactV0 {
   readonly captureStateRecoveryCount: number;
   readonly measurementInvocationCount: number;
   readonly rankedSetOutcomeCount: number;
+  readonly recoveredDefiniteOutcomeCount: number;
   readonly multiCandidateInexactRankedSetCount: number;
   readonly layerSyntaxFileCount: number;
   readonly importantSyntaxFileCount: number;
@@ -131,6 +135,7 @@ interface RankedSetLossCensusArtifactV0 {
     readonly captureStateRecoveryCount: number;
     readonly measurementInvocationCount: number;
     readonly rankedSetOutcomeCount: number;
+    readonly recoveredDefiniteOutcomeCount: number;
     readonly multiCandidateInexactRankedSetCount: number;
     readonly rowCount: number;
     readonly rows: readonly CascadeRankedSetLossCaptureRowV0[];
@@ -665,6 +670,7 @@ function buildRankedSetLossCensus(
       captureStateRecoveryCount: capture.captureStateRecoveryCount,
       measurementInvocationCount: capture.measurementInvocationCount,
       rankedSetOutcomeCount: capture.rankedSetOutcomeCount,
+      recoveredDefiniteOutcomeCount: capture.recoveredDefiniteOutcomeCount,
       multiCandidateInexactRankedSetCount: capture.multiCandidateInexactRankedSetCount,
       rowCount: capture.rows.length,
       rows: capture.rows,
@@ -674,6 +680,9 @@ function buildRankedSetLossCensus(
   const measurementInvocationCount = sum(entries.map((entry) => entry.measurementInvocationCount));
   const captureStateRecoveryCount = sum(entries.map((entry) => entry.captureStateRecoveryCount));
   const rankedSetOutcomeCount = sum(entries.map((entry) => entry.rankedSetOutcomeCount));
+  const recoveredDefiniteOutcomeCount = sum(
+    entries.map((entry) => entry.recoveredDefiniteOutcomeCount),
+  );
   const multiCandidateInexactRankedSetCount = sum(
     entries.map((entry) => entry.multiCandidateInexactRankedSetCount),
   );
@@ -739,6 +748,35 @@ function buildRankedSetLossCensus(
     rows.length,
     "ranked-set loss classes must partition every captured row",
   );
+  assert.equal(
+    rows.length,
+    rankedSetOutcomeCount + recoveredDefiniteOutcomeCount,
+    "captured rows must partition into unresolved RankedSet and recovered Definite outcomes",
+  );
+  assert.equal(
+    recoverableCount,
+    recoveredDefiniteOutcomeCount,
+    "every recovered axis-dominant row must be observed as a product Definite outcome",
+  );
+  for (const row of rows) {
+    const recoverable = typeof row.classification === "object";
+    assert.equal(
+      row.finalOutcome,
+      recoverable ? "definite" : "rankedSet",
+      "row classification must agree with the final product outcome",
+    );
+    assert.equal(
+      row.definiteWinnerDeclarationId !== null,
+      recoverable,
+      "only recovered Definite rows carry a winner identity",
+    );
+    if (row.definiteWinnerDeclarationId !== null) {
+      assert.ok(
+        row.declarationIds.includes(row.definiteWinnerDeclarationId),
+        "the recovered winner must belong to the measured candidate set",
+      );
+    }
+  }
   const unclassifiedInvocationCount = invocationSitePopulations.unclassified;
   assert.equal(
     captureStateRecoveryCount,
@@ -785,6 +823,7 @@ function buildRankedSetLossCensus(
     captureStateRecoveryCount,
     measurementInvocationCount,
     rankedSetOutcomeCount,
+    recoveredDefiniteOutcomeCount,
     multiCandidateInexactRankedSetCount,
     layerSyntaxFileCount,
     importantSyntaxFileCount,
@@ -993,6 +1032,10 @@ function normalizeRankedSetLossCapture(
     rows: capture.rows.map((row) => ({
       ...row,
       declarationIds: row.declarationIds.map(normalizeDeclarationId),
+      definiteWinnerDeclarationId:
+        row.definiteWinnerDeclarationId === null
+          ? null
+          : normalizeDeclarationId(row.definiteWinnerDeclarationId),
       candidates: row.candidates.map((candidate) => ({
         ...candidate,
         declarationId: normalizeDeclarationId(candidate.declarationId),

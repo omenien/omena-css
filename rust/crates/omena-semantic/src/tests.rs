@@ -1214,6 +1214,33 @@ fn layer_statement_order_is_a_load_bearing_rank_fact() {
 }
 
 #[test]
+fn invalid_layer_path_separators_do_not_perturb_valid_layer_order() {
+    let ranks = |poison: &str| {
+        summarize_omena_parser_style_semantic_boundary_from_source(
+            "layers.css",
+            format!(
+                "{poison}@layer theme, a.b; @layer theme {{ .theme {{}} }} @layer a.b {{ .nested {{}} }}"
+            )
+            .as_str(),
+        )
+        .semantic_facts
+        .context_index
+        .layer_index
+        .order_nodes
+        .into_iter()
+        .map(|node| (node.canonical_name, node.cascade_rank))
+        .collect::<std::collections::BTreeMap<_, _>>()
+    };
+
+    let expected = ranks("");
+    assert_eq!(expected["theme"], 0);
+    assert!(expected["a.b"] > expected["theme"]);
+    for poison in ["@layer a b; ", "@layer a . b; ", "@layer a/* comment */b; "] {
+        assert_eq!(ranks(poison), expected, "poison prelude: {poison}");
+    }
+}
+
+#[test]
 fn anonymous_layer_parent_keeps_nested_topology_unresolved() {
     let summary = summarize_omena_parser_style_semantic_boundary_from_source(
         "layers.css",
@@ -1250,13 +1277,13 @@ fn layer_binding_resolution_discloses_incomplete_mixed_topology() {
 }
 
 #[test]
-fn empty_layer_statement_keeps_topology_unresolved() {
+fn invalid_empty_layer_statement_is_discarded_without_poisoning_topology() {
     let summary =
         summarize_omena_parser_style_semantic_boundary_from_source("layers.css", "@layer ;");
     let layers = summary.semantic_facts.context_index.layer_index;
 
-    assert!(!layers.topology_complete);
-    assert_eq!(layers.unresolved_topology_count, 1);
+    assert!(layers.topology_complete);
+    assert_eq!(layers.unresolved_topology_count, 0);
     assert!(layers.order_nodes.is_empty());
     assert!(layers.block_bindings.is_empty());
 }
@@ -1399,7 +1426,7 @@ $local: red;
             .selector_identity_engine
             .canonical_ids
             .iter()
-            .map(|identity| identity.canonical_id.as_str())
+            .map(|identity| identity.canonical_id())
             .collect::<Vec<_>>(),
         vec!["selector:button", "selector:button__icon"]
     );
@@ -1506,9 +1533,9 @@ fn exposes_selector_identity_as_dedicated_semantic_sub_engine() -> Result<(), St
             .iter()
             .map(|identity| {
                 (
-                    identity.canonical_id.as_str(),
-                    identity.identity_kind,
-                    identity.rewrite_safety,
+                    identity.canonical_id(),
+                    identity.identity_kind(),
+                    identity.rewrite_safety(),
                 )
             })
             .collect::<Vec<_>>(),
@@ -1545,6 +1572,54 @@ fn selector_identity_projection_bytes_survive_the_authority_rekey() -> Result<()
     assert_eq!(
         bytes,
         r#"{"schemaVersion":"0","product":"omena-semantic.selector-identity","canonicalIdCount":3,"canonicalIds":[{"canonicalId":"selector:active","localName":"active","identityKind":"localClass","rewriteSafety":"blocked","blockers":["nested-expansion"]},{"canonicalId":"selector:button","localName":"button","identityKind":"localClass","rewriteSafety":"safe","blockers":[]},{"canonicalId":"selector:button__icon","localName":"button__icon","identityKind":"bemSuffix","rewriteSafety":"safe","blockers":[]}],"rewriteSafety":{"allCanonicalIdsRewriteSafe":false,"safeCanonicalIds":["selector:button","selector:button__icon"],"blockedCanonicalIds":["selector:active"],"blockers":["nested-expansion"]}}"#,
+    );
+    Ok(())
+}
+
+#[test]
+fn selector_identity_projection_refuses_a_missing_authority_binding() -> Result<(), String> {
+    let sheet = parse_style_module(
+        "Component.module.scss",
+        ".button { &__icon {} &.active {} }",
+    )
+    .ok_or_else(|| "SCSS module path should parse".to_string())?;
+    let mut selector_identity = summarize_style_semantic_facts(&sheet).selector_identity;
+    selector_identity.selector_asts.clear();
+
+    let result = std::panic::catch_unwind(|| {
+        let _ = summarize_selector_identity_engine(&selector_identity);
+    });
+    assert!(
+        result.is_err(),
+        "a report name without a CST-issued authority binding must hard-fail"
+    );
+    Ok(())
+}
+
+#[test]
+fn selector_identity_projection_refuses_a_mismatched_authority_span() -> Result<(), String> {
+    let sheet = parse_style_module("Component.module.scss", ".button {} .other {}")
+        .ok_or_else(|| "SCSS module path should parse".to_string())?;
+    let mut selector_identity = summarize_style_semantic_facts(&sheet).selector_identity;
+    let other_span = selector_identity
+        .selector_authority_definitions
+        .iter()
+        .find(|definition| definition.name == "other")
+        .map(|definition| definition.byte_span.clone())
+        .ok_or_else(|| "other selector definition should exist".to_string())?;
+    selector_identity
+        .selector_authority_definitions
+        .iter_mut()
+        .find(|definition| definition.name == "button")
+        .ok_or_else(|| "button selector definition should exist".to_string())?
+        .byte_span = other_span;
+
+    let result = std::panic::catch_unwind(|| {
+        let _ = summarize_selector_identity_engine(&selector_identity);
+    });
+    assert!(
+        result.is_err(),
+        "a source span cannot borrow authority from a different selector AST"
     );
     Ok(())
 }

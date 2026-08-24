@@ -73,8 +73,13 @@ interface RawScanCensus {
     readonly ownerPath: "rust/crates/omena-syntax/src/selector.rs";
     readonly typeName: "CanonicalSelectorAst";
     readonly authorityTypeCount: 1;
-    readonly parserCstProducerCallCount: number;
+    readonly parserCstProducerCallCount: 1;
     readonly reportProjectionCallCount: 1;
+    readonly reportAuthorityBindingCallCount: 1;
+    readonly reportStructLiteralBypassCount: 0;
+    readonly reportFieldVisibility: "private";
+    readonly rustAuthoritySourceScope: "all-tracked-rust";
+    readonly rawNestingSourceRoots: readonly ["rust", "packages"];
     readonly rawNestingReplaceSiteCount: 0;
   };
   readonly moduleInterfaceLessScanner: {
@@ -145,8 +150,16 @@ const injectClassSelectorScanner =
   process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_CLASS_SCANNER === "1";
 const injectSecondSelectorAuthority =
   process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_SECOND_SELECTOR_AUTHORITY === "1";
+const injectSelectorReportStructLiteral =
+  process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_SELECTOR_REPORT_STRUCT_LITERAL === "1";
+const injectSelectorReportAuthoritySeverance =
+  process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_SELECTOR_REPORT_AUTHORITY_SEVERANCE === "1";
 const injectRawNestingReplace =
   process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_RAW_NESTING_REPLACE === "1";
+const injectRawNestingReplaceDoubleQuote =
+  process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_RAW_NESTING_REPLACE_DOUBLE_QUOTE === "1";
+const injectRawNestingReplacen =
+  process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_RAW_NESTING_REPLACEN === "1";
 
 const sourceRoots = ["rust/crates"] as const;
 const productPathMatrix = JSON.parse(
@@ -274,14 +287,30 @@ assert.equal(
   1,
   "selector canonicalization must have exactly one CanonicalSelectorAst authority",
 );
-assert.ok(
-  selectorAuthority.parserCstProducerCallCount > 0,
-  "the parser must project CanonicalSelectorAst from selector CST nodes",
+assert.equal(
+  selectorAuthority.parserCstProducerCallCount,
+  1,
+  "the parser must have exactly one CanonicalSelectorAst CST construction call",
 );
 assert.equal(
   selectorAuthority.reportProjectionCallCount,
   1,
   "SelectorCanonicalIdentityV0 must remain one projection of the canonical authority",
+);
+assert.equal(
+  selectorAuthority.reportAuthorityBindingCallCount,
+  1,
+  "the selector report must bind every projected name through the CST authority",
+);
+assert.equal(
+  selectorAuthority.reportStructLiteralBypassCount,
+  0,
+  "SelectorCanonicalIdentityV0 construction must not bypass its sealed constructor",
+);
+assert.equal(
+  selectorAuthority.reportFieldVisibility,
+  "private",
+  "SelectorCanonicalIdentityV0 fields must remain private",
 );
 assert.equal(
   selectorAuthority.rawNestingReplaceSiteCount,
@@ -382,7 +411,11 @@ if (writeMode) {
       !injectModuleInterfaceLessScannerCall &&
       !injectClassSelectorScanner &&
       !injectSecondSelectorAuthority &&
-      !injectRawNestingReplace,
+      !injectSelectorReportStructLiteral &&
+      !injectSelectorReportAuthoritySeverance &&
+      !injectRawNestingReplace &&
+      !injectRawNestingReplaceDoubleQuote &&
+      !injectRawNestingReplacen,
     "test injection cannot be combined with --write",
   );
   writeFileSync(censusPath, expected);
@@ -421,6 +454,11 @@ process.stdout.write(
       selectorAuthorityTypeCount: census.selectorAuthority.authorityTypeCount,
       selectorParserCstProducerCallCount: census.selectorAuthority.parserCstProducerCallCount,
       selectorReportProjectionCallCount: census.selectorAuthority.reportProjectionCallCount,
+      selectorReportAuthorityBindingCallCount:
+        census.selectorAuthority.reportAuthorityBindingCallCount,
+      selectorReportStructLiteralBypassCount:
+        census.selectorAuthority.reportStructLiteralBypassCount,
+      selectorRustAuthoritySourceScope: census.selectorAuthority.rustAuthoritySourceScope,
       rawNestingReplaceSiteCount: census.selectorAuthority.rawNestingReplaceSiteCount,
       moduleInterfaceLessScannerCallCount: census.moduleInterfaceLessScanner.directCallCount,
       direction: census.policy.direction,
@@ -503,6 +541,23 @@ function readExistingCensus(): RawScanCensus | undefined {
       1,
       "committed selector report projection",
     );
+    if (parsed.selectorAuthority.reportAuthorityBindingCallCount !== undefined) {
+      assert.equal(
+        parsed.selectorAuthority.reportAuthorityBindingCallCount,
+        1,
+        "committed selector report authority binding",
+      );
+      assert.equal(
+        parsed.selectorAuthority.reportStructLiteralBypassCount,
+        0,
+        "committed selector report struct-literal bypass count",
+      );
+      assert.equal(
+        parsed.selectorAuthority.reportFieldVisibility,
+        "private",
+        "committed selector report field visibility",
+      );
+    }
     assert.equal(
       parsed.selectorAuthority.rawNestingReplaceSiteCount,
       0,
@@ -514,41 +569,116 @@ function readExistingCensus(): RawScanCensus | undefined {
 
 function scanSelectorAuthority(): RawScanCensus["selectorAuthority"] {
   const ownerPath = "rust/crates/omena-syntax/src/selector.rs" as const;
-  let ownerSource = readFileSync(path.join(repoRoot, ownerPath), "utf8");
-  if (injectSecondSelectorAuthority) {
-    ownerSource += "\npub struct CanonicalSelectorAst;\n";
+  const rustSources = trackedRustSources(".").map((relativePath) => ({
+    relativePath,
+    source: readFileSync(path.join(repoRoot, relativePath), "utf8"),
+  }));
+  if (injectSelectorReportAuthoritySeverance) {
+    const report = rustSources.find(
+      ({ relativePath }) => relativePath === "rust/crates/omena-semantic/src/selector_identity.rs",
+    );
+    assert.ok(report, "selector report source must be in the tracked Rust closure");
+    report.source = report.source.replace(
+      ".canonical_class_key_for_source_span(",
+      ".canonical_class_key_for_source_span_severed(",
+    );
   }
-  const authorityTypeCount = [...ownerSource.matchAll(/\bpub\s+struct\s+CanonicalSelectorAst\b/gu)]
-    .length;
-  const parserSource = readFileSync(
-    path.join(repoRoot, "rust/crates/omena-parser/src/canonical_selector.rs"),
-    "utf8",
+  if (injectSecondSelectorAuthority) {
+    rustSources.push({
+      relativePath: "rust/crates/omena-query/src/injected_selector_authority.rs",
+      source: "pub struct CanonicalSelectorAst;\n",
+    });
+  }
+  const authorityTypeCount = rustSources.reduce(
+    (count, { source }) =>
+      count + [...source.matchAll(/\bpub\s+struct\s+CanonicalSelectorAst\b/gu)].length,
+    0,
   );
-  const parserCstProducerCallCount = [
-    ...parserSource.matchAll(/\bCanonicalSelectorAst::from_cst\s*\(/gu),
-  ].length;
+  const parserCstProducerCallCount = rustSources.reduce(
+    (count, { source }) =>
+      count + [...source.matchAll(/\bCanonicalSelectorAst::from_cst\s*\(/gu)].length,
+    0,
+  );
+  const reportProjectionCallCount = rustSources.reduce(
+    (count, { source }) =>
+      count +
+      [...source.matchAll(/\bSelectorCanonicalIdentityV0::from_canonical_key\s*\(/gu)].length,
+    0,
+  );
+  const reportAuthorityBindingCallCount = rustSources.reduce(
+    (count, { source }) =>
+      count + [...source.matchAll(/\.canonical_class_key_for_source_span\s*\(/gu)].length,
+    0,
+  );
+  if (injectSelectorReportStructLiteral) {
+    rustSources.push({
+      relativePath: "rust/crates/omena-query/src/injected_selector_report.rs",
+      source:
+        'fn injected() { let _ = SelectorCanonicalIdentityV0 { canonical_id: String::new(), local_name: String::new(), identity_kind: "x", rewrite_safety: "safe", blockers: Vec::new() }; }\n',
+    });
+  }
+  const reportStructLiteralBypassCount = rustSources.reduce(
+    (count, { source }) =>
+      count +
+      [...source.matchAll(/\bSelectorCanonicalIdentityV0\s*\{/gu)].filter((match) => {
+        const prefix = source.slice(Math.max(0, match.index - 24), match.index);
+        return !/\b(?:pub\s+)?(?:struct|impl)\s*$/u.test(prefix);
+      }).length,
+    0,
+  );
   const reportSource = readFileSync(
     path.join(repoRoot, "rust/crates/omena-semantic/src/selector_identity.rs"),
     "utf8",
   );
-  const reportProjectionCallCount = [
-    ...reportSource.matchAll(/\bSelectorCanonicalIdentityV0::from_canonical_key\s*\(/gu),
-  ].length;
-  let rawNestingReplaceSiteCount = trackedRustSources("rust/crates")
-    .map((relativePath) => readFileSync(path.join(repoRoot, relativePath), "utf8"))
-    .reduce(
-      (count, source) => count + [...source.matchAll(/\.replace\s*\(\s*'&'\s*,/gu)].length,
-      0,
-    );
-  if (injectRawNestingReplace) rawNestingReplaceSiteCount += 1;
+  const reportBody = reportSource.match(
+    /\bpub\s+struct\s+SelectorCanonicalIdentityV0\s*\{(?<body>[\s\S]*?)\n\}/u,
+  )?.groups?.body;
+  assert.ok(reportBody, "SelectorCanonicalIdentityV0 definition must remain discoverable");
+  const reportFieldVisibility = /(^|\n)\s*pub(?:\([^)]*\))?\s+[A-Za-z_][A-Za-z0-9_]*\s*:/u.test(
+    reportBody,
+  )
+    ? "public"
+    : "private";
+
+  const rawNestingSources = trackedProductSources(["rust", "packages"]);
+  if (injectRawNestingReplace) {
+    rawNestingSources.push({
+      relativePath: "rust/crates/omena-query/src/injected_raw_replace.rs",
+      source: "fn injected(source: &str, parent: &str) { let _ = source.replace('&', parent); }\n",
+    });
+  }
+  if (injectRawNestingReplaceDoubleQuote) {
+    rawNestingSources.push({
+      relativePath: "packages/omena-query/src/injected-raw-replace.ts",
+      source:
+        'export const injected = (source: string, parent: string) => source.replace("&", parent);\n',
+    });
+  }
+  if (injectRawNestingReplacen) {
+    rawNestingSources.push({
+      relativePath: "rust/crates/omena-query/src/injected_raw_replacen.rs",
+      source:
+        'fn injected(source: &str, parent: &str) { let _ = source.replacen("&", parent, 1); }\n',
+    });
+  }
+  const rawNestingReplaceSiteCount = rawNestingSources.reduce(
+    (count, { source }) =>
+      count + [...source.matchAll(/\.(?:replace|replacen)\s*\(\s*(["'])&\1\s*,/gu)].length,
+    0,
+  );
 
   return {
     policy: "single-cst-projected-authority",
     ownerPath,
     typeName: "CanonicalSelectorAst",
     authorityTypeCount: authorityTypeCount as 1,
-    parserCstProducerCallCount,
+    parserCstProducerCallCount: parserCstProducerCallCount as 1,
     reportProjectionCallCount: reportProjectionCallCount as 1,
+    reportAuthorityBindingCallCount: reportAuthorityBindingCallCount as 1,
+    reportStructLiteralBypassCount: reportStructLiteralBypassCount as 0,
+    reportFieldVisibility: reportFieldVisibility as "private",
+    rustAuthoritySourceScope: "all-tracked-rust",
+    rawNestingSourceRoots: ["rust", "packages"],
     rawNestingReplaceSiteCount: rawNestingReplaceSiteCount as 0,
   };
 }
@@ -815,6 +945,24 @@ function trackedRustSources(pathspec: string): string[] {
     .filter((sourcePath) => !sourcePath.includes("/src/bin/"))
     .filter((sourcePath) => !sourcePath.endsWith("_generated.rs"))
     .toSorted();
+}
+
+function trackedProductSources(
+  pathspecs: readonly string[],
+): { relativePath: string; source: string }[] {
+  const result = spawnSync("git", ["ls-files", "--", ...pathspecs], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, `git ls-files failed: ${result.stderr.trim()}`);
+  return result.stdout
+    .split(/\r?\n/u)
+    .filter((sourcePath) => /\.(?:rs|ts|tsx|js|mjs|cjs)$/u.test(sourcePath))
+    .toSorted()
+    .map((relativePath) => ({
+      relativePath,
+      source: readFileSync(path.join(repoRoot, relativePath), "utf8"),
+    }));
 }
 
 function trackedRawSyntaxSources(): string[] {

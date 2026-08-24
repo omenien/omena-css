@@ -100,6 +100,7 @@ interface RankedSetLossCensusArtifactV0 {
   readonly captureStateRecoveryCount: number;
   readonly measurementInvocationCount: number;
   readonly rankedSetOutcomeCount: number;
+  readonly recoveredDefiniteOutcomeCount: number;
   readonly multiCandidateInexactRankedSetCount: number;
   readonly layerSyntaxFileCount: number;
   readonly importantSyntaxFileCount: number;
@@ -118,6 +119,7 @@ interface RankedSetLossCensusArtifactV0 {
     readonly captureStateRecoveryCount: number;
     readonly measurementInvocationCount: number;
     readonly rankedSetOutcomeCount: number;
+    readonly recoveredDefiniteOutcomeCount: number;
     readonly multiCandidateInexactRankedSetCount: number;
     readonly rowCount: number;
     readonly rows: readonly RankedSetLossCensusRowV0[];
@@ -142,10 +144,16 @@ interface RankedSetLossCandidateV0 {
 }
 
 interface RankedSetLossCensusRowV0 {
+  readonly function: "cascadeProperty" | "cascadePropertyOpenWorld";
+  readonly invocationSite: string;
+  readonly sourcePath: string;
+  readonly property: string;
   readonly declarationIds: readonly string[];
   readonly candidateCount: number;
   readonly candidates: readonly RankedSetLossCandidateV0[];
   readonly classification: FixtureResultV0["classification"];
+  readonly finalOutcome: "rankedSet" | "definite";
+  readonly definiteWinnerDeclarationId: string | null;
 }
 
 const cascadeLevels = [
@@ -343,6 +351,10 @@ assert.deepEqual(
   "ranked-set loss classification must match the independently authored axis-prefix cases",
 );
 const multiCandidateRecheckFixture: RankedSetLossCensusRowV0 = {
+  function: "cascadeProperty",
+  invocationSite: "classifierFixture",
+  sourcePath: "scripts/check-rust-ranked-set-loss-census.ts",
+  property: "color",
   declarationIds: ["exact-author", "inexact-user"],
   candidateCount: 2,
   candidates: [
@@ -362,6 +374,8 @@ const multiCandidateRecheckFixture: RankedSetLossCensusRowV0 = {
     },
   ],
   classification: { recoverableAxisDominant: { axis: "level" } },
+  finalOutcome: "definite",
+  definiteWinnerDeclarationId: "exact-author",
 };
 assert.deepEqual(
   classifyArtifactRow(multiCandidateRecheckFixture),
@@ -404,16 +418,15 @@ assert.ok(
   artifact.multiCandidateInexactRankedSetCount > 0,
   "the bounded census must reach a multi-candidate inexact RankedSet before judgment",
 );
-assert.equal(
-  artifact.recoverableCount,
-  0,
-  "production cascade ranking must consume every axis-dominant recovery before census capture",
+assert.ok(
+  (artifact.decidingAxisCounts.layerRank ?? 0) > 0,
+  "the bounded census must observe a layer-rank deciding Definite row before judgment",
 );
 assert.ok(
   (artifact.classCounts.axisWinnerInexact ?? 0) > 0,
   "the bounded census must retain a wrong-definite guard class before judgment",
 );
-for (const level of ["authorNormal", "authorImportant"]) {
+for (const level of ["authorNormal", "authorImportant", "inlineNormal"]) {
   assert.ok(
     (artifact.observedCascadeLevelCounts[level] ?? 0) > 0,
     `the bounded census must observe ${level} candidates before judgment`,
@@ -446,19 +459,24 @@ assert.equal(
   "RankedSet denominator must be derived from entry captures",
 );
 assert.equal(
+  artifact.recoveredDefiniteOutcomeCount,
+  sum(artifact.entries.map((entry) => entry.recoveredDefiniteOutcomeCount)),
+  "recovered Definite denominator must be derived from entry captures",
+);
+assert.equal(
   artifact.multiCandidateInexactRankedSetCount,
   sum(artifact.entries.map((entry) => entry.multiCandidateInexactRankedSetCount)),
   "multi-candidate inexact denominator must be derived from entry captures",
 );
 assert.ok(
-  artifact.measurementInvocationCount >= artifact.rankedSetOutcomeCount &&
-    artifact.rankedSetOutcomeCount >= artifact.rowCount,
-  "capture denominators must narrow from invocations to RankedSet outcomes to classified rows",
+  artifact.measurementInvocationCount >= artifact.rowCount &&
+    artifact.rowCount === artifact.rankedSetOutcomeCount + artifact.recoveredDefiniteOutcomeCount,
+  "classified rows must partition measured RankedSet and recovered Definite outcomes",
 );
 assert.equal(
   artifact.multiCandidateInexactRankedSetCount,
-  artifactRows.filter((row) => row.candidateCount > 1).length,
-  "multi-candidate inexact denominator must equal eligible captured rows",
+  artifactRows.filter((row) => row.finalOutcome === "rankedSet" && row.candidateCount > 1).length,
+  "multi-candidate inexact RankedSet denominator must equal eligible unresolved rows",
 );
 for (const row of artifactRows) {
   assert.equal(row.candidateCount, row.candidates.length, "candidate payload must be total");
@@ -472,11 +490,59 @@ for (const row of artifactRows) {
     classifyArtifactRow(row),
     "committed classification must be independently recomputable from axis-prefix values",
   );
+  const recoverable = typeof row.classification === "object";
+  assert.equal(
+    row.finalOutcome,
+    recoverable ? "definite" : "rankedSet",
+    "the row classification must agree with the final product outcome",
+  );
+  assert.equal(
+    row.definiteWinnerDeclarationId !== null,
+    recoverable,
+    "only recovered Definite rows carry a winner identity",
+  );
+  if (row.definiteWinnerDeclarationId !== null) {
+    assert.ok(
+      row.declarationIds.includes(row.definiteWinnerDeclarationId),
+      "the Definite winner must belong to the measured candidate set",
+    );
+  }
   assert.ok(
     row.declarationIds.every((declarationId) => !declarationId.includes(repoRoot)),
     "committed declaration identities must not retain the checkout's absolute path",
   );
 }
+const recoveredDefiniteRowIdentities = artifactRows
+  .filter((row) => row.finalOutcome === "definite")
+  .map((row) => {
+    assert.ok(
+      typeof row.classification === "object",
+      "every captured Definite row must retain its recovery axis",
+    );
+    return [
+      row.invocationSite,
+      row.property,
+      row.declarationIds.join(","),
+      row.definiteWinnerDeclarationId,
+      row.classification.recoverableAxisDominant.axis,
+    ].join("|");
+  })
+  .toSorted();
+assert.deepEqual(
+  recoveredDefiniteRowIdentities,
+  [
+    "queryRuntimeStateScenarioEvaluation|outline-color|decl-10,decl-8,decl-7|decl-10|layerRank",
+    "queryRuntimeStateScenarioEvaluation|outline-color|decl-10,decl-8,decl-7|decl-10|layerRank",
+    "queryRuntimeStateScenarioEvaluation|outline-color|inline-style:scripts/fixtures/real-workspace-lint-corpus/src/App.tsx:4:43,decl-10,decl-8,decl-7|inline-style:scripts/fixtures/real-workspace-lint-corpus/src/App.tsx:4:43|level",
+    "queryRuntimeStateScenarioEvaluation|outline-color|inline-style:scripts/fixtures/real-workspace-lint-corpus/src/App.tsx:4:43,decl-10,decl-8,decl-7|inline-style:scripts/fixtures/real-workspace-lint-corpus/src/App.tsx:4:43|level",
+  ].toSorted(),
+  "the four pre-recovery census rows must remain product-Definite with the same winner identities",
+);
+assert.equal(
+  artifact.recoverableCount,
+  artifact.recoveredDefiniteOutcomeCount,
+  "recoverable row count must equal the measured product-Definite recovery count",
+);
 assert.deepEqual(Object.keys(artifact.classCounts).sort(), [
   "axisWinnerInexact",
   "noStrictAxisDominance",
@@ -559,8 +625,8 @@ process.stdout.write(
       entryCount: artifact.entryCount,
       measurementInvocationCount: artifact.measurementInvocationCount,
       rankedSetOutcomeCount: artifact.rankedSetOutcomeCount,
+      recoveredDefiniteOutcomeCount: artifact.recoveredDefiniteOutcomeCount,
       multiCandidateInexactRankedSetCount: artifact.multiCandidateInexactRankedSetCount,
-      multiCandidateRecheckFixtureCount: 1,
       layerSyntaxFileCount: artifact.layerSyntaxFileCount,
       importantSyntaxFileCount: artifact.importantSyntaxFileCount,
       scopeSyntaxFileCount: artifact.scopeSyntaxFileCount,

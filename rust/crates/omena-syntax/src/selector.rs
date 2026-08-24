@@ -135,6 +135,7 @@ impl CanonicalSelectorBranchV0 {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanonicalSelectorAst {
     authored: String,
+    source_byte_range: Range<usize>,
     branches: Vec<CanonicalSelectorBranchV0>,
 }
 
@@ -151,8 +152,9 @@ impl CanonicalSelectorAst {
         ) {
             return None;
         }
-        let authored = syntax_node_text(selector_node)?;
-        let authority_start = byte_start(selector_node);
+        let (authority_start, authority_prefix) = leading_selector_trivia(selector_node);
+        let authority_end = byte_end(selector_node);
+        let authored = format!("{authority_prefix}{}", syntax_node_text(selector_node)?);
         let branch_nodes = if matches!(
             selector_node.kind(),
             SyntaxKind::Selector | SyntaxKind::RelativeSelector | SyntaxKind::BogusSelector
@@ -174,9 +176,16 @@ impl CanonicalSelectorAst {
         };
         let branches = branch_nodes
             .iter()
-            .filter_map(|branch| build_branch(branch, authority_start, authored.as_str()))
+            .enumerate()
+            .filter_map(|(index, branch)| {
+                build_branch(branch, authority_start, authored.as_str(), index == 0)
+            })
             .collect::<Vec<_>>();
-        (!branches.is_empty()).then_some(Self { authored, branches })
+        (!branches.is_empty()).then_some(Self {
+            authored,
+            source_byte_range: authority_start..authority_end,
+            branches,
+        })
     }
 
     pub fn authored(&self) -> &str {
@@ -201,6 +210,49 @@ impl CanonicalSelectorAst {
             .flat_map(|compound| compound.required_classes.iter())
     }
 
+    /// Issues a sealed class key only when the parser-owned selector AST covers
+    /// the source fact that produced the projected semantic name.
+    pub fn canonical_class_key_for_source_span(
+        &self,
+        semantic_name: &str,
+        source_byte_range: Range<usize>,
+        nesting_parent_name: Option<&str>,
+    ) -> Option<CanonicalClassKeyV0> {
+        if self.source_byte_range.start > source_byte_range.start
+            || source_byte_range.start >= source_byte_range.end
+            || source_byte_range.end > self.source_byte_range.end
+        {
+            return None;
+        }
+        let relative_source_range = source_byte_range.start - self.source_byte_range.start
+            ..source_byte_range.end - self.source_byte_range.start;
+        let key = ClassNameV0::new(semantic_name).canonical_key();
+        let matching_branches = self
+            .branches
+            .iter()
+            .filter(|branch| {
+                branch.byte_range.start <= relative_source_range.start
+                    && relative_source_range.end <= branch.byte_range.end
+            })
+            .collect::<Vec<_>>();
+        let directly_issued = matching_branches.iter().any(|branch| {
+            branch.compounds.iter().any(|compound| {
+                compound.byte_range.start <= relative_source_range.start
+                    && relative_source_range.end <= compound.byte_range.end
+                    && compound.required_classes.contains(&key)
+            })
+        });
+        let nesting_issued = nesting_parent_name.is_some_and(|parent_name| {
+            let expected = format!(".{semantic_name}");
+            let parent = format!(".{parent_name}");
+            matching_branches.iter().any(|branch| {
+                !branch.nesting_tokens.is_empty()
+                    && branch.substitute_nesting(parent.as_str()).trim() == expected
+            })
+        });
+        (directly_issued || nesting_issued).then_some(key)
+    }
+
     pub fn expand_with_parent(&self, parent: &Self) -> Option<String> {
         let mut expanded = Vec::new();
         for parent_branch in &parent.branches {
@@ -220,16 +272,22 @@ fn build_branch(
     branch: &SyntaxNode,
     authority_start: usize,
     authority_text: &str,
+    include_authority_prefix: bool,
 ) -> Option<CanonicalSelectorBranchV0> {
     let raw_branch_range = relative_range(branch, authority_start)?;
-    let raw_authored = authority_text.get(raw_branch_range.clone())?;
+    let authored_start = if include_authority_prefix {
+        0
+    } else {
+        raw_branch_range.start
+    };
+    let raw_authored = authority_text.get(authored_start..raw_branch_range.end)?;
     let leading_trivia_bytes = raw_authored
         .len()
         .saturating_sub(raw_authored.trim_start().len());
     let trailing_trivia_bytes = raw_authored
         .len()
         .saturating_sub(raw_authored.trim_end().len());
-    let branch_range = raw_branch_range.start.saturating_add(leading_trivia_bytes)
+    let branch_range = authored_start.saturating_add(leading_trivia_bytes)
         ..raw_branch_range.end.saturating_sub(trailing_trivia_bytes);
     let authored = authority_text.get(branch_range.clone())?.to_string();
     let complex = branch
@@ -364,6 +422,38 @@ fn byte_start(node: &SyntaxNode) -> usize {
 
 fn byte_end(node: &SyntaxNode) -> usize {
     u32::from(node.text_range().end()) as usize
+}
+
+fn leading_selector_trivia(selector_node: &SyntaxNode) -> (usize, String) {
+    let mut start = byte_start(selector_node);
+    let mut authored_parts = Vec::<String>::new();
+    let trivia_anchor = selector_node
+        .ancestors()
+        .find(|node| node.kind() == SyntaxKind::Rule)
+        .unwrap_or(selector_node);
+    let mut previous = trivia_anchor.prev_sibling_or_token();
+    while let Some(element) = previous {
+        let Some(token) = element.as_token() else {
+            break;
+        };
+        if !matches!(
+            token.kind(),
+            SyntaxKind::Whitespace | SyntaxKind::LineComment | SyntaxKind::BlockComment
+        ) {
+            break;
+        }
+        let Some(text) = token
+            .try_resolved()
+            .map(|resolved| resolved.text().to_string())
+        else {
+            break;
+        };
+        start = u32::from(token.text_range().start()) as usize;
+        authored_parts.push(text);
+        previous = element.prev_sibling_or_token();
+    }
+    authored_parts.reverse();
+    (start, authored_parts.concat())
 }
 
 fn syntax_node_text(node: &SyntaxNode) -> Option<String> {

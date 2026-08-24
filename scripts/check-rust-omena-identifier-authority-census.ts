@@ -315,7 +315,7 @@ const idiomMeaningRevisionReviews = [
   {
     disposition: "reviewed-sealed-selector-key-migration",
     reason:
-      "The matcher signature and element join changed from authored String storage to sealed decoded selector keys; the witness-only String insertion remains presentation data.",
+      "The matcher signature and element join changed from authored String storage to sealed decoded selector keys; the witness-only String insertion remains presentation data, and the CST authority now verifies its compound key before issuing the semantic projection key.",
   },
 ] as const;
 const lexemeGlobs = [
@@ -375,6 +375,15 @@ const egressExemptions: readonly ExemptionRule[] = [
 ] as const;
 
 const idiomExemptions: readonly ExemptionRule[] = [
+  {
+    path: "rust/crates/omena-syntax/src/selector.rs",
+    function: "canonical_class_key_for_source_span",
+    operation: "contains",
+    evidence: "&& compound.required_classes.contains(&key)",
+    reason:
+      "The sole selector authority verifies that a parser definition span names a class key carried by the same CST compound before issuing that key.",
+    disposition: "sanctioned",
+  },
   {
     path: "rust/crates/omena-cascade/src/selector.rs",
     function: "selector_match_branch_witness",
@@ -815,17 +824,25 @@ if (existing && writeMode) {
     (site) => !previousIdiomKeys.has(stableSiteKey(site)),
   );
   if (idiomAdditions.length > 0) {
-    assert.deepEqual(
-      idiomAdditions.map((site) => [site.path, site.function, site.operation]),
+    const reviewedIdiomAdditionKeys = [
+      ["rust/crates/omena-cascade/src/selector.rs", "selector_match_branch_witness", "insert"],
       [
-        ["rust/crates/omena-cascade/src/selector.rs", "selector_match_branch_witness", "insert"],
-        [
-          "rust/crates/omena-cascade/src/selector.rs",
-          "parse_simple_selector_signature_inner",
-          "insert",
-        ],
+        "rust/crates/omena-cascade/src/selector.rs",
+        "parse_simple_selector_signature_inner",
+        "insert",
       ],
-      "the reviewed selector-key meaning revision permits only the matcher storage and witness rows",
+      [
+        "rust/crates/omena-syntax/src/selector.rs",
+        "canonical_class_key_for_source_span",
+        "contains",
+      ],
+    ].map((key) => key.join("\0"));
+    assert.deepEqual(
+      idiomAdditions
+        .map((site) => [site.path, site.function, site.operation].join("\0"))
+        .filter((key) => !reviewedIdiomAdditionKeys.includes(key)),
+      [],
+      "the reviewed selector-key meaning revision permits only matcher storage, witness, and CST authority issuance rows",
     );
   } else {
     assertNoAddedSites(existing.idiom.sites, classifiedIdiomSites, "identifier idiom");

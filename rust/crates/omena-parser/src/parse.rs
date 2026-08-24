@@ -3648,38 +3648,55 @@ impl<'text> Parser<'text> {
     }
 
     fn layer_rule_prelude_is_valid(&self) -> bool {
-        let mut saw_name = false;
-        let mut expecting_segment = true;
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        enum LayerNameState {
+            FirstSegment,
+            SegmentAfterComma,
+            SegmentAfterDot,
+            AfterSegment,
+        }
+
+        let mut state = LayerNameState::FirstSegment;
+        let mut trivia_since_significant = false;
         let mut index = self.position;
 
         while let Some(token) = self.tokens.get(index) {
             if token.kind.is_trivia() {
+                trivia_since_significant = true;
                 index += 1;
                 continue;
             }
             if is_at_rule_prelude_boundary(token.kind) {
-                return saw_name && !expecting_segment;
+                return state == LayerNameState::AfterSegment;
             }
             if is_interpolation_start(token.kind) {
                 return true;
             }
             match token.kind {
-                SyntaxKind::Ident if expecting_segment => {
-                    saw_name = true;
-                    expecting_segment = false;
+                SyntaxKind::Ident
+                    if matches!(
+                        state,
+                        LayerNameState::FirstSegment | LayerNameState::SegmentAfterComma
+                    ) || (state == LayerNameState::SegmentAfterDot
+                        && !trivia_since_significant) =>
+                {
+                    state = LayerNameState::AfterSegment;
                 }
-                SyntaxKind::Comma if saw_name && !expecting_segment => {
-                    expecting_segment = true;
+                SyntaxKind::Comma if state == LayerNameState::AfterSegment => {
+                    state = LayerNameState::SegmentAfterComma;
                 }
-                SyntaxKind::Dot if saw_name && !expecting_segment => {
-                    expecting_segment = true;
+                SyntaxKind::Dot
+                    if state == LayerNameState::AfterSegment && !trivia_since_significant =>
+                {
+                    state = LayerNameState::SegmentAfterDot;
                 }
                 _ => return false,
             }
+            trivia_since_significant = false;
             index += 1;
         }
 
-        saw_name && !expecting_segment
+        state == LayerNameState::AfterSegment
     }
 
     fn parse_container_rule_prelude(&mut self) {

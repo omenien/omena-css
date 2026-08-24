@@ -72,6 +72,9 @@ pub(crate) fn summarize_layer_order_from_cst(source: &str, cst: &ParsedCst) -> L
         ) && node_has_block(node)
     }) {
         if node.kind() == SyntaxKind::LayerRule {
+            if layer_rule_has_invalid_prelude(node) {
+                continue;
+            }
             let paths = layer_paths_from_cst(source, node);
             blocks.push(LayerBlockDraftV0 {
                 context_id: format!("layer:{all_context_order}"),
@@ -116,6 +119,9 @@ pub(crate) fn summarize_layer_order_from_cst(source: &str, cst: &ParsedCst) -> L
     let mut nodes = BTreeMap::<LayerPathV0, LayerNodeDraftV0>::new();
     let mut source_order = 0usize;
     for event in events {
+        if layer_rule_has_invalid_prelude(event) {
+            continue;
+        }
         let parent = nearest_enclosing_block_for_node(event, blocks.as_slice());
         if parent.is_some_and(|block| block.canonical_path.is_none()) {
             unresolved_topology_count = unresolved_topology_count.saturating_add(1);
@@ -184,6 +190,12 @@ pub(crate) fn summarize_layer_order_from_cst(source: &str, cst: &ParsedCst) -> L
         block_bindings,
         unresolved_topology_count,
     }
+}
+
+fn layer_rule_has_invalid_prelude(layer_rule: &SyntaxNode) -> bool {
+    layer_rule
+        .children()
+        .any(|node| node.kind() == SyntaxKind::BogusLayerName)
 }
 
 fn nearest_enclosing_block(index: usize, blocks: &[LayerBlockDraftV0]) -> Option<usize> {

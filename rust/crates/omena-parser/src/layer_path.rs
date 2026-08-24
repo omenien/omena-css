@@ -3,7 +3,11 @@
 use omena_syntax::{LayerPathV0, SyntaxKind, SyntaxNode};
 
 pub fn layer_paths_from_cst(source: &str, layer_rule: &SyntaxNode) -> Vec<LayerPathV0> {
-    if layer_rule.kind() != SyntaxKind::LayerRule {
+    if layer_rule.kind() != SyntaxKind::LayerRule
+        || layer_rule
+            .children()
+            .any(|node| node.kind() == SyntaxKind::BogusLayerName)
+    {
         return Vec::new();
     }
 

@@ -415,6 +415,10 @@ pub struct StyleSelectorIdentityFactsV0 {
     /// authority rather than exposing a second report schema.
     #[serde(skip)]
     pub selector_asts: Vec<CanonicalSelectorAst>,
+    /// Parser definition spans that bind projected names back to the CST AST
+    /// which is allowed to issue their sealed canonical keys.
+    #[serde(skip)]
+    pub selector_authority_definitions: Vec<ParserIndexSelectorDefinitionFactV0>,
     pub canonical_names: Vec<String>,
     pub bem_suffix_safe_names: Vec<String>,
     pub bem_suffix_parent_names: Vec<String>,
