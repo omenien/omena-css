@@ -3914,6 +3914,7 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
     const TARGET_SAMPLE_BATCH_NS: u128 = 20_000_000;
     const MIN_SAMPLE_BATCH_INVOCATIONS: usize = 8;
     const MAX_SAMPLE_BATCH_INVOCATIONS: usize = 256;
+    const SIZE_ORDER_PASSES: [[usize; 3]; 3] = [[0, 1, 2], [1, 2, 0], [2, 0, 1]];
 
     fn alias_environment(binding_count: usize) -> CustomPropertyEnv {
         (0..binding_count)
@@ -4045,9 +4046,38 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
         controls: [&CustomPropertyEnv; 3],
         operation: fn(&CustomPropertyEnv),
     ) -> [(u128, u128, f64, usize, usize); 3] {
-        std::array::from_fn(|index| {
-            paired_measurement(|| operation(measured[index]), || operation(controls[index]))
-        })
+        fn median_order_balanced_pass(
+            passes: [(u128, u128, f64, usize, usize); 3],
+        ) -> (u128, u128, f64, usize, usize) {
+            let mut measured_medians = passes.map(|pass| pass.0);
+            let mut control_medians = passes.map(|pass| pass.1);
+            let mut paired_median_ratios = passes.map(|pass| pass.2);
+            let mut measured_batch_invocations = passes.map(|pass| pass.3);
+            let mut control_batch_invocations = passes.map(|pass| pass.4);
+            measured_medians.sort_unstable();
+            control_medians.sort_unstable();
+            paired_median_ratios.sort_by(f64::total_cmp);
+            measured_batch_invocations.sort_unstable();
+            control_batch_invocations.sort_unstable();
+            (
+                measured_medians[1],
+                control_medians[1],
+                paired_median_ratios[1],
+                measured_batch_invocations[1],
+                control_batch_invocations[1],
+            )
+        }
+
+        let mut passes = [[(0, 0, 0.0, 0, 0); 3]; 3];
+        for (pass_index, size_order) in SIZE_ORDER_PASSES.iter().enumerate() {
+            for size_index in size_order.iter().copied() {
+                passes[size_index][pass_index] = paired_measurement(
+                    || operation(measured[size_index]),
+                    || operation(controls[size_index]),
+                );
+            }
+        }
+        passes.map(median_order_balanced_pass)
     }
 
     fn print_and_assert_measurement(
@@ -4064,7 +4094,8 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
             std::array::from_fn(|index| measurements[index].4);
         let growth_exponent = normalized_three_size_slope(&measurements);
         println!(
-            "shape={shape} path={path} bindings={BINDING_COUNTS:?} targetSampleBatchNs={TARGET_SAMPLE_BATCH_NS} measuredBatchInvocations={measured_batch_invocations:?} flatControlBatchInvocations={control_batch_invocations:?} measuredMedianNs={measured_medians:?} flatControlMedianNs={control_medians:?} pairedMedianRatios={paired_median_ratios:.3?} medianNormalizedLogLogGrowthExponent={growth_exponent:.3} maximumLinearGrowthExponent={MAX_LINEAR_GROWTH_EXPONENT:.2}"
+            "shape={shape} path={path} bindings={BINDING_COUNTS:?} targetSampleBatchNs={TARGET_SAMPLE_BATCH_NS} sizeOrderPassCount={} measuredBatchInvocations={measured_batch_invocations:?} flatControlBatchInvocations={control_batch_invocations:?} measuredMedianNs={measured_medians:?} flatControlMedianNs={control_medians:?} pairedMedianRatios={paired_median_ratios:.3?} medianNormalizedLogLogGrowthExponent={growth_exponent:.3} maximumLinearGrowthExponent={MAX_LINEAR_GROWTH_EXPONENT:.2}",
+            SIZE_ORDER_PASSES.len()
         );
         assert!(
             growth_exponent <= MAX_LINEAR_GROWTH_EXPONENT,
