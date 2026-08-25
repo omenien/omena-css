@@ -22,6 +22,51 @@ export interface OmenaSemanticObservationCorpusEntry {
 
 export const OMENA_SEMANTIC_OBSERVATION_CORPUS: readonly OmenaSemanticObservationCorpusEntry[] = [
   {
+    label: "bem-marker-parent-chain",
+    styleFilePath: path.join(
+      workspaceRoot,
+      "test/_fixtures/omena-semantic-observation/bem-parent-chain/BemParentChain.module.scss",
+    ),
+    contract: {
+      label: "bem-marker-parent-chain-omena-semantic-observation",
+      contractVersion: "2",
+      workspace: {
+        workspaceRoot,
+        sourceFilePaths: [
+          path.join(
+            workspaceRoot,
+            "test/_fixtures/omena-semantic-observation/bem-parent-chain/BemParentChain.ts",
+          ),
+        ],
+        styleFilePaths: [
+          path.join(
+            workspaceRoot,
+            "test/_fixtures/omena-semantic-observation/bem-parent-chain/BemParentChain.module.scss",
+          ),
+        ],
+      },
+      filters: {
+        preset: "changed-source",
+        category: "source",
+        severity: "all",
+        includeBundles: ["source-missing"],
+        includeCodes: [],
+        excludeCodes: [],
+      },
+    },
+    expected: {
+      selectorIdentityStatus: "ready",
+      sourceEvidenceStatus: "gap",
+      downstreamReadinessStatus: "gap",
+      minSelectorCount: 3,
+      minExpressionCount: 0,
+      ready: false,
+      publishReady: true,
+      publishBlockingGaps: [],
+      observationGaps: ["sourceEvidence", "downstreamReadiness"],
+    },
+  },
+  {
     label: "literal-union-type-fact",
     styleFilePath: path.join(
       workspaceRoot,

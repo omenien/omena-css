@@ -1789,6 +1789,49 @@ fn suffix_nested_selector_occurrences_remain_definite_and_ready() -> Result<(), 
 }
 
 #[test]
+fn bem_marker_parent_chains_remain_definite_and_ready() -> Result<(), String> {
+    let fixtures = [
+        (
+            ".card { &__title { &--large {} } }",
+            vec!["card", "card__title", "card__title--large"],
+        ),
+        (
+            ".block { &__a { &__b { &__c {} } } }",
+            vec!["block", "block__a", "block__a__b", "block__a__b__c"],
+        ),
+    ];
+
+    for (source, expected_names) in fixtures {
+        let sheet = parse_style_module("Component.module.scss", source)
+            .ok_or_else(|| "SCSS module path should parse".to_string())?;
+        let graph = summarize_style_semantic_graph(&sheet, &sample_engine_input());
+        let observation = summarize_theory_observation_harness(&graph);
+        assert_eq!(
+            graph
+                .selector_identity_engine
+                .canonical_ids
+                .iter()
+                .map(|identity| identity.local_name())
+                .collect::<Vec<_>>(),
+            expected_names,
+            "BEM parent chain: {source}"
+        );
+        assert!(
+            graph
+                .selector_identity_engine
+                .rewrite_safety
+                .all_canonical_ids_rewrite_safe,
+            "BEM parent chain must remain rewrite-safe: {source}"
+        );
+        assert_eq!(observation.selector_identity.status, "ready", "{source}");
+        assert_eq!(observation.downstream_readiness.status, "ready", "{source}");
+        assert!(observation.blocking_gaps.is_empty(), "{source}");
+    }
+
+    Ok(())
+}
+
+#[test]
 fn selector_identity_observation_names_partial_authority_loss() -> Result<(), String> {
     let sheet = parse_style_module("Component.module.scss", ".button {} .other {}")
         .ok_or_else(|| "SCSS module path should parse".to_string())?;

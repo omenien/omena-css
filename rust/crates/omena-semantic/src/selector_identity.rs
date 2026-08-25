@@ -112,6 +112,10 @@ pub fn summarize_selector_identity_engine(
                 let inferred_nesting_parent = facts
                     .selector_authority_definitions
                     .iter()
+                    // These ordering, length, and prefix clauses only narrow the
+                    // candidate set. They cannot issue an identity: the parser-owned
+                    // AST substitution and decoded-key equality below remain the
+                    // authority, so a mistaken exclusion can only lose precision.
                     .filter(|candidate| {
                         candidate.source_order < definition.source_order
                             && candidate.name.len() < name.len()
@@ -120,15 +124,18 @@ pub fn summarize_selector_identity_engine(
                     })
                     .max_by_key(|candidate| (candidate.name.len(), candidate.source_order))
                     .map(|candidate| candidate.name.as_str());
+                let nesting_parent_names = [
+                    definition.bem_suffix_parent_name.as_deref(),
+                    inferred_nesting_parent,
+                ];
                 facts.selector_asts.iter().find_map(|ast| {
-                    ast.canonical_class_key_for_source_span(
-                        name,
-                        definition.byte_span.start..definition.byte_span.end,
-                        definition
-                            .bem_suffix_parent_name
-                            .as_deref()
-                            .or(inferred_nesting_parent),
-                    )
+                    nesting_parent_names.into_iter().find_map(|parent_name| {
+                        ast.canonical_class_key_for_source_span(
+                            name,
+                            definition.byte_span.start..definition.byte_span.end,
+                            parent_name,
+                        )
+                    })
                 })
             })
             .filter(|authority_key| authority_key == &decoded_key);
