@@ -600,18 +600,29 @@ mod tests {
                 style_source: ":export { button: #0af; } .button { color: red; }".to_string(),
             }],
         ));
-        let payload = serde_json::to_value(&response).expect("bundler response must serialize");
+        let payload = serde_json::to_value(&response);
+        assert!(payload.is_ok(), "bundler response must serialize");
+        let Ok(payload) = payload else {
+            return;
+        };
 
-        let class_value = payload["classExports"]["button"]
-            .as_str()
-            .expect("class family must retain the emitted class token");
+        let class_value = payload["classExports"]["button"].as_str();
+        assert!(
+            class_value.is_some(),
+            "class family must retain the emitted class token"
+        );
+        let Some(class_value) = class_value else {
+            return;
+        };
         assert!(class_value.ends_with("_button"), "{class_value:?}");
         assert_eq!(payload["valueExports"]["button"], "#0af");
         assert!(payload.get("classMap").is_none());
 
-        let named = payload["namedExports"]
-            .as_array()
-            .expect("named exports must be typed entries");
+        let named = payload["namedExports"].as_array();
+        assert!(named.is_some(), "named exports must be typed entries");
+        let Some(named) = named else {
+            return;
+        };
         assert!(named.iter().any(|entry| {
             entry["exportedName"] == "button"
                 && entry["kind"] == "class"
@@ -623,17 +634,23 @@ mod tests {
                 && entry["value"] == "#0af"
         }));
 
-        let collision = payload["diagnostics"]
-            .as_array()
-            .and_then(|diagnostics| {
-                diagnostics
-                    .iter()
-                    .find(|diagnostic| diagnostic["code"] == "exportNamespaceCollision")
-            })
-            .expect("same-name collision must be diagnosed");
-        let anchors = collision["sourceAnchors"]
-            .as_array()
-            .expect("collision diagnostic must be source-anchored");
+        let collision = payload["diagnostics"].as_array().and_then(|diagnostics| {
+            diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic["code"] == "exportNamespaceCollision")
+        });
+        assert!(collision.is_some(), "same-name collision must be diagnosed");
+        let Some(collision) = collision else {
+            return;
+        };
+        let anchors = collision["sourceAnchors"].as_array();
+        assert!(
+            anchors.is_some(),
+            "collision diagnostic must be source-anchored"
+        );
+        let Some(anchors) = anchors else {
+            return;
+        };
         assert_eq!(anchors.len(), 2);
         assert!(anchors.iter().any(|anchor| anchor["kind"] == "class"));
         assert!(anchors.iter().any(|anchor| anchor["kind"] == "value"));

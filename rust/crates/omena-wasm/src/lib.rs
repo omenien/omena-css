@@ -1367,7 +1367,7 @@ mod tests {
 
     #[test]
     fn bundler_host_boundary_keeps_same_named_export_families_separate() {
-        let request: OmenaBundlerHostResolveModuleRequestV0 = serde_json::from_str(
+        let request = serde_json::from_str::<OmenaBundlerHostResolveModuleRequestV0>(
             r#"{
               "snapshotId": { "value": 1 },
               "workspaceRoot": "/workspace",
@@ -1378,10 +1378,16 @@ mod tests {
               }],
               "packageManifests": []
             }"#,
-        )
-        .expect("wasm bundler request must deserialize");
-        let payload = serde_json::to_value(resolve_css_module_for_bundler_host_response(request))
-            .expect("wasm bundler response must serialize");
+        );
+        assert!(request.is_ok(), "wasm bundler request must deserialize");
+        let Ok(request) = request else {
+            return;
+        };
+        let payload = serde_json::to_value(resolve_css_module_for_bundler_host_response(request));
+        assert!(payload.is_ok(), "wasm bundler response must serialize");
+        let Ok(payload) = payload else {
+            return;
+        };
 
         assert!(payload.get("classMap").is_none());
         assert_eq!(payload["classExports"]["button"], "_zeCWO7_button");
