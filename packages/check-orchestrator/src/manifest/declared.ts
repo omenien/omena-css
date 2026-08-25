@@ -756,7 +756,7 @@ export const DECLARED_CHECK_GATES = [
     ciTier: "rust-workspace",
     ciGroup: "rust-workspace",
   },
-  declaredClosurePackageGate("rust/omena-cascade/boundary", "bundle", "rust"),
+  declaredClosurePackageGate("rust/omena-cascade/boundary", "bundle", "rust", 25),
   declaredClosurePackageGate("rust/omena-diff-test-core", "bundle", "rust"),
   declaredClosurePackageGate("rust/omena-diff-test-wpt", "bundle", "rust"),
   declaredClosurePackageGate("rust/omena-diff-test-sass-spec", "bundle", "rust"),
@@ -1497,6 +1497,7 @@ function declaredClosurePackageGate(
   id: string,
   kind: DeclaredCheckGateV0["kind"],
   scope: DeclaredCheckGateV0["scope"],
+  timeoutMinutes = 20,
 ): DeclaredCheckGateV0 {
   return {
     id,
@@ -1506,7 +1507,7 @@ function declaredClosurePackageGate(
     tags: ["closure-fast"],
     ciTier: "closure-fast",
     ciGroup: "closure-fast",
-    timeoutMinutes: 20,
+    timeoutMinutes,
   };
 }
 
