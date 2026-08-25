@@ -1,5 +1,6 @@
 import type {
   OmenaBundleEvidenceManifestV0,
+  OmenaBundlerHostNamedExportV0,
   OmenaBundlerHostResolveModuleResponseV0,
   OmenaClosedWorldDecisionParityV0,
   OmenaClosedWorldOutcomeV0,
@@ -235,8 +236,9 @@ export interface OmenaBuildOutput {
   readonly code: string;
   readonly map: OmenaSourceMapV3V0 | null;
   readonly summary: OmenaConsumerBuildSummaryV0;
-  readonly classMap?: Readonly<Record<string, string>>;
-  readonly namedExports?: Readonly<Record<string, string>>;
+  readonly classExports?: Readonly<Record<string, string>>;
+  readonly valueExports?: Readonly<Record<string, string>>;
+  readonly namedExports?: readonly OmenaBundlerHostNamedExportV0[];
   readonly typescriptDeclaration?: string;
   readonly moduleInterface?: OmenaBundlerHostResolveModuleResponseV0;
 }

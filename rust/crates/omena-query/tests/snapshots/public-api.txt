@@ -342,6 +342,9 @@ pub enum omena_query::ModelClassV0
 pub omena_query::ModelClassV0::Nml
 pub omena_query::ModelClassV0::TwoPartMultinomial
 pub omena_query::ModelClassV0::TwoPartUniform
+pub enum omena_query::OmenaBundlerHostExportKindV0
+pub omena_query::OmenaBundlerHostExportKindV0::Class
+pub omena_query::OmenaBundlerHostExportKindV0::Value
 pub enum omena_query::OmenaErrorClassV0
 pub omena_query::OmenaErrorClassV0::Analysis
 pub omena_query::OmenaErrorClassV0::Input
@@ -753,9 +756,19 @@ pub struct omena_query::OmenaBundlerHostComposesEdgeV0
 pub omena_query::OmenaBundlerHostComposesEdgeV0::class_name: alloc::string::String
 pub omena_query::OmenaBundlerHostComposesEdgeV0::exported_name: alloc::string::String
 pub omena_query::OmenaBundlerHostComposesEdgeV0::module_id: alloc::string::String
+pub struct omena_query::OmenaBundlerHostDiagnosticSourceAnchorV0
+pub omena_query::OmenaBundlerHostDiagnosticSourceAnchorV0::end_byte: u64
+pub omena_query::OmenaBundlerHostDiagnosticSourceAnchorV0::kind: omena_query::OmenaBundlerHostExportKindV0
+pub omena_query::OmenaBundlerHostDiagnosticSourceAnchorV0::start_byte: u64
+pub omena_query::OmenaBundlerHostDiagnosticSourceAnchorV0::style_path: alloc::string::String
 pub struct omena_query::OmenaBundlerHostDiagnosticV0
 pub omena_query::OmenaBundlerHostDiagnosticV0::code: alloc::string::String
 pub omena_query::OmenaBundlerHostDiagnosticV0::message: alloc::string::String
+pub omena_query::OmenaBundlerHostDiagnosticV0::source_anchors: alloc::vec::Vec<omena_query::OmenaBundlerHostDiagnosticSourceAnchorV0>
+pub struct omena_query::OmenaBundlerHostNamedExportV0
+pub omena_query::OmenaBundlerHostNamedExportV0::exported_name: alloc::string::String
+pub omena_query::OmenaBundlerHostNamedExportV0::kind: omena_query::OmenaBundlerHostExportKindV0
+pub omena_query::OmenaBundlerHostNamedExportV0::value: alloc::string::String
 pub struct omena_query::OmenaBundlerHostResolveModuleRequestV0
 pub omena_query::OmenaBundlerHostResolveModuleRequestV0::package_manifests: alloc::vec::Vec<omena_query::OmenaQueryStylePackageManifestV0>
 pub omena_query::OmenaBundlerHostResolveModuleRequestV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
@@ -763,15 +776,16 @@ pub omena_query::OmenaBundlerHostResolveModuleRequestV0::style_path: alloc::stri
 pub omena_query::OmenaBundlerHostResolveModuleRequestV0::style_sources: alloc::vec::Vec<omena_query::OmenaQueryStyleSourceInputV0>
 pub omena_query::OmenaBundlerHostResolveModuleRequestV0::workspace_root: alloc::string::String
 pub struct omena_query::OmenaBundlerHostResolveModuleResponseV0
-pub omena_query::OmenaBundlerHostResolveModuleResponseV0::class_map: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub omena_query::OmenaBundlerHostResolveModuleResponseV0::class_exports: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub omena_query::OmenaBundlerHostResolveModuleResponseV0::composes_edges: alloc::vec::Vec<omena_query::OmenaBundlerHostComposesEdgeV0>
 pub omena_query::OmenaBundlerHostResolveModuleResponseV0::diagnostics: alloc::vec::Vec<omena_query::OmenaBundlerHostDiagnosticV0>
 pub omena_query::OmenaBundlerHostResolveModuleResponseV0::module_id: alloc::string::String
-pub omena_query::OmenaBundlerHostResolveModuleResponseV0::named_exports: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub omena_query::OmenaBundlerHostResolveModuleResponseV0::named_exports: alloc::vec::Vec<omena_query::OmenaBundlerHostNamedExportV0>
 pub omena_query::OmenaBundlerHostResolveModuleResponseV0::protocol_version: alloc::string::String
 pub omena_query::OmenaBundlerHostResolveModuleResponseV0::ready: bool
 pub omena_query::OmenaBundlerHostResolveModuleResponseV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
 pub omena_query::OmenaBundlerHostResolveModuleResponseV0::typescript_declaration: alloc::string::String
+pub omena_query::OmenaBundlerHostResolveModuleResponseV0::value_exports: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub struct omena_query::OmenaCliResponseEnvelopeV0
 pub omena_query::OmenaCliResponseEnvelopeV0::config_content_digest: core::option::Option<alloc::string::String>
 pub omena_query::OmenaCliResponseEnvelopeV0::payload: serde_json::value::Value
@@ -1162,6 +1176,7 @@ pub omena_query::OmenaQueryCssModuleClassExportV0::emitted_classes: alloc::vec::
 pub omena_query::OmenaQueryCssModuleClassExportV0::name: alloc::string::String
 pub omena_query::OmenaQueryCssModuleClassExportV0::named_export: core::option::Option<alloc::string::String>
 pub omena_query::OmenaQueryCssModuleClassExportV0::resolved_classes: alloc::vec::Vec<omena_query::OmenaQueryCssModuleClassReferenceV0>
+pub omena_query::OmenaQueryCssModuleClassExportV0::source_spans: alloc::vec::Vec<omena_query::OmenaQueryCssModuleExportSourceSpanV0>
 pub struct omena_query::OmenaQueryCssModuleClassReferenceV0
 pub omena_query::OmenaQueryCssModuleClassReferenceV0::module_id: omena_parser::closed_world::contract::ModuleIdV0
 pub omena_query::OmenaQueryCssModuleClassReferenceV0::name: alloc::string::String
@@ -1170,6 +1185,9 @@ pub omena_query::OmenaQueryCssModuleComposesEdgeFactV0::import_source: core::opt
 pub omena_query::OmenaQueryCssModuleComposesEdgeFactV0::kind: &'static str
 pub omena_query::OmenaQueryCssModuleComposesEdgeFactV0::owner_selector_names: alloc::vec::Vec<alloc::string::String>
 pub omena_query::OmenaQueryCssModuleComposesEdgeFactV0::target_names: alloc::vec::Vec<alloc::string::String>
+pub struct omena_query::OmenaQueryCssModuleExportSourceSpanV0
+pub omena_query::OmenaQueryCssModuleExportSourceSpanV0::end: usize
+pub omena_query::OmenaQueryCssModuleExportSourceSpanV0::start: usize
 pub struct omena_query::OmenaQueryCssModuleExportUsageV0
 pub omena_query::OmenaQueryCssModuleExportUsageV0::export_name: alloc::string::String
 pub omena_query::OmenaQueryCssModuleExportUsageV0::module_id: omena_parser::closed_world::contract::ModuleIdV0
@@ -1180,6 +1198,7 @@ pub omena_query::OmenaQueryCssModuleExportUsageV0::style_path: alloc::string::St
 pub struct omena_query::OmenaQueryCssModuleIcssExportV0
 pub omena_query::OmenaQueryCssModuleIcssExportV0::name: alloc::string::String
 pub omena_query::OmenaQueryCssModuleIcssExportV0::named_export: core::option::Option<alloc::string::String>
+pub omena_query::OmenaQueryCssModuleIcssExportV0::source_spans: alloc::vec::Vec<omena_query::OmenaQueryCssModuleExportSourceSpanV0>
 pub omena_query::OmenaQueryCssModuleIcssExportV0::value: alloc::string::String
 pub struct omena_query::OmenaQueryCssModuleInterfaceV0
 pub omena_query::OmenaQueryCssModuleInterfaceV0::class_exports: alloc::vec::Vec<omena_query::OmenaQueryCssModuleClassExportV0>

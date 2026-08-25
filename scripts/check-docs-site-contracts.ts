@@ -201,7 +201,7 @@ for (const cssModulesConsumerGuide of [
 ]) {
   assert.match(
     readFile(cssModulesConsumerGuide),
-    /(?:For CSS Modules, the|The) emitted token is not a contract; `classMap`, `namedExports`,\s+and\s+the\s+generated `\.d\.ts` are\. Hand-writing an emitted token into markup, tests,\s+or\s+CSS\s+is unsupported\./u,
+    /(?:For CSS Modules, )?[Ee]mitted tokens are not a contract; typed `classExports`, typed\s+`valueExports`,\s+family-tagged `namedExports`, and the generated `\.d\.ts` are\.\s+Same-named class\s+and ICSS value exports remain separate instead of collapsing\s+into one binding\.\s+Hand-writing an emitted token into markup, tests, or CSS is unsupported\./u,
     `${cssModulesConsumerGuide} must declare emitted CSS Modules tokens unsupported as a consumer contract`,
   );
 }

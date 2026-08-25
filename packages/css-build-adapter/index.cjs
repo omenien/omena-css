@@ -108,7 +108,8 @@ async function runOmenaBuild(filePath, source, options, state) {
     summary,
     ...(moduleInterface
       ? {
-          classMap: moduleInterface.classMap,
+          classExports: moduleInterface.classExports,
+          valueExports: moduleInterface.valueExports,
           namedExports: moduleInterface.namedExports,
           typescriptDeclaration: moduleInterface.typescriptDeclaration,
           moduleInterface,
@@ -150,8 +151,11 @@ async function resolveCssModuleInterface(engine, filePath, sources, packageManif
     throw new Error("[omena-css] loaded engine is missing the bundler host protocol.");
   }
   const capabilities = await engine.bundlerHostCapabilities();
-  if (!capabilities.capabilities?.includes("semanticClassMap")) {
-    throw new Error("[omena-css] loaded engine does not advertise semantic class maps.");
+  if (!capabilities.capabilities?.includes("semanticClassExports")) {
+    throw new Error("[omena-css] loaded engine does not advertise semantic class exports.");
+  }
+  if (!capabilities.capabilities?.includes("typedExportNamespaces")) {
+    throw new Error("[omena-css] loaded engine does not advertise typed export namespaces.");
   }
   const response = await engine.resolveCssModule({
     snapshotId: { value: state.generations.get(filePath) ?? 0 },
@@ -231,7 +235,7 @@ function appendPassIds(passIds, preset) {
 function normalizeContext(options, moduleInterface) {
   const context = { ...options.context };
   if (moduleInterface) {
-    context.classNameRewrites = Object.entries(moduleInterface.classMap).map(
+    context.classNameRewrites = Object.entries(moduleInterface.classExports).map(
       ([originalName, emittedClasses]) => ({
         originalName,
         rewrittenName: firstEmittedClass(emittedClasses, originalName),
@@ -265,8 +269,8 @@ function selectModuleInterfaceTokens(moduleInterface, suppliedContext) {
     ]),
   );
   const selectedByResolvedToken = new Map();
-  const classMap = Object.fromEntries(
-    Object.entries(moduleInterface.classMap).map(([originalName, emittedClasses]) => {
+  const classExports = Object.fromEntries(
+    Object.entries(moduleInterface.classExports).map(([originalName, emittedClasses]) => {
       const selected = selectedByOriginalName.get(originalName);
       if (typeof selected !== "string" || selected.length === 0) {
         return [originalName, emittedClasses];
@@ -276,16 +280,15 @@ function selectModuleInterfaceTokens(moduleInterface, suppliedContext) {
       return [originalName, replaceFirstEmittedClass(emittedClasses, selected)];
     }),
   );
-  const namedExports = Object.fromEntries(
-    Object.entries(moduleInterface.namedExports).map(([exportName, emittedClasses]) => {
-      const current = firstEmittedClass(emittedClasses, exportName);
-      return [
-        exportName,
-        replaceFirstEmittedClass(emittedClasses, selectedByResolvedToken.get(current) ?? current),
-      ];
-    }),
-  );
-  return { ...moduleInterface, classMap, namedExports };
+  const namedExports = moduleInterface.namedExports.map((entry) => {
+    if (entry.kind !== "class") return entry;
+    const current = firstEmittedClass(entry.value, entry.exportedName);
+    return {
+      ...entry,
+      value: replaceFirstEmittedClass(entry.value, selectedByResolvedToken.get(current) ?? current),
+    };
+  });
+  return { ...moduleInterface, classExports, namedExports };
 }
 
 function replaceFirstEmittedClass(emittedClasses, selected) {

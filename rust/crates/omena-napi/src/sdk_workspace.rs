@@ -409,7 +409,7 @@ mod tests {
             .map_err(native_error)?;
         assert!(response.ready);
         assert_eq!(response.protocol_version, "0");
-        assert!(response.class_map.contains_key("button"));
+        assert!(response.class_exports.contains_key("button"));
         Ok(())
     }
 }

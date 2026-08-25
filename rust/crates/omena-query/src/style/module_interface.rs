@@ -8,6 +8,8 @@ use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) type EmittedClassNameIndexV0 = BTreeMap<(String, String), String>;
+pub(super) type ExportSourceSpanIndexV0 =
+    BTreeMap<String, BTreeMap<String, Vec<OmenaQueryCssModuleExportSourceSpanV0>>>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,6 +38,13 @@ pub struct OmenaQueryCssModuleClassReferenceV0 {
     pub name: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCssModuleExportSourceSpanV0 {
+    pub start: usize,
+    pub end: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCssModuleClassExportV0 {
@@ -44,6 +53,7 @@ pub struct OmenaQueryCssModuleClassExportV0 {
     pub named_export: Option<String>,
     pub resolved_classes: Vec<OmenaQueryCssModuleClassReferenceV0>,
     pub emitted_classes: Vec<String>,
+    pub source_spans: Vec<OmenaQueryCssModuleExportSourceSpanV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -53,6 +63,7 @@ pub struct OmenaQueryCssModuleIcssExportV0 {
     pub value: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub named_export: Option<String>,
+    pub source_spans: Vec<OmenaQueryCssModuleExportSourceSpanV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -73,6 +84,8 @@ pub(super) fn summarize_css_modules_interface_bundle_from_projections(
     projections: &[OmenaQueryModuleInterfaceProjectionV0],
     resolution: &OmenaQueryCssModulesCrossFileResolutionV0,
     icss_export_values_by_path: &BTreeMap<String, BTreeMap<String, String>>,
+    class_export_source_spans_by_path: &ExportSourceSpanIndexV0,
+    icss_export_source_spans_by_path: &ExportSourceSpanIndexV0,
     emitted_class_names: &EmittedClassNameIndexV0,
 ) -> OmenaQueryCssModulesInterfaceBundleV0 {
     let mut projections = projections.iter().collect::<Vec<_>>();
@@ -85,6 +98,8 @@ pub(super) fn summarize_css_modules_interface_bundle_from_projections(
                 projection,
                 resolution,
                 icss_export_values_by_path.get(projection.style_path.as_str()),
+                class_export_source_spans_by_path.get(projection.style_path.as_str()),
+                icss_export_source_spans_by_path.get(projection.style_path.as_str()),
                 emitted_class_names,
             )
         })
@@ -109,6 +124,10 @@ fn module_interface_from_projection(
     projection: &OmenaQueryModuleInterfaceProjectionV0,
     resolution: &OmenaQueryCssModulesCrossFileResolutionV0,
     icss_export_values: Option<&BTreeMap<String, String>>,
+    class_export_source_spans: Option<
+        &BTreeMap<String, Vec<OmenaQueryCssModuleExportSourceSpanV0>>,
+    >,
+    icss_export_source_spans: Option<&BTreeMap<String, Vec<OmenaQueryCssModuleExportSourceSpanV0>>>,
     emitted_class_names: &EmittedClassNameIndexV0,
 ) -> OmenaQueryCssModuleInterfaceV0 {
     let module_id = OmenaQueryModuleIdV0::new(projection.style_path.clone());
@@ -163,6 +182,10 @@ fn module_interface_from_projection(
                 .collect();
             OmenaQueryCssModuleClassExportV0 {
                 named_export: ecmascript_named_export(&name),
+                source_spans: class_export_source_spans
+                    .and_then(|spans| spans.get(name.as_str()))
+                    .cloned()
+                    .unwrap_or_default(),
                 name,
                 resolved_classes,
                 emitted_classes,
@@ -183,6 +206,10 @@ fn module_interface_from_projection(
         .into_iter()
         .map(|(name, value)| OmenaQueryCssModuleIcssExportV0 {
             named_export: ecmascript_named_export(&name),
+            source_spans: icss_export_source_spans
+                .and_then(|spans| spans.get(name.as_str()))
+                .cloned()
+                .unwrap_or_default(),
             name,
             value,
         })
@@ -209,27 +236,34 @@ pub fn render_omena_query_css_module_typescript_declaration(
     module: &OmenaQueryCssModuleInterfaceV0,
 ) -> String {
     let mut output = String::from(
-        "// Emitted CSS Modules tokens are implementation details; class keys in this declaration are the contract.\n\
-         declare const styles: {\n",
+        "// Emitted CSS Modules tokens and ICSS values occupy distinct export namespaces.\n\
+         export declare const classExports: {\n",
     );
-    let export_names = module
+    let class_export_names = module
         .class_exports
         .iter()
         .map(|export| export.name.as_str())
-        .chain(
-            module
-                .icss_exports
-                .iter()
-                .map(|export| export.name.as_str()),
-        )
         .collect::<BTreeSet<_>>();
-    for export_name in export_names {
+    for export_name in class_export_names {
         let name = serde_json::to_string(export_name).unwrap_or_else(|_| "\"\"".to_string());
         output.push_str("  readonly ");
         output.push_str(name.as_str());
         output.push_str(": string;\n");
     }
-    output.push_str("};\nexport default styles;\n");
+    output.push_str("};\nexport declare const valueExports: {\n");
+    for export_name in module
+        .icss_exports
+        .iter()
+        .map(|export| export.name.as_str())
+        .collect::<BTreeSet<_>>()
+    {
+        let name = serde_json::to_string(export_name).unwrap_or_else(|_| "\"\"".to_string());
+        output.push_str("  readonly ");
+        output.push_str(name.as_str());
+        output.push_str(": string;\n");
+    }
+    output.push_str("};\ndeclare const styles: typeof classExports;\nexport default styles;\n");
+    let mut named_export_counts = BTreeMap::<&str, usize>::new();
     for named_export in module
         .class_exports
         .iter()
@@ -240,8 +274,13 @@ pub fn render_omena_query_css_module_typescript_declaration(
                 .iter()
                 .filter_map(|export| export.named_export.as_deref()),
         )
-        .collect::<BTreeSet<_>>()
     {
+        *named_export_counts.entry(named_export).or_default() += 1;
+    }
+    for (named_export, count) in named_export_counts {
+        if count != 1 || matches!(named_export, "classExports" | "valueExports") {
+            continue;
+        }
         output.push_str("export const ");
         output.push_str(named_export);
         output.push_str(": string;\n");
@@ -468,8 +507,11 @@ mod tests {
             render_omena_query_css_module_typescript_declaration(&reversed_bundle.modules[1]);
         assert_eq!(first_declaration, second_declaration);
         assert!(first_declaration.starts_with(
-            "// Emitted CSS Modules tokens are implementation details; class keys in this declaration are the contract.\n"
+            "// Emitted CSS Modules tokens and ICSS values occupy distinct export namespaces.\n"
         ));
+        assert!(first_declaration.contains("export declare const classExports:"));
+        assert!(first_declaration.contains("export declare const valueExports:"));
+        assert!(first_declaration.contains("declare const styles: typeof classExports;"));
         let mut token_changed_module = bundle.modules[1].clone();
         for export in &mut token_changed_module.class_exports {
             export.emitted_classes = vec!["opaque-token-change".to_string()];

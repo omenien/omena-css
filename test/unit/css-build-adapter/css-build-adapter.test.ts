@@ -34,6 +34,14 @@ type AdapterExports = {
     state: OmenaBuildState,
   ) => Promise<{
     readonly code: string;
+    readonly classExports?: Readonly<Record<string, string>>;
+    readonly valueExports?: Readonly<Record<string, string>>;
+    readonly namedExports?: readonly {
+      readonly exportedName: string;
+      readonly kind: "class" | "value";
+      readonly value: string;
+    }[];
+    readonly moduleInterface?: { readonly diagnostics: readonly { readonly code: string }[] };
     readonly summary?: {
       readonly perPassProvenance?: readonly unknown[];
       readonly executionScope?: unknown;
@@ -54,12 +62,20 @@ const SEMANTIC_MINIFY_PASS_IDS = JSON.parse(
   ),
 ) as readonly string[];
 
-function bundlerHostMock(classMap: Readonly<Record<string, string>>) {
+function bundlerHostMock(
+  classExports: Readonly<Record<string, string>>,
+  valueExports: Readonly<Record<string, string>> = {},
+) {
   return {
     bundlerHostCapabilitiesJson: () =>
       JSON.stringify({
         protocolVersion: "0",
-        capabilities: ["semanticClassMap", "namedExports", "composesEdges"],
+        capabilities: [
+          "semanticClassExports",
+          "typedExportNamespaces",
+          "namedExports",
+          "composesEdges",
+        ],
       }),
     resolveCssModuleForBundlerHostJson: (requestJson: string) => {
       const request = JSON.parse(requestJson) as { snapshotId: unknown; stylePath: string };
@@ -67,12 +83,30 @@ function bundlerHostMock(classMap: Readonly<Record<string, string>>) {
         snapshotId: request.snapshotId,
         protocolVersion: "0",
         moduleId: request.stylePath,
-        classMap,
-        namedExports: classMap,
+        classExports,
+        valueExports,
+        namedExports: [
+          ...Object.entries(classExports).map(([exportedName, value]) => ({
+            exportedName,
+            kind: "class",
+            value,
+          })),
+          ...Object.entries(valueExports).map(([exportedName, value]) => ({
+            exportedName,
+            kind: "value",
+            value,
+          })),
+        ],
         typescriptDeclaration:
           "declare const styles: Readonly<Record<string, string>>;\nexport default styles;\n",
         composesEdges: [],
-        diagnostics: [],
+        diagnostics: Object.keys(classExports)
+          .filter((name) => Object.hasOwn(valueExports, name))
+          .map((name) => ({
+            code: "exportNamespaceCollision",
+            message: `${name} is exported by both namespaces`,
+            sourceAnchors: [],
+          })),
         ready: true,
       });
     },
@@ -262,12 +296,53 @@ describe("@omena/css-build-adapter", () => {
       ),
     ).resolves.toMatchObject({
       code: "._Cd2efG_button{color:red}",
-      classMap: { button: "_Cd2efG_button _Zy9xW8_base" },
+      classExports: { button: "_Cd2efG_button _Zy9xW8_base" },
     });
     expect(observedContexts).toEqual([
       {
         classNameRewrites: [{ originalName: "button", rewrittenName: "_Cd2efG_button" }],
       },
+    ]);
+  });
+
+  it("keeps same-named class and value exports separate from class rewrites", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-build-adapter-export-families-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "Button.module.css");
+    const source = ":export { button: #0af; } .button { color: red; }";
+    const observedContexts: unknown[] = [];
+    const engine = {
+      ...bundlerHostMock({ button: "_Ab1cdE_button" }, { button: "#0af" }),
+      summarizeTransformBundleFromSourceJson: () => JSON.stringify({ plannedPassIds: [] }),
+      buildStyleSourcesWithContextJson: (
+        _targetPath: string,
+        _sourcesJson: string,
+        _passIds: string[],
+        contextJson: string,
+      ) => {
+        observedContexts.push(JSON.parse(contextJson));
+        return JSON.stringify({ execution: { outputCss: source, executedPassIds: [] } });
+      },
+    };
+
+    const output = await rebuildAndCache(
+      stylePath,
+      source,
+      { cwd: root, configFile: false, engine },
+      createOmenaBuildState({ cwd: root }),
+    );
+
+    expect(output.classExports).toEqual({ button: "_Ab1cdE_button" });
+    expect(output.valueExports).toEqual({ button: "#0af" });
+    expect(output.namedExports).toEqual([
+      { exportedName: "button", kind: "class", value: "_Ab1cdE_button" },
+      { exportedName: "button", kind: "value", value: "#0af" },
+    ]);
+    expect(output.moduleInterface?.diagnostics).toEqual([
+      expect.objectContaining({ code: "exportNamespaceCollision" }),
+    ]);
+    expect(observedContexts).toEqual([
+      { classNameRewrites: [{ originalName: "button", rewrittenName: "_Ab1cdE_button" }] },
     ]);
   });
 

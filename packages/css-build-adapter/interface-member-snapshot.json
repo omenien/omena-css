@@ -148,7 +148,7 @@
     },
     {
       "interfaceName": "OmenaBuildOutput",
-      "member": "classMap",
+      "member": "classExports",
       "optional": true,
       "typeExpression": "Readonly<Record<string,string>>"
     },
@@ -174,7 +174,7 @@
       "interfaceName": "OmenaBuildOutput",
       "member": "namedExports",
       "optional": true,
-      "typeExpression": "Readonly<Record<string,string>>"
+      "typeExpression": "readonly OmenaBundlerHostNamedExportV0[]"
     },
     {
       "interfaceName": "OmenaBuildOutput",
@@ -187,6 +187,12 @@
       "member": "typescriptDeclaration",
       "optional": true,
       "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaBuildOutput",
+      "member": "valueExports",
+      "optional": true,
+      "typeExpression": "Readonly<Record<string,string>>"
     },
     {
       "interfaceName": "OmenaBuildState",

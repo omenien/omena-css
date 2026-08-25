@@ -175,7 +175,12 @@ function createRecordingEngine(
     bundlerHostCapabilitiesJson() {
       return JSON.stringify({
         protocolVersion: "0",
-        capabilities: ["semanticClassMap", "namedExports", "composesEdges"],
+        capabilities: [
+          "semanticClassExports",
+          "typedExportNamespaces",
+          "namedExports",
+          "composesEdges",
+        ],
       });
     },
     resolveCssModuleForBundlerHostJson(requestJson: string) {
@@ -184,10 +189,11 @@ function createRecordingEngine(
         snapshotId: request.snapshotId,
         protocolVersion: "0",
         moduleId: request.stylePath,
-        classMap: { button: "_button_0" },
-        namedExports: { button: "_button_0" },
+        classExports: { button: "_button_0" },
+        valueExports: {},
+        namedExports: [{ exportedName: "button", kind: "class", value: "_button_0" }],
         typescriptDeclaration:
-          "declare const styles: Readonly<Record<string, string>>;\nexport default styles;\n",
+          "declare const classExports: Readonly<Record<string, string>>;\ndeclare const valueExports: Readonly<Record<string, string>>;\ndeclare const styles: { readonly classExports: typeof classExports; readonly valueExports: typeof valueExports };\nexport default styles;\n",
         composesEdges: [],
         diagnostics: [],
         ready: true,

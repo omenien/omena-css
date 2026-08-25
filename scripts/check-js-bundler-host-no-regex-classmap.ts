@@ -4,11 +4,19 @@ import path from "node:path";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const packageRoots = ["packages/css-build-adapter", "packages/vite-plugin"] as const;
-const targets = packageRoots.flatMap((relativePath) =>
-  packageSourceFiles(path.join(repoRoot, relativePath)).map((filePath) =>
-    path.relative(repoRoot, filePath),
+const targets = [
+  ...packageRoots.flatMap((relativePath) =>
+    packageSourceFiles(path.join(repoRoot, relativePath)).map((filePath) =>
+      path.relative(repoRoot, filePath),
+    ),
   ),
-);
+  "contracts/engine-sdk-workflow/main.tsp",
+  "rust/crates/omena-napi/src/lib.rs",
+  "rust/crates/omena-query/src/bundler_host.rs",
+  "rust/crates/omena-query/src/sdk_workflow_contract_idl_generated.rs",
+  "rust/crates/omena-wasm/src/lib.rs",
+  "server/engine-core-ts/src/contracts/engine-sdk-workflow-idl.generated.ts",
+].toSorted();
 const sources = targets.map((relativePath) => ({
   relativePath,
   source: fs.readFileSync(path.join(repoRoot, relativePath), "utf8"),
@@ -17,6 +25,12 @@ if (process.argv.includes("--inject-regex-classmap")) {
   sources.push({
     relativePath: "packages/css-build-adapter/injected-helper.cjs",
     source: "const classMap = Object.fromEntries(emittedCss.matchAll(/\\.([a-z-]+)/gu));",
+  });
+}
+if (process.argv.includes("--inject-merged-export-namespace")) {
+  sources.push({
+    relativePath: "packages/css-build-adapter/injected-merged-export.cjs",
+    source: "return { classMap: { ...classExports, ...valueExports } };",
   });
 }
 
@@ -29,6 +43,10 @@ for (const { relativePath, source } of sources) {
     !source.includes(".matchAll("),
     `${relativePath} must not derive class maps by scanning emitted CSS`,
   );
+  assert.ok(
+    !/(?:\bclassMap\s*:|\bclass_map\b)/u.test(source),
+    `${relativePath} must not merge class and ICSS value export namespaces`,
+  );
 }
 
 const adapter = sources.find((entry) =>
@@ -36,15 +54,19 @@ const adapter = sources.find((entry) =>
 )!.source;
 const vite = sources.find((entry) => entry.relativePath.endsWith("vite-plugin/index.cjs"))!.source;
 assert.ok(adapter.includes("resolveCssModuleInterface(engine"));
-assert.ok(adapter.includes("classMap: moduleInterface.classMap"));
-assert.ok(vite.includes("classMap: output.classMap"));
+assert.ok(adapter.includes("classExports: moduleInterface.classExports"));
+assert.ok(adapter.includes("valueExports: moduleInterface.valueExports"));
+assert.ok(adapter.includes('if (entry.kind !== "class") return entry'));
+assert.ok(vite.includes("classExports: output.classExports"));
+assert.ok(vite.includes("valueExports: output.valueExports"));
 
 process.stdout.write(
   `${JSON.stringify({
     schemaVersion: "0",
     product: "js-bundler-host.no-regex-classmap",
-    scannedFiles: targets.length,
-    semanticTransportAnchors: 3,
+    exportPlaneFiles: targets.length,
+    semanticTransportAnchors: 6,
+    mergedNamespaceMaps: 0,
   })}\n`,
 );
 

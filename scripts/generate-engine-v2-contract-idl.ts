@@ -1775,11 +1775,36 @@ pub struct OmenaBundlerHostComposesEdgeV0 {
     pub class_name: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaBundlerHostExportKindV0 {
+    Class,
+    Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaBundlerHostNamedExportV0 {
+    pub exported_name: String,
+    pub kind: OmenaBundlerHostExportKindV0,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaBundlerHostDiagnosticSourceAnchorV0 {
+    pub style_path: String,
+    pub kind: OmenaBundlerHostExportKindV0,
+    pub start_byte: u64,
+    pub end_byte: u64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaBundlerHostDiagnosticV0 {
     pub code: String,
     pub message: String,
+    pub source_anchors: Vec<OmenaBundlerHostDiagnosticSourceAnchorV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1788,8 +1813,9 @@ pub struct OmenaBundlerHostResolveModuleResponseV0 {
     pub snapshot_id: crate::OmenaWorkspaceSnapshotIdV0,
     pub protocol_version: String,
     pub module_id: String,
-    pub class_map: BTreeMap<String, String>,
-    pub named_exports: BTreeMap<String, String>,
+    pub class_exports: BTreeMap<String, String>,
+    pub value_exports: BTreeMap<String, String>,
+    pub named_exports: Vec<OmenaBundlerHostNamedExportV0>,
     pub typescript_declaration: String,
     pub composes_edges: Vec<OmenaBundlerHostComposesEdgeV0>,
     pub diagnostics: Vec<OmenaBundlerHostDiagnosticV0>,

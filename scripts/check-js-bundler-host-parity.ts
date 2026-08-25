@@ -12,7 +12,9 @@ type ParityCase = {
   readonly sources: readonly StyleSource[];
   readonly emittedCss: string;
   readonly legacyRegexMap: Readonly<Record<string, string>>;
-  readonly expectedClassMap: Readonly<Record<string, string>>;
+  readonly expectedClassExports: Readonly<Record<string, string>>;
+  readonly expectedValueExports: Readonly<Record<string, string>>;
+  readonly expectedDiagnosticCodes?: readonly string[];
 };
 type InterfaceModule = {
   readonly stylePath: string;
@@ -41,13 +43,22 @@ const { createOmenaBuildState, rebuildAndCache } =
       options: Record<string, unknown>,
       state: unknown,
     ): Promise<{
-      readonly classMap: Readonly<Record<string, string>>;
+      readonly classExports: Readonly<Record<string, string>>;
+      readonly valueExports: Readonly<Record<string, string>>;
+      readonly namedExports: readonly NamedExport[];
+      readonly moduleInterface: {
+        readonly diagnostics: readonly { readonly code: string }[];
+      };
       readonly typescriptDeclaration: string;
     }>;
   };
 
 const injectDroppedComposesEdge = process.argv.includes("--inject-dropped-composes-edge");
 const injectRenamedDevClass = process.argv.includes("--inject-renamed-dev-class");
+const injectMergedExportOracle = process.argv.includes("--inject-merged-export-oracle");
+const injectSuppressedCollisionDiagnostic = process.argv.includes(
+  "--inject-suppressed-collision-diagnostic",
+);
 const fixtures = (JSON.parse(fs.readFileSync(fixturePath, "utf8")) as readonly ParityCase[]).map(
   applyFixtureFault,
 );
@@ -127,7 +138,11 @@ async function verifyFixture(fixture: ParityCase) {
     };
     const module = bundle.modules.find((candidate) => candidate.stylePath === targetPath);
     assert.ok(module, `CLI module-interface artifact omitted ${fixture.id}`);
-    const cliClassMap = classMapFromModule(module);
+    const cliClassExports = classExportsFromModule(module);
+    const cliValueExports = valueExportsFromModule(module);
+    if (injectMergedExportOracle && fixture.id === "css-class-value-collision") {
+      Object.assign(cliClassExports, cliValueExports);
+    }
 
     const targetSource = fixture.sources.find((source) => source.stylePath === fixture.targetPath);
     assert.ok(targetSource);
@@ -144,15 +159,32 @@ async function verifyFixture(fixture: ParityCase) {
       state,
     );
 
-    assert.deepEqual(canonicalRecord(adapterOutput.classMap), canonicalRecord(cliClassMap));
+    assert.deepEqual(canonicalRecord(adapterOutput.classExports), canonicalRecord(cliClassExports));
     assert.deepEqual(
-      canonicalRecord(adapterOutput.classMap),
-      canonicalRecord(fixture.expectedClassMap),
+      canonicalRecord(adapterOutput.classExports),
+      canonicalRecord(fixture.expectedClassExports),
+    );
+    assert.deepEqual(canonicalRecord(adapterOutput.valueExports), canonicalRecord(cliValueExports));
+    assert.deepEqual(
+      canonicalRecord(adapterOutput.valueExports),
+      canonicalRecord(fixture.expectedValueExports),
     );
     assert.notDeepEqual(
       canonicalRecord(fixture.legacyRegexMap),
-      canonicalRecord(fixture.expectedClassMap),
+      canonicalRecord(fixture.expectedClassExports),
     );
+    const expectedDiagnosticCodes = [...(fixture.expectedDiagnosticCodes ?? [])].toSorted();
+    assert.deepEqual(
+      adapterOutput.moduleInterface.diagnostics.map(({ code }) => code).toSorted(),
+      expectedDiagnosticCodes,
+    );
+    assertNamedExportFamilies(adapterOutput.namedExports, module);
+    assert.deepEqual(engine.classNameRewriteCalls, [
+      Object.entries(adapterOutput.classExports).map(([originalName, rewrittenName]) => ({
+        originalName,
+        rewrittenName: rewrittenName.split(/\s+/u, 1)[0],
+      })),
+    ]);
     const declarationPath = path.join(
       declarationRoot,
       path.relative(root, targetPath).concat(".d.ts"),
@@ -166,7 +198,10 @@ async function verifyFixture(fixture: ParityCase) {
 
     return {
       id: fixture.id,
-      classMap: canonicalRecord(adapterOutput.classMap),
+      classExports: canonicalRecord(adapterOutput.classExports),
+      valueExports: canonicalRecord(adapterOutput.valueExports),
+      diagnosticCodes: expectedDiagnosticCodes,
+      classNameRewrites: engine.classNameRewriteCalls[0],
       namedExportCount,
       parity: true,
       typescriptConsumer: true,
@@ -177,33 +212,65 @@ async function verifyFixture(fixture: ParityCase) {
 }
 
 function createBoundaryEngine(fixture: ParityCase) {
+  const classNameRewriteCalls: Array<
+    Array<{ readonly originalName: string; readonly rewrittenName: string }>
+  > = [];
   return {
+    classNameRewriteCalls,
     summarizeTransformBundleFromSourceJson: () =>
       JSON.stringify({
         plannedPassIds: ["composes-resolution", "css-modules-class-hashing"],
       }),
-    buildStyleSourcesWithContextJson: () =>
-      JSON.stringify({
+    buildStyleSourcesWithContextJson: (
+      _targetPath: string,
+      _sourcesJson: string,
+      _passIds: string[],
+      contextJson: string,
+    ) => {
+      const context = JSON.parse(contextJson) as {
+        readonly classNameRewrites?: Array<{
+          readonly originalName: string;
+          readonly rewrittenName: string;
+        }>;
+      };
+      classNameRewriteCalls.push(context.classNameRewrites ?? []);
+      return JSON.stringify({
         execution: {
           outputCss: fixture.emittedCss,
           executedPassIds: ["composes-resolution", "css-modules-class-hashing"],
         },
-      }),
+      });
+    },
     bundlerHostCapabilitiesJson: () =>
       JSON.stringify({
         protocolVersion: "0",
-        capabilities: ["semanticClassMap", "namedExports", "composesEdges"],
+        capabilities: [
+          "semanticClassExports",
+          "typedExportNamespaces",
+          "namedExports",
+          "composesEdges",
+        ],
       }),
     resolveCssModuleForBundlerHostJson: (requestJson: string) => {
       const response = JSON.parse(
         capture(boundaryRunnerPath, ["bundler-host-resolve-module"], requestJson),
       ) as {
-        classMap: Record<string, string>;
-        namedExports: Record<string, string>;
+        classExports: Record<string, string>;
+        valueExports: Record<string, string>;
+        namedExports: NamedExport[];
+        diagnostics: { code: string }[];
       };
       if (injectRenamedDevClass && fixture.id === "css-local-class") {
-        response.classMap.root = `${response.classMap.root} renamed`;
-        response.namedExports.root = response.classMap.root;
+        response.classExports.root = `${response.classExports.root} renamed`;
+        const named = response.namedExports.find(
+          (entry) => entry.kind === "class" && entry.exportedName === "root",
+        );
+        if (named) named.value = response.classExports.root;
+      }
+      if (injectSuppressedCollisionDiagnostic && fixture.id === "css-class-value-collision") {
+        response.diagnostics = response.diagnostics.filter(
+          ({ code }) => code !== "exportNamespaceCollision",
+        );
       }
       return JSON.stringify(response);
     },
@@ -229,25 +296,44 @@ function typecheckConsumer(
   declarationPath: string,
   module: InterfaceModule,
 ) {
-  const namedExports = [...module.classExports, ...module.icssExports]
-    .map((entry) => entry.namedExport)
-    .filter((name): name is string => Boolean(name))
+  const namedExportCounts = new Map<string, number>();
+  for (const entry of [...module.classExports, ...module.icssExports]) {
+    if (!entry.namedExport) continue;
+    namedExportCounts.set(entry.namedExport, (namedExportCounts.get(entry.namedExport) ?? 0) + 1);
+  }
+  const namedExports = [...namedExportCounts]
+    .filter(([, count]) => count === 1)
+    .map(([name]) => name)
     .toSorted();
-  assert.ok(namedExports.length > 0, `fixture ${targetPath} must expose a named export`);
   const importPath = `./${path
     .relative(root, declarationPath)
     .replaceAll(path.sep, "/")
     .replace(/\.d\.ts$/u, "")}`;
-  const defaultKey = module.classExports[0]?.name ?? module.icssExports[0]?.name;
-  assert.ok(defaultKey, `fixture ${targetPath} must expose a default-map key`);
+  const classDefaultKey = module.classExports[0]?.name;
+  const valueDefaultKey = module.icssExports[0]?.name;
+  assert.ok(classDefaultKey ?? valueDefaultKey, `fixture ${targetPath} must expose an export key`);
   const consumerPath = path.join(root, "consumer.ts");
   fs.writeFileSync(
     consumerPath,
     [
-      `import styles, { ${namedExports.join(", ")} } from ${JSON.stringify(importPath)};`,
-      `const defaultValue: string = styles[${JSON.stringify(defaultKey)}];`,
+      `import styles, { classExports, valueExports${
+        namedExports.length > 0 ? `, ${namedExports.join(", ")}` : ""
+      } } from ${JSON.stringify(importPath)};`,
+      ...(classDefaultKey
+        ? [
+            `const defaultClassValue: string = styles[${JSON.stringify(classDefaultKey)}];`,
+            `const classValue: string = classExports[${JSON.stringify(classDefaultKey)}];`,
+          ]
+        : []),
+      ...(valueDefaultKey
+        ? [`const valueValue: string = valueExports[${JSON.stringify(valueDefaultKey)}];`]
+        : []),
       ...namedExports.map((name) => `const ${name}Value: string = ${name};`),
-      `void [defaultValue, ${namedExports.map((name) => `${name}Value`).join(", ")}];`,
+      `void [${[
+        ...(classDefaultKey ? ["defaultClassValue", "classValue"] : []),
+        ...(valueDefaultKey ? ["valueValue"] : []),
+        ...namedExports.map((name) => `${name}Value`),
+      ].join(", ")}];`,
       "",
     ].join("\n"),
     "utf8",
@@ -271,16 +357,55 @@ function typecheckConsumer(
   return namedExports.length;
 }
 
-function classMapFromModule(module: InterfaceModule) {
-  return Object.fromEntries([
-    ...module.classExports.map((entry) => [entry.name, entry.emittedClasses.join(" ")] as const),
-    ...module.icssExports.map((entry) => [entry.name, entry.value] as const),
-  ]);
+function classExportsFromModule(module: InterfaceModule) {
+  return Object.fromEntries(
+    module.classExports.map((entry) => [entry.name, entry.emittedClasses.join(" ")] as const),
+  );
+}
+
+function valueExportsFromModule(module: InterfaceModule) {
+  return Object.fromEntries(module.icssExports.map((entry) => [entry.name, entry.value] as const));
+}
+
+type NamedExport = {
+  readonly exportedName: string;
+  readonly kind: "class" | "value";
+  value: string;
+};
+
+function assertNamedExportFamilies(actual: readonly NamedExport[], module: InterfaceModule) {
+  const expected = [
+    ...module.classExports
+      .filter((entry) => entry.namedExport)
+      .map((entry) => ({
+        exportedName: entry.namedExport!,
+        kind: "class" as const,
+        value: entry.emittedClasses.join(" "),
+      })),
+    ...module.icssExports
+      .filter((entry) => entry.namedExport)
+      .map((entry) => ({
+        exportedName: entry.namedExport!,
+        kind: "value" as const,
+        value: entry.value,
+      })),
+  ].toSorted((left, right) =>
+    left.exportedName < right.exportedName
+      ? -1
+      : left.exportedName > right.exportedName
+        ? 1
+        : left.kind < right.kind
+          ? -1
+          : left.kind > right.kind
+            ? 1
+            : 0,
+  );
+  assert.deepEqual(actual, expected);
 }
 
 function canonicalRecord(value: Readonly<Record<string, string>>) {
   return Object.fromEntries(
-    Object.entries(value).sort(([left], [right]) => left.localeCompare(right)),
+    Object.entries(value).toSorted(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)),
   );
 }
 

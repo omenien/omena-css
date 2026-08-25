@@ -68,10 +68,12 @@ The previous token format did not publish a rotation identity, so
 algorithm independently of either release version and is the value tools and
 operators can compare during a coordinated upgrade.
 
-The emitted token is not a contract; `classMap`, `namedExports`, and the
-generated `.d.ts` are. Hand-writing an emitted token into markup, tests, or CSS
-is unsupported. Consumers should read the generated interface rather than
-persisting or constructing emitted names.
+Emitted tokens are not a contract; typed `classExports`, typed `valueExports`,
+family-tagged `namedExports`, and the generated `.d.ts` are. Same-named class
+and ICSS value exports remain separate instead of collapsing into one binding.
+Hand-writing an emitted token into markup, tests, or CSS is unsupported.
+Consumers should read the generated interface rather than persisting or
+constructing emitted names.
 
 ## Compatibility classes
 
@@ -119,8 +121,9 @@ The number of consumers in each class is not measured.
 
 1. Upgrade the extension and every Rust, NAPI, WASM, CLI, and build adapter used
    by one build together. Do not combine old prebuilt CSS with a new token map.
-2. Rebuild CSS Modules and regenerate `classMap`, `namedExports`, generated
-   `.d.ts` files, and checked-in `--interface-file` manifests.
+2. Rebuild CSS Modules and regenerate `classExports`, `valueExports`, typed
+   `namedExports`, generated `.d.ts` files, and checked-in `--interface-file`
+   manifests.
 3. Replace copied token strings in markup, snapshot tests, visual baselines,
    and E2E selectors with lookups through the generated interface.
 4. Audit handwritten CSS and `:global` rules for selectors copied from emitted

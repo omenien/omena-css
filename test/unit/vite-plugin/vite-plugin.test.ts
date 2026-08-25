@@ -28,7 +28,10 @@ type OmenaVitePlugin = {
       };
     };
   }) => Promise<readonly unknown[] | undefined>;
-  readonly load: (id: string) => Promise<string | ViteTransformResult | null>;
+  readonly load: (
+    this: { readonly warn?: (message: string) => void },
+    id: string,
+  ) => Promise<string | ViteTransformResult | null>;
   readonly resolveId: (id: string) => Promise<string | null>;
 };
 
@@ -49,17 +52,23 @@ const { MINIFY_PASS_IDS, VIRTUAL_MODULE_ID, classifyCssModuleExportDelta, omenaC
 const tempRoots: string[] = [];
 
 function bundlerHostMock(
-  classMap:
+  classExports:
     | Readonly<Record<string, string>>
     | ((request: {
         readonly styleSources: readonly { readonly styleSource: string }[];
       }) => Readonly<Record<string, string>>),
+  valueExports: Readonly<Record<string, string>> = {},
 ) {
   return {
     bundlerHostCapabilitiesJson: () =>
       JSON.stringify({
         protocolVersion: "0",
-        capabilities: ["semanticClassMap", "namedExports", "composesEdges"],
+        capabilities: [
+          "semanticClassExports",
+          "typedExportNamespaces",
+          "namedExports",
+          "composesEdges",
+        ],
       }),
     resolveCssModuleForBundlerHostJson: (requestJson: string) => {
       const request = JSON.parse(requestJson) as {
@@ -67,17 +76,36 @@ function bundlerHostMock(
         stylePath: string;
         styleSources: readonly { readonly styleSource: string }[];
       };
-      const resolvedClassMap = typeof classMap === "function" ? classMap(request) : classMap;
+      const resolvedClassExports =
+        typeof classExports === "function" ? classExports(request) : classExports;
       return JSON.stringify({
         snapshotId: request.snapshotId,
         protocolVersion: "0",
         moduleId: request.stylePath,
-        classMap: resolvedClassMap,
-        namedExports: resolvedClassMap,
+        classExports: resolvedClassExports,
+        valueExports,
+        namedExports: [
+          ...Object.entries(resolvedClassExports).map(([exportedName, value]) => ({
+            exportedName,
+            kind: "class",
+            value,
+          })),
+          ...Object.entries(valueExports).map(([exportedName, value]) => ({
+            exportedName,
+            kind: "value",
+            value,
+          })),
+        ],
         typescriptDeclaration:
           "declare const styles: Readonly<Record<string, string>>;\nexport default styles;\n",
         composesEdges: [],
-        diagnostics: [],
+        diagnostics: Object.keys(resolvedClassExports)
+          .filter((name) => Object.hasOwn(valueExports, name))
+          .map((name) => ({
+            code: "exportNamespaceCollision",
+            message: `${name} is exported by both namespaces`,
+            sourceAnchors: [],
+          })),
         ready: true,
       });
     },
@@ -293,7 +321,9 @@ describe("@omena/vite-plugin", () => {
     const runtimeId = await plugin.resolveId(stylePath);
     expect(runtimeId).toBeTruthy();
     const initialModule = await plugin.load(runtimeId!);
-    expect((initialModule as ViteTransformResult)?.code).toContain('let used = classMap["used"]');
+    expect((initialModule as ViteTransformResult)?.code).toContain(
+      'let used = classExports["used"]',
+    );
 
     const ctx = {
       file: stylePath,
@@ -312,7 +342,8 @@ describe("@omena/vite-plugin", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           decision: "valueChanged",
-          classMap: { used: "_used_blue" },
+          classExports: { used: "_used_blue" },
+          valueExports: {},
         }),
       }),
     );
@@ -322,6 +353,35 @@ describe("@omena/vite-plugin", () => {
     await expect(plugin.handleHotUpdate(ctx)).resolves.toEqual([runtimeModule, runtimeImporter]);
     expect(invalidateModule).toHaveBeenCalledWith(runtimeModule);
     expect(invalidateModule).toHaveBeenCalledWith(runtimeImporter);
+  });
+
+  it("exposes colliding class and value exports through distinct runtime families", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-export-families-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "Button.module.css");
+    const source = ":export { button: #0af; } .button { color: red; }";
+    fs.writeFileSync(stylePath, source);
+    const warn = vi.fn();
+    const engine = {
+      ...bundlerHostMock({ button: "_Ab1cdE_button" }, { button: "#0af" }),
+      summarizeTransformBundleFromSourceJson: () => JSON.stringify({ plannedPassIds: [] }),
+      buildStyleSourcesWithContextJson: () =>
+        JSON.stringify({ execution: { outputCss: source, executedPassIds: [] } }),
+    };
+    const plugin = omenaCss({ cwd: root, engine, configFile: false });
+    plugin.configResolved({ root, command: "serve" });
+
+    const runtimeId = await plugin.resolveId(stylePath);
+    expect(runtimeId).toBeTruthy();
+    const loaded = await plugin.load.call({ warn }, runtimeId!);
+    const code = (loaded as ViteTransformResult)?.code ?? "";
+
+    expect(code).toContain('const classExports = {"button":"_Ab1cdE_button"}');
+    expect(code).toContain('const valueExports = {"button":"#0af"}');
+    expect(code).not.toContain("let button =");
+    expect(code).toContain("export default classExports");
+    expect(code).toContain("export { classExports, valueExports }");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("exportNamespaceCollision"));
   });
 
   it("invalidates changed style modules and keeps the latest rapid-edit result", async () => {

@@ -54,6 +54,7 @@ function omenaCss(options = {}) {
       const fileId = fromDevRuntimeId(id);
       const source = await fs.promises.readFile(fileId, "utf8");
       const output = await rebuildAndCache(fileId, source, effectiveOptions, state);
+      reportBundlerHostDiagnostics(this, output, pluginName);
       return {
         code: renderDevCssModule(fileId, output),
         map: output.map,
@@ -78,6 +79,7 @@ function omenaCss(options = {}) {
       }
 
       const output = await rebuildAndCache(fileId, code, effectiveOptions, state);
+      reportBundlerHostDiagnostics(this, output, pluginName);
       if (output.code === code) return null;
       return {
         code: output.code,
@@ -93,9 +95,18 @@ function omenaCss(options = {}) {
       const source = await fs.promises.readFile(fileId, "utf8");
       const previousOutput = state.cache.get(fileId)?.output;
       const output = await rebuildAndCache(fileId, source, effectiveOptions, state);
+      reportBundlerHostDiagnostics(this, output, pluginName);
 
       if (shouldUseDevRuntime(effectiveOptions, state)) {
-        const decision = classifyCssModuleExportDelta(previousOutput?.classMap, output.classMap);
+        const classDecision = classifyCssModuleExportDelta(
+          previousOutput?.classExports,
+          output.classExports,
+        );
+        const valueDecision = classifyCssModuleExportDelta(
+          previousOutput?.valueExports,
+          output.valueExports,
+        );
+        const decision = combineCssModuleExportDelta(classDecision, valueDecision);
         const runtimeModule = ctx.server?.moduleGraph?.getModuleById?.(toDevRuntimeId(fileId));
         if (decision === "shapeChanged") {
           const affectedModules = collectAffectedRuntimeModules(runtimeModule);
@@ -152,19 +163,23 @@ function fromDevRuntimeId(id) {
 }
 
 function renderDevCssModule(filePath, output) {
-  const { code: css, classMap, namedExports = {} } = output;
-  if (!classMap) {
-    throw new Error("[omena-css] dev runtime requires a semantic CSS Module class map.");
+  const { code: css, classExports, valueExports, namedExports = [] } = output;
+  if (!classExports || !valueExports) {
+    throw new Error("[omena-css] dev runtime requires typed CSS Module export namespaces.");
   }
   const styleId = `omena-css:${filePath}`;
   const eventName = devRuntimeEventName(filePath);
-  const namedBindings = Object.keys(namedExports).sort();
+  const namedBindings = unambiguousNamedExports(namedExports);
   return [
     DEV_RUNTIME_MARKER,
     `const css = ${JSON.stringify(css)};`,
     `const styleId = ${JSON.stringify(styleId)};`,
-    `const classMap = ${JSON.stringify(classMap)};`,
-    ...namedBindings.map((name) => `let ${name} = classMap[${JSON.stringify(name)}];`),
+    `const classExports = ${JSON.stringify(classExports)};`,
+    `const valueExports = ${JSON.stringify(valueExports)};`,
+    ...namedBindings.map(
+      ({ exportedName, kind }) =>
+        `let ${exportedName} = ${kind === "class" ? "classExports" : "valueExports"}[${JSON.stringify(exportedName)}];`,
+    ),
     `const eventName = ${JSON.stringify(eventName)};`,
     `function findOmenaStyle() {`,
     `  return Array.from(document.querySelectorAll("style[data-omena-vite-style]")).find((style) => style.getAttribute("data-omena-vite-style") === styleId) ?? null;`,
@@ -183,33 +198,73 @@ function renderDevCssModule(filePath, output) {
     `  import.meta.hot.accept();`,
     `  import.meta.hot.on(eventName, (payload) => {`,
     `    applyOmenaCss(payload.css);`,
-    `    for (const key of Object.keys(classMap)) delete classMap[key];`,
-    `    Object.assign(classMap, payload.classMap);`,
-    ...namedBindings.map((name) => `    ${name} = classMap[${JSON.stringify(name)}];`),
+    `    for (const key of Object.keys(classExports)) delete classExports[key];`,
+    `    Object.assign(classExports, payload.classExports);`,
+    `    for (const key of Object.keys(valueExports)) delete valueExports[key];`,
+    `    Object.assign(valueExports, payload.valueExports);`,
+    ...namedBindings.map(
+      ({ exportedName, kind }) =>
+        `    ${exportedName} = ${kind === "class" ? "classExports" : "valueExports"}[${JSON.stringify(exportedName)}];`,
+    ),
     `  });`,
     `  import.meta.hot.prune(() => {`,
     `    findOmenaStyle()?.remove();`,
     `  });`,
     `}`,
-    `export default classMap;`,
-    ...(namedBindings.length > 0 ? [`export { ${namedBindings.join(", ")} };`] : []),
+    `export default classExports;`,
+    `export { classExports, valueExports${
+      namedBindings.length > 0
+        ? `, ${namedBindings.map(({ exportedName }) => exportedName).join(", ")}`
+        : ""
+    } };`,
     ``,
   ].join("\n");
 }
 
-function classifyCssModuleExportDelta(previousClassMap, nextClassMap) {
-  if (!previousClassMap || !nextClassMap) return "shapeChanged";
-  const previousKeys = Object.keys(previousClassMap).sort();
-  const nextKeys = Object.keys(nextClassMap).sort();
+function classifyCssModuleExportDelta(previousExports, nextExports) {
+  if (!previousExports || !nextExports) return "shapeChanged";
+  const previousKeys = Object.keys(previousExports).toSorted();
+  const nextKeys = Object.keys(nextExports).toSorted();
   if (
     previousKeys.length !== nextKeys.length ||
     previousKeys.some((key, index) => key !== nextKeys[index])
   ) {
     return "shapeChanged";
   }
-  return previousKeys.every((key) => previousClassMap[key] === nextClassMap[key])
+  return previousKeys.every((key) => previousExports[key] === nextExports[key])
     ? "styleOnly"
     : "valueChanged";
+}
+
+function combineCssModuleExportDelta(left, right) {
+  if (left === "shapeChanged" || right === "shapeChanged") return "shapeChanged";
+  if (left === "valueChanged" || right === "valueChanged") return "valueChanged";
+  return "styleOnly";
+}
+
+function unambiguousNamedExports(namedExports) {
+  const byName = new Map();
+  for (const entry of namedExports) {
+    if (byName.has(entry.exportedName)) {
+      byName.set(entry.exportedName, null);
+    } else {
+      byName.set(entry.exportedName, entry);
+    }
+  }
+  return [...byName.values()]
+    .filter(Boolean)
+    .filter(
+      ({ exportedName }) => exportedName !== "classExports" && exportedName !== "valueExports",
+    )
+    .toSorted((left, right) =>
+      left.exportedName < right.exportedName ? -1 : left.exportedName > right.exportedName ? 1 : 0,
+    );
+}
+
+function reportBundlerHostDiagnostics(context, output, pluginName) {
+  for (const diagnostic of output.moduleInterface?.diagnostics ?? []) {
+    context.warn?.(`[${pluginName}] ${diagnostic.code}: ${diagnostic.message}`);
+  }
 }
 
 function collectAffectedRuntimeModules(runtimeModule) {
@@ -226,7 +281,8 @@ function devRuntimeUpdatePayload(filePath, output, decision) {
     filePath,
     decision,
     css: output.code,
-    classMap: output.classMap,
+    classExports: output.classExports,
+    valueExports: output.valueExports,
     sourceMapSources: output.map?.sources ?? [],
   };
 }

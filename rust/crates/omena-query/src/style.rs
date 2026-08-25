@@ -73,8 +73,9 @@ use module_interface::{
 };
 pub use module_interface::{
     OmenaQueryCssModuleClassExportV0, OmenaQueryCssModuleClassReferenceV0,
-    OmenaQueryCssModuleIcssExportV0, OmenaQueryCssModuleInterfaceV0,
-    OmenaQueryCssModulesInterfaceBundleV0, OmenaQueryCssModulesInterfaceSummaryViewV0,
+    OmenaQueryCssModuleExportSourceSpanV0, OmenaQueryCssModuleIcssExportV0,
+    OmenaQueryCssModuleInterfaceV0, OmenaQueryCssModulesInterfaceBundleV0,
+    OmenaQueryCssModulesInterfaceSummaryViewV0,
     render_omena_query_css_module_typescript_declaration,
     render_omena_query_css_modules_interface_json,
     summarize_omena_query_css_modules_interface_summary_view,
@@ -1465,6 +1466,8 @@ struct OmenaQueryStyleFactEntry {
     style_source: String,
     facts: OmenaQueryOmenaParserStyleFactsV0,
     icss_export_values: BTreeMap<String, String>,
+    class_export_source_spans: BTreeMap<String, Vec<OmenaQueryCssModuleExportSourceSpanV0>>,
+    icss_export_source_spans: BTreeMap<String, Vec<OmenaQueryCssModuleExportSourceSpanV0>>,
     semantic_runtime_index: Option<omena_semantic::StyleRuntimeIndexFactsV0>,
     sass_module_public_variable_names: BTreeSet<String>,
     sass_module_public_mixin_names: BTreeSet<String>,
@@ -1610,6 +1613,40 @@ fn collect_omena_query_style_fact_entry_from_raw(
     raw_facts: ParsedStyleFacts,
     icss_export_values: BTreeMap<String, String>,
 ) -> OmenaQueryStyleFactEntry {
+    let mut class_export_source_spans =
+        BTreeMap::<String, Vec<OmenaQueryCssModuleExportSourceSpanV0>>::new();
+    for selector in &raw_facts.selectors {
+        if selector.kind == omena_parser::ParsedSelectorFactKind::Class {
+            class_export_source_spans
+                .entry(selector.name.clone())
+                .or_default()
+                .push(OmenaQueryCssModuleExportSourceSpanV0 {
+                    start: u32::from(selector.range.start()) as usize,
+                    end: u32::from(selector.range.end()) as usize,
+                });
+        }
+    }
+    let mut icss_export_source_spans =
+        BTreeMap::<String, Vec<OmenaQueryCssModuleExportSourceSpanV0>>::new();
+    for icss in &raw_facts.icss {
+        if icss.kind == omena_parser::ParsedIcssFactKind::ExportName {
+            icss_export_source_spans
+                .entry(icss.name.clone())
+                .or_default()
+                .push(OmenaQueryCssModuleExportSourceSpanV0 {
+                    start: u32::from(icss.range.start()) as usize,
+                    end: u32::from(icss.range.end()) as usize,
+                });
+        }
+    }
+    for spans in class_export_source_spans.values_mut() {
+        spans.sort();
+        spans.dedup();
+    }
+    for spans in icss_export_source_spans.values_mut() {
+        spans.sort();
+        spans.dedup();
+    }
     let (
         sass_module_public_variable_names,
         sass_module_public_mixin_names,
@@ -1623,6 +1660,8 @@ fn collect_omena_query_style_fact_entry_from_raw(
         semantic_runtime_index,
         facts,
         icss_export_values,
+        class_export_source_spans,
+        icss_export_source_spans,
         sass_module_public_variable_names,
         sass_module_public_mixin_names,
         sass_module_public_function_names,
@@ -1704,6 +1743,24 @@ fn summarize_omena_query_css_modules_interface_bundle_inner<E>(
         .iter()
         .map(|entry| (entry.style_path.clone(), entry.icss_export_values.clone()))
         .collect::<BTreeMap<_, _>>();
+    let class_export_source_spans_by_path = entries
+        .iter()
+        .map(|entry| {
+            (
+                entry.style_path.clone(),
+                entry.class_export_source_spans.clone(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let icss_export_source_spans_by_path = entries
+        .iter()
+        .map(|entry| {
+            (
+                entry.style_path.clone(),
+                entry.icss_export_source_spans.clone(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
     let mut emitted_class_names = EmittedClassNameIndexV0::new();
     for entry in &entries {
         let module_instance =
@@ -1725,6 +1782,8 @@ fn summarize_omena_query_css_modules_interface_bundle_inner<E>(
         &projections,
         &resolution,
         &icss_export_values_by_path,
+        &class_export_source_spans_by_path,
+        &icss_export_source_spans_by_path,
         &emitted_class_names,
     ))
 }

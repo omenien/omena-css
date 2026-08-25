@@ -1,5 +1,7 @@
 use crate::{
-    OmenaBundlerHostCapabilitiesV0, OmenaBundlerHostComposesEdgeV0, OmenaBundlerHostDiagnosticV0,
+    OmenaBundlerHostCapabilitiesV0, OmenaBundlerHostComposesEdgeV0,
+    OmenaBundlerHostDiagnosticSourceAnchorV0, OmenaBundlerHostDiagnosticV0,
+    OmenaBundlerHostExportKindV0, OmenaBundlerHostNamedExportV0,
     OmenaBundlerHostResolveModuleRequestV0, OmenaBundlerHostResolveModuleResponseV0,
     render_omena_query_css_module_typescript_declaration,
     summarize_omena_query_css_modules_interface_bundle_with_module_identity_root,
@@ -14,7 +16,8 @@ pub fn current_omena_bundler_host_capabilities_v0() -> OmenaBundlerHostCapabilit
     OmenaBundlerHostCapabilitiesV0 {
         protocol_version: OMENA_BUNDLER_HOST_PROTOCOL_VERSION_V0.to_string(),
         capabilities: vec![
-            "semanticClassMap".to_string(),
+            "semanticClassExports".to_string(),
+            "typedExportNamespaces".to_string(),
             "namedExports".to_string(),
             "composesEdges".to_string(),
         ],
@@ -35,13 +38,15 @@ pub fn resolve_omena_bundler_host_module_v0(
                 snapshot_id: request.snapshot_id,
                 protocol_version: OMENA_BUNDLER_HOST_PROTOCOL_VERSION_V0.to_string(),
                 module_id: request.style_path,
-                class_map: BTreeMap::new(),
-                named_exports: BTreeMap::new(),
+                class_exports: BTreeMap::new(),
+                value_exports: BTreeMap::new(),
+                named_exports: Vec::new(),
                 typescript_declaration: String::new(),
                 composes_edges: Vec::new(),
                 diagnostics: vec![OmenaBundlerHostDiagnosticV0 {
                     code: "invalidModuleIdentityRoot".to_string(),
                     message,
+                    source_anchors: Vec::new(),
                 }],
                 ready: false,
             };
@@ -56,8 +61,9 @@ pub fn resolve_omena_bundler_host_module_v0(
             snapshot_id: request.snapshot_id,
             protocol_version: OMENA_BUNDLER_HOST_PROTOCOL_VERSION_V0.to_string(),
             module_id: request.style_path.clone(),
-            class_map: BTreeMap::new(),
-            named_exports: BTreeMap::new(),
+            class_exports: BTreeMap::new(),
+            value_exports: BTreeMap::new(),
+            named_exports: Vec::new(),
             typescript_declaration: String::new(),
             composes_edges: Vec::new(),
             diagnostics: vec![OmenaBundlerHostDiagnosticV0 {
@@ -66,13 +72,15 @@ pub fn resolve_omena_bundler_host_module_v0(
                     "CSS Module '{}' is not present in the bundler host snapshot.",
                     request.style_path
                 ),
+                source_anchors: Vec::new(),
             }],
             ready: false,
         };
     };
 
-    let mut class_map = BTreeMap::new();
-    let mut named_exports = BTreeMap::new();
+    let mut class_exports = BTreeMap::new();
+    let mut value_exports = BTreeMap::new();
+    let mut named_exports = Vec::new();
     let mut composes_edges = Vec::new();
     let mut diagnostics = Vec::new();
     let mut has_blocking_diagnostic = false;
@@ -99,6 +107,65 @@ pub fn resolve_omena_bundler_host_module_v0(
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
+            source_anchors: Vec::new(),
+        });
+    }
+
+    let class_export_names = module
+        .class_exports
+        .iter()
+        .map(|export| export.name.as_str())
+        .collect::<BTreeSet<_>>();
+    let value_export_names = module
+        .icss_exports
+        .iter()
+        .map(|export| export.name.as_str())
+        .collect::<BTreeSet<_>>();
+    for collision_name in class_export_names.intersection(&value_export_names) {
+        let class_export = module
+            .class_exports
+            .iter()
+            .find(|export| export.name == **collision_name);
+        let value_export = module
+            .icss_exports
+            .iter()
+            .find(|export| export.name == **collision_name);
+        let mut source_anchors = Vec::new();
+        if let Some(export) = class_export {
+            source_anchors.extend(export.source_spans.iter().map(|span| {
+                OmenaBundlerHostDiagnosticSourceAnchorV0 {
+                    style_path: module.style_path.clone(),
+                    kind: OmenaBundlerHostExportKindV0::Class,
+                    start_byte: span.start as u64,
+                    end_byte: span.end as u64,
+                }
+            }));
+        }
+        if let Some(export) = value_export {
+            source_anchors.extend(export.source_spans.iter().map(|span| {
+                OmenaBundlerHostDiagnosticSourceAnchorV0 {
+                    style_path: module.style_path.clone(),
+                    kind: OmenaBundlerHostExportKindV0::Value,
+                    start_byte: span.start as u64,
+                    end_byte: span.end as u64,
+                }
+            }));
+        }
+        source_anchors.sort_by_key(|anchor| {
+            (
+                anchor.style_path.clone(),
+                anchor.start_byte,
+                anchor.end_byte,
+                anchor.kind,
+            )
+        });
+        diagnostics.push(OmenaBundlerHostDiagnosticV0 {
+            code: "exportNamespaceCollision".to_string(),
+            message: format!(
+                "CSS Module '{}' exports '{}' as both a class and an ICSS value; the typed families remain separate and no flat named export can represent both.",
+                module.style_path, collision_name
+            ),
+            source_anchors,
         });
     }
 
@@ -116,6 +183,16 @@ pub fn resolve_omena_bundler_host_module_v0(
                     "CSS Module '{}' exports class name '{}' which decodes to ASCII whitespace and cannot be represented as one DOM class token.",
                     module.style_path, export.name
                 ),
+                source_anchors: export
+                    .source_spans
+                    .iter()
+                    .map(|span| OmenaBundlerHostDiagnosticSourceAnchorV0 {
+                        style_path: module.style_path.clone(),
+                        kind: OmenaBundlerHostExportKindV0::Class,
+                        start_byte: span.start as u64,
+                        end_byte: span.end as u64,
+                    })
+                    .collect(),
             });
             continue;
         }
@@ -127,13 +204,27 @@ pub fn resolve_omena_bundler_host_module_v0(
                     "CSS Module export '{}' could not resolve every emitted class name.",
                     export.name
                 ),
+                source_anchors: export
+                    .source_spans
+                    .iter()
+                    .map(|span| OmenaBundlerHostDiagnosticSourceAnchorV0 {
+                        style_path: module.style_path.clone(),
+                        kind: OmenaBundlerHostExportKindV0::Class,
+                        start_byte: span.start as u64,
+                        end_byte: span.end as u64,
+                    })
+                    .collect(),
             });
             continue;
         }
         let value = export.emitted_classes.join(" ");
-        class_map.insert(export.name.clone(), value.clone());
+        class_exports.insert(export.name.clone(), value.clone());
         if let Some(named_export) = export.named_export {
-            named_exports.insert(named_export, value);
+            named_exports.push(OmenaBundlerHostNamedExportV0 {
+                exported_name: named_export,
+                kind: OmenaBundlerHostExportKindV0::Class,
+                value,
+            });
         }
         composes_edges.extend(export.resolved_classes.into_iter().skip(1).map(|class| {
             OmenaBundlerHostComposesEdgeV0 {
@@ -145,17 +236,25 @@ pub fn resolve_omena_bundler_host_module_v0(
     }
 
     for export in module.icss_exports {
-        class_map.insert(export.name.clone(), export.value.clone());
+        value_exports.insert(export.name.clone(), export.value.clone());
         if let Some(named_export) = export.named_export {
-            named_exports.insert(named_export, export.value);
+            named_exports.push(OmenaBundlerHostNamedExportV0 {
+                exported_name: named_export,
+                kind: OmenaBundlerHostExportKindV0::Value,
+                value: export.value,
+            });
         }
     }
+    named_exports.sort_by(|left, right| {
+        (&left.exported_name, left.kind).cmp(&(&right.exported_name, right.kind))
+    });
 
     OmenaBundlerHostResolveModuleResponseV0 {
         snapshot_id: request.snapshot_id,
         protocol_version: OMENA_BUNDLER_HOST_PROTOCOL_VERSION_V0.to_string(),
         module_id: module.module_id.as_str().to_string(),
-        class_map,
+        class_exports,
+        value_exports,
         named_exports,
         typescript_declaration,
         composes_edges,
@@ -191,6 +290,18 @@ mod tests {
         }
     }
 
+    fn named_export_value<'response>(
+        response: &'response OmenaBundlerHostResolveModuleResponseV0,
+        exported_name: &str,
+        kind: OmenaBundlerHostExportKindV0,
+    ) -> Option<&'response str> {
+        response
+            .named_exports
+            .iter()
+            .find(|entry| entry.exported_name == exported_name && entry.kind == kind)
+            .map(|entry| entry.value.as_str())
+    }
+
     #[test]
     fn caller_workspace_root_makes_module_tokens_relocation_stable() {
         let source = ".card { color: red; }";
@@ -215,7 +326,7 @@ mod tests {
         let second = resolve_omena_bundler_host_module_v0(second);
         assert!(first.ready, "{:?}", first.diagnostics);
         assert!(second.ready, "{:?}", second.diagnostics);
-        assert_eq!(first.class_map, second.class_map);
+        assert_eq!(first.class_exports, second.class_exports);
     }
 
     #[test]
@@ -255,7 +366,7 @@ mod tests {
 
         assert!(response.ready, "{:?}", response.diagnostics);
         let emitted = response
-            .class_map
+            .class_exports
             .get("button")
             .ok_or_else(|| "the local export must remain public".to_string())?
             .split_ascii_whitespace()
@@ -265,8 +376,8 @@ mod tests {
         assert!(emitted[1].ends_with("_base"), "{emitted:?}");
         assert_ne!(emitted[0], emitted[1]);
         assert_eq!(
-            response.named_exports.get("button"),
-            response.class_map.get("button")
+            named_export_value(&response, "button", OmenaBundlerHostExportKindV0::Class),
+            response.class_exports.get("button").map(String::as_str)
         );
         assert_eq!(response.composes_edges.len(), 1);
         assert_eq!(response.composes_edges[0].class_name, "base");
@@ -284,10 +395,20 @@ mod tests {
         ));
 
         assert!(response.ready, "{:?}", response.diagnostics);
-        assert!(response.class_map.contains_key("foo-bar"));
-        assert!(response.class_map.contains_key("class"));
-        assert!(!response.named_exports.contains_key("foo-bar"));
-        assert!(!response.named_exports.contains_key("class"));
+        assert!(response.class_exports.contains_key("foo-bar"));
+        assert!(response.class_exports.contains_key("class"));
+        assert!(
+            !response
+                .named_exports
+                .iter()
+                .any(|entry| entry.exported_name == "foo-bar")
+        );
+        assert!(
+            !response
+                .named_exports
+                .iter()
+                .any(|entry| entry.exported_name == "class")
+        );
     }
 
     #[test]
@@ -336,7 +457,7 @@ mod tests {
         ));
 
         assert!(!response.ready);
-        assert!(response.class_map.is_empty());
+        assert!(response.class_exports.is_empty());
         assert_eq!(response.diagnostics[0].code, "moduleNotFound");
     }
 
@@ -354,13 +475,13 @@ mod tests {
         // Either one-sided canonicalization leaves one of these source-produced
         // raw keys unresolved, so the assertion names the exact missing key.
         let emitted_total = response
-            .class_map
+            .class_exports
             .values()
             .map(|value| value.split_ascii_whitespace().count())
             .sum::<usize>();
         for raw_key in [r"a\62 c", "abc", "z"] {
             assert!(
-                response.class_map.contains_key(raw_key),
+                response.class_exports.contains_key(raw_key),
                 "missing emitted class for raw export key {raw_key:?}; emitted total {emitted_total}: {:?}",
                 response.diagnostics
             );
@@ -392,8 +513,8 @@ mod tests {
                 .iter()
                 .any(|diagnostic| diagnostic.code == "decodeEquivalentClassNames")
         );
-        let plain = response.class_map.get("card");
-        let escaped = response.class_map.get(r"c\61 rd");
+        let plain = response.class_exports.get("card");
+        let escaped = response.class_exports.get(r"c\61 rd");
         assert!(
             plain.is_some() && escaped.is_some(),
             "both raw export keys must remain public"
@@ -429,7 +550,7 @@ mod tests {
         ));
 
         assert!(response.ready, "{:?}", response.diagnostics);
-        let emitted = response.class_map.get("x");
+        let emitted = response.class_exports.get("x");
         assert!(emitted.is_some(), "the local export must remain public");
         if let Some(emitted) = emitted {
             assert!(
@@ -460,13 +581,65 @@ mod tests {
 
         assert!(response.ready, "{:?}", response.diagnostics);
         let emitted_total = response
-            .class_map
+            .class_exports
             .values()
             .map(|value| value.split_ascii_whitespace().count())
             .sum::<usize>();
         // The fixture itself supplies two local exports and one composed edge;
         // dropping either side of the join changes this independently counted total.
         assert_eq!(emitted_total, 3);
-        assert_eq!(response.class_map.len(), 2);
+        assert_eq!(response.class_exports.len(), 2);
+    }
+
+    #[test]
+    fn same_named_class_and_value_exports_remain_separate_and_diagnostic() {
+        let response = resolve_omena_bundler_host_module_v0(request(
+            "/src/collision.module.css",
+            vec![OmenaQueryStyleSourceInputV0 {
+                style_path: "/src/collision.module.css".to_string(),
+                style_source: ":export { button: #0af; } .button { color: red; }".to_string(),
+            }],
+        ));
+        let payload = serde_json::to_value(&response).expect("bundler response must serialize");
+
+        let class_value = payload["classExports"]["button"]
+            .as_str()
+            .expect("class family must retain the emitted class token");
+        assert!(class_value.ends_with("_button"), "{class_value:?}");
+        assert_eq!(payload["valueExports"]["button"], "#0af");
+        assert!(payload.get("classMap").is_none());
+
+        let named = payload["namedExports"]
+            .as_array()
+            .expect("named exports must be typed entries");
+        assert!(named.iter().any(|entry| {
+            entry["exportedName"] == "button"
+                && entry["kind"] == "class"
+                && entry["value"] == class_value
+        }));
+        assert!(named.iter().any(|entry| {
+            entry["exportedName"] == "button"
+                && entry["kind"] == "value"
+                && entry["value"] == "#0af"
+        }));
+
+        let collision = payload["diagnostics"]
+            .as_array()
+            .and_then(|diagnostics| {
+                diagnostics
+                    .iter()
+                    .find(|diagnostic| diagnostic["code"] == "exportNamespaceCollision")
+            })
+            .expect("same-name collision must be diagnosed");
+        let anchors = collision["sourceAnchors"]
+            .as_array()
+            .expect("collision diagnostic must be source-anchored");
+        assert_eq!(anchors.len(), 2);
+        assert!(anchors.iter().any(|anchor| anchor["kind"] == "class"));
+        assert!(anchors.iter().any(|anchor| anchor["kind"] == "value"));
+        assert!(anchors.iter().all(|anchor| {
+            anchor["stylePath"] == "/src/collision.module.css"
+                && anchor["startByte"].as_u64() < anchor["endByte"].as_u64()
+        }));
     }
 }

@@ -1338,6 +1338,43 @@ fn infer_style_dialect(path: &str) -> OmenaParserStyleDialect {
 mod tests {
     use super::*;
 
+    #[test]
+    fn bundler_host_json_keeps_same_named_export_families_separate() -> napi::Result<()> {
+        let response = resolve_css_module_for_bundler_host_json(
+            r#"{
+              "snapshotId": { "value": 1 },
+              "workspaceRoot": "/workspace",
+              "stylePath": "/workspace/collision.module.css",
+              "styleSources": [{
+                "stylePath": "/workspace/collision.module.css",
+                "styleSource": ":export { button: #0af; } .button { color: red; }"
+              }],
+              "packageManifests": []
+            }"#
+            .to_string(),
+        )?;
+        let payload: serde_json::Value = serde_json::from_str(&response)
+            .map_err(|error| napi::Error::from_reason(error.to_string()))?;
+
+        assert!(payload.get("classMap").is_none());
+        assert_eq!(payload["classExports"]["button"], "_zeCWO7_button");
+        assert_eq!(payload["valueExports"]["button"], "#0af");
+        assert_eq!(payload["namedExports"].as_array().map(Vec::len), Some(2));
+        assert!(
+            payload["diagnostics"]
+                .as_array()
+                .is_some_and(|diagnostics| {
+                    diagnostics.iter().any(|diagnostic| {
+                        diagnostic["code"] == "exportNamespaceCollision"
+                            && diagnostic["sourceAnchors"]
+                                .as_array()
+                                .is_some_and(|anchors| anchors.len() == 2)
+                    })
+                })
+        );
+        Ok(())
+    }
+
     fn assert_query_diagnostics_json_shape(
         json: &str,
         expected_file_kind: &str,

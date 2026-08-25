@@ -40,6 +40,7 @@ export type OmenaWorkspaceSessionOperationV0Json =
   | "replaceStyleSources"
   | "cancel"
   | "shutdown";
+export type OmenaBundlerHostExportKindV0Json = "class" | "value";
 export type OmenaClosedWorldOutcomeV0Json =
   | OmenaClosedWorldClosedOutcomeV0Json
   | OmenaClosedWorldOpenOutcomeV0Json;
@@ -262,14 +263,20 @@ export interface OmenaBundlerHostResolveModuleResponseV0Json {
   readonly snapshotId: OmenaWorkspaceSnapshotIdV0Json;
   readonly protocolVersion: "0";
   readonly moduleId: string;
-  readonly classMap: RecordStringJson;
-  readonly namedExports: RecordStringJson;
+  readonly classExports: RecordStringJson;
+  readonly valueExports: RecordStringJson;
+  readonly namedExports: readonly OmenaBundlerHostNamedExportV0Json[];
   readonly typescriptDeclaration: string;
   readonly composesEdges: readonly OmenaBundlerHostComposesEdgeV0Json[];
   readonly diagnostics: readonly OmenaBundlerHostDiagnosticV0Json[];
   readonly ready: boolean;
 }
 export type RecordStringJson = Readonly<Record<string, string>>;
+export interface OmenaBundlerHostNamedExportV0Json {
+  readonly exportedName: string;
+  readonly kind: OmenaBundlerHostExportKindV0Json;
+  readonly value: string;
+}
 export interface OmenaBundlerHostComposesEdgeV0Json {
   readonly exportedName: string;
   readonly moduleId: string;
@@ -278,6 +285,13 @@ export interface OmenaBundlerHostComposesEdgeV0Json {
 export interface OmenaBundlerHostDiagnosticV0Json {
   readonly code: string;
   readonly message: string;
+  readonly sourceAnchors: readonly OmenaBundlerHostDiagnosticSourceAnchorV0Json[];
+}
+export interface OmenaBundlerHostDiagnosticSourceAnchorV0Json {
+  readonly stylePath: string;
+  readonly kind: OmenaBundlerHostExportKindV0Json;
+  readonly startByte: number;
+  readonly endByte: number;
 }
 export interface OmenaBundlerHostBundleAdmissionV0Json {
   readonly closedWorldOutcome: OmenaClosedWorldOutcomeV0Json;

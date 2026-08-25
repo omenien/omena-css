@@ -386,7 +386,7 @@
     {
       "crate": "omena-query",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints, requires exact Rust-authored declaration identities for style resolution, preserves analyzed-empty reachability as a closed-world result, and projects typed dialect-cycle evidence instead of a generic pass-unavailable blocker. It also moves custom-property diagnostics and module-interface joins onto the shared decoded, case-preserving property identity and revalidates deferred standard-property values after Salsa-fed var() substitution.",
+      "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints, requires exact Rust-authored declaration identities for style resolution, preserves analyzed-empty reachability as a closed-world result, and projects typed dialect-cycle evidence instead of a generic pass-unavailable blocker. It also moves custom-property diagnostics and module-interface joins onto the shared decoded, case-preserving property identity, revalidates deferred standard-property values after Salsa-fed var() substitution, and replaces the merged bundler-host export map with typed class and ICSS-value namespaces plus source-anchored collision diagnostics.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -395,7 +395,12 @@
             "field OmenaQueryCascadeNarrowingEvidenceV0.property_key",
             "field OmenaQueryCreateCustomPropertyActionV0.property_key",
             "field OmenaQueryCustomPropertyAnnotationV0.property_key",
-            "field OmenaQueryCustomPropertyOccurrenceV0.property_key"
+            "field OmenaQueryCustomPropertyOccurrenceV0.property_key",
+            "field OmenaQueryCssModuleClassExportV0.source_spans",
+            "field OmenaBundlerHostResolveModuleResponseV0.class_exports",
+            "field OmenaBundlerHostResolveModuleResponseV0.value_exports",
+            "field OmenaQueryCssModuleIcssExportV0.source_spans",
+            "field OmenaBundlerHostDiagnosticV0.source_anchors"
           ],
           "witnessLinePrefix": "  field ",
           "expectedWitnesses": [
@@ -403,8 +408,17 @@
             "OmenaQueryCascadeNarrowingEvidenceV0.property_key",
             "OmenaQueryCreateCustomPropertyActionV0.property_key",
             "OmenaQueryCustomPropertyAnnotationV0.property_key",
-            "OmenaQueryCustomPropertyOccurrenceV0.property_key"
+            "OmenaQueryCustomPropertyOccurrenceV0.property_key",
+            "OmenaQueryCssModuleClassExportV0.source_spans",
+            "OmenaBundlerHostResolveModuleResponseV0.class_exports",
+            "OmenaBundlerHostResolveModuleResponseV0.value_exports",
+            "OmenaQueryCssModuleIcssExportV0.source_spans",
+            "OmenaBundlerHostDiagnosticV0.source_anchors"
           ]
+        },
+        {
+          "lint": "struct_pub_field_missing",
+          "evidenceNeedles": ["field class_map of struct OmenaBundlerHostResolveModuleResponseV0"]
         },
         {
           "lint": "enum_variant_added",
@@ -425,6 +439,30 @@
         }
       ],
       "expectedRuntimeValueChanges": [
+        {
+          "id": "query-bundler-host-typed-export-namespaces",
+          "kind": "wire-value-order-preserving",
+          "surface": "OmenaBundlerHostResolveModuleResponseV0 export families, named exports, declarations, and collision diagnostics",
+          "reason": "Bundler-host responses no longer merge emitted class tokens and ICSS values under one string key. Same-named exports remain available in separate typed families, flat named entries carry their family, and an anchored diagnostic reports that JavaScript cannot expose both through one flat binding.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/bundler_host.rs",
+              "needles": [
+                "class_exports.insert(export.name.clone(), value.clone())",
+                "value_exports.insert(export.name.clone(), export.value.clone())",
+                "code: \"exportNamespaceCollision\".to_string()",
+                "fn same_named_class_and_value_exports_remain_separate_and_diagnostic()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/module_interface.rs",
+              "needles": [
+                "export declare const classExports:",
+                "export declare const valueExports:"
+              ]
+            }
+          ]
+        },
         {
           "id": "query-source-import-resolution-authority",
           "kind": "selection-outcome-changing",
@@ -799,7 +837,7 @@
     {
       "crate": "omena-wasm",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor replaces caller-supplied lexical import hints with exact Rust declaration-ID resolutions and adds a typed browser declaration-enumeration surface.",
+      "reason": "The next pre-1.0 minor replaces caller-supplied lexical import hints with exact Rust declaration-ID resolutions, adds a typed browser declaration-enumeration surface, and forwards typed class and ICSS-value export namespaces through the bundler-host boundary.",
       "expectedFailures": [
         {
           "lint": "function_parameter_count_changed",
@@ -812,6 +850,23 @@
         }
       ],
       "expectedRuntimeValueChanges": [
+        {
+          "id": "wasm-bundler-host-typed-export-namespaces",
+          "kind": "wire-value-order-preserving",
+          "surface": "resolveCssModuleForBundlerHost browser response",
+          "reason": "The WASM boundary forwards separate class and ICSS value maps, typed named entries, and source-anchored same-name diagnostics instead of a merged export map.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+              "needles": [
+                "fn resolve_css_module_for_bundler_host_response(",
+                "fn bundler_host_boundary_keeps_same_named_export_families_separate()",
+                "payload[\"classExports\"][\"button\"]",
+                "payload[\"valueExports\"][\"button\"]"
+              ]
+            }
+          ]
+        },
         {
           "id": "wasm-source-import-resolution-authority",
           "kind": "selection-outcome-changing",

@@ -15,7 +15,12 @@ function createSmokeEngine() {
     bundlerHostCapabilitiesJson: () =>
       JSON.stringify({
         protocolVersion: "0",
-        capabilities: ["semanticClassMap", "namedExports", "composesEdges"],
+        capabilities: [
+          "semanticClassExports",
+          "typedExportNamespaces",
+          "namedExports",
+          "composesEdges",
+        ],
       }),
     resolveCssModuleForBundlerHostJson: (requestJson) => {
       const request = JSON.parse(requestJson);
@@ -23,10 +28,11 @@ function createSmokeEngine() {
         snapshotId: request.snapshotId,
         protocolVersion: "0",
         moduleId: request.stylePath,
-        classMap: { root: "_root_0" },
-        namedExports: { root: "_root_0" },
+        classExports: { root: "_root_0" },
+        valueExports: {},
+        namedExports: [{ exportedName: "root", kind: "class", value: "_root_0" }],
         typescriptDeclaration:
-          "declare const styles: Readonly<Record<string, string>>;\nexport default styles;\n",
+          "declare const classExports: Readonly<Record<string, string>>;\ndeclare const valueExports: Readonly<Record<string, string>>;\ndeclare const styles: { readonly classExports: typeof classExports; readonly valueExports: typeof valueExports };\nexport default styles;\n",
         composesEdges: [],
         diagnostics: [],
         ready: true,

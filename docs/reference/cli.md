@@ -12,9 +12,10 @@ sourceOfTruth: generated
 
 # CLI reference
 
-For CSS Modules, the emitted token is not a contract; `classMap`, `namedExports`,
-and the generated `.d.ts` are. Hand-writing an emitted token into markup, tests,
-or CSS is unsupported.
+For CSS Modules, emitted tokens are not a contract; typed `classExports`, typed
+`valueExports`, family-tagged `namedExports`, and the generated `.d.ts` are.
+Same-named class and ICSS value exports remain separate instead of collapsing
+into one binding. Hand-writing an emitted token into markup, tests, or CSS is unsupported.
 
 ## Product verbs
 

@@ -253,17 +253,37 @@ model OmenaBundlerHostComposesEdgeV0 {
   className: string;
 }
 
+enum OmenaBundlerHostExportKindV0 {
+  class: "class",
+  value: "value",
+}
+
+model OmenaBundlerHostNamedExportV0 {
+  exportedName: string;
+  kind: OmenaBundlerHostExportKindV0;
+  value: string;
+}
+
+model OmenaBundlerHostDiagnosticSourceAnchorV0 {
+  stylePath: string;
+  kind: OmenaBundlerHostExportKindV0;
+  startByte: safeint;
+  endByte: safeint;
+}
+
 model OmenaBundlerHostDiagnosticV0 {
   code: string;
   message: string;
+  sourceAnchors: OmenaBundlerHostDiagnosticSourceAnchorV0[];
 }
 
 model OmenaBundlerHostResolveModuleResponseV0 {
   snapshotId: OmenaWorkspaceSnapshotIdV0;
   protocolVersion: "0";
   moduleId: string;
-  classMap: Record<string>;
-  namedExports: Record<string>;
+  classExports: Record<string>;
+  valueExports: Record<string>;
+  namedExports: OmenaBundlerHostNamedExportV0[];
   typescriptDeclaration: string;
   composesEdges: OmenaBundlerHostComposesEdgeV0[];
   diagnostics: OmenaBundlerHostDiagnosticV0[];

@@ -10,7 +10,7 @@ import {
  * classname transform behavior.
  *
  * Takes an original SCSS class name and returns the list of names
- * the JS-side `classMap` should expose for it:
+ * the JS-side class-export family should expose for it:
  *
  * | Mode             | Original | Output for `.btn-primary` |
  * |------------------|:--------:|---------------------------|

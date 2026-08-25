@@ -4,8 +4,8 @@
   "scope": "internal-test-inventory-only",
   "regex": "(?:(?<![A-Za-z0-9_])_[A-Za-z][A-Za-z0-9-]*_[0-9]+(?![A-Za-z0-9_])|(?<=[.\"'`])_[A-Za-z0-9_-]{6}_[A-Za-z0-9_-]+(?![A-Za-z0-9_]))",
   "selectedFormatRegex": "^_[A-Za-z0-9_-]{6}_[A-Za-z0-9_-]+$",
-  "expectedSiteCount": 148,
-  "expectedFileCount": 22,
+  "expectedSiteCount": 158,
+  "expectedFileCount": 24,
   "wholeFileTestInternal": [
     "rust/crates/omena-abstract-value/src/tests.rs",
     "rust/crates/omena-cli/src/tests.rs",
@@ -32,6 +32,10 @@
       "marker": "#[cfg(test)]\nmod tests {"
     },
     {
+      "path": "rust/crates/omena-napi/src/lib.rs",
+      "marker": "#[cfg(test)]\nmod tests {"
+    },
+    {
       "path": "rust/crates/omena-query/src/style/transform/token_integrity.rs",
       "marker": "#[cfg(test)]\nmod tests {"
     },
@@ -47,6 +51,10 @@
     {
       "path": "rust/crates/omena-transform-passes/src/helpers/ir_transaction.rs",
       "marker": "mod tests {"
+    },
+    {
+      "path": "rust/crates/omena-wasm/src/lib.rs",
+      "marker": "#[cfg(test)]\nmod tests {"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/executor.rs",

@@ -26,7 +26,7 @@
   "classificationCounts": {
     "DEFECT-REACHABLE": 0,
     "PROTECTED-BY-PARSER": 158,
-    "TEST-ONLY": 26,
+    "TEST-ONLY": 28,
     "ORACLE-DEMOTED": 4
   },
   "sites": [
@@ -691,8 +691,30 @@
       "evidence": "&& matches_ignore_ascii_case(token.text, &[\"from\", \"to\"]))"
     },
     {
+      "path": "rust/crates/omena-query/src/bundler_host.rs",
+      "line": 622,
+      "function": "same_named_class_and_value_exports_remain_separate_and_diagnostic",
+      "idiom": "direct-equality",
+      "keyword": "value",
+      "classification": "TEST-ONLY",
+      "disposition": "retain-test-evidence",
+      "classificationReason": "The comparison belongs to an assertion or fixture rather than product logic.",
+      "evidence": "&& entry[\"kind\"] == \"value\""
+    },
+    {
+      "path": "rust/crates/omena-query/src/bundler_host.rs",
+      "line": 639,
+      "function": "same_named_class_and_value_exports_remain_separate_and_diagnostic",
+      "idiom": "direct-equality",
+      "keyword": "value",
+      "classification": "TEST-ONLY",
+      "disposition": "retain-test-evidence",
+      "classificationReason": "The comparison belongs to an assertion or fixture rather than product logic.",
+      "evidence": "assert!(anchors.iter().any(|anchor| anchor[\"kind\"] == \"value\"));"
+    },
+    {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 1215,
+      "line": 1216,
       "function": "hover_layer_name_from_prelude",
       "idiom": "strip-prefix",
       "keyword": "@layer",
@@ -2099,7 +2121,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:647cb6018cb58e10e5549b25696ea5788bd3304d3fe718feb09a44369f09cb11",
+  "siteDigest": "sha256:f04f8da8a4cfe29246cdebcab90fc35ee9953fa1abb1811dc68eefd82f13a1fe",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [

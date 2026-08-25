@@ -5,9 +5,9 @@ mod sdk_workspace;
 pub use sdk_workspace::OmenaWasmWorkspaceV0;
 
 use omena_query::{
-    OmenaBundlerHostResolveModuleRequestV0, OmenaParserStyleDialect,
-    OmenaQueryBuildVerificationProfileV0, OmenaQueryBundleArtifactV0 as OmenaWasmBundleArtifactV0,
-    OmenaQueryBundleEmissionPathV0,
+    OmenaBundlerHostResolveModuleRequestV0, OmenaBundlerHostResolveModuleResponseV0,
+    OmenaParserStyleDialect, OmenaQueryBuildVerificationProfileV0,
+    OmenaQueryBundleArtifactV0 as OmenaWasmBundleArtifactV0, OmenaQueryBundleEmissionPathV0,
     OmenaQueryBundleExecutionScopeEvidenceV0 as OmenaWasmBundleExecutionScopeEvidenceV0,
     OmenaQueryBundleWithEvidenceV0 as OmenaWasmBundleWithEvidenceV0,
     OmenaQueryCascadeAtPositionV0 as OmenaWasmCascadeAtPositionV0,
@@ -92,7 +92,7 @@ pub fn bundler_host_capabilities() -> Result<JsValue, JsValue> {
 pub fn resolve_css_module_for_bundler_host(request: JsValue) -> Result<JsValue, JsValue> {
     let request = serde_wasm_bindgen::from_value::<OmenaBundlerHostResolveModuleRequestV0>(request)
         .map_err(|error| JsValue::from_str(&format!("invalid bundler host request: {error}")))?;
-    to_json_compatible_js_value(&resolve_omena_bundler_host_module_v0(request))
+    to_json_compatible_js_value(&resolve_css_module_for_bundler_host_response(request))
 }
 
 #[wasm_bindgen(js_name = checkStyleSource)]
@@ -1355,9 +1355,51 @@ fn infer_style_dialect(path: &str) -> OmenaParserStyleDialect {
     }
 }
 
+fn resolve_css_module_for_bundler_host_response(
+    request: OmenaBundlerHostResolveModuleRequestV0,
+) -> OmenaBundlerHostResolveModuleResponseV0 {
+    resolve_omena_bundler_host_module_v0(request)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bundler_host_boundary_keeps_same_named_export_families_separate() {
+        let request: OmenaBundlerHostResolveModuleRequestV0 = serde_json::from_str(
+            r#"{
+              "snapshotId": { "value": 1 },
+              "workspaceRoot": "/workspace",
+              "stylePath": "/workspace/collision.module.css",
+              "styleSources": [{
+                "stylePath": "/workspace/collision.module.css",
+                "styleSource": ":export { button: #0af; } .button { color: red; }"
+              }],
+              "packageManifests": []
+            }"#,
+        )
+        .expect("wasm bundler request must deserialize");
+        let payload = serde_json::to_value(resolve_css_module_for_bundler_host_response(request))
+            .expect("wasm bundler response must serialize");
+
+        assert!(payload.get("classMap").is_none());
+        assert_eq!(payload["classExports"]["button"], "_zeCWO7_button");
+        assert_eq!(payload["valueExports"]["button"], "#0af");
+        assert_eq!(payload["namedExports"].as_array().map(Vec::len), Some(2));
+        assert!(
+            payload["diagnostics"]
+                .as_array()
+                .is_some_and(|diagnostics| {
+                    diagnostics.iter().any(|diagnostic| {
+                        diagnostic["code"] == "exportNamespaceCollision"
+                            && diagnostic["sourceAnchors"]
+                                .as_array()
+                                .is_some_and(|anchors| anchors.len() == 2)
+                    })
+                })
+        );
+    }
 
     #[cfg(target_arch = "wasm32")]
     #[test]

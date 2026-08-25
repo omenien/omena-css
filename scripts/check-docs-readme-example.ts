@@ -8,9 +8,10 @@ import { fileURLToPath } from "node:url";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const readme = readFileSync(path.join(repoRoot, "README.md"), "utf8");
 const tokenOpacitySentence =
-  "the emitted token is not a contract; `classMap`, `namedExports`,\n" +
-  "and the generated `.d.ts` are. Hand-writing an emitted token into markup, tests,\n" +
-  "or CSS is unsupported.";
+  "emitted tokens are not a contract; typed `classExports`, typed\n" +
+  "`valueExports`, family-tagged `namedExports`, and the generated `.d.ts` are.\n" +
+  "Same-named class and ICSS value exports remain separate instead of collapsing\n" +
+  "into one binding. Hand-writing an emitted token into markup, tests, or CSS is unsupported.";
 assert.ok(
   readme.includes(tokenOpacitySentence),
   "README must declare emitted CSS Modules tokens unsupported as a consumer contract",
