@@ -1,4 +1,4 @@
-caseCount=172
+caseCount=173
 case dialect=Css sourceFingerprint=6b4fa41c0f1967b2
 ParsedStyleFacts {
     product: "omena-parser.style-facts",
@@ -7249,6 +7249,62 @@ ParsedStyleFacts {
             kind: Class,
             name: "button-secondary",
             range: 36..52,
+        },
+    ],
+    variable_count: 0,
+    variables: [],
+    sass_symbol_count: 0,
+    sass_symbols: [],
+    sass_include_count: 0,
+    sass_includes: [],
+    sass_module_edge_count: 0,
+    sass_module_edges: [],
+    sass_placeholder_definition_count: 0,
+    sass_placeholder_definitions: [],
+    extend_target_count: 0,
+    extend_targets: [],
+    animation_count: 0,
+    animations: [],
+    css_module_value_count: 0,
+    css_module_values: [],
+    css_module_value_import_edge_count: 0,
+    css_module_value_import_edges: [],
+    css_module_value_definition_edge_count: 0,
+    css_module_value_definition_edges: [],
+    css_module_composes_count: 0,
+    css_module_composes: [],
+    css_module_composes_edge_count: 0,
+    css_module_composes_edges: [],
+    icss_count: 0,
+    icss: [],
+    icss_import_edge_count: 0,
+    icss_import_edges: [],
+    icss_export_edge_count: 0,
+    icss_export_edges: [],
+    at_rule_count: 0,
+    at_rules: [],
+    error_count: 0,
+}
+case dialect=Scss sourceFingerprint=29765540d076d2b0
+ParsedStyleFacts {
+    product: "omena-parser.style-facts",
+    dialect: Scss,
+    selector_count: 3,
+    selectors: [
+        ParsedSelectorFact {
+            kind: Class,
+            name: "card",
+            range: 1..5,
+        },
+        ParsedSelectorFact {
+            kind: Class,
+            name: "card__title",
+            range: 11..18,
+        },
+        ParsedSelectorFact {
+            kind: Class,
+            name: "card__title--large",
+            range: 26..33,
         },
     ],
     variable_count: 0,
