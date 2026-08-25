@@ -630,8 +630,8 @@ mod tests {
             "trackedLintStyleFileCount={} trackedLintSourceFileCount={} trackedLintFindingCount={} ruleCounts={counts:?}",
             report.style_file_count, report.source_file_count, report.finding_count
         );
-        assert_eq!(report.style_file_count, 199);
-        assert_eq!(report.source_file_count, 1_019);
+        assert_eq!(report.style_file_count, 200);
+        assert_eq!(report.source_file_count, 1_021);
         assert_eq!(report.finding_count, 37);
         assert_eq!(
             counts,

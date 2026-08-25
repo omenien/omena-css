@@ -1,7 +1,7 @@
 {
   "schemaVersion": "0",
   "product": "omena-query.tracked-style-diagnostics-five-pin-census",
-  "measuredAt": "2026-08-24",
+  "measuredAt": "2026-08-25",
   "corpus": {
     "enumeration": "git ls-files -- '*.css' '*.scss' '*.less'",
     "styleExtensions": ["css", "scss", "less"],
@@ -14,8 +14,8 @@
       ".next",
       ".turbo"
     ],
-    "styleFileCount": 199,
-    "recommendedLintSourceFileCount": 1019
+    "styleFileCount": 200,
+    "recommendedLintSourceFileCount": 1021
   },
   "pins": [
     {

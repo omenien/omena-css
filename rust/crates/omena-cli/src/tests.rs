@@ -3342,7 +3342,7 @@ fn tracked_style_diagnostics_default_cli_preserves_the_pinned_rule_census() -> R
     println!(
         "trackedStyleDiagnosticsDefaultCliFileCount={analyzed_file_count} ruleCounts={counts:?}"
     );
-    assert_eq!(analyzed_file_count, 199);
+    assert_eq!(analyzed_file_count, 200);
     assert_eq!(
         counts,
         BTreeMap::from([

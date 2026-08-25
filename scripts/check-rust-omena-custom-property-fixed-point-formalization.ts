@@ -1166,9 +1166,9 @@ function validateDiagnosticCensus(census: DiagnosticCensus, lintSource: string):
 
   assert.equal(census.schemaVersion, "0");
   assert.equal(census.product, "omena-query.tracked-style-diagnostics-five-pin-census");
-  assert.equal(census.measuredAt, "2026-08-24");
-  assert.equal(census.corpus.styleFileCount, 199);
-  assert.equal(census.corpus.recommendedLintSourceFileCount, 1_019);
+  assert.equal(census.measuredAt, "2026-08-25");
+  assert.equal(census.corpus.styleFileCount, 200);
+  assert.equal(census.corpus.recommendedLintSourceFileCount, 1_021);
   assert.deepEqual(
     census.pins.map(({ id, sourcePin }) => [id, sourcePin]),
     expectedPins,
@@ -1314,8 +1314,8 @@ function validateDiagnosticCensus(census: DiagnosticCensus, lintSource: string):
     lintSource.includes("fn tracked_workspace_recommended_lint_preserves_the_pinned_rule_census()"),
     "the full recommended-lint receipt arm is absent",
   );
-  assert.ok(lintSource.includes("assert_eq!(report.style_file_count, 199);"));
-  assert.ok(lintSource.includes("assert_eq!(report.source_file_count, 1_019);"));
+  assert.ok(lintSource.includes("assert_eq!(report.style_file_count, 200);"));
+  assert.ok(lintSource.includes("assert_eq!(report.source_file_count, 1_021);"));
   assert.ok(
     lintSource.includes(
       `assert_eq!(report.finding_count, ${current.measurements.recommendedLint.findingCount});`,
