@@ -3973,7 +3973,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1197,
+        "line": 1225,
         "function": "summarize_omena_parser_custom_property_facts",
         "operation": "sealed-property-key",
         "evidence": "let Some(property_key) = variable.property_key.clone() else {",
@@ -3981,7 +3981,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1203,
+        "line": 1231,
         "function": "summarize_omena_parser_custom_property_facts",
         "operation": "sealed-property-key",
         "evidence": ".entry(property_key.clone())",
@@ -3989,7 +3989,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1207,
+        "line": 1235,
         "function": "summarize_omena_parser_custom_property_facts",
         "operation": "sealed-property-key",
         "evidence": "property_key,",
@@ -3997,7 +3997,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1256,
+        "line": 1284,
         "function": "summarize_omena_parser_custom_property_facts",
         "operation": "sealed-property-key",
         "evidence": ".map(|declaration| (declaration.property_key.clone(), declaration.name.clone()))",
@@ -4005,7 +4005,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1433,
+        "line": 1461,
         "function": "summarize_omena_parser_custom_property_semantic_facts",
         "operation": "sealed-property-key",
         "evidence": ".entry(reference.property_key.clone())",
@@ -4013,7 +4013,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1521,
+        "line": 1549,
         "function": "custom_property_context_matches",
         "operation": "sealed-property-key",
         "evidence": "if declaration.property_key != reference.property_key {",
@@ -6612,7 +6612,7 @@
         "role": "producer"
       }
     ],
-    "siteDigest": "sha256:4e855ac3d338602768a38e02b2d00a543d2701a6fe7208fd43a8b03f93aaf038",
+    "siteDigest": "sha256:31987e2facb06003aacfbe9c21486e78c82277c359da78b246e812f3f6a47730",
     "residualRawCarrierDirection": "decrease-only",
     "residualRawCarrierSiteCount": 198,
     "residualRawCarrierSites": [

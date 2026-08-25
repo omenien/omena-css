@@ -286,7 +286,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1698,
+      "line": 1726,
       "idiom": "brace-list-search",
       "family": "semantic-model",
       "disposition": "named-exempt",
@@ -295,7 +295,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1704,
+      "line": 1732,
       "idiom": "brace-find",
       "family": "semantic-model",
       "disposition": "named-exempt",
@@ -1302,7 +1302,7 @@
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
     }
   ],
-  "siteDigest": "sha256:00ae20833bd4b4307e7c2bdf7624790b896e4826ac2343cef3fb04fefd0df9d7",
+  "siteDigest": "sha256:f57ca3f4c6f4394c83da9ee3c6d34649536fa8ac8909006e3d258c4c30794de2",
   "classSelectorScanner": {
     "policy": "decrease-only",
     "baselineSiteCount": 3,
@@ -1319,7 +1319,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1606,
+        "line": 1634,
         "idiom": "class-dot-byte-walk",
         "family": "semantic-model",
         "disposition": "named-exempt",
@@ -1328,7 +1328,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1610,
+        "line": 1638,
         "idiom": "class-dot-byte-walk",
         "family": "semantic-model",
         "disposition": "named-exempt",
@@ -1336,7 +1336,7 @@
         "reason": "Semantic-model source scanning remains a named consumer follow-up."
       }
     ],
-    "siteDigest": "sha256:b7c4a07dd088ebe96ac3549beec6ad7b86ae17f0ea7a1b8cd67875465dea9078"
+    "siteDigest": "sha256:3a2c8d6b4d91b055c1b039f8b8f43b45a8b6540ef166911a0b5001433f5882c0"
   },
   "selectorAuthority": {
     "policy": "single-cst-projected-authority",
@@ -1350,6 +1350,12 @@
     "reportFieldVisibility": "private",
     "rustAuthoritySourceScope": "all-tracked-rust",
     "rawNestingSourceRoots": ["rust", "packages"],
+    "rawNestingReplaceBlindSpots": [
+      "template-literal-ampersand-argument",
+      "one-hop-replacement-argument-indirection",
+      "regular-expression-ampersand-replacement",
+      "split-then-join-ampersand-replacement"
+    ],
     "rawNestingReplaceSiteCount": 0
   },
   "moduleInterfaceLessScanner": {

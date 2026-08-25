@@ -213,6 +213,8 @@ const writeMode = process.argv.includes("--write");
 const injectClassNameEquality =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CLASSNAME_EQUALITY === "1";
 const injectEgress = process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_EGRESS === "1";
+const injectReviewedIdiomOmission =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_REVIEWED_IDIOM_OMISSION === "1";
 const injectLabelledComparison =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_LABELLED_COMPARISON === "1";
 const injectUnlabelledComparison =
@@ -826,7 +828,17 @@ if (existing && writeMode) {
   } else {
     assertNoAddedSites(existing.egress.sites, classifiedEgressSites, "identifier egress");
   }
-  const previousIdiomKeys = new Set(existing.idiom.sites.map(stableSiteKey));
+  const previousIdiomSites = injectReviewedIdiomOmission
+    ? existing.idiom.sites.filter(
+        (site) =>
+          !(
+            site.path === "rust/crates/omena-cascade/src/selector.rs" &&
+            site.function === "selector_match_branch_witness" &&
+            site.operation === "insert"
+          ),
+      )
+    : existing.idiom.sites;
+  const previousIdiomKeys = new Set(previousIdiomSites.map(stableSiteKey));
   const idiomAdditions = classifiedIdiomSites.filter(
     (site) => !previousIdiomKeys.has(stableSiteKey(site)),
   );
@@ -847,8 +859,8 @@ if (existing && writeMode) {
     assert.deepEqual(
       idiomAdditions
         .map((site) => [site.path, site.function, site.operation].join("\0"))
-        .filter((key) => !reviewedIdiomAdditionKeys.includes(key)),
-      [],
+        .toSorted(),
+      reviewedIdiomAdditionKeys.toSorted(),
       "the reviewed selector-key meaning revision permits only matcher storage, witness, and CST authority issuance rows",
     );
   } else {
@@ -3514,39 +3526,40 @@ function readExistingCensus(): IdentifierAuthorityCensus | undefined {
     digest(parsed.predicateCopies.sites),
     "predicate-copy site digest",
   );
-  if (parsed.propertyIdentity) {
-    assert.equal(
-      parsed.propertyIdentity.authoritySiteCount,
-      parsed.propertyIdentity.sites.length,
-      "property authority site count",
-    );
-    assert.equal(
-      parsed.propertyIdentity.siteDigest,
-      digest(parsed.propertyIdentity.sites),
-      "property authority site digest",
-    );
-    if (parsed.propertyIdentity.residualRawCarrierSites) {
-      assert.equal(
-        parsed.propertyIdentity.residualRawCarrierSiteCount,
-        parsed.propertyIdentity.residualRawCarrierSites.length,
-        "residual raw property carrier site count",
-      );
-      assert.equal(
-        parsed.propertyIdentity.residualRawCarrierSiteDigest,
-        digest(parsed.propertyIdentity.residualRawCarrierSites),
-        "residual raw property carrier site digest",
-      );
-    }
-    assert.equal(
-      parsed.propertyIdentity.rawStringIdentitySiteCount,
-      0,
-      "raw property identity site count",
-    );
-    assert.equal(
-      parsed.propertyIdentity.rawStringIdentitySiteDigest,
-      digest(parsed.propertyIdentity.rawStringIdentitySites),
-      "raw property identity site digest",
-    );
-  }
+  assert.ok(parsed.propertyIdentity, "committed property-identity census is required");
+  assert.equal(
+    parsed.propertyIdentity.authoritySiteCount,
+    parsed.propertyIdentity.sites.length,
+    "property authority site count",
+  );
+  assert.equal(
+    parsed.propertyIdentity.siteDigest,
+    digest(parsed.propertyIdentity.sites),
+    "property authority site digest",
+  );
+  assert.ok(
+    parsed.propertyIdentity.residualRawCarrierSites,
+    "committed residual raw property carriers are required",
+  );
+  assert.equal(
+    parsed.propertyIdentity.residualRawCarrierSiteCount,
+    parsed.propertyIdentity.residualRawCarrierSites.length,
+    "residual raw property carrier site count",
+  );
+  assert.equal(
+    parsed.propertyIdentity.residualRawCarrierSiteDigest,
+    digest(parsed.propertyIdentity.residualRawCarrierSites),
+    "residual raw property carrier site digest",
+  );
+  assert.equal(
+    parsed.propertyIdentity.rawStringIdentitySiteCount,
+    0,
+    "raw property identity site count",
+  );
+  assert.equal(
+    parsed.propertyIdentity.rawStringIdentitySiteDigest,
+    digest(parsed.propertyIdentity.rawStringIdentitySites),
+    "raw property identity site digest",
+  );
   return parsed;
 }

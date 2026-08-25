@@ -80,6 +80,12 @@ interface RawScanCensus {
     readonly reportFieldVisibility: "private";
     readonly rustAuthoritySourceScope: "all-tracked-rust";
     readonly rawNestingSourceRoots: readonly ["rust", "packages"];
+    readonly rawNestingReplaceBlindSpots: readonly [
+      "template-literal-ampersand-argument",
+      "one-hop-replacement-argument-indirection",
+      "regular-expression-ampersand-replacement",
+      "split-then-join-ampersand-replacement",
+    ];
     readonly rawNestingReplaceSiteCount: 0;
   };
   readonly moduleInterfaceLessScanner: {
@@ -459,6 +465,7 @@ process.stdout.write(
       selectorReportStructLiteralBypassCount:
         census.selectorAuthority.reportStructLiteralBypassCount,
       selectorRustAuthoritySourceScope: census.selectorAuthority.rustAuthoritySourceScope,
+      rawNestingReplaceBlindSpots: census.selectorAuthority.rawNestingReplaceBlindSpots,
       rawNestingReplaceSiteCount: census.selectorAuthority.rawNestingReplaceSiteCount,
       moduleInterfaceLessScannerCallCount: census.moduleInterfaceLessScanner.directCallCount,
       direction: census.policy.direction,
@@ -488,82 +495,78 @@ function readExistingCensus(): RawScanCensus | undefined {
     `sha256:${createHash("sha256").update(JSON.stringify(parsed.sites)).digest("hex")}`,
     "committed raw scan site digest",
   );
-  if (parsed.tokenCaseComparison !== undefined) {
-    assert.equal(parsed.tokenCaseComparison.policy, "helper-only", "token case policy");
-    assert.equal(
-      parsed.tokenCaseComparison.helper,
-      "matches_ignore_ascii_case",
-      "token case helper",
-    );
-    assert.equal(
-      parsed.tokenCaseComparison.adHocSiteCount,
-      parsed.tokenCaseComparison.sites.length,
-      "token case site count",
-    );
-    if (parsed.tokenCaseComparison.namedExemptSites !== undefined) {
-      assert.equal(
-        parsed.tokenCaseComparison.namedExemptSiteCount,
-        parsed.tokenCaseComparison.namedExemptSites.length,
-        "named-exempt token case operation count",
-      );
-    }
-  }
-  if (parsed.moduleInterfaceLessScanner !== undefined) {
-    assert.equal(
-      parsed.moduleInterfaceLessScanner.directCallCount,
-      1,
-      "committed module-interface Less scanner call count",
-    );
-    assert.deepEqual(
-      parsed.moduleInterfaceLessScanner.directCallFunctions,
-      ["scan_static_less_export_statements"],
-      "committed module-interface Less scanner seam",
-    );
-  }
-  if (parsed.classSelectorScanner !== undefined) {
-    assert.equal(
-      parsed.classSelectorScanner.currentSiteCount,
-      parsed.classSelectorScanner.sites.length,
-      "committed class selector scanner site count",
-    );
-    assert.equal(
-      parsed.classSelectorScanner.siteDigest,
-      `sha256:${createHash("sha256")
-        .update(JSON.stringify(parsed.classSelectorScanner.sites))
-        .digest("hex")}`,
-      "committed class selector scanner site digest",
-    );
-  }
-  if (parsed.selectorAuthority !== undefined) {
-    assert.equal(parsed.selectorAuthority.authorityTypeCount, 1, "committed selector authority");
-    assert.equal(
-      parsed.selectorAuthority.reportProjectionCallCount,
-      1,
-      "committed selector report projection",
-    );
-    if (parsed.selectorAuthority.reportAuthorityBindingCallCount !== undefined) {
-      assert.equal(
-        parsed.selectorAuthority.reportAuthorityBindingCallCount,
-        1,
-        "committed selector report authority binding",
-      );
-      assert.equal(
-        parsed.selectorAuthority.reportStructLiteralBypassCount,
-        0,
-        "committed selector report struct-literal bypass count",
-      );
-      assert.equal(
-        parsed.selectorAuthority.reportFieldVisibility,
-        "private",
-        "committed selector report field visibility",
-      );
-    }
-    assert.equal(
-      parsed.selectorAuthority.rawNestingReplaceSiteCount,
-      0,
-      "committed raw nesting replacement count",
-    );
-  }
+  assert.ok(parsed.tokenCaseComparison, "committed token-case census is required");
+  assert.equal(parsed.tokenCaseComparison.policy, "helper-only", "token case policy");
+  assert.equal(parsed.tokenCaseComparison.helper, "matches_ignore_ascii_case", "token case helper");
+  assert.equal(
+    parsed.tokenCaseComparison.adHocSiteCount,
+    parsed.tokenCaseComparison.sites.length,
+    "token case site count",
+  );
+  assert.ok(
+    parsed.tokenCaseComparison.namedExemptSites,
+    "committed named-exempt token-case sites are required",
+  );
+  assert.equal(
+    parsed.tokenCaseComparison.namedExemptSiteCount,
+    parsed.tokenCaseComparison.namedExemptSites.length,
+    "named-exempt token case operation count",
+  );
+  assert.ok(parsed.moduleInterfaceLessScanner, "committed Less scanner census is required");
+  assert.equal(
+    parsed.moduleInterfaceLessScanner.directCallCount,
+    1,
+    "committed module-interface Less scanner call count",
+  );
+  assert.deepEqual(
+    parsed.moduleInterfaceLessScanner.directCallFunctions,
+    ["scan_static_less_export_statements"],
+    "committed module-interface Less scanner seam",
+  );
+  assert.ok(parsed.classSelectorScanner, "committed class-selector census is required");
+  assert.equal(
+    parsed.classSelectorScanner.currentSiteCount,
+    parsed.classSelectorScanner.sites.length,
+    "committed class selector scanner site count",
+  );
+  assert.equal(
+    parsed.classSelectorScanner.siteDigest,
+    `sha256:${createHash("sha256")
+      .update(JSON.stringify(parsed.classSelectorScanner.sites))
+      .digest("hex")}`,
+    "committed class selector scanner site digest",
+  );
+  assert.ok(parsed.selectorAuthority, "committed selector-authority census is required");
+  assert.equal(parsed.selectorAuthority.authorityTypeCount, 1, "committed selector authority");
+  assert.equal(
+    parsed.selectorAuthority.reportProjectionCallCount,
+    1,
+    "committed selector report projection",
+  );
+  assert.equal(
+    parsed.selectorAuthority.reportAuthorityBindingCallCount,
+    1,
+    "committed selector report authority binding",
+  );
+  assert.equal(
+    parsed.selectorAuthority.reportStructLiteralBypassCount,
+    0,
+    "committed selector report struct-literal bypass count",
+  );
+  assert.equal(
+    parsed.selectorAuthority.reportFieldVisibility,
+    "private",
+    "committed selector report field visibility",
+  );
+  assert.ok(
+    parsed.selectorAuthority.rawNestingReplaceBlindSpots,
+    "committed raw nesting replacement blind spots are required",
+  );
+  assert.equal(
+    parsed.selectorAuthority.rawNestingReplaceSiteCount,
+    0,
+    "committed raw nesting replacement count",
+  );
   return parsed;
 }
 
@@ -679,6 +682,12 @@ function scanSelectorAuthority(): RawScanCensus["selectorAuthority"] {
     reportFieldVisibility: reportFieldVisibility as "private",
     rustAuthoritySourceScope: "all-tracked-rust",
     rawNestingSourceRoots: ["rust", "packages"],
+    rawNestingReplaceBlindSpots: [
+      "template-literal-ampersand-argument",
+      "one-hop-replacement-argument-indirection",
+      "regular-expression-ampersand-replacement",
+      "split-then-join-ampersand-replacement",
+    ],
     rawNestingReplaceSiteCount: rawNestingReplaceSiteCount as 0,
   };
 }
