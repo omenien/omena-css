@@ -625,7 +625,7 @@ fn tracked_style_diagnostics_preserve_the_pinned_rule_census() {
     }
 
     println!("trackedStyleDiagnosticsFileCount={analyzed_file_count} ruleCounts={counts:?}");
-    assert_eq!(analyzed_file_count, 199);
+    assert_eq!(analyzed_file_count, 200);
     assert_eq!(
         counts,
         BTreeMap::from([
