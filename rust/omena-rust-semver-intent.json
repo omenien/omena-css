@@ -1282,7 +1282,7 @@
     {
       "crate": "omena-semantic",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor adds sealed custom-property keys and CST selector authority facts while preserving authored presentation, and resolves decoded cascade-layer paths.",
+      "reason": "The next pre-1.0 minor adds sealed custom-property keys and CST selector authority facts while preserving authored presentation, resolves decoded cascade-layer paths, and exposes a typed refusal for declarations inside discarded invalid layer rules.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -1290,14 +1290,44 @@
             "field ParserIndexCustomPropertyRefFactV0.property_key",
             "field DesignTokenWorkspaceDeclarationFactV0.property_key",
             "field ParserIndexCustomPropertyDeclFactV0.property_key",
-            "field StyleSelectorIdentityFactsV0.selector_asts"
+            "field StyleSelectorIdentityFactsV0.selector_asts",
+            "field StyleSelectorIdentityFactsV0.selector_authority_definitions",
+            "field StyleLayerIndexV0.discarded_block_spans"
           ],
           "witnessLinePrefix": "  field ",
           "expectedWitnesses": [
             "ParserIndexCustomPropertyDeclFactV0.property_key",
             "ParserIndexCustomPropertyRefFactV0.property_key",
             "DesignTokenWorkspaceDeclarationFactV0.property_key",
-            "StyleSelectorIdentityFactsV0.selector_asts"
+            "StyleSelectorIdentityFactsV0.selector_asts",
+            "StyleSelectorIdentityFactsV0.selector_authority_definitions",
+            "StyleLayerIndexV0.discarded_block_spans"
+          ]
+        },
+        {
+          "lint": "enum_variant_added",
+          "evidenceNeedles": ["variant LayerBindingResolutionV0:DiscardedInvalidRule"],
+          "witnessLinePrefix": "  variant ",
+          "expectedWitnesses": ["LayerBindingResolutionV0:DiscardedInvalidRule"]
+        },
+        {
+          "lint": "struct_pub_field_missing",
+          "evidenceNeedles": [
+            "field canonical_id of struct SelectorCanonicalIdentityV0",
+            "field local_name of struct SelectorCanonicalIdentityV0",
+            "field identity_kind of struct SelectorCanonicalIdentityV0",
+            "field rewrite_safety of struct SelectorCanonicalIdentityV0",
+            "field blockers of struct SelectorCanonicalIdentityV0"
+          ]
+        },
+        {
+          "lint": "struct_pub_field_now_doc_hidden",
+          "evidenceNeedles": [
+            "field SelectorCanonicalIdentityV0.canonical_id",
+            "field SelectorCanonicalIdentityV0.local_name",
+            "field SelectorCanonicalIdentityV0.identity_kind",
+            "field SelectorCanonicalIdentityV0.rewrite_safety",
+            "field SelectorCanonicalIdentityV0.blockers"
           ]
         }
       ],
@@ -1342,6 +1372,26 @@
                 "fn resolves_decoded_non_ascii_layer_paths_from_parser_cst()",
                 "fn escaped_dot_layer_identity_stays_distinct_from_nested_layer_identity()"
               ]
+            }
+          ]
+        },
+        {
+          "id": "semantic-selector-readiness-and-discarded-layer-binding",
+          "kind": "selection-outcome-changing",
+          "surface": "selector identity readiness and LayerBindingResolutionV0",
+          "reason": "Token-aware nesting now binds suffix-composed selector occurrences, readiness refuses partial authority loss even when one canonical id remains, and invalid layer block spans produce DiscardedInvalidRule instead of a definite unlayered rank.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-semantic/src/tests.rs",
+              "needles": [
+                "fn suffix_nested_selector_occurrences_remain_definite_and_ready()",
+                "fn selector_identity_observation_names_partial_authority_loss()",
+                "LayerBindingResolutionV0::DiscardedInvalidRule"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+              "needles": ["fn discarded_layer_block_cannot_mask_a_transform_winner_change()"]
             }
           ]
         }

@@ -4195,7 +4195,7 @@ fn canonical_selector_authority_is_projected_from_selector_cst() -> Result<(), S
 #[test]
 fn canonical_selector_authority_binds_combinator_leading_relative_selectors() -> Result<(), String>
 {
-    for combinator in [">", "+", "~"] {
+    for combinator in [">", "+", "~", "||"] {
         let source = format!(".panel {{ {combinator} .body {{}} }}");
         let parsed = parse(source.as_str(), StyleDialect::Css);
         assert!(

@@ -242,13 +242,16 @@ impl CanonicalSelectorAst {
                     && compound.required_classes.contains(&key)
             })
         });
-        let nesting_issued = nesting_parent_name.is_some_and(|parent_name| {
-            let expected = format!(".{semantic_name}");
-            let parent = format!(".{parent_name}");
-            matching_branches.iter().any(|branch| {
-                !branch.nesting_tokens.is_empty()
-                    && branch.substitute_nesting(parent.as_str()).trim() == expected
-            })
+        let expected = format!(".{semantic_name}");
+        let nesting_issued = matching_branches.iter().any(|branch| {
+            if branch.nesting_tokens.is_empty() {
+                return false;
+            }
+            let issued_for_parent = |parent_name: &str| {
+                let parent = format!(".{parent_name}");
+                branch.substitute_nesting(parent.as_str()).trim() == expected
+            };
+            nesting_parent_name.is_some_and(issued_for_parent)
         });
         (directly_issued || nesting_issued).then_some(key)
     }

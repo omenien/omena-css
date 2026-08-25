@@ -314,6 +314,11 @@ pub struct StyleLayerIndexV0 {
     pub selector_memberships: Vec<StyleContextSelectorMembershipV0>,
     pub order_nodes: Vec<StyleLayerOrderNodeV0>,
     pub block_bindings: Vec<StyleLayerBlockBindingV0>,
+    /// Parser-issued spans for invalid layer blocks that are discarded as a
+    /// whole. This authority-only field prevents those declarations from
+    /// being reclassified as unlayered without changing the wire projection.
+    #[serde(skip)]
+    pub discarded_block_spans: Vec<ParserByteSpanV0>,
     pub named_layer_count: usize,
     pub anonymous_layer_block_count: usize,
     pub unresolved_topology_count: usize,

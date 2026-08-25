@@ -414,6 +414,10 @@ fn apply_query_checker_layer_binding(
             declaration.input.layer_name = None;
             declaration.input.layer_order = None;
         }
+        LayerBindingResolutionV0::DiscardedInvalidRule => {
+            declaration.input.layer_name = None;
+            declaration.input.layer_order = None;
+        }
     }
 }
 

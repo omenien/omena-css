@@ -713,6 +713,7 @@ fn summarize_style_context_index(source: &str, cst: &ParsedCst) -> StyleContextI
             named_layer_count: layer_order.order_nodes.len(),
             order_nodes: layer_order.order_nodes,
             block_bindings: layer_order.block_bindings,
+            discarded_block_spans: layer_order.discarded_block_spans,
             unresolved_topology_count: layer_order.unresolved_topology_count,
             topology_complete: layer_order.topology_complete,
         },

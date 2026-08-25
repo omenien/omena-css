@@ -1241,7 +1241,7 @@ fn invalid_layer_path_separators_do_not_perturb_valid_layer_order() {
 }
 
 #[test]
-fn invalid_layer_block_is_discarded_across_topology_and_membership_planes() {
+fn invalid_layer_block_is_discarded_across_topology_and_membership_planes() -> Result<(), String> {
     let clean = summarize_omena_parser_style_semantic_boundary_from_source(
         "layers.css",
         "@layer real { .real {} }",
@@ -1249,20 +1249,31 @@ fn invalid_layer_block_is_discarded_across_topology_and_membership_planes() {
     .semantic_facts
     .context_index
     .layer_index;
-    let poisoned = summarize_omena_parser_style_semantic_boundary_from_source(
-        "layers.css",
-        "@layer a b { .ghost {} @layer child { .nested {} } } @layer real { .real {} }",
-    )
-    .semantic_facts
-    .context_index
-    .layer_index;
+    let poisoned_source = "@layer a b { @layer ghost; .ghost {} @layer child { .nested {} } } @layer real { .real {} }";
+    let poisoned =
+        summarize_omena_parser_style_semantic_boundary_from_source("layers.css", poisoned_source)
+            .semantic_facts
+            .context_index
+            .layer_index;
 
     assert!(poisoned.topology_complete);
     assert_eq!(poisoned.unresolved_topology_count, 0);
     assert_eq!(poisoned.order_nodes, clean.order_nodes);
+    assert!(poisoned.statement_layers.is_empty());
     assert_eq!(poisoned.block_bindings.len(), 1);
     assert_eq!(poisoned.block_bindings[0].canonical_name, "real");
     assert_eq!(poisoned.block_bindings[0].cascade_rank, 0);
+    let discarded_selector_start = poisoned_source
+        .find(".ghost")
+        .ok_or_else(|| "discarded selector fixture missing".to_string())?;
+    assert!(matches!(
+        layer_ordinal_for_byte_span(
+            &poisoned,
+            discarded_selector_start,
+            discarded_selector_start + ".ghost".len(),
+        ),
+        LayerBindingResolutionV0::DiscardedInvalidRule
+    ));
     assert_eq!(
         poisoned
             .block_layers
@@ -1279,6 +1290,7 @@ fn invalid_layer_block_is_discarded_across_topology_and_membership_planes() {
             .collect::<Vec<_>>(),
         vec!["real"]
     );
+    Ok(())
 }
 
 #[test]
@@ -1701,7 +1713,7 @@ fn combinator_leading_relative_selectors_preserve_identity_readiness() -> Result
     };
     let (control, _) = summarize("& > .body")?;
 
-    for nested in ["> .body", "+ .body", "~ .body"] {
+    for nested in ["> .body", "+ .body", "~ .body", "|| .body"] {
         let (probe, observation) = summarize(nested)?;
         assert_eq!(probe, control, "relative selector probe: {nested}");
         assert_eq!(probe.canonical_id_count, 4);
@@ -1722,6 +1734,108 @@ fn combinator_leading_relative_selectors_preserve_identity_readiness() -> Result
                 .any(|identity| identity.canonical_id() == "selector:yyy")
         );
     }
+    Ok(())
+}
+
+#[test]
+fn suffix_nested_selector_occurrences_remain_definite_and_ready() -> Result<(), String> {
+    let sheet = parse_style_module("Component.module.scss", ".card { &-header { &-title {} } }")
+        .ok_or_else(|| "SCSS module path should parse".to_string())?;
+    let graph = summarize_style_semantic_graph(&sheet, &sample_engine_input());
+    let observation = summarize_theory_observation_harness(&graph);
+    assert_eq!(
+        graph.semantic_facts.selector_identity.canonical_names.len(),
+        3
+    );
+    assert_eq!(
+        graph.semantic_facts.selector_identity.selector_asts.len(),
+        3
+    );
+    assert_eq!(graph.selector_identity_engine.canonical_id_count, 3);
+    assert_eq!(
+        graph
+            .selector_identity_engine
+            .canonical_ids
+            .iter()
+            .map(|identity| identity.canonical_id())
+            .collect::<Vec<_>>(),
+        vec![
+            "selector:card",
+            "selector:card-header",
+            "selector:card-header-title"
+        ]
+    );
+    assert!(
+        graph
+            .selector_identity_engine
+            .rewrite_safety
+            .all_canonical_ids_rewrite_safe
+    );
+    assert_eq!(observation.selector_identity.status, "ready");
+    assert_eq!(observation.downstream_readiness.status, "ready");
+    assert!(observation.blocking_gaps.is_empty());
+
+    let mut unrooted = graph.semantic_facts.selector_identity.clone();
+    unrooted
+        .selector_authority_definitions
+        .retain(|definition| definition.name != "card");
+    let unrooted_summary = summarize_selector_identity_engine(&unrooted);
+    assert_eq!(unrooted_summary.canonical_id_count, 0);
+    assert_eq!(
+        unrooted_summary.rewrite_safety.blockers,
+        vec!["authority-binding-missing"]
+    );
+    Ok(())
+}
+
+#[test]
+fn selector_identity_observation_names_partial_authority_loss() -> Result<(), String> {
+    let sheet = parse_style_module("Component.module.scss", ".button {} .other {}")
+        .ok_or_else(|| "SCSS module path should parse".to_string())?;
+    let mut graph = summarize_style_semantic_graph(&sheet, &sample_engine_input());
+    let mut selector_facts = graph.semantic_facts.selector_identity.clone();
+    selector_facts
+        .selector_authority_definitions
+        .retain(|definition| definition.name != "button");
+    graph.selector_identity_engine = summarize_selector_identity_engine(&selector_facts);
+
+    let observation = summarize_theory_observation_harness(&graph);
+    assert_eq!(graph.selector_identity_engine.canonical_id_count, 1);
+    assert_eq!(
+        graph.selector_identity_engine.rewrite_safety.blockers,
+        vec!["authority-binding-missing"]
+    );
+    assert_eq!(observation.selector_identity.status, "partial");
+    assert!(!observation.selector_identity.rename_safe);
+    assert_eq!(
+        observation.blocking_gaps,
+        vec!["selectorRewriteSafety", "downstreamReadiness"]
+    );
+
+    let mut blocker_only = graph.clone();
+    blocker_only
+        .selector_identity_engine
+        .rewrite_safety
+        .all_canonical_ids_rewrite_safe = true;
+    assert_eq!(
+        summarize_theory_observation_harness(&blocker_only)
+            .selector_identity
+            .status,
+        "partial"
+    );
+
+    let mut rewrite_flag_only = graph;
+    rewrite_flag_only
+        .selector_identity_engine
+        .rewrite_safety
+        .blockers
+        .clear();
+    assert_eq!(
+        summarize_theory_observation_harness(&rewrite_flag_only)
+            .selector_identity
+            .status,
+        "partial"
+    );
     Ok(())
 }
 

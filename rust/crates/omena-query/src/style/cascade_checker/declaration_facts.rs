@@ -200,6 +200,7 @@ fn layer_binding_for_span(
             ordinal.map(LayerOrdinal::get),
         ),
         LayerBindingResolutionV0::TopologyIncomplete { .. } => (None, None),
+        LayerBindingResolutionV0::DiscardedInvalidRule => (None, None),
     }
 }
 

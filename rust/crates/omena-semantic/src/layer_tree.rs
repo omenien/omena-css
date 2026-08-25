@@ -11,6 +11,8 @@ use crate::{ParserByteSpanV0, StyleLayerBlockBindingV0, StyleLayerIndexV0, Style
 pub enum LayerBindingResolutionV0 {
     /// `Some` identifies a layered declaration; `None` is unlayered.
     Resolved(Option<LayerOrdinal>),
+    /// The span belongs to an invalid layer rule that the parser discarded.
+    DiscardedInvalidRule,
     /// Existing bindings cannot prove a complete layer order.
     TopologyIncomplete { unresolved_count: usize },
 }
@@ -21,6 +23,13 @@ pub fn layer_ordinal_for_byte_span(
     span_start: usize,
     span_end: usize,
 ) -> LayerBindingResolutionV0 {
+    if layer_index
+        .discarded_block_spans
+        .iter()
+        .any(|discarded| discarded.start <= span_start && span_end <= discarded.end)
+    {
+        return LayerBindingResolutionV0::DiscardedInvalidRule;
+    }
     if !layer_index.topology_complete {
         return LayerBindingResolutionV0::TopologyIncomplete {
             unresolved_count: layer_index.unresolved_topology_count,
@@ -42,6 +51,7 @@ pub fn layer_ordinal_for_byte_span(
 pub(crate) struct LayerOrderFactsV0 {
     pub(crate) order_nodes: Vec<StyleLayerOrderNodeV0>,
     pub(crate) block_bindings: Vec<StyleLayerBlockBindingV0>,
+    pub(crate) discarded_block_spans: Vec<ParserByteSpanV0>,
     pub(crate) unresolved_topology_count: usize,
     pub(crate) topology_complete: bool,
 }
@@ -115,9 +125,6 @@ pub(crate) fn summarize_layer_order_from_cst(source: &str, cst: &ParsedCst) -> L
             && !node_is_within_invalid_layer_block(node, &invalid_layer_blocks)
     }) {
         if node.kind() == SyntaxKind::LayerRule {
-            if layer_rule_has_invalid_prelude(node) {
-                continue;
-            }
             let paths = layer_paths_from_cst(source, node);
             blocks.push(LayerBlockDraftV0 {
                 context_id: format!("layer:{all_context_order}"),
@@ -234,6 +241,7 @@ pub(crate) fn summarize_layer_order_from_cst(source: &str, cst: &ParsedCst) -> L
         topology_complete: unresolved_topology_count == 0,
         order_nodes,
         block_bindings,
+        discarded_block_spans: invalid_layer_blocks,
         unresolved_topology_count,
     }
 }

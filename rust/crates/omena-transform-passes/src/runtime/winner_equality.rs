@@ -989,6 +989,13 @@ fn layer_rank_for_candidate(
             });
             None
         }
+        LayerBindingResolutionV0::DiscardedInvalidRule => {
+            reasons.push(TransformWinnerEqualityAbsenceV0 {
+                axis: TransformWinnerEqualityAxisV0::LayerRank,
+                reason: TransformWinnerEqualityAbsenceReasonV0::DriverUnavailable { level: None },
+            });
+            None
+        }
     };
     normalized_layer_rank(candidate.important, ordinal)
 }
@@ -1774,6 +1781,44 @@ mod tests {
             obligation.observation,
             TransformWinnerEqualityObservationV0::ObservedDifferent { .. }
         )));
+    }
+
+    #[test]
+    fn discarded_layer_block_cannot_mask_a_transform_winner_change() -> Result<(), String> {
+        let input = "@layer a b { .x { color: red; } } @layer real { .x { color: blue; } }";
+        let output = "@layer a b { .x { color: red; } } @layer real { .x { color: green; } }";
+        let obligations = compare_transform_winner_equality_for_conformance_v0(
+            input,
+            output,
+            StyleDialect::Css,
+            TransformPassKind::RuleMerging,
+        );
+
+        let color_observation = obligations
+            .iter()
+            .find(|obligation| obligation.affected_pair.property == "color")
+            .map(|obligation| &obligation.observation)
+            .ok_or_else(|| "color winner-equality obligation missing".to_string())?;
+        match color_observation {
+            TransformWinnerEqualityObservationV0::ObservedDifferent { .. } => {}
+            TransformWinnerEqualityObservationV0::Absent { reasons } => {
+                if !reasons.iter().any(|absence| {
+                    absence.axis == TransformWinnerEqualityAxisV0::LayerRank
+                        && matches!(
+                            absence.reason,
+                            TransformWinnerEqualityAbsenceReasonV0::DriverUnavailable { .. }
+                        )
+                }) {
+                    return Err("discarded layer block lacks typed layer-rank refusal".to_string());
+                }
+            }
+            other => {
+                return Err(format!(
+                    "discarded layer block masked the winner change: {other:?}"
+                ));
+            }
+        }
+        Ok(())
     }
 
     #[test]

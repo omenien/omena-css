@@ -95,45 +95,58 @@ pub fn summarize_selector_identity_engine(
         .cloned()
         .collect::<BTreeSet<_>>();
     let mut authority_binding_missing = false;
-    let canonical_ids = facts
-        .canonical_names
-        .iter()
-        .filter_map(|name| {
-            let blockers = if nested_unsafe.contains(name) {
-                vec!["nested-expansion"]
-            } else {
-                Vec::new()
-            };
-            let decoded_key = ClassNameV0::new(name).canonical_key();
-            let Some(authority_key) = facts
-                .selector_authority_definitions
-                .iter()
-                .filter(|definition| definition.name == *name)
-                .find_map(|definition| {
-                    facts.selector_asts.iter().find_map(|ast| {
-                        ast.canonical_class_key_for_source_span(
-                            name,
-                            definition.byte_span.start..definition.byte_span.end,
-                            definition.bem_suffix_parent_name.as_deref(),
-                        )
+    let mut issued_names = BTreeSet::<String>::new();
+    let mut canonical_ids = Vec::new();
+    for name in &facts.canonical_names {
+        let blockers = if nested_unsafe.contains(name) {
+            vec!["nested-expansion"]
+        } else {
+            Vec::new()
+        };
+        let decoded_key = ClassNameV0::new(name).canonical_key();
+        let authority_key = facts
+            .selector_authority_definitions
+            .iter()
+            .filter(|definition| definition.name == *name)
+            .find_map(|definition| {
+                let inferred_nesting_parent = facts
+                    .selector_authority_definitions
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.source_order < definition.source_order
+                            && candidate.name.len() < name.len()
+                            && name.starts_with(candidate.name.as_str())
+                            && issued_names.contains(candidate.name.as_str())
                     })
+                    .max_by_key(|candidate| (candidate.name.len(), candidate.source_order))
+                    .map(|candidate| candidate.name.as_str());
+                facts.selector_asts.iter().find_map(|ast| {
+                    ast.canonical_class_key_for_source_span(
+                        name,
+                        definition.byte_span.start..definition.byte_span.end,
+                        definition
+                            .bem_suffix_parent_name
+                            .as_deref()
+                            .or(inferred_nesting_parent),
+                    )
                 })
-                .filter(|authority_key| authority_key == &decoded_key)
-            else {
-                authority_binding_missing = true;
-                return None;
-            };
-            Some(SelectorCanonicalIdentityV0::from_canonical_key(
-                &authority_key,
-                if bem_safe.contains(name) {
-                    "bemSuffix"
-                } else {
-                    "localClass"
-                },
-                blockers,
-            ))
-        })
-        .collect::<Vec<_>>();
+            })
+            .filter(|authority_key| authority_key == &decoded_key);
+        let Some(authority_key) = authority_key else {
+            authority_binding_missing = true;
+            continue;
+        };
+        issued_names.insert(name.clone());
+        canonical_ids.push(SelectorCanonicalIdentityV0::from_canonical_key(
+            &authority_key,
+            if bem_safe.contains(name) {
+                "bemSuffix"
+            } else {
+                "localClass"
+            },
+            blockers,
+        ));
+    }
 
     let safe_canonical_ids = canonical_ids
         .iter()

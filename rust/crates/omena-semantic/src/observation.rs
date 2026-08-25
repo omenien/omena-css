@@ -204,23 +204,19 @@ fn publish_blocking_gaps_for_observation(
 }
 
 fn observe_selector_identity(graph: &StyleSemanticGraphSummaryV0) -> SelectorIdentityObservationV0 {
-    let observed_selector_count = graph.selector_identity_engine.canonical_id_count;
-    let rewrite_blocked_selector_count = graph
-        .selector_identity_engine
-        .rewrite_safety
-        .blocked_canonical_ids
-        .len();
-    let rename_safe_selector_count = graph
-        .selector_identity_engine
-        .rewrite_safety
-        .safe_canonical_ids
-        .len();
+    let selector_identity = &graph.selector_identity_engine;
+    let rewrite_safety = &selector_identity.rewrite_safety;
+    let observed_selector_count = selector_identity.canonical_id_count;
+    let rewrite_blocked_selector_count = rewrite_safety.blocked_canonical_ids.len();
+    let rename_safe_selector_count = rewrite_safety.safe_canonical_ids.len();
     let precise_rename_span_ready = graph
         .lossless_cst_contract
         .consumer_readiness
         .precise_rename_base_ready;
     let rename_safe = observed_selector_count > 0
         && rewrite_blocked_selector_count == 0
+        && rewrite_safety.all_canonical_ids_rewrite_safe
+        && rewrite_safety.blockers.is_empty()
         && precise_rename_span_ready;
 
     SelectorIdentityObservationV0 {
@@ -236,11 +232,7 @@ fn observe_selector_identity(graph: &StyleSemanticGraphSummaryV0) -> SelectorIde
         rewrite_blocked_selector_count,
         precise_rename_span_ready,
         rename_safe,
-        blockers: graph
-            .selector_identity_engine
-            .rewrite_safety
-            .blockers
-            .clone(),
+        blockers: rewrite_safety.blockers.clone(),
     }
 }
 
