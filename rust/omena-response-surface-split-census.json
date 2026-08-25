@@ -48,7 +48,7 @@
     "omena-abstract-value": 181,
     "omena-bridge": 121,
     "omena-bundler": 62,
-    "omena-cascade": 195,
+    "omena-cascade": 196,
     "omena-cascade-proof": 60,
     "omena-checker": 69,
     "omena-cross-file-summary": 27,
@@ -58,7 +58,7 @@
     "omena-incremental": 27,
     "omena-interner": 11,
     "omena-lawvere": 32,
-    "omena-parser": 166,
+    "omena-parser": 167,
     "omena-product-hints": 45,
     "omena-query": 335,
     "omena-query-checker-orchestrator": 11,
@@ -2683,7 +2683,7 @@
       "crate": "omena-cascade",
       "typeName": "CaptureGuard",
       "sourcePath": "rust/crates/omena-cascade/src/ranked_set_loss_census.rs",
-      "line": 262
+      "line": 316
     },
     {
       "crate": "omena-cascade",
@@ -2713,7 +2713,7 @@
       "crate": "omena-cascade",
       "typeName": "CascadeAxisPrefixV0",
       "sourcePath": "rust/crates/omena-cascade/src/ranked_set_loss_census.rs",
-      "line": 33
+      "line": 34
     },
     {
       "crate": "omena-cascade",
@@ -2903,33 +2903,39 @@
     },
     {
       "crate": "omena-cascade",
+      "typeName": "CascadeRankedSetFinalOutcomeV0",
+      "sourcePath": "rust/crates/omena-cascade/src/ranked_set_loss_census.rs",
+      "line": 54
+    },
+    {
+      "crate": "omena-cascade",
       "typeName": "CascadeRankedSetFunctionV0",
       "sourcePath": "rust/crates/omena-cascade/src/ranked_set_loss_census.rs",
-      "line": 26
+      "line": 27
     },
     {
       "crate": "omena-cascade",
       "typeName": "CascadeRankedSetLossCandidateV0",
       "sourcePath": "rust/crates/omena-cascade/src/ranked_set_loss_census.rs",
-      "line": 53
+      "line": 61
     },
     {
       "crate": "omena-cascade",
       "typeName": "CascadeRankedSetLossCaptureV0",
       "sourcePath": "rust/crates/omena-cascade/src/ranked_set_loss_census.rs",
-      "line": 76
+      "line": 86
     },
     {
       "crate": "omena-cascade",
       "typeName": "CascadeRankedSetLossCensusRowV0",
       "sourcePath": "rust/crates/omena-cascade/src/ranked_set_loss_census.rs",
-      "line": 63
+      "line": 71
     },
     {
       "crate": "omena-cascade",
       "typeName": "CascadeRankedSetLossClassV0",
       "sourcePath": "rust/crates/omena-cascade/src/ranked_set_loss_census.rs",
-      "line": 44
+      "line": 45
     },
     {
       "crate": "omena-cascade",
@@ -3097,7 +3103,7 @@
       "crate": "omena-cascade",
       "typeName": "CustomPropertyDependencyGraph",
       "sourcePath": "rust/crates/omena-cascade/src/custom_property.rs",
-      "line": 254
+      "line": 274
     },
     {
       "crate": "omena-cascade",
@@ -3151,7 +3157,7 @@
       "crate": "omena-cascade",
       "typeName": "CustomPropertySubstitutionOutcome",
       "sourcePath": "rust/crates/omena-cascade/src/custom_property.rs",
-      "line": 553
+      "line": 575
     },
     {
       "crate": "omena-cascade",
@@ -5945,6 +5951,12 @@
     },
     {
       "crate": "omena-parser",
+      "typeName": "LayerNameState",
+      "sourcePath": "rust/crates/omena-parser/src/parse.rs",
+      "line": 3652
+    },
+    {
+      "crate": "omena-parser",
       "typeName": "LexedToken",
       "sourcePath": "rust/crates/omena-parser/src/lex.rs",
       "line": 71
@@ -6733,7 +6745,7 @@
       "crate": "omena-parser",
       "typeName": "TemplatePlaceholderTestExtension",
       "sourcePath": "rust/crates/omena-parser/src/tests.rs",
-      "line": 5502
+      "line": 5591
     },
     {
       "crate": "omena-parser",
@@ -11125,7 +11137,7 @@
       "crate": "omena-semantic",
       "typeName": "SassSelectorResolution",
       "sourcePath": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1445
+      "line": 1446
     },
     {
       "crate": "omena-semantic",
@@ -11161,7 +11173,7 @@
       "crate": "omena-semantic",
       "typeName": "SelectorIdentityRewriteSafetyV0",
       "sourcePath": "rust/crates/omena-semantic/src/selector_identity.rs",
-      "line": 57
+      "line": 77
     },
     {
       "crate": "omena-semantic",
@@ -11251,7 +11263,7 @@
       "crate": "omena-semantic",
       "typeName": "StyleCustomPropertySemanticFactsV0",
       "sourcePath": "rust/crates/omena-semantic/src/types.rs",
-      "line": 427
+      "line": 431
     },
     {
       "crate": "omena-semantic",
@@ -11311,7 +11323,7 @@
       "crate": "omena-semantic",
       "typeName": "StyleOffsetContext",
       "sourcePath": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1620
+      "line": 1621
     },
     {
       "crate": "omena-semantic",
@@ -11323,7 +11335,7 @@
       "crate": "omena-semantic",
       "typeName": "StyleSassSemanticFactsV0",
       "sourcePath": "rust/crates/omena-semantic/src/types.rs",
-      "line": 437
+      "line": 441
     },
     {
       "crate": "omena-semantic",
