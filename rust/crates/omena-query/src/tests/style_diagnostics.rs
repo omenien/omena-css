@@ -271,6 +271,22 @@ fn statement_layer_order_controls_the_winner_and_dead_layer_anchor() {
 }
 
 #[test]
+fn invalid_layer_block_declarations_do_not_participate_in_the_cascade() {
+    let source = r#"
+@layer a b { .target { color: red; } }
+@layer real { .target { color: blue; } }
+"#;
+    let outcomes = crate::summarize_omena_query_cascade_section_outcomes_from_source(source);
+    let color = outcomes
+        .iter()
+        .filter(|outcome| outcome.selector == ".target" && outcome.property == "color")
+        .collect::<Vec<_>>();
+
+    assert_eq!(color.len(), 1, "{outcomes:#?}");
+    assert_eq!(color[0].winning_value, "blue");
+}
+
+#[test]
 fn nested_layer_paths_do_not_collapse_into_a_source_order_tie() {
     // Reversion witness: replace canonical nested bindings with the local layer name.
     let source = r#"

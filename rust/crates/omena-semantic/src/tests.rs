@@ -1241,6 +1241,68 @@ fn invalid_layer_path_separators_do_not_perturb_valid_layer_order() {
 }
 
 #[test]
+fn invalid_layer_block_is_discarded_across_topology_and_membership_planes() {
+    let clean = summarize_omena_parser_style_semantic_boundary_from_source(
+        "layers.css",
+        "@layer real { .real {} }",
+    )
+    .semantic_facts
+    .context_index
+    .layer_index;
+    let poisoned = summarize_omena_parser_style_semantic_boundary_from_source(
+        "layers.css",
+        "@layer a b { .ghost {} @layer child { .nested {} } } @layer real { .real {} }",
+    )
+    .semantic_facts
+    .context_index
+    .layer_index;
+
+    assert!(poisoned.topology_complete);
+    assert_eq!(poisoned.unresolved_topology_count, 0);
+    assert_eq!(poisoned.order_nodes, clean.order_nodes);
+    assert_eq!(poisoned.block_bindings.len(), 1);
+    assert_eq!(poisoned.block_bindings[0].canonical_name, "real");
+    assert_eq!(poisoned.block_bindings[0].cascade_rank, 0);
+    assert_eq!(
+        poisoned
+            .block_layers
+            .iter()
+            .filter_map(|block| block.name.as_deref())
+            .collect::<Vec<_>>(),
+        vec!["real"]
+    );
+    assert_eq!(
+        poisoned
+            .selector_memberships
+            .iter()
+            .map(|membership| membership.selector_name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["real"]
+    );
+}
+
+#[test]
+fn invalid_nested_layer_block_cannot_reattach_children_to_a_valid_ancestor() {
+    let layers = summarize_omena_parser_style_semantic_boundary_from_source(
+        "layers.css",
+        "@layer outer { @layer a b { @layer inner { .ghost {} } } @layer valid { .valid {} } }",
+    )
+    .semantic_facts
+    .context_index
+    .layer_index;
+    let names = layers
+        .order_nodes
+        .iter()
+        .map(|node| node.canonical_name.as_str())
+        .collect::<Vec<_>>();
+
+    assert!(names.contains(&"outer"));
+    assert!(names.contains(&"outer.valid"));
+    assert!(!names.contains(&"outer.inner"));
+    assert!(!names.contains(&"inner"));
+}
+
+#[test]
 fn anonymous_layer_parent_keeps_nested_topology_unresolved() {
     let summary = summarize_omena_parser_style_semantic_boundary_from_source(
         "layers.css",
@@ -1615,12 +1677,51 @@ fn selector_identity_projection_refuses_a_mismatched_authority_span() -> Result<
         .byte_span = other_span;
 
     let result = summarize_selector_identity_engine(&selector_identity);
-    assert_eq!(result.canonical_id_count, 0);
+    assert_eq!(result.canonical_id_count, 1);
+    assert_eq!(result.canonical_ids[0].canonical_id(), "selector:other");
     assert!(!result.rewrite_safety.all_canonical_ids_rewrite_safe);
     assert_eq!(
         result.rewrite_safety.blockers,
         vec!["authority-binding-missing"]
     );
+    Ok(())
+}
+
+#[test]
+fn combinator_leading_relative_selectors_preserve_identity_readiness() -> Result<(), String> {
+    let summarize = |nested: &str| -> Result<_, String> {
+        let source = format!(".zzz {{}} .panel {{ {nested} {{}} }} .yyy {{}}");
+        let sheet = parse_style_module("Component.module.css", source.as_str())
+            .ok_or_else(|| "CSS module path should parse".to_string())?;
+        let graph = summarize_style_semantic_graph(&sheet, &sample_engine_input());
+        Ok((
+            graph.selector_identity_engine.clone(),
+            summarize_theory_observation_harness(&graph),
+        ))
+    };
+    let (control, _) = summarize("& > .body")?;
+
+    for nested in ["> .body", "+ .body", "~ .body"] {
+        let (probe, observation) = summarize(nested)?;
+        assert_eq!(probe, control, "relative selector probe: {nested}");
+        assert_eq!(probe.canonical_id_count, 4);
+        assert_eq!(observation.selector_identity.status, "ready");
+        assert_eq!(observation.downstream_readiness.status, "ready");
+        assert!(!observation.blocking_gaps.contains(&"selectorRewriteSafety"));
+        assert!(!observation.blocking_gaps.contains(&"downstreamReadiness"));
+        assert!(
+            probe
+                .canonical_ids
+                .iter()
+                .any(|identity| identity.canonical_id() == "selector:zzz")
+        );
+        assert!(
+            probe
+                .canonical_ids
+                .iter()
+                .any(|identity| identity.canonical_id() == "selector:yyy")
+        );
+    }
     Ok(())
 }
 

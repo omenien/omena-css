@@ -46,6 +46,47 @@ pub(crate) struct LayerOrderFactsV0 {
     pub(crate) topology_complete: bool,
 }
 
+pub(crate) fn invalid_layer_block_spans(cst: &ParsedCst) -> Vec<ParserByteSpanV0> {
+    cst.root()
+        .descendants()
+        .filter(|node| {
+            node.kind() == SyntaxKind::LayerRule
+                && node_has_block(node)
+                && layer_rule_has_invalid_prelude(node)
+        })
+        .map(|node| {
+            let range = node.text_range();
+            ParserByteSpanV0 {
+                start: u32::from(range.start()) as usize,
+                end: u32::from(range.end()) as usize,
+            }
+        })
+        .collect()
+}
+
+pub(crate) fn byte_span_is_within_invalid_layer_block(
+    byte_span: ParserByteSpanV0,
+    invalid_layer_blocks: &[ParserByteSpanV0],
+) -> bool {
+    invalid_layer_blocks
+        .iter()
+        .any(|invalid| invalid.start <= byte_span.start && byte_span.end <= invalid.end)
+}
+
+fn node_is_within_invalid_layer_block(
+    node: &SyntaxNode,
+    invalid_layer_blocks: &[ParserByteSpanV0],
+) -> bool {
+    let range = node.text_range();
+    byte_span_is_within_invalid_layer_block(
+        ParserByteSpanV0 {
+            start: u32::from(range.start()) as usize,
+            end: u32::from(range.end()) as usize,
+        },
+        invalid_layer_blocks,
+    )
+}
+
 #[derive(Clone)]
 struct LayerBlockDraftV0 {
     context_id: String,
@@ -63,6 +104,7 @@ struct LayerNodeDraftV0 {
 }
 
 pub(crate) fn summarize_layer_order_from_cst(source: &str, cst: &ParsedCst) -> LayerOrderFactsV0 {
+    let invalid_layer_blocks = invalid_layer_block_spans(cst);
     let mut all_context_order = 0usize;
     let mut blocks = Vec::<LayerBlockDraftV0>::new();
     for node in cst.root().descendants().filter(|node| {
@@ -70,6 +112,7 @@ pub(crate) fn summarize_layer_order_from_cst(source: &str, cst: &ParsedCst) -> L
             node.kind(),
             SyntaxKind::LayerRule | SyntaxKind::ContainerRule | SyntaxKind::ScopeRule
         ) && node_has_block(node)
+            && !node_is_within_invalid_layer_block(node, &invalid_layer_blocks)
     }) {
         if node.kind() == SyntaxKind::LayerRule {
             if layer_rule_has_invalid_prelude(node) {
@@ -112,7 +155,10 @@ pub(crate) fn summarize_layer_order_from_cst(source: &str, cst: &ParsedCst) -> L
     let mut events = cst
         .root()
         .descendants()
-        .filter(|node| node.kind() == SyntaxKind::LayerRule)
+        .filter(|node| {
+            node.kind() == SyntaxKind::LayerRule
+                && !node_is_within_invalid_layer_block(node, &invalid_layer_blocks)
+        })
         .collect::<Vec<_>>();
     events.sort_by_key(|node| u32::from(node.text_range().start()) as usize);
 

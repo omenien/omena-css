@@ -197,8 +197,8 @@ mod tests {
                 "scopeAncestorProximity"
             ]
         );
-        assert_eq!(report.layer_topology_case_count, 5);
-        assert_eq!(report.resolved_layer_topology_case_count, 4);
+        assert_eq!(report.layer_topology_case_count, 7);
+        assert_eq!(report.resolved_layer_topology_case_count, 6);
         assert_eq!(report.blocked_layer_topology_case_count, 1);
         assert!(report.all_layer_topology_cases_match);
         assert_eq!(report.cascade_level_count, 10);

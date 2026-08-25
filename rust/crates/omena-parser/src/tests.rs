@@ -1612,6 +1612,38 @@ fn rejects_trivia_in_layer_name_dot_separators() {
 }
 
 #[test]
+fn invalid_layer_name_trivia_cannot_issue_canonical_paths() {
+    for source in ["@layer a b;", "@layer a . b;", "@layer a/* comment */b;"] {
+        let parsed = parse(source, StyleDialect::Css);
+        let syntax = parsed.syntax();
+        let layer_rule = syntax
+            .descendants()
+            .find(|node| node.kind() == SyntaxKind::LayerRule)
+            .expect("fixture must contain a layer rule");
+
+        assert!(
+            crate::layer_paths_from_cst(source, &layer_rule).is_empty(),
+            "invalid layer prelude issued a canonical path: {source}"
+        );
+    }
+
+    let source = "@layer a.b;";
+    let parsed = parse(source, StyleDialect::Css);
+    let syntax = parsed.syntax();
+    let layer_rule = syntax
+        .descendants()
+        .find(|node| node.kind() == SyntaxKind::LayerRule)
+        .expect("control must contain a layer rule");
+    assert_eq!(
+        crate::layer_paths_from_cst(source, &layer_rule)
+            .into_iter()
+            .map(|path| path.canonical_name())
+            .collect::<Vec<_>>(),
+        ["a.b"]
+    );
+}
+
+#[test]
 fn validates_scope_rule_preludes() {
     let result = parse(
         "@scope { .a { color: red; } } @scope .a { .b { color: blue; } } @scope (.a) to { .c { color: green; } } @scope (.a) to (.b) { .d { color: black; } }",
@@ -4156,6 +4188,58 @@ fn canonical_selector_authority_is_projected_from_selector_cst() -> Result<(), S
         vec!["a.b"]
     );
     assert_eq!(ast.branches()[0].specificity().ids, 1);
+    Ok(())
+}
+
+#[test]
+fn canonical_selector_authority_binds_combinator_leading_relative_selectors() -> Result<(), String>
+{
+    for combinator in [">", "+", "~"] {
+        let source = format!(".panel {{ {combinator} .body {{}} }}");
+        let parsed = parse(source.as_str(), StyleDialect::Css);
+        assert!(
+            parsed.errors().is_empty(),
+            "valid relative selector produced parse errors: {:?}",
+            parsed.errors()
+        );
+        let cst = parsed.cst();
+        let body_candidates = cst
+            .root()
+            .descendants()
+            .filter_map(|node| {
+                let range = node.text_range();
+                let text = source
+                    .get(u32::from(range.start()) as usize..u32::from(range.end()) as usize)?;
+                text.contains("body")
+                    .then_some((node.kind(), text.to_string(), range))
+            })
+            .collect::<Vec<_>>();
+        let body = cst
+            .root()
+            .descendants()
+            .find(|node| {
+                let range = node.text_range();
+                node.kind() == SyntaxKind::ClassSelector
+                    && source
+                        .get(u32::from(range.start()) as usize..u32::from(range.end()) as usize)
+                        .is_some_and(|text| text.contains("body"))
+            })
+            .ok_or_else(|| {
+                format!("relative selector should contain .body: {body_candidates:?}")
+            })?;
+        let range = body.text_range();
+        let name_range = (u32::from(range.start()) as usize + 1)..u32::from(range.end()) as usize;
+        let authorities = crate::canonical_selector_asts_from_cst(&cst);
+
+        assert!(
+            authorities.iter().any(|authority| {
+                authority
+                    .canonical_class_key_for_source_span("body", name_range.clone(), None)
+                    .is_some_and(|key| key.as_str() == "body")
+            }),
+            "combinator-leading relative selector was not bound: {source}"
+        );
+    }
     Ok(())
 }
 

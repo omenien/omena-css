@@ -5070,6 +5070,10 @@ impl<'text> Parser<'text> {
                     | SyntaxKind::Colon
                     | SyntaxKind::DoubleColon
                     | SyntaxKind::LeftBracket
+                    | SyntaxKind::GreaterThan
+                    | SyntaxKind::Plus
+                    | SyntaxKind::Tilde
+                    | SyntaxKind::ColumnCombinator
             )
         ) && self.find_rule_block_open_before_recovery(&[
             SyntaxKind::Semicolon,

@@ -492,8 +492,20 @@ pub fn collect_parser_declaration_syntax_and_style_context_from_parse(
     source: &str,
     parsed: &ParseResult,
 ) -> (Vec<ParserDeclarationSyntaxFactV0>, StyleContextIndexV0) {
-    let declarations = ProductSyntaxIndexV0::declarations_from_parse(source, parsed);
     let cst = parsed.cst();
+    let invalid_layer_blocks = layer_tree::invalid_layer_block_spans(&cst);
+    let declarations = ProductSyntaxIndexV0::declarations_from_parse(source, parsed)
+        .into_iter()
+        .filter(|declaration| {
+            !layer_tree::byte_span_is_within_invalid_layer_block(
+                ParserByteSpanV0 {
+                    start: declaration.byte_span.start,
+                    end: declaration.byte_span.end,
+                },
+                &invalid_layer_blocks,
+            )
+        })
+        .collect();
     let context_index = summarize_style_context_index(source, &cst);
     (declarations, context_index)
 }
@@ -793,6 +805,7 @@ pub fn summarize_style_layer_order_from_source(
 }
 
 fn layer_statement_facts_from_cst(source: &str, cst: &ParsedCst) -> Vec<StyleLayerStatementV0> {
+    let invalid_layer_blocks = layer_tree::invalid_layer_block_spans(cst);
     let mut statements = Vec::new();
     for node in cst
         .root()
@@ -807,6 +820,9 @@ fn layer_statement_facts_from_cst(source: &str, cst: &ParsedCst) -> Vec<StyleLay
             start: u32::from(range.start()) as usize,
             end: u32::from(range.end()) as usize,
         };
+        if layer_tree::byte_span_is_within_invalid_layer_block(byte_span, &invalid_layer_blocks) {
+            continue;
+        }
         for layer_name in node
             .descendants()
             .filter(|child| child.kind() == SyntaxKind::LayerName)
@@ -830,13 +846,20 @@ fn style_context_blocks_and_memberships_from_cst(
     Vec<StyleContextBlockV0>,
     Vec<StyleContextSelectorMembershipV0>,
 ) {
+    let invalid_layer_blocks = layer_tree::invalid_layer_block_spans(cst);
     let mut context_nodes = Vec::new();
     let mut blocks = Vec::new();
-    for node in cst
-        .root()
-        .descendants()
-        .filter(|node| cst_context_kind(node.kind()).is_some() && cst_node_has_block(node))
-    {
+    for node in cst.root().descendants().filter(|node| {
+        cst_context_kind(node.kind()).is_some()
+            && cst_node_has_block(node)
+            && !layer_tree::byte_span_is_within_invalid_layer_block(
+                ParserByteSpanV0 {
+                    start: u32::from(node.text_range().start()) as usize,
+                    end: u32::from(node.text_range().end()) as usize,
+                },
+                &invalid_layer_blocks,
+            )
+    }) {
         let Some(context) = style_context_block_for_cst_node(source, node, blocks.len()) else {
             continue;
         };
@@ -845,11 +868,16 @@ fn style_context_blocks_and_memberships_from_cst(
     }
 
     let mut memberships = Vec::new();
-    for rule in cst
-        .root()
-        .descendants()
-        .filter(|node| node.kind() == SyntaxKind::Rule)
-    {
+    for rule in cst.root().descendants().filter(|node| {
+        node.kind() == SyntaxKind::Rule
+            && !layer_tree::byte_span_is_within_invalid_layer_block(
+                ParserByteSpanV0 {
+                    start: u32::from(node.text_range().start()) as usize,
+                    end: u32::from(node.text_range().end()) as usize,
+                },
+                &invalid_layer_blocks,
+            )
+    }) {
         let selector_names = class_names_from_rule_node(rule);
         if selector_names.is_empty() {
             continue;

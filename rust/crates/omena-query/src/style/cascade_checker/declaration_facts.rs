@@ -335,6 +335,22 @@ mod tests {
     }
 
     #[test]
+    fn cst_join_discards_declarations_inside_an_invalid_layer_block() {
+        let facts = collect_parsed_declaration_facts(
+            "fixture.css",
+            "@layer a b { .x { color: red; } } @layer real { .x { color: blue; } }",
+            StyleDialect::Css,
+        );
+
+        assert_eq!(facts.len(), 1, "{facts:#?}");
+        assert_eq!(facts[0].selector, ".x");
+        assert_eq!(facts[0].property_name, "color");
+        assert_eq!(facts[0].value, "blue");
+        assert_eq!(facts[0].layer_name.as_deref(), Some("real"));
+        assert_eq!(facts[0].layer_order, Some(0));
+    }
+
+    #[test]
     fn cst_join_preserves_non_nesting_ampersands_during_selector_expansion() {
         let source = r#"
 .card {

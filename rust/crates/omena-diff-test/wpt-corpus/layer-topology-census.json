@@ -36,6 +36,20 @@
       "source": "@layer ;",
       "expectedOrder": [],
       "minimumUnresolvedCount": 0
+    },
+    {
+      "id": "invalid-block-discards-descendant-layers",
+      "status": "resolved",
+      "source": "@layer a b { @layer child {} } @layer real {}",
+      "expectedOrder": ["real"],
+      "minimumUnresolvedCount": 0
+    },
+    {
+      "id": "invalid-nested-block-does-not-reattach-children",
+      "status": "resolved",
+      "source": "@layer outer { @layer a b { @layer inner {} } }",
+      "expectedOrder": ["outer"],
+      "minimumUnresolvedCount": 0
     }
   ]
 }
