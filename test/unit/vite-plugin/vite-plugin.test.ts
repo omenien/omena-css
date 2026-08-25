@@ -97,7 +97,7 @@ function bundlerHostMock(
           })),
         ],
         typescriptDeclaration:
-          "declare const styles: Readonly<Record<string, string>>;\nexport default styles;\n",
+          "export declare const classExports: Readonly<Record<string, string>>;\nexport declare const valueExports: Readonly<Record<string, string>>;\ndeclare const styles: typeof classExports;\nexport default styles;\n",
         composesEdges: [],
         diagnostics: Object.keys(resolvedClassExports)
           .filter((name) => Object.hasOwn(valueExports, name))
@@ -382,6 +382,36 @@ describe("@omena/vite-plugin", () => {
     expect(code).toContain("export default classExports");
     expect(code).toContain("export { classExports, valueExports }");
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("exportNamespaceCollision"));
+  });
+
+  it("binds noncolliding named exports to their runtime family", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-value-family-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "Theme.module.css");
+    const source = ":export { themeColor: #0af; spacing: 8px; } .button { color: red; }";
+    fs.writeFileSync(stylePath, source);
+    const engine = {
+      ...bundlerHostMock({ button: "_Ab1cdE_button" }, { spacing: "8px", themeColor: "#0af" }),
+      summarizeTransformBundleFromSourceJson: () => JSON.stringify({ plannedPassIds: [] }),
+      buildStyleSourcesWithContextJson: () =>
+        JSON.stringify({ execution: { outputCss: source, executedPassIds: [] } }),
+    };
+    const plugin = omenaCss({ cwd: root, engine, configFile: false });
+    plugin.configResolved({ root, command: "serve" });
+
+    const runtimeId = await plugin.resolveId(stylePath);
+    expect(runtimeId).toBeTruthy();
+    const loaded = await plugin.load(runtimeId!);
+    const code = (loaded as ViteTransformResult)?.code ?? "";
+
+    expect(code).toContain('let button = classExports["button"]');
+    expect(code).toContain('let spacing = valueExports["spacing"]');
+    expect(code).toContain('let themeColor = valueExports["themeColor"]');
+    expect(code).toContain('    button = classExports["button"]');
+    expect(code).toContain('    spacing = valueExports["spacing"]');
+    expect(code).toContain('    themeColor = valueExports["themeColor"]');
+    expect(code).toContain("export default classExports;");
+    expect(code).not.toContain("export default { ...classExports, ...valueExports };");
   });
 
   it("invalidates changed style modules and keeps the latest rapid-edit result", async () => {

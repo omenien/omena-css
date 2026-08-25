@@ -126,6 +126,76 @@
     "expectedValueExports": {}
   },
   {
+    "id": "css-value-only",
+    "dialect": "css",
+    "targetPath": "/workspace/value.module.css",
+    "sources": [
+      {
+        "stylePath": "/workspace/value.module.css",
+        "styleSource": ":export { themeColor: #0af; }"
+      }
+    ],
+    "emittedCss": ":export { themeColor: #0af; }",
+    "legacyRegexMap": {
+      "themeColor": "#0af"
+    },
+    "expectedClassExports": {},
+    "expectedValueExports": {
+      "themeColor": "#0af"
+    }
+  },
+  {
+    "id": "css-mixed-export-families",
+    "dialect": "css",
+    "targetPath": "/workspace/mixed.module.css",
+    "sources": [
+      {
+        "stylePath": "/workspace/mixed.module.css",
+        "styleSource": ":export { themeColor: #0af; spacing: 8px; } .button { color: red; }"
+      }
+    ],
+    "emittedCss": ":export { themeColor: #0af; spacing: 8px; } ._BzCIU1_button { color: red; }",
+    "legacyRegexMap": {
+      "button": "_button_0",
+      "themeColor": "#0af",
+      "spacing": "8px"
+    },
+    "expectedClassExports": {
+      "button": "_BzCIU1_button"
+    },
+    "expectedValueExports": {
+      "spacing": "8px",
+      "themeColor": "#0af"
+    }
+  },
+  {
+    "id": "css-multiple-class-value-collisions",
+    "dialect": "css",
+    "targetPath": "/workspace/multi.module.css",
+    "sources": [
+      {
+        "stylePath": "/workspace/multi.module.css",
+        "styleSource": ":export { button: #0af; card: 8px; accent: lime; } .button { color: red; } .card { color: blue; }"
+      }
+    ],
+    "emittedCss": ":export { button: #0af; card: 8px; accent: lime; } ._2yNaZO_button { color: red; } ._tAxIMx_card { color: blue; }",
+    "legacyRegexMap": {
+      "button": "#0af",
+      "card": "8px",
+      "accent": "lime"
+    },
+    "expectedClassExports": {
+      "button": "_2yNaZO_button",
+      "card": "_tAxIMx_card"
+    },
+    "expectedValueExports": {
+      "accent": "lime",
+      "button": "#0af",
+      "card": "8px"
+    },
+    "expectedDiagnosticCodes": ["exportNamespaceCollision", "exportNamespaceCollision"]
+  },
+  {
     "id": "css-class-value-collision",
     "dialect": "css",
     "targetPath": "/workspace/collision.module.css",

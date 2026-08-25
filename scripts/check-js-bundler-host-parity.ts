@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
 
 type StyleSource = { readonly stylePath: string; readonly styleSource: string };
 type ParityCase = {
@@ -52,6 +53,18 @@ const { createOmenaBuildState, rebuildAndCache } =
       readonly typescriptDeclaration: string;
     }>;
   };
+const { omenaCss } = require("../packages/vite-plugin/index.cjs") as {
+  omenaCss(options: Record<string, unknown>): {
+    configResolved(config: { readonly root: string; readonly command: string }): void;
+    resolveId(id: string, importer?: string): Promise<string | null>;
+    load: {
+      call(
+        context: Record<string, unknown>,
+        id: string,
+      ): Promise<string | { readonly code: string; readonly map: unknown } | null>;
+    };
+  };
+};
 
 const injectDroppedComposesEdge = process.argv.includes("--inject-dropped-composes-edge");
 const injectRenamedDevClass = process.argv.includes("--inject-renamed-dev-class");
@@ -59,6 +72,8 @@ const injectMergedExportOracle = process.argv.includes("--inject-merged-export-o
 const injectSuppressedCollisionDiagnostic = process.argv.includes(
   "--inject-suppressed-collision-diagnostic",
 );
+const injectValueBindingClassFamily = process.argv.includes("--inject-value-binding-class-family");
+const injectMergedDefaultExport = process.argv.includes("--inject-merged-default-export");
 const fixtures = (JSON.parse(fs.readFileSync(fixturePath, "utf8")) as readonly ParityCase[]).map(
   applyFixtureFault,
 );
@@ -195,6 +210,13 @@ async function verifyFixture(fixture: ParityCase) {
       `typed export artifact drifted for ${fixture.id}`,
     );
     const namedExportCount = typecheckConsumer(root, targetPath, declarationPath, module);
+    const devRuntime = await verifyDevRuntime(
+      root,
+      targetPath,
+      otherPaths,
+      fixture,
+      adapterOutput.namedExports,
+    );
 
     return {
       id: fixture.id,
@@ -203,12 +225,103 @@ async function verifyFixture(fixture: ParityCase) {
       diagnosticCodes: expectedDiagnosticCodes,
       classNameRewrites: engine.classNameRewriteCalls[0],
       namedExportCount,
+      devRuntime,
       parity: true,
       typescriptConsumer: true,
     };
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+}
+
+async function verifyDevRuntime(
+  root: string,
+  targetPath: string,
+  otherPaths: readonly string[],
+  fixture: ParityCase,
+  namedExports: readonly NamedExport[],
+) {
+  const engine = createBoundaryEngine(fixture);
+  const plugin = omenaCss({ cwd: root, configFile: false, engine, sources: otherPaths });
+  plugin.configResolved({ root, command: "serve" });
+  const runtimeId = await plugin.resolveId(targetPath);
+  assert.ok(runtimeId, `Vite dev runtime did not claim ${fixture.id}`);
+  const loaded = await plugin.load.call({}, runtimeId);
+  assert.ok(loaded && typeof loaded !== "string", `Vite dev runtime did not render ${fixture.id}`);
+  let runtimeCode = loaded.code;
+  if (injectValueBindingClassFamily && fixture.id === "css-value-only") {
+    const mutated = runtimeCode.replaceAll(" = valueExports[", " = classExports[");
+    assert.notEqual(mutated, runtimeCode, "value-family mutation must alter a live binding");
+    runtimeCode = mutated;
+  }
+  if (injectMergedDefaultExport && fixture.id === "css-value-only") {
+    const mutated = runtimeCode.replace(
+      "export default classExports;",
+      "export default { ...classExports, ...valueExports };",
+    );
+    assert.notEqual(mutated, runtimeCode, "merged-default mutation must alter the runtime export");
+    runtimeCode = mutated;
+  }
+  const runtimePath = path.join(root, `generated/${fixture.id}-dev-runtime.mjs`);
+  fs.mkdirSync(path.dirname(runtimePath), { recursive: true });
+  fs.writeFileSync(runtimePath, runtimeCode, "utf8");
+  const runtime = (await import(
+    `${pathToFileURL(runtimePath).href}?fixture=${encodeURIComponent(fixture.id)}`
+  )) as Record<string, unknown>;
+  assert.deepEqual(
+    canonicalRecord(runtime.classExports as Readonly<Record<string, string>>),
+    canonicalRecord(fixture.expectedClassExports),
+    `rendered class family drifted for ${fixture.id}`,
+  );
+  assert.deepEqual(
+    canonicalRecord(runtime.valueExports as Readonly<Record<string, string>>),
+    canonicalRecord(fixture.expectedValueExports),
+    `rendered value family drifted for ${fixture.id}`,
+  );
+  assert.strictEqual(
+    runtime.default,
+    runtime.classExports,
+    `default export must be the class family object for ${fixture.id}`,
+  );
+  for (const valueName of Object.keys(fixture.expectedValueExports)) {
+    if (!Object.hasOwn(fixture.expectedClassExports, valueName)) {
+      assert.equal(
+        Object.hasOwn(runtime.default as object, valueName),
+        false,
+        `default export leaked ICSS value '${valueName}' for ${fixture.id}`,
+      );
+    }
+  }
+  const unambiguous = unambiguousNamedExportEntries(namedExports);
+  const runtimeBindings: Record<
+    string,
+    { readonly kind: NamedExport["kind"]; readonly value: string }
+  > = {};
+  for (const entry of unambiguous) {
+    assert.equal(
+      runtime[entry.exportedName],
+      entry.value,
+      `rendered ${entry.kind} binding '${entry.exportedName}' read the wrong family for ${fixture.id}`,
+    );
+    runtimeBindings[entry.exportedName] = { kind: entry.kind, value: entry.value };
+  }
+  return {
+    defaultExportClassOnly: true,
+    namedBindings: runtimeBindings,
+  };
+}
+
+function unambiguousNamedExportEntries(namedExports: readonly NamedExport[]) {
+  const counts = new Map<string, number>();
+  for (const entry of namedExports) {
+    counts.set(entry.exportedName, (counts.get(entry.exportedName) ?? 0) + 1);
+  }
+  return namedExports.filter(
+    (entry) =>
+      counts.get(entry.exportedName) === 1 &&
+      entry.exportedName !== "classExports" &&
+      entry.exportedName !== "valueExports",
+  );
 }
 
 function createBoundaryEngine(fixture: ParityCase) {

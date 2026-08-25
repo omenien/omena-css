@@ -111,27 +111,31 @@ pub fn resolve_omena_bundler_host_module_v0(
         });
     }
 
-    let class_export_names = module
-        .class_exports
-        .iter()
-        .map(|export| export.name.as_str())
-        .collect::<BTreeSet<_>>();
-    let value_export_names = module
-        .icss_exports
-        .iter()
-        .map(|export| export.name.as_str())
-        .collect::<BTreeSet<_>>();
-    for collision_name in class_export_names.intersection(&value_export_names) {
-        let class_export = module
-            .class_exports
-            .iter()
-            .find(|export| export.name == **collision_name);
-        let value_export = module
-            .icss_exports
-            .iter()
-            .find(|export| export.name == **collision_name);
+    let mut class_exports_by_identity = BTreeMap::new();
+    for export in &module.class_exports {
+        class_exports_by_identity
+            .entry(ClassNameV0::new(&export.name).canonical_key())
+            .or_insert_with(Vec::new)
+            .push(export);
+    }
+    let mut value_exports_by_identity = BTreeMap::new();
+    for export in &module.icss_exports {
+        value_exports_by_identity
+            .entry(ClassNameV0::new(&export.name).canonical_key())
+            .or_insert_with(Vec::new)
+            .push(export);
+    }
+    for collision_identity in class_exports_by_identity
+        .keys()
+        .filter(|identity| value_exports_by_identity.contains_key(*identity))
+    {
+        let class_exports = &class_exports_by_identity[collision_identity];
+        let value_exports = &value_exports_by_identity[collision_identity];
+        let collision_name = ClassNameV0::new(&class_exports[0].name)
+            .decoded()
+            .to_string();
         let mut source_anchors = Vec::new();
-        if let Some(export) = class_export {
+        for export in class_exports {
             source_anchors.extend(export.source_spans.iter().map(|span| {
                 OmenaBundlerHostDiagnosticSourceAnchorV0 {
                     style_path: module.style_path.clone(),
@@ -141,7 +145,7 @@ pub fn resolve_omena_bundler_host_module_v0(
                 }
             }));
         }
-        if let Some(export) = value_export {
+        for export in value_exports {
             source_anchors.extend(export.source_spans.iter().map(|span| {
                 OmenaBundlerHostDiagnosticSourceAnchorV0 {
                     style_path: module.style_path.clone(),
@@ -658,5 +662,42 @@ mod tests {
             anchor["stylePath"] == "/src/collision.module.css"
                 && anchor["startByte"].as_u64() < anchor["endByte"].as_u64()
         }));
+    }
+
+    #[test]
+    fn decode_equivalent_class_and_value_exports_are_diagnosed() {
+        let response = resolve_omena_bundler_host_module_v0(request(
+            "/src/escaped-collision.module.css",
+            vec![OmenaQueryStyleSourceInputV0 {
+                style_path: "/src/escaped-collision.module.css".to_string(),
+                style_source: ":export { button: #0af; } .b\\75 tton { color: red; }".to_string(),
+            }],
+        ));
+
+        assert!(response.class_exports.contains_key("b\\75 tton"));
+        assert_eq!(
+            response.value_exports.get("button").map(String::as_str),
+            Some("#0af")
+        );
+        let collisions = response
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == "exportNamespaceCollision")
+            .collect::<Vec<_>>();
+        assert_eq!(collisions.len(), 1);
+        assert!(collisions[0].message.contains("'button'"));
+        assert_eq!(collisions[0].source_anchors.len(), 2);
+        assert!(
+            collisions[0]
+                .source_anchors
+                .iter()
+                .any(|anchor| anchor.kind == OmenaBundlerHostExportKindV0::Class)
+        );
+        assert!(
+            collisions[0]
+                .source_anchors
+                .iter()
+                .any(|anchor| anchor.kind == OmenaBundlerHostExportKindV0::Value)
+        );
     }
 }

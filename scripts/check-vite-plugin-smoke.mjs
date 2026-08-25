@@ -32,7 +32,7 @@ function createSmokeEngine() {
         valueExports: {},
         namedExports: [{ exportedName: "root", kind: "class", value: "_root_0" }],
         typescriptDeclaration:
-          "declare const classExports: Readonly<Record<string, string>>;\ndeclare const valueExports: Readonly<Record<string, string>>;\ndeclare const styles: { readonly classExports: typeof classExports; readonly valueExports: typeof valueExports };\nexport default styles;\n",
+          "export declare const classExports: Readonly<Record<string, string>>;\nexport declare const valueExports: Readonly<Record<string, string>>;\ndeclare const styles: typeof classExports;\nexport default styles;\n",
         composesEdges: [],
         diagnostics: [],
         ready: true,
