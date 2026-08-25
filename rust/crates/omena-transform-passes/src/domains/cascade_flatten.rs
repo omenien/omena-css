@@ -1189,7 +1189,10 @@ mod tests {
     }
 
     #[test]
-    fn incomplete_layer_topology_disables_semantic_layer_blocks() {
-        assert_eq!(semantic_layer_blocks("@layer ;", StyleDialect::Css), None);
+    fn invalid_empty_layer_statement_does_not_create_semantic_layer_blocks() {
+        assert_eq!(
+            semantic_layer_blocks("@layer ;", StyleDialect::Css),
+            Some(Vec::new())
+        );
     }
 }
