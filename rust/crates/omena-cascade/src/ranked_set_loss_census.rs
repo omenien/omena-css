@@ -212,17 +212,7 @@ pub(crate) fn observe_cascade_outcome(
             }) {
                 return;
             }
-            let classification = classify_cascade_ranked_set_loss(&declarations);
-            if !matches!(
-                classification,
-                CascadeRankedSetLossClassV0::RecoverableAxisDominant { .. }
-            ) {
-                debug_assert!(
-                    false,
-                    "a definite inexact outcome must be justified by an earlier exact axis"
-                );
-                return;
-            }
+            assert_definite_inexact_outcome_is_recoverable(&declarations);
             RECOVERED_DEFINITE_OUTCOME_COUNT.fetch_add(1, AtomicOrdering::AcqRel);
             (
                 declarations,
@@ -269,6 +259,16 @@ pub(crate) fn observe_cascade_outcome(
         definite_winner_declaration_id,
     };
     captured_rows().push(row);
+}
+
+fn assert_definite_inexact_outcome_is_recoverable(declarations: &[CascadeDeclaration]) {
+    assert!(
+        matches!(
+            classify_cascade_ranked_set_loss(declarations),
+            CascadeRankedSetLossClassV0::RecoverableAxisDominant { .. }
+        ),
+        "a definite inexact outcome must be justified by an earlier exact axis"
+    );
 }
 
 fn invocation_site(source_path: &str) -> &'static str {
@@ -325,8 +325,8 @@ impl Drop for CaptureGuard {
 mod tests {
     use super::{
         CascadeAxisPrefixV0, CascadeRankedSetFinalOutcomeV0, CascadeRankedSetLossCensusRowV0,
-        CascadeRankedSetLossClassV0, capture_cascade_ranked_set_losses,
-        classify_cascade_ranked_set_loss, recover_captured_rows,
+        CascadeRankedSetLossClassV0, assert_definite_inexact_outcome_is_recoverable,
+        capture_cascade_ranked_set_losses, classify_cascade_ranked_set_loss, recover_captured_rows,
     };
     use crate::{
         CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue, LayerOrdinal,
@@ -491,6 +491,28 @@ mod tests {
             capture.rows[0].definite_winner_declaration_id.as_deref(),
             Some("exact-winner")
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "a definite inexact outcome must be justified")]
+    fn release_build_rejects_an_unjustified_definite_outcome() {
+        let inexact = declaration(
+            "inexact",
+            CascadeLevel::AuthorNormal,
+            0,
+            0,
+            Specificity::new(0, 1, 0),
+            SpecificityExactnessV0::Inexact,
+        );
+        let exact = declaration(
+            "exact",
+            CascadeLevel::AuthorNormal,
+            0,
+            0,
+            Specificity::new(1, 0, 0),
+            SpecificityExactnessV0::Exact,
+        );
+        assert_definite_inexact_outcome_is_recoverable(&[exact, inexact]);
     }
 
     #[test]

@@ -433,6 +433,81 @@ for (const level of ["authorNormal", "authorImportant", "inlineNormal"]) {
   );
 }
 const artifactRows = artifact.entries.flatMap((entry) => entry.rows);
+const derivedClassCounts = initializedCounts([
+  "recoverableAxisDominant",
+  "axisWinnerInexact",
+  "noStrictAxisDominance",
+  "singleInexactCandidate",
+]);
+const derivedFunctionPopulations = initializedCounts([
+  "cascadeProperty",
+  "cascadePropertyOpenWorld",
+]);
+const derivedInvocationSitePopulations = initializedCounts([
+  "queryRuntimeStateScenarioEvaluation",
+  "queryCascadeMarginForEvaluation",
+  "collectQueryReplicaEnsembleSiteOutcomes",
+  "computeCascadeComputedValue",
+  "transformWinnerEqualityFromCascadeOutcome",
+  "unclassified",
+]);
+const derivedDecidingAxisCounts = initializedCounts(
+  axisOrderArtifact.rankedSetPrefixAxisVocabulary,
+);
+const derivedObservedCascadeLevelCounts = initializedCounts(cascadeLevels);
+for (const row of artifactRows) {
+  const className =
+    typeof row.classification === "object" ? "recoverableAxisDominant" : row.classification;
+  assert.ok(Object.hasOwn(derivedClassCounts, className), `unknown row class ${className}`);
+  derivedClassCounts[className] += 1;
+  assert.ok(
+    Object.hasOwn(derivedFunctionPopulations, row.function),
+    `unknown cascade function ${row.function}`,
+  );
+  derivedFunctionPopulations[row.function] += 1;
+  assert.ok(
+    Object.hasOwn(derivedInvocationSitePopulations, row.invocationSite),
+    `unknown invocation site ${row.invocationSite}`,
+  );
+  derivedInvocationSitePopulations[row.invocationSite] += 1;
+  if (typeof row.classification === "object") {
+    const axis = row.classification.recoverableAxisDominant.axis;
+    assert.ok(Object.hasOwn(derivedDecidingAxisCounts, axis), `unknown deciding axis ${axis}`);
+    derivedDecidingAxisCounts[axis] += 1;
+  }
+  for (const candidate of row.candidates) {
+    assert.ok(
+      Object.hasOwn(derivedObservedCascadeLevelCounts, candidate.level),
+      `unknown cascade level ${candidate.level}`,
+    );
+    derivedObservedCascadeLevelCounts[candidate.level] += 1;
+  }
+}
+assert.deepEqual(
+  artifact.classCounts,
+  derivedClassCounts,
+  "class counts must be re-derived from committed rows",
+);
+assert.deepEqual(
+  artifact.functionPopulations,
+  derivedFunctionPopulations,
+  "function populations must be re-derived from committed rows",
+);
+assert.deepEqual(
+  artifact.invocationSitePopulations,
+  derivedInvocationSitePopulations,
+  "invocation-site populations must be re-derived from committed rows",
+);
+assert.deepEqual(
+  artifact.decidingAxisCounts,
+  derivedDecidingAxisCounts,
+  "deciding-axis counts must be re-derived from committed rows",
+);
+assert.deepEqual(
+  artifact.observedCascadeLevelCounts,
+  derivedObservedCascadeLevelCounts,
+  "observed cascade-level counts must be re-derived from committed rows",
+);
 assert.equal(
   artifact.rowCount,
   artifactRows.length,
@@ -655,6 +730,10 @@ function fixture(actual: FixtureResultV0[], name: string): FixtureResultV0 {
   const result = actual.find((candidate) => candidate.name === name);
   assert.ok(result, `classifier fixture is missing ${name}`);
   return result;
+}
+
+function initializedCounts(keys: readonly string[]): Record<string, number> {
+  return Object.fromEntries(keys.map((key) => [key, 0]));
 }
 
 function deriveCorpusSyntaxCounts(injectLayerCollapse: boolean): {
