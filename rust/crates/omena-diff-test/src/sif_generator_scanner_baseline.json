@@ -369,6 +369,12 @@
       "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
     },
     {
+      "id": "workspace:test/_fixtures/omena-semantic-observation/bem-parent-chain/BemParentChain.module.scss",
+      "syntax": "scss",
+      "sourceHash": "594edd477ef6aeca4b280e1223a4b16238d4adbd3ff39daa1aca5a65a94b1745",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
       "id": "workspace:test/_fixtures/real-project-checker-corpus/DashboardCard.module.scss",
       "syntax": "scss",
       "sourceHash": "a7adb80ee4d1a708e6663b785372dd36ab73b91a4c8d1a41b01e454fbea4bff3",
