@@ -692,7 +692,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/bundler_host.rs",
-      "line": 622,
+      "line": 633,
       "function": "same_named_class_and_value_exports_remain_separate_and_diagnostic",
       "idiom": "direct-equality",
       "keyword": "value",
@@ -703,7 +703,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/bundler_host.rs",
-      "line": 639,
+      "line": 656,
       "function": "same_named_class_and_value_exports_remain_separate_and_diagnostic",
       "idiom": "direct-equality",
       "keyword": "value",
@@ -2121,7 +2121,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:f04f8da8a4cfe29246cdebcab90fc35ee9953fa1abb1811dc68eefd82f13a1fe",
+  "siteDigest": "sha256:dc2d819b41545b315988c3df7152a446a6693a0822c0b54034e016a471d4f3c4",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
