@@ -1612,17 +1612,17 @@ fn rejects_trivia_in_layer_name_dot_separators() {
 }
 
 #[test]
-fn invalid_layer_name_trivia_cannot_issue_canonical_paths() {
+fn invalid_layer_name_trivia_cannot_issue_canonical_paths() -> Result<(), String> {
     for source in ["@layer a b;", "@layer a . b;", "@layer a/* comment */b;"] {
         let parsed = parse(source, StyleDialect::Css);
         let syntax = parsed.syntax();
         let layer_rule = syntax
             .descendants()
             .find(|node| node.kind() == SyntaxKind::LayerRule)
-            .expect("fixture must contain a layer rule");
+            .ok_or_else(|| "fixture must contain a layer rule".to_string())?;
 
         assert!(
-            crate::layer_paths_from_cst(source, &layer_rule).is_empty(),
+            crate::layer_paths_from_cst(source, layer_rule).is_empty(),
             "invalid layer prelude issued a canonical path: {source}"
         );
     }
@@ -1633,14 +1633,15 @@ fn invalid_layer_name_trivia_cannot_issue_canonical_paths() {
     let layer_rule = syntax
         .descendants()
         .find(|node| node.kind() == SyntaxKind::LayerRule)
-        .expect("control must contain a layer rule");
+        .ok_or_else(|| "control must contain a layer rule".to_string())?;
     assert_eq!(
-        crate::layer_paths_from_cst(source, &layer_rule)
+        crate::layer_paths_from_cst(source, layer_rule)
             .into_iter()
             .map(|path| path.canonical_name())
             .collect::<Vec<_>>(),
         ["a.b"]
     );
+    Ok(())
 }
 
 #[test]
