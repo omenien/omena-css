@@ -198,8 +198,8 @@ mod tests {
             ]
         );
         assert_eq!(report.layer_topology_case_count, 5);
-        assert_eq!(report.resolved_layer_topology_case_count, 2);
-        assert_eq!(report.blocked_layer_topology_case_count, 3);
+        assert_eq!(report.resolved_layer_topology_case_count, 4);
+        assert_eq!(report.blocked_layer_topology_case_count, 1);
         assert!(report.all_layer_topology_cases_match);
         assert_eq!(report.cascade_level_count, 10);
         assert_eq!(report.driven_cascade_level_count, 8);

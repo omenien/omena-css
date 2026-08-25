@@ -25,17 +25,17 @@
     },
     {
       "id": "dynamic-name",
-      "status": "blocked",
+      "status": "resolved",
       "source": "@layer theme-#{variant} { .item { color: red; } }",
       "expectedOrder": [],
-      "minimumUnresolvedCount": 1
+      "minimumUnresolvedCount": 0
     },
     {
       "id": "empty-statement-name",
-      "status": "blocked",
+      "status": "resolved",
       "source": "@layer ;",
       "expectedOrder": [],
-      "minimumUnresolvedCount": 1
+      "minimumUnresolvedCount": 0
     }
   ]
 }
