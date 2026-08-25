@@ -538,7 +538,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 5275,
+      "line": 5279,
       "function": "current_is_css_module_value_rule",
       "idiom": "equals",
       "keyword": "@value",
@@ -1055,7 +1055,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 647,
+      "line": 659,
       "function": "summarize_style_context_index",
       "idiom": "direct-equality",
       "keyword": "layer",
@@ -1066,7 +1066,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 657,
+      "line": 669,
       "function": "summarize_style_context_index",
       "idiom": "direct-equality",
       "keyword": "scope",
@@ -1077,7 +1077,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 662,
+      "line": 674,
       "function": "summarize_style_context_index",
       "idiom": "direct-equality",
       "keyword": "layer",
@@ -1088,7 +1088,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 672,
+      "line": 684,
       "function": "summarize_style_context_index",
       "idiom": "direct-equality",
       "keyword": "scope",
@@ -1099,7 +1099,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 783,
+      "line": 795,
       "function": "summarize_style_layer_order_from_source",
       "idiom": "contains",
       "keyword": "@layer",
@@ -1110,7 +1110,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 928,
+      "line": 956,
       "function": "layer_rule_prelude",
       "idiom": "strip-prefix",
       "keyword": "@layer",
@@ -1121,7 +1121,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1669,
+      "line": 1697,
       "function": "style_context_for_cst_offset",
       "idiom": "strip-prefix",
       "keyword": "@layer",
@@ -2099,7 +2099,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:1cbccb884cf66b2270a56f34bbe43564eb9c94f98c8107d0da0943073575123e",
+  "siteDigest": "sha256:418f59a87c7ed700ccde9f0a4539733c2155a765acbd1624867e2f25d010f9d6",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
