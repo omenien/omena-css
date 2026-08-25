@@ -10915,19 +10915,19 @@
       "crate": "omena-semantic",
       "typeName": "LayerBlockDraftV0",
       "sourcePath": "rust/crates/omena-semantic/src/layer_tree.rs",
-      "line": 91
+      "line": 101
     },
     {
       "crate": "omena-semantic",
       "typeName": "LayerNodeDraftV0",
       "sourcePath": "rust/crates/omena-semantic/src/layer_tree.rs",
-      "line": 99
+      "line": 109
     },
     {
       "crate": "omena-semantic",
       "typeName": "LayerOrderFactsV0",
       "sourcePath": "rust/crates/omena-semantic/src/layer_tree.rs",
-      "line": 42
+      "line": 51
     },
     {
       "crate": "omena-semantic",
@@ -11137,7 +11137,7 @@
       "crate": "omena-semantic",
       "typeName": "SassSelectorResolution",
       "sourcePath": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1474
+      "line": 1475
     },
     {
       "crate": "omena-semantic",
@@ -11239,13 +11239,13 @@
       "crate": "omena-semantic",
       "typeName": "StyleContainerIndexV0",
       "sourcePath": "rust/crates/omena-semantic/src/types.rs",
-      "line": 360
+      "line": 365
     },
     {
       "crate": "omena-semantic",
       "typeName": "StyleContextBlockV0",
       "sourcePath": "rust/crates/omena-semantic/src/types.rs",
-      "line": 390
+      "line": 395
     },
     {
       "crate": "omena-semantic",
@@ -11257,13 +11257,13 @@
       "crate": "omena-semantic",
       "typeName": "StyleContextSelectorMembershipV0",
       "sourcePath": "rust/crates/omena-semantic/src/types.rs",
-      "line": 403
+      "line": 408
     },
     {
       "crate": "omena-semantic",
       "typeName": "StyleCustomPropertySemanticFactsV0",
       "sourcePath": "rust/crates/omena-semantic/src/types.rs",
-      "line": 431
+      "line": 436
     },
     {
       "crate": "omena-semantic",
@@ -11293,7 +11293,7 @@
       "crate": "omena-semantic",
       "typeName": "StyleLayerBlockBindingV0",
       "sourcePath": "rust/crates/omena-semantic/src/types.rs",
-      "line": 339
+      "line": 344
     },
     {
       "crate": "omena-semantic",
@@ -11305,13 +11305,13 @@
       "crate": "omena-semantic",
       "typeName": "StyleLayerOrderNodeV0",
       "sourcePath": "rust/crates/omena-semantic/src/types.rs",
-      "line": 326
+      "line": 331
     },
     {
       "crate": "omena-semantic",
       "typeName": "StyleLayerStatementV0",
       "sourcePath": "rust/crates/omena-semantic/src/types.rs",
-      "line": 350
+      "line": 355
     },
     {
       "crate": "omena-semantic",
@@ -11323,7 +11323,7 @@
       "crate": "omena-semantic",
       "typeName": "StyleOffsetContext",
       "sourcePath": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1649
+      "line": 1650
     },
     {
       "crate": "omena-semantic",
@@ -11335,25 +11335,25 @@
       "crate": "omena-semantic",
       "typeName": "StyleSassSemanticFactsV0",
       "sourcePath": "rust/crates/omena-semantic/src/types.rs",
-      "line": 441
+      "line": 446
     },
     {
       "crate": "omena-semantic",
       "typeName": "StyleScopeIndexV0",
       "sourcePath": "rust/crates/omena-semantic/src/types.rs",
-      "line": 370
+      "line": 375
     },
     {
       "crate": "omena-semantic",
       "typeName": "StyleScopeRangeV0",
       "sourcePath": "rust/crates/omena-semantic/src/types.rs",
-      "line": 380
+      "line": 385
     },
     {
       "crate": "omena-semantic",
       "typeName": "StyleSelectorIdentityFactsV0",
       "sourcePath": "rust/crates/omena-semantic/src/types.rs",
-      "line": 412
+      "line": 417
     },
     {
       "crate": "omena-semantic",

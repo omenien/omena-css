@@ -2525,7 +2525,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_checker/input.rs",
-        "line": 602,
+        "line": 606,
         "function": "query_property_identity_survives_fact_join_checker_and_ranking_planes",
         "operation": "sealed-property-key",
         "evidence": ".filter(|declaration| declaration.property_key.as_custom().is_some())",
@@ -2533,7 +2533,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_checker/input.rs",
-        "line": 610,
+        "line": 614,
         "function": "query_property_identity_survives_fact_join_checker_and_ranking_planes",
         "operation": "sealed-property-key",
         "evidence": "declaration.property_key.as_str(),",
@@ -2541,7 +2541,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_checker/input.rs",
-        "line": 698,
+        "line": 702,
         "function": "one_standard_grammar_verdict_drives_checker_and_computed_value",
         "operation": "PropertyNameV0::standard",
         "evidence": "property_key: PropertyNameV0::standard(\"box-sizing\").canonical_key(),",
@@ -3973,7 +3973,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1225,
+        "line": 1226,
         "function": "summarize_omena_parser_custom_property_facts",
         "operation": "sealed-property-key",
         "evidence": "let Some(property_key) = variable.property_key.clone() else {",
@@ -3981,7 +3981,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1231,
+        "line": 1232,
         "function": "summarize_omena_parser_custom_property_facts",
         "operation": "sealed-property-key",
         "evidence": ".entry(property_key.clone())",
@@ -3989,7 +3989,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1235,
+        "line": 1236,
         "function": "summarize_omena_parser_custom_property_facts",
         "operation": "sealed-property-key",
         "evidence": "property_key,",
@@ -3997,7 +3997,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1284,
+        "line": 1285,
         "function": "summarize_omena_parser_custom_property_facts",
         "operation": "sealed-property-key",
         "evidence": ".map(|declaration| (declaration.property_key.clone(), declaration.name.clone()))",
@@ -4005,7 +4005,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1461,
+        "line": 1462,
         "function": "summarize_omena_parser_custom_property_semantic_facts",
         "operation": "sealed-property-key",
         "evidence": ".entry(reference.property_key.clone())",
@@ -4013,7 +4013,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1549,
+        "line": 1550,
         "function": "custom_property_context_matches",
         "operation": "sealed-property-key",
         "evidence": "if declaration.property_key != reference.property_key {",
@@ -6597,7 +6597,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-        "line": 1080,
+        "line": 1087,
         "function": "winner_difference_absences",
         "operation": "sealed-property-key",
         "evidence": "|| input.winner.property_key != output.winner.property_key",
@@ -6605,14 +6605,14 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-        "line": 1123,
+        "line": 1130,
         "function": "pair_identity",
         "operation": "PropertyNameV0::from_authored",
         "evidence": "let property_key = PropertyNameV0::from_authored(&pair.property).canonical_key();",
         "role": "producer"
       }
     ],
-    "siteDigest": "sha256:31987e2facb06003aacfbe9c21486e78c82277c359da78b246e812f3f6a47730",
+    "siteDigest": "sha256:39399644ae40c09456a193d7e429b0b56983f9590ed69f317c5d488173d51c58",
     "residualRawCarrierDirection": "decrease-only",
     "residualRawCarrierSiteCount": 198,
     "residualRawCarrierSites": [
@@ -12510,7 +12510,7 @@
           },
           {
             "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-            "line": 1123,
+            "line": 1130,
             "function": "pair_identity",
             "operation": "residual-property-consumer:presentation",
             "evidence": "let property_key = PropertyNameV0::from_authored(&pair.property).canonical_key();",
@@ -12748,7 +12748,7 @@
     ],
     "residualCarrierConsumerSiteCount": 229,
     "residualIdentityShapedConsumerCount": 0,
-    "residualCarrierConsumerDigest": "sha256:b9c12225aaafa8ac18173f5209c91dafce2804f241b755d7fef955a31bdb51dc",
+    "residualCarrierConsumerDigest": "sha256:cfe5f53ddedf5aa1fb159fff7157079976360deb0a7022b7f65b27becdb83328",
     "rawStringIdentitySiteCount": 0,
     "rawStringIdentitySites": [],
     "rawStringIdentitySiteDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
