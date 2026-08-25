@@ -6745,7 +6745,7 @@
       "crate": "omena-parser",
       "typeName": "TemplatePlaceholderTestExtension",
       "sourcePath": "rust/crates/omena-parser/src/tests.rs",
-      "line": 5591
+      "line": 5676
     },
     {
       "crate": "omena-parser",
@@ -10915,13 +10915,13 @@
       "crate": "omena-semantic",
       "typeName": "LayerBlockDraftV0",
       "sourcePath": "rust/crates/omena-semantic/src/layer_tree.rs",
-      "line": 50
+      "line": 91
     },
     {
       "crate": "omena-semantic",
       "typeName": "LayerNodeDraftV0",
       "sourcePath": "rust/crates/omena-semantic/src/layer_tree.rs",
-      "line": 58
+      "line": 99
     },
     {
       "crate": "omena-semantic",
@@ -11137,7 +11137,7 @@
       "crate": "omena-semantic",
       "typeName": "SassSelectorResolution",
       "sourcePath": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1446
+      "line": 1474
     },
     {
       "crate": "omena-semantic",
@@ -11323,7 +11323,7 @@
       "crate": "omena-semantic",
       "typeName": "StyleOffsetContext",
       "sourcePath": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1621
+      "line": 1649
     },
     {
       "crate": "omena-semantic",
