@@ -556,7 +556,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
-      - run: pnpm run check:rust-omena-identifier-authority-matrix
+      - run: pnpm omena-check run rust/omena-identifier-authority-matrix
 
   rust-identifier-authority-mutations:
     # omena-ci-tier: verify
@@ -569,7 +569,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
-      - run: pnpm run check:rust-omena-identifier-authority-mutations
+      - run: pnpm omena-check run rust/omena-identifier-authority-mutations
 
   extension-host-smoke:
     # omena-ci-tier: extension-host

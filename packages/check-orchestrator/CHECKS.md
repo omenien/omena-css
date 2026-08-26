@@ -12,7 +12,7 @@ Total gates: 579
 | release | 22 | 1 | 0 | 8 | 11 | 11 | 12 | 2 |
 | tsgo | 6 | 1 | 1 | 0 | 0 | 6 | 2 | 3 |
 | ts7 | 17 | 7 | 0 | 0 | 1 | 16 | 2 | 11 |
-| rust | 449 | 49 | 13 | 26 | 214 | 235 | 229 | 114 |
+| rust | 449 | 49 | 13 | 26 | 216 | 233 | 231 | 114 |
 | plugin | 12 | 1 | 0 | 0 | 11 | 1 | 11 | 1 |
 | contract | 14 | 1 | 0 | 1 | 10 | 4 | 10 | 0 |
 | docs | 10 | 1 | 0 | 1 | 9 | 1 | 9 | 0 |
@@ -322,8 +322,8 @@ Total gates: 579
 | `rust/omena-diff-test-wpt-seed` | gate | package | push | blocking | `check:rust-omena-diff-test-wpt-seed` |  |  |
 | `rust/omena-fact-precision-census` | gate | package+declared | push | blocking | `check:rust-omena-fact-precision-census` |  | ci `closure-fast`; group `closure-fast` |
 | `rust/omena-ffi-boundary-typing-census` | gate | package+declared | push | blocking | `check:rust-omena-ffi-boundary-typing-census` |  | ci `closure-fast`; group `closure-fast` |
-| `rust/omena-identifier-authority-matrix` | gate | package+declared | manual | advisory | `check:rust-omena-identifier-authority-matrix` |  | ci `verify`; group `verify`; reason Runs the generated authored-text origin, comparison, position, and escape coverage matrix independently of the full census selftest. |
-| `rust/omena-identifier-authority-mutations` | gate | package+declared | manual | advisory | `check:rust-omena-identifier-authority-mutations` |  | ci `verify`; group `verify`; reason Runs authored-text identity mutation, laundering, and disclosed-control arms independently of the immutable census check. |
+| `rust/omena-identifier-authority-matrix` | gate | package+declared | push | blocking | `check:rust-omena-identifier-authority-matrix` |  | ci `verify`; group `verify`; reason Runs the generated authored-text origin, comparison, position, and escape coverage matrix independently of the full census selftest. |
+| `rust/omena-identifier-authority-mutations` | gate | package+declared | push | blocking | `check:rust-omena-identifier-authority-mutations` |  | ci `verify`; group `verify`; reason Runs authored-text identity mutation, laundering, and disclosed-control arms independently of the immutable census check. |
 | `rust/omena-incremental/boundary` | bundle | package | nightly | advisory | `check:rust-omena-incremental-boundary` | `check:rust-omena-incremental-edit-distance-priority`, `check:rust-omena-incremental-shadow-delta` |  |
 | `rust/omena-incremental/edit-distance-priority` | gate | package | nightly | advisory | `check:rust-omena-incremental-edit-distance-priority` |  |  |
 | `rust/omena-incremental/shadow-delta` | gate | package | nightly | advisory | `check:rust-omena-incremental-shadow-delta` |  |  |
