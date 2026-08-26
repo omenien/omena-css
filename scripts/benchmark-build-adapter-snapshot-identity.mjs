@@ -40,7 +40,6 @@ try {
   const baseOptions = {
     cwd: root,
     engine: binding,
-    moduleInterface: false,
     packageManifests: [manifestPath],
     sources: [dependencyPath],
   };
@@ -56,21 +55,16 @@ try {
     assert.equal(output.code, expected.code);
   }
 
-  const rebuildBinding = new Proxy(binding, {
-    get(target, property, receiver) {
-      if (property === "buildSnapshotIdentity") return undefined;
-      return Reflect.get(target, property, receiver);
-    },
-  });
-  const rebuildState = adapter.createOmenaBuildState({ cwd: root });
-  const rebuildOptions = { ...baseOptions, engine: rebuildBinding };
+  const rebuildMetrics = emptyCacheMetrics();
   const rebuildSamples = [];
   for (let iteration = 0; iteration < rebuildIterations; iteration += 1) {
+    const rebuildState = adapter.createOmenaBuildState({ cwd: root });
     const startedAt = performance.now();
-    const options = await adapter.resolveEffectiveOptions(rebuildOptions, rebuildState);
+    const options = await adapter.resolveEffectiveOptions(baseOptions, rebuildState);
     const output = await adapter.rebuildAndCache(targetPath, targetSource, options, rebuildState);
     rebuildSamples.push(performance.now() - startedAt);
     assert.equal(output.code, expected.code);
+    accumulateCacheMetrics(rebuildMetrics, rebuildState.cacheMetrics);
   }
 
   const hitP50Ms = percentile(hitSamples, 0.5);
@@ -81,6 +75,11 @@ try {
         schemaVersion: "0",
         product: "omena-css-build-adapter.snapshot-identity-benchmark",
         runtime: `${process.platform}-${process.arch} node-${process.versions.node}`,
+        measurementShape: {
+          moduleInterface: true,
+          bundlePassPlanning: "per-enumerated-style-source",
+          rebuildDisposition: "fresh-state-digest-miss",
+        },
         hitIterations,
         rebuildIterations,
         targetBytes: Buffer.byteLength(targetSource),
@@ -96,8 +95,12 @@ try {
           Number(cacheState.cacheMetrics.digestComputeNanoseconds) /
           cacheState.cacheMetrics.digestComputations /
           1_000_000,
+        forcedRebuildDigestEndpointMeanMs:
+          Number(rebuildMetrics.digestComputeNanoseconds) /
+          rebuildMetrics.digestComputations /
+          1_000_000,
         cacheMetrics: jsonCacheMetrics(cacheState.cacheMetrics),
-        forcedRebuildMetrics: jsonCacheMetrics(rebuildState.cacheMetrics),
+        forcedRebuildMetrics: jsonCacheMetrics(rebuildMetrics),
         unchangedOutputBytes: Buffer.byteLength(expected.code),
       },
       null,
@@ -131,4 +134,26 @@ function jsonCacheMetrics(metrics) {
     builds: metrics.builds,
     buildNanoseconds: String(metrics.buildNanoseconds),
   };
+}
+
+function emptyCacheMetrics() {
+  return {
+    hits: 0,
+    misses: 0,
+    bypasses: 0,
+    digestComputations: 0,
+    digestComputeNanoseconds: 0n,
+    builds: 0,
+    buildNanoseconds: 0n,
+  };
+}
+
+function accumulateCacheMetrics(total, current) {
+  total.hits += current.hits;
+  total.misses += current.misses;
+  total.bypasses += current.bypasses;
+  total.digestComputations += current.digestComputations;
+  total.digestComputeNanoseconds += current.digestComputeNanoseconds;
+  total.builds += current.builds;
+  total.buildNanoseconds += current.buildNanoseconds;
 }
