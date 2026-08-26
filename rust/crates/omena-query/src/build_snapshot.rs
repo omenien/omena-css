@@ -254,6 +254,7 @@ fn canonical_digest(value: &impl Serialize) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omena_resolver::invalidate_omena_resolver_style_identity_cache;
 
     fn fixture_input() -> OmenaQueryBuildSnapshotIdentityInputV0 {
         OmenaQueryBuildSnapshotIdentityInputV0 {
@@ -329,6 +330,18 @@ mod tests {
             let changed = compute_build_snapshot_identity_with_native_facts(&input, facts)?;
             assert_ne!(changed.digest, baseline.digest);
         }
+        Ok(())
+    }
+
+    #[test]
+    fn live_resolver_generation_changes_the_public_build_snapshot_digest() -> Result<(), String> {
+        let input = fixture_input();
+        let before = compute_omena_query_build_snapshot_identity_v0(&input)?;
+        invalidate_omena_resolver_style_identity_cache();
+        let after = compute_omena_query_build_snapshot_identity_v0(&input)?;
+
+        assert_eq!(after.resolver_generation, before.resolver_generation + 1);
+        assert_ne!(after.digest, before.digest);
         Ok(())
     }
 

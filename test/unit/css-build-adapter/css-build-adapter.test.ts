@@ -158,6 +158,35 @@ afterEach(() => {
 });
 
 describe("@omena/css-build-adapter", () => {
+  it("keeps one digest-gated adapter cache identity", () => {
+    const adapterSource = fs.readFileSync(
+      path.join(process.cwd(), "packages/css-build-adapter/index.cjs"),
+      "utf8",
+    );
+    const rebuildBody = adapterSource.match(
+      /async function rebuildAndCache[\s\S]*?(?=\nasync function runOmenaBuild)/u,
+    )?.[0];
+
+    expect(adapterSource.match(/\bcache:\s*new Map\(/gu)).toHaveLength(1);
+    expect(adapterSource.match(/state\.cache\.set\(/gu)).toHaveLength(1);
+    expect(adapterSource).not.toContain("buildCacheKey");
+    expect(adapterSource).not.toContain("cacheKey");
+    expect(rebuildBody).toContain("cached?.buildSnapshotDigest");
+    expect(rebuildBody!.indexOf("resolveBuildSnapshotIdentity")).toBeLessThan(
+      rebuildBody!.indexOf("state.cache.get"),
+    );
+
+    const nativeSource = fs.readFileSync(
+      path.join(process.cwd(), "rust/crates/omena-query/src/build_snapshot.rs"),
+      "utf8",
+    );
+    expect(nativeSource).toContain("compute_omena_sif_leaf_hash_v1");
+    expect(nativeSource).toContain("omena_resolver_style_identity_generation()");
+    expect(nativeSource).toContain("target_data_snapshot_id: target_plan.target_data_snapshot_id");
+    expect(nativeSource).toContain('env!("CARGO_PKG_VERSION")');
+    expect(nativeSource).toContain("pass_plan_digest");
+  });
+
   it("keeps public minify presets pinned to the semantic profile authority", () => {
     expect(MINIFY_PASS_IDS).toEqual(SEMANTIC_MINIFY_PASS_IDS);
 
