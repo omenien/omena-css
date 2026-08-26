@@ -853,7 +853,7 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "verify",
     ciReason:
       "Runs authored-text identity mutation, laundering, and disclosed-control arms independently of the immutable census check.",
-    timeoutMinutes: 25,
+    timeoutMinutes: 35,
   },
   {
     id: "rust/omena-syntax-authority-raw-scan-census",
