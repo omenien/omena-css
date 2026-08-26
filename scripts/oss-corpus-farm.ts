@@ -1302,11 +1302,27 @@ function assertWorkspaceLintScanShape(): void {
     0,
     "lint must not call the disk-loading source diagnostic path per file",
   );
-  const batchBody = extractDelimitedBody(
+  const publicBatchBody = extractDelimitedBody(
     diagnosticsSource,
     "fn workspace_source_diagnostics_summaries",
   );
+  assert.equal(
+    (
+      publicBatchBody.match(
+        /workspace_source_diagnostics_summaries_with_identity_index_mode\(/gu,
+      ) ?? []
+    ).length,
+    1,
+    "workspace source diagnostics must delegate once to the identity-index batch helper",
+  );
+  const batchBody = extractDelimitedBody(
+    diagnosticsSource,
+    "fn workspace_source_diagnostics_summaries_with_identity_index_mode",
+  );
   const resolutionLoad = batchBody.indexOf("load_omena_query_workspace_style_resolution_inputs(");
+  const identityIndexBuild = batchBody.indexOf(
+    "build_omena_resolver_style_module_confirmation_identity_index(",
+  );
   const sourceLoop = batchBody.indexOf("for source_path in source_paths");
   assert.equal(
     (batchBody.match(/load_omena_query_workspace_style_resolution_inputs\(/gu) ?? []).length,
@@ -1317,6 +1333,16 @@ function assertWorkspaceLintScanShape(): void {
   assert.ok(
     resolutionLoad >= 0 && resolutionLoad < sourceLoop,
     "workspace resolution inputs must be loaded before source iteration",
+  );
+  assert.equal(
+    (batchBody.match(/build_omena_resolver_style_module_confirmation_identity_index\(/gu) ?? [])
+      .length,
+    1,
+    "workspace resolver identity index must build once before the source loop",
+  );
+  assert.ok(
+    resolutionLoad < identityIndexBuild && identityIndexBuild < sourceLoop,
+    "workspace resolver identity index must bind loaded resolution inputs before source iteration",
   );
 }
 

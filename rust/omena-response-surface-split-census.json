@@ -8596,7 +8596,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQuerySourceDiagnosticsAssemblyOptions",
       "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 843
+      "line": 887
     },
     {
       "crate": "omena-query",
@@ -8608,7 +8608,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQuerySourceDiagnosticsWorkspaceFacts",
       "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 838
+      "line": 882
     },
     {
       "crate": "omena-query",
@@ -9010,7 +9010,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQueryWorkspaceSourceReferenceCandidateV0",
       "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 1332
+      "line": 1376
     },
     {
       "crate": "omena-query",
@@ -9232,7 +9232,7 @@
       "crate": "omena-query",
       "typeName": "SourceSelectorUsageResolutionContext",
       "sourcePath": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-      "line": 397
+      "line": 409
     },
     {
       "crate": "omena-query",
