@@ -386,7 +386,7 @@
     {
       "crate": "omena-query",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints, requires exact Rust-authored declaration identities for style resolution, preserves analyzed-empty reachability as a closed-world result, and projects typed dialect-cycle evidence instead of a generic pass-unavailable blocker. It also moves custom-property diagnostics and module-interface joins onto the shared decoded, case-preserving property identity, revalidates deferred standard-property values after Salsa-fed var() substitution, and replaces the merged bundler-host export map with typed class and ICSS-value namespaces plus source-anchored collision diagnostics.",
+      "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints, requires exact Rust-authored declaration identities for style resolution, preserves analyzed-empty reachability as a closed-world result, and projects typed dialect-cycle evidence instead of a generic pass-unavailable blocker. It also moves custom-property diagnostics and module-interface joins onto the shared decoded, case-preserving property identity, revalidates deferred standard-property values after Salsa-fed var() substitution, replaces the merged bundler-host export map with typed class and ICSS-value namespaces plus source-anchored collision diagnostics, and adds a native build-snapshot digest that binds adapter cache decisions to content and engine-owned identities.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -645,6 +645,33 @@
               "needles": [
                 "fn cst_join_preserves_non_nesting_ampersands_during_selector_expansion()"
               ]
+            }
+          ]
+        },
+        {
+          "id": "query-build-snapshot-digest-wire",
+          "kind": "wire-value-order-preserving",
+          "surface": "OmenaQueryBuildSnapshotIdentityV0 and N-API/WASM buildSnapshotIdentity bindings",
+          "reason": "Build-tool adapters can request one canonical BLAKE3 receipt over target and dependency contents, static configuration bytes, resolver generation, target-data snapshot, engine ABI, and the native pass plan. This additive wire surface does not change build output bytes; it changes whether an unchanged build may be served from the adapter cache.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/build_snapshot.rs",
+              "needles": [
+                "pub struct OmenaQueryBuildSnapshotIdentityV0",
+                "compute_omena_sif_leaf_hash_v1",
+                "omena_resolver_style_identity_generation()",
+                "target_data_snapshot_id: target_plan.target_data_snapshot_id",
+                "engine_abi_version: format!(\"omena-query@{}\", env!(\"CARGO_PKG_VERSION\"))",
+                "pass_plan_digest"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-napi/src/lib.rs",
+              "needles": ["#[napi(js_name = \"buildSnapshotIdentityJson\")]"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+              "needles": ["#[wasm_bindgen(js_name = buildSnapshotIdentity)]"]
             }
           ]
         }
