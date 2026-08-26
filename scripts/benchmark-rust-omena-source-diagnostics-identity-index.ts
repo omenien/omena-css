@@ -19,6 +19,7 @@ const styleCount = positiveIntegerArgument("--style-count", 120);
 const warmupCount = nonNegativeIntegerArgument("--warmups", 1);
 const sampleCount = positiveIntegerArgument("--samples", 5);
 const profilePath = valueAfter("--sample-profile");
+const fixtureClass = fixtureClassArgument();
 const omenaBinary = path.resolve(repoRoot, valueAfter("--binary") ?? "rust/target/release/omena");
 
 assert.ok(
@@ -27,6 +28,7 @@ assert.ok(
 );
 assert.ok(sourceCount >= 200, "source-diagnostics timing corpus must contain hundreds of sources");
 assert.ok(styleCount >= 32, "identity-index timing corpus must contain a non-trivial style index");
+assertWeightedSampleParser();
 
 void main();
 
@@ -35,7 +37,7 @@ async function main(): Promise<void> {
     path.join(os.tmpdir(), "omena-source-diagnostics-identity-index-"),
   );
   try {
-    writeFixture(fixtureRoot, sourceCount, styleCount);
+    writeFixture(fixtureRoot, sourceCount, styleCount, fixtureClass);
     for (let index = 0; index < warmupCount; index += 1) runLint(fixtureRoot);
 
     const elapsedMilliseconds: number[] = [];
@@ -63,12 +65,14 @@ async function main(): Promise<void> {
           product: "omena-cli.source-diagnostics-identity-index-benchmark",
           harness: {
             command: `${path.relative(repoRoot, omenaBinary)} lint <generated-workspace> --profile recommended --json`,
-            fixture: "generated-symlink-confirmation-workspace",
+            fixtureClass,
             sourceCount,
             styleCount,
             warmupCount,
             sampleCount,
+            timingQualification: sampleCount === 1 ? "n=1-advisory" : "multi-sample",
             releaseBinary: path.relative(repoRoot, omenaBinary),
+            binaryPreparation: "prebuilt-required; harness-does-not-build-the-cli",
           },
           elapsedMilliseconds: elapsedMilliseconds.map(round),
           minimumMilliseconds: round(minimum),
@@ -87,11 +91,18 @@ async function main(): Promise<void> {
   }
 }
 
-function writeFixture(root: string, sources: number, styles: number): void {
+function writeFixture(
+  root: string,
+  sources: number,
+  styles: number,
+  fixtureKind: "exact-match" | "symlink-confirmation",
+): void {
   const sourceRoot = path.join(root, "src");
   const styleRoot = path.join(sourceRoot, "styles");
   mkdirSync(styleRoot, { recursive: true });
-  symlinkSync(styleRoot, path.join(sourceRoot, "linked-styles"), "dir");
+  if (fixtureKind === "symlink-confirmation") {
+    symlinkSync(styleRoot, path.join(sourceRoot, "linked-styles"), "dir");
+  }
   writeFileSync(
     path.join(root, "package.json"),
     `${JSON.stringify({ name: "omena-source-diagnostics-identity-index-benchmark", private: true })}\n`,
@@ -107,9 +118,10 @@ function writeFixture(root: string, sources: number, styles: number): void {
     const styleIndex = index % styles;
     const sourceSuffix = padded(index);
     const styleSuffix = padded(styleIndex);
+    const importRoot = fixtureKind === "exact-match" ? "styles" : "linked-styles";
     writeFileSync(
       path.join(sourceRoot, `Component${sourceSuffix}.tsx`),
-      `import styles from "./linked-styles/Style${styleSuffix}.module.css";\nexport const Component${sourceSuffix} = () => <div className={styles.item${styleSuffix}} />;\n`,
+      `import styles from "./${importRoot}/Style${styleSuffix}.module.css";\nexport const Component${sourceSuffix} = () => <div className={styles.item${styleSuffix}} />;\n`,
     );
   }
 }
@@ -142,8 +154,11 @@ async function captureSampleProfile(
 ): Promise<{
   readonly status: "captured" | "unavailable";
   readonly path: string;
-  readonly identityIndexBuilderSamples?: number;
-  readonly canonicalizeIdentitySamples?: number;
+  readonly metric?: "macos-sample-weight-sum";
+  readonly captureCount?: 1;
+  readonly timingQualification?: "n=1-advisory";
+  readonly identityIndexBuilderWeightedSamples?: number;
+  readonly canonicalizeIdentityWeightedSamples?: number;
   readonly detail?: string;
 }> {
   if (process.platform !== "darwin" || !existsSync("/usr/bin/sample")) {
@@ -182,11 +197,14 @@ async function captureSampleProfile(
   return {
     status: "captured",
     path: outputPath,
-    identityIndexBuilderSamples: occurrenceCount(
+    metric: "macos-sample-weight-sum",
+    captureCount: 1,
+    timingQualification: "n=1-advisory",
+    identityIndexBuilderWeightedSamples: weightedSampleCount(
       profile,
       "build_omena_resolver_style_module_confirmation_identity_index",
     ),
-    canonicalizeIdentitySamples: occurrenceCount(
+    canonicalizeIdentityWeightedSamples: weightedSampleCount(
       profile,
       "canonicalize_omena_resolver_style_identity_path",
     ),
@@ -214,8 +232,39 @@ function valueAfter(flag: string): string | undefined {
   return index < 0 ? undefined : process.argv[index + 1];
 }
 
-function occurrenceCount(source: string, needle: string): number {
-  return source.split(needle).length - 1;
+function fixtureClassArgument(): "exact-match" | "symlink-confirmation" {
+  const value = valueAfter("--fixture-class") ?? "exact-match";
+  assert.ok(
+    value === "exact-match" || value === "symlink-confirmation",
+    "--fixture-class must be exact-match or symlink-confirmation",
+  );
+  return value;
+}
+
+function weightedSampleCount(source: string, symbol: string): number {
+  let total = 0;
+  for (const line of source.split(/\r?\n/u)) {
+    const symbolAt = line.indexOf(symbol);
+    if (symbolAt < 0) continue;
+    const weight = line.slice(0, symbolAt).match(/(?:^|\s)(\d+)\s+\S*$/u)?.[1];
+    if (weight !== undefined) total += Number.parseInt(weight, 10);
+  }
+  return total;
+}
+
+function assertWeightedSampleParser(): void {
+  const symbol = "canonicalize_omena_resolver_style_identity_path";
+  const fixture = [
+    `  + ! : | 123 ${symbol}::h1 (in omena)`,
+    `  + ! : |   2 ${symbol}::h1 (in omena)`,
+    `        8       ${symbol}::h1 (in omena)`,
+    `        5       unrelated_symbol::h2 (in omena)`,
+  ].join("\n");
+  assert.equal(
+    weightedSampleCount(fixture, symbol),
+    133,
+    "sample parser must sum stack weights instead of counting report-text occurrences",
+  );
 }
 
 function padded(value: number): string {

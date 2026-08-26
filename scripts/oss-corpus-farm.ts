@@ -1304,7 +1304,7 @@ function assertWorkspaceLintScanShape(): void {
   );
   const publicBatchBody = extractDelimitedBody(
     diagnosticsSource,
-    "fn workspace_source_diagnostics_summaries",
+    "fn workspace_source_diagnostics_summaries(",
   );
   assert.equal(
     (
@@ -1317,7 +1317,7 @@ function assertWorkspaceLintScanShape(): void {
   );
   const batchBody = extractDelimitedBody(
     diagnosticsSource,
-    "fn workspace_source_diagnostics_summaries_with_identity_index_mode",
+    "fn workspace_source_diagnostics_summaries_with_identity_index_mode(",
   );
   const resolutionLoad = batchBody.indexOf("load_omena_query_workspace_style_resolution_inputs(");
   const identityIndexBuild = batchBody.indexOf(
@@ -1357,11 +1357,11 @@ function assertWorkspaceStyleDiagnosticsSharedWalkShape(): void {
   );
   const resolverBody = extractDelimitedBody(
     memoSource,
-    "fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_identity_index",
+    "fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_identity_index(",
   );
   const sharedResolverBody = extractDelimitedBody(
     memoSource,
-    "fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector_and_identity_index",
+    "fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector_and_identity_index(",
   );
   assert.equal(
     (

@@ -22,9 +22,12 @@ pub(super) fn derive_design_token_routes_for_transform_context(
         entries,
         &workspace_declarations,
         resolution_context.package_manifests,
-        resolution_context.bundler_path_mappings,
-        resolution_context.tsconfig_path_mappings,
-        resolution_context.disk_style_path_identities,
+        OmenaQueryStylePathResolutionInputsV0 {
+            bundler_path_mappings: resolution_context.bundler_path_mappings,
+            tsconfig_path_mappings: resolution_context.tsconfig_path_mappings,
+            disk_style_path_identities: resolution_context.disk_style_path_identities,
+        },
+        resolution_context.resolver_identity_index,
     );
     let (local_decl_keys, local_refs) = local_custom_property_index_names(entry);
 

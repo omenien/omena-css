@@ -109,6 +109,10 @@ pub fn summarize_omena_query_style_inline_code_actions_with_resolution_inputs(
         .iter()
         .map(|source| source.style_path.as_str())
         .collect::<BTreeSet<_>>();
+    let resolver_identity_index = build_omena_resolver_style_module_confirmation_identity_index(
+        &available_style_paths,
+        resolution_inputs.disk_style_path_identities.as_slice(),
+    );
     let dialect = omena_parser_dialect_for_style_path(style_uri);
     let facts = collect_omena_query_omena_parser_style_facts_raw(
         target_source.style_source.as_str(),
@@ -134,6 +138,7 @@ pub fn summarize_omena_query_style_inline_code_actions_with_resolution_inputs(
             available_style_paths: &available_style_paths,
             package_manifests,
             resolution_inputs,
+            resolver_identity_index: &resolver_identity_index,
             emitted: BTreeSet::new(),
             visiting: BTreeSet::new(),
         };
@@ -145,6 +150,7 @@ pub fn summarize_omena_query_style_inline_code_actions_with_resolution_inputs(
                 &available_style_paths,
                 package_manifests,
                 resolution_inputs,
+                &resolver_identity_index,
             ) else {
                 return empty_style_code_action_plan(style_uri, "styleInlineRefactorActions");
             };
@@ -259,6 +265,7 @@ struct InlineDeclarationContext<'a> {
     available_style_paths: &'a BTreeSet<&'a str>,
     package_manifests: &'a [OmenaQueryStylePackageManifestV0],
     resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: &'a OmenaResolverStyleModuleConfirmationIdentityIndexV0,
     emitted: BTreeSet<(String, String)>,
     visiting: BTreeSet<(String, String)>,
 }
@@ -295,6 +302,7 @@ fn collect_inline_declarations(
             context.available_style_paths,
             context.package_manifests,
             context.resolution_inputs,
+            context.resolver_identity_index,
         )?;
         for target_name in &edge.target_names {
             declarations.extend(collect_inline_declarations(
@@ -317,17 +325,19 @@ fn resolve_inline_target_style_path(
     available_style_paths: &BTreeSet<&str>,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: &OmenaResolverStyleModuleConfirmationIdentityIndexV0,
 ) -> Option<String> {
     if edge.kind == ParsedCssModuleComposesEdgeKind::Local {
         return Some(owner_style_path.to_string());
     }
     let source = edge.import_source.as_deref()?;
-    resolve_style_module_source_with_resolution_inputs(
+    resolve_style_module_source_with_resolution_inputs_and_identity_index(
         owner_style_path,
         source,
         available_style_paths,
         package_manifests,
         resolution_inputs,
+        Some(resolver_identity_index),
     )
     .or_else(|| {
         resolve_file_uri_relative_style_module_source(

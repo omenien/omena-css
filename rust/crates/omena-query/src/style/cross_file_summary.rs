@@ -544,12 +544,21 @@ pub fn summarize_omena_query_source_selector_reference_cross_file_summary_with_r
 ) -> OmenaQueryCrossFileSummaryV0 {
     let definitions =
         super::source_refs::summarize_omena_query_style_selector_definitions(style_sources);
+    let available_style_paths = style_sources
+        .iter()
+        .map(|source| source.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let resolver_identity_index = build_omena_resolver_style_module_confirmation_identity_index(
+        &available_style_paths,
+        resolution_inputs.disk_style_path_identities.as_slice(),
+    );
     summarize_omena_query_source_selector_reference_cross_file_summary_with_definitions(
         style_sources,
         source_documents,
         package_manifests,
         resolution_inputs,
         definitions.as_slice(),
+        Some(&resolver_identity_index),
     )
 }
 
@@ -559,6 +568,7 @@ fn summarize_omena_query_source_selector_reference_cross_file_summary_from_modul
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> OmenaQueryCrossFileSummaryV0 {
     let style_sources = module_interfaces
         .iter()
@@ -588,6 +598,7 @@ fn summarize_omena_query_source_selector_reference_cross_file_summary_from_modul
         package_manifests,
         resolution_inputs,
         definitions.as_slice(),
+        resolver_identity_index,
     )
 }
 
@@ -597,6 +608,7 @@ fn summarize_omena_query_source_selector_reference_cross_file_summary_with_defin
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     definitions: &[OmenaQueryStyleSelectorDefinitionV0],
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> OmenaQueryCrossFileSummaryV0 {
     let references =
         super::source_refs::collect_omena_query_source_selector_references_with_resolution_inputs(
@@ -604,6 +616,7 @@ fn summarize_omena_query_source_selector_reference_cross_file_summary_with_defin
             source_documents,
             package_manifests,
             resolution_inputs,
+            resolver_identity_index,
         );
     let mut edges = references
         .into_iter()
@@ -697,21 +710,36 @@ pub fn summarize_omena_query_workspace_cross_file_summary(
     )
 }
 
+pub(in crate::style) struct OmenaQueryWorkspaceCrossFileSummarySubstrateV0<'a> {
+    pub(in crate::style) style_fact_entries: &'a [OmenaQueryStyleFactEntry],
+    pub(in crate::style) css_modules_resolution: &'a OmenaQueryCssModulesCrossFileResolutionV0,
+    pub(in crate::style) sass_module_resolution: &'a OmenaQuerySassModuleCrossFileResolutionV0,
+}
+
 pub fn summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> OmenaQueryCrossFileSummaryV0 {
+    let available_style_paths = style_sources
+        .iter()
+        .map(|source| source.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let resolver_identity_index = build_omena_resolver_style_module_confirmation_identity_index(
+        &available_style_paths,
+        resolution_inputs.disk_style_path_identities.as_slice(),
+    );
     #[cfg(feature = "salsa-memo")]
     {
         let mut host = super::salsa_memo::OmenaQueryStyleMemoHostV0::new();
-        if let Some(selector) = host.workspace_revision_selector(
+        if let Some(selector) = host.workspace_revision_selector_with_identity_index(
             style_sources,
             source_documents,
             package_manifests,
             &[],
             resolution_inputs,
+            &resolver_identity_index,
         ) {
             return selector.workspace_cross_file_summary().clone();
         }
@@ -726,7 +754,12 @@ pub fn summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs
         .collect::<Vec<_>>();
     let style_fact_entries = super::collect_omena_query_style_fact_entries(style_pairs.as_slice());
     let css_modules_resolution =
-        super::summarize_css_modules_cross_file_resolution(&style_fact_entries, package_manifests);
+        super::summarize_css_modules_cross_file_resolution_with_resolution_inputs_and_identity_index(
+            &style_fact_entries,
+            package_manifests,
+            resolution_inputs,
+            &resolver_identity_index,
+        );
     let sass_module_resolution = super::summarize_sass_module_cross_file_resolution(
         &style_fact_entries,
         package_manifests,
@@ -737,10 +770,13 @@ pub fn summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs
         style_sources,
         source_documents,
         package_manifests,
-        &style_fact_entries,
-        &css_modules_resolution,
-        &sass_module_resolution,
+        OmenaQueryWorkspaceCrossFileSummarySubstrateV0 {
+            style_fact_entries: &style_fact_entries,
+            css_modules_resolution: &css_modules_resolution,
+            sass_module_resolution: &sass_module_resolution,
+        },
         resolution_inputs,
+        Some(&resolver_identity_index),
     )
 }
 
@@ -754,15 +790,14 @@ pub(super) fn summarize_omena_query_workspace_cross_file_summary_with_substrate(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
-    style_fact_entries: &[OmenaQueryStyleFactEntry],
-    css_modules_resolution: &OmenaQueryCssModulesCrossFileResolutionV0,
-    sass_module_resolution: &OmenaQuerySassModuleCrossFileResolutionV0,
+    substrate: OmenaQueryWorkspaceCrossFileSummarySubstrateV0<'_>,
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> OmenaQueryCrossFileSummaryV0 {
     let style_summary = summarize_omena_query_cross_file_summary(
-        style_fact_entries,
-        css_modules_resolution,
-        sass_module_resolution,
+        substrate.style_fact_entries,
+        substrate.css_modules_resolution,
+        substrate.sass_module_resolution,
     );
     summarize_omena_query_workspace_cross_file_summary_from_style_summary(
         style_sources,
@@ -770,6 +805,7 @@ pub(super) fn summarize_omena_query_workspace_cross_file_summary_with_substrate(
         package_manifests,
         style_summary,
         resolution_inputs,
+        resolver_identity_index,
     )
 }
 
@@ -779,16 +815,21 @@ pub(super) fn summarize_omena_query_workspace_cross_file_summary_from_style_summ
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     style_summary: OmenaQueryCrossFileSummaryV0,
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> OmenaQueryCrossFileSummaryV0 {
     #[cfg(any(test, feature = "test-support"))]
     record_workspace_cross_file_summary_internal_compute_for_test();
 
+    let definitions =
+        super::source_refs::summarize_omena_query_style_selector_definitions(style_sources);
     let source_summary =
-        summarize_omena_query_source_selector_reference_cross_file_summary_with_resolution_inputs(
+        summarize_omena_query_source_selector_reference_cross_file_summary_with_definitions(
             style_sources,
             source_documents,
             package_manifests,
             resolution_inputs,
+            definitions.as_slice(),
+            resolver_identity_index,
         );
 
     merge_omena_query_cross_file_summaries(
@@ -806,6 +847,7 @@ pub(super) fn summarize_omena_query_workspace_cross_file_summary_from_module_int
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     style_summary: OmenaQueryCrossFileSummaryV0,
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> OmenaQueryCrossFileSummaryV0 {
     #[cfg(any(test, feature = "test-support"))]
     record_workspace_cross_file_summary_internal_compute_for_test();
@@ -816,6 +858,7 @@ pub(super) fn summarize_omena_query_workspace_cross_file_summary_from_module_int
             source_documents,
             package_manifests,
             resolution_inputs,
+            resolver_identity_index,
         );
 
     merge_omena_query_cross_file_summaries(

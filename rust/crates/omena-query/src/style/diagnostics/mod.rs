@@ -612,26 +612,32 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
         ),
         None => summary.diagnostics.extend(
             summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace(
-                target_style_path,
-                &target.style_source,
+                cross_file_scc::OmenaQueryCrossFileSccDiagnosticTargetV0 {
+                    style_path: target_style_path,
+                    style_source: &target.style_source,
+                },
                 style_sources,
                 source_documents,
                 package_manifests,
                 resolution_inputs,
                 substrate,
+                resolver_identity_index,
             ),
         ),
     }
     #[cfg(not(feature = "hypergraph-monotone-fact-propagation"))]
     summary.diagnostics.extend(
         summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace(
-            target_style_path,
-            &target.style_source,
+            cross_file_scc::OmenaQueryCrossFileSccDiagnosticTargetV0 {
+                style_path: target_style_path,
+                style_source: &target.style_source,
+            },
             style_sources,
             source_documents,
             package_manifests,
             resolution_inputs,
             substrate,
+            resolver_identity_index,
         ),
     );
     summary.diagnostics.extend(

@@ -4,15 +4,20 @@ use std::collections::BTreeSet;
 use super::shared::*;
 use super::substrate::OmenaQueryWorkspaceDiagnosticsSubstrateV0;
 
+pub(super) struct OmenaQueryCrossFileSccDiagnosticTargetV0<'a> {
+    pub(super) style_path: &'a str,
+    pub(super) style_source: &'a str,
+}
+
 #[cfg(feature = "hypergraph-monotone-fact-propagation")]
 pub(super) fn summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace(
-    target_style_path: &str,
-    target_style_source: &str,
+    target: OmenaQueryCrossFileSccDiagnosticTargetV0<'_>,
     style_sources: &[OmenaQueryStyleSourceInputV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let report = collect_omena_query_unified_cross_file_scc_report_shared(
         style_sources,
@@ -20,10 +25,11 @@ pub(super) fn summarize_omena_query_unified_cross_file_scc_diagnostics_for_works
         package_manifests,
         resolution_inputs,
         substrate,
+        resolver_identity_index,
     );
     summarize_omena_query_unified_cross_file_scc_diagnostics_from_report(
-        target_style_path,
-        target_style_source,
+        target.style_path,
+        target.style_source,
         &report,
     )
 }
@@ -38,15 +44,19 @@ pub(in crate::style) fn collect_omena_query_unified_cross_file_scc_report_shared
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> crate::OmenaQueryUnifiedCrossFileSccReportV0 {
     let summary = super::super::cross_file_summary::summarize_omena_query_workspace_cross_file_summary_with_substrate(
         style_sources,
         source_documents,
         package_manifests,
-        &substrate.style_fact_entries,
-        &substrate.css_modules_resolution,
-        &substrate.sass_resolution_without_path_mappings,
+        super::super::cross_file_summary::OmenaQueryWorkspaceCrossFileSummarySubstrateV0 {
+            style_fact_entries: &substrate.style_fact_entries,
+            css_modules_resolution: &substrate.css_modules_resolution,
+            sass_module_resolution: &substrate.sass_resolution_without_path_mappings,
+        },
         resolution_inputs,
+        resolver_identity_index,
     );
     let hypergraph = super::super::summarize_omena_query_unified_cross_file_hypergraph(&summary);
     super::super::summarize_omena_query_unified_cross_file_scc_report(&hypergraph)
@@ -116,13 +126,13 @@ pub(in crate::style) fn summarize_omena_query_unified_cross_file_scc_diagnostics
 
 #[cfg(not(feature = "hypergraph-monotone-fact-propagation"))]
 pub(super) fn summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace(
-    _target_style_path: &str,
-    _target_style_source: &str,
+    _target: OmenaQueryCrossFileSccDiagnosticTargetV0<'_>,
     _style_sources: &[OmenaQueryStyleSourceInputV0],
     _source_documents: &[OmenaQuerySourceDocumentInputV0],
     _package_manifests: &[OmenaQueryStylePackageManifestV0],
     _resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     _substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
+    _resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     Vec::new()
 }

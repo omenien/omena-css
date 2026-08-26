@@ -1212,11 +1212,20 @@ fn collect_omena_query_source_selector_reference_candidates(
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Vec<OmenaQuerySourceSelectorReferenceCandidateV0> {
+    let available_style_paths = style_sources
+        .iter()
+        .map(|source| source.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let resolver_identity_index = build_omena_resolver_style_module_confirmation_identity_index(
+        &available_style_paths,
+        resolution_inputs.disk_style_path_identities.as_slice(),
+    );
     collect_omena_query_source_selector_references_with_resolution_inputs(
         style_sources,
         source_documents,
         package_manifests,
         resolution_inputs,
+        Some(&resolver_identity_index),
     )
     .into_iter()
     .map(|reference| reference.candidate)
@@ -1229,11 +1238,20 @@ fn collect_omena_query_source_selector_reference_edit_targets(
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Vec<OmenaQuerySourceSelectorReferenceEditTargetV0> {
+    let available_style_paths = style_sources
+        .iter()
+        .map(|source| source.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let resolver_identity_index = build_omena_resolver_style_module_confirmation_identity_index(
+        &available_style_paths,
+        resolution_inputs.disk_style_path_identities.as_slice(),
+    );
     collect_omena_query_source_selector_references_with_resolution_inputs(
         style_sources,
         source_documents,
         package_manifests,
         resolution_inputs,
+        Some(&resolver_identity_index),
     )
     .into_iter()
     .filter_map(|reference| {
@@ -1254,6 +1272,7 @@ pub(super) fn collect_omena_query_source_selector_references_with_resolution_inp
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> Vec<OmenaQueryWorkspaceSourceReferenceCandidateV0> {
     let available_style_paths = style_sources
         .iter()
@@ -1267,6 +1286,7 @@ pub(super) fn collect_omena_query_source_selector_references_with_resolution_inp
             &available_style_paths,
             package_manifests,
             resolution_inputs,
+            resolver_identity_index,
         ) else {
             continue;
         };
@@ -1322,6 +1342,7 @@ fn source_selector_reference_index_for_document(
     available_style_paths: &BTreeSet<&str>,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> Option<OmenaQuerySourceSyntaxIndexV0> {
     if let Some(index) = document.source_syntax_index.clone()
         && (!index.imported_style_bindings.is_empty()
@@ -1344,7 +1365,7 @@ fn source_selector_reference_index_for_document(
         if import.specifier == "classnames/bind" {
             continue;
         }
-        let Some(style_uri) = resolve_style_module_source_with_path_mappings(
+        let Some(style_uri) = resolve_style_module_source_with_path_mappings_and_identity_index(
             &document.source_path,
             &import.specifier,
             available_style_paths,
@@ -1352,6 +1373,7 @@ fn source_selector_reference_index_for_document(
             resolution_inputs.bundler_path_mappings.as_slice(),
             resolution_inputs.tsconfig_path_mappings.as_slice(),
             resolution_inputs.disk_style_path_identities.as_slice(),
+            resolver_identity_index,
         ) else {
             continue;
         };

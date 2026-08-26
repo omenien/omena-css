@@ -23,6 +23,8 @@ pub(super) struct TransformResolutionContext<'a> {
     pub(super) bundler_path_mappings: &'a [OmenaResolverBundlerPathAliasMappingV0],
     pub(super) tsconfig_path_mappings: &'a [OmenaResolverTsconfigPathMappingV0],
     pub(super) disk_style_path_identities: &'a [OmenaResolverStyleModuleDiskCandidateIdentityV0],
+    pub(super) resolver_identity_index:
+        Option<&'a OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 }
 
 impl<'a> TransformResolutionContext<'a> {
@@ -34,6 +36,23 @@ impl<'a> TransformResolutionContext<'a> {
             bundler_path_mappings: resolution_inputs.bundler_path_mappings.as_slice(),
             tsconfig_path_mappings: resolution_inputs.tsconfig_path_mappings.as_slice(),
             disk_style_path_identities: resolution_inputs.disk_style_path_identities.as_slice(),
+            resolver_identity_index: None,
+        }
+    }
+
+    fn with_resolver_identity_index<'b>(
+        self,
+        resolver_identity_index: &'b OmenaResolverStyleModuleConfirmationIdentityIndexV0,
+    ) -> TransformResolutionContext<'b>
+    where
+        'a: 'b,
+    {
+        TransformResolutionContext {
+            package_manifests: self.package_manifests,
+            bundler_path_mappings: self.bundler_path_mappings,
+            tsconfig_path_mappings: self.tsconfig_path_mappings,
+            disk_style_path_identities: self.disk_style_path_identities,
+            resolver_identity_index: Some(resolver_identity_index),
         }
     }
 
@@ -77,6 +96,7 @@ impl<'a> TransformResolutionContext<'a> {
             &load_path_root_refs,
             OmenaResolverStyleModuleConfirmationOptionsV0 {
                 allow_disk_confirmation: true,
+                identity_index: self.resolver_identity_index,
                 ..OmenaResolverStyleModuleConfirmationOptionsV0::default()
             },
         )
@@ -261,6 +281,12 @@ pub(super) fn derive_omena_query_transform_context_from_sources_with_resolution_
         .iter()
         .map(|entry| entry.style_path.as_str())
         .collect::<BTreeSet<_>>();
+    let resolver_identity_index = build_omena_resolver_style_module_confirmation_identity_index(
+        &available_style_paths,
+        resolution_context.disk_style_path_identities,
+    );
+    let resolution_context =
+        resolution_context.with_resolver_identity_index(&resolver_identity_index);
     let known_style_paths = available_style_paths
         .iter()
         .map(|path| normalize_omena_query_style_path(path))

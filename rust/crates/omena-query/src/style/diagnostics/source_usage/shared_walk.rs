@@ -87,6 +87,7 @@ pub(in crate::style) fn collect_omena_query_unused_selector_shared(
         &facts_by_path,
         &available_style_paths,
         package_manifests,
+        resolver_identity_index,
     );
     propagate_omena_query_composes_usage(&composes_graph, &mut used_selectors);
     Some(OmenaQueryUnusedSelectorSharedV0 {

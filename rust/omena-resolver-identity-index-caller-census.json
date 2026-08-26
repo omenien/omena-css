@@ -2,24 +2,42 @@
   "schemaVersion": "0",
   "product": "omena-query.resolver-identity-index-caller-census",
   "policy": {
-    "sourceAuthority": "git-ls-files-rust-crates",
+    "sourceAuthority": "git-ls-files-rust-crates-fuzz-tools",
     "owningCheck": "rust/omena-resolver/identity-index-callers",
     "packageScript": "check:rust-omena-resolver-identity-index-callers",
     "allowedExceptionKinds": [
       "legacy-public-compatibility",
       "tracked-query-boundary",
       "test-reference-control"
-    ]
+    ],
+    "macroMetavariableCalleeResolution": "not-expanded; statically-named-calls-only",
+    "pubCrateAdapterPropagation": "direct-sites-only; transitive-private-adapters-only"
   },
   "acceptingFunctions": [
+    "rust/crates/omena-query/src/style.rs#collect_css_modules_composes_adjacency",
+    "rust/crates/omena-query/src/style.rs#collect_css_modules_composes_adjacency_with_path_mappings",
+    "rust/crates/omena-query/src/style.rs#collect_omena_query_import_reachable_style_path_metadata",
+    "rust/crates/omena-query/src/style.rs#filter_import_reachable_design_token_workspace_declarations",
     "rust/crates/omena-query/src/style.rs#resolve_css_modules_import_edge_for_query",
     "rust/crates/omena-query/src/style.rs#resolve_style_module_source_with_path_mappings_and_identity_index",
     "rust/crates/omena-query/src/style.rs#resolve_style_module_source_with_resolution_inputs_and_identity_index",
+    "rust/crates/omena-query/src/style.rs#style_import_reachability_edges_for_query",
+    "rust/crates/omena-query/src/style.rs#summarize_css_modules_cross_file_resolution_with_resolution_inputs_and_identity_index",
     "rust/crates/omena-query/src/style.rs#summarize_css_modules_import_edge_resolutions_for_module_interface",
+    "rust/crates/omena-query/src/style.rs#summarize_omena_query_style_semantic_graph_batch_from_committed_parts",
     "rust/crates/omena-query/src/style.rs#summarize_sass_module_edge_resolutions_for_module_interface",
+    "rust/crates/omena-query/src/style/code_actions.rs#resolve_inline_target_style_path",
+    "rust/crates/omena-query/src/style/cross_file_summary.rs#summarize_omena_query_source_selector_reference_cross_file_summary_from_module_interfaces",
+    "rust/crates/omena-query/src/style/cross_file_summary.rs#summarize_omena_query_source_selector_reference_cross_file_summary_with_definitions",
+    "rust/crates/omena-query/src/style/cross_file_summary.rs#summarize_omena_query_workspace_cross_file_summary_from_module_interfaces",
+    "rust/crates/omena-query/src/style/cross_file_summary.rs#summarize_omena_query_workspace_cross_file_summary_from_style_summary",
+    "rust/crates/omena-query/src/style/cross_file_summary.rs#summarize_omena_query_workspace_cross_file_summary_with_substrate",
     "rust/crates/omena-query/src/style/diagnostics/cascade_runtime.rs#attach_omena_query_runtime_state_inline_overrides_for_workspace",
     "rust/crates/omena-query/src/style/diagnostics/cascade_runtime.rs#collect_omena_query_inline_style_runtime_overrides_by_style",
     "rust/crates/omena-query/src/style/diagnostics/cascade_runtime.rs#collect_omena_query_inline_style_runtime_overrides_for_style",
+    "rust/crates/omena-query/src/style/diagnostics/cross_file_scc.rs#collect_omena_query_unified_cross_file_scc_report_shared",
+    "rust/crates/omena-query/src/style/diagnostics/cross_file_scc.rs#summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace",
+    "rust/crates/omena-query/src/style/diagnostics/cross_file_scc.rs#summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace",
     "rust/crates/omena-query/src/style/diagnostics/css_modules.rs#summarize_omena_query_css_modules_resolution_style_diagnostics_from_entries",
     "rust/crates/omena-query/src/style/diagnostics/mod.rs#summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate",
     "rust/crates/omena-query/src/style/diagnostics/mod.rs#summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared",
@@ -38,10 +56,17 @@
     "rust/crates/omena-query/src/style/salsa_memo.rs#style_import_reachability_edges_from_dependency_surfaces",
     "rust/crates/omena-query/src/style/salsa_memo.rs#workspace_revision_selector_with_identity_index",
     "rust/crates/omena-query/src/style/salsa_memo.rs#workspace_revision_selector_with_source_corpus_completeness",
+    "rust/crates/omena-query/src/style/source_refs.rs#collect_omena_query_source_selector_references_with_resolution_inputs",
+    "rust/crates/omena-query/src/style/source_refs.rs#source_selector_reference_index_for_document",
     "rust/crates/omena-query/src/style/source_refs.rs#summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth",
-    "rust/crates/omena-query/src/style/source_refs.rs#summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_identity_index"
+    "rust/crates/omena-query/src/style/source_refs.rs#summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_identity_index",
+    "rust/crates/omena-query/src/style/transform/context.rs#with_resolver_identity_index"
   ],
   "typedExceptions": [
+    {
+      "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#complete_empty_source_corpus_reaches_the_workspace_memo#resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector_and_identity_index#0",
+      "kind": "test-reference-control"
+    },
     {
       "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#memo_css_modules_import_edge_resolutions_for_origin_from_module_interfaces#resolve_style_module_source_with_resolution_inputs_and_identity_index#0",
       "kind": "tracked-query-boundary"
@@ -79,6 +104,10 @@
       "kind": "tracked-query-boundary"
     },
     {
+      "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#memo_workspace_cross_file_summary_from_module_interfaces#summarize_omena_query_workspace_cross_file_summary_from_module_interfaces#0",
+      "kind": "tracked-query-boundary"
+    },
+    {
       "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#memo_workspace_unused_selector_shared#collect_omena_query_unused_selector_shared#0",
       "kind": "tracked-query-boundary"
     },
@@ -89,10 +118,6 @@
     {
       "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode#resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_identity_index#0",
       "kind": "legacy-public-compatibility"
-    },
-    {
-      "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector#resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector_and_identity_index#0",
-      "kind": "test-reference-control"
     },
     {
       "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#workspace_revision_selector#workspace_revision_selector_with_source_corpus_completeness#0",
@@ -111,7 +136,7 @@
       "callee": "workspace_revision_selector_with_identity_index",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
@@ -121,7 +146,7 @@
       "callee": "summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_identity_index",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
@@ -131,7 +156,7 @@
       "callee": "prepare_committed_workspace_wave_substrate",
       "callOrdinal": 0,
       "identityArgument": "Some(resolver_identity_index.as_ref())",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
@@ -141,77 +166,287 @@
       "callee": "resolve_committed_workspace_style_diagnostics_from_view_with_identity_index_and_wave_substrate",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index.as_ref()",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3022,
+      "line": 1328,
+      "caller": "summarize_omena_query_style_semantic_graph_batch_from_sources_with_resolution_inputs",
+      "callee": "workspace_revision_selector_with_identity_index",
+      "callOrdinal": 0,
+      "identityArgument": "&resolver_identity_index",
+      "identityFlow": "local-build",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style.rs",
+      "line": 1342,
+      "caller": "summarize_omena_query_style_semantic_graph_batch_from_sources_with_resolution_inputs",
+      "callee": "summarize_css_modules_cross_file_resolution_with_resolution_inputs_and_identity_index",
+      "callOrdinal": 0,
+      "identityArgument": "&resolver_identity_index",
+      "identityFlow": "local-build",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style.rs",
+      "line": 1359,
+      "caller": "summarize_omena_query_style_semantic_graph_batch_from_sources_with_resolution_inputs",
+      "callee": "summarize_omena_query_style_semantic_graph_batch_from_committed_parts",
+      "callOrdinal": 0,
+      "identityArgument": "Some(&resolver_identity_index)",
+      "identityFlow": "local-build",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style.rs",
+      "line": 1426,
+      "caller": "summarize_omena_query_style_semantic_graph_batch_from_committed_parts",
+      "callee": "filter_import_reachable_design_token_workspace_declarations",
+      "callOrdinal": 0,
+      "identityArgument": "Some(resolver_identity_index)",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style.rs",
+      "line": 2867,
+      "caller": "summarize_css_modules_cross_file_resolution_with_resolution_inputs",
+      "callee": "summarize_css_modules_cross_file_resolution_with_resolution_inputs_and_identity_index",
+      "callOrdinal": 0,
+      "identityArgument": "&resolver_identity_index",
+      "identityFlow": "local-build",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style.rs",
+      "line": 2882,
+      "caller": "summarize_css_modules_cross_file_resolution_with_resolution_inputs_and_identity_index",
+      "callee": "style_import_reachability_edges_for_query",
+      "callOrdinal": 0,
+      "identityArgument": "resolver_identity_index",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style.rs",
+      "line": 3075,
       "caller": "summarize_css_modules_import_edge_resolutions_for_module_interface",
       "callee": "resolve_css_modules_import_edge_for_query",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3038,
+      "line": 3091,
       "caller": "summarize_css_modules_import_edge_resolutions_for_module_interface",
       "callee": "resolve_css_modules_import_edge_for_query",
       "callOrdinal": 1,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3054,
+      "line": 3107,
       "caller": "summarize_css_modules_import_edge_resolutions_for_module_interface",
       "callee": "resolve_css_modules_import_edge_for_query",
       "callOrdinal": 2,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3303,
+      "line": 3356,
       "caller": "resolve_css_modules_import_edge_for_query",
       "callee": "resolve_style_module_source_with_resolution_inputs_and_identity_index",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style.rs",
+      "line": 3516,
+      "caller": "style_import_reachability_edges_for_query",
+      "callee": "resolve_style_module_source_with_resolution_inputs_and_identity_index",
+      "callOrdinal": 0,
+      "identityArgument": "Some(resolver_identity_index)",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style.rs",
+      "line": 3580,
+      "caller": "collect_css_modules_composes_adjacency",
+      "callee": "collect_css_modules_composes_adjacency_with_path_mappings",
+      "callOrdinal": 0,
+      "identityArgument": "resolver_identity_index",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style.rs",
+      "line": 3613,
+      "caller": "collect_css_modules_composes_adjacency_with_path_mappings",
+      "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
+      "callOrdinal": 0,
+      "identityArgument": "resolver_identity_index",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style.rs",
+      "line": 3696,
+      "caller": "filter_import_reachable_design_token_workspace_declarations",
+      "callee": "collect_omena_query_import_reachable_style_path_metadata",
+      "callOrdinal": 0,
+      "identityArgument": "resolver_identity_index",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
       "line": 3740,
-      "caller": "resolve_style_module_source_with_resolution_inputs",
-      "callee": "resolve_style_module_source_with_resolution_inputs_and_identity_index",
+      "caller": "collect_omena_query_import_reachable_style_path_metadata",
+      "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
       "callOrdinal": 0,
-      "identityArgument": "Some(&identity_index)",
-      "identityFlow": "threaded",
+      "identityArgument": "resolver_identity_index",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3758,
+      "line": 3814,
       "caller": "resolve_style_module_source_with_resolution_inputs_and_identity_index",
       "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
       "callOrdinal": 0,
       "identityArgument": "identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
-      "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3785,
-      "caller": "resolve_style_module_source_with_path_mappings",
-      "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
+      "path": "rust/crates/omena-query/src/style/code_actions.rs",
+      "line": 147,
+      "caller": "summarize_omena_query_style_inline_code_actions_with_resolution_inputs",
+      "callee": "resolve_inline_target_style_path",
       "callOrdinal": 0,
-      "identityArgument": "Some(&identity_index)",
-      "identityFlow": "threaded",
+      "identityArgument": "&resolver_identity_index",
+      "identityFlow": "local-build",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/code_actions.rs",
+      "line": 299,
+      "caller": "collect_inline_declarations",
+      "callee": "resolve_inline_target_style_path",
+      "callOrdinal": 0,
+      "identityArgument": "context.resolver_identity_index",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/code_actions.rs",
+      "line": 334,
+      "caller": "resolve_inline_target_style_path",
+      "callee": "resolve_style_module_source_with_resolution_inputs_and_identity_index",
+      "callOrdinal": 0,
+      "identityArgument": "Some(resolver_identity_index)",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/cross_file_summary.rs",
+      "line": 555,
+      "caller": "summarize_omena_query_source_selector_reference_cross_file_summary_with_resolution_inputs",
+      "callee": "summarize_omena_query_source_selector_reference_cross_file_summary_with_definitions",
+      "callOrdinal": 0,
+      "identityArgument": "Some(&resolver_identity_index)",
+      "identityFlow": "local-build",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/cross_file_summary.rs",
+      "line": 595,
+      "caller": "summarize_omena_query_source_selector_reference_cross_file_summary_from_module_interfaces",
+      "callee": "summarize_omena_query_source_selector_reference_cross_file_summary_with_definitions",
+      "callOrdinal": 0,
+      "identityArgument": "resolver_identity_index",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/cross_file_summary.rs",
+      "line": 614,
+      "caller": "summarize_omena_query_source_selector_reference_cross_file_summary_with_definitions",
+      "callee": "collect_omena_query_source_selector_references_with_resolution_inputs",
+      "callOrdinal": 0,
+      "identityArgument": "resolver_identity_index",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/cross_file_summary.rs",
+      "line": 736,
+      "caller": "summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs",
+      "callee": "workspace_revision_selector_with_identity_index",
+      "callOrdinal": 0,
+      "identityArgument": "&resolver_identity_index",
+      "identityFlow": "local-build",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/cross_file_summary.rs",
+      "line": 757,
+      "caller": "summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs",
+      "callee": "summarize_css_modules_cross_file_resolution_with_resolution_inputs_and_identity_index",
+      "callOrdinal": 0,
+      "identityArgument": "&resolver_identity_index",
+      "identityFlow": "local-build",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/cross_file_summary.rs",
+      "line": 769,
+      "caller": "summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs",
+      "callee": "summarize_omena_query_workspace_cross_file_summary_with_substrate",
+      "callOrdinal": 0,
+      "identityArgument": "Some(&resolver_identity_index)",
+      "identityFlow": "local-build",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/cross_file_summary.rs",
+      "line": 802,
+      "caller": "summarize_omena_query_workspace_cross_file_summary_with_substrate",
+      "callee": "summarize_omena_query_workspace_cross_file_summary_from_style_summary",
+      "callOrdinal": 0,
+      "identityArgument": "resolver_identity_index",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/cross_file_summary.rs",
+      "line": 826,
+      "caller": "summarize_omena_query_workspace_cross_file_summary_from_style_summary",
+      "callee": "summarize_omena_query_source_selector_reference_cross_file_summary_with_definitions",
+      "callOrdinal": 0,
+      "identityArgument": "resolver_identity_index",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/cross_file_summary.rs",
+      "line": 856,
+      "caller": "summarize_omena_query_workspace_cross_file_summary_from_module_interfaces",
+      "callee": "summarize_omena_query_source_selector_reference_cross_file_summary_from_module_interfaces",
+      "callOrdinal": 0,
+      "identityArgument": "resolver_identity_index",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
@@ -221,7 +456,7 @@
       "callee": "collect_omena_query_inline_style_runtime_overrides_for_style",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
@@ -231,7 +466,7 @@
       "callee": "collect_omena_query_inline_style_runtime_overrides_by_style",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
@@ -241,7 +476,27 @@
       "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/diagnostics/cross_file_scc.rs",
+      "line": 22,
+      "caller": "summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace",
+      "callee": "collect_omena_query_unified_cross_file_scc_report_shared",
+      "callOrdinal": 0,
+      "identityArgument": "resolver_identity_index",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/diagnostics/cross_file_scc.rs",
+      "line": 49,
+      "caller": "collect_omena_query_unified_cross_file_scc_report_shared",
+      "callee": "summarize_omena_query_workspace_cross_file_summary_with_substrate",
+      "callOrdinal": 0,
+      "identityArgument": "resolver_identity_index",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
@@ -251,7 +506,7 @@
       "callee": "summarize_omena_query_css_modules_resolution_style_diagnostics_from_entries",
       "callOrdinal": 0,
       "identityArgument": "Some(&resolver_identity_index)",
-      "identityFlow": "threaded",
+      "identityFlow": "local-build",
       "disposition": "threaded"
     },
     {
@@ -261,7 +516,7 @@
       "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
@@ -271,7 +526,7 @@
       "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
       "callOrdinal": 1,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
@@ -281,7 +536,7 @@
       "callee": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared",
       "callOrdinal": 0,
       "identityArgument": "Some(&resolver_identity_index)",
-      "identityFlow": "threaded",
+      "identityFlow": "local-build",
       "disposition": "threaded"
     },
     {
@@ -291,7 +546,7 @@
       "callee": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
@@ -301,27 +556,47 @@
       "callee": "summarize_omena_query_css_modules_resolution_style_diagnostics_from_entries",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/mod.rs",
-      "line": 667,
+      "line": 614,
+      "caller": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared",
+      "callee": "summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace",
+      "callOrdinal": 0,
+      "identityArgument": "resolver_identity_index",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/diagnostics/mod.rs",
+      "line": 630,
+      "caller": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared",
+      "callee": "summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace",
+      "callOrdinal": 1,
+      "identityArgument": "resolver_identity_index",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/diagnostics/mod.rs",
+      "line": 673,
       "caller": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared",
       "callee": "summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings_from_entries",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/mod.rs",
-      "line": 810,
+      "line": 816,
       "caller": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared",
       "callee": "attach_omena_query_runtime_state_inline_overrides_for_workspace",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
@@ -331,7 +606,7 @@
       "callee": "collect_omena_query_unused_selector_shared",
       "callOrdinal": 0,
       "identityArgument": "Some(&resolver_identity_index)",
-      "identityFlow": "threaded",
+      "identityFlow": "local-build",
       "disposition": "threaded"
     },
     {
@@ -341,7 +616,7 @@
       "callee": "summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings_from_entries",
       "callOrdinal": 0,
       "identityArgument": "Some(&resolver_identity_index)",
-      "identityFlow": "threaded",
+      "identityFlow": "local-build",
       "disposition": "threaded"
     },
     {
@@ -351,7 +626,7 @@
       "callee": "collect_omena_query_unused_selector_shared",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
@@ -361,7 +636,17 @@
       "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
       "callOrdinal": 0,
       "identityArgument": "context.resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/diagnostics/source_usage/shared_walk.rs",
+      "line": 86,
+      "caller": "collect_omena_query_unused_selector_shared",
+      "callee": "collect_css_modules_composes_adjacency",
+      "callOrdinal": 0,
+      "identityArgument": "resolver_identity_index",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
@@ -371,7 +656,7 @@
       "callee": "collect_omena_query_unused_selector_shared",
       "callOrdinal": 0,
       "identityArgument": "self.resolver_identity_index.as_ref()",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
@@ -381,52 +666,72 @@
       "callee": "resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector_and_identity_index",
       "callOrdinal": 0,
       "identityArgument": "self.resolver_identity_index.as_ref()",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 904,
+      "line": 717,
+      "caller": "style_semantic_graph_batch",
+      "callee": "summarize_omena_query_style_semantic_graph_batch_from_committed_parts",
+      "callOrdinal": 0,
+      "identityArgument": "self.resolver_identity_index.as_ref()",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
+      "line": 905,
       "caller": "resolve_committed_workspace_style_diagnostics_from_view_with_identity_index",
       "callee": "resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_identity_index",
       "callOrdinal": 0,
       "identityArgument": "Some(resolver_identity_index)",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 958,
+      "line": 959,
       "caller": "prepare_committed_workspace_wave_substrate",
       "callee": "collect_omena_query_unused_selector_shared",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 970,
+      "line": 971,
       "caller": "prepare_committed_workspace_wave_substrate",
       "callee": "collect_omena_query_inline_style_runtime_overrides_by_style",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 1007,
+      "line": 980,
+      "caller": "prepare_committed_workspace_wave_substrate",
+      "callee": "collect_omena_query_unified_cross_file_scc_report_shared",
+      "callOrdinal": 0,
+      "identityArgument": "resolver_identity_index",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
+      "line": 1009,
       "caller": "resolve_committed_workspace_style_diagnostics_from_view_with_identity_index_and_wave_substrate",
       "callee": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared",
       "callOrdinal": 0,
       "identityArgument": "Some(resolver_identity_index)",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 1049,
+      "line": 1051,
       "caller": "resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode",
       "callee": "resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_identity_index",
       "callOrdinal": 0,
@@ -437,38 +742,27 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 1072,
+      "line": 1074,
       "caller": "resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_identity_index",
       "callee": "resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector_and_identity_index",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 1098,
-      "caller": "resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector",
-      "callee": "resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector_and_identity_index",
-      "callOrdinal": 0,
-      "identityArgument": "None",
-      "identityFlow": "none",
-      "disposition": "none-with-typed-justification",
-      "exceptionKind": "test-reference-control"
-    },
-    {
-      "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 1153,
+      "line": 1129,
       "caller": "resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector_and_identity_index",
       "callee": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 1259,
+      "line": 1235,
       "caller": "memo_workspace_unused_selector_shared",
       "callee": "collect_omena_query_unused_selector_shared",
       "callOrdinal": 0,
@@ -479,7 +773,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 1530,
+      "line": 1506,
       "caller": "memo_css_modules_import_edge_resolutions_for_origin_from_module_interfaces",
       "callee": "resolve_style_module_source_with_resolution_inputs_and_identity_index",
       "callOrdinal": 0,
@@ -490,7 +784,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 1544,
+      "line": 1520,
       "caller": "memo_css_modules_import_edge_resolutions_for_origin_from_module_interfaces",
       "callee": "summarize_css_modules_import_edge_resolutions_for_module_interface",
       "callOrdinal": 0,
@@ -501,7 +795,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 1592,
+      "line": 1568,
       "caller": "memo_sass_configurable_variable_names_from_module_interface",
       "callee": "sass_configurable_variable_names_for_module_interface_tracked",
       "callOrdinal": 0,
@@ -512,7 +806,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 1618,
+      "line": 1594,
       "caller": "memo_sass_configurable_variable_names_without_manifests_from_module_interface",
       "callee": "sass_configurable_variable_names_for_module_interface_tracked",
       "callOrdinal": 0,
@@ -523,7 +817,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 1645,
+      "line": 1621,
       "caller": "memo_sass_configurable_variable_names_without_path_mappings_from_module_interface",
       "callee": "sass_configurable_variable_names_for_module_interface_tracked",
       "callOrdinal": 0,
@@ -534,7 +828,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 1682,
+      "line": 1658,
       "caller": "memo_sass_module_edge_resolutions_for_origin_from_module_interfaces",
       "callee": "summarize_sass_module_edge_resolutions_for_module_interface",
       "callOrdinal": 0,
@@ -545,7 +839,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 1722,
+      "line": 1698,
       "caller": "memo_sass_module_edge_resolutions_without_manifests_for_origin_from_module_interfaces",
       "callee": "summarize_sass_module_edge_resolutions_for_module_interface",
       "callOrdinal": 0,
@@ -556,7 +850,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 1763,
+      "line": 1739,
       "caller": "memo_sass_module_edge_resolutions_without_path_mappings_for_origin_from_module_interfaces",
       "callee": "summarize_sass_module_edge_resolutions_for_module_interface",
       "callOrdinal": 0,
@@ -567,7 +861,18 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 2017,
+      "line": 1854,
+      "caller": "memo_workspace_cross_file_summary_from_module_interfaces",
+      "callee": "summarize_omena_query_workspace_cross_file_summary_from_module_interfaces",
+      "callOrdinal": 0,
+      "identityArgument": "None",
+      "identityFlow": "none",
+      "disposition": "none-with-typed-justification",
+      "exceptionKind": "tracked-query-boundary"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
+      "line": 1995,
       "caller": "memo_style_import_reachability_edges",
       "callee": "style_import_reachability_edges_from_dependency_surfaces",
       "callOrdinal": 0,
@@ -578,47 +883,47 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 2076,
+      "line": 2054,
       "caller": "style_import_reachability_edges_from_dependency_surfaces",
       "callee": "resolve_style_module_source_with_resolution_inputs_and_identity_index",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 2180,
+      "line": 2158,
       "caller": "sass_configurable_variable_names_for_module_interface_tracked",
       "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 2197,
+      "line": 2175,
       "caller": "sass_configurable_variable_names_for_module_interface_tracked",
       "callee": "sass_configurable_variable_names_for_module_interface_tracked",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 2455,
+      "line": 2433,
       "caller": "workspace_style_diagnostics",
       "callee": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate",
       "callOrdinal": 0,
       "identityArgument": "Some(&resolver_identity_index)",
-      "identityFlow": "threaded",
+      "identityFlow": "local-build",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 2479,
+      "line": 2457,
       "caller": "workspace_revision_selector",
       "callee": "workspace_revision_selector_with_source_corpus_completeness",
       "callOrdinal": 0,
@@ -629,17 +934,17 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 2500,
+      "line": 2478,
       "caller": "workspace_revision_selector_with_identity_index",
       "callee": "workspace_revision_selector_with_source_corpus_completeness",
       "callOrdinal": 0,
       "identityArgument": "Some(resolver_identity_index)",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 2520,
+      "line": 2498,
       "caller": "workspace_revision_selector_with_complete_source_corpus",
       "callee": "workspace_revision_selector_with_source_corpus_completeness",
       "callOrdinal": 0,
@@ -650,32 +955,52 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 2561,
+      "line": 2539,
       "caller": "workspace_revision_selector_with_source_corpus_completeness",
       "callee": "set_resolver_identity_index",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 2743,
+      "line": 2721,
       "caller": "commit_workspace_transaction_core",
       "callee": "build_committed_style_semantic_graph_with_identity_index",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3646,
+      "line": 3624,
       "caller": "build_committed_style_semantic_graph_with_identity_index",
       "callee": "css_modules_resolution_with_identity_index_from_module_interfaces",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
+      "line": 3632,
+      "caller": "build_committed_style_semantic_graph_with_identity_index",
+      "callee": "sass_module_resolution_with_identity_index_from_module_interfaces",
+      "callOrdinal": 0,
+      "identityArgument": "resolver_identity_index",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
+      "line": 3643,
+      "caller": "build_committed_style_semantic_graph_with_identity_index",
+      "callee": "sass_module_resolution_with_identity_index_from_module_interfaces",
+      "callOrdinal": 1,
+      "identityArgument": "resolver_identity_index",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
@@ -683,84 +1008,105 @@
       "line": 3654,
       "caller": "build_committed_style_semantic_graph_with_identity_index",
       "callee": "sass_module_resolution_with_identity_index_from_module_interfaces",
-      "callOrdinal": 0,
-      "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
-      "disposition": "threaded"
-    },
-    {
-      "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3665,
-      "caller": "build_committed_style_semantic_graph_with_identity_index",
-      "callee": "sass_module_resolution_with_identity_index_from_module_interfaces",
-      "callOrdinal": 1,
-      "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
-      "disposition": "threaded"
-    },
-    {
-      "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3676,
-      "caller": "build_committed_style_semantic_graph_with_identity_index",
-      "callee": "sass_module_resolution_with_identity_index_from_module_interfaces",
       "callOrdinal": 2,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3737,
+      "line": 3680,
+      "caller": "build_committed_style_semantic_graph_with_identity_index",
+      "callee": "summarize_omena_query_workspace_cross_file_summary_from_module_interfaces",
+      "callOrdinal": 0,
+      "identityArgument": "Some(resolver_identity_index)",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
+      "line": 3716,
       "caller": "css_modules_resolution_with_identity_index_from_module_interfaces",
       "callee": "style_import_reachability_edges_from_dependency_surfaces",
       "callOrdinal": 0,
       "identityArgument": "Some(resolver_identity_index)",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3755,
+      "line": 3734,
       "caller": "css_modules_resolution_with_identity_index_from_module_interfaces",
       "callee": "resolve_style_module_source_with_resolution_inputs_and_identity_index",
       "callOrdinal": 0,
       "identityArgument": "Some(resolver_identity_index)",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3769,
+      "line": 3748,
       "caller": "css_modules_resolution_with_identity_index_from_module_interfaces",
       "callee": "summarize_css_modules_import_edge_resolutions_for_module_interface",
       "callOrdinal": 0,
       "identityArgument": "Some(resolver_identity_index)",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3814,
+      "line": 3793,
       "caller": "sass_module_resolution_with_identity_index_from_module_interfaces",
       "callee": "sass_configurable_variable_names_for_module_interface_tracked",
       "callOrdinal": 0,
       "identityArgument": "Some(resolver_identity_index)",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3832,
+      "line": 3811,
       "caller": "sass_module_resolution_with_identity_index_from_module_interfaces",
       "callee": "summarize_sass_module_edge_resolutions_for_module_interface",
       "callOrdinal": 0,
       "identityArgument": "Some(resolver_identity_index)",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 5453,
+      "line": 3855,
+      "caller": "build_committed_style_semantic_graph_monolith",
+      "callee": "summarize_css_modules_cross_file_resolution_with_resolution_inputs_and_identity_index",
+      "callOrdinal": 0,
+      "identityArgument": "&resolver_identity_index",
+      "identityFlow": "local-build",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
+      "line": 3894,
+      "caller": "build_committed_style_semantic_graph_monolith",
+      "callee": "summarize_omena_query_workspace_cross_file_summary_from_style_summary",
+      "callOrdinal": 0,
+      "identityArgument": "Some(&resolver_identity_index)",
+      "identityFlow": "local-build",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
+      "line": 5292,
+      "caller": "complete_empty_source_corpus_reaches_the_workspace_memo",
+      "callee": "resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector_and_identity_index",
+      "callOrdinal": 0,
+      "identityArgument": "None",
+      "identityFlow": "none",
+      "disposition": "none-with-typed-justification",
+      "exceptionKind": "test-reference-control"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
+      "line": 5448,
       "caller": "non_default_unused_selector_axes_retain_target_local_resolution",
       "callee": "resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_identity_index",
       "callOrdinal": 0,
@@ -771,22 +1117,22 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 5497,
+      "line": 5492,
       "caller": "non_default_unused_selector_axes_retain_target_local_resolution",
       "callee": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate",
       "callOrdinal": 0,
       "identityArgument": "Some(&identity_index)",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 5520,
+      "line": 5515,
       "caller": "non_default_unused_selector_axes_retain_target_local_resolution",
       "callee": "resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_identity_index",
       "callOrdinal": 1,
       "identityArgument": "Some(&identity_index)",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
@@ -796,7 +1142,7 @@
       "callee": "summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth",
       "callOrdinal": 0,
       "identityArgument": "Some(&resolver_identity_index)",
-      "identityFlow": "threaded",
+      "identityFlow": "local-build",
       "disposition": "threaded"
     },
     {
@@ -806,7 +1152,7 @@
       "callee": "summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth",
       "callOrdinal": 0,
       "identityArgument": "Some(resolver_identity_index)",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
@@ -816,7 +1162,7 @@
       "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
       "callOrdinal": 0,
       "identityArgument": "resolver_identity_index",
-      "identityFlow": "threaded",
+      "identityFlow": "shared",
       "disposition": "threaded"
     },
     {
@@ -826,16 +1172,99 @@
       "callee": "summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth",
       "callOrdinal": 0,
       "identityArgument": "Some(&resolver_identity_index)",
-      "identityFlow": "threaded",
+      "identityFlow": "local-build",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/source_refs.rs",
+      "line": 1223,
+      "caller": "collect_omena_query_source_selector_reference_candidates",
+      "callee": "collect_omena_query_source_selector_references_with_resolution_inputs",
+      "callOrdinal": 0,
+      "identityArgument": "Some(&resolver_identity_index)",
+      "identityFlow": "local-build",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/source_refs.rs",
+      "line": 1249,
+      "caller": "collect_omena_query_source_selector_reference_edit_targets",
+      "callee": "collect_omena_query_source_selector_references_with_resolution_inputs",
+      "callOrdinal": 0,
+      "identityArgument": "Some(&resolver_identity_index)",
+      "identityFlow": "local-build",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/source_refs.rs",
+      "line": 1284,
+      "caller": "collect_omena_query_source_selector_references_with_resolution_inputs",
+      "callee": "source_selector_reference_index_for_document",
+      "callOrdinal": 0,
+      "identityArgument": "resolver_identity_index",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/source_refs.rs",
+      "line": 1368,
+      "caller": "source_selector_reference_index_for_document",
+      "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
+      "callOrdinal": 0,
+      "identityArgument": "resolver_identity_index",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/transform/context.rs",
+      "line": 289,
+      "caller": "derive_omena_query_transform_context_from_sources_with_resolution_context",
+      "callee": "with_resolver_identity_index",
+      "callOrdinal": 0,
+      "identityArgument": "&resolver_identity_index",
+      "identityFlow": "local-build",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/transform/css_modules.rs",
+      "line": 168,
+      "caller": "derive_css_module_composes_resolutions_for_transform_context",
+      "callee": "collect_css_modules_composes_adjacency_with_path_mappings",
+      "callOrdinal": 0,
+      "identityArgument": "resolution_context.resolver_identity_index",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/transform/design_tokens.rs",
+      "line": 20,
+      "caller": "derive_design_token_routes_for_transform_context",
+      "callee": "filter_import_reachable_design_token_workspace_declarations",
+      "callOrdinal": 0,
+      "identityArgument": "resolution_context.resolver_identity_index",
+      "identityFlow": "shared",
+      "disposition": "threaded"
+    },
+    {
+      "path": "rust/crates/omena-semantic/src/css_modules_cross_file.rs",
+      "line": 539,
+      "caller": "summarize_css_modules_composes_closure",
+      "callee": "collect_css_modules_composes_adjacency",
+      "callOrdinal": 0,
+      "identityArgument": "",
+      "identityFlow": "shared",
       "disposition": "threaded"
     }
   ],
   "summary": {
-    "acceptingFunctionCount": 28,
-    "callSiteCount": 71,
-    "threadedCount": 56,
-    "justifiedNoneCount": 15,
+    "acceptingFunctionCount": 47,
+    "callSiteCount": 111,
+    "threadedCount": 95,
+    "sharedReuseCount": 74,
+    "localBuildCount": 21,
+    "freshBuildViolationCount": 0,
+    "justifiedNoneCount": 16,
     "violationCount": 0
   },
-  "siteDigest": "sha256:6b04bfa6018e9f831b910cbbca1a438afc471f641ba0fd53a1bc4d7514240054"
+  "siteDigest": "sha256:504e9a466ad788270f4f069f7e0a30010fe040cc95a5b8518f78ff936fc566ea"
 }

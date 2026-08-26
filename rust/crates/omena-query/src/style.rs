@@ -1313,27 +1313,38 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_resolu
         .iter()
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<Vec<_>>();
+    let available_style_paths = style_sources
+        .iter()
+        .map(|source| source.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let resolver_identity_index = build_omena_resolver_style_module_confirmation_identity_index(
+        &available_style_paths,
+        resolution_inputs.disk_style_path_identities.as_slice(),
+    );
 
     #[cfg(feature = "salsa-memo")]
     {
         let mut host = OmenaQueryStyleMemoHostV0::new();
-        if let Some(selector) = host.workspace_revision_selector(
+        if let Some(selector) = host.workspace_revision_selector_with_identity_index(
             style_sources.as_slice(),
             &[],
             package_manifests,
             &[],
             resolution_inputs,
+            &resolver_identity_index,
         ) {
             return selector.style_semantic_graph_batch(input, package_manifests);
         }
     }
 
     let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
-    let css_modules_resolution = summarize_css_modules_cross_file_resolution_with_resolution_inputs(
-        &style_fact_entries,
-        package_manifests,
-        resolution_inputs,
-    );
+    let css_modules_resolution =
+        summarize_css_modules_cross_file_resolution_with_resolution_inputs_and_identity_index(
+            &style_fact_entries,
+            package_manifests,
+            resolution_inputs,
+            &resolver_identity_index,
+        );
     let sass_module_resolution = summarize_sass_module_cross_file_resolution(
         &style_fact_entries,
         package_manifests,
@@ -1350,6 +1361,7 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_resolu
         input,
         package_manifests,
         resolution_inputs,
+        Some(&resolver_identity_index),
         OmenaQueryStyleSemanticGraphCommittedParts {
             style_fact_entries: style_fact_entries.as_slice(),
             cross_file_summary,
@@ -1371,6 +1383,7 @@ pub(in crate::style) fn summarize_omena_query_style_semantic_graph_batch_from_co
     input: &EngineInputV2,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
     committed_parts: OmenaQueryStyleSemanticGraphCommittedParts<'_>,
 ) -> OmenaQueryStyleSemanticGraphBatchOutputV0 {
     let OmenaQueryStyleSemanticGraphCommittedParts {
@@ -1388,6 +1401,22 @@ pub(in crate::style) fn summarize_omena_query_style_semantic_graph_batch_from_co
             )
         })
         .collect::<Vec<_>>();
+    let owned_resolver_identity_index;
+    let resolver_identity_index = match resolver_identity_index {
+        Some(resolver_identity_index) => resolver_identity_index,
+        None => {
+            let available_style_paths = style_sources
+                .iter()
+                .map(|source| source.style_path.as_str())
+                .collect::<BTreeSet<_>>();
+            owned_resolver_identity_index =
+                build_omena_resolver_style_module_confirmation_identity_index(
+                    &available_style_paths,
+                    resolution_inputs.disk_style_path_identities.as_slice(),
+                );
+            &owned_resolver_identity_index
+        }
+    };
     let graphs = style_sources
         .iter()
         .map(|source| OmenaQueryStyleSemanticGraphBatchEntryV0 {
@@ -1399,9 +1428,10 @@ pub(in crate::style) fn summarize_omena_query_style_semantic_graph_batch_from_co
                             style_fact_entries,
                             &workspace_declarations,
                             package_manifests,
-                            resolution_inputs.bundler_path_mappings.as_slice(),
-                            resolution_inputs.tsconfig_path_mappings.as_slice(),
-                            resolution_inputs.disk_style_path_identities.as_slice(),
+                            OmenaQueryStylePathResolutionInputsV0::from_resolution_inputs(
+                                resolution_inputs,
+                            ),
+                            Some(resolver_identity_index),
                         );
                     summarize_omena_bridge_style_semantic_graph_from_source_with_scoped_workspace_declarations(
                         source.style_path.as_str(),
@@ -2826,11 +2856,34 @@ fn summarize_css_modules_cross_file_resolution_with_resolution_inputs(
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> OmenaQueryCssModulesCrossFileResolutionV0 {
+    let available_style_paths = style_fact_entries
+        .iter()
+        .map(|entry| entry.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let resolver_identity_index = build_omena_resolver_style_module_confirmation_identity_index(
+        &available_style_paths,
+        resolution_inputs.disk_style_path_identities.as_slice(),
+    );
+    summarize_css_modules_cross_file_resolution_with_resolution_inputs_and_identity_index(
+        style_fact_entries,
+        package_manifests,
+        resolution_inputs,
+        &resolver_identity_index,
+    )
+}
+
+fn summarize_css_modules_cross_file_resolution_with_resolution_inputs_and_identity_index(
+    style_fact_entries: &[OmenaQueryStyleFactEntry],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: &OmenaResolverStyleModuleConfirmationIdentityIndexV0,
+) -> OmenaQueryCssModulesCrossFileResolutionV0 {
     let semantic_facts = css_modules_cross_file_style_facts_for_query(style_fact_entries);
     let style_import_edges = style_import_reachability_edges_for_query(
         style_fact_entries,
         package_manifests,
         resolution_inputs,
+        resolver_identity_index,
     );
     summarize_css_modules_cross_file_resolution_from_semantic_inputs(
         semantic_facts.as_slice(),
@@ -3449,6 +3502,7 @@ fn style_import_reachability_edges_for_query(
     style_fact_entries: &[OmenaQueryStyleFactEntry],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: &OmenaResolverStyleModuleConfirmationIdentityIndexV0,
 ) -> Vec<omena_semantic::StyleImportReachabilityEdgeFactV0> {
     let available_style_paths = style_fact_entries
         .iter()
@@ -3459,12 +3513,13 @@ fn style_import_reachability_edges_for_query(
         let targets = collect_style_module_dependency_sources_from_facts(&entry.facts)
             .into_iter()
             .filter_map(|source| {
-                resolve_style_module_source_with_resolution_inputs(
+                resolve_style_module_source_with_resolution_inputs_and_identity_index(
                     entry.style_path.as_str(),
                     &source,
                     &available_style_paths,
                     package_manifests,
                     resolution_inputs,
+                    Some(resolver_identity_index),
                 )
             })
             .collect::<BTreeSet<_>>();
@@ -3520,6 +3575,7 @@ fn collect_css_modules_composes_adjacency(
     facts_by_path: &BTreeMap<&str, OmenaQueryOmenaParserStyleFactsV0>,
     available_style_paths: &BTreeSet<&str>,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> BTreeMap<CssModulesComposesNode, BTreeSet<CssModulesComposesNode>> {
     collect_css_modules_composes_adjacency_with_path_mappings(
         facts_by_path,
@@ -3528,6 +3584,7 @@ fn collect_css_modules_composes_adjacency(
         &[],
         &[],
         &[],
+        resolver_identity_index,
     )
 }
 
@@ -3538,6 +3595,7 @@ fn collect_css_modules_composes_adjacency_with_path_mappings(
     bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
     disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> BTreeMap<CssModulesComposesNode, BTreeSet<CssModulesComposesNode>> {
     let mut graph = BTreeMap::new();
     for (style_path, facts) in facts_by_path {
@@ -3552,7 +3610,7 @@ fn collect_css_modules_composes_adjacency_with_path_mappings(
             }
             let target_style_path = if edge.kind == "external" {
                 edge.import_source.as_deref().and_then(|source| {
-                    resolve_style_module_source_with_path_mappings(
+                    resolve_style_module_source_with_path_mappings_and_identity_index(
                         style_path,
                         source,
                         available_style_paths,
@@ -3560,6 +3618,7 @@ fn collect_css_modules_composes_adjacency_with_path_mappings(
                         bundler_path_mappings,
                         tsconfig_path_mappings,
                         disk_style_path_identities,
+                        resolver_identity_index,
                     )
                 })
             } else {
@@ -3606,22 +3665,40 @@ fn collect_css_modules_composes_adjacency_with_path_mappings(
     graph
 }
 
+#[derive(Clone, Copy)]
+pub(in crate::style) struct OmenaQueryStylePathResolutionInputsV0<'a> {
+    pub(in crate::style) bundler_path_mappings: &'a [OmenaResolverBundlerPathAliasMappingV0],
+    pub(in crate::style) tsconfig_path_mappings: &'a [OmenaResolverTsconfigPathMappingV0],
+    pub(in crate::style) disk_style_path_identities:
+        &'a [OmenaResolverStyleModuleDiskCandidateIdentityV0],
+}
+
+impl<'a> OmenaQueryStylePathResolutionInputsV0<'a> {
+    pub(in crate::style) fn from_resolution_inputs(
+        resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
+    ) -> Self {
+        Self {
+            bundler_path_mappings: resolution_inputs.bundler_path_mappings.as_slice(),
+            tsconfig_path_mappings: resolution_inputs.tsconfig_path_mappings.as_slice(),
+            disk_style_path_identities: resolution_inputs.disk_style_path_identities.as_slice(),
+        }
+    }
+}
+
 fn filter_import_reachable_design_token_workspace_declarations(
     target_style_path: &str,
     style_fact_entries: &[OmenaQueryStyleFactEntry],
     workspace_declarations: &[DesignTokenWorkspaceDeclarationFactV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
-    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
-    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
-    disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
+    path_resolution_inputs: OmenaQueryStylePathResolutionInputsV0<'_>,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> Vec<DesignTokenWorkspaceDeclarationFactV0> {
-    let reachable_style_paths = collect_import_reachable_style_path_metadata(
+    let reachable_style_paths = collect_omena_query_import_reachable_style_path_metadata(
         target_style_path,
         style_fact_entries,
         package_manifests,
-        bundler_path_mappings,
-        tsconfig_path_mappings,
-        disk_style_path_identities,
+        path_resolution_inputs,
+        resolver_identity_index,
     );
     workspace_declarations
         .iter()
@@ -3644,13 +3721,12 @@ struct ImportReachability {
     order: usize,
 }
 
-fn collect_import_reachable_style_path_metadata(
+fn collect_omena_query_import_reachable_style_path_metadata(
     target_style_path: &str,
     style_fact_entries: &[OmenaQueryStyleFactEntry],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
-    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
-    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
-    disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
+    path_resolution_inputs: OmenaQueryStylePathResolutionInputsV0<'_>,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> BTreeMap<String, ImportReachability> {
     let available_style_paths = style_fact_entries
         .iter()
@@ -3661,14 +3737,15 @@ fn collect_import_reachable_style_path_metadata(
         let targets = collect_style_module_dependency_sources_from_facts(&entry.facts)
             .into_iter()
             .filter_map(|source| {
-                resolve_style_module_source_with_path_mappings(
+                resolve_style_module_source_with_path_mappings_and_identity_index(
                     entry.style_path.as_str(),
                     &source,
                     &available_style_paths,
                     package_manifests,
-                    bundler_path_mappings,
-                    tsconfig_path_mappings,
-                    disk_style_path_identities,
+                    path_resolution_inputs.bundler_path_mappings,
+                    path_resolution_inputs.tsconfig_path_mappings,
+                    path_resolution_inputs.disk_style_path_identities,
+                    resolver_identity_index,
                 )
             })
             .collect::<BTreeSet<_>>();
@@ -3726,27 +3803,6 @@ fn collect_style_module_dependency_sources_from_facts(
     sources
 }
 
-fn resolve_style_module_source_with_resolution_inputs(
-    from_style_path: &str,
-    source: &str,
-    available_style_paths: &BTreeSet<&str>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
-) -> Option<String> {
-    let identity_index = build_omena_resolver_style_module_confirmation_identity_index(
-        available_style_paths,
-        resolution_inputs.disk_style_path_identities.as_slice(),
-    );
-    resolve_style_module_source_with_resolution_inputs_and_identity_index(
-        from_style_path,
-        source,
-        available_style_paths,
-        package_manifests,
-        resolution_inputs,
-        Some(&identity_index),
-    )
-}
-
 fn resolve_style_module_source_with_resolution_inputs_and_identity_index(
     from_style_path: &str,
     source: &str,
@@ -3764,33 +3820,6 @@ fn resolve_style_module_source_with_resolution_inputs_and_identity_index(
         resolution_inputs.tsconfig_path_mappings.as_slice(),
         resolution_inputs.disk_style_path_identities.as_slice(),
         identity_index,
-    )
-}
-
-/// Resolves style-module specifiers through the shared package, alias, load-path, and disk-identity
-/// authority so every query surface observes the same workspace routing inputs.
-fn resolve_style_module_source_with_path_mappings(
-    from_style_path: &str,
-    source: &str,
-    available_style_paths: &BTreeSet<&str>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
-    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
-    disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
-) -> Option<String> {
-    let identity_index = build_omena_resolver_style_module_confirmation_identity_index(
-        available_style_paths,
-        disk_style_path_identities,
-    );
-    resolve_style_module_source_with_path_mappings_and_identity_index(
-        from_style_path,
-        source,
-        available_style_paths,
-        package_manifests,
-        bundler_path_mappings,
-        tsconfig_path_mappings,
-        disk_style_path_identities,
-        Some(&identity_index),
     )
 }
 

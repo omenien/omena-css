@@ -4489,6 +4489,104 @@ fn workspace_style_diagnostics_build_one_identity_index_for_miss_bearing_compose
 }
 
 #[test]
+fn workspace_style_diagnostics_build_one_identity_index_for_exact_match_source_corpus()
+-> Result<(), String> {
+    with_instrumentation_session(InstrumentationSessionV0::default(), || {
+        const STYLE_COUNT: usize = 60;
+        const SOURCE_COUNT: usize = 150;
+
+        let root = temp_dir("identity-index-exact-match-once");
+        fs::create_dir_all(&root)
+            .map_err(|error| format!("exact-match fixture root should be writable: {error}"))?;
+        fs::write(
+            root.join("package.json"),
+            "{\"name\":\"identity-index-exact-match-once\",\"private\":true}\n",
+        )
+        .map_err(|error| format!("exact-match package fixture should be writable: {error}"))?;
+        let mut style_paths = Vec::with_capacity(STYLE_COUNT);
+        for index in 0..STYLE_COUNT {
+            let style_path = root.join(format!("Style{index:03}.module.css"));
+            fs::write(
+                &style_path,
+                format!(".item{index:03} {{ color: rgb({} 0 0); }}\n", index % 255),
+            )
+            .map_err(|error| format!("exact-match style fixture should be writable: {error}"))?;
+            style_paths.push(style_path);
+        }
+
+        let mut source_paths = Vec::with_capacity(SOURCE_COUNT);
+        for index in 0..SOURCE_COUNT {
+            let style_index = index % STYLE_COUNT;
+            let source_path = root.join(format!("Component{index:03}.tsx"));
+            fs::write(
+                &source_path,
+                format!(
+                    "import styles from \"./Style{style_index:03}.module.css\";\nexport const Component{index:03} = () => <div className={{styles.item{style_index:03}}} />;\n"
+                ),
+            )
+            .map_err(|error| format!("exact-match source fixture should be writable: {error}"))?;
+            source_paths.push(source_path);
+        }
+
+        omena_query::reset_omena_resolver_style_identity_cache_for_test();
+        let control_started = std::time::Instant::now();
+        let control = workspace_style_diagnostics_summaries_unthreaded_for_test(
+            style_paths.as_slice(),
+            source_paths.as_slice(),
+            &[],
+        )?;
+        let control_elapsed = control_started.elapsed();
+        let control_build_count =
+            omena_query::omena_resolver_style_identity_index_build_count_for_test();
+        let control_work_count =
+            omena_query::omena_resolver_style_identity_index_build_work_count_for_test();
+
+        omena_query::reset_omena_resolver_style_identity_cache_for_test();
+        let threaded_started = std::time::Instant::now();
+        let threaded = workspace_style_diagnostics_summaries(
+            style_paths.as_slice(),
+            source_paths.as_slice(),
+            &[],
+        )?;
+        let threaded_elapsed = threaded_started.elapsed();
+        let threaded_build_count =
+            omena_query::omena_resolver_style_identity_index_build_count_for_test();
+        let threaded_work_count =
+            omena_query::omena_resolver_style_identity_index_build_work_count_for_test();
+        cleanup_dir(&root);
+
+        let control_bytes = serde_json::to_vec(&control)
+            .map_err(|error| format!("exact-match control should serialize: {error}"))?;
+        let threaded_bytes = serde_json::to_vec(&threaded)
+            .map_err(|error| format!("exact-match threaded result should serialize: {error}"))?;
+        assert_eq!(threaded.len(), STYLE_COUNT);
+        assert_eq!(
+            threaded_bytes, control_bytes,
+            "sharing the resolver identity index must preserve exact-match diagnostics bytes"
+        );
+        eprintln!(
+            "resolver-identity-index-exact-match styles={STYLE_COUNT} sources={SOURCE_COUNT} control_builds={control_build_count} control_work={control_work_count} control_ms={} threaded_builds={threaded_build_count} threaded_work={threaded_work_count} threaded_ms={}",
+            control_elapsed.as_millis(),
+            threaded_elapsed.as_millis(),
+        );
+        assert_eq!(
+            control_build_count, 0,
+            "the exact in-graph control must not build a fallback identity index; work={control_work_count}"
+        );
+        assert_eq!(
+            threaded_build_count, 1,
+            "workspace style diagnostics must construct one shared identity index for an exact-match S×D corpus; work={threaded_work_count}"
+        );
+        assert_eq!(
+            threaded_work_count,
+            STYLE_COUNT * 2,
+            "the single shared index must visit each available and disk identity exactly once"
+        );
+        Ok(())
+    })
+}
+
+#[test]
 fn dynamic_classname_diagnostics_command_exposes_k_bound_branch_merge() -> Result<(), String> {
     let zero_path = temp_path("dynamic-classname-zero.json");
     let two_path = temp_path("dynamic-classname-two.json");

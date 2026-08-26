@@ -12,6 +12,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const censusPath = path.join(repoRoot, "rust/omena-resolver-identity-index-caller-census.json");
 const writeMode = process.argv.includes("--write");
 const injectDisguisedNone = process.argv.includes("--inject-disguised-none");
+const injectFreshBuildPerEdge = process.argv.includes("--inject-fresh-build-per-edge");
 const sourceRef = valueAfter("--source-ref");
 
 assert.ok(
@@ -63,7 +64,7 @@ interface CallerSite {
   readonly callee: string;
   readonly callOrdinal: number;
   readonly identityArgument: string;
-  readonly identityFlow: "threaded" | "none";
+  readonly identityFlow: "shared" | "local-build" | "fresh-build" | "none";
   readonly disposition: "threaded" | "none-with-typed-justification" | "violation";
   readonly exceptionKind?: ExceptionKind;
 }
@@ -77,10 +78,12 @@ interface CallerCensus {
   readonly schemaVersion: "0";
   readonly product: "omena-query.resolver-identity-index-caller-census";
   readonly policy: {
-    readonly sourceAuthority: "git-ls-files-rust-crates";
+    readonly sourceAuthority: "git-ls-files-rust-crates-fuzz-tools";
     readonly owningCheck: "rust/omena-resolver/identity-index-callers";
     readonly packageScript: "check:rust-omena-resolver-identity-index-callers";
     readonly allowedExceptionKinds: readonly ExceptionKind[];
+    readonly macroMetavariableCalleeResolution: "not-expanded; statically-named-calls-only";
+    readonly pubCrateAdapterPropagation: "direct-sites-only; transitive-private-adapters-only";
   };
   readonly acceptingFunctions: readonly string[];
   readonly typedExceptions: readonly TypedException[];
@@ -89,6 +92,9 @@ interface CallerCensus {
     readonly acceptingFunctionCount: number;
     readonly callSiteCount: number;
     readonly threadedCount: number;
+    readonly sharedReuseCount: number;
+    readonly localBuildCount: number;
+    readonly freshBuildViolationCount: number;
     readonly justifiedNoneCount: number;
     readonly violationCount: number;
   };
@@ -103,7 +109,7 @@ const existing = readExistingCensus();
 const typedExceptions = existing?.typedExceptions ?? [];
 runScannerSelfTests();
 
-const repoSources = loadTrackedRustSources(injectDisguisedNone, sourceRef);
+const repoSources = loadTrackedRustSources(injectDisguisedNone, injectFreshBuildPerEdge, sourceRef);
 const repoFunctions = repoSources.flatMap((source) => source.functions);
 const identityAcceptingFunctions = repoFunctions.filter(
   (entry) => entry.identityParameterIndex !== undefined,
@@ -131,9 +137,9 @@ assert.deepEqual(
 const census = buildCensus(identityAcceptingFunctions, typedExceptions, callerSites);
 if (writeMode) {
   assert.equal(
-    injectDisguisedNone,
+    injectDisguisedNone || injectFreshBuildPerEdge,
     false,
-    "the disguised-None mutation cannot be combined with --write",
+    "scanner mutations cannot be combined with --write",
   );
   writeFileSync(censusPath, `${JSON.stringify(census, null, 2)}\n`);
   const format = spawnSync(
@@ -161,6 +167,9 @@ process.stdout.write(
       acceptingFunctionCount: census.summary.acceptingFunctionCount,
       callSiteCount: census.summary.callSiteCount,
       threadedCount: census.summary.threadedCount,
+      sharedReuseCount: census.summary.sharedReuseCount,
+      localBuildCount: census.summary.localBuildCount,
+      freshBuildViolationCount: census.summary.freshBuildViolationCount,
       justifiedNoneCount: census.summary.justifiedNoneCount,
       violationCount: census.summary.violationCount,
       siteDigest: census.siteDigest,
@@ -175,12 +184,16 @@ function readExistingCensus(): ExistingCensus | undefined {
   return JSON.parse(readFileSync(censusPath, "utf8")) as ExistingCensus;
 }
 
-function loadTrackedRustSources(includeInjection: boolean, ref: string | undefined): RustSource[] {
+function loadTrackedRustSources(
+  includeDisguisedNone: boolean,
+  includeFreshBuildPerEdge: boolean,
+  ref: string | undefined,
+): RustSource[] {
   const result = spawnSync(
     "git",
     ref === undefined
-      ? ["ls-files", "rust/crates"]
-      : ["ls-tree", "-r", "--name-only", ref, "--", "rust/crates"],
+      ? ["ls-files", "rust/crates", "rust/fuzz", "tools"]
+      : ["ls-tree", "-r", "--name-only", ref, "--", "rust/crates", "rust/fuzz", "tools"],
     {
       cwd: repoRoot,
       encoding: "utf8",
@@ -196,7 +209,10 @@ function loadTrackedRustSources(includeInjection: boolean, ref: string | undefin
     .filter((entry) => entry.endsWith(".rs"))
     .toSorted();
   const loaded = paths.map((relativePath) => loadRustSource(relativePath, ref));
-  if (includeInjection) loaded.push(loadSyntheticSource(disguisedNoneFixture(), "<injected>"));
+  if (includeDisguisedNone)
+    loaded.push(loadSyntheticSource(disguisedNoneFixture(), "<injected-disguised-none>"));
+  if (includeFreshBuildPerEdge)
+    loaded.push(loadSyntheticSource(freshBuildPerEdgeFixture(), "<injected-fresh-build-per-edge>"));
   return loaded;
 }
 
@@ -217,7 +233,7 @@ function loadRustSource(relativePath: string, ref?: string): RustSource {
 
 function loadSyntheticSource(source: string, sourcePath: string): RustSource {
   const code = maskRustNonCode(source);
-  const productionSource = maskRustCfgTestItems(source);
+  const productionSource = maskRustCfgTestItems(code);
   return {
     path: sourcePath,
     source,
@@ -260,7 +276,7 @@ function extractFunctions(
       rawIdentityIndex === undefined
         ? undefined
         : parameters.slice(0, rawIdentityIndex).filter((parameter) => !parameter.isSelf).length;
-    const attributes = source.slice(itemStart, match.index);
+    const attributes = code.slice(itemStart, match.index);
     const visibilityPrefix = code.slice(itemStart, match.index);
     functions.push({
       path: sourcePath,
@@ -343,11 +359,21 @@ function deriveCallerSites(
         const ordinalKey = `${callerName}#${callee}`;
         const callOrdinal = ordinalByCaller.get(ordinalKey) ?? 0;
         ordinalByCaller.set(ordinalKey, callOrdinal + 1);
+        const localBuildPosition = identityIndexLocalBuildPosition(
+          identityArgument,
+          source,
+          caller,
+          nameStart,
+        );
         const identityFlow =
           declaration.acceptsOptionalIdentityIndex &&
           expressionIsProvablyNone(identityArgument, source, caller, nameStart, allFunctions)
             ? "none"
-            : "threaded";
+            : localBuildPosition === undefined
+              ? "shared"
+              : isWithinRepeatedContext(source.code, caller, localBuildPosition)
+                ? "fresh-build"
+                : "local-build";
         const provisional: CallerSite = {
           path: source.path,
           line: lineNumberAt(source.source, nameStart),
@@ -356,7 +382,8 @@ function deriveCallerSites(
           callOrdinal,
           identityArgument: compactExpression(identityArgument),
           identityFlow,
-          disposition: identityFlow === "threaded" ? "threaded" : "violation",
+          disposition:
+            identityFlow === "shared" || identityFlow === "local-build" ? "threaded" : "violation",
         };
         const exception = exceptionsByKey.get(stableSiteKey(provisional));
         if (exception !== undefined) {
@@ -492,6 +519,95 @@ function deriveCallerSites(
     }
   }
 
+  const freshBuildAdapters = new Map<string, RustFunction>();
+  for (const site of sites) {
+    if (site.identityFlow !== "local-build" && site.identityFlow !== "fresh-build") continue;
+    const caller = allFunctions.find(
+      (entry) => entry.path === site.path && entry.name === site.caller,
+    );
+    if (
+      caller?.visibility === "private" &&
+      caller.identityParameterIndex === undefined &&
+      caller.bodyStart !== undefined
+    ) {
+      freshBuildAdapters.set(`${caller.path}#${caller.name}`, caller);
+    }
+  }
+
+  let discoveredFreshBuildAdapter = true;
+  while (discoveredFreshBuildAdapter) {
+    discoveredFreshBuildAdapter = false;
+    for (const candidate of allFunctions) {
+      const key = `${candidate.path}#${candidate.name}`;
+      if (
+        freshBuildAdapters.has(key) ||
+        candidate.visibility !== "private" ||
+        candidate.identityParameterIndex !== undefined ||
+        candidate.bodyStart === undefined
+      ) {
+        continue;
+      }
+      const candidateSource = sources.find((source) => source.path === candidate.path);
+      assert.ok(candidateSource, `source missing for ${key}`);
+      const body = candidateSource.code.slice(candidate.bodyStart + 1, candidate.end - 1);
+      if (
+        [...freshBuildAdapters.values()].some(
+          (adapter) =>
+            privateItemVisibleFrom(adapter.path, candidate.path) &&
+            new RegExp(`\\b${escapeRegExp(adapter.name)}\\s*\\(`, "u").test(body),
+        )
+      ) {
+        freshBuildAdapters.set(key, candidate);
+        discoveredFreshBuildAdapter = true;
+      }
+    }
+  }
+
+  const freshBuildAdapterDeclarationsByName = Map.groupBy(
+    [...freshBuildAdapters.values()],
+    (entry) => entry.name,
+  );
+  for (const source of sources) {
+    for (const [callee, declarations] of freshBuildAdapterDeclarationsByName) {
+      const visibleDeclarations = declarations.filter((declaration) =>
+        privateItemVisibleFrom(declaration.path, source.path),
+      );
+      if (visibleDeclarations.length === 0) continue;
+      const callPattern = new RegExp(`\\b${escapeRegExp(callee)}\\s*\\(`, "gu");
+      const ordinalByCaller = new Map<string, number>();
+      for (const match of source.code.matchAll(callPattern)) {
+        const nameStart = match.index;
+        if (source.functions.some((entry) => entry.nameStart === nameStart)) continue;
+        const caller = enclosingFunction(source.functions, nameStart);
+        if (!isWithinRepeatedContext(source.code, caller, nameStart)) continue;
+        const callerName = caller?.name ?? "<module>";
+        const ordinalKey = `${callerName}#${callee}`;
+        const callOrdinal = ordinalByCaller.get(ordinalKey) ?? 0;
+        ordinalByCaller.set(ordinalKey, callOrdinal + 1);
+        const declaration = visibleDeclarations[0];
+        assert.ok(declaration, `fresh-build adapter declaration missing for ${callee}`);
+        const provisional: CallerSite = {
+          path: source.path,
+          line: lineNumberAt(source.source, nameStart),
+          caller: callerName,
+          callee,
+          callOrdinal,
+          identityArgument: `<fresh-build:${declaration.path}#${declaration.name}>`,
+          identityFlow: "fresh-build",
+          disposition: "violation",
+        };
+        const key = stableSiteKey(provisional);
+        if (sites.some((site) => stableSiteKey(site) === key)) continue;
+        assert.equal(
+          exceptionsByKey.has(key),
+          false,
+          `fresh per-edge identity-index construction cannot be typed away: ${key}`,
+        );
+        sites.push(provisional);
+      }
+    }
+  }
+
   assert.deepEqual(
     [...exceptionsByKey.keys()].filter((key) => !seenExceptionKeys.has(key)),
     [],
@@ -534,7 +650,11 @@ function expressionIsProvablyNone(
   visited = new Set<string>(),
 ): boolean {
   const compact = stripOuterParentheses(expression.replace(/\s+/gu, " ").trim());
-  if (/^(?:(?:std|core)\s*::\s*option\s*::\s*Option\s*::\s*)?None$/u.test(compact)) {
+  if (
+    /^(?:None|(?:(?:std|core)\s*::\s*option\s*::\s*)?Option\s*(?:::\s*<[^;]+>)?\s*::\s*None)$/u.test(
+      compact,
+    )
+  ) {
     return true;
   }
   if (/^(?:<[^;]+>\s*::\s*)?(?:Default\s*::\s*)?default\s*\(\s*\)$/u.test(compact)) {
@@ -562,6 +682,70 @@ function expressionIsProvablyNone(
     return allFunctions
       .filter((entry) => entry.name === helper && entry.returnType.includes("Option"))
       .some((entry) => functionBodyReturnsNone(entry, source, allFunctions, visited));
+  }
+  return false;
+}
+
+function identityIndexLocalBuildPosition(
+  expression: string,
+  source: RustSource,
+  caller: RustFunction | undefined,
+  callStart: number,
+  visited = new Set<string>(),
+): number | undefined {
+  let compact = stripOuterParentheses(expression.replace(/\s+/gu, " ").trim());
+  const some = compact.match(/^Some\s*\((.*)\)$/su)?.[1];
+  if (some !== undefined) compact = stripOuterParentheses(some.trim());
+  compact = compact.replace(/^&\s*(?:mut\s+)?/u, "").trim();
+  compact = compact.replace(/\.\s*as_(?:ref|deref)\s*\(\s*\)$/u, "").trim();
+
+  if (/\bbuild_omena_resolver_style_module_confirmation_identity_index\s*\(/u.test(compact)) {
+    return callStart;
+  }
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(compact) || caller?.bodyStart === undefined) {
+    return undefined;
+  }
+
+  const bindingKey = `${source.path}#${caller.name}#${compact}`;
+  if (visited.has(bindingKey)) return undefined;
+  visited.add(bindingKey);
+  const prefixStart = caller.bodyStart + 1;
+  const prefix = source.code.slice(prefixStart, callStart);
+  const binding = new RegExp(
+    `\\blet\\s+(?:mut\\s+)?${escapeRegExp(compact)}(?:\\s*:[^=;]+)?\\s*=\\s*([^;]+);`,
+    "gu",
+  );
+  const match = [...prefix.matchAll(binding)].at(-1);
+  const initializer = match?.[1];
+  if (match?.index === undefined || initializer === undefined) return undefined;
+  const initializerStart = prefixStart + match.index + match[0].indexOf(initializer);
+  return identityIndexLocalBuildPosition(initializer, source, caller, initializerStart, visited);
+}
+
+function isWithinRepeatedContext(
+  code: string,
+  caller: RustFunction | undefined,
+  position: number,
+): boolean {
+  if (caller?.bodyStart === undefined) return false;
+  const bodyStart = caller.bodyStart + 1;
+  const bodyEnd = caller.end - 1;
+  const body = code.slice(bodyStart, bodyEnd);
+
+  for (const pattern of [/\b(?:for|while)\b[^{;]*\{/gu, /\bloop\s*\{/gu]) {
+    for (const match of body.matchAll(pattern)) {
+      const open = bodyStart + match.index + match[0].lastIndexOf("{");
+      const close = matchingDelimiter(code, open, "{", "}");
+      if (open < position && position < close) return true;
+    }
+  }
+
+  const iteratorCallback =
+    /\.(?:all|any|filter|filter_map|find|find_map|flat_map|fold|for_each|map|scan|try_fold|try_for_each)\s*\(/gu;
+  for (const match of body.matchAll(iteratorCallback)) {
+    const open = bodyStart + match.index + match[0].lastIndexOf("(");
+    const close = matchingDelimiter(code, open, "(", ")");
+    if (open < position && position < close) return true;
   }
   return false;
 }
@@ -595,17 +779,13 @@ function exceptionGroundHolds(
 ): boolean {
   if (kind === "tracked-query-boundary") {
     return (
-      caller.attributes.includes("salsa::tracked") && caller.identityParameterIndex === undefined
+      hasSalsaTrackedAttribute(caller.attributes) && caller.identityParameterIndex === undefined
     );
   }
   if (kind === "test-reference-control") {
     const body =
       caller.bodyStart === undefined ? "" : source.code.slice(caller.bodyStart + 1, caller.end - 1);
-    return (
-      caller.cfgTest &&
-      (/\bassert(?:_eq|_ne)?!\s*\(/u.test(body) ||
-        /(?:precomputed|reference|unthreaded|parity)/u.test(caller.name))
-    );
+    return caller.cfgTest && /\bassert(?:_eq|_ne)?!\s*\(/u.test(body);
   }
   if (kind === "legacy-public-compatibility") {
     if (caller.visibility !== "public" || caller.identityParameterIndex !== undefined) return false;
@@ -624,6 +804,10 @@ function exceptionGroundHolds(
   return false;
 }
 
+function hasSalsaTrackedAttribute(attributes: string): boolean {
+  return /#\s*\[\s*salsa\s*::\s*tracked(?:\s*\([^\]]*\))?\s*\]/u.test(attributes);
+}
+
 function buildCensus(
   acceptingFunctions: readonly RustFunction[],
   exceptionRegistry: readonly TypedException[],
@@ -639,6 +823,9 @@ function buildCensus(
     acceptingFunctionCount: acceptingFunctionKeys.length,
     callSiteCount: sites.length,
     threadedCount: sites.filter((site) => site.disposition === "threaded").length,
+    sharedReuseCount: sites.filter((site) => site.identityFlow === "shared").length,
+    localBuildCount: sites.filter((site) => site.identityFlow === "local-build").length,
+    freshBuildViolationCount: sites.filter((site) => site.identityFlow === "fresh-build").length,
     justifiedNoneCount: sites.filter((site) => site.disposition === "none-with-typed-justification")
       .length,
     violationCount: sites.filter((site) => site.disposition === "violation").length,
@@ -647,7 +834,7 @@ function buildCensus(
     schemaVersion: "0",
     product: "omena-query.resolver-identity-index-caller-census",
     policy: {
-      sourceAuthority: "git-ls-files-rust-crates",
+      sourceAuthority: "git-ls-files-rust-crates-fuzz-tools",
       owningCheck: "rust/omena-resolver/identity-index-callers",
       packageScript: "check:rust-omena-resolver-identity-index-callers",
       allowedExceptionKinds: [
@@ -655,6 +842,8 @@ function buildCensus(
         "tracked-query-boundary",
         "test-reference-control",
       ],
+      macroMetavariableCalleeResolution: "not-expanded; statically-named-calls-only",
+      pubCrateAdapterPropagation: "direct-sites-only; transitive-private-adapters-only",
     },
     acceptingFunctions: acceptingFunctionKeys,
     typedExceptions: normalizedExceptions,
@@ -680,12 +869,14 @@ function runScannerSelfTests(): void {
     [
       "helper_default_caller->consume_identity_index",
       "local_alias_caller->consume_identity_index",
+      "option_none_caller->consume_identity_index",
       "private_adapter->consume_identity_index",
       "private_adapter_caller->private_adapter",
+      "typed_option_none_caller->consume_identity_index",
     ],
     "scanner must resolve disguised None flows and callers of private unthreaded adapters",
   );
-  assert.equal(sites.filter((site) => site.disposition === "violation").length, 4);
+  assert.equal(sites.filter((site) => site.disposition === "violation").length, 6);
   assert.equal(
     sites.some((site) => site.caller === "literal_decoy"),
     false,
@@ -698,6 +889,14 @@ function runScannerSelfTests(): void {
     ),
     false,
     "a private library item must not be projected into a separate example crate",
+  );
+  assert.equal(hasSalsaTrackedAttribute("#[salsa::tracked]"), true);
+  assert.equal(hasSalsaTrackedAttribute("#[salsa::tracked(return_ref)]"), true);
+  assert.equal(hasSalsaTrackedAttribute("#[salsa::trackedness]"), false);
+  assert.equal(
+    hasSalsaTrackedAttribute(maskRustNonCode("// #[salsa::tracked]\n")),
+    false,
+    "a comment cannot satisfy the tracked-query exception ground",
   );
   assert.equal(
     privateItemVisibleFrom(
@@ -723,6 +922,55 @@ function runScannerSelfTests(): void {
     false,
     "a private library item must not be projected into the build-script crate",
   );
+
+  const freshBuildFixture = loadSyntheticSource(freshBuildPerEdgeFixture(), "<fresh-selftest>");
+  const freshBuildSites = deriveCallerSites(
+    [freshBuildFixture],
+    freshBuildFixture.functions,
+    freshBuildFixture.functions.filter((entry) => entry.identityParameterIndex !== undefined),
+    [],
+  );
+  assert.deepEqual(
+    freshBuildSites
+      .filter((site) => site.identityFlow === "fresh-build")
+      .map((site) => `${site.caller}->${site.callee}`)
+      .toSorted(),
+    ["fresh_adapter_caller->fresh_adapter", "inline_fresh_caller->consume_identity_index"],
+    "scanner must reject fresh identity-index construction reached once per edge",
+  );
+  assert.equal(
+    freshBuildSites.some(
+      (site) => site.caller === "shared_boundary" && site.identityFlow === "local-build",
+    ),
+    true,
+    "a caller-owned index built before the repeated region must remain a valid local build",
+  );
+
+  const authorityCallee = loadSyntheticSource(
+    `struct OmenaResolverStyleModuleConfirmationIdentityIndexV0;\n\
+pub fn consume_identity_index(identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>) { let _ = identity_index; }\n`,
+    "rust/crates/example-crate/src/lib.rs",
+  );
+  for (const authorityPath of [
+    "rust/fuzz/fuzz_targets/identity_index.rs",
+    "tools/example-tool/src/main.rs",
+  ]) {
+    const authorityCaller = loadSyntheticSource(
+      "fn authority_caller() { consume_identity_index(None); }\n",
+      authorityPath,
+    );
+    const authoritySites = deriveCallerSites(
+      [authorityCallee, authorityCaller],
+      [...authorityCallee.functions, ...authorityCaller.functions],
+      authorityCallee.functions,
+      [],
+    );
+    assert.equal(
+      authoritySites.some((site) => site.path === authorityPath),
+      true,
+      `source authority must include ${authorityPath}`,
+    );
+  }
 }
 
 function disguisedNoneFixture(): string {
@@ -741,6 +989,12 @@ fn local_alias_caller() {
 fn helper_default_caller() {
   consume_identity_index(default_identity_index());
 }
+fn option_none_caller() {
+  consume_identity_index(Option::None);
+}
+fn typed_option_none_caller() {
+  consume_identity_index(Option::<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>::None);
+}
 fn private_adapter() {
   consume_identity_index(None);
 }
@@ -750,6 +1004,35 @@ fn private_adapter_caller() {
 fn literal_decoy() {
   let _ = "consume_identity_index(None)";
   // consume_identity_index(None);
+}
+`;
+}
+
+function freshBuildPerEdgeFixture(): string {
+  return `
+struct OmenaResolverStyleModuleConfirmationIdentityIndexV0;
+fn build_omena_resolver_style_module_confirmation_identity_index()
+  -> OmenaResolverStyleModuleConfirmationIdentityIndexV0
+{ OmenaResolverStyleModuleConfirmationIdentityIndexV0 }
+fn consume_identity_index(
+  identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
+) { let _ = identity_index; }
+fn fresh_adapter() {
+  let identity_index = build_omena_resolver_style_module_confirmation_identity_index();
+  consume_identity_index(Some(&identity_index));
+}
+fn fresh_adapter_caller() {
+  for _edge in 0..4 { fresh_adapter(); }
+}
+fn inline_fresh_caller() {
+  for _edge in 0..4 {
+    let identity_index = build_omena_resolver_style_module_confirmation_identity_index();
+    consume_identity_index(Some(&identity_index));
+  }
+}
+fn shared_boundary() {
+  let identity_index = build_omena_resolver_style_module_confirmation_identity_index();
+  for _edge in 0..4 { consume_identity_index(Some(&identity_index)); }
 }
 `;
 }
@@ -895,6 +1178,17 @@ function privateItemVisibleFrom(declarationPath: string, callerPath: string): bo
 
 function rustModuleKey(sourcePath: string): string {
   if (sourcePath.startsWith("<")) return sourcePath;
+  const fuzzTarget = sourcePath.match(/^rust\/fuzz\/fuzz_targets\/(.+)\.rs$/u);
+  if (fuzzTarget) return `omena-fuzz::$fuzz-target::${fuzzTarget[1]}`;
+  const tool = sourcePath.match(/^tools\/([^/]+)\/(src|examples|tests|benches)\/(.+)\.rs$/u);
+  if (tool) {
+    const [, toolName, targetKind, relative] = tool;
+    const segments = relative.split("/");
+    const file = segments.pop();
+    assert.ok(file, `Rust tool source file missing: ${sourcePath}`);
+    if (file !== "lib" && file !== "main" && file !== "mod") segments.push(file);
+    return [`tool-${toolName}`, `$${targetKind}`, ...segments].join("::");
+  }
   const buildScript = sourcePath.match(/^rust\/crates\/([^/]+)\/build\.rs$/u);
   if (buildScript) return `${buildScript[1]}::$build`;
   const match = sourcePath.match(

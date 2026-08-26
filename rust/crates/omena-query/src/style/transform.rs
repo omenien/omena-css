@@ -141,6 +141,7 @@ pub(super) fn derive_static_scss_module_configurable_variable_names_for_resoluti
             bundler_path_mappings,
             tsconfig_path_mappings,
             disk_style_path_identities: &[],
+            resolver_identity_index: None,
         },
     )
 }

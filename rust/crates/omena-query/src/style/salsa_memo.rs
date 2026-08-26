@@ -719,6 +719,7 @@ impl OmenaQueryStyleRevisionSelectorV0 {
             input,
             package_manifests,
             &style_resolution_inputs_for_workspace(&self.db, self.workspace),
+            self.resolver_identity_index.as_ref(),
             OmenaQueryStyleSemanticGraphCommittedParts {
                 style_fact_entries: self.committed_graph.style_fact_entries.as_slice(),
                 cross_file_summary: self.committed_graph.style_cross_file_summary.clone(),
@@ -982,6 +983,7 @@ pub fn prepare_committed_workspace_wave_substrate(
                 package_manifests.as_slice(),
                 &resolution_inputs,
                 &substrate,
+                resolver_identity_index,
             ),
         ),
     };
@@ -1080,32 +1082,6 @@ fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_an
         resolver_identity_index,
         None,
         false,
-    )
-}
-
-#[cfg(test)]
-#[allow(clippy::too_many_arguments)]
-fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector(
-    db: &OmenaQueryStyleMemoDatabaseV0,
-    workspace: OmenaQueryStyleWorkspaceInputV0,
-    target: OmenaQueryStyleFileInputV0,
-    committed_graph: &OmenaQueryCommittedStyleSemanticGraphV0,
-    external_mode: OmenaQueryExternalModuleModeV0,
-    suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
-    precomputed_unused_selector: Option<&Option<OmenaQueryUnusedSelectorSharedV0>>,
-    source_corpus_complete: bool,
-) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
-    resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector_and_identity_index(
-        db,
-        workspace,
-        target,
-        committed_graph,
-        external_mode,
-        suppression_mode,
-        None,
-        None,
-        precomputed_unused_selector,
-        source_corpus_complete,
     )
 }
 
@@ -1874,12 +1850,14 @@ fn memo_workspace_cross_file_summary_from_module_interfaces(
     let module_interfaces = module_interfaces_for_workspace(db, workspace);
     let style_cross_file_summary =
         memo_style_cross_file_summary_from_module_interfaces(db, workspace);
+    let resolution_inputs = style_resolution_inputs_for_workspace(db, workspace);
     summarize_omena_query_workspace_cross_file_summary_from_module_interfaces(
         module_interfaces.as_slice(),
         source_workspace_projections(db, workspace).as_slice(),
         package_manifests_for_workspace(db, workspace).as_slice(),
         style_cross_file_summary,
-        &style_resolution_inputs_for_workspace(db, workspace),
+        &resolution_inputs,
+        None,
     )
 }
 
@@ -3705,6 +3683,7 @@ fn build_committed_style_semantic_graph_with_identity_index(
             package_manifests,
             style_cross_file_summary.clone(),
             resolution_inputs,
+            Some(resolver_identity_index),
         );
     OmenaQueryCommittedStyleSemanticGraphV0 {
         style_fact_entries,
@@ -3864,8 +3843,21 @@ pub(crate) fn build_committed_style_semantic_graph_monolith(
 ) -> OmenaQueryCommittedStyleSemanticGraphV0 {
     let style_sources = style_sources_for_workspace(db, workspace);
     let style_fact_entries = style_fact_entries_for_workspace(db, workspace);
+    let available_style_paths = style_sources
+        .iter()
+        .map(|source| source.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let resolver_identity_index = build_omena_resolver_style_module_confirmation_identity_index(
+        &available_style_paths,
+        resolution_inputs.disk_style_path_identities.as_slice(),
+    );
     let css_modules_resolution =
-        summarize_css_modules_cross_file_resolution(&style_fact_entries, package_manifests);
+        summarize_css_modules_cross_file_resolution_with_resolution_inputs_and_identity_index(
+            &style_fact_entries,
+            package_manifests,
+            resolution_inputs,
+            &resolver_identity_index,
+        );
     let sass_module_resolution = summarize_sass_module_cross_file_resolution(
         &style_fact_entries,
         package_manifests,
@@ -3905,6 +3897,7 @@ pub(crate) fn build_committed_style_semantic_graph_monolith(
         package_manifests,
         style_cross_file_summary.clone(),
         resolution_inputs,
+        Some(&resolver_identity_index),
     );
     let cascade_declarations_by_style = style_fact_entries
         .iter()
@@ -5296,13 +5289,15 @@ const cls = styles.root;"#
             .copied()
             .ok_or("target style must exist")?;
         let actual =
-            resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector(
+            resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector_and_identity_index(
                 &selector.db,
                 selector.workspace,
                 target,
                 &selector.committed_graph,
                 OmenaQueryExternalModuleModeV0::Auto,
                 OmenaQueryDiagnosticSuppressionModeV0::Apply,
+                None,
+                None,
                 None,
                 true,
             );

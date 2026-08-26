@@ -440,36 +440,6 @@
       ],
       "expectedRuntimeValueChanges": [
         {
-          "id": "query-source-diagnostics-shared-resolver-identity-index",
-          "kind": "wire-value-order-preserving",
-          "surface": "workspace source-diagnostics resolver identity-index lifecycle",
-          "reason": "Batch source diagnostics can reuse one resolver identity index for the workspace invocation. The permanent unthreaded control proves the prior per-document construction cost while byte-equivalence requires diagnostics output to remain unchanged.",
-          "evidence": [
-            {
-              "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
-              "needles": [
-                "summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_identity_index",
-                "Some(resolver_identity_index)"
-              ]
-            },
-            {
-              "sourcePath": "rust/crates/omena-cli/src/diagnostics.rs",
-              "needles": [
-                "workspace_source_diagnostics_summaries_with_identity_index_mode",
-                "build_omena_resolver_style_module_confirmation_identity_index"
-              ]
-            },
-            {
-              "sourcePath": "rust/crates/omena-cli/src/tests.rs",
-              "needles": [
-                "baseline_build_count",
-                "threaded_build_count",
-                "threading the resolver identity index must not change diagnostics bytes"
-              ]
-            }
-          ]
-        },
-        {
           "id": "query-bundler-host-typed-export-namespaces",
           "kind": "wire-value-order-preserving",
           "surface": "OmenaBundlerHostResolveModuleResponseV0 export families, named exports, declarations, and collision diagnostics",
