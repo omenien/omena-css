@@ -1,0 +1,64 @@
+{
+  "typedExceptions": [
+    {
+      "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode#resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_identity_index#0",
+      "kind": "legacy-public-compatibility"
+    },
+    {
+      "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector#resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector_and_identity_index#0",
+      "kind": "test-reference-control"
+    },
+    {
+      "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#memo_workspace_unused_selector_shared#collect_omena_query_unused_selector_shared#0",
+      "kind": "tracked-query-boundary"
+    },
+    {
+      "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#memo_css_modules_import_edge_resolutions_for_origin_from_module_interfaces#resolve_style_module_source_with_resolution_inputs_and_identity_index#0",
+      "kind": "tracked-query-boundary"
+    },
+    {
+      "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#memo_css_modules_import_edge_resolutions_for_origin_from_module_interfaces#summarize_css_modules_import_edge_resolutions_for_module_interface#0",
+      "kind": "tracked-query-boundary"
+    },
+    {
+      "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#memo_sass_configurable_variable_names_from_module_interface#sass_configurable_variable_names_for_module_interface_tracked#0",
+      "kind": "tracked-query-boundary"
+    },
+    {
+      "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#memo_sass_configurable_variable_names_without_manifests_from_module_interface#sass_configurable_variable_names_for_module_interface_tracked#0",
+      "kind": "tracked-query-boundary"
+    },
+    {
+      "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#memo_sass_configurable_variable_names_without_path_mappings_from_module_interface#sass_configurable_variable_names_for_module_interface_tracked#0",
+      "kind": "tracked-query-boundary"
+    },
+    {
+      "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#memo_sass_module_edge_resolutions_for_origin_from_module_interfaces#summarize_sass_module_edge_resolutions_for_module_interface#0",
+      "kind": "tracked-query-boundary"
+    },
+    {
+      "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#memo_sass_module_edge_resolutions_without_manifests_for_origin_from_module_interfaces#summarize_sass_module_edge_resolutions_for_module_interface#0",
+      "kind": "tracked-query-boundary"
+    },
+    {
+      "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#memo_sass_module_edge_resolutions_without_path_mappings_for_origin_from_module_interfaces#summarize_sass_module_edge_resolutions_for_module_interface#0",
+      "kind": "tracked-query-boundary"
+    },
+    {
+      "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#memo_style_import_reachability_edges#style_import_reachability_edges_from_dependency_surfaces#0",
+      "kind": "tracked-query-boundary"
+    },
+    {
+      "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#workspace_revision_selector#workspace_revision_selector_with_source_corpus_completeness#0",
+      "kind": "legacy-public-compatibility"
+    },
+    {
+      "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#workspace_revision_selector_with_complete_source_corpus#workspace_revision_selector_with_source_corpus_completeness#0",
+      "kind": "legacy-public-compatibility"
+    },
+    {
+      "siteKey": "rust/crates/omena-query/src/style/salsa_memo.rs#non_default_unused_selector_axes_retain_target_local_resolution#resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_identity_index#0",
+      "kind": "test-reference-control"
+    }
+  ]
+}
