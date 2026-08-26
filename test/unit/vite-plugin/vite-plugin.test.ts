@@ -71,13 +71,12 @@ function bundlerHostMock(
   valueExports: Readonly<Record<string, string>> = {},
 ) {
   return {
-    buildSnapshotIdentityJson: (inputJson: string) =>
-      JSON.stringify({
-        schemaVersion: "0",
-        product: "omena-query.build-snapshot-digest",
-        contentHashAlgorithm: "blake3",
-        digest: `blake3:test-${inputJson}`,
-      }),
+    buildSnapshotIdentity: (input: unknown) => ({
+      schemaVersion: "0",
+      product: "omena-query.build-snapshot-digest",
+      contentHashAlgorithm: "blake3",
+      digest: `blake3:test-${JSON.stringify(input)}`,
+    }),
     bundlerHostCapabilitiesJson: () =>
       JSON.stringify({
         protocolVersion: "0",

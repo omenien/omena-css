@@ -651,7 +651,7 @@
         {
           "id": "query-build-snapshot-digest-wire",
           "kind": "wire-value-order-preserving",
-          "surface": "OmenaQueryBuildSnapshotIdentityV0 and N-API/WASM buildSnapshotIdentity bindings",
+          "surface": "OmenaQueryBuildSnapshotIdentityV0 and the typed N-API buildSnapshotIdentity binding",
           "reason": "Build-tool adapters can request one canonical BLAKE3 receipt over target and dependency contents, static configuration bytes, resolver generation, target-data snapshot, engine ABI, and the native pass plan. This additive wire surface does not change build output bytes; it changes whether an unchanged build may be served from the adapter cache.",
           "evidence": [
             {
@@ -667,11 +667,7 @@
             },
             {
               "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-              "needles": ["#[napi(js_name = \"buildSnapshotIdentityJson\")]"]
-            },
-            {
-              "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-              "needles": ["#[wasm_bindgen(js_name = buildSnapshotIdentity)]"]
+              "needles": ["#[napi(js_name = \"buildSnapshotIdentity\")]"]
             }
           ]
         }

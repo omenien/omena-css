@@ -176,7 +176,7 @@ async function resolveBuildSnapshotIdentity(prepared, options, state) {
       packageManifests: prepared.packageManifests,
       configInputs: configSnapshot.inputs,
       passIds: prepared.passIds,
-      targetQuery: options.targetQuery ?? null,
+      targetQuery: options.targetQuery ?? undefined,
       targetOptions: options.targetOptions ?? {},
       adapterEnvironment: buildAdapterEnvironment(options, state),
     });
@@ -641,10 +641,10 @@ function normalizeEngine(binding, kind) {
   if (typeof binding.buildStyleSourcesWithContextJson === "function") {
     return {
       kind,
-      ...(typeof binding.buildSnapshotIdentityJson === "function"
+      ...(typeof binding.buildSnapshotIdentity === "function"
         ? {
             async buildSnapshotIdentity(input) {
-              return JSON.parse(await binding.buildSnapshotIdentityJson(JSON.stringify(input)));
+              return binding.buildSnapshotIdentity(input);
             },
           }
         : {}),

@@ -336,7 +336,7 @@ fn to_json<T: Serialize>(value: &T) -> napi::Result<String> {
     })
 }
 
-fn native_error(error: OmenaError) -> napi::Error {
+pub(crate) fn native_error(error: OmenaError) -> napi::Error {
     let envelope = OmenaSdkErrorEnvelopeV0 { error };
     let reason = serde_json::to_string(&envelope).unwrap_or_else(|_| {
         "{\"error\":{\"class\":\"internal\",\"message\":\"failed to serialize SDK error\",\"context\":{\"code\":\"sdk.error-serialization\",\"severity\":\"error\",\"recoverability\":\"retry\"}}}".to_string()

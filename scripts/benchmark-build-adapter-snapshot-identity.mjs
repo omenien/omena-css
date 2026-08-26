@@ -12,7 +12,7 @@ const hitIterations = numericArgument("--hit-iterations", 150);
 const rebuildIterations = numericArgument("--rebuild-iterations", 30);
 
 assert.equal(
-  typeof binding.buildSnapshotIdentityJson,
+  typeof binding.buildSnapshotIdentity,
   "function",
   "build @omena/napi before measuring build snapshot identity overhead",
 );
@@ -58,7 +58,7 @@ try {
 
   const rebuildBinding = new Proxy(binding, {
     get(target, property, receiver) {
-      if (property === "buildSnapshotIdentityJson") return undefined;
+      if (property === "buildSnapshotIdentity") return undefined;
       return Reflect.get(target, property, receiver);
     },
   });

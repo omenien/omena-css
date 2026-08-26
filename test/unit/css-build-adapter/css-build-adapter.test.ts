@@ -73,7 +73,7 @@ function bundlerHostMock(
   valueExports: Readonly<Record<string, string>> = {},
 ) {
   return {
-    buildSnapshotIdentityJson: buildSnapshotIdentityJsonMock,
+    buildSnapshotIdentity: buildSnapshotIdentityMock,
     bundlerHostCapabilitiesJson: () =>
       JSON.stringify({
         protocolVersion: "0",
@@ -120,13 +120,13 @@ function bundlerHostMock(
   };
 }
 
-function buildSnapshotIdentityJsonMock(inputJson: string) {
-  return JSON.stringify({
+function buildSnapshotIdentityMock(input: unknown) {
+  return {
     schemaVersion: "0",
     product: "omena-query.build-snapshot-digest",
     contentHashAlgorithm: "blake3",
-    digest: `blake3:test-${inputJson}`,
-  });
+    digest: `blake3:test-${JSON.stringify(input)}`,
+  };
 }
 
 function closedWorldEvidence(stylePath: string) {
@@ -592,7 +592,7 @@ source-map = true
     const fixedTimestamp = new Date("2026-01-02T03:04:05.000Z");
     const buildInputs: BuildSource[][] = [];
     const engine = {
-      buildSnapshotIdentityJson: buildSnapshotIdentityJsonMock,
+      buildSnapshotIdentity: buildSnapshotIdentityMock,
       buildStyleSourcesWithContextJson: (_targetPath: string, sourcesJson: string) => {
         const sources = JSON.parse(sourcesJson) as BuildSource[];
         buildInputs.push(sources);
@@ -641,7 +641,7 @@ source-map = true
     const fixedTimestamp = new Date("2026-01-02T03:04:05.000Z");
     const buildManifests: string[][] = [];
     const engine = {
-      buildSnapshotIdentityJson: buildSnapshotIdentityJsonMock,
+      buildSnapshotIdentity: buildSnapshotIdentityMock,
       buildStyleSourcesWithContextJson: (
         _targetPath: string,
         _sourcesJson: string,
@@ -703,7 +703,7 @@ source-map = true
     const fixedTimestamp = new Date("2026-01-02T03:04:05.000Z");
     let buildCount = 0;
     const engine = {
-      buildSnapshotIdentityJson: buildSnapshotIdentityJsonMock,
+      buildSnapshotIdentity: buildSnapshotIdentityMock,
       buildStyleSourcesWithContextJson: () => {
         buildCount += 1;
         return JSON.stringify({ execution: { outputCss: source, executedPassIds: [] } });

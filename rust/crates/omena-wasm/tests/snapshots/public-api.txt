@@ -22,7 +22,6 @@ pub fn omena_wasm::OmenaWasmWorkspaceV0::query(&self, wasm_bindgen::JsValue) -> 
 pub fn omena_wasm::OmenaWasmWorkspaceV0::replace_style_resolution_inputs(&mut self, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
 pub fn omena_wasm::OmenaWasmWorkspaceV0::replace_style_sources(&mut self, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
 pub fn omena_wasm::OmenaWasmWorkspaceV0::snapshot(&self) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
-pub fn omena_wasm::build_snapshot_identity(wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
 pub fn omena_wasm::build_style_source(&str, &str, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
 pub fn omena_wasm::build_style_source_for_target_query(&str, &str, &str) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
 pub fn omena_wasm::build_style_source_for_target_query_summary(&str, &str, &str) -> omena_query::types::OmenaQueryConsumerBuildSummaryV0

@@ -12,9 +12,12 @@ use engine_napi_contract_idl_generated::{
 };
 use napi_derive::napi;
 use omena_query::{
-    OmenaBundlerHostResolveModuleRequestV0, OmenaParserStyleDialect,
-    OmenaQueryBuildSnapshotIdentityInputV0, OmenaQueryBuildVerificationProfileV0,
-    OmenaQueryBundleArtifactV0 as OmenaNapiBundleArtifactV0, OmenaQueryBundleEmissionPathV0,
+    OmenaBundlerHostResolveModuleRequestV0, OmenaError, OmenaErrorClassV0, OmenaErrorContextV0,
+    OmenaErrorRecoverabilityV0, OmenaErrorSeverityV0, OmenaParserStyleDialect,
+    OmenaQueryBuildSnapshotContentDigestV0, OmenaQueryBuildSnapshotContentInputV0,
+    OmenaQueryBuildSnapshotIdentityInputV0, OmenaQueryBuildSnapshotIdentityV0,
+    OmenaQueryBuildVerificationProfileV0, OmenaQueryBundleArtifactV0 as OmenaNapiBundleArtifactV0,
+    OmenaQueryBundleEmissionPathV0,
     OmenaQueryBundleExecutionScopeEvidenceV0 as OmenaNapiBundleExecutionScopeEvidenceV0,
     OmenaQueryBundleWithEvidenceV0 as OmenaNapiBundleWithEvidenceV0,
     OmenaQueryCascadeAtPositionV0 as OmenaNapiCascadeAtPositionV0,
@@ -108,6 +111,241 @@ pub struct OmenaNapiSourceImportDeclarationsV0 {
     pub imports: Vec<OmenaNapiSourceImportDeclarationV0>,
 }
 
+#[napi(object)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmenaNapiBuildSnapshotContentInputV0 {
+    pub path: String,
+    pub source: String,
+}
+
+#[napi(object)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmenaNapiBuildSnapshotStyleSourceInputV0 {
+    #[napi(js_name = "stylePath")]
+    pub style_path: String,
+    #[napi(js_name = "styleSource")]
+    pub style_source: String,
+}
+
+#[napi(object)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmenaNapiBuildSnapshotPackageManifestV0 {
+    #[napi(js_name = "packageJsonPath")]
+    pub package_json_path: String,
+    #[napi(js_name = "packageJsonSource")]
+    pub package_json_source: String,
+}
+
+#[napi(object)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OmenaNapiBuildSnapshotTargetOptionsV0 {
+    #[napi(js_name = "allowLogicalToPhysical")]
+    pub allow_logical_to_physical: Option<bool>,
+    #[napi(js_name = "allowScopeFlatten")]
+    pub allow_scope_flatten: Option<bool>,
+    #[napi(js_name = "allowLayerFlatten")]
+    pub allow_layer_flatten: Option<bool>,
+    #[napi(js_name = "enableSupportsStaticEval")]
+    pub enable_supports_static_eval: Option<bool>,
+    #[napi(js_name = "enableMediaStaticEval")]
+    pub enable_media_static_eval: Option<bool>,
+    #[napi(js_name = "enableContainerStaticEval")]
+    pub enable_container_static_eval: Option<bool>,
+    #[napi(js_name = "dropDarkModeMediaQueries")]
+    pub drop_dark_mode_media_queries: Option<bool>,
+}
+
+#[napi(object)]
+#[derive(Debug, Clone, PartialEq)]
+pub struct OmenaNapiBuildSnapshotIdentityInputV0 {
+    #[napi(js_name = "targetPath")]
+    pub target_path: String,
+    #[napi(js_name = "styleSources")]
+    pub style_sources: Vec<OmenaNapiBuildSnapshotStyleSourceInputV0>,
+    #[napi(js_name = "packageManifests")]
+    pub package_manifests: Option<Vec<OmenaNapiBuildSnapshotPackageManifestV0>>,
+    #[napi(js_name = "configInputs")]
+    pub config_inputs: Option<Vec<OmenaNapiBuildSnapshotContentInputV0>>,
+    #[napi(js_name = "passIds")]
+    pub pass_ids: Option<Vec<String>>,
+    #[napi(js_name = "targetQuery")]
+    pub target_query: Option<String>,
+    #[napi(js_name = "targetOptions")]
+    pub target_options: Option<OmenaNapiBuildSnapshotTargetOptionsV0>,
+    #[napi(js_name = "adapterEnvironment")]
+    pub adapter_environment: Option<serde_json::Value>,
+}
+
+#[napi(object)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmenaNapiBuildSnapshotContentDigestV0 {
+    pub path: String,
+    #[napi(js_name = "contentDigest")]
+    pub content_digest: String,
+}
+
+#[napi(object)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmenaNapiBuildSnapshotIdentityV0 {
+    #[napi(js_name = "schemaVersion")]
+    pub schema_version: String,
+    pub product: String,
+    #[napi(js_name = "contentHashAlgorithm")]
+    pub content_hash_algorithm: String,
+    pub digest: String,
+    #[napi(js_name = "targetSourceDigest")]
+    pub target_source_digest: String,
+    #[napi(js_name = "styleSourceDigests")]
+    pub style_source_digests: Vec<OmenaNapiBuildSnapshotContentDigestV0>,
+    #[napi(js_name = "packageManifestDigests")]
+    pub package_manifest_digests: Vec<OmenaNapiBuildSnapshotContentDigestV0>,
+    #[napi(js_name = "configDigests")]
+    pub config_digests: Vec<OmenaNapiBuildSnapshotContentDigestV0>,
+    #[napi(js_name = "resolverGeneration")]
+    pub resolver_generation: i64,
+    #[napi(js_name = "targetDataSnapshotId")]
+    pub target_data_snapshot_id: String,
+    #[napi(js_name = "engineAbiVersion")]
+    pub engine_abi_version: String,
+    #[napi(js_name = "passPlanDigest")]
+    pub pass_plan_digest: String,
+    #[napi(js_name = "requestedPassIds")]
+    pub requested_pass_ids: Vec<String>,
+    #[napi(js_name = "orderedPassIds")]
+    pub ordered_pass_ids: Vec<String>,
+    #[napi(js_name = "unknownPassIds")]
+    pub unknown_pass_ids: Vec<String>,
+}
+
+impl OmenaNapiBuildSnapshotIdentityInputV0 {
+    fn into_query(self) -> OmenaQueryBuildSnapshotIdentityInputV0 {
+        let target_options = self.target_options.unwrap_or_default();
+        OmenaQueryBuildSnapshotIdentityInputV0 {
+            target_path: self.target_path,
+            style_sources: self
+                .style_sources
+                .into_iter()
+                .map(|source| OmenaNapiStyleSourceInputV0 {
+                    style_path: source.style_path,
+                    style_source: source.style_source,
+                })
+                .collect(),
+            package_manifests: self
+                .package_manifests
+                .unwrap_or_default()
+                .into_iter()
+                .map(|manifest| OmenaNapiStylePackageManifestV0 {
+                    package_json_path: manifest.package_json_path,
+                    package_json_source: manifest.package_json_source,
+                })
+                .collect(),
+            config_inputs: self
+                .config_inputs
+                .unwrap_or_default()
+                .into_iter()
+                .map(|input| OmenaQueryBuildSnapshotContentInputV0 {
+                    path: input.path,
+                    source: input.source,
+                })
+                .collect(),
+            pass_ids: self.pass_ids.unwrap_or_default(),
+            target_query: self.target_query,
+            target_options: OmenaNapiTargetTransformOptionsV0 {
+                allow_logical_to_physical: target_options
+                    .allow_logical_to_physical
+                    .unwrap_or(false),
+                allow_scope_flatten: target_options.allow_scope_flatten.unwrap_or(false),
+                allow_layer_flatten: target_options.allow_layer_flatten.unwrap_or(false),
+                enable_supports_static_eval: target_options
+                    .enable_supports_static_eval
+                    .unwrap_or(false),
+                enable_media_static_eval: target_options.enable_media_static_eval.unwrap_or(false),
+                enable_container_static_eval: target_options
+                    .enable_container_static_eval
+                    .unwrap_or(false),
+                drop_dark_mode_media_queries: target_options
+                    .drop_dark_mode_media_queries
+                    .unwrap_or(false),
+            },
+            adapter_environment: self.adapter_environment.unwrap_or(serde_json::Value::Null),
+        }
+    }
+}
+
+impl OmenaNapiBuildSnapshotIdentityV0 {
+    fn from_query(identity: OmenaQueryBuildSnapshotIdentityV0) -> napi::Result<Self> {
+        let resolver_generation = i64::try_from(identity.resolver_generation).map_err(|_| {
+            build_snapshot_identity_internal_error(
+                "resolver generation exceeds the N-API signed 64-bit boundary".to_owned(),
+            )
+        })?;
+        Ok(Self {
+            schema_version: identity.schema_version.to_owned(),
+            product: identity.product.to_owned(),
+            content_hash_algorithm: identity.content_hash_algorithm.to_owned(),
+            digest: identity.digest,
+            target_source_digest: identity.target_source_digest,
+            style_source_digests: identity
+                .style_source_digests
+                .into_iter()
+                .map(OmenaNapiBuildSnapshotContentDigestV0::from_query)
+                .collect(),
+            package_manifest_digests: identity
+                .package_manifest_digests
+                .into_iter()
+                .map(OmenaNapiBuildSnapshotContentDigestV0::from_query)
+                .collect(),
+            config_digests: identity
+                .config_digests
+                .into_iter()
+                .map(OmenaNapiBuildSnapshotContentDigestV0::from_query)
+                .collect(),
+            resolver_generation,
+            target_data_snapshot_id: identity.target_data_snapshot_id,
+            engine_abi_version: identity.engine_abi_version,
+            pass_plan_digest: identity.pass_plan_digest,
+            requested_pass_ids: identity.requested_pass_ids,
+            ordered_pass_ids: identity.ordered_pass_ids,
+            unknown_pass_ids: identity.unknown_pass_ids,
+        })
+    }
+}
+
+impl OmenaNapiBuildSnapshotContentDigestV0 {
+    fn from_query(digest: OmenaQueryBuildSnapshotContentDigestV0) -> Self {
+        Self {
+            path: digest.path,
+            content_digest: digest.content_digest,
+        }
+    }
+}
+
+fn build_snapshot_identity_error(message: String) -> napi::Error {
+    sdk_workspace::native_error(OmenaError::new(
+        OmenaErrorClassV0::Input,
+        message,
+        OmenaErrorContextV0 {
+            code: "build.snapshot-identity-input".to_owned(),
+            severity: OmenaErrorSeverityV0::Error,
+            recoverability: OmenaErrorRecoverabilityV0::UserAction,
+            evidence: Vec::new(),
+        },
+    ))
+}
+
+fn build_snapshot_identity_internal_error(message: String) -> napi::Error {
+    sdk_workspace::native_error(OmenaError::new(
+        OmenaErrorClassV0::Internal,
+        message,
+        OmenaErrorContextV0 {
+            code: "build.snapshot-identity-encoding".to_owned(),
+            severity: OmenaErrorSeverityV0::Error,
+            recoverability: OmenaErrorRecoverabilityV0::Retry,
+            evidence: Vec::new(),
+        },
+    ))
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
@@ -131,15 +369,14 @@ pub fn resolve_css_module_for_bundler_host_json(request_json: String) -> napi::R
     to_json_string(&resolve_omena_bundler_host_module_v0(request))
 }
 
-#[napi(js_name = "buildSnapshotIdentityJson")]
-pub fn build_snapshot_identity_json(input_json: String) -> napi::Result<String> {
-    let input = serde_json::from_str::<OmenaQueryBuildSnapshotIdentityInputV0>(&input_json)
-        .map_err(|error| {
-            napi::Error::from_reason(format!("invalid build snapshot identity input: {error}"))
-        })?;
-    let identity =
-        compute_omena_query_build_snapshot_identity_v0(&input).map_err(napi::Error::from_reason)?;
-    to_json_string(&identity)
+#[napi(js_name = "buildSnapshotIdentity")]
+pub fn build_snapshot_identity(
+    input: OmenaNapiBuildSnapshotIdentityInputV0,
+) -> napi::Result<OmenaNapiBuildSnapshotIdentityV0> {
+    let input = input.into_query();
+    let identity = compute_omena_query_build_snapshot_identity_v0(&input)
+        .map_err(build_snapshot_identity_error)?;
+    OmenaNapiBuildSnapshotIdentityV0::from_query(identity)
 }
 
 #[napi(js_name = "checkStyleSourceJson")]
