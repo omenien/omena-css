@@ -4,7 +4,7 @@
   "scope": "internal-test-inventory-only",
   "regex": "(?:(?<![A-Za-z0-9_])_[A-Za-z][A-Za-z0-9-]*_[0-9]+(?![A-Za-z0-9_])|(?<=[.\"'`])_[A-Za-z0-9_-]{6}_[A-Za-z0-9_-]+(?![A-Za-z0-9_]))",
   "selectedFormatRegex": "^_[A-Za-z0-9_-]{6}_[A-Za-z0-9_-]+$",
-  "expectedSiteCount": 166,
+  "expectedSiteCount": 167,
   "expectedFileCount": 24,
   "wholeFileTestInternal": [
     "rust/crates/omena-abstract-value/src/tests.rs",
