@@ -17,6 +17,7 @@ use omena_query::{
     summarize_omena_query_sass_module_sources,
     summarize_omena_query_style_hover_render_parts_for_hover_position,
 };
+use omena_syntax::ident::CanonicalCustomPropertyNameV0;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -96,10 +97,13 @@ pub(crate) fn resolve_lsp_document_color(
     // dependency chains from disk once per variable (measured at seconds
     // per tab open on a large workspace).
     let mut declarations = SassVariableDeclarationIndexV0::default();
-    let mut color_by_name: BTreeMap<(Option<String>, String), Option<[f64; 4]>> = BTreeMap::new();
+    let mut color_by_name: BTreeMap<
+        (Option<String>, CanonicalCustomPropertyNameV0),
+        Option<[f64; 4]>,
+    > = BTreeMap::new();
     let mut informations = Vec::new();
     for candidate in color_candidates {
-        let key = (candidate.namespace.clone(), candidate.name.to_string());
+        let key = (candidate.namespace.clone(), candidate.name.to_custom_key());
         let color = *color_by_name.entry(key).or_insert_with(|| {
             declarations
                 .resolve_value(state, document, candidate)
@@ -140,7 +144,7 @@ pub(crate) fn resolve_lsp_document_color(
 /// authority that fills the hover's `Value:` line.
 #[derive(Default)]
 struct SassVariableDeclarationIndexV0 {
-    by_namespace: BTreeMap<Option<String>, BTreeMap<String, Option<String>>>,
+    by_namespace: BTreeMap<Option<String>, BTreeMap<CanonicalCustomPropertyNameV0, Option<String>>>,
 }
 
 impl SassVariableDeclarationIndexV0 {
@@ -166,7 +170,7 @@ impl SassVariableDeclarationIndexV0 {
         }
         self.by_namespace
             .get(&namespace)
-            .and_then(|values| values.get(&candidate.name.to_string()))
+            .and_then(|values| values.get(&candidate.name.to_custom_key()))
             .cloned()
             .flatten()
     }
@@ -183,7 +187,7 @@ fn collect_reachable_variable_values(
     state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     candidate: &LspStyleHoverCandidate,
-) -> BTreeMap<String, Option<String>> {
+) -> BTreeMap<CanonicalCustomPropertyNameV0, Option<String>> {
     let mut values = BTreeMap::new();
     // Unnamespaced references see the requesting document's own
     // declarations first — same precedence as the symbol resolver.
@@ -241,7 +245,7 @@ fn relative_module_target_uris(
 
 fn collect_document_variable_values(
     document: &LspTextDocumentState,
-    values: &mut BTreeMap<String, Option<String>>,
+    values: &mut BTreeMap<CanonicalCustomPropertyNameV0, Option<String>>,
 ) {
     for declaration in document
         .style_candidates
@@ -249,12 +253,15 @@ fn collect_document_variable_values(
         .filter(|declaration| declaration.kind == "sassVariableDeclaration")
     {
         values
-            .entry(declaration.name.to_string())
+            .entry(declaration.name.to_custom_key())
             .or_insert_with(|| {
+                let mut declaration_name = String::new();
+                let _ =
+                    omena_syntax::ident::render_authored(&declaration.name, &mut declaration_name);
                 summarize_omena_query_style_hover_render_parts_for_hover_position(
                     document.text.as_str(),
                     declaration.kind,
-                    declaration.name.to_string().as_str(),
+                    declaration_name.as_str(),
                     declaration.range.start,
                 )
                 .value

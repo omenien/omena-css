@@ -13,7 +13,7 @@ use omena_parser::{
     ClosedWorldSourcePrecisionSummaryV0, ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0,
     StyleDialect, parse, summarize_omena_parser_parity_lite, summarize_omena_parser_style_facts,
 };
-use omena_syntax::SyntaxKind;
+use omena_syntax::{SyntaxKind, ident::AuthoredPropertyTextV0};
 use omena_transform_cst::{
     IrNodeIdV0, IrNodeKindV0, TransformIrV0, TransformPassClassV0, TransformPassKind,
     default_transform_pass_descriptors, lower_transform_ir_from_source, print_transform_ir_css,
@@ -154,7 +154,7 @@ struct StructuralShadowReachabilityV0 {
     class_names: Vec<String>,
     keyframe_names: Vec<String>,
     value_names: Vec<String>,
-    custom_property_names: Vec<String>,
+    custom_property_names: Vec<AuthoredPropertyTextV0>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -1719,13 +1719,13 @@ fn reachability_for_fixture(
             class_names: string_vec(["used"]),
             keyframe_names: Vec::new(),
             value_names: Vec::new(),
-            custom_property_names: string_vec(["keepExport"]),
+            custom_property_names: authored_property_vec(["keepExport"]),
         },
         "pipeline-module-structural-interpass" => StructuralShadowReachabilityV0 {
             class_names: string_vec(["card", "card__icon", "base", "utility"]),
             keyframe_names: string_vec(["spin"]),
             value_names: Vec::new(),
-            custom_property_names: string_vec(["pkg-brand", "local-tone"]),
+            custom_property_names: authored_property_vec(["pkg-brand", "local-tone"]),
         },
         "pipeline-rule-structural-interpass" => StructuralShadowReachabilityV0 {
             class_names: string_vec(["card", "card__icon", "dup", "grid", "media"]),
@@ -1797,11 +1797,11 @@ fn module_context_for_fixture(
         "module-design-token-routing" => StructuralShadowModuleContextV0 {
             design_token_routes: vec![
                 TransformDesignTokenRouteV0 {
-                    token_name: "--pkg-breakpoint".to_string(),
+                    token_name: AuthoredPropertyTextV0::new("--pkg-breakpoint"),
                     routed_value: "40rem".to_string(),
                 },
                 TransformDesignTokenRouteV0 {
-                    token_name: "--pkg-brand".to_string(),
+                    token_name: AuthoredPropertyTextV0::new("--pkg-brand"),
                     routed_value: "#123456".to_string(),
                 },
             ],
@@ -1835,7 +1835,7 @@ fn module_context_for_fixture(
                 exported_class_names: vec!["base".to_string(), "utility".to_string()],
             }],
             design_token_routes: vec![TransformDesignTokenRouteV0 {
-                token_name: "--pkg-brand".to_string(),
+                token_name: AuthoredPropertyTextV0::new("--pkg-brand"),
                 routed_value: "#123456".to_string(),
             }],
         },
@@ -2036,6 +2036,13 @@ fn public_semantic_removal_values(removals: Vec<TransformSemanticRemovalV0>) -> 
 
 fn string_vec<const N: usize>(values: [&str; N]) -> Vec<String> {
     values.into_iter().map(str::to_string).collect()
+}
+
+fn authored_property_vec<const N: usize>(values: [&str; N]) -> Vec<AuthoredPropertyTextV0> {
+    values
+        .into_iter()
+        .map(AuthoredPropertyTextV0::new)
+        .collect()
 }
 
 fn shadow_field_report(

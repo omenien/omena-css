@@ -20,7 +20,9 @@ use omena_query::{
     OmenaResolverStyleModuleConfirmationIdentityIndexV0,
     OmenaResolverStyleModuleDiskCandidateIdentityV0,
 };
-use omena_syntax::ident::{AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0};
+use omena_syntax::ident::{
+    AuthoredPropertyTextV0, CanonicalClassKeyV0, CanonicalCustomPropertyNameV0,
+};
 use omena_tsgo_client::{TsgoTypeFactResultEntryV0, TsgoWorkspaceProcessPoolV0};
 use serde::Serialize;
 use std::cell::RefCell;
@@ -97,16 +99,47 @@ pub struct LspOptimizingTierFeedback {
     pub analyzed_graph: AnalyzedGraphV0,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LspStyleDocumentSummary {
     pub language: &'static str,
     pub selector_names: Vec<String>,
-    pub custom_property_decl_names: Vec<String>,
-    pub custom_property_ref_names: Vec<String>,
+    pub custom_property_decl_names: Vec<AuthoredPropertyTextV0>,
+    pub custom_property_ref_names: Vec<AuthoredPropertyTextV0>,
     pub sass_module_use_sources: Vec<String>,
     pub sass_module_forward_sources: Vec<String>,
     pub diagnostic_count: usize,
+}
+
+impl PartialEq for LspStyleDocumentSummary {
+    fn eq(&self, other: &Self) -> bool {
+        self.language == other.language
+            && self.selector_names == other.selector_names
+            && authored_custom_property_sequences_same(
+                &self.custom_property_decl_names,
+                &other.custom_property_decl_names,
+            )
+            && authored_custom_property_sequences_same(
+                &self.custom_property_ref_names,
+                &other.custom_property_ref_names,
+            )
+            && self.sass_module_use_sources == other.sass_module_use_sources
+            && self.sass_module_forward_sources == other.sass_module_forward_sources
+            && self.diagnostic_count == other.diagnostic_count
+    }
+}
+
+impl Eq for LspStyleDocumentSummary {}
+
+fn authored_custom_property_sequences_same(
+    left: &[AuthoredPropertyTextV0],
+    right: &[AuthoredPropertyTextV0],
+) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| left.to_custom_key() == right.to_custom_key())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -127,6 +160,8 @@ pub struct LspStyleHoverCandidatesResult {
 pub struct LspStyleHoverCandidate {
     pub kind: &'static str,
     pub name: AuthoredPropertyTextV0,
+    #[serde(skip)]
+    pub selector_key: Option<CanonicalClassKeyV0>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub property_key: Option<CanonicalCustomPropertyNameV0>,
     pub range: ParserRangeV0,
@@ -139,8 +174,9 @@ pub struct LspStyleHoverCandidate {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum LspStyleHoverCandidateIdentityRefV0<'candidate> {
+    Selector(Option<&'candidate CanonicalClassKeyV0>),
     CustomProperty(Option<&'candidate CanonicalCustomPropertyNameV0>),
-    Other(String),
+    Other,
 }
 
 impl LspStyleHoverCandidate {
@@ -155,18 +191,25 @@ impl LspStyleHoverCandidate {
                 .unwrap_or_default()
                 .to_string()
         } else {
-            self.name.to_string()
+            let mut name = String::new();
+            let _ = omena_syntax::ident::render_authored(&self.name, &mut name);
+            name
         }
     }
 
     pub(crate) fn identity(&self) -> LspStyleHoverCandidateIdentityRefV0<'_> {
         if matches!(
             self.kind,
+            "selector" | "sourceSelectorReference" | "sourceSelectorPrefixReference"
+        ) {
+            LspStyleHoverCandidateIdentityRefV0::Selector(self.selector_key.as_ref())
+        } else if matches!(
+            self.kind,
             "customPropertyDeclaration" | "customPropertyReference"
         ) {
             LspStyleHoverCandidateIdentityRefV0::CustomProperty(self.property_key.as_ref())
         } else {
-            LspStyleHoverCandidateIdentityRefV0::Other(self.name.to_string())
+            LspStyleHoverCandidateIdentityRefV0::Other
         }
     }
 }

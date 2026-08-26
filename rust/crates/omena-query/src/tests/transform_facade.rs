@@ -1998,14 +1998,14 @@ fn exposes_transform_plan_custom_property_fixed_point() {
             .custom_property_fixed_point
             .entries
             .iter()
-            .any(|entry| entry.name == "--alias" && entry.changed)
+            .any(|entry| entry.name.as_str() == "--alias" && entry.changed)
     );
     assert!(
         summary
             .custom_property_fixed_point
             .entries
             .iter()
-            .any(|entry| entry.name == "--shadow" && entry.changed)
+            .any(|entry| entry.name.as_str() == "--shadow" && entry.changed)
     );
 }
 

@@ -402,19 +402,30 @@ pub enum CascadeStandardValueVerdictV0 {
     Unknown,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeRegisteredCustomPropertyV0 {
-    pub name: String,
+    pub name: AuthoredPropertyTextV0,
     pub inherits: bool,
     pub initial_value: CascadeValue,
     pub declaration_value_verdicts: BTreeMap<String, CascadeRegisteredValueVerdictV0>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+impl PartialEq for CascadeRegisteredCustomPropertyV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.name.to_custom_key() == other.name.to_custom_key()
+            && self.inherits == other.inherits
+            && self.initial_value == other.initial_value
+            && self.declaration_value_verdicts == other.declaration_value_verdicts
+    }
+}
+
+impl Eq for CascadeRegisteredCustomPropertyV0 {}
+
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeComputedValueInputV0 {
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
     pub declarations: Vec<CascadeDeclaration>,
     pub custom_property_env: CustomPropertyEnv,
     pub parent_computed_value: Option<CascadeValue>,
@@ -428,12 +439,27 @@ pub struct CascadeComputedValueInputV0 {
     pub standard_property_value_verdicts: BTreeMap<String, CascadeStandardValueVerdictV0>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+impl PartialEq for CascadeComputedValueInputV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.property
+            .to_property_name()
+            .same_as(&other.property.to_property_name())
+            && self.declarations == other.declarations
+            && self.custom_property_env == other.custom_property_env
+            && self.parent_computed_value == other.parent_computed_value
+            && self.registered_custom_property == other.registered_custom_property
+            && self.standard_property_value_verdicts == other.standard_property_value_verdicts
+    }
+}
+
+impl Eq for CascadeComputedValueInputV0 {}
+
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeComputedValueResultV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
     pub status: ComputedCascadeValueStatusV0,
     pub value: CascadeValue,
     pub winner_declaration_id: Option<String>,
@@ -450,6 +476,28 @@ pub struct CascadeComputedValueResultV0 {
     pub fallback_indeterminate_reason: Option<ComputedCascadeIndeterminateReasonV0>,
     pub derivation_steps: Vec<&'static str>,
 }
+
+impl PartialEq for CascadeComputedValueResultV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.product == other.product
+            && self
+                .property
+                .to_property_name()
+                .same_as(&other.property.to_property_name())
+            && self.status == other.status
+            && self.value == other.value
+            && self.winner_declaration_id == other.winner_declaration_id
+            && self.inherited == other.inherited
+            && self.used_initial_value == other.used_initial_value
+            && self.invalid_at_computed_value_time == other.invalid_at_computed_value_time
+            && self.indeterminate_reason == other.indeterminate_reason
+            && self.fallback_indeterminate_reason == other.fallback_indeterminate_reason
+            && self.derivation_steps == other.derivation_steps
+    }
+}
+
+impl Eq for CascadeComputedValueResultV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -832,7 +880,7 @@ pub enum CustomPropertyGuaranteedInvalidReasonV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CustomPropertyLeastFixedPointEntryV0 {
-    pub name: String,
+    pub name: CanonicalCustomPropertyNameV0,
     pub input: CascadeValue,
     pub resolved: CascadeValue,
     pub changed: bool,
@@ -852,29 +900,61 @@ pub struct CascadeFuzzSeedReportV0 {
     pub var_results: Vec<VarSubstitutionFuzzResultV0>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BoxLonghandInputV0 {
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
     pub value: String,
     pub important: bool,
     pub source_order: u32,
 }
 
+impl PartialEq for BoxLonghandInputV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.property.to_standard_key() == other.property.to_standard_key()
+            && self.value == other.value
+            && self.important == other.important
+            && self.source_order == other.source_order
+    }
+}
+
+impl Eq for BoxLonghandInputV0 {}
+
 pub type LonghandMergeInputV0 = BoxLonghandInputV0;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ShorthandCombinationProofV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
-    pub shorthand_property: String,
+    pub shorthand_property: AuthoredPropertyTextV0,
     pub accepted: bool,
     pub blocked_reason: Option<&'static str>,
-    pub ordered_longhand_properties: Vec<String>,
+    pub ordered_longhand_properties: Vec<AuthoredPropertyTextV0>,
     pub provenance_preserved: bool,
     pub cascade_safe_witness: String,
 }
+
+impl PartialEq for ShorthandCombinationProofV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.product == other.product
+            && self.shorthand_property.to_standard_key()
+                == other.shorthand_property.to_standard_key()
+            && self.accepted == other.accepted
+            && self.blocked_reason == other.blocked_reason
+            && self.ordered_longhand_properties.len() == other.ordered_longhand_properties.len()
+            && self
+                .ordered_longhand_properties
+                .iter()
+                .zip(other.ordered_longhand_properties.iter())
+                .all(|(left, right)| left.to_standard_key() == right.to_standard_key())
+            && self.provenance_preserved == other.provenance_preserved
+            && self.cascade_safe_witness == other.cascade_safe_witness
+    }
+}
+
+impl Eq for ShorthandCombinationProofV0 {}
 
 pub type LonghandMergeProofV0 = ShorthandCombinationProofV0;
 

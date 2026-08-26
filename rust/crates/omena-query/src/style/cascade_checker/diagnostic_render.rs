@@ -3,9 +3,8 @@ use omena_query_checker_orchestrator::{
 };
 use omena_query_core::{
     AbstractPropertyValueCandidateV0, iterate_reduced_class_value_product_constraints,
-    narrow_abstract_property_value_for_cascade_branch,
+    narrow_abstract_property_value_for_authored_cascade_branch,
 };
-use omena_syntax::ident::{AuthoredPropertyTextV0, PropertyNameV0, property_names_same};
 
 use super::super::OmenaQueryCascadeNarrowingEvidenceV0;
 use super::runtime_state::{
@@ -60,7 +59,10 @@ pub(super) fn summarize_query_cascade_narrowing_for_evaluation(
         .iter()
         .filter(|declaration| {
             declaration.selector == anchor.selector
-                && property_names_same(&declaration.property, &anchor.property)
+                && declaration
+                    .property
+                    .to_property_name()
+                    .same_as(&anchor.property.to_property_name())
                 && declaration.condition_context == anchor.condition_context
         })
         .collect::<Vec<_>>();
@@ -82,8 +84,8 @@ pub(super) fn summarize_query_cascade_narrowing_for_evaluation(
             same_selector_ordering: true,
         })
         .collect::<Vec<_>>();
-    let property_value_narrowing = narrow_abstract_property_value_for_cascade_branch(
-        anchor.property.as_str(),
+    let property_value_narrowing = narrow_abstract_property_value_for_authored_cascade_branch(
+        &anchor.property,
         None,
         anchor.condition_context.as_slice(),
         anchor.layer_name.as_deref(),
@@ -103,8 +105,8 @@ pub(super) fn summarize_query_cascade_narrowing_for_evaluation(
         product: "omena-query.cascade-narrowing-evidence",
         selector: anchor.selector.as_str().to_string(),
         selector_class_names,
-        property_name: AuthoredPropertyTextV0::new(anchor.property.clone()),
-        property_key: PropertyNameV0::from_authored(&anchor.property).canonical_key(),
+        property_name: anchor.property.clone(),
+        property_key: anchor.property.to_property_name().canonical_key(),
         condition_context: anchor.condition_context.clone(),
         declaration_ids: site_declarations
             .into_iter()

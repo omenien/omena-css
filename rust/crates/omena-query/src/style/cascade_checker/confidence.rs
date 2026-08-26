@@ -1,13 +1,12 @@
 use std::sync::OnceLock;
 
 use omena_cascade::{
-    CascadeDeclaration, cascade_margin_for_outcome, cascade_property,
+    CascadeDeclaration, cascade_margin_for_outcome, cascade_property_for_key,
     summarize_cascade_margin_schema_v0,
 };
 use omena_query_checker_orchestrator::{
     OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeEvaluationV0,
 };
-use omena_syntax::ident::property_names_same;
 
 use super::super::OmenaQueryCascadeConfidenceV0;
 use super::runtime_state::query_runtime_cascade_declaration_from_input;
@@ -68,7 +67,10 @@ fn query_cascade_margin_for_evaluation(
         .iter()
         .filter(|declaration| {
             declaration.selector == anchor.selector
-                && property_names_same(&declaration.property, &anchor.property)
+                && declaration
+                    .property
+                    .to_property_name()
+                    .same_as(&anchor.property.to_property_name())
                 && declaration.condition_context == anchor.condition_context
         })
         .map(query_diagnostic_cascade_declaration_from_input)
@@ -77,7 +79,10 @@ fn query_cascade_margin_for_evaluation(
         return None;
     }
 
-    let outcome = cascade_property(site_declarations, anchor.property.as_str());
+    let outcome = cascade_property_for_key(
+        site_declarations,
+        &anchor.property.to_property_name().canonical_key(),
+    );
     cascade_margin_for_outcome(&outcome)
 }
 

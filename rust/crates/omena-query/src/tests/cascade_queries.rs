@@ -1,4 +1,5 @@
 #![allow(clippy::expect_used)]
+use super::rendered_authored;
 use super::*;
 use crate::{
     read_omena_query_cascade_at_position, read_omena_query_cascade_at_position_analysis_result,
@@ -41,8 +42,11 @@ fn read_cascade_at_position_is_query_owned() {
     assert_eq!(cascade.candidate_declaration_count, 2);
     assert_eq!(cascade.shadowed_declaration_source_orders, vec![0]);
     assert_eq!(
-        cascade.referenced_declaration_property.as_deref(),
-        Some("color")
+        cascade
+            .referenced_declaration_property
+            .as_ref()
+            .map(rendered_authored),
+        Some("color".to_string())
     );
     assert_eq!(
         cascade.referenced_declaration_value.as_deref(),
@@ -89,7 +93,7 @@ fn read_cascade_at_position_is_query_owned() {
         refinement.claim_level,
         "m6DimensionalRefinementBridgeSubstrate"
     );
-    assert_eq!(refinement.property_name, "--surface");
+    assert_eq!(rendered_authored(&refinement.property_name), "--surface");
     assert_eq!(refinement.predicate_count, 1);
     assert_eq!(refinement.satisfied_all_context_count, 1);
     assert_eq!(refinement.unsatisfiable_context_count, 0);
@@ -411,7 +415,7 @@ fn read_cascade_at_position_reports_iacvt_seed() {
         refinement.claim_level,
         "m6DimensionalRefinementBridgeSubstrate"
     );
-    assert_eq!(refinement.property_name, "--a");
+    assert_eq!(rendered_authored(&refinement.property_name), "--a");
     assert_eq!(refinement.satisfied_all_context_count, 0);
     assert_eq!(refinement.unsatisfiable_context_count, 1);
     assert_eq!(

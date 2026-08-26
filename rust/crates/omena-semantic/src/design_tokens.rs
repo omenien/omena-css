@@ -11,7 +11,7 @@ use omena_cascade::{
 };
 use omena_syntax::{
     css_keyword,
-    ident::{CanonicalCustomPropertyNameV0, PropertyNameV0},
+    ident::{AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0},
 };
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -88,10 +88,10 @@ pub struct DesignTokenCascadeRankingSignalV0 {
     pub ranked_references: Vec<DesignTokenRankedReferenceV0>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesignTokenRankedReferenceV0 {
-    pub reference_name: String,
+    pub reference_name: AuthoredPropertyTextV0,
     pub reference_source_order: usize,
     pub winner_declaration_source_order: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -120,6 +120,33 @@ pub struct DesignTokenRankedReferenceV0 {
     pub cross_file_shadowed_declaration_count: usize,
 }
 
+impl PartialEq for DesignTokenRankedReferenceV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.reference_name.to_custom_key() == other.reference_name.to_custom_key()
+            && self.reference_source_order == other.reference_source_order
+            && self.winner_declaration_source_order == other.winner_declaration_source_order
+            && self.winner_declaration_file_path == other.winner_declaration_file_path
+            && self.winner_declaration_range == other.winner_declaration_range
+            && self.winner_import_graph_distance == other.winner_import_graph_distance
+            && self.winner_import_graph_order == other.winner_import_graph_order
+            && self.winner_declaration_layer_rank == other.winner_declaration_layer_rank
+            && self.winner_scope_proximity_status == other.winner_scope_proximity_status
+            && self.winner_importance_status == other.winner_importance_status
+            && self.winner_source_order_status == other.winner_source_order_status
+            && self.winner_layer_resolution_status == other.winner_layer_resolution_status
+            && self.winner_declaration_layer_name == other.winner_declaration_layer_name
+            && self.shadowed_declaration_source_orders == other.shadowed_declaration_source_orders
+            && self.candidate_declaration_count == other.candidate_declaration_count
+            && self.winner_context_kind == other.winner_context_kind
+            && self.cross_file_candidate_declaration_count
+                == other.cross_file_candidate_declaration_count
+            && self.cross_file_shadowed_declaration_count
+                == other.cross_file_shadowed_declaration_count
+    }
+}
+
+impl Eq for DesignTokenRankedReferenceV0 {}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesignTokenSemanticCapabilitiesV0 {
@@ -136,10 +163,10 @@ pub struct DesignTokenSemanticCapabilitiesV0 {
     pub theme_override_context_ready: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct DesignTokenWorkspaceDeclarationFactV0 {
     pub file_path: String,
-    pub name: String,
+    pub name: AuthoredPropertyTextV0,
     pub value: String,
     pub source_order: usize,
     pub import_graph_distance: Option<usize>,
@@ -155,10 +182,31 @@ pub struct DesignTokenWorkspaceDeclarationFactV0 {
     pub property_key: CanonicalCustomPropertyNameV0,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+impl PartialEq for DesignTokenWorkspaceDeclarationFactV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.file_path == other.file_path
+            && self.property_key == other.property_key
+            && self.value == other.value
+            && self.source_order == other.source_order
+            && self.import_graph_distance == other.import_graph_distance
+            && self.import_graph_order == other.import_graph_order
+            && self.byte_span == other.byte_span
+            && self.range == other.range
+            && self.selector_contexts == other.selector_contexts
+            && self.condition_context == other.condition_context
+            && self.layer_names == other.layer_names
+            && self.under_media == other.under_media
+            && self.under_supports == other.under_supports
+            && self.under_layer == other.under_layer
+    }
+}
+
+impl Eq for DesignTokenWorkspaceDeclarationFactV0 {}
+
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesignTokenDeclarationCandidateV0 {
-    pub name: String,
+    pub name: AuthoredPropertyTextV0,
     pub value: String,
     pub source_order: usize,
     pub file_path: String,
@@ -176,6 +224,27 @@ pub struct DesignTokenDeclarationCandidateV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub import_graph_order: Option<usize>,
 }
+
+impl PartialEq for DesignTokenDeclarationCandidateV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.name.to_custom_key() == other.name.to_custom_key()
+            && self.value == other.value
+            && self.source_order == other.source_order
+            && self.file_path == other.file_path
+            && self.range == other.range
+            && self.selector_contexts == other.selector_contexts
+            && self.condition_context == other.condition_context
+            && self.layer_names == other.layer_names
+            && self.under_media == other.under_media
+            && self.under_supports == other.under_supports
+            && self.under_layer == other.under_layer
+            && self.candidate_scope == other.candidate_scope
+            && self.import_graph_distance == other.import_graph_distance
+            && self.import_graph_order == other.import_graph_order
+    }
+}
+
+impl Eq for DesignTokenDeclarationCandidateV0 {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DesignTokenExternalDeclarationCandidateScopeV0 {
@@ -413,12 +482,12 @@ fn summarize_design_token_declaration_candidates(
         left.file_path
             .cmp(&right.file_path)
             .then_with(|| left.source_order.cmp(&right.source_order))
-            .then_with(|| left.name.cmp(&right.name))
+            .then_with(|| left.name.to_custom_key().cmp(&right.name.to_custom_key()))
     });
     candidates.dedup_by(|left, right| {
         left.file_path == right.file_path
             && left.source_order == right.source_order
-            && PropertyNameV0::custom(&left.name).same_as(&PropertyNameV0::custom(&right.name))
+            && left.name.to_custom_key() == right.name.to_custom_key()
             && left.range == right.range
     });
     candidates

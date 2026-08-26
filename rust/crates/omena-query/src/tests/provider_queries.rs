@@ -1,3 +1,4 @@
+use super::rendered_authored;
 use crate::{
     AbstractPropertyValueV0, OmenaQueryCompletionCandidateV0, OmenaQuerySourceDocumentInputV0,
     OmenaQuerySourceImportedStyleBindingV0, OmenaQuerySourceSelectorReferenceCandidateV0,
@@ -48,31 +49,30 @@ $accent: red;
     };
 
     assert_eq!(candidates.product, "omena-query.style-hover-candidates");
-    assert!(
-        candidates
-            .candidates
-            .iter()
-            .any(|candidate| candidate.kind == "selector" && candidate.name.to_string() == "button")
-    );
     assert!(candidates.candidates.iter().any(|candidate| {
-        candidate.kind == "customPropertyReference" && candidate.name.to_string() == "--brand"
+        candidate.kind == "selector" && rendered_authored(&candidate.name) == "button"
     }));
     assert!(candidates.candidates.iter().any(|candidate| {
-        candidate.kind == "sassVariableDeclaration" && candidate.name.to_string() == "accent"
+        candidate.kind == "customPropertyReference"
+            && rendered_authored(&candidate.name) == "--brand"
+    }));
+    assert!(candidates.candidates.iter().any(|candidate| {
+        candidate.kind == "sassVariableDeclaration"
+            && rendered_authored(&candidate.name) == "accent"
     }));
     assert!(candidates.candidates.iter().any(|candidate| {
         candidate.kind == "sassVariableReference"
-            && candidate.name.to_string() == "brand"
+            && rendered_authored(&candidate.name) == "brand"
             && candidate.namespace.as_deref() == Some("tokens")
     }));
     assert!(candidates.candidates.iter().any(|candidate| {
         candidate.kind == "sassMixinInclude"
-            && candidate.name.to_string() == "tone"
+            && rendered_authored(&candidate.name) == "tone"
             && candidate.namespace.as_deref() == Some("tokens")
     }));
     assert!(candidates.candidates.iter().any(|candidate| {
         candidate.kind == "sassFunctionCall"
-            && candidate.name.to_string() == "double"
+            && rendered_authored(&candidate.name) == "double"
             && candidate.namespace.as_deref() == Some("tokens")
     }));
     assert!(
@@ -81,7 +81,7 @@ $accent: red;
             .iter()
             .any(
                 |candidate| candidate.source == "sassPartialEvaluatorGeneratedSelectors"
-                    && candidate.name.to_string() == "tone-warm"
+                    && rendered_authored(&candidate.name) == "tone-warm"
             )
     );
 }
@@ -152,13 +152,13 @@ fn style_hover_render_parts_are_query_owned() {
     assert_eq!(selector.snippet, ".button { color: var(--brand); }");
     assert_eq!(selector.render_source, "ruleSnippet");
     assert!(selector.property_value_narrowings.iter().any(|narrowing| {
-        narrowing.property_name == "color"
+        rendered_authored(&narrowing.property_name) == "color"
             && narrowing.requested_condition_context.is_empty()
             && narrowing.requested_layer_scope == "exactLayer"
             && narrowing.matched_candidate_count == 1
     }));
     assert!(selector.property_value_narrowings.iter().any(|narrowing| {
-        narrowing.property_name == "color"
+        rendered_authored(&narrowing.property_name) == "color"
             && narrowing.requested_condition_context
                 == vec!["@media (min-width: 40rem)".to_string()]
             && narrowing.requested_layer_name.as_deref() == Some("theme")
@@ -181,7 +181,7 @@ fn style_hover_render_parts_narrow_same_selector_values_by_source_order() {
     let color = selector
         .property_value_narrowings
         .iter()
-        .find(|narrowing| narrowing.property_name == "color");
+        .find(|narrowing| rendered_authored(&narrowing.property_name) == "color");
     assert_eq!(
         color.map(|narrowing| narrowing.matched_candidate_count),
         Some(2)
@@ -189,7 +189,7 @@ fn style_hover_render_parts_narrow_same_selector_values_by_source_order() {
     assert_eq!(
         color.map(|narrowing| &narrowing.value),
         Some(&AbstractPropertyValueV0::Exact {
-            property_name: "color".to_string(),
+            property_name: omena_syntax::ident::AuthoredPropertyTextV0::new("color"),
             value: "#00f".to_string(),
             pseudo_state: None,
         })
@@ -218,7 +218,7 @@ fn style_hover_render_parts_for_hover_position_prefers_active_condition_layer_br
     let color_narrowings = selector
         .property_value_narrowings
         .iter()
-        .filter(|narrowing| narrowing.property_name == "color")
+        .filter(|narrowing| rendered_authored(&narrowing.property_name) == "color")
         .collect::<Vec<_>>();
     assert_eq!(color_narrowings.len(), 1);
     let color = color_narrowings[0];
@@ -230,7 +230,7 @@ fn style_hover_render_parts_for_hover_position_prefers_active_condition_layer_br
     assert_eq!(
         color.value,
         AbstractPropertyValueV0::Exact {
-            property_name: "color".to_string(),
+            property_name: omena_syntax::ident::AuthoredPropertyTextV0::new("color"),
             value: "#00f".to_string(),
             pseudo_state: None,
         }
@@ -703,11 +703,11 @@ fn style_insights_surface_shorthand_combinable_facts() {
             .shorthand_combinable
             .as_ref()
             .is_some_and(|shorthand| {
-                shorthand.shorthand_property == "margin"
+                shorthand.shorthand_property.as_str() == "margin"
                     && shorthand
                         .longhand_properties
                         .iter()
-                        .map(String::as_str)
+                        .map(|property| property.as_str())
                         .eq(["margin-top", "margin-right", "margin-bottom", "margin-left"])
                     && shorthand.combined_value == "1px 2px 3px 4px"
             })
@@ -794,8 +794,9 @@ fn style_insights_surface_cascade_relationship_facts() {
             .and_then(|insight| insight.cascade_insight.as_ref())
             .map(|cascade| {
                 cascade.relationship == "longhandOverridesEarlierShorthand"
-                    && cascade.property == "margin"
-                    && cascade.related_property.as_deref() == Some("margin-left")
+                    && rendered_authored(&cascade.property) == "margin"
+                    && cascade.related_property.as_ref().map(rendered_authored)
+                        == Some("margin-left".to_string())
             }),
         Some(true)
     );

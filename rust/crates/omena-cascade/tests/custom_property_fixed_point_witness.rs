@@ -143,7 +143,12 @@ fn custom_property_fixed_point_witness_corpus_matches_frozen_oracle() -> Result<
         let summary_env = implementation_summary
             .entries
             .iter()
-            .map(|entry| (entry.name.clone(), from_cascade_value(&entry.resolved)))
+            .map(|entry| {
+                (
+                    entry.name.as_str().to_string(),
+                    from_cascade_value(&entry.resolved),
+                )
+            })
             .collect::<BTreeMap<_, _>>();
         assert_eq!(
             implementation, summary_env,

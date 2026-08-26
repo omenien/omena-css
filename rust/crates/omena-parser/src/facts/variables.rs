@@ -6,9 +6,9 @@
 use cstree::text::TextRange;
 use omena_syntax::{
     StyleDialect, SyntaxKind,
-    ident::{CanonicalCustomPropertyNameV0, PropertyNameV0},
+    ident::{AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, PropertyNameV0},
 };
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt};
 
 #[cfg(test)]
 use crate::ParseResult;
@@ -19,10 +19,10 @@ use crate::{
 
 use super::StyleFactSink;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct ParsedVariableFact {
     pub kind: ParsedVariableFactKind,
-    pub name: String,
+    pub name: ParsedVariableFactNameV0,
     pub property_key: Option<CanonicalCustomPropertyNameV0>,
     pub range: TextRange,
     /// For a `CustomPropertyReference` written as `var(--x, fallback)`, records that a
@@ -34,6 +34,79 @@ pub struct ParsedVariableFact {
     pub defaulted: bool,
     pub is_top_level: bool,
 }
+
+#[derive(Clone)]
+pub enum ParsedVariableFactNameV0 {
+    NonProperty(String),
+    CustomProperty(AuthoredPropertyTextV0),
+}
+
+impl fmt::Debug for ParsedVariableFactNameV0 {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NonProperty(name) => fmt::Debug::fmt(name, formatter),
+            Self::CustomProperty(name) => {
+                let mut rendered = String::new();
+                name.write_into(&mut rendered)?;
+                fmt::Debug::fmt(&rendered, formatter)
+            }
+        }
+    }
+}
+
+impl ParsedVariableFactNameV0 {
+    pub fn as_non_property(&self) -> Option<&str> {
+        match self {
+            Self::NonProperty(name) => Some(name),
+            Self::CustomProperty(_) => None,
+        }
+    }
+
+    pub fn as_custom_property(&self) -> Option<&AuthoredPropertyTextV0> {
+        match self {
+            Self::NonProperty(_) => None,
+            Self::CustomProperty(name) => Some(name),
+        }
+    }
+
+    fn identity(&self) -> ParsedVariableFactNameIdentityV0 {
+        match self {
+            Self::NonProperty(name) => ParsedVariableFactNameIdentityV0::NonProperty(name.clone()),
+            Self::CustomProperty(name) => {
+                ParsedVariableFactNameIdentityV0::CustomProperty(name.to_custom_key())
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum ParsedVariableFactNameIdentityV0 {
+    NonProperty(String),
+    CustomProperty(CanonicalCustomPropertyNameV0),
+}
+
+impl PartialEq for ParsedVariableFactNameV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.identity() == other.identity()
+    }
+}
+
+impl Eq for ParsedVariableFactNameV0 {}
+
+impl PartialEq for ParsedVariableFact {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+            && self.name == other.name
+            && self.property_key == other.property_key
+            && self.range == other.range
+            && self.has_fallback == other.has_fallback
+            && self.value_repr == other.value_repr
+            && self.defaulted == other.defaulted
+            && self.is_top_level == other.is_top_level
+    }
+}
+
+impl Eq for ParsedVariableFact {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ParsedVariableFactKind {
@@ -133,9 +206,14 @@ fn variable_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedVariableFac
                 | ParsedVariableFactKind::CustomPropertyReference
         )
         .then(|| PropertyNameV0::canonical_custom_key(token.text));
+        let name = if property_key.is_some() {
+            ParsedVariableFactNameV0::CustomProperty(AuthoredPropertyTextV0::new(token.text))
+        } else {
+            ParsedVariableFactNameV0::NonProperty(token.text.to_string())
+        };
         variables.push(ParsedVariableFact {
             kind,
-            name: token.text.to_string(),
+            name,
             property_key,
             range: token.range,
             has_fallback,
@@ -221,12 +299,18 @@ fn scss_variable_value_end_and_default(tokens: &[Token<'_>], start: usize) -> (u
 
 fn push_variable_fact(
     variables: &mut Vec<ParsedVariableFact>,
-    seen: &mut std::collections::BTreeSet<(ParsedVariableFactKind, String, u32, u32, bool)>,
+    seen: &mut std::collections::BTreeSet<(
+        ParsedVariableFactKind,
+        ParsedVariableFactNameIdentityV0,
+        u32,
+        u32,
+        bool,
+    )>,
     fact: ParsedVariableFact,
 ) {
     if seen.insert((
         fact.kind,
-        fact.name.clone(),
+        fact.name.identity(),
         u32::from(fact.range.start()),
         u32::from(fact.range.end()),
         fact.has_fallback,
@@ -360,13 +444,40 @@ mod tests {
     use crate::{StyleDialect, parse};
 
     #[test]
+    fn parsed_variable_fact_name_identity_uses_custom_property_keys() {
+        let name = |value: &str| {
+            ParsedVariableFactNameV0::CustomProperty(AuthoredPropertyTextV0::new(value))
+        };
+
+        assert_eq!(name(r"--f\6f o"), name("--foo"));
+        assert_ne!(name("--foo"), name("--FOO"));
+    }
+
+    #[test]
+    fn parsed_variable_fact_identity_uses_custom_property_keys() -> Result<(), String> {
+        let source = ":root { --foo: red; }";
+        let parsed = parse(source, StyleDialect::Css);
+        let decoded = collect_variable_facts_from_cst(source, &parsed)
+            .into_iter()
+            .find(|fact| fact.name.as_custom_property().is_some())
+            .ok_or_else(|| "custom-property declaration produces a variable fact".to_string())?;
+        let mut escaped = decoded.clone();
+        escaped.name =
+            ParsedVariableFactNameV0::CustomProperty(AuthoredPropertyTextV0::new(r"--f\6f o"));
+
+        assert_eq!(escaped, decoded);
+        Ok(())
+    }
+
+    #[test]
     fn scss_declarations_expose_values_and_default_flags_from_cst() {
         let source = "$theme: (primary: red, accent: blue) !default;\n.scope { $local: 2px; }";
         let parsed = parse(source, StyleDialect::Scss);
         let facts = collect_variable_facts_from_cst(source, &parsed);
 
         let theme = facts.iter().find(|fact| {
-            fact.kind == ParsedVariableFactKind::ScssDeclaration && fact.name == "$theme"
+            fact.kind == ParsedVariableFactKind::ScssDeclaration
+                && fact.name.as_non_property() == Some("$theme")
         });
         assert!(theme.is_some(), "top-level variable declaration");
         let Some(theme) = theme else {
@@ -380,7 +491,8 @@ mod tests {
         assert!(theme.is_top_level);
 
         let local = facts.iter().find(|fact| {
-            fact.kind == ParsedVariableFactKind::ScssDeclaration && fact.name == "$local"
+            fact.kind == ParsedVariableFactKind::ScssDeclaration
+                && fact.name.as_non_property() == Some("$local")
         });
         assert!(local.is_some(), "local variable declaration");
         let Some(local) = local else {

@@ -1,6 +1,6 @@
 use super::*;
 use omena_query_transform_runner::TransformDesignTokenRouteV0;
-use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0};
+use omena_syntax::ident::{AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, PropertyNameV0};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 pub(super) fn derive_design_token_routes_for_transform_context(
@@ -77,7 +77,7 @@ fn local_custom_property_index_names(
     entry: &OmenaQueryStyleFactEntry,
 ) -> (
     BTreeSet<CanonicalCustomPropertyNameV0>,
-    BTreeMap<CanonicalCustomPropertyNameV0, String>,
+    BTreeMap<CanonicalCustomPropertyNameV0, AuthoredPropertyTextV0>,
 ) {
     let (declaration_names, reference_names) =
         if let Some(index) = entry.semantic_runtime_index.as_ref() {
@@ -95,15 +95,11 @@ fn local_custom_property_index_names(
     (
         declaration_names
             .iter()
-            .filter_map(|name| PropertyNameV0::from_authored(name).as_custom_key())
+            .map(AuthoredPropertyTextV0::to_custom_key)
             .collect(),
         reference_names
             .iter()
-            .filter_map(|name| {
-                PropertyNameV0::from_authored(name)
-                    .as_custom_key()
-                    .map(|property_key| (property_key, name.clone()))
-            })
+            .map(|name| (name.to_custom_key(), name.clone()))
             .collect(),
     )
 }
@@ -132,7 +128,7 @@ fn design_token_route_value_is_safe(value: &str) -> bool {
 
 fn collect_design_token_route_value_references(
     value: &str,
-) -> Vec<(CanonicalCustomPropertyNameV0, String)> {
+) -> Vec<(CanonicalCustomPropertyNameV0, AuthoredPropertyTextV0)> {
     let mut references = Vec::new();
     let mut seen = BTreeSet::new();
     let mut index = 0usize;
@@ -232,7 +228,7 @@ fn matching_design_token_route_function_call_end(
 
 fn design_token_route_first_argument_name(
     arguments: &str,
-) -> Option<(CanonicalCustomPropertyNameV0, String)> {
+) -> Option<(CanonicalCustomPropertyNameV0, AuthoredPropertyTextV0)> {
     let mut index = 0usize;
     let mut depth = 0usize;
     let mut quote: Option<char> = None;
@@ -274,8 +270,8 @@ fn design_token_route_first_argument_name(
 
 fn normalize_design_token_route_name(
     name: &str,
-) -> Option<(CanonicalCustomPropertyNameV0, String)> {
+) -> Option<(CanonicalCustomPropertyNameV0, AuthoredPropertyTextV0)> {
     let property = PropertyNameV0::from_authored(name);
     let property_key = property.as_custom_key()?;
-    (property_key.as_str().len() > 2).then(|| (property_key, property.authored_text().to_string()))
+    (property_key.as_str().len() > 2).then(|| (property_key, property.authored_text()))
 }

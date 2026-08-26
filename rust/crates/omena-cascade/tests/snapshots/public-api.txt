@@ -25,13 +25,39 @@
 #[non_exhaustive] pub struct omena_cascade::OpenWorldTieEvidence
 #[non_exhaustive] pub struct omena_cascade::first_witness::GuardedCascadeFragmentPredicateV0
 #[non_exhaustive] pub struct omena_cascade::first_witness::GuardedCascadeWinnerAuthorityV0
+impl core::cmp::Eq for omena_cascade::BoxLonghandInputV0
+impl core::cmp::Eq for omena_cascade::CascadeComputedValueInputV0
+impl core::cmp::Eq for omena_cascade::CascadeComputedValueResultV0
 impl core::cmp::Eq for omena_cascade::CascadeDeclaration
+impl core::cmp::Eq for omena_cascade::CascadeEvidenceV0
 impl core::cmp::Eq for omena_cascade::CascadeProof
+impl core::cmp::Eq for omena_cascade::CascadeRankedSetLossCensusRowV0
+impl core::cmp::Eq for omena_cascade::CascadeRegisteredCustomPropertyV0
+impl core::cmp::Eq for omena_cascade::CustomPropertyEvidenceV0
+impl core::cmp::Eq for omena_cascade::GrnVertexV0
+impl core::cmp::Eq for omena_cascade::GuardedCascadeFragmentPredicateV0
+impl core::cmp::Eq for omena_cascade::GuardedCascadeFragmentPredicateV0
+impl core::cmp::Eq for omena_cascade::GuardedCascadeFragmentRefusalV0
+impl core::cmp::Eq for omena_cascade::GuardedCascadeFragmentRefusalV0
+impl core::cmp::Eq for omena_cascade::ShorthandCombinationProofV0
 impl core::cmp::Ord for omena_cascade::CascadeKey
 impl core::cmp::Ord for omena_cascade::ModuleRank
 impl core::cmp::Ord for omena_cascade::Specificity
+impl core::cmp::PartialEq for omena_cascade::BoxLonghandInputV0
+impl core::cmp::PartialEq for omena_cascade::CascadeComputedValueInputV0
+impl core::cmp::PartialEq for omena_cascade::CascadeComputedValueResultV0
 impl core::cmp::PartialEq for omena_cascade::CascadeDeclaration
+impl core::cmp::PartialEq for omena_cascade::CascadeEvidenceV0
 impl core::cmp::PartialEq for omena_cascade::CascadeProof
+impl core::cmp::PartialEq for omena_cascade::CascadeRankedSetLossCensusRowV0
+impl core::cmp::PartialEq for omena_cascade::CascadeRegisteredCustomPropertyV0
+impl core::cmp::PartialEq for omena_cascade::CustomPropertyEvidenceV0
+impl core::cmp::PartialEq for omena_cascade::GrnVertexV0
+impl core::cmp::PartialEq for omena_cascade::GuardedCascadeFragmentPredicateV0
+impl core::cmp::PartialEq for omena_cascade::GuardedCascadeFragmentPredicateV0
+impl core::cmp::PartialEq for omena_cascade::GuardedCascadeFragmentRefusalV0
+impl core::cmp::PartialEq for omena_cascade::GuardedCascadeFragmentRefusalV0
+impl core::cmp::PartialEq for omena_cascade::ShorthandCombinationProofV0
 impl core::cmp::PartialOrd for omena_cascade::CascadeKey
 impl core::cmp::PartialOrd for omena_cascade::ModuleRank
 impl core::cmp::PartialOrd for omena_cascade::Specificity
@@ -99,8 +125,16 @@ impl serde_core::ser::Serialize for omena_cascade::TokenSupportV0
 impl serde_core::ser::Serialize for omena_cascade::TokenSupportV0
 impl<K: core::clone::Clone + core::cmp::Ord> omena_cascade::GuardedCascadeFragmentV0<K>
 impl<K: core::clone::Clone + core::cmp::Ord> omena_cascade::GuardedCascadeFragmentV0<K>
+impl<K: core::cmp::Eq> core::cmp::Eq for omena_cascade::GuardedCascadeCandidateV0<K>
+impl<K: core::cmp::Eq> core::cmp::Eq for omena_cascade::GuardedCascadeCandidateV0<K>
+impl<K: core::cmp::Eq> core::cmp::Eq for omena_cascade::GuardedCascadeFragmentV0<K>
+impl<K: core::cmp::Eq> core::cmp::Eq for omena_cascade::GuardedCascadeFragmentV0<K>
 impl<K: core::cmp::Ord> omena_cascade::IncrementalGuardedCascadeWinnerV0<K>
 impl<K: core::cmp::Ord> omena_cascade::IncrementalGuardedCascadeWinnerV0<K>
+impl<K: core::cmp::PartialEq> core::cmp::PartialEq for omena_cascade::GuardedCascadeCandidateV0<K>
+impl<K: core::cmp::PartialEq> core::cmp::PartialEq for omena_cascade::GuardedCascadeCandidateV0<K>
+impl<K: core::cmp::PartialEq> core::cmp::PartialEq for omena_cascade::GuardedCascadeFragmentV0<K>
+impl<K: core::cmp::PartialEq> core::cmp::PartialEq for omena_cascade::GuardedCascadeFragmentV0<K>
 impl<K> omena_cascade::GuardedCascadeCandidateV0<K>
 impl<K> omena_cascade::GuardedCascadeCandidateV0<K>
 impl<K> omena_cascade::GuardedCascadeFragmentV0<K>
@@ -120,6 +154,8 @@ pub const fn omena_cascade::GuardedCascadeCandidateV0<K>::cascade_key(&self) -> 
 pub const fn omena_cascade::GuardedCascadeCandidateV0<K>::cascade_key(&self) -> &K
 pub const fn omena_cascade::GuardedCascadeCandidateV0<K>::declaration_id(&self) -> u32
 pub const fn omena_cascade::GuardedCascadeCandidateV0<K>::declaration_id(&self) -> u32
+pub const fn omena_cascade::GuardedCascadeCandidateV0<K>::property(&self) -> &omena_syntax::ident::AuthoredPropertyTextV0
+pub const fn omena_cascade::GuardedCascadeCandidateV0<K>::property(&self) -> &omena_syntax::ident::AuthoredPropertyTextV0
 pub const fn omena_cascade::GuardedCascadeCandidateV0<K>::scope_proximity(&self) -> u32
 pub const fn omena_cascade::GuardedCascadeCandidateV0<K>::scope_proximity(&self) -> u32
 pub const fn omena_cascade::GuardedCascadeCandidateV0<K>::specificity_exactness(&self) -> omena_cascade::GuardedCascadeSpecificityExactnessV0
@@ -130,6 +166,8 @@ pub const fn omena_cascade::GuardedCascadeConditionAtomV0::kind(&self) -> omena_
 pub const fn omena_cascade::GuardedCascadeConditionAtomV0::kind(&self) -> omena_cascade::GuardedCascadeConditionKindV0
 pub const fn omena_cascade::GuardedCascadeFragmentRefusalV0::name(&self) -> &'static str
 pub const fn omena_cascade::GuardedCascadeFragmentRefusalV0::name(&self) -> &'static str
+pub const fn omena_cascade::GuardedCascadeFragmentV0<K>::property(&self) -> &omena_syntax::ident::AuthoredPropertyTextV0
+pub const fn omena_cascade::GuardedCascadeFragmentV0<K>::property(&self) -> &omena_syntax::ident::AuthoredPropertyTextV0
 pub const fn omena_cascade::GuardedCascadePerturbationCostModelV0::cost(&self, omena_cascade::GuardedCascadePerturbationKindV0) -> u32
 pub const fn omena_cascade::GuardedCascadePerturbationCostModelV0::unit_cost_v0() -> Self
 pub const fn omena_cascade::GuardedCascadePerturbationV0::kind(&self) -> omena_cascade::GuardedCascadePerturbationKindV0
@@ -242,13 +280,20 @@ pub fn omena_cascade::AtRuleNestingOrderAtomV0::atom(&self) -> &str
 pub fn omena_cascade::AtRuleNestingOrderAtomV0::atom(&self) -> &str
 pub fn omena_cascade::AtRuleNestingOrderAtomV0::new(impl core::convert::Into<alloc::string::String>, impl core::iter::traits::collect::IntoIterator<Item = u32>) -> Self
 pub fn omena_cascade::AtRuleNestingOrderAtomV0::new(impl core::convert::Into<alloc::string::String>, impl core::iter::traits::collect::IntoIterator<Item = u32>) -> Self
+pub fn omena_cascade::BoxLonghandInputV0::eq(&self, &Self) -> bool
+pub fn omena_cascade::CascadeComputedValueInputV0::eq(&self, &Self) -> bool
+pub fn omena_cascade::CascadeComputedValueResultV0::eq(&self, &Self) -> bool
 pub fn omena_cascade::CascadeDeclaration::eq(&self, &Self) -> bool
+pub fn omena_cascade::CascadeEvidenceV0::eq(&self, &Self) -> bool
 pub fn omena_cascade::CascadeKey::cmp(&self, &Self) -> core::cmp::Ordering
 pub fn omena_cascade::CascadeKey::partial_cmp(&self, &Self) -> core::option::Option<core::cmp::Ordering>
 pub fn omena_cascade::CascadeProof::eq(&self, &Self) -> bool
 pub fn omena_cascade::CascadeProof::from_declaration(&omena_cascade::CascadeDeclaration) -> Self
+pub fn omena_cascade::CascadeRankedSetLossCensusRowV0::eq(&self, &Self) -> bool
 pub fn omena_cascade::CascadeRefinementContextV0::default() -> Self
+pub fn omena_cascade::CascadeRegisteredCustomPropertyV0::eq(&self, &Self) -> bool
 pub fn omena_cascade::CascadeStandardValueValidatorV0::validate_standard_property_value(&self, &omena_syntax::ident::PropertyNameV0, &str) -> omena_cascade::CascadeStandardValueVerdictV0
+pub fn omena_cascade::CustomPropertyEvidenceV0::eq(&self, &Self) -> bool
 pub fn omena_cascade::ElementParentChainV0::is_complete(&self) -> bool
 pub fn omena_cascade::ElementSignature::at_least_classes(impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<alloc::string::String>>) -> Self
 pub fn omena_cascade::ElementSignature::concrete(core::option::Option<impl core::convert::Into<alloc::string::String>>, core::option::Option<impl core::convert::Into<alloc::string::String>>, impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<alloc::string::String>>) -> Self
@@ -296,14 +341,15 @@ pub fn omena_cascade::FirstWitnessManagerV0::variable(&mut self, &str) -> core::
 pub fn omena_cascade::FirstWitnessManagerV0::variable(&mut self, &str) -> core::result::Result<omena_cascade::NodeId, omena_cascade::FirstWitnessErrorV0>
 pub fn omena_cascade::FirstWitnessManagerV0::xor(&mut self, omena_cascade::NodeId, omena_cascade::NodeId) -> core::result::Result<omena_cascade::NodeId, omena_cascade::FirstWitnessErrorV0>
 pub fn omena_cascade::FirstWitnessManagerV0::xor(&mut self, omena_cascade::NodeId, omena_cascade::NodeId) -> core::result::Result<omena_cascade::NodeId, omena_cascade::FirstWitnessErrorV0>
+pub fn omena_cascade::GrnVertexV0::eq(&self, &Self) -> bool
 pub fn omena_cascade::GuardedCascadeCandidateV0<K>::conditions(&self) -> &[omena_cascade::GuardedCascadeConditionAtomV0]
 pub fn omena_cascade::GuardedCascadeCandidateV0<K>::conditions(&self) -> &[omena_cascade::GuardedCascadeConditionAtomV0]
 pub fn omena_cascade::GuardedCascadeCandidateV0<K>::element_signature(&self) -> &str
 pub fn omena_cascade::GuardedCascadeCandidateV0<K>::element_signature(&self) -> &str
-pub fn omena_cascade::GuardedCascadeCandidateV0<K>::new(u32, impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>, K, omena_cascade::GuardedCascadeSpecificityExactnessV0, u32, alloc::vec::Vec<omena_cascade::GuardedCascadeConditionAtomV0>) -> Self
-pub fn omena_cascade::GuardedCascadeCandidateV0<K>::new(u32, impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>, K, omena_cascade::GuardedCascadeSpecificityExactnessV0, u32, alloc::vec::Vec<omena_cascade::GuardedCascadeConditionAtomV0>) -> Self
-pub fn omena_cascade::GuardedCascadeCandidateV0<K>::property(&self) -> &str
-pub fn omena_cascade::GuardedCascadeCandidateV0<K>::property(&self) -> &str
+pub fn omena_cascade::GuardedCascadeCandidateV0<K>::eq(&self, &Self) -> bool
+pub fn omena_cascade::GuardedCascadeCandidateV0<K>::eq(&self, &Self) -> bool
+pub fn omena_cascade::GuardedCascadeCandidateV0<K>::new(u32, impl core::convert::Into<alloc::string::String>, omena_syntax::ident::AuthoredPropertyTextV0, K, omena_cascade::GuardedCascadeSpecificityExactnessV0, u32, alloc::vec::Vec<omena_cascade::GuardedCascadeConditionAtomV0>) -> Self
+pub fn omena_cascade::GuardedCascadeCandidateV0<K>::new(u32, impl core::convert::Into<alloc::string::String>, omena_syntax::ident::AuthoredPropertyTextV0, K, omena_cascade::GuardedCascadeSpecificityExactnessV0, u32, alloc::vec::Vec<omena_cascade::GuardedCascadeConditionAtomV0>) -> Self
 pub fn omena_cascade::GuardedCascadeConditionAtomV0::at_rule_path(&self) -> &[u32]
 pub fn omena_cascade::GuardedCascadeConditionAtomV0::at_rule_path(&self) -> &[u32]
 pub fn omena_cascade::GuardedCascadeConditionAtomV0::atom(&self) -> &str
@@ -316,6 +362,10 @@ pub fn omena_cascade::GuardedCascadeConditionAtomV0::structural_pseudo(impl core
 pub fn omena_cascade::GuardedCascadeConditionAtomV0::structural_pseudo(impl core::convert::Into<alloc::string::String>) -> Self
 pub fn omena_cascade::GuardedCascadeConditionAtomV0::supports(impl core::convert::Into<alloc::string::String>, impl core::iter::traits::collect::IntoIterator<Item = u32>, bool) -> Self
 pub fn omena_cascade::GuardedCascadeConditionAtomV0::supports(impl core::convert::Into<alloc::string::String>, impl core::iter::traits::collect::IntoIterator<Item = u32>, bool) -> Self
+pub fn omena_cascade::GuardedCascadeFragmentPredicateV0::eq(&self, &Self) -> bool
+pub fn omena_cascade::GuardedCascadeFragmentPredicateV0::eq(&self, &Self) -> bool
+pub fn omena_cascade::GuardedCascadeFragmentRefusalV0::eq(&self, &Self) -> bool
+pub fn omena_cascade::GuardedCascadeFragmentRefusalV0::eq(&self, &Self) -> bool
 pub fn omena_cascade::GuardedCascadeFragmentRefusalV0::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub fn omena_cascade::GuardedCascadeFragmentRefusalV0::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub fn omena_cascade::GuardedCascadeFragmentV0<K>::admit(impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<alloc::string::String>>, impl core::iter::traits::collect::IntoIterator<Item = omena_cascade::GuardedCascadeCandidateV0<K>>) -> core::result::Result<Self, omena_cascade::GuardedCascadeFragmentRefusalV0>
@@ -326,10 +376,10 @@ pub fn omena_cascade::GuardedCascadeFragmentV0<K>::condition_alphabet(&self) -> 
 pub fn omena_cascade::GuardedCascadeFragmentV0<K>::condition_alphabet(&self) -> &[alloc::string::String]
 pub fn omena_cascade::GuardedCascadeFragmentV0<K>::element_signature(&self) -> &str
 pub fn omena_cascade::GuardedCascadeFragmentV0<K>::element_signature(&self) -> &str
+pub fn omena_cascade::GuardedCascadeFragmentV0<K>::eq(&self, &Self) -> bool
+pub fn omena_cascade::GuardedCascadeFragmentV0<K>::eq(&self, &Self) -> bool
 pub fn omena_cascade::GuardedCascadeFragmentV0<K>::predicate(&self) -> omena_cascade::GuardedCascadeFragmentPredicateV0
 pub fn omena_cascade::GuardedCascadeFragmentV0<K>::predicate(&self) -> omena_cascade::GuardedCascadeFragmentPredicateV0
-pub fn omena_cascade::GuardedCascadeFragmentV0<K>::property(&self) -> &str
-pub fn omena_cascade::GuardedCascadeFragmentV0<K>::property(&self) -> &str
 pub fn omena_cascade::GuardedCascadeRobustnessErrorV0::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub fn omena_cascade::GuardedCascadeRobustnessErrorV0::from(omena_cascade::FirstWitnessErrorV0) -> Self
 pub fn omena_cascade::GuardedCascadeRobustnessErrorV0::from(omena_cascade::FirstWitnessErrorV0) -> Self
@@ -360,6 +410,7 @@ pub fn omena_cascade::OrderedTokenWordV0::tokens(&self) -> &[omena_syntax::ident
 pub fn omena_cascade::OrderedTokenWordV0::tokens(&self) -> &[omena_syntax::ident::CanonicalClassKeyV0]
 pub fn omena_cascade::SelectorContextWitness::no_match() -> Self
 pub fn omena_cascade::SelectorSignature::requires_class(&self, &str) -> bool
+pub fn omena_cascade::ShorthandCombinationProofV0::eq(&self, &Self) -> bool
 pub fn omena_cascade::Specificity::cmp(&self, &Self) -> core::cmp::Ordering
 pub fn omena_cascade::Specificity::partial_cmp(&self, &Self) -> core::option::Option<core::cmp::Ordering>
 pub fn omena_cascade::SupportsTargetCapabilityV0::default() -> Self
@@ -389,7 +440,9 @@ pub fn omena_cascade::cascade_driven_winner_axes_v0() -> alloc::vec::Vec<omena_c
 pub fn omena_cascade::cascade_driver_census_is_consistent_v0() -> bool
 pub fn omena_cascade::cascade_margin_for_outcome(&omena_cascade::CascadeOutcome) -> core::option::Option<omena_cascade::CascadeMarginV0>
 pub fn omena_cascade::cascade_property(impl core::iter::traits::collect::IntoIterator<Item = omena_cascade::CascadeDeclaration>, &str) -> omena_cascade::CascadeOutcome
+pub fn omena_cascade::cascade_property_for_key(impl core::iter::traits::collect::IntoIterator<Item = omena_cascade::CascadeDeclaration>, &omena_syntax::ident::CanonicalPropertyKeyV0) -> omena_cascade::CascadeOutcome
 pub fn omena_cascade::cascade_property_open_world(impl core::iter::traits::collect::IntoIterator<Item = omena_cascade::CascadeDeclaration>, &str) -> omena_cascade::CascadeOutcome
+pub fn omena_cascade::cascade_property_open_world_for_key(impl core::iter::traits::collect::IntoIterator<Item = omena_cascade::CascadeDeclaration>, &omena_syntax::ident::CanonicalPropertyKeyV0) -> omena_cascade::CascadeOutcome
 pub fn omena_cascade::cascade_ultrametric_distance_v0(omena_cascade::CascadeUltrametricPathV0, omena_cascade::CascadeUltrametricPathV0) -> u8
 pub fn omena_cascade::choose_grn_attractor_strategy(usize) -> omena_cascade::AttractorEnumerationStrategyV0
 pub fn omena_cascade::class_tokens::token_support_v0(&omena_cascade::OrderedTokenWordV0) -> omena_cascade::TokenSupportV0
@@ -493,7 +546,7 @@ pub omena_cascade::BooleanOperationV0::And
 pub omena_cascade::BooleanOperationV0::Or
 pub omena_cascade::BooleanOperationV0::Xor
 pub omena_cascade::BoxLonghandInputV0::important: bool
-pub omena_cascade::BoxLonghandInputV0::property: alloc::string::String
+pub omena_cascade::BoxLonghandInputV0::property: omena_syntax::ident::AuthoredPropertyTextV0
 pub omena_cascade::BoxLonghandInputV0::source_order: u32
 pub omena_cascade::BoxLonghandInputV0::value: alloc::string::String
 pub omena_cascade::CascadeAttractorBasinProofV0::conservative: bool
@@ -542,7 +595,7 @@ pub omena_cascade::CascadeBoundarySummary::substitution_model: &'static str
 pub omena_cascade::CascadeComputedValueInputV0::custom_property_env: omena_cascade::CustomPropertyEnv
 pub omena_cascade::CascadeComputedValueInputV0::declarations: alloc::vec::Vec<omena_cascade::CascadeDeclaration>
 pub omena_cascade::CascadeComputedValueInputV0::parent_computed_value: core::option::Option<omena_cascade::CascadeValue>
-pub omena_cascade::CascadeComputedValueInputV0::property: alloc::string::String
+pub omena_cascade::CascadeComputedValueInputV0::property: omena_syntax::ident::AuthoredPropertyTextV0
 pub omena_cascade::CascadeComputedValueInputV0::registered_custom_property: core::option::Option<omena_cascade::CascadeRegisteredCustomPropertyV0>
 pub omena_cascade::CascadeComputedValueInputV0::standard_property_value_verdicts: alloc::collections::btree::map::BTreeMap<alloc::string::String, omena_cascade::CascadeStandardValueVerdictV0>
 pub omena_cascade::CascadeComputedValueResultV0::derivation_steps: alloc::vec::Vec<&'static str>
@@ -551,7 +604,7 @@ pub omena_cascade::CascadeComputedValueResultV0::indeterminate_reason: core::opt
 pub omena_cascade::CascadeComputedValueResultV0::inherited: bool
 pub omena_cascade::CascadeComputedValueResultV0::invalid_at_computed_value_time: bool
 pub omena_cascade::CascadeComputedValueResultV0::product: &'static str
-pub omena_cascade::CascadeComputedValueResultV0::property: alloc::string::String
+pub omena_cascade::CascadeComputedValueResultV0::property: omena_syntax::ident::AuthoredPropertyTextV0
 pub omena_cascade::CascadeComputedValueResultV0::schema_version: &'static str
 pub omena_cascade::CascadeComputedValueResultV0::status: omena_cascade::ComputedCascadeValueStatusV0
 pub omena_cascade::CascadeComputedValueResultV0::used_initial_value: bool
@@ -598,7 +651,7 @@ pub omena_cascade::CascadeEvaluationFuzzResultV0::passed: bool
 pub omena_cascade::CascadeEvaluationFuzzResultV0::ranked_count: usize
 pub omena_cascade::CascadeEvaluationFuzzResultV0::seed: u64
 pub omena_cascade::CascadeEvidenceV0::declaration_ids: alloc::vec::Vec<alloc::string::String>
-pub omena_cascade::CascadeEvidenceV0::property: alloc::string::String
+pub omena_cascade::CascadeEvidenceV0::property: omena_syntax::ident::AuthoredPropertyTextV0
 pub omena_cascade::CascadeEvidenceV0::selector: alloc::string::String
 pub omena_cascade::CascadeFrustrationV0::advisory_only: bool
 pub omena_cascade::CascadeFrustrationV0::feature_gate: &'static str
@@ -702,7 +755,7 @@ pub omena_cascade::CascadeRankedSetLossCensusRowV0::definite_winner_declaration_
 pub omena_cascade::CascadeRankedSetLossCensusRowV0::final_outcome: omena_cascade::CascadeRankedSetFinalOutcomeV0
 pub omena_cascade::CascadeRankedSetLossCensusRowV0::function: omena_cascade::CascadeRankedSetFunctionV0
 pub omena_cascade::CascadeRankedSetLossCensusRowV0::invocation_site: &'static str
-pub omena_cascade::CascadeRankedSetLossCensusRowV0::property: alloc::string::String
+pub omena_cascade::CascadeRankedSetLossCensusRowV0::property: omena_syntax::ident::AuthoredPropertyTextV0
 pub omena_cascade::CascadeRankedSetLossCensusRowV0::source_path: alloc::string::String
 pub omena_cascade::CascadeRankedSetLossClassV0::AxisWinnerInexact
 pub omena_cascade::CascadeRankedSetLossClassV0::NoStrictAxisDominance
@@ -716,7 +769,7 @@ pub omena_cascade::CascadeRefinementContextV0::supports_condition: core::option:
 pub omena_cascade::CascadeRegisteredCustomPropertyV0::declaration_value_verdicts: alloc::collections::btree::map::BTreeMap<alloc::string::String, omena_cascade::CascadeRegisteredValueVerdictV0>
 pub omena_cascade::CascadeRegisteredCustomPropertyV0::inherits: bool
 pub omena_cascade::CascadeRegisteredCustomPropertyV0::initial_value: omena_cascade::CascadeValue
-pub omena_cascade::CascadeRegisteredCustomPropertyV0::name: alloc::string::String
+pub omena_cascade::CascadeRegisteredCustomPropertyV0::name: omena_syntax::ident::AuthoredPropertyTextV0
 pub omena_cascade::CascadeRegisteredValueVerdictV0::Matched
 pub omena_cascade::CascadeRegisteredValueVerdictV0::Unknown
 pub omena_cascade::CascadeRegisteredValueVerdictV0::Unmatched
@@ -865,8 +918,8 @@ pub omena_cascade::CssPropertyMetadataV1Json::product: alloc::string::String
 pub omena_cascade::CssPropertyMetadataV1Json::properties: alloc::vec::Vec<omena_cascade::CssPropertyMetadataRecordV1Json>
 pub omena_cascade::CssPropertyMetadataV1Json::schema_version: alloc::string::String
 pub omena_cascade::CssPropertyMetadataV1Json::source: omena_cascade::CssPropertyMetadataSourceV1Json
-pub omena_cascade::CustomPropertyEvidenceV0::custom_property_name: alloc::string::String
-pub omena_cascade::CustomPropertyEvidenceV0::dependency_names: alloc::vec::Vec<alloc::string::String>
+pub omena_cascade::CustomPropertyEvidenceV0::custom_property_name: omena_syntax::ident::AuthoredPropertyTextV0
+pub omena_cascade::CustomPropertyEvidenceV0::dependency_names: alloc::vec::Vec<omena_syntax::ident::AuthoredPropertyTextV0>
 pub omena_cascade::CustomPropertyGuaranteedInvalidReasonV0::CycleMember
 pub omena_cascade::CustomPropertyGuaranteedInvalidReasonV0::InvalidDependencyWithoutFallback
 pub omena_cascade::CustomPropertyGuaranteedInvalidReasonV0::MissingReference
@@ -874,7 +927,7 @@ pub omena_cascade::CustomPropertyLeastFixedPointEntryV0::changed: bool
 pub omena_cascade::CustomPropertyLeastFixedPointEntryV0::guaranteed_invalid: bool
 pub omena_cascade::CustomPropertyLeastFixedPointEntryV0::guaranteed_invalid_reason: core::option::Option<omena_cascade::CustomPropertyGuaranteedInvalidReasonV0>
 pub omena_cascade::CustomPropertyLeastFixedPointEntryV0::input: omena_cascade::CascadeValue
-pub omena_cascade::CustomPropertyLeastFixedPointEntryV0::name: alloc::string::String
+pub omena_cascade::CustomPropertyLeastFixedPointEntryV0::name: omena_syntax::ident::CanonicalCustomPropertyNameV0
 pub omena_cascade::CustomPropertyLeastFixedPointEntryV0::resolved: omena_cascade::CascadeValue
 pub omena_cascade::CustomPropertyLeastFixedPointIterationV0::changed_count: usize
 pub omena_cascade::CustomPropertyLeastFixedPointIterationV0::guaranteed_invalid_count: usize
@@ -1006,7 +1059,7 @@ pub omena_cascade::GrnTransitionRecordV0::from_state: u64
 pub omena_cascade::GrnTransitionRecordV0::to_state: u64
 pub omena_cascade::GrnVertexStateV0::state: omena_cascade::GrnBooleanState
 pub omena_cascade::GrnVertexStateV0::vertex: omena_cascade::GrnVertexV0
-pub omena_cascade::GrnVertexV0::property: alloc::string::String
+pub omena_cascade::GrnVertexV0::property: omena_syntax::ident::AuthoredPropertyTextV0
 pub omena_cascade::GrnVertexV0::selector: alloc::string::String
 pub omena_cascade::GrnVertexV0::vertex_id: alloc::string::String
 pub omena_cascade::GuardedCascadeConditionImplicationV0::antecedent_atom: alloc::string::String
@@ -1017,7 +1070,7 @@ pub omena_cascade::GuardedCascadeConditionKindV0::StructuralPseudo
 pub omena_cascade::GuardedCascadeConditionKindV0::Supports
 pub omena_cascade::GuardedCascadeFragmentPredicateV0::condition_alphabet: alloc::vec::Vec<alloc::string::String>
 pub omena_cascade::GuardedCascadeFragmentPredicateV0::element_signature: alloc::string::String
-pub omena_cascade::GuardedCascadeFragmentPredicateV0::property: alloc::string::String
+pub omena_cascade::GuardedCascadeFragmentPredicateV0::property: omena_syntax::ident::AuthoredPropertyTextV0
 pub omena_cascade::GuardedCascadeFragmentRefusalV0::ConditionAlphabetCapacityExceeded
 pub omena_cascade::GuardedCascadeFragmentRefusalV0::ConditionOutsideDeclaredAlphabet
 pub omena_cascade::GuardedCascadeFragmentRefusalV0::ConditionOutsideDeclaredAlphabet::atom: alloc::string::String
@@ -1034,8 +1087,8 @@ pub omena_cascade::GuardedCascadeFragmentRefusalV0::MultipleElementSignatures
 pub omena_cascade::GuardedCascadeFragmentRefusalV0::MultipleElementSignatures::expected: alloc::string::String
 pub omena_cascade::GuardedCascadeFragmentRefusalV0::MultipleElementSignatures::observed: alloc::string::String
 pub omena_cascade::GuardedCascadeFragmentRefusalV0::MultipleProperties
-pub omena_cascade::GuardedCascadeFragmentRefusalV0::MultipleProperties::expected: alloc::string::String
-pub omena_cascade::GuardedCascadeFragmentRefusalV0::MultipleProperties::observed: alloc::string::String
+pub omena_cascade::GuardedCascadeFragmentRefusalV0::MultipleProperties::expected: omena_syntax::ident::AuthoredPropertyTextV0
+pub omena_cascade::GuardedCascadeFragmentRefusalV0::MultipleProperties::observed: omena_syntax::ident::AuthoredPropertyTextV0
 pub omena_cascade::GuardedCascadeFragmentRefusalV0::NonUniqueCascadeKey
 pub omena_cascade::GuardedCascadeFragmentRefusalV0::NonUniqueCascadeKey::first_declaration_id: u32
 pub omena_cascade::GuardedCascadeFragmentRefusalV0::NonUniqueCascadeKey::second_declaration_id: u32
@@ -1275,11 +1328,11 @@ pub omena_cascade::SelectorSignature::specificity_exactness: omena_cascade::Spec
 pub omena_cascade::ShorthandCombinationProofV0::accepted: bool
 pub omena_cascade::ShorthandCombinationProofV0::blocked_reason: core::option::Option<&'static str>
 pub omena_cascade::ShorthandCombinationProofV0::cascade_safe_witness: alloc::string::String
-pub omena_cascade::ShorthandCombinationProofV0::ordered_longhand_properties: alloc::vec::Vec<alloc::string::String>
+pub omena_cascade::ShorthandCombinationProofV0::ordered_longhand_properties: alloc::vec::Vec<omena_syntax::ident::AuthoredPropertyTextV0>
 pub omena_cascade::ShorthandCombinationProofV0::product: &'static str
 pub omena_cascade::ShorthandCombinationProofV0::provenance_preserved: bool
 pub omena_cascade::ShorthandCombinationProofV0::schema_version: &'static str
-pub omena_cascade::ShorthandCombinationProofV0::shorthand_property: alloc::string::String
+pub omena_cascade::ShorthandCombinationProofV0::shorthand_property: omena_syntax::ident::AuthoredPropertyTextV0
 pub omena_cascade::Specificity::classes: u32
 pub omena_cascade::Specificity::elements: u32
 pub omena_cascade::Specificity::ids: u32
@@ -1380,7 +1433,7 @@ pub omena_cascade::first_witness::GuardedCascadeConditionKindV0::StructuralPseud
 pub omena_cascade::first_witness::GuardedCascadeConditionKindV0::Supports
 pub omena_cascade::first_witness::GuardedCascadeFragmentPredicateV0::condition_alphabet: alloc::vec::Vec<alloc::string::String>
 pub omena_cascade::first_witness::GuardedCascadeFragmentPredicateV0::element_signature: alloc::string::String
-pub omena_cascade::first_witness::GuardedCascadeFragmentPredicateV0::property: alloc::string::String
+pub omena_cascade::first_witness::GuardedCascadeFragmentPredicateV0::property: omena_syntax::ident::AuthoredPropertyTextV0
 pub omena_cascade::first_witness::GuardedCascadeFragmentRefusalV0::ConditionAlphabetCapacityExceeded
 pub omena_cascade::first_witness::GuardedCascadeFragmentRefusalV0::ConditionOutsideDeclaredAlphabet
 pub omena_cascade::first_witness::GuardedCascadeFragmentRefusalV0::ConditionOutsideDeclaredAlphabet::atom: alloc::string::String
@@ -1397,8 +1450,8 @@ pub omena_cascade::first_witness::GuardedCascadeFragmentRefusalV0::MultipleEleme
 pub omena_cascade::first_witness::GuardedCascadeFragmentRefusalV0::MultipleElementSignatures::expected: alloc::string::String
 pub omena_cascade::first_witness::GuardedCascadeFragmentRefusalV0::MultipleElementSignatures::observed: alloc::string::String
 pub omena_cascade::first_witness::GuardedCascadeFragmentRefusalV0::MultipleProperties
-pub omena_cascade::first_witness::GuardedCascadeFragmentRefusalV0::MultipleProperties::expected: alloc::string::String
-pub omena_cascade::first_witness::GuardedCascadeFragmentRefusalV0::MultipleProperties::observed: alloc::string::String
+pub omena_cascade::first_witness::GuardedCascadeFragmentRefusalV0::MultipleProperties::expected: omena_syntax::ident::AuthoredPropertyTextV0
+pub omena_cascade::first_witness::GuardedCascadeFragmentRefusalV0::MultipleProperties::observed: omena_syntax::ident::AuthoredPropertyTextV0
 pub omena_cascade::first_witness::GuardedCascadeFragmentRefusalV0::NonUniqueCascadeKey
 pub omena_cascade::first_witness::GuardedCascadeFragmentRefusalV0::NonUniqueCascadeKey::first_declaration_id: u32
 pub omena_cascade::first_witness::GuardedCascadeFragmentRefusalV0::NonUniqueCascadeKey::second_declaration_id: u32

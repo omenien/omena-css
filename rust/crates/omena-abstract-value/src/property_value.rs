@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0, property_names_same};
+use omena_syntax::ident::{AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, PropertyNameV0};
 use omena_value_lattice::{canonicalize_css_value, css_values_canonically_equal};
 
 use crate::{
@@ -90,9 +90,35 @@ pub fn narrow_abstract_property_value_for_cascade_branch(
     exact_layer: bool,
     candidates: &[AbstractPropertyValueCandidateV0],
 ) -> AbstractPropertyValueNarrowingV0 {
+    narrow_abstract_property_value_for_authored_cascade_branch(
+        &AuthoredPropertyTextV0::new(property_name),
+        requested_pseudo_state,
+        requested_condition_context,
+        requested_layer_name,
+        requested_layer_order,
+        exact_layer,
+        candidates,
+    )
+}
+
+pub fn narrow_abstract_property_value_for_authored_cascade_branch(
+    property_name: &AuthoredPropertyTextV0,
+    requested_pseudo_state: Option<&str>,
+    requested_condition_context: &[String],
+    requested_layer_name: Option<&str>,
+    requested_layer_order: Option<i32>,
+    exact_layer: bool,
+    candidates: &[AbstractPropertyValueCandidateV0],
+) -> AbstractPropertyValueNarrowingV0 {
+    let requested_property = property_name.to_property_name();
     let matched = candidates
         .iter()
-        .filter(|candidate| property_names_same(&candidate.property_name, property_name))
+        .filter(|candidate| {
+            candidate
+                .property_name
+                .to_property_name()
+                .same_as(&requested_property)
+        })
         .filter(|candidate| {
             candidate.pseudo_state.as_deref().is_none()
                 || candidate.pseudo_state.as_deref() == requested_pseudo_state
@@ -117,7 +143,7 @@ pub fn narrow_abstract_property_value_for_cascade_branch(
         schema_version: "0",
         product: "omena-abstract-value.property-value-narrowing",
         stylesheet_scope: "singleStylesheet",
-        property_name: property_name.to_string(),
+        property_name: property_name.clone(),
         requested_pseudo_state: requested_pseudo_state.map(str::to_string),
         requested_condition_context: requested_condition_context.to_vec(),
         requested_layer_name: requested_layer_name.map(str::to_string),
@@ -136,7 +162,7 @@ pub fn narrow_abstract_property_value_for_cascade_branch(
 }
 
 fn abstract_property_value_from_matched_candidates(
-    property_name: &str,
+    property_name: &AuthoredPropertyTextV0,
     requested_pseudo_state: Option<&str>,
     matched: &[&AbstractPropertyValueCandidateV0],
     exact_layer: bool,
@@ -167,7 +193,7 @@ fn abstract_property_value_from_matched_candidates(
         .collect::<BTreeSet<_>>();
     if values.is_empty() {
         return AbstractPropertyValueV0::Bottom {
-            property_name: property_name.to_string(),
+            property_name: property_name.clone(),
         };
     }
 
@@ -189,27 +215,27 @@ fn abstract_property_value_from_matched_candidates(
         .collect();
 
     AbstractPropertyValueV0::FiniteSet {
-        property_name: property_name.to_string(),
+        property_name: property_name.clone(),
         values: values.into_iter().collect(),
         pseudo_states,
     }
 }
 
 fn abstract_property_value_from_single_candidate(
-    property_name: &str,
+    property_name: &AuthoredPropertyTextV0,
     requested_pseudo_state: Option<&str>,
     value: &str,
 ) -> AbstractPropertyValueV0 {
     if let Some(custom_property_name) = referenced_custom_property_name(value) {
         return AbstractPropertyValueV0::CustomPropertyReference {
-            property_name: property_name.to_string(),
+            property_name: property_name.clone(),
             custom_property_name: custom_property_name.authored,
             pseudo_state: requested_pseudo_state.map(str::to_string),
         };
     }
     let value = canonical_property_value_text(value);
     AbstractPropertyValueV0::Exact {
-        property_name: property_name.to_string(),
+        property_name: property_name.clone(),
         value,
         pseudo_state: requested_pseudo_state.map(str::to_string),
     }
@@ -267,11 +293,10 @@ fn display_value_for_exact_canonical_value(
 }
 
 fn display_value_for_custom_property_reference(
-    custom_property_name: &str,
+    custom_property_name: &AuthoredPropertyTextV0,
     matched: &[&AbstractPropertyValueCandidateV0],
 ) -> Option<String> {
-    let custom_property_key =
-        PropertyNameV0::from_authored(custom_property_name).as_custom_key()?;
+    let custom_property_key = custom_property_name.to_custom_key();
     matched
         .iter()
         .find(|candidate| {
@@ -279,7 +304,12 @@ fn display_value_for_custom_property_reference(
                 .is_some_and(|reference| reference.key == custom_property_key)
         })
         .and_then(|candidate| display_candidate_value(candidate))
-        .or_else(|| Some(format!("var({custom_property_name})")))
+        .or_else(|| {
+            let mut rendered = String::from("var(");
+            custom_property_name.write_into(&mut rendered).ok()?;
+            rendered.push(')');
+            Some(rendered)
+        })
 }
 
 fn display_values_for_canonical_values(
@@ -366,7 +396,7 @@ fn finite_css_typed_value_from_strings(values: &[String]) -> Option<Box<Abstract
 }
 
 struct ReferencedCustomPropertyNameV0 {
-    authored: String,
+    authored: AuthoredPropertyTextV0,
     key: CanonicalCustomPropertyNameV0,
 }
 
@@ -378,7 +408,7 @@ fn referenced_custom_property_name(value: &str) -> Option<ReferencedCustomProper
     let name = tail.get(..name_end)?.trim();
     let property_name = PropertyNameV0::from_authored(name);
     Some(ReferencedCustomPropertyNameV0 {
-        authored: property_name.authored_text().to_string(),
+        authored: property_name.authored_text(),
         key: property_name.as_custom_key()?,
     })
 }

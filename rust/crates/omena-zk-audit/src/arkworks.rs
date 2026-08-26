@@ -154,7 +154,7 @@ pub fn prove_and_verify_canonical_margin_cascade_with_arkworks_v0(
         .iter()
         .enumerate()
         .map(|(index, property)| BoxLonghandInputV0 {
-            property: (*property).to_string(),
+            property: omena_cascade::AuthoredPropertyTextV0::new(*property),
             value: "1px".to_string(),
             important: false,
             source_order: (index as u32) + 1,

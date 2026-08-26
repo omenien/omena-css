@@ -57,13 +57,14 @@ pub fn resolve_omena_query_sass_symbol_declarations(
     symbol_kind: &str,
     name: &str,
 ) -> Vec<OmenaQueryStyleHoverCandidateV0> {
+    let target_key = PropertyNameV0::canonical_custom_key(name);
     candidates
         .iter()
         .filter(|target| {
             is_omena_query_sass_symbol_declaration_kind(target.kind)
                 && omena_query_sass_symbol_kind_from_candidate_kind(target.kind)
                     == Some(symbol_kind)
-                && target.name.to_string() == name
+                && target.name.to_custom_key() == target_key
         })
         .cloned()
         .collect()

@@ -195,7 +195,9 @@ fn query_smt_box_shorthand_obligations(
             let mut quartet = Vec::with_capacity(expected_longhands.len());
             for expected in expected_longhands {
                 let Some(declaration) = selector_declarations.iter().copied().find(|declaration| {
-                    PropertyNameV0::from_authored(&declaration.property)
+                    declaration
+                        .property
+                        .to_property_name()
                         .same_as(&PropertyNameV0::from_authored(expected))
                 }) else {
                     break;
@@ -213,7 +215,9 @@ fn query_smt_box_shorthand_obligations(
                     .iter()
                     .zip(expected_longhands.iter())
                     .all(|(declaration, expected)| {
-                        PropertyNameV0::from_authored(&declaration.property)
+                        declaration
+                            .property
+                            .to_property_name()
                             .same_as(&PropertyNameV0::from_authored(*expected))
                     });
             let no_important = quartet.iter().all(|declaration| !declaration.important);
@@ -267,7 +271,7 @@ pub(super) fn query_smt_layer_inversion_obligations(
     for declaration in declarations {
         if declaration.layer_order.is_some() {
             by_property
-                .entry(PropertyNameV0::from_authored(&declaration.property).canonical_key())
+                .entry(declaration.property.to_property_name().canonical_key())
                 .or_default()
                 .push(declaration);
         }

@@ -11,15 +11,15 @@ fn execution_runtime_routes_design_tokens_from_bridge_context() {
     let context = TransformExecutionContextV0 {
         design_token_routes: vec![
             TransformDesignTokenRouteV0 {
-                token_name: "--pkg-brand".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--pkg-brand"),
                 routed_value: "var(--theme-brand)".to_string(),
             },
             TransformDesignTokenRouteV0 {
-                token_name: "--pkg-border".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--pkg-border"),
                 routed_value: "#123456".to_string(),
             },
             TransformDesignTokenRouteV0 {
-                token_name: "--unsafe".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--unsafe"),
                 routed_value: "red; color: blue".to_string(),
             },
         ],
@@ -53,15 +53,15 @@ fn execution_runtime_routes_design_tokens_in_supported_at_rule_preludes() {
     let context = TransformExecutionContextV0 {
         design_token_routes: vec![
             TransformDesignTokenRouteV0 {
-                token_name: "--pkg-theme".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--pkg-theme"),
                 routed_value: "var(--theme-mode)".to_string(),
             },
             TransformDesignTokenRouteV0 {
-                token_name: "--pkg-brand".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--pkg-brand"),
                 routed_value: "#123456".to_string(),
             },
             TransformDesignTokenRouteV0 {
-                token_name: "--pkg-breakpoint".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--pkg-breakpoint"),
                 routed_value: "40rem".to_string(),
             },
         ],
@@ -90,11 +90,11 @@ fn execution_runtime_routes_design_tokens_inside_custom_property_aliases() {
     let context = TransformExecutionContextV0 {
         design_token_routes: vec![
             TransformDesignTokenRouteV0 {
-                token_name: "--pkg-brand".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--pkg-brand"),
                 routed_value: "var(--theme-brand)".to_string(),
             },
             TransformDesignTokenRouteV0 {
-                token_name: "--pkg-border".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--pkg-border"),
                 routed_value: "#123456".to_string(),
             },
         ],
@@ -124,23 +124,23 @@ fn execution_runtime_routes_transitive_design_token_aliases_without_fallbacks() 
     let context = TransformExecutionContextV0 {
         design_token_routes: vec![
             TransformDesignTokenRouteV0 {
-                token_name: "--alias".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--alias"),
                 routed_value: "var(--brand)".to_string(),
             },
             TransformDesignTokenRouteV0 {
-                token_name: "--brand".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--brand"),
                 routed_value: "red".to_string(),
             },
             TransformDesignTokenRouteV0 {
-                token_name: "--tone".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--tone"),
                 routed_value: "color-mix(in srgb, var(--brand), white)".to_string(),
             },
             TransformDesignTokenRouteV0 {
-                token_name: "--shadow".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--shadow"),
                 routed_value: "0 0 var(--gap)".to_string(),
             },
             TransformDesignTokenRouteV0 {
-                token_name: "--gap".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--gap"),
                 routed_value: "2rem".to_string(),
             },
         ],
@@ -173,11 +173,11 @@ fn execution_runtime_routes_design_tokens_inserted_by_import_inline() {
         }],
         design_token_routes: vec![
             TransformDesignTokenRouteV0 {
-                token_name: "--alias".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--alias"),
                 routed_value: "var(--brand)".to_string(),
             },
             TransformDesignTokenRouteV0 {
-                token_name: "--brand".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--brand"),
                 routed_value: "red".to_string(),
             },
         ],
@@ -207,11 +207,11 @@ fn execution_runtime_preserves_design_token_fallback_aliases() {
     let context = TransformExecutionContextV0 {
         design_token_routes: vec![
             TransformDesignTokenRouteV0 {
-                token_name: "--alias".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--alias"),
                 routed_value: "var(--brand)".to_string(),
             },
             TransformDesignTokenRouteV0 {
-                token_name: "--brand".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--brand"),
                 routed_value: "red".to_string(),
             },
         ],
@@ -240,11 +240,11 @@ fn execution_runtime_routes_design_token_fallback_expressions_after_alias_routes
     let context = TransformExecutionContextV0 {
         design_token_routes: vec![
             TransformDesignTokenRouteV0 {
-                token_name: "--pkg-brand".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--pkg-brand"),
                 routed_value: "var(--theme-brand)".to_string(),
             },
             TransformDesignTokenRouteV0 {
-                token_name: "--pkg-border".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--pkg-border"),
                 routed_value: "#123456".to_string(),
             },
         ],
@@ -273,11 +273,11 @@ fn execution_runtime_routes_design_token_multi_segment_fallbacks() {
     let context = TransformExecutionContextV0 {
         design_token_routes: vec![
             TransformDesignTokenRouteV0 {
-                token_name: "--pkg-brand".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--pkg-brand"),
                 routed_value: "var(--theme-brand)".to_string(),
             },
             TransformDesignTokenRouteV0 {
-                token_name: "--pkg-border".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--pkg-border"),
                 routed_value: "#123456".to_string(),
             },
         ],
@@ -307,11 +307,11 @@ fn execution_runtime_recovers_design_token_routing_after_malformed_var() {
     let context = TransformExecutionContextV0 {
         design_token_routes: vec![
             TransformDesignTokenRouteV0 {
-                token_name: "--pkg-brand".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--pkg-brand"),
                 routed_value: "var(--theme-brand)".to_string(),
             },
             TransformDesignTokenRouteV0 {
-                token_name: "--pkg-border".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--pkg-border"),
                 routed_value: "#123456".to_string(),
             },
         ],

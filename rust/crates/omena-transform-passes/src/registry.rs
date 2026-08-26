@@ -6,6 +6,7 @@ use omena_parser::StyleDialect;
 use omena_scss_eval::{
     summarize_native_css_static_edit_plan, summarize_native_css_static_edit_plan_from_transform_ir,
 };
+use omena_syntax::ident::AuthoredPropertyTextV0;
 use omena_transform_cst::TransformIrV0;
 
 use crate::domains::{
@@ -426,7 +427,7 @@ pub(crate) fn tree_shake_css_modules_values_in_ir(
 pub(crate) fn tree_shake_css_custom_properties_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
-    reachable_custom_property_names: &[String],
+    reachable_custom_property_names: &[AuthoredPropertyTextV0],
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> Result<Vec<TransformSemanticRemovalCandidate>, TransformIrSourceReplacementErrorV0> {

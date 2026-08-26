@@ -10,13 +10,17 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleComposesFactKind,
     ParsedCssModuleValueFactKind, ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind,
-    ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind, ParserByteSpanV0,
-    ParserPositionV0, ParserRangeV0, StyleDialect, css_keyword, parse, product_facts_from_cst,
-    summarize_omena_parser_parity_lite,
+    ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind, ParsedVariableFactNameV0,
+    ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleDialect, css_keyword, parse,
+    product_facts_from_cst, summarize_omena_parser_parity_lite,
 };
 use cstree::text::TextRange;
-use omena_syntax::ident::{CanonicalCustomPropertyNameV0, class_selector_names};
+use omena_syntax::ident::{
+    AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0, PropertyNameV0,
+    class_selector_names,
+};
 use serde::Serialize;
+use std::cmp::Ordering;
 
 mod style_blocks;
 mod syntax_index;
@@ -211,16 +215,16 @@ struct ParserIndexValueRefFactV0 {
     range: ParserRangeV0,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[derive(Debug, Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 struct ParserIndexCustomPropertyFactsV0 {
-    decl_names: Vec<String>,
+    decl_names: Vec<AuthoredPropertyTextV0>,
     decl_facts: Vec<ParserIndexCustomPropertyDeclFactV0>,
     decl_context_selectors: Vec<String>,
-    decl_names_under_media: Vec<String>,
-    decl_names_under_supports: Vec<String>,
-    decl_names_under_layer: Vec<String>,
-    ref_names: Vec<String>,
+    decl_names_under_media: Vec<AuthoredPropertyTextV0>,
+    decl_names_under_supports: Vec<AuthoredPropertyTextV0>,
+    decl_names_under_layer: Vec<AuthoredPropertyTextV0>,
+    ref_names: Vec<AuthoredPropertyTextV0>,
     ref_facts: Vec<ParserIndexCustomPropertyRefFactV0>,
     selectors_with_refs_names: Vec<String>,
     selectors_with_refs_under_media_names: Vec<String>,
@@ -228,10 +232,41 @@ struct ParserIndexCustomPropertyFactsV0 {
     selectors_with_refs_under_layer_names: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+impl PartialEq for ParserIndexCustomPropertyFactsV0 {
+    fn eq(&self, other: &Self) -> bool {
+        authored_custom_property_sequences_same(&self.decl_names, &other.decl_names)
+            && self.decl_facts == other.decl_facts
+            && self.decl_context_selectors == other.decl_context_selectors
+            && authored_custom_property_sequences_same(
+                &self.decl_names_under_media,
+                &other.decl_names_under_media,
+            )
+            && authored_custom_property_sequences_same(
+                &self.decl_names_under_supports,
+                &other.decl_names_under_supports,
+            )
+            && authored_custom_property_sequences_same(
+                &self.decl_names_under_layer,
+                &other.decl_names_under_layer,
+            )
+            && authored_custom_property_sequences_same(&self.ref_names, &other.ref_names)
+            && self.ref_facts == other.ref_facts
+            && self.selectors_with_refs_names == other.selectors_with_refs_names
+            && self.selectors_with_refs_under_media_names
+                == other.selectors_with_refs_under_media_names
+            && self.selectors_with_refs_under_supports_names
+                == other.selectors_with_refs_under_supports_names
+            && self.selectors_with_refs_under_layer_names
+                == other.selectors_with_refs_under_layer_names
+    }
+}
+
+impl Eq for ParserIndexCustomPropertyFactsV0 {}
+
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ParserIndexCustomPropertyDeclFactV0 {
-    name: String,
+    name: AuthoredPropertyTextV0,
     value: String,
     source_order: usize,
     byte_span: ParserByteSpanV0,
@@ -246,10 +281,68 @@ struct ParserIndexCustomPropertyDeclFactV0 {
     property_key: CanonicalCustomPropertyNameV0,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+impl PartialEq for ParserIndexCustomPropertyDeclFactV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.property_key == other.property_key
+            && self.value == other.value
+            && self.source_order == other.source_order
+            && self.byte_span == other.byte_span
+            && self.range == other.range
+            && self.rule_byte_span == other.rule_byte_span
+            && self.rule_range == other.rule_range
+            && self.selector_contexts == other.selector_contexts
+            && self.wrapper_at_rules == other.wrapper_at_rules
+            && self.under_media == other.under_media
+            && self.under_supports == other.under_supports
+            && self.under_layer == other.under_layer
+    }
+}
+
+impl Eq for ParserIndexCustomPropertyDeclFactV0 {}
+
+impl PartialOrd for ParserIndexCustomPropertyDeclFactV0 {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ParserIndexCustomPropertyDeclFactV0 {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (
+            &self.property_key,
+            &self.value,
+            self.source_order,
+            self.byte_span,
+            self.range,
+            self.rule_byte_span,
+            self.rule_range,
+            &self.selector_contexts,
+            &self.wrapper_at_rules,
+            self.under_media,
+            self.under_supports,
+            self.under_layer,
+        )
+            .cmp(&(
+                &other.property_key,
+                &other.value,
+                other.source_order,
+                other.byte_span,
+                other.range,
+                other.rule_byte_span,
+                other.rule_range,
+                &other.selector_contexts,
+                &other.wrapper_at_rules,
+                other.under_media,
+                other.under_supports,
+                other.under_layer,
+            ))
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ParserIndexCustomPropertyRefFactV0 {
-    name: String,
+    name: AuthoredPropertyTextV0,
     source_order: usize,
     byte_span: ParserByteSpanV0,
     range: ParserRangeV0,
@@ -259,6 +352,55 @@ struct ParserIndexCustomPropertyRefFactV0 {
     under_supports: bool,
     under_layer: bool,
     property_key: CanonicalCustomPropertyNameV0,
+}
+
+impl PartialEq for ParserIndexCustomPropertyRefFactV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.property_key == other.property_key
+            && self.source_order == other.source_order
+            && self.byte_span == other.byte_span
+            && self.range == other.range
+            && self.selector_contexts == other.selector_contexts
+            && self.wrapper_at_rules == other.wrapper_at_rules
+            && self.under_media == other.under_media
+            && self.under_supports == other.under_supports
+            && self.under_layer == other.under_layer
+    }
+}
+
+impl Eq for ParserIndexCustomPropertyRefFactV0 {}
+
+impl PartialOrd for ParserIndexCustomPropertyRefFactV0 {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ParserIndexCustomPropertyRefFactV0 {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (
+            &self.property_key,
+            self.source_order,
+            self.byte_span,
+            self.range,
+            &self.selector_contexts,
+            &self.wrapper_at_rules,
+            self.under_media,
+            self.under_supports,
+            self.under_layer,
+        )
+            .cmp(&(
+                &other.property_key,
+                other.source_order,
+                other.byte_span,
+                other.range,
+                &other.selector_contexts,
+                &other.wrapper_at_rules,
+                other.under_media,
+                other.under_supports,
+                other.under_layer,
+            ))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
@@ -1101,6 +1243,9 @@ fn summarize_custom_properties(
                 let Some(property_key) = variable.property_key.clone() else {
                     continue;
                 };
+                let ParsedVariableFactNameV0::CustomProperty(name) = &variable.name else {
+                    continue;
+                };
                 let byte_span = byte_span_for_range(variable.range);
                 let wrapper = wrapper_for_offset(blocks, byte_span.start);
                 let rule_byte_span = style_block_for_offset(blocks, byte_span.start)
@@ -1111,7 +1256,7 @@ fn summarize_custom_properties(
                     .or_else(|| syntax_index.declaration_span_for_offset(byte_span.start))
                     .unwrap_or(byte_span);
                 decl_facts.push(ParserIndexCustomPropertyDeclFactV0 {
-                    name: variable.name.clone(),
+                    name: name.clone(),
                     property_key,
                     value: syntax_index
                         .declaration_value_text(source, byte_span.start)
@@ -1132,10 +1277,13 @@ fn summarize_custom_properties(
                 let Some(property_key) = variable.property_key.clone() else {
                     continue;
                 };
+                let ParsedVariableFactNameV0::CustomProperty(name) = &variable.name else {
+                    continue;
+                };
                 let byte_span = byte_span_for_range(variable.range);
                 let wrapper = wrapper_for_offset(blocks, byte_span.start);
                 ref_facts.push(ParserIndexCustomPropertyRefFactV0 {
-                    name: variable.name.clone(),
+                    name: name.clone(),
                     property_key,
                     source_order: ref_facts.len(),
                     byte_span,
@@ -1155,35 +1303,36 @@ fn summarize_custom_properties(
     ref_facts.sort();
     ref_facts.dedup();
     ParserIndexCustomPropertyFactsV0 {
-        decl_names: sorted(decl_facts.iter().map(|fact| fact.name.clone()).collect()),
+        decl_names: sorted_authored_custom_properties(
+            decl_facts.iter().map(|fact| fact.name.clone()),
+        ),
         decl_context_selectors: sorted(
             decl_facts
                 .iter()
                 .flat_map(|fact| fact.selector_contexts.iter().cloned())
                 .collect(),
         ),
-        decl_names_under_media: sorted(
+        decl_names_under_media: sorted_authored_custom_properties(
             decl_facts
                 .iter()
                 .filter(|fact| fact.under_media)
-                .map(|fact| fact.name.clone())
-                .collect(),
+                .map(|fact| fact.name.clone()),
         ),
-        decl_names_under_supports: sorted(
+        decl_names_under_supports: sorted_authored_custom_properties(
             decl_facts
                 .iter()
                 .filter(|fact| fact.under_supports)
-                .map(|fact| fact.name.clone())
-                .collect(),
+                .map(|fact| fact.name.clone()),
         ),
-        decl_names_under_layer: sorted(
+        decl_names_under_layer: sorted_authored_custom_properties(
             decl_facts
                 .iter()
                 .filter(|fact| fact.under_layer)
-                .map(|fact| fact.name.clone())
-                .collect(),
+                .map(|fact| fact.name.clone()),
         ),
-        ref_names: sorted(ref_facts.iter().map(|fact| fact.name.clone()).collect()),
+        ref_names: sorted_authored_custom_properties(
+            ref_facts.iter().map(|fact| fact.name.clone()),
+        ),
         selectors_with_refs_names: sorted(
             ref_facts
                 .iter()
@@ -1598,9 +1747,12 @@ fn summarize_keyframes(
             ParsedAnimationFactKind::AnimationNameReference => {
                 let byte_span = byte_span_for_range(animation.range);
                 let property = if syntax_index
-                    .declaration_property_name_for_offset(offset)
-                    .is_some_and(|name| name == "animation-name")
-                {
+                    .declaration_property_key_for_offset(offset)
+                    .is_some_and(|key| {
+                        key == CanonicalPropertyKeyV0::Standard(
+                            PropertyNameV0::canonical_standard_key("animation-name"),
+                        )
+                    }) {
                     "animation-name"
                 } else {
                     "animation"
@@ -2378,6 +2530,27 @@ fn bem_suffix_parent_name(name: &str) -> Option<String> {
 
 fn sorted(values: BTreeSet<String>) -> Vec<String> {
     values.into_iter().collect()
+}
+
+fn sorted_authored_custom_properties(
+    values: impl IntoIterator<Item = AuthoredPropertyTextV0>,
+) -> Vec<AuthoredPropertyTextV0> {
+    let mut by_key = BTreeMap::new();
+    for value in values {
+        by_key.entry(value.to_custom_key()).or_insert(value);
+    }
+    by_key.into_values().collect()
+}
+
+fn authored_custom_property_sequences_same(
+    left: &[AuthoredPropertyTextV0],
+    right: &[AuthoredPropertyTextV0],
+) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| left.to_custom_key() == right.to_custom_key())
 }
 
 trait SortVec {

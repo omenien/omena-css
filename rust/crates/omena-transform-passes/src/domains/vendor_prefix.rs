@@ -6,7 +6,12 @@
 use std::sync::OnceLock;
 
 use omena_parser::{LexedToken, StyleDialect};
-use omena_syntax::{SyntaxKind, ident::PropertyNameV0};
+use omena_syntax::{
+    SyntaxKind,
+    ident::{
+        AuthoredPropertyTextV0, CanonicalStandardPropertyNameV0, PropertyNameV0, render_authored,
+    },
+};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -19,16 +24,61 @@ use crate::model::TransformVendorPrefixPolicyV0;
 
 const VENDOR_PREFIX_MATRIX_SOURCE: &str = include_str!("../../data/vendor-prefix-matrix.toml");
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct StaleVendorPrefixRemovalProofCandidateV0 {
     pub source_span_start: usize,
     pub source_span_end: usize,
     pub unprefixed_peer_span_start: usize,
     pub unprefixed_peer_span_end: usize,
-    pub prefixed_property: String,
+    pub prefixed_property: AuthoredPropertyTextV0,
     pub unprefixed_property: &'static str,
     pub value: String,
     pub important: bool,
+}
+
+impl PartialEq for StaleVendorPrefixRemovalProofCandidateV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.source_span_start == other.source_span_start
+            && self.source_span_end == other.source_span_end
+            && self.unprefixed_peer_span_start == other.unprefixed_peer_span_start
+            && self.unprefixed_peer_span_end == other.unprefixed_peer_span_end
+            && self.prefixed_property.to_standard_key() == other.prefixed_property.to_standard_key()
+            && PropertyNameV0::canonical_standard_key(self.unprefixed_property)
+                == PropertyNameV0::canonical_standard_key(other.unprefixed_property)
+            && self.value == other.value
+            && self.important == other.important
+    }
+}
+
+impl Eq for StaleVendorPrefixRemovalProofCandidateV0 {}
+
+#[cfg(test)]
+mod authored_property_identity_tests {
+    use super::*;
+
+    #[test]
+    fn stale_vendor_prefix_candidate_identity_uses_standard_property_keys() {
+        let candidate =
+            |property: &str, unprefixed: &'static str| StaleVendorPrefixRemovalProofCandidateV0 {
+                source_span_start: 0,
+                source_span_end: 1,
+                unprefixed_peer_span_start: 2,
+                unprefixed_peer_span_end: 3,
+                prefixed_property: AuthoredPropertyTextV0::new(property),
+                unprefixed_property: unprefixed,
+                value: "none".to_string(),
+                important: false,
+            };
+
+        assert_eq!(
+            candidate("-WEBKIT-APPEARANCE", "APPEARANCE"),
+            candidate(r"-webkit-appe\61 rance", "appearance")
+        );
+        assert_ne!(
+            candidate("-webkit-appearance", "appearance"),
+            candidate("-moz-appearance", "appearance")
+        );
+    }
 }
 
 pub(crate) fn add_css_vendor_prefixes_with_lexer_and_policy(
@@ -135,7 +185,7 @@ fn collect_stale_vendor_prefix_removal_proof_candidates(
                     source_span_end: declaration.end,
                     unprefixed_peer_span_start: _peer.start,
                     unprefixed_peer_span_end: _peer.end,
-                    prefixed_property: declaration.property.to_string(),
+                    prefixed_property: declaration.property.clone(),
                     unprefixed_property,
                     value: declaration.value.clone(),
                     important: declaration.important,
@@ -207,10 +257,12 @@ fn collect_vendor_prefix_insertions(
                     }) {
                         continue;
                     }
-                    insertions.push((
-                        declaration.start,
-                        format!("{}: {prefixed_value}; ", declaration.property),
-                    ));
+                    let mut insertion = String::new();
+                    let _ = render_authored(&declaration.property, &mut insertion);
+                    insertion.push_str(": ");
+                    insertion.push_str(prefixed_value);
+                    insertion.push_str("; ");
+                    insertions.push((declaration.start, insertion));
                 }
                 for (prefixed_property, prefixed_value) in
                     prefixed_declarations_for(declaration.property_key.as_str(), &declaration.value)
@@ -349,17 +401,17 @@ fn prefixed_supports_condition_for(
 ) -> Option<String> {
     let feature = parse_single_supports_feature_query(condition)?;
     let mut alternatives = vec![condition.trim().to_string()];
-    for prefixed_property in prefixed_properties_for(&feature.property)
+    for prefixed_property in prefixed_properties_for(feature.property.as_str())
         .into_iter()
         .filter(|prefixed_property| policy.allows_prefix(prefixed_property))
     {
         alternatives.push(format!("({prefixed_property}: {})", feature.value));
     }
-    for prefixed_value in prefixed_values_for(&feature.property, feature.value)
+    for prefixed_value in prefixed_values_for(feature.property.as_str(), feature.value)
         .into_iter()
         .filter(|prefixed_value| policy.allows_prefix(prefixed_value))
     {
-        alternatives.push(format!("({}: {prefixed_value})", feature.property));
+        alternatives.push(format!("({}: {prefixed_value})", feature.property.as_str()));
     }
     dedupe_case_insensitive(&mut alternatives);
     (alternatives.len() > 1).then(|| format!("({})", alternatives.join(" or ")))
@@ -367,7 +419,7 @@ fn prefixed_supports_condition_for(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SupportsFeatureQuery<'a> {
-    property: String,
+    property: CanonicalStandardPropertyNameV0,
     value: &'a str,
 }
 
@@ -384,11 +436,11 @@ fn parse_single_supports_feature_query(condition: &str) -> Option<SupportsFeatur
     let colon_index = top_level_colon_index(inner)?;
     let property_name = PropertyNameV0::from_authored(inner[..colon_index].trim());
     let property_key = property_name.canonical_key();
-    let property = property_key.as_standard()?.as_str().to_string();
+    let property = property_key.as_standard()?.clone();
     let value = inner[colon_index + 1..].trim();
-    if property.is_empty()
-        || property.starts_with('-')
-        || property.chars().any(char::is_whitespace)
+    if property.as_str().is_empty()
+        || property.as_str().starts_with('-')
+        || property.as_str().chars().any(char::is_whitespace)
         || value.is_empty()
     {
         return None;
@@ -463,29 +515,57 @@ struct VendorPrefixMatrixV0 {
     declaration_rules: Vec<VendorPrefixDeclarationRuleV0>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 struct VendorPrefixPropertyRuleV0 {
-    name: String,
+    name: CanonicalStandardPropertyNameV0,
     prefixes: Vec<String>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 struct VendorPrefixValueRuleV0 {
-    property: String,
+    property: CanonicalStandardPropertyNameV0,
     value: String,
     prefixes: Vec<String>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 struct VendorPrefixDeclarationRuleV0 {
-    property: String,
+    property: CanonicalStandardPropertyNameV0,
     entries: Vec<VendorPrefixDeclarationEntryV0>,
 }
 
 #[derive(Debug, Clone)]
 struct VendorPrefixDeclarationEntryV0 {
-    property: String,
+    property: CanonicalStandardPropertyNameV0,
     value_transform: String,
+}
+
+impl Default for VendorPrefixPropertyRuleV0 {
+    fn default() -> Self {
+        Self {
+            name: PropertyNameV0::canonical_standard_key(""),
+            prefixes: Vec::new(),
+        }
+    }
+}
+
+impl Default for VendorPrefixValueRuleV0 {
+    fn default() -> Self {
+        Self {
+            property: PropertyNameV0::canonical_standard_key(""),
+            value: String::new(),
+            prefixes: Vec::new(),
+        }
+    }
+}
+
+impl Default for VendorPrefixDeclarationRuleV0 {
+    fn default() -> Self {
+        Self {
+            property: PropertyNameV0::canonical_standard_key(""),
+            entries: Vec::new(),
+        }
+    }
 }
 
 fn vendor_prefix_matrix() -> &'static VendorPrefixMatrixV0 {
@@ -501,7 +581,7 @@ fn prefixed_properties_for(property: &str) -> Vec<&'static str> {
     vendor_prefix_matrix()
         .property_rules
         .iter()
-        .find(|rule| PropertyNameV0::canonical_standard_key(&rule.name) == *property_key)
+        .find(|rule| rule.name == *property_key)
         .map(|rule| rule.prefixes.iter().map(String::as_str).collect())
         .unwrap_or_default()
 }
@@ -559,10 +639,7 @@ fn prefixed_values_for(property: &str, value: &str) -> Vec<&'static str> {
     vendor_prefix_matrix()
         .value_rules
         .iter()
-        .find(|rule| {
-            PropertyNameV0::canonical_standard_key(&rule.property) == *property_key
-                && rule.value == normalized
-        })
+        .find(|rule| rule.property == *property_key && rule.value == normalized)
         .map(|rule| rule.prefixes.iter().map(String::as_str).collect())
         .unwrap_or_default()
 }
@@ -576,7 +653,7 @@ fn prefixed_declarations_for(property: &str, value: &str) -> Vec<(&'static str, 
     vendor_prefix_matrix()
         .declaration_rules
         .iter()
-        .find(|rule| PropertyNameV0::canonical_standard_key(&rule.property) == *property_key)
+        .find(|rule| rule.property == *property_key)
         .map(|rule| {
             rule.entries
                 .iter()
@@ -656,7 +733,11 @@ fn parse_vendor_prefix_matrix(source: &str) -> VendorPrefixMatrixV0 {
         let value = raw_value.trim();
         if let Some(rule) = current_property.as_mut() {
             match key {
-                "name" => rule.name = parse_toml_string(value).unwrap_or_default(),
+                "name" => {
+                    rule.name = PropertyNameV0::canonical_standard_key(
+                        parse_toml_string(value).unwrap_or_default(),
+                    )
+                }
                 "prefixes" => rule.prefixes = parse_toml_string_array(value),
                 _ => {}
             }
@@ -664,7 +745,11 @@ fn parse_vendor_prefix_matrix(source: &str) -> VendorPrefixMatrixV0 {
         }
         if let Some(rule) = current_value.as_mut() {
             match key {
-                "property" => rule.property = parse_toml_string(value).unwrap_or_default(),
+                "property" => {
+                    rule.property = PropertyNameV0::canonical_standard_key(
+                        parse_toml_string(value).unwrap_or_default(),
+                    )
+                }
                 "value" => rule.value = parse_toml_string(value).unwrap_or_default(),
                 "prefixes" => rule.prefixes = parse_toml_string_array(value),
                 _ => {}
@@ -673,7 +758,11 @@ fn parse_vendor_prefix_matrix(source: &str) -> VendorPrefixMatrixV0 {
         }
         if let Some(rule) = current_declaration.as_mut() {
             match key {
-                "property" => rule.property = parse_toml_string(value).unwrap_or_default(),
+                "property" => {
+                    rule.property = PropertyNameV0::canonical_standard_key(
+                        parse_toml_string(value).unwrap_or_default(),
+                    )
+                }
                 "entries" => rule.entries = parse_declaration_entries(value),
                 _ => {}
             }
@@ -729,17 +818,17 @@ fn flush_vendor_prefix_matrix_rule(
     current_declaration: &mut Option<VendorPrefixDeclarationRuleV0>,
 ) {
     if let Some(rule) = current_property.take()
-        && !rule.name.is_empty()
+        && !rule.name.as_str().is_empty()
     {
         matrix.property_rules.push(rule);
     }
     if let Some(rule) = current_value.take()
-        && !(rule.property.is_empty() || rule.value.is_empty())
+        && !(rule.property.as_str().is_empty() || rule.value.is_empty())
     {
         matrix.value_rules.push(rule);
     }
     if let Some(rule) = current_declaration.take()
-        && !rule.property.is_empty()
+        && !rule.property.as_str().is_empty()
     {
         matrix.declaration_rules.push(rule);
     }
@@ -770,7 +859,7 @@ fn parse_declaration_entries(value: &str) -> Vec<VendorPrefixDeclarationEntryV0>
         .filter_map(|entry| {
             let (property, value_transform) = entry.split_once(':')?;
             Some(VendorPrefixDeclarationEntryV0 {
-                property: property.to_string(),
+                property: PropertyNameV0::canonical_standard_key(property),
                 value_transform: value_transform.to_string(),
             })
         })

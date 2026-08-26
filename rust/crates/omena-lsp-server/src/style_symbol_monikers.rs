@@ -96,7 +96,7 @@ pub(super) fn style_unresolved_sass_symbol_moniker(
         workspace_folder_uri,
         family,
         namespace: candidate.namespace.as_deref(),
-        name: candidate.name.to_string().as_str(),
+        name: candidate.identity_name().as_str(),
     })
 }
 
@@ -140,6 +140,6 @@ fn style_sass_symbol_moniker(uri: &str, candidate: &LspStyleHoverCandidate) -> S
     omena_workspace_moniker(OmenaWorkspaceMonikerInput::SassSymbol {
         definition_uri: uri,
         family,
-        name: candidate.name.to_string().as_str(),
+        name: candidate.identity_name().as_str(),
     })
 }

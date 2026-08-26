@@ -8,7 +8,7 @@ use super::*;
 use omena_cascade::{
     SelectorMatchVerdict, parse_simple_selector_signature, selector_co_match_verdict,
 };
-use omena_syntax::ident::PropertyNameV0;
+use omena_syntax::ident::{AuthoredPropertyTextV0, PropertyNameV0, render_authored};
 
 pub fn summarize_omena_query_style_insights(
     style_uri: &str,
@@ -148,7 +148,7 @@ fn collect_shorthand_combinable_insights(
         let range = parser_range_for_byte_span(source, replacement_span);
         let longhand_properties = expected_longhands
             .iter()
-            .map(|property| (*property).to_string())
+            .map(|property| PropertyNameV0::canonical_standard_key(*property))
             .collect::<Vec<_>>();
 
         insights.push(OmenaQueryInsightV0 {
@@ -172,7 +172,7 @@ fn collect_shorthand_combinable_insights(
                     new_text: format!("{shorthand}: {combined_value}"),
                 }),
                 shorthand_combinable: Some(OmenaQueryShorthandCombinableV0 {
-                    shorthand_property: shorthand.to_string(),
+                    shorthand_property: PropertyNameV0::canonical_standard_key(shorthand),
                     longhand_properties,
                     values,
                     combined_value,
@@ -181,7 +181,7 @@ fn collect_shorthand_combinable_insights(
                 cascade_insight: Some(OmenaQueryCascadeInsightV0 {
                     relationship: "replaceLonghandQuartetWithShorthand",
                     selector: selector.to_string(),
-                    property: shorthand.to_string(),
+                    property: AuthoredPropertyTextV0::new(shorthand),
                     related_selector: None,
                     related_property: None,
                     source_order: quartet[0].input.source_order,
@@ -214,20 +214,19 @@ fn collect_partial_shorthand_override_insights(
                 if !emitted.insert((
                     declaration.input.source_order,
                     override_declaration.input.source_order,
-                    override_declaration.input.property.clone(),
+                    override_declaration.property_key.clone(),
                 )) {
                     continue;
                 }
                 let range = parser_range_for_byte_span(source, override_declaration.byte_span);
+                let mut override_property = String::new();
+                let _ =
+                    render_authored(&override_declaration.input.property, &mut override_property);
                 insights.push(OmenaQueryInsightV0 {
                     kind: "partialShorthandOverride",
-                    title: format!(
-                        "{} overrides earlier {shorthand}",
-                        override_declaration.input.property
-                    ),
+                    title: format!("{override_property} overrides earlier {shorthand}"),
                     message: format!(
-                        "The {selector} rule declares `{shorthand}` and later overrides only `{}`. This is valid CSS, but the longhand is a partial override of the earlier shorthand.",
-                        override_declaration.input.property
+                        "The {selector} rule declares `{shorthand}` and later overrides only `{override_property}`. This is valid CSS, but the longhand is a partial override of the earlier shorthand."
                     ),
                     range,
                     confidence: "high",
@@ -243,7 +242,7 @@ fn collect_partial_shorthand_override_insights(
                     cascade_insight: Some(OmenaQueryCascadeInsightV0 {
                         relationship: "longhandOverridesEarlierShorthand",
                         selector: selector.to_string(),
-                        property: shorthand.to_string(),
+                        property: AuthoredPropertyTextV0::new(shorthand),
                         related_selector: None,
                         related_property: Some(override_declaration.input.property.clone()),
                         source_order: declaration.input.source_order,
@@ -273,12 +272,13 @@ fn collect_longhand_redundant_insights(
             continue;
         }
         let range = parser_range_for_byte_span(source, current.byte_span);
+        let mut current_property = String::new();
+        let _ = render_authored(&current.input.property, &mut current_property);
         insights.push(OmenaQueryInsightV0 {
             kind: "longhandRedundant",
-            title: format!("Remove redundant {}", current.input.property),
+            title: format!("Remove redundant {current_property}"),
             message: format!(
-                "The {selector} rule repeats `{}` with the same value immediately after an equivalent declaration.",
-                current.input.property
+                "The {selector} rule repeats `{current_property}` with the same value immediately after an equivalent declaration."
             ),
             range,
             confidence: "high",
@@ -352,19 +352,20 @@ fn collect_specificity_tie_insights(
             if !emitted.insert((
                 winner.input.source_order,
                 challenger.input.source_order,
-                winner.input.property.clone(),
+                winner.property_key.clone(),
             )) {
                 continue;
             }
             let range = parser_range_for_byte_span(source, winner.byte_span);
+            let mut winner_property = String::new();
+            let _ = render_authored(&winner.input.property, &mut winner_property);
             insights.push(OmenaQueryInsightV0 {
                 kind: "specificityTie",
-                title: format!("Source order decides {}", winner.input.property),
+                title: format!("Source order decides {winner_property}"),
                 message: format!(
-                    "`{}` and `{}` have equal specificity for `{}`{}; source order decides the winning declaration.",
+                    "`{}` and `{}` have equal specificity for `{winner_property}`{}; source order decides the winning declaration.",
                     challenger.input.selector,
                     winner.input.selector,
-                    winner.input.property,
                     specificity_tie_co_match_suffix(co_match)
                 ),
                 range,

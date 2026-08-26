@@ -10,7 +10,7 @@ use omena_syntax::{
     SyntaxKind, css_keyword,
     ident::{
         AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0,
-        PropertyNameV0, is_css_name_continue,
+        PropertyNameV0, is_css_name_continue, render_authored,
     },
 };
 use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0};
@@ -55,18 +55,31 @@ use crate::helpers::{
 };
 use crate::model::TransformSemanticRemovalCandidate;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub(crate) struct CustomPropertySemanticFactV0 {
     pub(crate) fact_kind: &'static str,
-    pub(crate) name: String,
+    pub(crate) name: AuthoredPropertyTextV0,
     pub(crate) value: String,
     pub(crate) source_span_start: usize,
     pub(crate) source_span_end: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+impl PartialEq for CustomPropertySemanticFactV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.fact_kind == other.fact_kind
+            && self.name.to_property_name().canonical_key()
+                == other.name.to_property_name().canonical_key()
+            && self.value == other.value
+            && self.source_span_start == other.source_span_start
+            && self.source_span_end == other.source_span_end
+    }
+}
+
+impl Eq for CustomPropertySemanticFactV0 {}
+
+#[derive(Debug, Clone)]
 pub(crate) struct CustomPropertyRegistrationRule {
-    pub(crate) name: String,
+    pub(crate) name: AuthoredPropertyTextV0,
     pub(crate) property_key: CanonicalCustomPropertyNameV0,
     pub(crate) start: usize,
     pub(crate) end: usize,
@@ -74,6 +87,19 @@ pub(crate) struct CustomPropertyRegistrationRule {
     pub(crate) inherits: Option<String>,
     pub(crate) initial_value: Option<String>,
 }
+
+impl PartialEq for CustomPropertyRegistrationRule {
+    fn eq(&self, other: &Self) -> bool {
+        self.property_key == other.property_key
+            && self.start == other.start
+            && self.end == other.end
+            && self.syntax == other.syntax
+            && self.inherits == other.inherits
+            && self.initial_value == other.initial_value
+    }
+}
+
+impl Eq for CustomPropertyRegistrationRule {}
 
 fn push_unique_custom_property_key(
     keys: &mut Vec<CanonicalCustomPropertyNameV0>,
@@ -105,6 +131,41 @@ pub(crate) fn collect_custom_property_registration_rules(
     rules
 }
 
+#[cfg(test)]
+mod authored_property_identity_tests {
+    use super::*;
+
+    #[test]
+    fn custom_property_semantic_fact_identity_uses_sealed_property_keys() {
+        let fact = |name: &str| CustomPropertySemanticFactV0 {
+            fact_kind: "declaration",
+            name: AuthoredPropertyTextV0::new(name),
+            value: "red".to_string(),
+            source_span_start: 0,
+            source_span_end: 1,
+        };
+
+        assert_eq!(fact("COLOR"), fact(r"C\4f LOR"));
+        assert_ne!(fact("--foo"), fact("--FOO"));
+    }
+
+    #[test]
+    fn custom_property_registration_rule_identity_uses_custom_property_keys() {
+        let rule = |name: &str| CustomPropertyRegistrationRule {
+            name: AuthoredPropertyTextV0::new(name),
+            property_key: AuthoredPropertyTextV0::new(name).to_custom_key(),
+            start: 0,
+            end: 1,
+            syntax: Some("*".to_string()),
+            inherits: Some("false".to_string()),
+            initial_value: Some("red".to_string()),
+        };
+
+        assert_eq!(rule(r"--f\6f o"), rule("--foo"));
+        assert_ne!(rule("--foo"), rule("--FOO"));
+    }
+}
+
 fn parse_custom_property_registration_rule(
     tokens: &[omena_parser::LexedToken],
     at_property_index: usize,
@@ -134,7 +195,7 @@ fn parse_custom_property_registration_rule(
 
     Some((
         CustomPropertyRegistrationRule {
-            name,
+            name: AuthoredPropertyTextV0::new(name),
             property_key,
             start: token_start(&tokens[at_property_index]),
             end: token_end(&tokens[close_index]),
@@ -356,7 +417,7 @@ fn collect_custom_property_roots_from_container_style_query_preludes_from_ir(
 pub(crate) fn tree_shake_css_custom_properties_with_lexer(
     source: &str,
     dialect: StyleDialect,
-    reachable_custom_property_names: &[String],
+    reachable_custom_property_names: &[AuthoredPropertyTextV0],
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> (String, Vec<TransformSemanticRemovalCandidate>) {
@@ -384,7 +445,7 @@ pub(crate) fn tree_shake_css_custom_properties_with_lexer(
 pub(crate) fn tree_shake_css_custom_properties_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
-    reachable_custom_property_names: &[String],
+    reachable_custom_property_names: &[AuthoredPropertyTextV0],
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> Result<Vec<TransformSemanticRemovalCandidate>, TransformIrSourceReplacementErrorV0> {
@@ -410,7 +471,7 @@ pub(crate) fn tree_shake_css_custom_properties_with_ir_transaction_on_ir(
 pub(crate) fn collect_tree_shake_css_custom_property_removals_from_ir(
     ir: &TransformIrV0,
     dialect: StyleDialect,
-    reachable_custom_property_names: &[String],
+    reachable_custom_property_names: &[AuthoredPropertyTextV0],
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> Vec<TransformSemanticRemovalCandidate> {
@@ -451,7 +512,7 @@ pub(crate) fn collect_css_custom_property_semantic_facts_from_ir(
                     .into_iter()
                     .map(|declaration| CustomPropertySemanticFactV0 {
                         fact_kind: "custom-property-export",
-                        name: declaration.export_name,
+                        name: AuthoredPropertyTextV0::new(declaration.export_name),
                         value: declaration.value,
                         source_span_start: declaration.start,
                         source_span_end: declaration.end,
@@ -461,11 +522,16 @@ pub(crate) fn collect_css_custom_property_semantic_facts_from_ir(
     );
 
     facts.sort_by(|left, right| {
-        (left.fact_kind, left.name.as_str(), left.source_span_start).cmp(&(
-            right.fact_kind,
-            right.name.as_str(),
-            right.source_span_start,
-        ))
+        (
+            left.fact_kind,
+            left.name.to_property_name().canonical_key(),
+            left.source_span_start,
+        )
+            .cmp(&(
+                right.fact_kind,
+                right.name.to_property_name().canonical_key(),
+                right.source_span_start,
+            ))
     });
     facts
 }
@@ -473,7 +539,7 @@ pub(crate) fn collect_css_custom_property_semantic_facts_from_ir(
 fn collect_tree_shake_css_custom_property_replacements(
     source: &str,
     dialect: StyleDialect,
-    reachable_custom_property_names: &[String],
+    reachable_custom_property_names: &[AuthoredPropertyTextV0],
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> (
@@ -501,7 +567,11 @@ fn collect_tree_shake_css_custom_property_replacements(
         {
             removals.push(TransformSemanticRemovalCandidate {
                 symbol_kind: "customPropertyRegistration",
-                name: registration.name,
+                name: {
+                    let mut name = String::new();
+                    let _ = render_authored(&registration.name, &mut name);
+                    name
+                },
                 source_span_start: registration.start,
                 source_span_end: registration.end,
                 reason: "custom-property registration was absent from the closed-style-world reachable custom-property set",
@@ -583,7 +653,11 @@ fn collect_tree_shake_css_custom_property_replacements(
             if !rule_is_reachable || !name_is_referenced {
                 removals.push(TransformSemanticRemovalCandidate {
                     symbol_kind: "customProperty",
-                    name: declaration.property.to_string(),
+                    name: {
+                        let mut name = String::new();
+                        let _ = render_authored(&declaration.property, &mut name);
+                        name
+                    },
                     source_span_start: declaration.start,
                     source_span_end: declaration.end,
                     reason: if rule_is_reachable {
@@ -616,7 +690,7 @@ fn collect_tree_shake_css_custom_property_replacements(
 fn collect_tree_shake_css_custom_property_replacements_from_ir(
     ir: &TransformIrV0,
     dialect: StyleDialect,
-    reachable_custom_property_names: &[String],
+    reachable_custom_property_names: &[AuthoredPropertyTextV0],
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> (
@@ -642,7 +716,11 @@ fn collect_tree_shake_css_custom_property_replacements_from_ir(
         {
             removals.push(TransformSemanticRemovalCandidate {
                 symbol_kind: "customPropertyRegistration",
-                name: registration.name,
+                name: {
+                    let mut name = String::new();
+                    let _ = render_authored(&registration.name, &mut name);
+                    name
+                },
                 source_span_start: registration.start,
                 source_span_end: registration.end,
                 reason: "custom-property registration was absent from the closed-style-world reachable custom-property set",
@@ -771,7 +849,11 @@ fn push_custom_property_rule_removals_from_declarations(
         }
         removals.push(TransformSemanticRemovalCandidate {
             symbol_kind: "customProperty",
-            name: declaration.property.to_string(),
+            name: {
+                let mut name = String::new();
+                let _ = render_authored(&declaration.property, &mut name);
+                name
+            },
             source_span_start: declaration.start,
             source_span_end: declaration.end,
             reason: if rule_is_reachable {
@@ -877,7 +959,7 @@ fn custom_property_rule_is_reachable(
 fn collect_reachable_custom_property_names(
     source: &str,
     tokens: &[omena_parser::LexedToken],
-    external_roots: &[String],
+    external_roots: &[AuthoredPropertyTextV0],
     external_keyframe_roots: &[String],
     reachable_class_names: &[String],
 ) -> Option<Vec<CanonicalCustomPropertyNameV0>> {
@@ -894,9 +976,7 @@ fn collect_reachable_custom_property_names(
     );
 
     for name in external_roots {
-        if let Some(name) = canonical_custom_property_key(name) {
-            push_unique_custom_property_key(&mut root_names, name);
-        }
+        push_unique_custom_property_key(&mut root_names, name.to_custom_key());
     }
     for name in collect_custom_property_roots_from_container_style_query_preludes(
         source,
@@ -1005,7 +1085,7 @@ fn collect_reachable_custom_property_names(
 fn collect_reachable_custom_property_names_from_ir(
     ir: &TransformIrV0,
     dialect: StyleDialect,
-    external_roots: &[String],
+    external_roots: &[AuthoredPropertyTextV0],
     external_keyframe_roots: &[String],
     reachable_class_names: &[String],
 ) -> Option<Vec<CanonicalCustomPropertyNameV0>> {
@@ -1021,9 +1101,7 @@ fn collect_reachable_custom_property_names_from_ir(
     );
 
     for name in external_roots {
-        if let Some(name) = canonical_custom_property_key(name) {
-            push_unique_custom_property_key(&mut root_names, name);
-        }
+        push_unique_custom_property_key(&mut root_names, name.to_custom_key());
     }
     for name in collect_custom_property_roots_from_container_style_query_preludes_from_ir(
         ir,
@@ -1416,7 +1494,7 @@ fn custom_property_registration_rule_from_ir(
         })
         .map(|declaration| declaration.value);
     Some(CustomPropertyRegistrationRule {
-        name: name.to_string(),
+        name: AuthoredPropertyTextV0::new(name),
         property_key,
         start: keyword_start,
         end: node.source_span_end,
@@ -1438,11 +1516,15 @@ fn collect_static_custom_property_icss_export_rules_from_ir(
                 .filter(|declaration| {
                     !collect_custom_property_references_in_value(&declaration.value).is_empty()
                 })
-                .map(|declaration| CustomPropertyIcssExportDeclaration {
-                    export_name: declaration.property.to_string(),
-                    value: declaration.value,
-                    start: declaration.start,
-                    end: declaration.end,
+                .map(|declaration| {
+                    let mut export_name = String::new();
+                    let _ = render_authored(&declaration.property, &mut export_name);
+                    CustomPropertyIcssExportDeclaration {
+                        export_name,
+                        value: declaration.value,
+                        start: declaration.start,
+                        end: declaration.end,
+                    }
                 })
                 .collect::<Vec<_>>();
             (!declarations.is_empty()).then_some(CustomPropertyIcssExportRule {
@@ -1955,11 +2037,12 @@ pub(crate) fn substitute_static_css_custom_properties_with_lexer(
             else {
                 continue;
             };
-            replacements.push((
-                declaration.start,
-                declaration.end,
-                format!("{}: {resolved_value};", declaration.property),
-            ));
+            let mut replacement = String::new();
+            let _ = render_authored(&declaration.property, &mut replacement);
+            replacement.push_str(": ");
+            replacement.push_str(resolved_value.as_str());
+            replacement.push(';');
+            replacements.push((declaration.start, declaration.end, replacement));
         }
         index += 1;
     }

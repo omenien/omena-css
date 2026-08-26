@@ -262,7 +262,7 @@ pub(crate) use selectors::{
     css_module_block_scope_marker_in_header, css_module_header_is_global_only,
     resolve_selector_header, split_selector_groups,
 };
-pub use variables::{ParsedVariableFact, ParsedVariableFactKind};
+pub use variables::{ParsedVariableFact, ParsedVariableFactKind, ParsedVariableFactNameV0};
 pub(crate) use variables::{collect_variable_facts_from_sink, scss_variable_token_is_declaration};
 
 #[derive(Debug, Clone, PartialEq, Eq)]

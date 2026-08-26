@@ -1,5 +1,8 @@
 use omena_parser::StyleDialect;
-use omena_syntax::{SyntaxKind, ident::PropertyNameV0};
+use omena_syntax::{
+    SyntaxKind,
+    ident::{PropertyNameV0, render_authored},
+};
 use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -500,12 +503,17 @@ fn format_declaration_text_from_segment(segment: &str) -> Option<String> {
         return None;
     }
     let property_name = PropertyNameV0::from_authored(property);
-    let property = if property_name.as_custom_key().is_some() {
-        property_name.authored_text().to_string()
+    let mut declaration = if property_name.as_custom_key().is_some() {
+        let mut authored = String::new();
+        let _ = render_authored(&property_name.authored_text(), &mut authored);
+        authored
     } else {
         property_name.canonical_name().to_string()
     };
-    Some(format!("{property}: {value};"))
+    declaration.push_str(": ");
+    declaration.push_str(value);
+    declaration.push(';');
+    Some(declaration)
 }
 
 fn declaration_colon_index(segment: &str) -> Option<usize> {
@@ -563,7 +571,14 @@ fn unwrap_nested_rule_body(
     if !declarations.is_empty() {
         let declarations_text = declarations
             .iter()
-            .map(|declaration| format!("{}: {};", declaration.property, declaration.value))
+            .map(|declaration| {
+                let mut text = String::new();
+                let _ = render_authored(&declaration.property, &mut text);
+                text.push_str(": ");
+                text.push_str(declaration.value.as_str());
+                text.push(';');
+                text
+            })
             .collect::<Vec<_>>()
             .join(" ");
         rule_texts.push(format!("{parent_selector} {{ {declarations_text} }}"));

@@ -8,7 +8,9 @@ use omena_semantic::{
     LayerBindingResolutionV0, StyleContextIndexV0,
     collect_parser_declaration_syntax_and_style_context_from_source, layer_ordinal_for_byte_span,
 };
-use omena_syntax::ident::{CanonicalPropertyKeyV0, ClassNameV0};
+#[cfg(test)]
+use omena_syntax::ident::PropertyNameV0;
+use omena_syntax::ident::{AuthoredPropertyTextV0, CanonicalPropertyKeyV0, ClassNameV0};
 
 use super::runtime_state::query_selector_class_names;
 use super::value_references::collect_query_var_references_in_value;
@@ -16,12 +18,12 @@ use super::value_references::collect_query_var_references_in_value;
 /// The query-owned join of one parser declaration with its semantic wrapper
 /// context. This is deliberately internal: public query payloads continue to
 /// carry their existing declaration-id strings and checker inputs.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub(in crate::style) struct ParsedDeclarationFactV0 {
     pub(in crate::style) declaration_id: String,
     pub(in crate::style) byte_span: ParserByteSpanV0,
     pub(in crate::style) selector: String,
-    pub(in crate::style) property_name: String,
+    pub(in crate::style) property_name: AuthoredPropertyTextV0,
     pub(in crate::style) property_key: CanonicalPropertyKeyV0,
     pub(in crate::style) value: String,
     pub(in crate::style) important: bool,
@@ -31,6 +33,24 @@ pub(in crate::style) struct ParsedDeclarationFactV0 {
     pub(in crate::style) layer_order: Option<i32>,
     pub(in crate::style) source_order: u32,
 }
+
+impl PartialEq for ParsedDeclarationFactV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.declaration_id == other.declaration_id
+            && self.byte_span == other.byte_span
+            && self.selector == other.selector
+            && self.property_key == other.property_key
+            && self.value == other.value
+            && self.important == other.important
+            && self.condition_context == other.condition_context
+            && self.semantic_context_ids == other.semantic_context_ids
+            && self.layer_name == other.layer_name
+            && self.layer_order == other.layer_order
+            && self.source_order == other.source_order
+    }
+}
+
+impl Eq for ParsedDeclarationFactV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::style) struct ParsedDeclarationFactCollectionV0 {
@@ -213,6 +233,26 @@ mod tests {
     use super::*;
 
     #[test]
+    fn parsed_declaration_fact_identity_uses_sealed_property_keys() {
+        let mut plain = collect_parsed_declaration_facts(
+            "fixture.css",
+            ".a { color: red; }",
+            StyleDialect::Css,
+        )
+        .remove(0);
+        let mut escaped = plain.clone();
+        escaped.property_name = AuthoredPropertyTextV0::new(r"C\4f LOR");
+        escaped.property_key = escaped.property_name.to_property_name().canonical_key();
+        assert_eq!(plain, escaped);
+
+        plain.property_name = AuthoredPropertyTextV0::new("--foo");
+        plain.property_key = plain.property_name.to_property_name().canonical_key();
+        escaped.property_name = AuthoredPropertyTextV0::new("--FOO");
+        escaped.property_key = escaped.property_name.to_property_name().canonical_key();
+        assert_ne!(plain, escaped);
+    }
+
+    #[test]
     fn cst_join_keeps_live_url_values_and_wire_ids() {
         for source in [
             ".a { background-image: url(a;b.png)!important; background-image: url(clean.png); }",
@@ -345,7 +385,12 @@ mod tests {
 
         assert_eq!(facts.len(), 1, "{facts:#?}");
         assert_eq!(facts[0].selector, ".x");
-        assert_eq!(facts[0].property_name, "color");
+        assert!(
+            facts[0]
+                .property_name
+                .to_property_name()
+                .same_as(&PropertyNameV0::standard("color"))
+        );
         assert_eq!(facts[0].value, "blue");
         assert_eq!(facts[0].layer_name.as_deref(), Some("real"));
         assert_eq!(facts[0].layer_order, Some(0));

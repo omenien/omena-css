@@ -155,6 +155,10 @@ fn source_reference_candidate(
             SourceSelectorReferenceMatchKind::Prefix => "sourceSelectorPrefixReference",
         },
         name: AuthoredPropertyTextV0::new(name),
+        selector_key: reference
+            .selector_name
+            .as_deref()
+            .map(|name| omena_syntax::ident::ClassNameV0::new(name).canonical_key()),
         property_key: None,
         range: parser_range_for_byte_span(document.text.as_str(), reference.byte_span),
         source: "omenaQuerySourceSyntaxIndex",

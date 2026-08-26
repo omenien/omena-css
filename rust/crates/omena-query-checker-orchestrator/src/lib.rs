@@ -6,6 +6,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+#[cfg(test)]
+use omena_syntax::ident::AuthoredPropertyTextV0;
 use serde::Serialize;
 
 #[deprecated(
@@ -1060,23 +1062,23 @@ mod tests {
             ],
             custom_properties: vec![
                 OmenaCheckerCustomPropertyInputV0 {
-                    name: "--gap".to_string(),
+                    name: AuthoredPropertyTextV0::new("--gap"),
                     dependencies: Vec::new(),
                     guaranteed_invalid: true,
                 },
                 OmenaCheckerCustomPropertyInputV0 {
-                    name: "--a".to_string(),
-                    dependencies: vec!["--b".to_string()],
+                    name: AuthoredPropertyTextV0::new("--a"),
+                    dependencies: vec![AuthoredPropertyTextV0::new("--b")],
                     guaranteed_invalid: false,
                 },
                 OmenaCheckerCustomPropertyInputV0 {
-                    name: "--b".to_string(),
-                    dependencies: vec!["--a".to_string()],
+                    name: AuthoredPropertyTextV0::new("--b"),
+                    dependencies: vec![AuthoredPropertyTextV0::new("--a")],
                     guaranteed_invalid: false,
                 },
             ],
             custom_property_registrations: vec![OmenaCheckerCustomPropertyRegistrationInputV0 {
-                name: "--gap-size".to_string(),
+                name: AuthoredPropertyTextV0::new("--gap-size"),
                 syntax: Some("'<length>'".to_string()),
                 inherits: Some("false".to_string()),
                 initial_value: Some("8px".to_string()),
@@ -1685,7 +1687,7 @@ mod tests {
         OmenaCheckerCascadeDeclarationInputV0 {
             declaration_id: fixture.declaration_id.to_string(),
             selector: CanonicalSelector::from_canonical(fixture.selector),
-            property: fixture.property.to_string(),
+            property: AuthoredPropertyTextV0::new(fixture.property),
             value: fixture.value.to_string(),
             source_order: fixture.source_order,
             condition_context: Vec::new(),
@@ -1696,7 +1698,7 @@ mod tests {
             var_references: fixture
                 .var_references
                 .iter()
-                .map(|name| (*name).to_string())
+                .map(|name| AuthoredPropertyTextV0::new(*name))
                 .collect(),
         }
     }

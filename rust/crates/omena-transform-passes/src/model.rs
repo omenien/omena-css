@@ -22,6 +22,7 @@ use omena_evidence_graph::{
 };
 use omena_incremental::{IncrementalComputationPlanV0, IncrementalSnapshotV0};
 use omena_parser::ModuleInstanceKeyV0;
+use omena_syntax::ident::AuthoredPropertyTextV0;
 use omena_transform_cst::{
     StableNodeKeyV0, TransformBuildProfileV0, TransformDagEdgeV0, TransformPassContractV0,
     TransformPassDescriptorV0, TransformPassKind, TransformStrictPolicyDescriptorV0,
@@ -573,12 +574,24 @@ pub struct TransformWinnerEqualityAbsenceV0 {
 }
 
 /// The semantic location whose cascade winner is compared across a transform.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformWinnerEqualityAffectedPairV0 {
     pub element_signature: ElementSignature,
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
 }
+
+impl PartialEq for TransformWinnerEqualityAffectedPairV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.element_signature == other.element_signature
+            && self
+                .property
+                .to_property_name()
+                .same_as(&other.property.to_property_name())
+    }
+}
+
+impl Eq for TransformWinnerEqualityAffectedPairV0 {}
 
 /// A definite winner and the proof emitted by the cascade authority.
 ///
@@ -1464,7 +1477,7 @@ pub struct TransformFuzzSeedReportV0 {
     pub results: Vec<TransformCascadeSafetyFuzzResultV0>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct TransformExecutionContextV0 {
     pub drop_dark_mode_media_queries: bool,
@@ -1473,7 +1486,7 @@ pub struct TransformExecutionContextV0 {
     pub reachable_class_names: Vec<String>,
     pub reachable_keyframe_names: Vec<String>,
     pub reachable_value_names: Vec<String>,
-    pub reachable_custom_property_names: Vec<String>,
+    pub reachable_custom_property_names: Vec<AuthoredPropertyTextV0>,
     pub scss_module_evaluation: Option<TransformModuleEvaluationV0>,
     pub less_module_evaluation: Option<TransformModuleEvaluationV0>,
     pub import_inlines: Vec<TransformImportInlineV0>,
@@ -1487,6 +1500,42 @@ pub struct TransformExecutionContextV0 {
     pub cascade_environment: Option<TransformCascadeEnvironmentV0>,
 }
 
+impl PartialEq for TransformExecutionContextV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.drop_dark_mode_media_queries == other.drop_dark_mode_media_queries
+            && self.supports_target_capability == other.supports_target_capability
+            && self.vendor_prefix_policy == other.vendor_prefix_policy
+            && self.reachable_class_names == other.reachable_class_names
+            && self.reachable_keyframe_names == other.reachable_keyframe_names
+            && self.reachable_value_names == other.reachable_value_names
+            && authored_custom_property_sequences_same(
+                &self.reachable_custom_property_names,
+                &other.reachable_custom_property_names,
+            )
+            && self.scss_module_evaluation == other.scss_module_evaluation
+            && self.less_module_evaluation == other.less_module_evaluation
+            && self.import_inlines == other.import_inlines
+            && self.class_name_rewrites == other.class_name_rewrites
+            && self.css_module_composes_resolutions == other.css_module_composes_resolutions
+            && self.css_module_value_resolutions == other.css_module_value_resolutions
+            && self.design_token_routes == other.design_token_routes
+            && self.cascade_environment == other.cascade_environment
+    }
+}
+
+impl Eq for TransformExecutionContextV0 {}
+
+fn authored_custom_property_sequences_same(
+    left: &[AuthoredPropertyTextV0],
+    right: &[AuthoredPropertyTextV0],
+) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| left.to_custom_key() == right.to_custom_key())
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct TransformCascadeEnvironmentV0 {
@@ -1496,12 +1545,12 @@ pub struct TransformCascadeEnvironmentV0 {
     pub declarations: Vec<TransformCascadeEnvironmentDeclarationV0>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformCascadeEnvironmentDeclarationV0 {
     pub declaration_id: String,
     pub selector: String,
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
     pub value: String,
     pub origin: CascadeOriginV0,
     pub important: bool,
@@ -1511,6 +1560,25 @@ pub struct TransformCascadeEnvironmentDeclarationV0 {
     pub scope_proximity: Option<u32>,
     pub source_order: u32,
 }
+
+impl PartialEq for TransformCascadeEnvironmentDeclarationV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.declaration_id == other.declaration_id
+            && self.selector == other.selector
+            && self
+                .property
+                .to_property_name()
+                .same_as(&other.property.to_property_name())
+            && self.value == other.value
+            && self.origin == other.origin
+            && self.important == other.important
+            && self.layer_rank == other.layer_rank
+            && self.scope_proximity == other.scope_proximity
+            && self.source_order == other.source_order
+    }
+}
+
+impl Eq for TransformCascadeEnvironmentDeclarationV0 {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1739,11 +1807,80 @@ pub struct TransformCssModuleValueResolutionV0 {
     pub resolved_value: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformDesignTokenRouteV0 {
-    pub token_name: String,
+    pub token_name: AuthoredPropertyTextV0,
     pub routed_value: String,
+}
+
+impl PartialEq for TransformDesignTokenRouteV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.token_name.to_custom_key() == other.token_name.to_custom_key()
+            && self.routed_value == other.routed_value
+    }
+}
+
+impl Eq for TransformDesignTokenRouteV0 {}
+
+#[cfg(test)]
+mod authored_property_identity_tests {
+    use super::*;
+
+    #[test]
+    fn winner_equality_affected_pair_identity_uses_sealed_property_keys() {
+        let pair = |property: &str| TransformWinnerEqualityAffectedPairV0 {
+            element_signature: ElementSignature::concrete(
+                None::<String>,
+                None::<String>,
+                ["button"],
+            ),
+            property: AuthoredPropertyTextV0::new(property),
+        };
+
+        assert_eq!(pair("COLOR"), pair(r"C\4f LOR"));
+        assert_ne!(pair("--foo"), pair("--FOO"));
+    }
+
+    #[test]
+    fn execution_context_identity_uses_custom_property_keys() {
+        let context = |property: &str| TransformExecutionContextV0 {
+            reachable_custom_property_names: vec![AuthoredPropertyTextV0::new(property)],
+            ..TransformExecutionContextV0::default()
+        };
+
+        assert_eq!(context(r"--f\6f o"), context("--foo"));
+        assert_ne!(context("--foo"), context("--FOO"));
+    }
+
+    #[test]
+    fn cascade_environment_declaration_identity_uses_sealed_property_keys() {
+        let declaration = |property: &str| TransformCascadeEnvironmentDeclarationV0 {
+            declaration_id: "declaration".to_string(),
+            selector: ".button".to_string(),
+            property: AuthoredPropertyTextV0::new(property),
+            value: "red".to_string(),
+            origin: CascadeOriginV0::Author,
+            important: false,
+            layer_rank: None,
+            scope_proximity: None,
+            source_order: 0,
+        };
+
+        assert_eq!(declaration("COLOR"), declaration(r"C\4f LOR"));
+        assert_ne!(declaration("--foo"), declaration("--FOO"));
+    }
+
+    #[test]
+    fn design_token_route_identity_uses_custom_property_keys() {
+        let route = |name: &str| TransformDesignTokenRouteV0 {
+            token_name: AuthoredPropertyTextV0::new(name),
+            routed_value: "red".to_string(),
+        };
+
+        assert_eq!(route(r"--f\6f o"), route("--foo"));
+        assert_ne!(route("--foo"), route("--FOO"));
+    }
 }
 
 #[cfg(test)]

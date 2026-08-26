@@ -14,7 +14,7 @@ use omena_query_core::SpecStandardPropertyValueValidatorV0;
 use omena_query_transform_runner::parse_static_css_cascade_value;
 use omena_semantic::DesignTokenRankedReferenceV0;
 use omena_syntax::ident::{
-    AuthoredPropertyTextV0, PropertyNameV0, is_ascii_word_continue, property_names_same,
+    AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, is_ascii_word_continue, render_authored,
 };
 
 use crate::{
@@ -122,7 +122,7 @@ pub fn read_omena_query_cascade_at_position_from_graph(
             .ref_facts
             .iter()
             .map(|fact| CustomPropertyReferenceFactView {
-                name: fact.name.as_str(),
+                name: &fact.name,
                 source_order: fact.source_order,
             }),
     );
@@ -174,7 +174,7 @@ pub fn read_omena_query_cascade_at_position_from_graph(
         .ranked_references
         .iter()
         .find(|ranking| {
-            property_names_same(&ranking.reference_name, reference.name)
+            ranking.reference_name.to_custom_key() == reference.name.to_custom_key()
                 && ranking.reference_source_order == reference.source_order
         });
     let custom_property_env = collect_same_file_custom_property_env_from_graph_for_reference_winner(
@@ -192,13 +192,15 @@ pub fn read_omena_query_cascade_at_position_from_graph(
     let fixed_point_entry = fixed_point
         .entries
         .iter()
-        .find(|entry| property_names_same(&entry.name, reference.name));
+        .find(|entry| entry.name == reference.name.to_custom_key());
     let fixed_point_value =
         fixed_point_entry.and_then(|entry| render_query_cascade_value(&entry.resolved));
     let refinement_evidence = fixed_point_value
         .as_deref()
         .map(|value| summarize_query_cascade_refinement_evidence(reference.name, value, ranking));
 
+    let mut rendered_reference_name = String::new();
+    let _ = render_authored(reference.name, &mut rendered_reference_name);
     OmenaQueryCascadeAtPositionV0 {
         schema_version: "0",
         product: "omena-query.read-cascade-at-position",
@@ -210,7 +212,7 @@ pub fn read_omena_query_cascade_at_position_from_graph(
             "unresolved"
         },
         cascade_engine: "omena-cascade",
-        reference_name: Some(reference.name.to_string()),
+        reference_name: Some(rendered_reference_name),
         reference_range: Some(*reference_range),
         winner_declaration_source_order: ranking
             .map(|ranking| ranking.winner_declaration_source_order),
@@ -261,9 +263,9 @@ pub fn read_omena_query_cascade_at_position_from_graph(
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 struct ReferencedDeclarationComputedValueSeed {
-    property: String,
+    property: AuthoredPropertyTextV0,
     value: String,
     status: &'static str,
     computed_value: Option<String>,
@@ -273,12 +275,41 @@ struct ReferencedDeclarationComputedValueSeed {
     derivation_steps: Vec<&'static str>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+impl PartialEq for ReferencedDeclarationComputedValueSeed {
+    fn eq(&self, other: &Self) -> bool {
+        self.property
+            .to_property_name()
+            .same_as(&other.property.to_property_name())
+            && self.value == other.value
+            && self.status == other.status
+            && self.computed_value == other.computed_value
+            && self.invalid_at_computed_value_time == other.invalid_at_computed_value_time
+            && self.indeterminate == other.indeterminate
+            && self.indeterminate_reason == other.indeterminate_reason
+            && self.derivation_steps == other.derivation_steps
+    }
+}
+
+impl Eq for ReferencedDeclarationComputedValueSeed {}
+
+#[derive(Debug, Clone)]
 struct StyleDeclarationAtOffset {
-    property: String,
+    property: AuthoredPropertyTextV0,
     value: String,
     source_order: usize,
 }
+
+impl PartialEq for StyleDeclarationAtOffset {
+    fn eq(&self, other: &Self) -> bool {
+        self.property
+            .to_property_name()
+            .same_as(&other.property.to_property_name())
+            && self.value == other.value
+            && self.source_order == other.source_order
+    }
+}
+
+impl Eq for StyleDeclarationAtOffset {}
 
 fn compute_referenced_declaration_cascade_value_seed(
     style_path: &str,
@@ -289,11 +320,8 @@ fn compute_referenced_declaration_cascade_value_seed(
     let reference_offset = byte_offset_for_parser_position(style_source, reference_range.start)?;
     let declaration = style_declaration_at_byte_offset(style_source, reference_offset)?;
     let cascade_value = parse_static_css_cascade_value(&declaration.value)?;
-    let declaration_id = format!(
-        "{style_path}:{}:{}",
-        declaration.property, declaration.source_order
-    );
-    let property_key = PropertyNameV0::from_authored(&declaration.property).canonical_key();
+    let property_key = declaration.property.to_property_name().canonical_key();
+    let declaration_id = format!("{style_path}:{property_key:?}:{}", declaration.source_order);
     let standard_property_value_verdicts = if property_key.as_custom().is_none() {
         BTreeMap::from([(
             declaration_id.clone(),
@@ -310,8 +338,8 @@ fn compute_referenced_declaration_cascade_value_seed(
             property: declaration.property.clone(),
             declarations: vec![CascadeDeclaration {
                 id: declaration_id,
-                property: AuthoredPropertyTextV0::new(declaration.property.clone()),
-                property_key,
+                property: declaration.property.clone(),
+                property_key: property_key.clone(),
                 value: cascade_value,
                 key: CascadeKey::new(
                     CascadeLevel::AuthorNormal,
@@ -356,16 +384,18 @@ fn query_custom_property_fixed_point_entry_status(
 }
 
 fn summarize_query_cascade_refinement_evidence(
-    reference_name: &str,
+    reference_name: &AuthoredPropertyTextV0,
     fixed_point_value: &str,
     ranking: Option<&DesignTokenRankedReferenceV0>,
 ) -> CascadeDimensionalRefinementBridgeV0 {
+    let mut rendered_reference_name = String::new();
+    let _ = render_authored(reference_name, &mut rendered_reference_name);
     let layers = ranking
         .and_then(|ranking| ranking.winner_declaration_layer_name.clone())
         .into_iter()
         .collect::<Vec<_>>();
     let context = CascadeContextV0 {
-        id: format!("custom-property-fixed-point:{reference_name}"),
+        id: format!("custom-property-fixed-point:{rendered_reference_name}"),
         parent_id: None,
         selectors: Vec::new(),
         conditions: Vec::new(),
@@ -374,17 +404,20 @@ fn summarize_query_cascade_refinement_evidence(
     let members = vec![CascadeValueFamilyMemberV0 {
         context,
         value: AbstractPropertyValueV0::Exact {
-            property_name: reference_name.to_string(),
+            property_name: reference_name.clone(),
             value: fixed_point_value.to_string(),
             pseudo_state: None,
         },
     }];
     let restrictions = derive_context_indexed_cascade_restriction_maps_v0(members.as_slice());
-    let family =
-        summarize_context_indexed_cascade_value_family_v0(reference_name, members, restrictions);
+    let family = summarize_context_indexed_cascade_value_family_v0(
+        reference_name.clone(),
+        members,
+        restrictions,
+    );
     let predicate = RefinementPropertyPredicateV0::Not {
         predicate: Box::new(RefinementPropertyPredicateV0::ExactValue {
-            property_name: reference_name.to_string(),
+            property_name: reference_name.clone(),
             value: "guaranteed-invalid".to_string(),
         }),
     };
@@ -399,7 +432,7 @@ fn collect_same_file_custom_property_env_from_graph(
         let Some(value) = parse_static_css_cascade_value(&declaration.value) else {
             continue;
         };
-        let property_key = PropertyNameV0::canonical_custom_key(&declaration.name);
+        let property_key = declaration.name.to_custom_key();
         let entry = latest_values
             .entry(property_key)
             .or_insert((declaration.source_order, value.clone()));
@@ -415,7 +448,7 @@ fn collect_same_file_custom_property_env_from_graph(
 
 fn collect_same_file_custom_property_env_from_graph_for_reference_winner(
     graph: &StyleSemanticGraphSummaryV0,
-    reference_name: &str,
+    reference_name: &AuthoredPropertyTextV0,
     winner_declaration_source_order: Option<usize>,
 ) -> CustomPropertyEnv {
     let mut env = collect_same_file_custom_property_env_from_graph(graph);
@@ -428,8 +461,7 @@ fn collect_same_file_custom_property_env_from_graph_for_reference_winner(
         .decl_facts
         .iter()
         .find(|declaration| {
-            PropertyNameV0::custom(&declaration.name)
-                .same_as(&PropertyNameV0::custom(reference_name))
+            declaration.name.to_custom_key() == reference_name.to_custom_key()
                 && declaration.source_order == winner_declaration_source_order
         })
     else {
@@ -438,7 +470,7 @@ fn collect_same_file_custom_property_env_from_graph_for_reference_winner(
     let Some(value) = parse_static_css_cascade_value(&winner.value) else {
         return env;
     };
-    env.insert(PropertyNameV0::canonical_custom_key(reference_name), value);
+    env.insert(reference_name.to_custom_key(), value);
     env
 }
 
@@ -469,7 +501,7 @@ fn style_declaration_at_byte_offset(
     }
 
     Some(StyleDeclarationAtOffset {
-        property: property.to_string(),
+        property: AuthoredPropertyTextV0::new(property),
         value: value.to_string(),
         source_order: source.get(..start).unwrap_or_default().matches(';').count(),
     })
@@ -527,7 +559,7 @@ fn custom_property_ref_byte_spans(source: &str, name: &str) -> Vec<ParserByteSpa
 
 #[derive(Debug, Clone, Copy)]
 struct CustomPropertyReferenceFactView<'a> {
-    name: &'a str,
+    name: &'a AuthoredPropertyTextV0,
     source_order: usize,
 }
 
@@ -536,15 +568,18 @@ fn positioned_custom_property_reference_facts<'a>(
     ref_facts: impl IntoIterator<Item = CustomPropertyReferenceFactView<'a>>,
 ) -> Vec<(CustomPropertyReferenceFactView<'a>, ParserRangeV0)> {
     let ref_facts = ref_facts.into_iter().collect::<Vec<_>>();
-    let mut ranges_by_name = BTreeMap::<&str, VecDeque<ParserRangeV0>>::new();
-    for name in ref_facts
-        .iter()
-        .map(|fact| fact.name)
-        .collect::<std::collections::BTreeSet<_>>()
-    {
+    let mut ranges_by_name =
+        BTreeMap::<CanonicalCustomPropertyNameV0, VecDeque<ParserRangeV0>>::new();
+    for fact in &ref_facts {
+        let identity_key = fact.name.to_custom_key();
+        if ranges_by_name.contains_key(&identity_key) {
+            continue;
+        }
+        let mut rendered_name = String::new();
+        let _ = render_authored(fact.name, &mut rendered_name);
         ranges_by_name.insert(
-            name,
-            custom_property_ref_byte_spans(source, name)
+            identity_key,
+            custom_property_ref_byte_spans(source, &rendered_name)
                 .into_iter()
                 .map(|span| parser_range_for_byte_span(source, span))
                 .collect(),
@@ -557,7 +592,7 @@ fn positioned_custom_property_reference_facts<'a>(
         .into_iter()
         .filter_map(|fact| {
             ranges_by_name
-                .get_mut(fact.name)
+                .get_mut(&fact.name.to_custom_key())
                 .and_then(VecDeque::pop_front)
                 .map(|range| (fact, range))
         })
@@ -596,4 +631,38 @@ fn parser_position_is_after_or_equal(position: ParserPositionV0, start: ParserPo
 
 fn parser_position_is_before(position: ParserPositionV0, end: ParserPositionV0) -> bool {
     position.line < end.line || (position.line == end.line && position.character < end.character)
+}
+
+#[cfg(test)]
+mod authored_property_identity_tests {
+    use super::*;
+
+    #[test]
+    fn referenced_computed_value_seed_identity_uses_sealed_property_keys() {
+        let seed = |property: &str| ReferencedDeclarationComputedValueSeed {
+            property: AuthoredPropertyTextV0::new(property),
+            value: "red".to_string(),
+            status: "resolved",
+            computed_value: Some("red".to_string()),
+            invalid_at_computed_value_time: false,
+            indeterminate: false,
+            indeterminate_reason: None,
+            derivation_steps: vec!["test"],
+        };
+
+        assert_eq!(seed("COLOR"), seed(r"C\4f LOR"));
+        assert_ne!(seed("--foo"), seed("--FOO"));
+    }
+
+    #[test]
+    fn style_declaration_at_offset_identity_uses_sealed_property_keys() {
+        let declaration = |property: &str| StyleDeclarationAtOffset {
+            property: AuthoredPropertyTextV0::new(property),
+            value: "red".to_string(),
+            source_order: 0,
+        };
+
+        assert_eq!(declaration("COLOR"), declaration(r"C\4f LOR"));
+        assert_ne!(declaration("--foo"), declaration("--FOO"));
+    }
 }

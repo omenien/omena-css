@@ -288,7 +288,7 @@ fn uncovered_feature_for_external_prefix<'a>(
                 && feature
                     .observed_properties
                     .iter()
-                    .any(|property| property == unprefixed_property)
+                    .any(|property| property.to_standard_key().as_str() == unprefixed_property)
         })
         .map(|feature| feature.feature_id.as_str())
 }

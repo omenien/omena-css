@@ -19,6 +19,16 @@ fn span_text(source: &str, span: ParserByteSpanV0) -> Option<&str> {
     source.get(span.start..span.end)
 }
 
+fn assert_authored_property_text(
+    actual: &omena_syntax::ident::AuthoredPropertyTextV0,
+    expected: &str,
+) {
+    let mut rendered = String::new();
+    let result = actual.write_into(&mut rendered);
+    assert!(result.is_ok(), "writing into a String must not fail");
+    assert_eq!(rendered, expected);
+}
+
 #[test]
 fn lexical_class_scanner_matches_live_parser_facts() {
     for source in [
@@ -111,7 +121,7 @@ fn product_summary_preserves_syntax_derived_values_and_spans() {
         .custom_properties
         .decl_facts
         .iter()
-        .find(|fact| fact.name == "--brand");
+        .find(|fact| fact.property_key.as_str() == "--brand");
     assert!(
         custom_property.is_some(),
         "custom property declaration is missing"
@@ -143,7 +153,7 @@ fn declaration_syntax_facts_keep_url_delimiters_inside_cst_values() {
     ] {
         let facts = collect_parser_declaration_syntax_facts(source, StyleDialect::Css);
         assert_eq!(facts.len(), 2, "{facts:#?}");
-        assert_eq!(facts[0].property_name, "background-image");
+        assert_authored_property_text(&facts[0].property_name, "background-image");
         let expected_value = source
             .split_once("background-image: ")
             .and_then(|(_, tail)| tail.split_once("!important"))
@@ -180,7 +190,7 @@ fn declaration_syntax_facts_record_nested_selectors_and_cst_conditions() {
     let facts = collect_parser_declaration_syntax_facts(source, StyleDialect::Scss);
     assert_eq!(facts.len(), 1, "{facts:#?}");
     let fact = &facts[0];
-    assert_eq!(fact.property_name, "color");
+    assert_authored_property_text(&fact.property_name, "color");
     assert_eq!(
         span_text(source, fact.value_span).map(str::trim),
         Some("red")
@@ -201,7 +211,7 @@ fn declaration_syntax_facts_normalize_comment_trivia_from_property_and_value_tex
     let source = ".a { color /* property */ : red /* value */; }";
     let facts = collect_parser_declaration_syntax_facts(source, StyleDialect::Css);
     assert_eq!(facts.len(), 1);
-    assert_eq!(facts[0].property_name, "color");
+    assert_authored_property_text(&facts[0].property_name, "color");
     assert_eq!(facts[0].value_text, "red");
 }
 
@@ -211,13 +221,64 @@ fn declaration_syntax_facts_preserve_authored_property_names_with_canonical_keys
     let facts = collect_parser_declaration_syntax_facts(source, StyleDialect::Css);
 
     assert_eq!(facts.len(), 3, "{facts:#?}");
-    assert_eq!(facts[0].property_name, "COLOR");
+    assert_authored_property_text(&facts[0].property_name, "COLOR");
     assert_eq!(facts[0].property_key.as_str(), "color");
-    assert_eq!(facts[1].property_name, "--FOO");
+    assert_authored_property_text(&facts[1].property_name, "--FOO");
     assert_eq!(facts[1].property_key.as_str(), "--FOO");
-    assert_eq!(facts[2].property_name, r"--f\6f o");
+    assert_authored_property_text(&facts[2].property_name, r"--f\6f o");
     assert_eq!(facts[2].property_key.as_str(), "--foo");
     assert_ne!(facts[1].property_key, facts[2].property_key);
+}
+
+#[test]
+fn declaration_syntax_fact_identity_uses_sealed_property_keys() -> Result<(), String> {
+    let decoded =
+        collect_parser_declaration_syntax_facts(r#".a { --foo: red; }"#, StyleDialect::Css)
+            .into_iter()
+            .next()
+            .ok_or_else(|| "decoded declaration fact is required".to_string())?;
+    let mut escaped = decoded.clone();
+    escaped.property_name = AuthoredPropertyTextV0::new(r"--f\6f o");
+
+    assert_eq!(escaped, decoded);
+    Ok(())
+}
+
+#[test]
+fn parser_custom_property_fact_collection_identity_uses_custom_property_keys() {
+    let facts = |property: &str| ParserIndexCustomPropertyFactsV0 {
+        decl_names: vec![AuthoredPropertyTextV0::new(property)],
+        ref_names: vec![AuthoredPropertyTextV0::new(property)],
+        ..ParserIndexCustomPropertyFactsV0::default()
+    };
+
+    assert_eq!(facts(r"--f\6f o"), facts("--foo"));
+    assert_ne!(facts("--foo"), facts("--FOO"));
+}
+
+#[test]
+fn parser_custom_property_decl_fact_identity_uses_sealed_keys() {
+    let summary = summarize_css_modules_intermediate(r#":root { --foo: red; }"#, StyleDialect::Css);
+    assert_eq!(summary.custom_properties.decl_facts.len(), 1);
+    let decoded = summary.custom_properties.decl_facts[0].clone();
+    let mut escaped = decoded.clone();
+    escaped.name = AuthoredPropertyTextV0::new(r"--f\6f o");
+
+    assert_eq!(escaped, decoded);
+    assert_eq!(escaped.cmp(&decoded), std::cmp::Ordering::Equal);
+}
+
+#[test]
+fn parser_custom_property_ref_fact_identity_uses_sealed_keys() {
+    let summary =
+        summarize_css_modules_intermediate(r#".a { color: var(--foo); }"#, StyleDialect::Css);
+    assert_eq!(summary.custom_properties.ref_facts.len(), 1);
+    let decoded = summary.custom_properties.ref_facts[0].clone();
+    let mut escaped = decoded.clone();
+    escaped.name = AuthoredPropertyTextV0::new(r"--f\6f o");
+
+    assert_eq!(escaped, decoded);
+    assert_eq!(escaped.cmp(&decoded), std::cmp::Ordering::Equal);
 }
 
 #[test]

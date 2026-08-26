@@ -1,5 +1,4 @@
 use super::shared::*;
-use omena_syntax::ident::PropertyNameV0;
 
 pub fn summarize_omena_query_missing_custom_property_diagnostics(
     style_uri: &str,
@@ -29,15 +28,15 @@ pub fn summarize_omena_query_missing_custom_property_diagnostics(
         .filter(|fact| {
             fact.kind == ParsedVariableFactKind::CustomPropertyReference && fact.has_fallback
         })
-        .map(|fact| {
+        .filter_map(|fact| {
             let byte_span = ParserByteSpanV0 {
                 start: u32::from(fact.range.start()) as usize,
                 end: u32::from(fact.range.end()) as usize,
             };
-            (
-                PropertyNameV0::canonical_custom_key(&fact.name),
+            Some((
+                fact.name.as_custom_property()?.to_custom_key(),
                 parser_range_for_byte_span(source, byte_span),
-            )
+            ))
         })
         .collect::<BTreeSet<_>>();
 
@@ -54,6 +53,8 @@ pub fn summarize_omena_query_missing_custom_property_diagnostics(
             {
                 return None;
             }
+            let mut authored_name = String::new();
+            let _ = omena_syntax::ident::render_authored(&candidate.name, &mut authored_name);
             Some(OmenaQueryStyleDiagnosticV0 {
                 code: "missingCustomProperty",
                 severity: "warning",
@@ -63,14 +64,13 @@ pub fn summarize_omena_query_missing_custom_property_diagnostics(
                 ],
                 range: candidate.range,
                 message: format!(
-                    "CSS custom property '{}' not found in indexed style tokens.",
-                    candidate.name
+                    "CSS custom property '{authored_name}' not found in indexed style tokens."
                 ),
                 tags: Vec::new(),
                 create_custom_property: Some(OmenaQueryCreateCustomPropertyActionV0 {
                     uri: style_uri.to_string(),
                     range: insertion_range,
-                    new_text: format!("\n\n:root {{\n  {}: ;\n}}\n", candidate.name),
+                    new_text: format!("\n\n:root {{\n  {authored_name}: ;\n}}\n"),
                     property_name: candidate.name.clone(),
                     property_key: property_key.clone(),
                 }),
@@ -116,10 +116,8 @@ pub fn summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis(
             .into_iter()
             .filter(|entry| entry.guaranteed_invalid)
             .filter_map(|entry| {
-                declarations_by_name
-                    .get(&PropertyNameV0::canonical_custom_key(&entry.name))
-                    .copied()
-                    .map(|range| OmenaQueryStyleDiagnosticV0 {
+                declarations_by_name.get(&entry.name).copied().map(|range| {
+                    OmenaQueryStyleDiagnosticV0 {
                         code: "guaranteedInvalidCustomProperty",
                         severity: "warning",
                         provenance: omena_query_evidence_graph_provenance![
@@ -134,7 +132,8 @@ pub fn summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis(
                         cascade_confidence: None,
                         polynomial_provenance: None,
                         cross_file_scc: None,
-                    })
+                    }
+                })
             })
             .collect::<Vec<_>>();
 
@@ -166,7 +165,7 @@ fn guaranteed_invalid_custom_property_message(
     };
     format!(
         "CSS custom property '{}' computes to the guaranteed-invalid value because it {cause}.",
-        entry.name
+        entry.name.as_str()
     )
 }
 

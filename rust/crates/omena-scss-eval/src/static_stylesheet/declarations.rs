@@ -203,7 +203,7 @@ pub(super) fn collect_static_scss_variable_declarations(
             return None;
         }
         declarations.push(StaticStylesheetScopedVariableDeclaration {
-            name: fact.name.clone(),
+            name: fact.name.as_non_property()?.to_string(),
             scope_id: if declaration.is_global { 0 } else { scope_id },
             removal_spans: declaration.removal_spans.clone(),
             declaration,
@@ -369,7 +369,7 @@ pub(super) fn collect_static_less_variable_declarations(
         if !static_stylesheet_less_declaration_value_is_removal_safe(&declaration.value) {
             return None;
         }
-        let key = (scope_id, fact.name.clone());
+        let key = (scope_id, fact.name.as_non_property()?.to_string());
         if let Some(previous) = declarations.get_mut(&key) {
             merge_static_stylesheet_duplicate_declaration(
                 previous,

@@ -1,6 +1,8 @@
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
 use omena_cascade::{CascadeOutcome, CascadeReplicaOverlapV0};
+use omena_syntax::ident::AuthoredPropertyTextV0;
 use serde::Serialize;
 
 pub const REPLICA_ENSEMBLE_SCHEMA_VERSION_V0: &str = "0";
@@ -19,7 +21,7 @@ pub const REPLICA_ENSEMBLE_DEFAULT_PRODUCT_DECISION_MECHANISM_V0: bool = false;
     since = "0.4.0",
     note = "use CascadeSectionKeyV0; removal is not before 1.0 and requires downstream migration plus zero audited in-repo non-compatibility uses"
 )]
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeSiteKeyV0 {
     pub schema_version: &'static str,
@@ -27,10 +29,10 @@ pub struct CascadeSiteKeyV0 {
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
     pub element_selector: String,
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeSectionKeyV0 {
     pub schema_version: &'static str,
@@ -38,8 +40,60 @@ pub struct CascadeSectionKeyV0 {
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
     pub element_selector: String,
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
 }
+
+macro_rules! impl_cascade_key_identity {
+    ($type_name:ty) => {
+        #[allow(deprecated)]
+        impl PartialEq for $type_name {
+            fn eq(&self, other: &Self) -> bool {
+                self.schema_version == other.schema_version
+                    && self.product == other.product
+                    && self.layer_marker == other.layer_marker
+                    && self.feature_gate == other.feature_gate
+                    && self.element_selector == other.element_selector
+                    && self.property.to_property_name().canonical_key()
+                        == other.property.to_property_name().canonical_key()
+            }
+        }
+
+        #[allow(deprecated)]
+        impl Eq for $type_name {}
+
+        #[allow(deprecated)]
+        impl PartialOrd for $type_name {
+            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+                Some(self.cmp(other))
+            }
+        }
+
+        #[allow(deprecated)]
+        impl Ord for $type_name {
+            fn cmp(&self, other: &Self) -> Ordering {
+                (
+                    self.schema_version,
+                    self.product,
+                    self.layer_marker,
+                    self.feature_gate,
+                    &self.element_selector,
+                    self.property.to_property_name().canonical_key(),
+                )
+                    .cmp(&(
+                        other.schema_version,
+                        other.product,
+                        other.layer_marker,
+                        other.feature_gate,
+                        &other.element_selector,
+                        other.property.to_property_name().canonical_key(),
+                    ))
+            }
+        }
+    };
+}
+
+impl_cascade_key_identity!(CascadeSiteKeyV0);
+impl_cascade_key_identity!(CascadeSectionKeyV0);
 
 #[allow(deprecated)]
 #[deprecated(
@@ -146,7 +200,7 @@ pub struct ReplicaOverlapV0 {
     pub provenance_attributions: Vec<OverlapAttributionV0>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OverlapAttributionV0 {
     pub schema_version: &'static str,
@@ -154,11 +208,27 @@ pub struct OverlapAttributionV0 {
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
     pub site_element_selector: String,
-    pub site_property: String,
+    pub site_property: AuthoredPropertyTextV0,
     pub winner_alpha: String,
     pub winner_beta: String,
     pub provenance_alpha: Option<LinearProvenanceTagV0>,
     pub provenance_beta: Option<LinearProvenanceTagV0>,
+}
+
+impl PartialEq for OverlapAttributionV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.product == other.product
+            && self.layer_marker == other.layer_marker
+            && self.feature_gate == other.feature_gate
+            && self.site_element_selector == other.site_element_selector
+            && self.site_property.to_property_name().canonical_key()
+                == other.site_property.to_property_name().canonical_key()
+            && self.winner_alpha == other.winner_alpha
+            && self.winner_beta == other.winner_beta
+            && self.provenance_alpha == other.provenance_alpha
+            && self.provenance_beta == other.provenance_beta
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]

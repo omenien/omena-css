@@ -7,16 +7,31 @@ use omena_transform_passes::{
 };
 use serde::Serialize;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 /// A transform observation where the selected cascade winner changed.
 pub struct TransformWinnerEqualityAuditFindingV0 {
     pub sample_name: String,
     pub pass_id: &'static str,
-    pub property: String,
+    pub property: omena_syntax::ident::AuthoredPropertyTextV0,
     pub input: TransformWinnerEqualityWitnessV0,
     pub output: TransformWinnerEqualityWitnessV0,
 }
+
+impl PartialEq for TransformWinnerEqualityAuditFindingV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.sample_name == other.sample_name
+            && self.pass_id == other.pass_id
+            && self
+                .property
+                .to_property_name()
+                .same_as(&other.property.to_property_name())
+            && self.input == other.input
+            && self.output == other.output
+    }
+}
+
+impl Eq for TransformWinnerEqualityAuditFindingV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -117,7 +132,7 @@ mod tests {
         summarize_omena_query_style_diagnostics_for_file,
         summarize_omena_query_style_hover_candidates,
     };
-    use omena_syntax::ident::{PropertyNameV0, property_names_same};
+    use omena_syntax::ident::PropertyNameV0;
     use omena_transform_cst::TransformPassKind;
     use omena_transform_passes::{
         compare_transform_winner_equality_for_conformance_v0,
@@ -173,10 +188,14 @@ mod tests {
                 .map(|diagnostic| {
                     (
                         diagnostic.code,
-                        diagnostic
-                            .cascade_narrowing
-                            .as_ref()
-                            .map(|narrowing| narrowing.property_name.to_string()),
+                        diagnostic.cascade_narrowing.as_ref().map(|narrowing| {
+                            let mut property = String::new();
+                            let _ = omena_syntax::ident::render_authored(
+                                &narrowing.property_name,
+                                &mut property,
+                            );
+                            property
+                        }),
                     )
                 })
                 .collect::<Vec<_>>();
@@ -200,10 +219,11 @@ mod tests {
         collect_parser_declaration_syntax_facts(source, dialect)
             .into_iter()
             .find(|fact| {
-                property_names_same(&fact.property_name, property)
-                    && source
-                        .get(fact.byte_span.start..fact.byte_span.end)
-                        .is_some_and(|declaration| declaration.contains(raw_value))
+                fact.property_name.to_property_name().same_as(
+                    &omena_syntax::ident::PropertyNameV0::from_authored(property),
+                ) && source
+                    .get(fact.byte_span.start..fact.byte_span.end)
+                    .is_some_and(|declaration| declaration.contains(raw_value))
             })
             .map(|fact| fact.value_text)
             .ok_or_else(|| {
@@ -231,7 +251,13 @@ mod tests {
         let observation = obligations
             .iter()
             .find(|obligation| {
-                property_names_same(&obligation.affected_pair.property, fixture.property)
+                obligation
+                    .affected_pair
+                    .property
+                    .to_property_name()
+                    .same_as(&omena_syntax::ident::PropertyNameV0::from_authored(
+                        fixture.property,
+                    ))
             })
             .map(|obligation| &obligation.observation)
             .ok_or_else(|| format!("{} has no emission-plane obligation", fixture.name))?;
@@ -425,6 +451,30 @@ mod tests {
 
         assert!(report.observed_different_count > 0);
         assert!(!report.findings.is_empty());
+    }
+
+    #[test]
+    fn winner_equality_audit_finding_identity_uses_standard_property_keys() -> Result<(), String> {
+        let input = "@layer low, high; @layer low { .a { color: red; } } @layer high { .a { color: blue; } }";
+        let output = "@layer high, low; @layer low { .a { color: red; } } @layer high { .a { color: blue; } }";
+        let obligations = compare_transform_winner_equality_for_conformance_v0(
+            input,
+            output,
+            StyleDialect::Css,
+            TransformPassKind::LayerFlatten,
+        );
+        let mut report = empty_report("identity-fixture", 1);
+        record_obligations(&mut report, "layer-order-flip", obligations.as_slice());
+        let decoded = report
+            .findings
+            .first()
+            .ok_or_else(|| "known layer-order flip emits a finding".to_string())?
+            .clone();
+        let mut escaped = decoded.clone();
+        escaped.property = omena_syntax::ident::AuthoredPropertyTextV0::new(r"C\4f LOR");
+
+        assert_eq!(escaped, decoded);
+        Ok(())
     }
 
     #[test]

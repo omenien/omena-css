@@ -73,11 +73,39 @@ pub fn cascade_property(
 }
 
 #[track_caller]
+pub fn cascade_property_for_key(
+    declarations: impl IntoIterator<Item = CascadeDeclaration>,
+    property_key: &CanonicalPropertyKeyV0,
+) -> CascadeOutcome {
+    let outcome = ranking::cascade_property_for_key(declarations, property_key);
+    ranked_set_loss_census::observe_cascade_outcome(
+        CascadeRankedSetFunctionV0::CascadeProperty,
+        std::panic::Location::caller(),
+        &outcome,
+    );
+    outcome
+}
+
+#[track_caller]
 pub fn cascade_property_open_world(
     declarations: impl IntoIterator<Item = CascadeDeclaration>,
     property: &str,
 ) -> CascadeOutcome {
     let outcome = ranking::cascade_property_open_world(declarations, property);
+    ranked_set_loss_census::observe_cascade_outcome(
+        CascadeRankedSetFunctionV0::CascadePropertyOpenWorld,
+        std::panic::Location::caller(),
+        &outcome,
+    );
+    outcome
+}
+
+#[track_caller]
+pub fn cascade_property_open_world_for_key(
+    declarations: impl IntoIterator<Item = CascadeDeclaration>,
+    property_key: &CanonicalPropertyKeyV0,
+) -> CascadeOutcome {
+    let outcome = ranking::cascade_property_open_world_for_key(declarations, property_key);
     ranked_set_loss_census::observe_cascade_outcome(
         CascadeRankedSetFunctionV0::CascadePropertyOpenWorld,
         std::panic::Location::caller(),

@@ -14,7 +14,7 @@ use crate::types::{
     OmenaQueryEngineInputModuleAttributionV0, normalize_omena_query_style_path,
     resolve_omena_query_style_path_against_known,
 };
-use omena_syntax::ident::{CanonicalCustomPropertyNameV0, ClassNameV0, PropertyNameV0};
+use omena_syntax::ident::{AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, ClassNameV0};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy)]
@@ -168,10 +168,9 @@ pub(super) fn merge_transform_context(
         );
     }
     if !context.design_token_routes.is_empty() {
-        merge_context_records_by_key(
+        merge_design_token_routes_by_key(
             &mut merged.design_token_routes,
             &context.design_token_routes,
-            |route| route.token_name.as_str(),
         );
     }
     if context.cascade_environment.is_some() {
@@ -656,11 +655,13 @@ fn merge_context_list(target: &mut Vec<String>, additional: &[String]) {
     target.sort();
 }
 
-pub(super) fn dedupe_custom_property_names(names: impl IntoIterator<Item = String>) -> Vec<String> {
-    let mut by_identity = BTreeMap::<CanonicalCustomPropertyNameV0, String>::new();
+pub(super) fn dedupe_custom_property_names(
+    names: impl IntoIterator<Item = AuthoredPropertyTextV0>,
+) -> Vec<AuthoredPropertyTextV0> {
+    let mut by_identity = BTreeMap::<CanonicalCustomPropertyNameV0, AuthoredPropertyTextV0>::new();
     for authored in names {
         by_identity
-            .entry(PropertyNameV0::canonical_custom_key(&authored))
+            .entry(authored.to_custom_key())
             .or_insert(authored);
     }
     by_identity.into_values().collect()
@@ -680,6 +681,24 @@ where
         }
     }
     target.sort_by(|left, right| key(left).cmp(key(right)));
+}
+
+fn merge_design_token_routes_by_key(
+    target: &mut Vec<omena_query_transform_runner::TransformDesignTokenRouteV0>,
+    overrides: &[omena_query_transform_runner::TransformDesignTokenRouteV0],
+) {
+    for item in overrides {
+        let item_key = item.token_name.to_custom_key();
+        if let Some(existing) = target
+            .iter_mut()
+            .find(|existing| existing.token_name.to_custom_key() == item_key)
+        {
+            *existing = item.clone();
+        } else {
+            target.push(item.clone());
+        }
+    }
+    target.sort_by_key(|route| route.token_name.to_custom_key());
 }
 
 fn merge_class_context_records_by_key<T, F>(target: &mut Vec<T>, overrides: &[T], key: F)
@@ -810,7 +829,7 @@ mod tests {
     }
 
     #[test]
-    fn class_merge_normalization_does_not_apply_to_other_context_keys() {
+    fn class_and_property_merge_authorities_stay_scoped_to_their_fields() {
         let derived = TransformExecutionContextV0 {
             import_inlines: vec![TransformImportInlineV0 {
                 import_source: r#"\E9 tat"#.to_string(),
@@ -821,7 +840,7 @@ mod tests {
                 resolved_value: "derived".to_string(),
             }],
             design_token_routes: vec![TransformDesignTokenRouteV0 {
-                token_name: r#"\E9 tat"#.to_string(),
+                token_name: AuthoredPropertyTextV0::new(r#"\E9 tat"#),
                 routed_value: "derived".to_string(),
             }],
             ..TransformExecutionContextV0::default()
@@ -836,7 +855,7 @@ mod tests {
                 resolved_value: "explicit".to_string(),
             }],
             design_token_routes: vec![TransformDesignTokenRouteV0 {
-                token_name: "état".to_string(),
+                token_name: AuthoredPropertyTextV0::new("état"),
                 routed_value: "explicit".to_string(),
             }],
             ..TransformExecutionContextV0::default()
@@ -846,7 +865,8 @@ mod tests {
 
         assert_eq!(merged.import_inlines.len(), 2);
         assert_eq!(merged.css_module_value_resolutions.len(), 2);
-        assert_eq!(merged.design_token_routes.len(), 2);
+        assert_eq!(merged.design_token_routes.len(), 1);
+        assert_eq!(merged.design_token_routes[0].routed_value, "explicit");
     }
 
     fn module_context(

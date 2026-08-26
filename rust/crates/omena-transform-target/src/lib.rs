@@ -219,15 +219,32 @@ pub struct NativeStage2CoveredFeatureV0 {
     pub status: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NativeStage2UncoveredFeatureV0 {
     pub feature_id: String,
     pub category: String,
     pub reason: String,
-    pub observed_properties: Vec<String>,
+    pub observed_properties: Vec<omena_syntax::ident::AuthoredPropertyTextV0>,
     pub fallback: String,
 }
+
+impl PartialEq for NativeStage2UncoveredFeatureV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.feature_id == other.feature_id
+            && self.category == other.category
+            && self.reason == other.reason
+            && self.observed_properties.len() == other.observed_properties.len()
+            && self
+                .observed_properties
+                .iter()
+                .zip(&other.observed_properties)
+                .all(|(left, right)| left.to_standard_key() == right.to_standard_key())
+            && self.fallback == other.fallback
+    }
+}
+
+impl Eq for NativeStage2UncoveredFeatureV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1311,10 +1328,23 @@ fn target_managed_passes() -> [TransformPassKind; 14] {
 #[cfg(test)]
 mod tests {
     use super::{
-        TargetFeatureSupportV0, TargetTransformOptionsV0, conservative_target_options,
-        plan_target_transforms, plan_target_transforms_from_query,
+        NativeStage2UncoveredFeatureV0, TargetFeatureSupportV0, TargetTransformOptionsV0,
+        conservative_target_options, plan_target_transforms, plan_target_transforms_from_query,
         summarize_omena_transform_target_boundary,
     };
+
+    #[test]
+    fn uncovered_feature_identity_uses_standard_property_keys() {
+        let fixture = |property: &str| NativeStage2UncoveredFeatureV0 {
+            feature_id: "logical".to_string(),
+            category: "declaration".to_string(),
+            reason: "fallback".to_string(),
+            observed_properties: vec![omena_syntax::ident::AuthoredPropertyTextV0::new(property)],
+            fallback: "stage1".to_string(),
+        };
+
+        assert_eq!(fixture(r"C\4f LOR"), fixture("color"));
+    }
 
     #[test]
     fn exposes_target_lowering_boundary() {

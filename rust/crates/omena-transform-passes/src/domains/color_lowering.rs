@@ -51,18 +51,22 @@ pub(crate) fn lower_css_light_dark_with_lexer(
             else {
                 continue;
             };
-            replacements.push((
-                declaration.start,
-                declaration.end,
-                format!("{}: {light_value};", declaration.property),
-            ));
-            insertions.push((
-                rule.end,
-                format!(
-                    " @media (prefers-color-scheme: dark) {{ {} {{ {}: {dark_value}; }} }}",
-                    rule.selector, declaration.property
-                ),
-            ));
+            let mut replacement = String::new();
+            let _ = declaration.property.write_into(&mut replacement);
+            replacement.push_str(": ");
+            replacement.push_str(light_value.as_str());
+            replacement.push(';');
+            replacements.push((declaration.start, declaration.end, replacement));
+
+            let mut insertion = format!(
+                " @media (prefers-color-scheme: dark) {{ {} {{ ",
+                rule.selector
+            );
+            let _ = declaration.property.write_into(&mut insertion);
+            insertion.push_str(": ");
+            insertion.push_str(dark_value.as_str());
+            insertion.push_str("; } }");
+            insertions.push((rule.end, insertion));
         }
     }
 

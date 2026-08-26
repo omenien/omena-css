@@ -14,7 +14,7 @@ use omena_query_checker_orchestrator::{
     OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0,
     OmenaCheckerMultiscaleComplexityHeuristicInputV0, run_omena_query_checker_categorical_gate_v0,
 };
-use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0};
+use omena_syntax::ident::{AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0};
 
 use super::super::{
     OmenaQueryStyleDiagnosticV0, ParserByteSpanV0, ParserRangeV0, parser_range_for_byte_span,
@@ -175,17 +175,17 @@ fn query_categorical_role_mapping_for_cascade(
 
     let declared = custom_properties
         .iter()
-        .map(|property| PropertyNameV0::canonical_custom_key(&property.name))
+        .map(|property| property.name.to_custom_key())
         .collect::<BTreeSet<_>>();
     let dependencies = custom_properties
         .iter()
         .map(|property| {
             (
-                PropertyNameV0::canonical_custom_key(&property.name),
+                property.name.to_custom_key(),
                 property
                     .dependencies
                     .iter()
-                    .map(PropertyNameV0::canonical_custom_key)
+                    .map(AuthoredPropertyTextV0::to_custom_key)
                     .filter(|dependency| declared.contains(dependency))
                     .collect::<BTreeSet<_>>(),
             )
@@ -240,17 +240,17 @@ fn query_multiscale_complexity_heuristic_coupling_for_custom_properties(
 
     let declared = custom_properties
         .iter()
-        .map(|property| PropertyNameV0::canonical_custom_key(&property.name))
+        .map(|property| property.name.to_custom_key())
         .collect::<BTreeSet<_>>();
     let dependencies = custom_properties
         .iter()
         .map(|property| {
             (
-                PropertyNameV0::canonical_custom_key(&property.name),
+                property.name.to_custom_key(),
                 property
                     .dependencies
                     .iter()
-                    .map(PropertyNameV0::canonical_custom_key)
+                    .map(AuthoredPropertyTextV0::to_custom_key)
                     .filter(|dependency| declared.contains(dependency))
                     .collect::<BTreeSet<_>>(),
             )
@@ -264,7 +264,7 @@ fn query_multiscale_complexity_heuristic_coupling_for_custom_properties(
             property
                 .dependencies
                 .iter()
-                .map(PropertyNameV0::canonical_custom_key)
+                .map(AuthoredPropertyTextV0::to_custom_key)
                 .any(|dependency| declared.contains(&dependency))
         })
         .count();

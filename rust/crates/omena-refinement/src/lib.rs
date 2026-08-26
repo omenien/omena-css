@@ -19,10 +19,18 @@ use omena_refinement_trait::{
     REFINEMENT_SCHEMA_VERSION_V0, RefinementPredicateV0, RefinementVerdictV0, RefinementWitnessV0,
     refinement_provenance_v0, refinement_witness_v0,
 };
-use omena_syntax::ident::property_names_same;
+use omena_syntax::ident::{AuthoredPropertyTextV0, PropertyNameV0};
 use serde::Serialize;
 
 pub const REFINEMENT_BRIDGE_CLAIM_LEVEL_V0: &str = "m6DimensionalRefinementBridgeSubstrate";
+
+fn authored_property_same(left: &AuthoredPropertyTextV0, right: &AuthoredPropertyTextV0) -> bool {
+    left.to_property_name().same_as(&right.to_property_name())
+}
+
+fn property_names_same(left: &AuthoredPropertyTextV0, right: &AuthoredPropertyTextV0) -> bool {
+    authored_property_same(left, right)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -98,30 +106,30 @@ pub struct RefinedAbstractPropertyValueV0<P: PropertyIndexV0, R: RefinementPredi
     marker: PhantomData<(P, R)>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RefinementPropertyPredicateV0 {
     Any,
     ExactValue {
-        property_name: String,
+        property_name: AuthoredPropertyTextV0,
         value: String,
     },
     OneOfValues {
-        property_name: String,
+        property_name: AuthoredPropertyTextV0,
         values: Vec<String>,
     },
     CustomPropertyReference {
-        property_name: String,
-        custom_property_name: String,
+        property_name: AuthoredPropertyTextV0,
+        custom_property_name: AuthoredPropertyTextV0,
     },
     NumericRange {
-        property_name: String,
+        property_name: AuthoredPropertyTextV0,
         min_inclusive: Option<i64>,
         max_inclusive: Option<i64>,
         unit: Option<String>,
     },
     HasPseudoState {
-        property_name: String,
+        property_name: AuthoredPropertyTextV0,
         pseudo_state: String,
     },
     And {
@@ -134,6 +142,87 @@ pub enum RefinementPropertyPredicateV0 {
         predicate: Box<RefinementPropertyPredicateV0>,
     },
 }
+
+impl PartialEq for RefinementPropertyPredicateV0 {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Any, Self::Any) => true,
+            (
+                Self::ExactValue {
+                    property_name: left_property,
+                    value: left_value,
+                },
+                Self::ExactValue {
+                    property_name: right_property,
+                    value: right_value,
+                },
+            ) => authored_property_same(left_property, right_property) && left_value == right_value,
+            (
+                Self::OneOfValues {
+                    property_name: left_property,
+                    values: left_values,
+                },
+                Self::OneOfValues {
+                    property_name: right_property,
+                    values: right_values,
+                },
+            ) => {
+                authored_property_same(left_property, right_property) && left_values == right_values
+            }
+            (
+                Self::CustomPropertyReference {
+                    property_name: left_property,
+                    custom_property_name: left_custom_property,
+                },
+                Self::CustomPropertyReference {
+                    property_name: right_property,
+                    custom_property_name: right_custom_property,
+                },
+            ) => {
+                authored_property_same(left_property, right_property)
+                    && left_custom_property.to_custom_key() == right_custom_property.to_custom_key()
+            }
+            (
+                Self::NumericRange {
+                    property_name: left_property,
+                    min_inclusive: left_min,
+                    max_inclusive: left_max,
+                    unit: left_unit,
+                },
+                Self::NumericRange {
+                    property_name: right_property,
+                    min_inclusive: right_min,
+                    max_inclusive: right_max,
+                    unit: right_unit,
+                },
+            ) => {
+                authored_property_same(left_property, right_property)
+                    && left_min == right_min
+                    && left_max == right_max
+                    && left_unit == right_unit
+            }
+            (
+                Self::HasPseudoState {
+                    property_name: left_property,
+                    pseudo_state: left_pseudo_state,
+                },
+                Self::HasPseudoState {
+                    property_name: right_property,
+                    pseudo_state: right_pseudo_state,
+                },
+            ) => {
+                authored_property_same(left_property, right_property)
+                    && left_pseudo_state == right_pseudo_state
+            }
+            (Self::And { predicates: left }, Self::And { predicates: right })
+            | (Self::Or { predicates: left }, Self::Or { predicates: right }) => left == right,
+            (Self::Not { predicate: left }, Self::Not { predicate: right }) => left == right,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for RefinementPropertyPredicateV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -167,7 +256,7 @@ pub struct RefinementContextSummaryV0 {
 /// This is a research-staged substrate: it evaluates the existing cascade
 /// family through the existing refinement predicate evaluator. It does not
 /// claim Liquid-Haskell-style inference, SMT completeness, or a theorem.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeDimensionalRefinementBridgeV0 {
     pub schema_version: &'static str,
@@ -175,7 +264,7 @@ pub struct CascadeDimensionalRefinementBridgeV0 {
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
     pub claim_level: &'static str,
-    pub property_name: String,
+    pub property_name: AuthoredPropertyTextV0,
     pub cascade_family_product: &'static str,
     pub predicate_count: usize,
     pub context_value_count: usize,
@@ -203,6 +292,48 @@ pub struct CascadeDimensionalRefinementBridgeV0 {
     pub calc_dimension_diagnostics: CalcDimensionDiagnosticSummaryV0,
     pub evaluations: Vec<CascadeDimensionalRefinementContextEvaluationV0>,
 }
+
+impl PartialEq for CascadeDimensionalRefinementBridgeV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.product == other.product
+            && self.layer_marker == other.layer_marker
+            && self.feature_gate == other.feature_gate
+            && self.claim_level == other.claim_level
+            && authored_property_same(&self.property_name, &other.property_name)
+            && self.cascade_family_product == other.cascade_family_product
+            && self.predicate_count == other.predicate_count
+            && self.context_value_count == other.context_value_count
+            && self.restriction_map_count == other.restriction_map_count
+            && self.context_evaluation_count == other.context_evaluation_count
+            && self.satisfied_all_context_count == other.satisfied_all_context_count
+            && self.satisfied_some_context_count == other.satisfied_some_context_count
+            && self.unknown_context_count == other.unknown_context_count
+            && self.unsatisfiable_context_count == other.unsatisfiable_context_count
+            && self.witness_provenance_count == other.witness_provenance_count
+            && self.property_consistent == other.property_consistent
+            && self.uses_existing_abstract_property_value_substrate
+                == other.uses_existing_abstract_property_value_substrate
+            && self.uses_existing_cascade_family_substrate
+                == other.uses_existing_cascade_family_substrate
+            && self.uses_existing_refinement_predicate_substrate
+                == other.uses_existing_refinement_predicate_substrate
+            && self.forks_unit_system == other.forks_unit_system
+            && self.liquid_haskell_complete == other.liquid_haskell_complete
+            && self.smt_backend_available == other.smt_backend_available
+            && self.smt_complete == other.smt_complete
+            && self.theorem_claimed == other.theorem_claimed
+            && self.product_path_evidence_ready == other.product_path_evidence_ready
+            && self.stronger_type_safety_claim_ready == other.stronger_type_safety_claim_ready
+            && self.dimension_vector_domain_ready == other.dimension_vector_domain_ready
+            && self.calc_dimension_diagnostics_ready == other.calc_dimension_diagnostics_ready
+            && self.dimension_vector_domain == other.dimension_vector_domain
+            && self.calc_dimension_diagnostics == other.calc_dimension_diagnostics
+            && self.evaluations == other.evaluations
+    }
+}
+
+impl Eq for CascadeDimensionalRefinementBridgeV0 {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -245,7 +376,7 @@ pub enum CalcDimensionDiagnosticKindV0 {
     ContextDependentDimension,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CalcDimensionDiagnosticV0 {
     pub schema_version: &'static str,
@@ -255,11 +386,29 @@ pub struct CalcDimensionDiagnosticV0 {
     pub theorem_claimed: bool,
     pub public_safety_claim_ready: bool,
     pub kind: CalcDimensionDiagnosticKindV0,
-    pub property_name: String,
+    pub property_name: AuthoredPropertyTextV0,
     pub expression: String,
     pub observed_units: Vec<String>,
     pub observed_vectors: Vec<DimensionVectorV0>,
 }
+
+impl PartialEq for CalcDimensionDiagnosticV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.product == other.product
+            && self.feature_gate == other.feature_gate
+            && self.claim_level == other.claim_level
+            && self.theorem_claimed == other.theorem_claimed
+            && self.public_safety_claim_ready == other.public_safety_claim_ready
+            && self.kind == other.kind
+            && authored_property_same(&self.property_name, &other.property_name)
+            && self.expression == other.expression
+            && self.observed_units == other.observed_units
+            && self.observed_vectors == other.observed_vectors
+    }
+}
+
+impl Eq for CalcDimensionDiagnosticV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -340,7 +489,8 @@ where
     refined.schema_version == REFINEMENT_SCHEMA_VERSION_V0
         && refined.layer_marker == REFINEMENT_LAYER_MARKER_V0
         && refined.feature_gate == REFINEMENT_FEATURE_GATE_V0
-        && property_names_same(refined.property_name, P::PROPERTY_NAME)
+        && PropertyNameV0::canonical_standard_key(refined.property_name)
+            == PropertyNameV0::canonical_standard_key(P::PROPERTY_NAME)
         && refined.predicate_id == R::PREDICATE_ID
         && abstract_property_value_shape_v0(&project_refined_to_legacy_v0(refined))
             == refined.value_shape
@@ -448,7 +598,7 @@ pub fn summarize_dimension_vector_domain_v0(values: &[String]) -> DimensionVecto
 }
 
 pub fn summarize_calc_dimension_diagnostics_v0(
-    property_name: &str,
+    property_name: &AuthoredPropertyTextV0,
     values: &[String],
 ) -> CalcDimensionDiagnosticSummaryV0 {
     let mut diagnostics = values
@@ -457,7 +607,9 @@ pub fn summarize_calc_dimension_diagnostics_v0(
         .collect::<Vec<_>>();
     diagnostics.sort_by(|left, right| {
         left.property_name
-            .cmp(&right.property_name)
+            .to_property_name()
+            .canonical_key()
+            .cmp(&right.property_name.to_property_name().canonical_key())
             .then_with(|| left.expression.cmp(&right.expression))
     });
 
@@ -680,7 +832,7 @@ fn evaluate_refinement_predicate_verdict_v0(
 }
 
 fn evaluate_numeric_range_predicate_v0(
-    property_name: &str,
+    property_name: &AuthoredPropertyTextV0,
     min_inclusive: Option<i64>,
     max_inclusive: Option<i64>,
     unit: Option<&str>,
@@ -729,7 +881,7 @@ fn evaluate_numeric_range_predicate_v0(
 }
 
 fn evaluate_pseudo_state_predicate_v0(
-    property_name: &str,
+    property_name: &AuthoredPropertyTextV0,
     expected_pseudo_state: &str,
     value: &AbstractPropertyValueV0,
 ) -> RefinementVerdictV0 {
@@ -778,7 +930,7 @@ fn evaluate_pseudo_state_predicate_v0(
 }
 
 fn evaluate_exact_value_predicate_v0(
-    property_name: &str,
+    property_name: &AuthoredPropertyTextV0,
     expected: &str,
     value: &AbstractPropertyValueV0,
 ) -> RefinementVerdictV0 {
@@ -815,7 +967,7 @@ fn evaluate_exact_value_predicate_v0(
 }
 
 fn evaluate_one_of_values_predicate_v0(
-    property_name: &str,
+    property_name: &AuthoredPropertyTextV0,
     expected_values: &[String],
     value: &AbstractPropertyValueV0,
 ) -> RefinementVerdictV0 {
@@ -860,8 +1012,8 @@ fn evaluate_one_of_values_predicate_v0(
 }
 
 fn evaluate_custom_property_reference_predicate_v0(
-    property_name: &str,
-    expected_custom_property: &str,
+    property_name: &AuthoredPropertyTextV0,
+    expected_custom_property: &AuthoredPropertyTextV0,
     value: &AbstractPropertyValueV0,
 ) -> RefinementVerdictV0 {
     match value {
@@ -941,34 +1093,79 @@ fn refinement_predicate_expression_id_v0(predicate: &RefinementPropertyPredicate
         RefinementPropertyPredicateV0::ExactValue {
             property_name,
             value,
-        } => format!("exact:{property_name}:{value}"),
+        } => {
+            let mut expression = String::from("exact:");
+            if property_name.write_into(&mut expression).is_err() {
+                return expression;
+            }
+            expression.push(':');
+            expression.push_str(value);
+            expression
+        }
         RefinementPropertyPredicateV0::OneOfValues {
             property_name,
             values,
-        } => format!("one-of:{property_name}:{}", values.join("|")),
+        } => {
+            let mut expression = String::from("one-of:");
+            if property_name.write_into(&mut expression).is_err() {
+                return expression;
+            }
+            expression.push(':');
+            expression.push_str(&values.join("|"));
+            expression
+        }
         RefinementPropertyPredicateV0::CustomPropertyReference {
             property_name,
             custom_property_name,
-        } => format!("custom-ref:{property_name}:{custom_property_name}"),
+        } => {
+            let mut expression = String::from("custom-ref:");
+            if property_name.write_into(&mut expression).is_err() {
+                return expression;
+            }
+            expression.push(':');
+            if custom_property_name.write_into(&mut expression).is_err() {
+                return expression;
+            }
+            expression
+        }
         RefinementPropertyPredicateV0::NumericRange {
             property_name,
             min_inclusive,
             max_inclusive,
             unit,
-        } => format!(
-            "numeric-range:{property_name}:{}..{}:{}",
-            min_inclusive
-                .map(|value| value.to_string())
-                .unwrap_or_else(|| "-inf".to_string()),
-            max_inclusive
-                .map(|value| value.to_string())
-                .unwrap_or_else(|| "inf".to_string()),
-            unit.as_deref().unwrap_or("*")
-        ),
+        } => {
+            let mut expression = String::from("numeric-range:");
+            if property_name.write_into(&mut expression).is_err() {
+                return expression;
+            }
+            expression.push(':');
+            expression.push_str(
+                &min_inclusive
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| "-inf".to_string()),
+            );
+            expression.push_str("..");
+            expression.push_str(
+                &max_inclusive
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| "inf".to_string()),
+            );
+            expression.push(':');
+            expression.push_str(unit.as_deref().unwrap_or("*"));
+            expression
+        }
         RefinementPropertyPredicateV0::HasPseudoState {
             property_name,
             pseudo_state,
-        } => format!("pseudo-state:{property_name}:{pseudo_state}"),
+        } => {
+            let mut expression = String::from("pseudo-state:");
+            if property_name.write_into(&mut expression).is_err() {
+                return expression;
+            }
+            expression.push(':');
+            expression.push_str(pseudo_state);
+            expression
+        }
         RefinementPropertyPredicateV0::And { predicates } => format!(
             "and({})",
             predicates
@@ -1091,7 +1288,7 @@ fn parse_css_integer_with_unit_v0(value: &str) -> Option<(i64, &str)> {
 }
 
 fn calc_dimension_diagnostic_for_value_v0(
-    property_name: &str,
+    property_name: &AuthoredPropertyTextV0,
     value: &str,
 ) -> Option<CalcDimensionDiagnosticV0> {
     let expression = extract_calc_expression_v0(value)?;
@@ -1144,7 +1341,7 @@ fn calc_dimension_diagnostic_for_value_v0(
         theorem_claimed: false,
         public_safety_claim_ready: false,
         kind,
-        property_name: property_name.to_string(),
+        property_name: property_name.clone(),
         expression: expression.to_string(),
         observed_units,
         observed_vectors,
@@ -1290,6 +1487,10 @@ mod tests {
         summarize_context_indexed_cascade_value_family_v0,
     };
 
+    fn authored_property(value: &str) -> AuthoredPropertyTextV0 {
+        AuthoredPropertyTextV0::new(value)
+    }
+
     #[test]
     fn refined_value_round_trips_to_legacy_without_mutating_v0() {
         let top = TopPredicateV0::default();
@@ -1298,7 +1499,7 @@ mod tests {
         assert_eq!(any.layer_marker, "refinement-cascade");
 
         let legacy = AbstractPropertyValueV0::Top {
-            property_name: "color".to_string(),
+            property_name: authored_property("color"),
         };
         let refined =
             project_legacy_to_refined_v0::<AnyPropertyIndexV0, TopPredicateV0>(legacy.clone());
@@ -1315,12 +1516,12 @@ mod tests {
     #[test]
     fn refinement_property_grammar_evaluates_exact_and_one_of_values() {
         let exact = AbstractPropertyValueV0::Exact {
-            property_name: "display".to_string(),
+            property_name: authored_property("display"),
             value: "grid".to_string(),
             pseudo_state: None,
         };
         let predicate = RefinementPropertyPredicateV0::OneOfValues {
-            property_name: "display".to_string(),
+            property_name: authored_property("display"),
             values: vec!["grid".to_string(), "flex".to_string()],
         };
         let evaluation = evaluate_refinement_property_predicate_v0(&predicate, &exact);
@@ -1338,21 +1539,37 @@ mod tests {
     }
 
     #[test]
+    fn refinement_property_predicate_identity_uses_sealed_keys() {
+        let standard = |property: &str| RefinementPropertyPredicateV0::ExactValue {
+            property_name: authored_property(property),
+            value: "grid".to_string(),
+        };
+        let custom = |property: &str| RefinementPropertyPredicateV0::CustomPropertyReference {
+            property_name: authored_property("color"),
+            custom_property_name: authored_property(property),
+        };
+
+        assert_eq!(standard(r"D\49 SPLAY"), standard("display"));
+        assert_eq!(custom(r"--f\6f o"), custom("--foo"));
+        assert_ne!(custom("--foo"), custom("--FOO"));
+    }
+
+    #[test]
     fn refinement_predicate_composition_tracks_partial_and_negative_witnesses() {
         let finite = AbstractPropertyValueV0::FiniteSet {
-            property_name: "color".to_string(),
+            property_name: authored_property("color"),
             values: vec!["red".to_string(), "blue".to_string()],
             pseudo_states: Vec::new(),
         };
         let predicate = RefinementPropertyPredicateV0::And {
             predicates: vec![
                 RefinementPropertyPredicateV0::OneOfValues {
-                    property_name: "color".to_string(),
+                    property_name: authored_property("color"),
                     values: vec!["red".to_string()],
                 },
                 RefinementPropertyPredicateV0::Not {
                     predicate: Box::new(RefinementPropertyPredicateV0::ExactValue {
-                        property_name: "color".to_string(),
+                        property_name: authored_property("color"),
                         value: "green".to_string(),
                     }),
                 },
@@ -1373,13 +1590,13 @@ mod tests {
     #[test]
     fn refinement_custom_property_reference_predicate_is_not_wrapper_only() {
         let reference = AbstractPropertyValueV0::CustomPropertyReference {
-            property_name: "color".to_string(),
-            custom_property_name: "--brand".to_string(),
+            property_name: authored_property("color"),
+            custom_property_name: authored_property("--brand"),
             pseudo_state: None,
         };
         let predicate = RefinementPropertyPredicateV0::CustomPropertyReference {
-            property_name: "color".to_string(),
-            custom_property_name: "--brand".to_string(),
+            property_name: authored_property("color"),
+            custom_property_name: authored_property("--brand"),
         };
         let evaluation = evaluate_refinement_property_predicate_v0(&predicate, &reference);
 
@@ -1393,20 +1610,20 @@ mod tests {
     #[test]
     fn refinement_numeric_range_and_pseudo_state_predicates_are_evaluated() {
         let finite = AbstractPropertyValueV0::FiniteSet {
-            property_name: "opacity".to_string(),
+            property_name: authored_property("opacity"),
             values: vec!["0".to_string(), "50%".to_string(), "100%".to_string()],
             pseudo_states: vec![":hover".to_string(), ":focus".to_string()],
         };
         let predicate = RefinementPropertyPredicateV0::And {
             predicates: vec![
                 RefinementPropertyPredicateV0::NumericRange {
-                    property_name: "opacity".to_string(),
+                    property_name: authored_property("opacity"),
                     min_inclusive: Some(0),
                     max_inclusive: Some(100),
                     unit: Some("%".to_string()),
                 },
                 RefinementPropertyPredicateV0::HasPseudoState {
-                    property_name: "opacity".to_string(),
+                    property_name: authored_property("opacity"),
                     pseudo_state: ":hover".to_string(),
                 },
             ],
@@ -1445,13 +1662,13 @@ mod tests {
     #[test]
     fn refinement_context_digest_is_order_stable_and_invalidation_sensitive() {
         let range = RefinementPropertyPredicateV0::NumericRange {
-            property_name: "z-index".to_string(),
+            property_name: authored_property("z-index"),
             min_inclusive: Some(0),
             max_inclusive: Some(10),
             unit: None,
         };
         let exact = RefinementPropertyPredicateV0::ExactValue {
-            property_name: "display".to_string(),
+            property_name: authored_property("display"),
             value: "grid".to_string(),
         };
         let first = summarize_refinement_context_v0(&[range.clone(), exact.clone()]);
@@ -1459,7 +1676,7 @@ mod tests {
         let changed = summarize_refinement_context_v0(&[
             exact,
             RefinementPropertyPredicateV0::NumericRange {
-                property_name: "z-index".to_string(),
+                property_name: authored_property("z-index"),
                 min_inclusive: Some(0),
                 max_inclusive: Some(11),
                 unit: None,
@@ -1487,7 +1704,7 @@ mod tests {
                     layers: vec!["tokens".to_string()],
                 },
                 value: AbstractPropertyValueV0::Exact {
-                    property_name: "width".to_string(),
+                    property_name: authored_property("width"),
                     value: "12px".to_string(),
                     pseudo_state: None,
                 },
@@ -1501,7 +1718,7 @@ mod tests {
                     layers: vec!["tokens".to_string()],
                 },
                 value: AbstractPropertyValueV0::Exact {
-                    property_name: "width".to_string(),
+                    property_name: authored_property("width"),
                     value: "50%".to_string(),
                     pseudo_state: None,
                 },
@@ -1515,15 +1732,18 @@ mod tests {
                     layers: vec!["tokens".to_string()],
                 },
                 value: AbstractPropertyValueV0::Top {
-                    property_name: "width".to_string(),
+                    property_name: authored_property("width"),
                 },
             },
         ];
         let restrictions = derive_context_indexed_cascade_restriction_maps_v0(&members);
-        let family =
-            summarize_context_indexed_cascade_value_family_v0("width", members, restrictions);
+        let family = summarize_context_indexed_cascade_value_family_v0(
+            authored_property("width"),
+            members,
+            restrictions,
+        );
         let predicate = RefinementPropertyPredicateV0::NumericRange {
-            property_name: "width".to_string(),
+            property_name: authored_property("width"),
             min_inclusive: Some(0),
             max_inclusive: Some(100),
             unit: Some("px".to_string()),
@@ -1577,6 +1797,34 @@ mod tests {
     }
 
     #[test]
+    fn dimensional_refinement_bridge_identity_uses_standard_property_keys() {
+        let members = vec![CascadeValueFamilyMemberV0 {
+            context: CascadeContextV0 {
+                id: "base".to_string(),
+                parent_id: None,
+                selectors: vec![":root".to_string()],
+                conditions: Vec::new(),
+                layers: Vec::new(),
+            },
+            value: AbstractPropertyValueV0::Exact {
+                property_name: authored_property("width"),
+                value: "12px".to_string(),
+                pseudo_state: None,
+            },
+        }];
+        let family = summarize_context_indexed_cascade_value_family_v0(
+            authored_property("width"),
+            members,
+            Vec::new(),
+        );
+        let bridge = summarize_cascade_dimensional_refinement_bridge_v0(&family, &[]);
+        let mut equivalent = bridge.clone();
+        equivalent.property_name = authored_property(r"W\49 DTH");
+
+        assert_eq!(bridge, equivalent);
+    }
+
+    #[test]
     fn calc_dimension_diagnostics_classify_fixture_mismatches_without_unit_fork() {
         let values = vec![
             "calc(1px + 2s)".to_string(),
@@ -1585,7 +1833,8 @@ mod tests {
             "calc(1px + 2px)".to_string(),
         ];
         let domain = summarize_dimension_vector_domain_v0(&values);
-        let diagnostics = summarize_calc_dimension_diagnostics_v0("width", &values);
+        let diagnostics =
+            summarize_calc_dimension_diagnostics_v0(&authored_property("width"), &values);
 
         assert_eq!(domain.product, "omena-refinement.dimension-vector-domain");
         assert_eq!(domain.feature_gate, "dimension-vector-domain-v0");
@@ -1618,5 +1867,15 @@ mod tests {
             diagnostic.kind == CalcDimensionDiagnosticKindV0::ContextDependentDimension
                 && diagnostic.expression == "100% - 1rem"
         }));
+    }
+
+    #[test]
+    fn calc_dimension_diagnostic_identity_uses_standard_property_keys() {
+        let values = vec!["calc(1px + 2s)".to_string()];
+        let escaped =
+            summarize_calc_dimension_diagnostics_v0(&authored_property(r"W\49 DTH"), &values);
+        let decoded = summarize_calc_dimension_diagnostics_v0(&authored_property("width"), &values);
+
+        assert_eq!(escaped.diagnostics, decoded.diagnostics);
     }
 }

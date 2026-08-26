@@ -219,9 +219,10 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
         {
             continue;
         }
+        let reference_name = fact.name.as_non_property()?;
         let mut stack = BTreeSet::new();
         let Some(replacement) = resolve_static_scss_variable_value_at_position(
-            fact.name.as_str(),
+            reference_name,
             reference_start,
             &scopes,
             &declarations,
@@ -235,7 +236,7 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
         };
         let reference_end = parser_text_size_to_usize(fact.range.end().into());
         resolved_replacements.push(resolved_replacement_value(
-            fact.name.as_str(),
+            reference_name,
             reference_start,
             reference_end,
             replacement.as_str(),

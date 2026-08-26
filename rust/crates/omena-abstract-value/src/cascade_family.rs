@@ -1,5 +1,5 @@
 use crate::{ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0, AbstractPropertyValueV0};
-use omena_syntax::ident::property_names_same;
+use omena_syntax::ident::AuthoredPropertyTextV0;
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -8,14 +8,14 @@ use std::collections::{BTreeMap, BTreeSet};
 /// This is intentionally framing-neutral: it records context-indexed value
 /// families and restriction morphisms without claiming a categorical gluing
 /// theorem or committing paper-stage terminology.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeValueFamilyV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub framing: &'static str,
     pub claim_level: &'static str,
-    pub property_name: String,
+    pub property_name: AuthoredPropertyTextV0,
     pub supported_readings: Vec<&'static str>,
     pub context_value_count: usize,
     pub restriction_map_count: usize,
@@ -25,6 +25,29 @@ pub struct CascadeValueFamilyV0 {
     pub members: Vec<CascadeValueFamilyMemberV0>,
     pub restriction_maps: Vec<CascadeRestrictionMapV0>,
 }
+
+impl PartialEq for CascadeValueFamilyV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.product == other.product
+            && self.framing == other.framing
+            && self.claim_level == other.claim_level
+            && self
+                .property_name
+                .to_property_name()
+                .same_as(&other.property_name.to_property_name())
+            && self.supported_readings == other.supported_readings
+            && self.context_value_count == other.context_value_count
+            && self.restriction_map_count == other.restriction_map_count
+            && self.property_consistent == other.property_consistent
+            && self.dangling_restriction_count == other.dangling_restriction_count
+            && self.theorem_claimed == other.theorem_claimed
+            && self.members == other.members
+            && self.restriction_maps == other.restriction_maps
+    }
+}
+
+impl Eq for CascadeValueFamilyV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -61,13 +84,13 @@ pub struct CascadeMorphismV0 {
     pub evidence: Vec<&'static str>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeStalkEvaluationV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub claim_level: &'static str,
-    pub property_name: String,
+    pub property_name: AuthoredPropertyTextV0,
     pub requested_context_id: String,
     pub requested_context_exists: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -83,6 +106,31 @@ pub struct CascadeStalkEvaluationV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blocked_reason: Option<&'static str>,
 }
+
+impl PartialEq for CascadeStalkEvaluationV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.product == other.product
+            && self.claim_level == other.claim_level
+            && self
+                .property_name
+                .to_property_name()
+                .same_as(&other.property_name.to_property_name())
+            && self.requested_context_id == other.requested_context_id
+            && self.requested_context_exists == other.requested_context_exists
+            && self.resolved_context_id == other.resolved_context_id
+            && self.restriction_path == other.restriction_path
+            && self.used_restriction_map_count == other.used_restriction_map_count
+            && self.bounded_by_context_count == other.bounded_by_context_count
+            && self.bounded_resolution_ready == other.bounded_resolution_ready
+            && self.theorem_claimed == other.theorem_claimed
+            && self.value == other.value
+            && self.resolved == other.resolved
+            && self.blocked_reason == other.blocked_reason
+    }
+}
+
+impl Eq for CascadeStalkEvaluationV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -105,11 +153,10 @@ pub struct CascadeRestrictionCycleV0 {
 }
 
 pub fn summarize_context_indexed_cascade_value_family_v0(
-    property_name: impl Into<String>,
+    property_name: AuthoredPropertyTextV0,
     members: Vec<CascadeValueFamilyMemberV0>,
     restriction_maps: Vec<CascadeRestrictionMapV0>,
 ) -> CascadeValueFamilyV0 {
-    let property_name = property_name.into();
     let mut members = members;
     members.sort_by(|left, right| left.context.id.cmp(&right.context.id));
     members.dedup_by(|left, right| left.context.id == right.context.id);
@@ -122,9 +169,11 @@ pub fn summarize_context_indexed_cascade_value_family_v0(
         .iter()
         .map(|member| member.context.id.as_str())
         .collect::<BTreeSet<_>>();
-    let property_consistent = members
-        .iter()
-        .all(|member| property_names_same(property_value_name(&member.value), &property_name));
+    let property_consistent = members.iter().all(|member| {
+        property_value_name(&member.value)
+            .to_property_name()
+            .same_as(&property_name.to_property_name())
+    });
     let dangling_restriction_count = restriction_maps
         .iter()
         .filter(|restriction| {
@@ -156,7 +205,7 @@ pub fn summarize_context_indexed_cascade_value_family_v0(
     note = "use summarize_context_indexed_cascade_value_family_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
 )]
 pub fn summarize_cascade_value_family_v0(
-    property_name: impl Into<String>,
+    property_name: AuthoredPropertyTextV0,
     members: Vec<CascadeValueFamilyMemberV0>,
     restriction_maps: Vec<CascadeRestrictionMapV0>,
 ) -> CascadeValueFamilyV0 {
@@ -423,7 +472,7 @@ fn property_value_is_bottom(value: &AbstractPropertyValueV0) -> bool {
     matches!(value, AbstractPropertyValueV0::Bottom { .. })
 }
 
-fn property_value_name(value: &AbstractPropertyValueV0) -> &str {
+fn property_value_name(value: &AbstractPropertyValueV0) -> &AuthoredPropertyTextV0 {
     match value {
         AbstractPropertyValueV0::Bottom { property_name }
         | AbstractPropertyValueV0::Exact { property_name, .. }

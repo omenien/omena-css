@@ -1,4 +1,5 @@
 use super::*;
+use omena_syntax::ident::{AuthoredPropertyTextV0, PropertyNameV0};
 use std::path::Path;
 
 #[path = "tests/code_actions.rs"]
@@ -107,6 +108,59 @@ mod workspace_folders;
 mod workspace_indexing;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+#[test]
+fn style_document_summary_identity_uses_custom_property_keys() {
+    let summary = |property: &str| LspStyleDocumentSummary {
+        language: "css",
+        selector_names: vec!["button".to_string()],
+        custom_property_decl_names: vec![AuthoredPropertyTextV0::new(property)],
+        custom_property_ref_names: vec![AuthoredPropertyTextV0::new(property)],
+        sass_module_use_sources: Vec::new(),
+        sass_module_forward_sources: Vec::new(),
+        diagnostic_count: 0,
+    };
+
+    assert_eq!(summary(r"--f\6f o"), summary("--foo"));
+    assert_ne!(summary("--foo"), summary("--FOO"));
+}
+
+#[test]
+fn lsp_style_hover_candidate_identity_and_order_use_custom_property_keys() {
+    let candidate = |property: &str| LspStyleHoverCandidate {
+        kind: "customPropertyDeclaration",
+        name: AuthoredPropertyTextV0::new(property),
+        selector_key: None,
+        property_key: Some(PropertyNameV0::canonical_custom_key(property)),
+        range: omena_query::ParserRangeV0::default(),
+        source: "fixture",
+        target_style_uri: None,
+        namespace: None,
+    };
+
+    let plain = candidate("--foo");
+    let escaped = candidate(r"--f\6f o");
+    assert_eq!(plain, escaped);
+    assert_eq!(plain.cmp(&escaped), std::cmp::Ordering::Equal);
+    assert_ne!(plain, candidate("--FOO"));
+}
+
+#[test]
+fn source_selector_candidate_identity_uses_class_keys() {
+    let candidate = |name: &str| LspStyleHoverCandidate {
+        kind: "sourceSelectorReference",
+        name: AuthoredPropertyTextV0::new(name),
+        selector_key: Some(omena_syntax::ident::ClassNameV0::new(name).canonical_key()),
+        property_key: None,
+        range: omena_query::ParserRangeV0::default(),
+        source: "fixture",
+        target_style_uri: None,
+        namespace: None,
+    };
+
+    assert_eq!(candidate(r"item\2d primary"), candidate("item-primary"));
+    assert_ne!(candidate("item-primary"), candidate("item-secondary"));
+}
 
 fn fixture_parent<'a>(
     path: &'a Path,

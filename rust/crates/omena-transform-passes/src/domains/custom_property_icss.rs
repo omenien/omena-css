@@ -1,4 +1,5 @@
 use omena_parser::LexedToken;
+use omena_syntax::ident::{AuthoredPropertyTextV0, PropertyNameV0, render_authored};
 
 use crate::{
     domains::custom_property::collect_custom_property_references_in_value,
@@ -39,11 +40,15 @@ pub(crate) fn collect_static_custom_property_icss_export_rules(
                     .filter(|declaration| {
                         !collect_custom_property_references_in_value(&declaration.value).is_empty()
                     })
-                    .map(|declaration| CustomPropertyIcssExportDeclaration {
-                        export_name: declaration.property.to_string(),
-                        value: declaration.value,
-                        start: declaration.start,
-                        end: declaration.end,
+                    .map(|declaration| {
+                        let mut export_name = String::new();
+                        let _ = render_authored(&declaration.property, &mut export_name);
+                        CustomPropertyIcssExportDeclaration {
+                            export_name,
+                            value: declaration.value,
+                            start: declaration.start,
+                            end: declaration.end,
+                        }
                     })
                     .collect::<Vec<_>>();
             (!declarations.is_empty()).then_some(CustomPropertyIcssExportRule {
@@ -57,12 +62,14 @@ pub(crate) fn collect_static_custom_property_icss_export_rules(
 
 pub(crate) fn custom_property_icss_export_is_reachable(
     export_name: &str,
-    roots: &[String],
+    roots: &[AuthoredPropertyTextV0],
 ) -> bool {
+    let export_key = PropertyNameV0::canonical_custom_key(export_name);
     roots.iter().any(|root| {
-        root == export_name
-            || custom_property_icss_export_alias(root)
-                == custom_property_icss_export_alias(export_name)
+        let root_key = root.to_custom_key();
+        root_key == export_key
+            || custom_property_icss_export_alias(root_key.as_str())
+                == custom_property_icss_export_alias(export_key.as_str())
     })
 }
 

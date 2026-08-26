@@ -120,13 +120,15 @@ fn generated_transform_fuzz_context(seed: u64) -> TransformExecutionContextV0 {
         reachable_class_names: vec![class_name.clone(), format!("{class_name}__icon")],
         reachable_keyframe_names: vec![format!("fade-{seed}")],
         reachable_value_names: vec![format!("spacing-{seed}")],
-        reachable_custom_property_names: vec!["--brand".to_string()],
+        reachable_custom_property_names: vec![omena_syntax::ident::AuthoredPropertyTextV0::new(
+            "--brand",
+        )],
         class_name_rewrites: vec![TransformClassNameRewriteV0 {
             original_name: class_name,
             rewritten_name: format!("button-{seed}_hash"),
         }],
         design_token_routes: vec![TransformDesignTokenRouteV0 {
-            token_name: "--brand".to_string(),
+            token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--brand"),
             routed_value: "var(--brand)".to_string(),
         }],
         ..TransformExecutionContextV0::default()

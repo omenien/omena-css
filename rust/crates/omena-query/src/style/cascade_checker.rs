@@ -1,7 +1,6 @@
 use omena_query_checker_orchestrator::run_omena_query_checker_cascade_gate_with_standard_property_value_verdicts_v0;
 #[cfg(test)]
 use omena_query_checker_orchestrator::{CanonicalSelector, OmenaCheckerCascadeDeclarationInputV0};
-use omena_syntax::ident::PropertyNameV0;
 mod confidence;
 mod custom_property_registration;
 mod declaration_facts;
@@ -132,9 +131,10 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
             continue;
         }
         if evaluation.rule_code_name == "iacvt-prone"
-            && evaluation.custom_property_names.iter().all(|name| {
-                !custom_property_ranges.contains_key(&PropertyNameV0::canonical_custom_key(name))
-            })
+            && evaluation
+                .custom_property_names
+                .iter()
+                .all(|name| !custom_property_ranges.contains_key(&name.to_custom_key()))
         {
             continue;
         }
@@ -143,11 +143,10 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
             .iter()
             .find_map(|declaration_id| declaration_ranges.get(declaration_id).copied())
             .or_else(|| {
-                evaluation.custom_property_names.iter().find_map(|name| {
-                    custom_property_ranges
-                        .get(&PropertyNameV0::canonical_custom_key(name))
-                        .copied()
-                })
+                evaluation
+                    .custom_property_names
+                    .iter()
+                    .find_map(|name| custom_property_ranges.get(&name.to_custom_key()).copied())
             })
             .unwrap_or_else(|| {
                 parser_range_for_byte_span(
@@ -229,7 +228,7 @@ mod tests {
             .map(|declaration| {
                 (
                     declaration.input.selector.into_string(),
-                    declaration.input.property,
+                    crate::tests::rendered_authored(&declaration.input.property),
                     declaration.input.value,
                 )
             })
@@ -285,7 +284,7 @@ mod tests {
         OmenaCheckerCascadeDeclarationInputV0 {
             declaration_id: declaration_id.to_string(),
             selector: CanonicalSelector::from_canonical(selector),
-            property: property.to_string(),
+            property: omena_syntax::ident::AuthoredPropertyTextV0::new(property),
             value: "red".to_string(),
             source_order,
             condition_context: Vec::new(),

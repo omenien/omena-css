@@ -19,7 +19,7 @@ use omena_abstract_value::{
     AbstractCssValueV0, abstract_css_value_from_text, abstract_css_values_canonically_equal,
 };
 use omena_parser::{ParsedVariableFactKind, StyleDialect, collect_style_facts, parse};
-use omena_syntax::SyntaxKind;
+use omena_syntax::{SyntaxKind, ident::AuthoredPropertyTextV0};
 use serde::Serialize;
 
 pub use omena_transform_cst::STABLE_NODE_KEY_TYPE_LABEL_V0;
@@ -96,16 +96,30 @@ pub struct OmenaScssEvalOracleReportV0 {
     pub values: Vec<OmenaScssEvalValueOracleV0>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaScssEvalValueOracleV0 {
-    pub property_name: String,
+    pub property_name: AuthoredPropertyTextV0,
     pub legacy_value: String,
     pub abstract_value: AbstractCssValueV0,
     pub abstract_value_kind: &'static str,
     pub rendered_value: String,
     pub matches_legacy: bool,
 }
+
+impl PartialEq for OmenaScssEvalValueOracleV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.property_name.to_property_name().canonical_key()
+            == other.property_name.to_property_name().canonical_key()
+            && self.legacy_value == other.legacy_value
+            && self.abstract_value == other.abstract_value
+            && self.abstract_value_kind == other.abstract_value_kind
+            && self.rendered_value == other.rendered_value
+            && self.matches_legacy == other.matches_legacy
+    }
+}
+
+impl Eq for OmenaScssEvalValueOracleV0 {}
 
 /// Value-WELL-FORMEDNESS self-check on the candidate native-edit output.
 ///
@@ -287,11 +301,21 @@ pub(crate) fn abstract_css_value_kind(value: &AbstractCssValueV0) -> &'static st
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 struct LegacyDeclarationValueV0 {
-    property_name: String,
+    property_name: AuthoredPropertyTextV0,
     value: String,
 }
+
+impl PartialEq for LegacyDeclarationValueV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.property_name.to_property_name().canonical_key()
+            == other.property_name.to_property_name().canonical_key()
+            && self.value == other.value
+    }
+}
+
+impl Eq for LegacyDeclarationValueV0 {}
 
 fn collect_legacy_declaration_values(
     source: &str,
@@ -348,7 +372,7 @@ fn declaration_value_from_cst(
 fn declaration_property_name_from_cst(
     source: &str,
     node: &SyntaxNode<SyntaxKind>,
-) -> Option<String> {
+) -> Option<AuthoredPropertyTextV0> {
     node.descendants_with_tokens()
         .filter_map(|element| element.into_token())
         .find_map(|token| {
@@ -356,8 +380,8 @@ fn declaration_property_name_from_cst(
             let end = u32::from(token.text_range().end()) as usize;
             let text = source.get(start..end)?;
             match token.kind() {
-                SyntaxKind::Ident => Some(text.to_ascii_lowercase()),
-                SyntaxKind::CustomPropertyName => Some(text.to_string()),
+                SyntaxKind::Ident => Some(AuthoredPropertyTextV0::new(text.to_ascii_lowercase())),
+                SyntaxKind::CustomPropertyName => Some(AuthoredPropertyTextV0::new(text)),
                 _ => None,
             }
         })
@@ -393,6 +417,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn legacy_declaration_identity_uses_sealed_property_keys() {
+        let declaration = |property_name: &str| LegacyDeclarationValueV0 {
+            property_name: AuthoredPropertyTextV0::new(property_name),
+            value: "red".to_string(),
+        };
+
+        assert_eq!(declaration("COLOR"), declaration(r"C\4f LOR"));
+        assert_eq!(declaration(r"--f\6f o"), declaration("--foo"));
+        assert_ne!(declaration("--foo"), declaration("--FOO"));
+    }
+
+    #[test]
+    fn value_oracle_identity_uses_standard_property_keys() {
+        let report = summarize_omena_scss_eval_oracle(
+            ".button { color: red; }",
+            StyleDialect::Scss,
+            ".button { color: red; }",
+        );
+        let decoded = report.values[0].clone();
+        let mut escaped = decoded.clone();
+        escaped.property_name = AuthoredPropertyTextV0::new(r"C\4f LOR");
+
+        assert_eq!(escaped, decoded);
+    }
+
+    #[test]
     fn oracle_preserves_static_scss_values_as_abstract_css_values() {
         let report = summarize_omena_scss_eval_oracle(
             "$brand: red; .button { color: $brand; margin: 0px; }",
@@ -410,7 +460,8 @@ mod tests {
             report
                 .values
                 .iter()
-                .any(|value| value.property_name == "margin"
+                .any(|value| value.property_name.to_standard_key()
+                    == AuthoredPropertyTextV0::new("margin").to_standard_key()
                     && value.legacy_value == "0px"
                     && value.rendered_value == "0"
                     && value.abstract_value_kind == "exact")
@@ -464,11 +515,14 @@ mod tests {
         assert_eq!(report.legacy_declaration_value_count, 1);
         assert_eq!(report.divergence_count, 0);
         assert_eq!(
-            report
-                .values
-                .first()
-                .map(|value| (value.property_name.as_str(), value.legacy_value.as_str())),
-            Some(("color", "red"))
+            report.values.first().map(|value| (
+                value.property_name.to_standard_key(),
+                value.legacy_value.as_str()
+            )),
+            Some((
+                AuthoredPropertyTextV0::new("color").to_standard_key(),
+                "red"
+            ))
         );
     }
 }

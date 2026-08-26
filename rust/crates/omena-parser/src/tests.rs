@@ -3,6 +3,36 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::*;
 
+fn rendered_authored_property_texts(
+    values: &[omena_syntax::ident::AuthoredPropertyTextV0],
+) -> Vec<String> {
+    values
+        .iter()
+        .map(|value| {
+            let mut rendered = String::new();
+            let result = omena_syntax::ident::render_authored(value, &mut rendered);
+            assert!(result.is_ok(), "writing into a String must not fail");
+            rendered
+        })
+        .collect()
+}
+
+#[test]
+fn parser_style_facts_summary_identity_uses_custom_property_keys() {
+    let summary = |property: &str| {
+        let mut summary =
+            summarize_omena_parser_style_facts(":root { --seed: red; }", StyleDialect::Css);
+        let property = omena_syntax::ident::AuthoredPropertyTextV0::new(property);
+        summary.custom_property_names = vec![property.clone()];
+        summary.custom_property_decl_names = vec![property.clone()];
+        summary.custom_property_ref_names = vec![property];
+        summary
+    };
+
+    assert_eq!(summary(r"--f\6f o"), summary("--foo"));
+    assert_ne!(summary("--foo"), summary("--FOO"));
+}
+
 #[test]
 fn builds_cst_root_for_plain_css() {
     let result = parse(".button { color: red; }", StyleDialect::Css);
@@ -3147,14 +3177,19 @@ fn extracts_initial_style_facts_from_parser_surface() {
         selector.kind == ParsedSelectorFactKind::Placeholder && selector.name == "surface"
     }));
     assert!(facts.variables.iter().any(|variable| {
-        variable.kind == ParsedVariableFactKind::ScssDeclaration && variable.name == "$gap"
+        variable.kind == ParsedVariableFactKind::ScssDeclaration
+            && variable.name.as_non_property() == Some("$gap")
     }));
     assert!(facts.variables.iter().any(|variable| {
-        variable.kind == ParsedVariableFactKind::ScssReference && variable.name == "$gap"
+        variable.kind == ParsedVariableFactKind::ScssReference
+            && variable.name.as_non_property() == Some("$gap")
     }));
     assert!(facts.variables.iter().any(|variable| {
         variable.kind == ParsedVariableFactKind::CustomPropertyDeclaration
-            && variable.name == "--space"
+            && variable
+                .property_key
+                .as_ref()
+                .is_some_and(|key| key.as_str() == "--space")
     }));
     assert_eq!(facts.at_rules[0].node_kind, Some(SyntaxKind::ScssUseRule));
 }
@@ -3198,7 +3233,10 @@ fn summarizes_style_facts_as_parser_owned_product() {
     assert_eq!(summary.parser_error_count, 0);
     assert_eq!(summary.class_selector_names, vec!["card".to_string()]);
     assert_eq!(summary.variable_names, vec!["$gap".to_string()]);
-    assert_eq!(summary.custom_property_names, vec!["--space".to_string()]);
+    assert_eq!(
+        rendered_authored_property_texts(&summary.custom_property_names),
+        vec!["--space".to_string()]
+    );
     assert_eq!(summary.sass_module_use_sources, vec!["tokens".to_string()]);
 }
 
@@ -3210,15 +3248,15 @@ fn style_fact_name_sets_dedupe_custom_property_escapes_without_folding_case() {
     );
 
     assert_eq!(
-        summary.custom_property_names,
+        rendered_authored_property_texts(&summary.custom_property_names),
         vec!["--FOO".to_string(), "--foo".to_string()]
     );
     assert_eq!(
-        summary.custom_property_decl_names,
+        rendered_authored_property_texts(&summary.custom_property_decl_names),
         vec!["--FOO".to_string(), "--foo".to_string()]
     );
     assert_eq!(
-        summary.custom_property_ref_names,
+        rendered_authored_property_texts(&summary.custom_property_ref_names),
         vec![r"--f\6f o".to_string()]
     );
 }
@@ -3631,7 +3669,7 @@ fn keeps_at_rule_header_dashed_idents_out_of_custom_property_facts() {
                     | ParsedVariableFactKind::CustomPropertyReference
             )
         })
-        .map(|variable| variable.name.as_str())
+        .filter_map(|variable| variable.property_key.as_ref().map(|key| key.as_str()))
         .collect();
 
     assert_eq!(custom_properties, vec!["--accent"]);
@@ -3804,7 +3842,7 @@ fn extracts_nested_bem_style_facts_with_parent_context() {
     let custom_properties: Vec<&str> = facts
         .variables
         .iter()
-        .map(|variable| variable.name.as_str())
+        .filter_map(|variable| variable.property_key.as_ref().map(|key| key.as_str()))
         .collect();
 
     assert_eq!(class_names, vec!["card", "card__icon", "card__icon--small"]);
@@ -5294,7 +5332,11 @@ fn custom_property_reference_fallback(facts: &ParsedStyleFacts, name: &str) -> O
         .variables
         .iter()
         .find(|fact| {
-            fact.kind == ParsedVariableFactKind::CustomPropertyReference && fact.name == name
+            fact.kind == ParsedVariableFactKind::CustomPropertyReference
+                && fact
+                    .property_key
+                    .as_ref()
+                    .is_some_and(|key| key.as_str() == name)
         })
         .map(|fact| fact.has_fallback)
 }

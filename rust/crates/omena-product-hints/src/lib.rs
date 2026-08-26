@@ -4,9 +4,11 @@
 //! diagnostic output. The ownership boundary changes from lab crates to this
 //! product crate; the wire contract does not.
 
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_cascade::{CascadeOutcome, CascadeReplicaOverlapV0};
+use omena_syntax::ident::AuthoredPropertyTextV0;
 use serde::Serialize;
 
 pub const CATEGORICAL_SCHEMA_VERSION_V0: &str = "0";
@@ -1423,7 +1425,7 @@ pub const REPLICA_ENSEMBLE_DEFAULT_PRODUCT_DECISION_MECHANISM_V0: bool = false;
     since = "0.4.0",
     note = "use CascadeSectionKeyV0; removal is not before 1.0 and requires downstream migration plus zero audited in-repo non-compatibility uses"
 )]
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeSiteKeyV0 {
     pub schema_version: &'static str,
@@ -1431,10 +1433,10 @@ pub struct CascadeSiteKeyV0 {
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
     pub element_selector: String,
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeSectionKeyV0 {
     pub schema_version: &'static str,
@@ -1442,8 +1444,60 @@ pub struct CascadeSectionKeyV0 {
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
     pub element_selector: String,
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
 }
+
+macro_rules! impl_cascade_key_identity {
+    ($type_name:ty) => {
+        #[allow(deprecated)]
+        impl PartialEq for $type_name {
+            fn eq(&self, other: &Self) -> bool {
+                self.schema_version == other.schema_version
+                    && self.product == other.product
+                    && self.layer_marker == other.layer_marker
+                    && self.feature_gate == other.feature_gate
+                    && self.element_selector == other.element_selector
+                    && self.property.to_property_name().canonical_key()
+                        == other.property.to_property_name().canonical_key()
+            }
+        }
+
+        #[allow(deprecated)]
+        impl Eq for $type_name {}
+
+        #[allow(deprecated)]
+        impl PartialOrd for $type_name {
+            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+                Some(self.cmp(other))
+            }
+        }
+
+        #[allow(deprecated)]
+        impl Ord for $type_name {
+            fn cmp(&self, other: &Self) -> Ordering {
+                (
+                    self.schema_version,
+                    self.product,
+                    self.layer_marker,
+                    self.feature_gate,
+                    &self.element_selector,
+                    self.property.to_property_name().canonical_key(),
+                )
+                    .cmp(&(
+                        other.schema_version,
+                        other.product,
+                        other.layer_marker,
+                        other.feature_gate,
+                        &other.element_selector,
+                        other.property.to_property_name().canonical_key(),
+                    ))
+            }
+        }
+    };
+}
+
+impl_cascade_key_identity!(CascadeSiteKeyV0);
+impl_cascade_key_identity!(CascadeSectionKeyV0);
 
 #[allow(deprecated)]
 #[deprecated(
@@ -1550,7 +1604,7 @@ pub struct ReplicaOverlapV0 {
     pub provenance_attributions: Vec<OverlapAttributionV0>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OverlapAttributionV0 {
     pub schema_version: &'static str,
@@ -1558,11 +1612,27 @@ pub struct OverlapAttributionV0 {
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
     pub site_element_selector: String,
-    pub site_property: String,
+    pub site_property: AuthoredPropertyTextV0,
     pub winner_alpha: String,
     pub winner_beta: String,
     pub provenance_alpha: Option<LinearProvenanceTagV0>,
     pub provenance_beta: Option<LinearProvenanceTagV0>,
+}
+
+impl PartialEq for OverlapAttributionV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.product == other.product
+            && self.layer_marker == other.layer_marker
+            && self.feature_gate == other.feature_gate
+            && self.site_element_selector == other.site_element_selector
+            && self.site_property.to_property_name().canonical_key()
+                == other.site_property.to_property_name().canonical_key()
+            && self.winner_alpha == other.winner_alpha
+            && self.winner_beta == other.winner_beta
+            && self.provenance_alpha == other.provenance_alpha
+            && self.provenance_beta == other.provenance_beta
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -1742,7 +1812,7 @@ pub fn cascade_section_key(
         layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
         feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
         element_selector: element_selector.into(),
-        property: property.into(),
+        property: AuthoredPropertyTextV0::new(property),
     }
 }
 
@@ -1768,7 +1838,7 @@ pub fn site(element_selector: impl Into<String>, property: impl Into<String>) ->
         layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
         feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
         element_selector: element_selector.into(),
-        property: property.into(),
+        property: AuthoredPropertyTextV0::new(property),
     }
 }
 
@@ -2169,7 +2239,7 @@ mod cascade_section_key_tests {
     #[allow(deprecated)]
     use super::{
         CascadeSectionKeyV0, CascadeSiteKeyV0, LEGACY_CASCADE_SECTION_KEY_PRODUCT_V0,
-        cascade_section_key, site,
+        OverlapAttributionV0, cascade_section_key, site,
     };
 
     #[deprecated(
@@ -2207,12 +2277,18 @@ mod cascade_section_key_tests {
         assert_eq!(legacy.layer_marker, "replica-ensemble");
         assert_eq!(legacy.feature_gate, "replica-ensemble");
         assert_eq!(legacy.element_selector, ".button");
-        assert_eq!(legacy.property, "color");
+        assert_eq!(
+            legacy.property.to_standard_key(),
+            super::AuthoredPropertyTextV0::new("color").to_standard_key()
+        );
         assert_eq!(legacy.schema_version, canonical.schema_version);
         assert_eq!(legacy.layer_marker, canonical.layer_marker);
         assert_eq!(legacy.feature_gate, canonical.feature_gate);
         assert_eq!(legacy.element_selector, canonical.element_selector);
-        assert_eq!(legacy.property, canonical.property);
+        assert_eq!(
+            legacy.property.to_property_name().canonical_key(),
+            canonical.property.to_property_name().canonical_key()
+        );
 
         assert_eq!(
             serde_json::to_string(&legacy)?,
@@ -2225,6 +2301,46 @@ mod cascade_section_key_tests {
 
         assert_compatibility_key_conversion_v0(canonical, legacy);
         Ok(())
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn cascade_site_key_identity_uses_standard_property_keys() {
+        let uppercase = site(".button", "COLOR");
+        let escaped = site(".button", r"C\4f LOR");
+
+        assert_eq!(uppercase, escaped);
+        assert_eq!(uppercase.cmp(&escaped), std::cmp::Ordering::Equal);
+    }
+
+    #[test]
+    fn cascade_section_key_identity_uses_custom_property_keys() {
+        let escaped = cascade_section_key(".button", r"--f\6f o");
+        let decoded = cascade_section_key(".button", "--foo");
+        let case_distinct = cascade_section_key(".button", "--FOO");
+
+        assert_eq!(escaped, decoded);
+        assert_eq!(escaped.cmp(&decoded), std::cmp::Ordering::Equal);
+        assert_ne!(decoded, case_distinct);
+    }
+
+    #[test]
+    fn overlap_attribution_identity_uses_sealed_property_keys() {
+        let fixture = |property: &str| OverlapAttributionV0 {
+            schema_version: "0",
+            product: "omena-ensemble.replica-overlap",
+            layer_marker: "replica-ensemble",
+            feature_gate: "replica-ensemble",
+            site_element_selector: ".button".to_string(),
+            site_property: super::AuthoredPropertyTextV0::new(property),
+            winner_alpha: "alpha".to_string(),
+            winner_beta: "beta".to_string(),
+            provenance_alpha: None,
+            provenance_beta: None,
+        };
+
+        assert_eq!(fixture(r"--f\6f o"), fixture("--foo"));
+        assert_ne!(fixture("--foo"), fixture("--FOO"));
     }
 }
 

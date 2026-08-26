@@ -362,7 +362,9 @@ fn inline_style_declarations_from_value(
             Some(OmenaQuerySourceInlineStyleDeclarationFactV0 {
                 byte_span: byte_span_from_value(declaration.get("byteSpan")?)?,
                 value_byte_span: optional_byte_span_from_value(declaration.get("valueByteSpan"))?,
-                property_name: declaration.get("propertyName")?.as_str()?.to_string(),
+                property_name: omena_syntax::ident::AuthoredPropertyTextV0::new(
+                    declaration.get("propertyName")?.as_str()?,
+                ),
                 value: declaration
                     .get("value")
                     .and_then(Value::as_str)

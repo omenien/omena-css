@@ -35,7 +35,7 @@ pub(crate) fn resolve_lsp_workspace_symbols(
         }
         for candidate in &document.style_candidates {
             let Some((display_name, symbol_kind)) =
-                workspace_symbol_shape(candidate.kind, candidate.name.to_string().as_str())
+                workspace_symbol_shape(candidate.kind, candidate.identity_name().as_str())
             else {
                 continue;
             };

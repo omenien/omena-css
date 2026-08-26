@@ -39,7 +39,7 @@ pub fn summarize_custom_property_least_fixed_point(
                 "the resolved environment must preserve the canonical input key set"
             );
             CustomPropertyLeastFixedPointEntryV0 {
-                name: name.as_str().to_string(),
+                name: name.clone(),
                 input: input.clone(),
                 changed: resolved != input,
                 guaranteed_invalid: *resolved == CascadeValue::GuaranteedInvalid,

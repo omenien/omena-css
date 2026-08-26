@@ -8,6 +8,8 @@ use omena_parser::{
     ClosedWorldBundleV0, ModuleQualifiedSymbolSetV0, ParserDeclarationSyntaxFactV0, StyleDialect,
     collect_parser_declaration_syntax_facts, lex,
 };
+#[cfg(test)]
+use omena_syntax::ident::AuthoredPropertyTextV0;
 use omena_syntax::{
     SyntaxKind, css_keyword,
     ident::{CanonicalPropertyKeyV0, PropertyNameV0},
@@ -130,7 +132,7 @@ pub enum ExternalCssSemanticChangeClassificationV0 {
 #[serde(rename_all = "camelCase")]
 pub struct ExternalCssSemanticEntryV0 {
     pub selector: String,
-    pub property: String,
+    pub property: CanonicalPropertyKeyV0,
     pub context: String,
     pub value: String,
     pub important: bool,
@@ -464,7 +466,7 @@ fn external_css_entries_for_declaration(
         })
         .map(|selector| ExternalCssSemanticEntryV0 {
             selector,
-            property: declaration.property_key.as_str().to_string(),
+            property: declaration.property_key.clone(),
             context: context.clone(),
             value: declaration.value.clone(),
             important: declaration.important,
@@ -560,7 +562,7 @@ fn external_semantic_entry(
 ) -> ExternalCssSemanticEntryV0 {
     ExternalCssSemanticEntryV0 {
         selector: key.selector_key.clone(),
-        property: key.property.as_str().to_string(),
+        property: key.property.clone(),
         context: key.context_key.clone(),
         value: value.value.clone(),
         important: value.important,
@@ -880,7 +882,7 @@ impl SemanticObservationProjectionV0 {
     fn for_custom_property_reachability(
         input_ir: &TransformIrV0,
         dialect: StyleDialect,
-        reachable_custom_property_names: &[String],
+        reachable_custom_property_names: &[AuthoredPropertyTextV0],
         reachable_keyframe_names: &[String],
         reachable_class_names: &[String],
     ) -> Self {
@@ -1088,7 +1090,7 @@ pub(crate) fn summarize_semantic_preservation_kill_rate_for_fixture_source(
 }
 
 #[cfg(test)]
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct TransformSemanticPreservationFixtureV0 {
     pass_id: String,
@@ -1102,7 +1104,7 @@ struct TransformSemanticPreservationFixtureV0 {
     #[serde(default)]
     reachable_value_names: Vec<String>,
     #[serde(default)]
-    reachable_custom_property_names: Vec<String>,
+    reachable_custom_property_names: Vec<AuthoredPropertyTextV0>,
 }
 
 #[cfg(test)]
@@ -1203,15 +1205,53 @@ struct SemanticDeclarationCandidateV0 {
     source_span_end: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub(crate) struct SemanticCascadeCandidateV0 {
     pub(crate) selector: String,
-    pub(crate) property: String,
+    pub(crate) property: omena_syntax::ident::AuthoredPropertyTextV0,
     pub(crate) value: String,
     pub(crate) important: bool,
     pub(crate) source_span_start: usize,
     pub(crate) source_span_end: usize,
     pub(crate) context_key: String,
+}
+
+impl PartialEq for SemanticCascadeCandidateV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.selector == other.selector
+            && self
+                .property
+                .to_property_name()
+                .same_as(&other.property.to_property_name())
+            && self.value == other.value
+            && self.important == other.important
+            && self.source_span_start == other.source_span_start
+            && self.source_span_end == other.source_span_end
+            && self.context_key == other.context_key
+    }
+}
+
+impl Eq for SemanticCascadeCandidateV0 {}
+
+#[cfg(test)]
+mod authored_property_identity_tests {
+    use super::*;
+
+    #[test]
+    fn semantic_cascade_candidate_identity_uses_sealed_property_keys() {
+        let candidate = |property: &str| SemanticCascadeCandidateV0 {
+            selector: ".button".to_string(),
+            property: omena_syntax::ident::AuthoredPropertyTextV0::new(property),
+            value: "red".to_string(),
+            important: false,
+            source_span_start: 0,
+            source_span_end: 1,
+            context_key: "root".to_string(),
+        };
+
+        assert_eq!(candidate("COLOR"), candidate(r"C\4f LOR"));
+        assert_ne!(candidate("--foo"), candidate("--FOO"));
+    }
 }
 
 fn semantic_observation(
@@ -1267,7 +1307,9 @@ pub(crate) fn semantic_cascade_candidates(
         .into_iter()
         .map(|candidate| SemanticCascadeCandidateV0 {
             selector: candidate.key.selector_key,
-            property: candidate.key.property.as_str().to_string(),
+            property: omena_syntax::ident::AuthoredPropertyTextV0::new(
+                candidate.key.property.as_str(),
+            ),
             value: candidate.value.value,
             important: candidate.value.important,
             source_span_start: candidate.source_span_start,
@@ -1292,7 +1334,7 @@ fn semantic_custom_property_candidates(
             source_span_end: fact.source_span_end,
             key: SemanticObservationKeyV0 {
                 selector_key: fact.fact_kind.to_string(),
-                property: PropertyNameV0::from_authored(fact.name).canonical_key(),
+                property: fact.name.to_property_name().canonical_key(),
                 context_key: "css-custom-properties".to_string(),
             },
             value: SemanticObservationValueV0 {
@@ -3021,7 +3063,7 @@ mod tests {
                 && change
                     .after
                     .as_ref()
-                    .is_some_and(|entry| entry.property == "-webkit-appearance")
+                    .is_some_and(|entry| entry.property.as_str() == "-webkit-appearance")
         }));
         assert!(report.changes.iter().any(|change| {
             change.classification == ExternalCssSemanticChangeClassificationV0::Passthrough

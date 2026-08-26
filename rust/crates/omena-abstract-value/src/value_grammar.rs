@@ -1054,14 +1054,14 @@ struct ClosedWorldKeywordClosureCertificateV0 {
     matched_pair_count: usize,
     matcher_gap_count: usize,
     accepted_pair_digest: String,
-    certified_properties: BTreeSet<String>,
+    certified_properties: BTreeSet<CanonicalStandardPropertyNameV0>,
     property_tests: Vec<ClosedWorldKeywordClosurePropertyTestV0>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ClosedWorldKeywordClosurePropertyTestV0 {
-    property: String,
+    property: CanonicalStandardPropertyNameV0,
     candidate_pair_count: usize,
     tested_pair_count: usize,
     matched_pair_count: usize,
@@ -1207,7 +1207,7 @@ fn parse_closed_world_keyword_closure_certificate(
         return None;
     }
 
-    let mut previous_property: Option<&str> = None;
+    let mut previous_property: Option<&CanonicalStandardPropertyNameV0> = None;
     let mut candidate_pair_count = 0usize;
     let mut accepted_pair_count = 0usize;
     let mut matched_pair_count = 0usize;
@@ -1217,8 +1217,8 @@ fn parse_closed_world_keyword_closure_certificate(
     let mut digest = Sha256::new();
 
     for property_test in &certificate.property_tests {
-        if property_test.property.is_empty()
-            || previous_property.is_some_and(|previous| previous >= property_test.property.as_str())
+        if property_test.property.as_str().is_empty()
+            || previous_property.is_some_and(|previous| previous >= &property_test.property)
             || property_test.tested_pair_count != property_test.accepted_keywords.len()
             || property_test
                 .matched_pair_count
@@ -1244,15 +1244,14 @@ fn parse_closed_world_keyword_closure_certificate(
         matcher_gap_count = matcher_gap_count.checked_add(property_test.matcher_gap_count)?;
 
         for keyword in &property_test.accepted_keywords {
-            digest.update(property_test.property.as_bytes());
+            digest.update(property_test.property.as_str().as_bytes());
             digest.update([0]);
             digest.update(keyword.as_bytes());
             digest.update([b'\n']);
         }
-        let property_key = PropertyNameV0::canonical_standard_key(&property_test.property);
         if accepted_keywords_by_property
             .insert(
-                property_key,
+                property_test.property.clone(),
                 property_test.accepted_keywords.iter().cloned().collect(),
             )
             .is_some()
@@ -1280,11 +1279,7 @@ fn parse_closed_world_keyword_closure_certificate(
     }
 
     Some(ClosedWorldKeywordAuthorityV0 {
-        certified_properties: certificate
-            .certified_properties
-            .into_iter()
-            .map(PropertyNameV0::canonical_standard_key)
-            .collect(),
+        certified_properties: certificate.certified_properties,
         accepted_keywords_by_property,
     })
 }

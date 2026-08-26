@@ -276,10 +276,9 @@ pub(crate) fn style_hover_candidates(path: PathBuf, json: bool) -> Result<(), St
     println!("language: {}", summary.language);
     println!("candidates: {}", summary.candidates.len());
     for candidate in &summary.candidates {
-        println!(
-            "{}\t{}\t{}",
-            candidate.kind, candidate.name, candidate.source
-        );
+        let mut name = String::new();
+        let _ = omena_syntax::ident::render_authored(&candidate.name, &mut name);
+        println!("{}\t{}\t{}", candidate.kind, name, candidate.source);
     }
     Ok(())
 }

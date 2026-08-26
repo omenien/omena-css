@@ -5,6 +5,7 @@
 
 use std::collections::BTreeSet;
 
+use omena_syntax::ident::AuthoredPropertyTextV0;
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -25,20 +26,45 @@ pub struct DiagnosticFrameFootprintV0 {
     pub layer_marker: &'static str,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeEvidenceV0 {
     pub selector: String,
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
     pub declaration_ids: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+impl PartialEq for CascadeEvidenceV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.selector == other.selector
+            && self.property.to_property_name().canonical_key()
+                == other.property.to_property_name().canonical_key()
+            && self.declaration_ids == other.declaration_ids
+    }
+}
+
+impl Eq for CascadeEvidenceV0 {}
+
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CustomPropertyEvidenceV0 {
-    pub custom_property_name: String,
-    pub dependency_names: Vec<String>,
+    pub custom_property_name: AuthoredPropertyTextV0,
+    pub dependency_names: Vec<AuthoredPropertyTextV0>,
 }
+
+impl PartialEq for CustomPropertyEvidenceV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.custom_property_name.to_custom_key() == other.custom_property_name.to_custom_key()
+            && self.dependency_names.len() == other.dependency_names.len()
+            && self
+                .dependency_names
+                .iter()
+                .zip(&other.dependency_names)
+                .all(|(left, right)| left.to_custom_key() == right.to_custom_key())
+    }
+}
+
+impl Eq for CustomPropertyEvidenceV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

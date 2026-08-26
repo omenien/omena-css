@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use super::{
-    BundleDependencyResolutionDisclosureV0, BundleResolutionAuthorityV0,
+    AuthoredPropertyTextV0, BundleDependencyResolutionDisclosureV0, BundleResolutionAuthorityV0,
     ClosedWorldModuleReachabilityEvidenceV0, LinkedStylesheetWithEmissionItemsV0, LinkerInputV0,
     ModuleInstanceKeyV0, TransformBundleLinkErrorV0,
 };
@@ -42,7 +42,17 @@ pub(super) fn assert_legacy_path_union(input: &LinkerInputV0) {
     // FALSIFIER: id=bundler-legacy-path-value-union class=liveness via=legacy_path_reachability_unions_normalized_rows_across_symbol_sets producer=can-fail owner=bundler-carrier-contract entry=normalized-alias-values-unioned
     assert_eq!(input.value_names, ["primary", "secondary"]);
     // FALSIFIER: id=bundler-legacy-path-custom-property-union class=liveness via=legacy_path_reachability_unions_normalized_rows_across_symbol_sets producer=can-fail owner=bundler-carrier-contract entry=normalized-alias-custom-properties-unioned
-    assert_eq!(input.custom_property_names, ["--primary", "--secondary"]);
+    assert_eq!(
+        input
+            .custom_property_names
+            .iter()
+            .map(AuthoredPropertyTextV0::to_custom_key)
+            .collect::<Vec<_>>(),
+        [
+            AuthoredPropertyTextV0::new("--primary").to_custom_key(),
+            AuthoredPropertyTextV0::new("--secondary").to_custom_key(),
+        ]
+    );
 }
 
 pub(super) fn assert_incomplete_composes_target_evidence(

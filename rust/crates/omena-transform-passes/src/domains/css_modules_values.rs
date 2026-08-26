@@ -7,7 +7,10 @@ use std::collections::{BTreeMap, VecDeque};
 
 use cstree::text::{TextRange, TextSize};
 use omena_parser::{LexedToken, StyleDialect};
-use omena_syntax::{SyntaxKind, ident::PropertyNameV0};
+use omena_syntax::{
+    SyntaxKind,
+    ident::{AuthoredPropertyTextV0, PropertyNameV0, render_authored},
+};
 use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -121,11 +124,12 @@ pub(crate) fn resolve_static_css_modules_values_with_lexer(
                 ) else {
                     continue;
                 };
-                replacements.push((
-                    declaration.start,
-                    declaration.end,
-                    format!("{}: {resolved_value};", declaration.property),
-                ));
+                let mut replacement = String::new();
+                let _ = render_authored(&declaration.property, &mut replacement);
+                replacement.push_str(": ");
+                replacement.push_str(resolved_value.as_str());
+                replacement.push(';');
+                replacements.push((declaration.start, declaration.end, replacement));
             }
             index += 1;
             continue;
@@ -913,11 +917,15 @@ fn collect_static_css_modules_icss_export_rules_from_ir(
         .filter_map(|rule| {
             let declarations = collect_simple_declarations_from_ir(ir, &rule)
                 .into_iter()
-                .map(|declaration| CssModulesIcssExportDeclaration {
-                    export_name: declaration.property,
-                    value: declaration.value,
-                    start: declaration.start,
-                    end: declaration.end,
+                .map(|declaration| {
+                    let mut export_name = String::new();
+                    let _ = render_authored(&declaration.property, &mut export_name);
+                    CssModulesIcssExportDeclaration {
+                        export_name,
+                        value: declaration.value,
+                        start: declaration.start,
+                        end: declaration.end,
+                    }
                 })
                 .collect::<Vec<_>>();
             (!declarations.is_empty()).then_some(CssModulesIcssExportRule {
@@ -1189,11 +1197,15 @@ fn collect_static_css_modules_icss_export_rules(
             let declarations =
                 collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
                     .into_iter()
-                    .map(|declaration| CssModulesIcssExportDeclaration {
-                        export_name: declaration.property.to_string(),
-                        value: declaration.value,
-                        start: declaration.start,
-                        end: declaration.end,
+                    .map(|declaration| {
+                        let mut export_name = String::new();
+                        let _ = render_authored(&declaration.property, &mut export_name);
+                        CssModulesIcssExportDeclaration {
+                            export_name,
+                            value: declaration.value,
+                            start: declaration.start,
+                            end: declaration.end,
+                        }
                     })
                     .collect::<Vec<_>>();
             (!declarations.is_empty()).then_some(CssModulesIcssExportRule {
@@ -1550,7 +1562,7 @@ fn collect_simple_declarations_from_keyframe_slice(
     collect_simple_declarations_in_block(&tokens, block_start_index, block_end_index)
         .into_iter()
         .map(|declaration| CssModulesValueDeclarationIrViewV0 {
-            property: declaration.property.to_string(),
+            property: declaration.property,
             value: declaration.value,
             start: declaration.start,
             end: declaration.end,
@@ -1968,13 +1980,26 @@ fn declaration_ordinary_rule_slice_from_ir(
     })
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 struct CssModulesValueDeclarationIrViewV0 {
-    property: String,
+    property: AuthoredPropertyTextV0,
     value: String,
     start: usize,
     end: usize,
 }
+
+impl PartialEq for CssModulesValueDeclarationIrViewV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.property
+            .to_property_name()
+            .same_as(&other.property.to_property_name())
+            && self.value == other.value
+            && self.start == other.start
+            && self.end == other.end
+    }
+}
+
+impl Eq for CssModulesValueDeclarationIrViewV0 {}
 
 fn collect_simple_declarations_from_ir(
     ir: &TransformIrV0,
@@ -2024,7 +2049,7 @@ fn simple_declaration_from_ir(
     }
     let property_name = PropertyNameV0::from_authored(property);
     Some(CssModulesValueDeclarationIrViewV0 {
-        property: property_name.authored_text().to_string(),
+        property: property_name.authored_text(),
         value: value.to_string(),
         start: node.source_span_start,
         end: node.source_span_end,
@@ -2221,4 +2246,22 @@ fn collect_css_modules_value_references_in_value(
         }
     }
     references
+}
+
+#[cfg(test)]
+mod authored_property_identity_tests {
+    use super::*;
+
+    #[test]
+    fn css_modules_value_declaration_view_identity_uses_sealed_property_keys() {
+        let declaration = |property: &str| CssModulesValueDeclarationIrViewV0 {
+            property: AuthoredPropertyTextV0::new(property),
+            value: "red".to_string(),
+            start: 0,
+            end: 1,
+        };
+
+        assert_eq!(declaration("COLOR"), declaration(r"C\4f LOR"));
+        assert_ne!(declaration("--foo"), declaration("--FOO"));
+    }
 }

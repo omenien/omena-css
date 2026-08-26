@@ -3,6 +3,7 @@ use crate::{
     ProvenanceSemiringV0,
 };
 use omena_incremental::{IncrementalComputationPlanV0, IncrementalSnapshotV0};
+use omena_syntax::ident::AuthoredPropertyTextV0;
 use serde::{Deserialize, Serialize};
 
 pub const MAX_FINITE_CLASS_VALUES: usize = 8;
@@ -564,7 +565,7 @@ impl PartialEq for AbstractCssValueV0 {
 
 impl Eq for AbstractCssValueV0 {}
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",
@@ -572,33 +573,113 @@ impl Eq for AbstractCssValueV0 {}
 )]
 pub enum AbstractPropertyValueV0 {
     Bottom {
-        property_name: String,
+        property_name: AuthoredPropertyTextV0,
     },
     Exact {
-        property_name: String,
+        property_name: AuthoredPropertyTextV0,
         value: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         pseudo_state: Option<String>,
     },
     FiniteSet {
-        property_name: String,
+        property_name: AuthoredPropertyTextV0,
         values: Vec<String>,
         pseudo_states: Vec<String>,
     },
     CustomPropertyReference {
-        property_name: String,
-        custom_property_name: String,
+        property_name: AuthoredPropertyTextV0,
+        custom_property_name: AuthoredPropertyTextV0,
         #[serde(skip_serializing_if = "Option::is_none")]
         pseudo_state: Option<String>,
     },
     Top {
-        property_name: String,
+        property_name: AuthoredPropertyTextV0,
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+impl PartialEq for AbstractPropertyValueV0 {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Self::Bottom {
+                    property_name: left,
+                },
+                Self::Bottom {
+                    property_name: right,
+                },
+            )
+            | (
+                Self::Top {
+                    property_name: left,
+                },
+                Self::Top {
+                    property_name: right,
+                },
+            ) => left.to_property_name().same_as(&right.to_property_name()),
+            (
+                Self::Exact {
+                    property_name: left_property,
+                    value: left_value,
+                    pseudo_state: left_pseudo_state,
+                },
+                Self::Exact {
+                    property_name: right_property,
+                    value: right_value,
+                    pseudo_state: right_pseudo_state,
+                },
+            ) => {
+                left_property
+                    .to_property_name()
+                    .same_as(&right_property.to_property_name())
+                    && left_value == right_value
+                    && left_pseudo_state == right_pseudo_state
+            }
+            (
+                Self::FiniteSet {
+                    property_name: left_property,
+                    values: left_values,
+                    pseudo_states: left_pseudo_states,
+                },
+                Self::FiniteSet {
+                    property_name: right_property,
+                    values: right_values,
+                    pseudo_states: right_pseudo_states,
+                },
+            ) => {
+                left_property
+                    .to_property_name()
+                    .same_as(&right_property.to_property_name())
+                    && left_values == right_values
+                    && left_pseudo_states == right_pseudo_states
+            }
+            (
+                Self::CustomPropertyReference {
+                    property_name: left_property,
+                    custom_property_name: left_custom_property,
+                    pseudo_state: left_pseudo_state,
+                },
+                Self::CustomPropertyReference {
+                    property_name: right_property,
+                    custom_property_name: right_custom_property,
+                    pseudo_state: right_pseudo_state,
+                },
+            ) => {
+                left_property
+                    .to_property_name()
+                    .same_as(&right_property.to_property_name())
+                    && left_custom_property.to_custom_key() == right_custom_property.to_custom_key()
+                    && left_pseudo_state == right_pseudo_state
+            }
+            _ => false,
+        }
+    }
+}
+
+impl Eq for AbstractPropertyValueV0 {}
+
+#[derive(Debug, Clone)]
 pub struct AbstractPropertyValueCandidateV0 {
-    pub property_name: String,
+    pub property_name: AuthoredPropertyTextV0,
     pub value: String,
     pub pseudo_state: Option<String>,
     pub condition_context: Vec<String>,
@@ -609,13 +690,31 @@ pub struct AbstractPropertyValueCandidateV0 {
     pub same_selector_ordering: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+impl PartialEq for AbstractPropertyValueCandidateV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.property_name
+            .to_property_name()
+            .same_as(&other.property_name.to_property_name())
+            && self.value == other.value
+            && self.pseudo_state == other.pseudo_state
+            && self.condition_context == other.condition_context
+            && self.layer_name == other.layer_name
+            && self.layer_order == other.layer_order
+            && self.source_order == other.source_order
+            && self.important == other.important
+            && self.same_selector_ordering == other.same_selector_ordering
+    }
+}
+
+impl Eq for AbstractPropertyValueCandidateV0 {}
+
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AbstractPropertyValueNarrowingV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub stylesheet_scope: &'static str,
-    pub property_name: String,
+    pub property_name: AuthoredPropertyTextV0,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub requested_pseudo_state: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -633,6 +732,30 @@ pub struct AbstractPropertyValueNarrowingV0 {
     pub display_values: Vec<String>,
     pub value: AbstractPropertyValueV0,
 }
+
+impl PartialEq for AbstractPropertyValueNarrowingV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.product == other.product
+            && self.stylesheet_scope == other.stylesheet_scope
+            && self
+                .property_name
+                .to_property_name()
+                .same_as(&other.property_name.to_property_name())
+            && self.requested_pseudo_state == other.requested_pseudo_state
+            && self.requested_condition_context == other.requested_condition_context
+            && self.requested_layer_name == other.requested_layer_name
+            && self.requested_layer_order == other.requested_layer_order
+            && self.requested_layer_scope == other.requested_layer_scope
+            && self.candidate_count == other.candidate_count
+            && self.matched_candidate_count == other.matched_candidate_count
+            && self.display_value == other.display_value
+            && self.display_values == other.display_values
+            && self.value == other.value
+    }
+}
+
+impl Eq for AbstractPropertyValueNarrowingV0 {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

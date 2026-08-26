@@ -1,7 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use omena_syntax::ident::{PropertyNameV0, property_names_same};
-
 use super::shared::*;
 
 pub(super) fn attach_omena_query_module_graph_property_value_narrowing_for_workspace(
@@ -58,7 +56,7 @@ pub(super) fn attach_omena_query_module_graph_property_value_narrowing_for_works
             .iter()
             .filter(|(selector, candidate)| {
                 selector == &cascade_narrowing.selector
-                    && PropertyNameV0::from_authored(&candidate.property_name).canonical_key()
+                    && candidate.property_name.to_property_name().canonical_key()
                         == cascade_narrowing.property_key
                     && *static_reachability_by_context
                         .entry(candidate.condition_context.clone())
@@ -176,12 +174,15 @@ fn attach_omena_query_runtime_state_inline_overrides_from_overrides(
             inline_overrides
                 .iter()
                 .filter(|override_fact| {
-                    property_names_same(&override_fact.property_name, &property_name)
+                    override_fact
+                        .property_name
+                        .to_property_name()
+                        .same_as(&property_name.to_property_name())
                 })
                 .map(|override_fact| {
                     query_runtime_state_scenario_with_inline_override(
                         runtime_state.selector.as_str(),
-                        property_name.as_str(),
+                        &property_name,
                         cascade_declarations.as_slice(),
                         override_fact,
                     )
@@ -194,7 +195,10 @@ fn attach_omena_query_runtime_state_inline_overrides_from_overrides(
                     .inline_style_overrides
                     .iter()
                     .filter(|override_fact| {
-                        property_names_same(&override_fact.property_name, &property_name)
+                        override_fact
+                            .property_name
+                            .to_property_name()
+                            .same_as(&property_name.to_property_name())
                     })
                     .count();
             }
@@ -311,7 +315,12 @@ pub(in crate::style) fn collect_omena_query_inline_style_runtime_overrides_by_st
                 .cmp(&right.source_path)
                 .then_with(|| left.range.start.line.cmp(&right.range.start.line))
                 .then_with(|| left.range.start.character.cmp(&right.range.start.character))
-                .then_with(|| left.property_name.cmp(&right.property_name))
+                .then_with(|| {
+                    left.property_name
+                        .to_property_name()
+                        .canonical_key()
+                        .cmp(&right.property_name.to_property_name().canonical_key())
+                })
         });
         overrides.dedup();
     }

@@ -175,7 +175,9 @@ fn generated_box_longhands(seed: u64) -> Vec<BoxLonghandInputV0> {
         .into_iter()
         .enumerate()
         .map(|(source_index, property_index)| BoxLonghandInputV0 {
-            property: properties[property_index].clone(),
+            property: omena_cascade::AuthoredPropertyTextV0::new(
+                properties[property_index].clone(),
+            ),
             value: if seed.is_multiple_of(11) {
                 String::new()
             } else {

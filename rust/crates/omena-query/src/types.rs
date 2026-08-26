@@ -6,7 +6,8 @@ use omena_evidence_graph::{
 use omena_query_transform_runner::normalize_omena_transform_bundle_path;
 use omena_sif::OmenaSifV1;
 use omena_syntax::ident::{
-    AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0,
+    AuthoredPropertyTextV0, CanonicalClassKeyV0, CanonicalCustomPropertyNameV0,
+    CanonicalPropertyKeyV0, CanonicalStandardPropertyNameV0,
 };
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
@@ -479,19 +480,41 @@ pub struct OmenaQuerySassModuleCrossFileResolutionCapabilitiesV0 {
     pub symlink_chain_metadata_ready: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryStyleDocumentSummaryV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub language: &'static str,
     pub selector_names: Vec<String>,
-    pub custom_property_decl_names: Vec<String>,
-    pub custom_property_ref_names: Vec<String>,
+    pub custom_property_decl_names: Vec<AuthoredPropertyTextV0>,
+    pub custom_property_ref_names: Vec<AuthoredPropertyTextV0>,
     pub sass_module_use_sources: Vec<String>,
     pub sass_module_forward_sources: Vec<String>,
     pub diagnostic_count: usize,
 }
+
+impl PartialEq for OmenaQueryStyleDocumentSummaryV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.product == other.product
+            && self.language == other.language
+            && self.selector_names == other.selector_names
+            && authored_custom_property_sequences_same(
+                &self.custom_property_decl_names,
+                &other.custom_property_decl_names,
+            )
+            && authored_custom_property_sequences_same(
+                &self.custom_property_ref_names,
+                &other.custom_property_ref_names,
+            )
+            && self.sass_module_use_sources == other.sass_module_use_sources
+            && self.sass_module_forward_sources == other.sass_module_forward_sources
+            && self.diagnostic_count == other.diagnostic_count
+    }
+}
+
+impl Eq for OmenaQueryStyleDocumentSummaryV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1833,7 +1856,7 @@ pub struct OmenaQuerySourceDocumentInputV0 {
     pub has_unresolved_style_import: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryOmenaParserStyleFactsV0 {
     pub schema_version: &'static str,
@@ -1867,11 +1890,74 @@ pub struct OmenaQueryOmenaParserStyleFactsV0 {
     pub sass_module_forward_sources: Vec<String>,
     pub sass_module_import_sources: Vec<String>,
     pub sass_module_edges: Vec<OmenaQuerySassModuleEdgeFactV0>,
-    pub custom_property_names: Vec<String>,
-    pub custom_property_decl_names: Vec<String>,
-    pub custom_property_ref_names: Vec<String>,
+    pub custom_property_names: Vec<AuthoredPropertyTextV0>,
+    pub custom_property_decl_names: Vec<AuthoredPropertyTextV0>,
+    pub custom_property_ref_names: Vec<AuthoredPropertyTextV0>,
     pub at_rule_names: Vec<String>,
     pub parser_error_count: usize,
+}
+
+impl PartialEq for OmenaQueryOmenaParserStyleFactsV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.product == other.product
+            && self.dialect == other.dialect
+            && self.class_selector_names == other.class_selector_names
+            && self.id_selector_names == other.id_selector_names
+            && self.placeholder_selector_names == other.placeholder_selector_names
+            && self.keyframe_names == other.keyframe_names
+            && self.animation_reference_names == other.animation_reference_names
+            && self.css_module_value_definition_names == other.css_module_value_definition_names
+            && self.css_module_value_reference_names == other.css_module_value_reference_names
+            && self.css_module_value_import_sources == other.css_module_value_import_sources
+            && self.css_module_value_import_edges == other.css_module_value_import_edges
+            && self.css_module_value_definition_edges == other.css_module_value_definition_edges
+            && self.css_module_composes_target_names == other.css_module_composes_target_names
+            && self.css_module_composes_import_sources == other.css_module_composes_import_sources
+            && self.css_module_composes_edges == other.css_module_composes_edges
+            && self.icss_export_names == other.icss_export_names
+            && self.icss_import_local_names == other.icss_import_local_names
+            && self.icss_import_remote_names == other.icss_import_remote_names
+            && self.icss_import_sources == other.icss_import_sources
+            && self.icss_import_edges == other.icss_import_edges
+            && self.icss_export_edges == other.icss_export_edges
+            && self.variable_names == other.variable_names
+            && self.sass_symbol_declaration_names == other.sass_symbol_declaration_names
+            && self.sass_symbol_reference_names == other.sass_symbol_reference_names
+            && self.sass_symbol_facts == other.sass_symbol_facts
+            && self.sass_symbol_resolution == other.sass_symbol_resolution
+            && self.sass_module_use_sources == other.sass_module_use_sources
+            && self.sass_module_forward_sources == other.sass_module_forward_sources
+            && self.sass_module_import_sources == other.sass_module_import_sources
+            && self.sass_module_edges == other.sass_module_edges
+            && authored_custom_property_sequences_same(
+                &self.custom_property_names,
+                &other.custom_property_names,
+            )
+            && authored_custom_property_sequences_same(
+                &self.custom_property_decl_names,
+                &other.custom_property_decl_names,
+            )
+            && authored_custom_property_sequences_same(
+                &self.custom_property_ref_names,
+                &other.custom_property_ref_names,
+            )
+            && self.at_rule_names == other.at_rule_names
+            && self.parser_error_count == other.parser_error_count
+    }
+}
+
+impl Eq for OmenaQueryOmenaParserStyleFactsV0 {}
+
+fn authored_custom_property_sequences_same(
+    left: &[AuthoredPropertyTextV0],
+    right: &[AuthoredPropertyTextV0],
+) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| left.to_custom_key() == right.to_custom_key())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1991,6 +2077,8 @@ pub struct OmenaQueryIcssExportEdgeFactV0 {
 pub struct OmenaQueryStyleHoverCandidateV0 {
     pub kind: &'static str,
     pub name: AuthoredPropertyTextV0,
+    #[serde(skip)]
+    pub selector_key: Option<CanonicalClassKeyV0>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub property_key: Option<CanonicalCustomPropertyNameV0>,
     pub range: ParserRangeV0,
@@ -2000,19 +2088,22 @@ pub struct OmenaQueryStyleHoverCandidateV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum OmenaQueryStyleHoverCandidateIdentityRefV0<'candidate> {
+    Selector(Option<&'candidate CanonicalClassKeyV0>),
     CustomProperty(Option<&'candidate CanonicalCustomPropertyNameV0>),
-    Other(String),
+    Other,
 }
 
 impl OmenaQueryStyleHoverCandidateV0 {
     fn identity(&self) -> OmenaQueryStyleHoverCandidateIdentityRefV0<'_> {
-        if matches!(
+        if self.kind == "selector" {
+            OmenaQueryStyleHoverCandidateIdentityRefV0::Selector(self.selector_key.as_ref())
+        } else if matches!(
             self.kind,
             "customPropertyDeclaration" | "customPropertyReference"
         ) {
             OmenaQueryStyleHoverCandidateIdentityRefV0::CustomProperty(self.property_key.as_ref())
         } else {
-            OmenaQueryStyleHoverCandidateIdentityRefV0::Other(self.name.to_string())
+            OmenaQueryStyleHoverCandidateIdentityRefV0::Other
         }
     }
 }
@@ -2130,13 +2221,13 @@ pub struct OmenaQueryCascadeLayerTopologyIncompleteV0 {
     pub unresolved_count: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct OmenaQueryRuntimeStateScenarioEvidenceV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub selector: String,
     pub selector_class_names: Vec<String>,
-    pub property_name: String,
+    pub property_name: AuthoredPropertyTextV0,
     pub scenario_join_kind: &'static str,
     pub confidence_tier: &'static str,
     pub confidence_tier_within_modeled_environment: &'static str,
@@ -2149,6 +2240,33 @@ pub struct OmenaQueryRuntimeStateScenarioEvidenceV0 {
     pub guarded_winner_authority: Option<omena_cascade::GuardedCascadeWinnerAuthorityV0>,
     pub fragile_guarded_winner_diagnostics: Vec<OmenaQueryFragileGuardedWinnerDiagnosticV0>,
 }
+
+impl PartialEq for OmenaQueryRuntimeStateScenarioEvidenceV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.product == other.product
+            && self.selector == other.selector
+            && self.selector_class_names == other.selector_class_names
+            && self
+                .property_name
+                .to_property_name()
+                .same_as(&other.property_name.to_property_name())
+            && self.scenario_join_kind == other.scenario_join_kind
+            && self.confidence_tier == other.confidence_tier
+            && self.confidence_tier_within_modeled_environment
+                == other.confidence_tier_within_modeled_environment
+            && self.static_boundary == other.static_boundary
+            && self.driver_summaries == other.driver_summaries
+            && self.scenarios == other.scenarios
+            && self.static_condition_pruning == other.static_condition_pruning
+            && self.inline_style_overrides == other.inline_style_overrides
+            && self.cascade_layer_topology_incomplete == other.cascade_layer_topology_incomplete
+            && self.guarded_winner_authority == other.guarded_winner_authority
+            && self.fragile_guarded_winner_diagnostics == other.fragile_guarded_winner_diagnostics
+    }
+}
+
+impl Eq for OmenaQueryRuntimeStateScenarioEvidenceV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -2179,12 +2297,12 @@ pub struct OmenaQueryRuntimeStateScenarioV0 {
     pub property_value_narrowing: AbstractPropertyValueNarrowingV0,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryInlineStyleRuntimeOverrideV0 {
     pub source_path: String,
     pub range: ParserRangeV0,
-    pub property_name: String,
+    pub property_name: AuthoredPropertyTextV0,
     pub value: Option<String>,
     pub cascade_tier: &'static str,
     /// Whether the static source text ended with a CSS `!important` suffix.
@@ -2193,6 +2311,23 @@ pub struct OmenaQueryInlineStyleRuntimeOverrideV0 {
     pub important: bool,
     pub static_value: bool,
 }
+
+impl PartialEq for OmenaQueryInlineStyleRuntimeOverrideV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.source_path == other.source_path
+            && self.range == other.range
+            && self
+                .property_name
+                .to_property_name()
+                .same_as(&other.property_name.to_property_name())
+            && self.value == other.value
+            && self.cascade_tier == other.cascade_tier
+            && self.important == other.important
+            && self.static_value == other.static_value
+    }
+}
+
+impl Eq for OmenaQueryInlineStyleRuntimeOverrideV0 {}
 
 impl OmenaQueryInlineStyleRuntimeOverrideV0 {
     /// Whether the originating static source text ended with `!important`.
@@ -2479,26 +2614,49 @@ pub struct OmenaQueryInsightV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryShorthandCombinableV0 {
-    pub shorthand_property: String,
-    pub longhand_properties: Vec<String>,
+    pub shorthand_property: CanonicalStandardPropertyNameV0,
+    pub longhand_properties: Vec<CanonicalStandardPropertyNameV0>,
     pub values: Vec<String>,
     pub combined_value: String,
     pub declaration_count: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCascadeInsightV0 {
     pub relationship: &'static str,
     pub selector: String,
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
     pub related_selector: Option<String>,
-    pub related_property: Option<String>,
+    pub related_property: Option<AuthoredPropertyTextV0>,
     pub source_order: u32,
     pub related_source_order: Option<u32>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+impl PartialEq for OmenaQueryCascadeInsightV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.relationship == other.relationship
+            && self.selector == other.selector
+            && self
+                .property
+                .to_property_name()
+                .same_as(&other.property.to_property_name())
+            && self.related_selector == other.related_selector
+            && match (&self.related_property, &other.related_property) {
+                (Some(left), Some(right)) => {
+                    left.to_property_name().same_as(&right.to_property_name())
+                }
+                (None, None) => true,
+                (Some(_), None) | (None, Some(_)) => false,
+            }
+            && self.source_order == other.source_order
+            && self.related_source_order == other.related_source_order
+    }
+}
+
+impl Eq for OmenaQueryCascadeInsightV0 {}
+
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCascadeAtPositionV0 {
     pub schema_version: &'static str,
@@ -2518,7 +2676,7 @@ pub struct OmenaQueryCascadeAtPositionV0 {
     pub winner_declaration_layer_name: Option<String>,
     pub candidate_declaration_count: usize,
     pub shadowed_declaration_source_orders: Vec<usize>,
-    pub referenced_declaration_property: Option<String>,
+    pub referenced_declaration_property: Option<AuthoredPropertyTextV0>,
     pub referenced_declaration_value: Option<String>,
     pub referenced_declaration_computed_value_status: Option<&'static str>,
     pub referenced_declaration_computed_value: Option<String>,
@@ -2537,6 +2695,61 @@ pub struct OmenaQueryCascadeAtPositionV0 {
     pub categorical_evidence:
         Option<omena_query_checker_orchestrator::CategoricalCascadeEvidenceV0>,
 }
+
+impl PartialEq for OmenaQueryCascadeAtPositionV0 {
+    fn eq(&self, other: &Self) -> bool {
+        let referenced_property_same = match (
+            &self.referenced_declaration_property,
+            &other.referenced_declaration_property,
+        ) {
+            (Some(left), Some(right)) => left.to_property_name().same_as(&right.to_property_name()),
+            (None, None) => true,
+            (Some(_), None) | (None, Some(_)) => false,
+        };
+        self.schema_version == other.schema_version
+            && self.product == other.product
+            && self.style_path == other.style_path
+            && self.query_position == other.query_position
+            && self.status == other.status
+            && self.cascade_engine == other.cascade_engine
+            && self.reference_name == other.reference_name
+            && self.reference_range == other.reference_range
+            && self.winner_declaration_source_order == other.winner_declaration_source_order
+            && self.winner_declaration_file_path == other.winner_declaration_file_path
+            && self.winner_declaration_range == other.winner_declaration_range
+            && self.winner_context_kind == other.winner_context_kind
+            && self.winner_declaration_layer_rank == other.winner_declaration_layer_rank
+            && self.winner_declaration_layer_name == other.winner_declaration_layer_name
+            && self.candidate_declaration_count == other.candidate_declaration_count
+            && self.shadowed_declaration_source_orders == other.shadowed_declaration_source_orders
+            && referenced_property_same
+            && self.referenced_declaration_value == other.referenced_declaration_value
+            && self.referenced_declaration_computed_value_status
+                == other.referenced_declaration_computed_value_status
+            && self.referenced_declaration_computed_value
+                == other.referenced_declaration_computed_value
+            && self.referenced_declaration_invalid_at_computed_value_time
+                == other.referenced_declaration_invalid_at_computed_value_time
+            && self.referenced_declaration_computed_value_indeterminate
+                == other.referenced_declaration_computed_value_indeterminate
+            && self.referenced_declaration_computed_value_indeterminate_reason
+                == other.referenced_declaration_computed_value_indeterminate_reason
+            && self.referenced_declaration_computed_value_derivation_steps
+                == other.referenced_declaration_computed_value_derivation_steps
+            && self.custom_property_fixed_point_iteration_count
+                == other.custom_property_fixed_point_iteration_count
+            && self.custom_property_fixed_point_guaranteed_invalid_count
+                == other.custom_property_fixed_point_guaranteed_invalid_count
+            && self.reference_custom_property_fixed_point_status
+                == other.reference_custom_property_fixed_point_status
+            && self.reference_custom_property_fixed_point_value
+                == other.reference_custom_property_fixed_point_value
+            && self.refinement_evidence == other.refinement_evidence
+            && self.categorical_evidence == other.categorical_evidence
+    }
+}
+
+impl Eq for OmenaQueryCascadeAtPositionV0 {}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -2854,17 +3067,60 @@ pub struct OmenaQueryCustomPropertyOccurrenceIndexV0 {
     pub ready_surfaces: Vec<&'static str>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCustomPropertyOccurrenceV0 {
     pub uri: String,
-    pub name: String,
+    pub name: AuthoredPropertyTextV0,
     pub range: ParserRangeV0,
     pub byte_span: ParserByteSpanV0,
     pub kind: &'static str,
     pub has_fallback: bool,
     pub source: &'static str,
     pub property_key: CanonicalCustomPropertyNameV0,
+}
+
+impl PartialEq for OmenaQueryCustomPropertyOccurrenceV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.uri == other.uri
+            && self.property_key == other.property_key
+            && self.range == other.range
+            && self.byte_span == other.byte_span
+            && self.kind == other.kind
+            && self.has_fallback == other.has_fallback
+            && self.source == other.source
+    }
+}
+
+impl Eq for OmenaQueryCustomPropertyOccurrenceV0 {}
+
+impl Ord for OmenaQueryCustomPropertyOccurrenceV0 {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (
+            &self.uri,
+            &self.property_key,
+            self.range,
+            self.byte_span,
+            self.kind,
+            self.has_fallback,
+            self.source,
+        )
+            .cmp(&(
+                &other.uri,
+                &other.property_key,
+                other.range,
+                other.byte_span,
+                other.kind,
+                other.has_fallback,
+                other.source,
+            ))
+    }
+}
+
+impl PartialOrd for OmenaQueryCustomPropertyOccurrenceV0 {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]

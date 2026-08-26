@@ -62,8 +62,116 @@ use super::{
     value_certainty_from_facts, value_certainty_shape_kind_from_facts,
     value_certainty_shape_label_from_facts,
 };
+
+#[test]
+fn cascade_value_family_identity_uses_standard_property_keys() {
+    let family = |property_name: &str| super::CascadeValueFamilyV0 {
+        schema_version: "0",
+        product: "test",
+        framing: "test",
+        claim_level: "test",
+        property_name: AuthoredPropertyTextV0::new(property_name),
+        supported_readings: Vec::new(),
+        context_value_count: 0,
+        restriction_map_count: 0,
+        property_consistent: true,
+        dangling_restriction_count: 0,
+        theorem_claimed: false,
+        members: Vec::new(),
+        restriction_maps: Vec::new(),
+    };
+
+    assert_eq!(family("COLOR"), family(r"C\4f LOR"));
+}
+
+#[test]
+fn cascade_stalk_evaluation_identity_uses_standard_property_keys() {
+    let evaluation = |property_name: &str| super::CascadeStalkEvaluationV0 {
+        schema_version: "0",
+        product: "test",
+        claim_level: "test",
+        property_name: AuthoredPropertyTextV0::new(property_name),
+        requested_context_id: "root".to_string(),
+        requested_context_exists: true,
+        resolved_context_id: Some("root".to_string()),
+        restriction_path: Vec::new(),
+        used_restriction_map_count: 0,
+        bounded_by_context_count: 1,
+        bounded_resolution_ready: true,
+        theorem_claimed: false,
+        value: None,
+        resolved: true,
+        blocked_reason: None,
+    };
+
+    assert_eq!(evaluation("COLOR"), evaluation(r"C\4f LOR"));
+}
+
+#[test]
+fn abstract_property_value_identity_uses_sealed_property_keys() {
+    let standard = |property_name: &str| AbstractPropertyValueV0::Exact {
+        property_name: AuthoredPropertyTextV0::new(property_name),
+        value: "red".to_string(),
+        pseudo_state: None,
+    };
+    let custom = |custom_property_name: &str| AbstractPropertyValueV0::CustomPropertyReference {
+        property_name: AuthoredPropertyTextV0::new("color"),
+        custom_property_name: AuthoredPropertyTextV0::new(custom_property_name),
+        pseudo_state: None,
+    };
+
+    assert_eq!(standard("COLOR"), standard(r"C\4f LOR"));
+    assert_eq!(custom(r"--f\6f o"), custom("--foo"));
+    assert_ne!(custom("--foo"), custom("--FOO"));
+}
+
+#[test]
+fn abstract_property_value_candidate_identity_uses_standard_property_keys() {
+    let candidate = |property_name: &str| AbstractPropertyValueCandidateV0 {
+        property_name: AuthoredPropertyTextV0::new(property_name),
+        value: "red".to_string(),
+        pseudo_state: None,
+        condition_context: Vec::new(),
+        layer_name: None,
+        layer_order: None,
+        source_order: None,
+        important: false,
+        same_selector_ordering: true,
+    };
+
+    assert_eq!(candidate("COLOR"), candidate(r"C\4f LOR"));
+}
+
+#[test]
+fn abstract_property_value_narrowing_identity_uses_standard_property_keys() {
+    let narrowing = |property_name: &str| super::AbstractPropertyValueNarrowingV0 {
+        schema_version: "0",
+        product: "test",
+        stylesheet_scope: "test",
+        property_name: AuthoredPropertyTextV0::new(property_name),
+        requested_pseudo_state: None,
+        requested_condition_context: Vec::new(),
+        requested_layer_name: None,
+        requested_layer_order: None,
+        requested_layer_scope: "test",
+        candidate_count: 0,
+        matched_candidate_count: 0,
+        display_value: None,
+        display_values: Vec::new(),
+        value: AbstractPropertyValueV0::Top {
+            property_name: AuthoredPropertyTextV0::new(property_name),
+        },
+    };
+
+    assert_eq!(narrowing("COLOR"), narrowing(r"C\4f LOR"));
+}
 use omena_incremental::OmenaIncrementalDatabaseV0;
+use omena_syntax::ident::AuthoredPropertyTextV0;
 use std::collections::BTreeMap;
+
+fn authored_property(value: &str) -> AuthoredPropertyTextV0 {
+    AuthoredPropertyTextV0::new(value)
+}
 
 #[test]
 fn class_value_precision_view_preserves_domain_certainty() {
@@ -198,7 +306,7 @@ fn summarizes_framing_neutral_cascade_value_family_substrate() {
                 layers: vec!["components".to_string()],
             },
             value: AbstractPropertyValueV0::Exact {
-                property_name: "color".to_string(),
+                property_name: authored_property("color"),
                 value: "black".to_string(),
                 pseudo_state: None,
             },
@@ -212,14 +320,18 @@ fn summarizes_framing_neutral_cascade_value_family_substrate() {
                 layers: vec!["components".to_string()],
             },
             value: AbstractPropertyValueV0::Exact {
-                property_name: "color".to_string(),
+                property_name: authored_property("color"),
                 value: "white".to_string(),
                 pseudo_state: Some("hover".to_string()),
             },
         },
     ];
     let restrictions = derive_context_indexed_cascade_restriction_maps_v0(members.as_slice());
-    let family = summarize_context_indexed_cascade_value_family_v0("color", members, restrictions);
+    let family = summarize_context_indexed_cascade_value_family_v0(
+        authored_property("color"),
+        members,
+        restrictions,
+    );
 
     assert_eq!(family.product, "omena-abstract-value.cascade-value-family");
     assert_eq!(family.framing, "framingNeutralCascadeFamily");
@@ -239,7 +351,7 @@ fn summarizes_framing_neutral_cascade_value_family_substrate() {
     assert_eq!(
         cascade_value_for_context(&family, "hover"),
         Some(&AbstractPropertyValueV0::Exact {
-            property_name: "color".to_string(),
+            property_name: authored_property("color"),
             value: "white".to_string(),
             pseudo_state: Some("hover".to_string()),
         })
@@ -259,7 +371,7 @@ fn evaluates_cascade_stalks_along_bounded_restriction_paths() {
                 layers: vec!["components".to_string()],
             },
             value: AbstractPropertyValueV0::Exact {
-                property_name: "color".to_string(),
+                property_name: authored_property("color"),
                 value: "red".to_string(),
                 pseudo_state: None,
             },
@@ -273,12 +385,16 @@ fn evaluates_cascade_stalks_along_bounded_restriction_paths() {
                 layers: vec!["components".to_string()],
             },
             value: AbstractPropertyValueV0::Bottom {
-                property_name: "color".to_string(),
+                property_name: authored_property("color"),
             },
         },
     ];
     let restrictions = derive_context_indexed_cascade_restriction_maps_v0(members.as_slice());
-    let family = summarize_context_indexed_cascade_value_family_v0("color", members, restrictions);
+    let family = summarize_context_indexed_cascade_value_family_v0(
+        authored_property("color"),
+        members,
+        restrictions,
+    );
     let stalk = evaluate_cascade_stalk_v0(&family, "narrow");
 
     assert_eq!(
@@ -297,7 +413,7 @@ fn evaluates_cascade_stalks_along_bounded_restriction_paths() {
     assert_eq!(
         stalk.value,
         Some(AbstractPropertyValueV0::Exact {
-            property_name: "color".to_string(),
+            property_name: authored_property("color"),
             value: "red".to_string(),
             pseudo_state: None,
         })
@@ -316,7 +432,7 @@ fn detects_bounded_restriction_cycles_without_theorem_claims() {
                 layers: Vec::new(),
             },
             value: AbstractPropertyValueV0::Exact {
-                property_name: "color".to_string(),
+                property_name: authored_property("color"),
                 value: "red".to_string(),
                 pseudo_state: None,
             },
@@ -330,7 +446,7 @@ fn detects_bounded_restriction_cycles_without_theorem_claims() {
                 layers: Vec::new(),
             },
             value: AbstractPropertyValueV0::Exact {
-                property_name: "color".to_string(),
+                property_name: authored_property("color"),
                 value: "blue".to_string(),
                 pseudo_state: None,
             },
@@ -348,7 +464,11 @@ fn detects_bounded_restriction_cycles_without_theorem_claims() {
             morphism: context_indexed_cascade_refinement_morphism_v0(),
         },
     ];
-    let family = summarize_context_indexed_cascade_value_family_v0("color", members, restrictions);
+    let family = summarize_context_indexed_cascade_value_family_v0(
+        authored_property("color"),
+        members,
+        restrictions,
+    );
     let cycles = summarize_cascade_restriction_cycles_v0(&family);
 
     assert_eq!(
@@ -580,7 +700,7 @@ fn narrows_property_values_to_single_stylesheet_pseudo_state() {
     assert_eq!(
         narrowed.value,
         AbstractPropertyValueV0::FiniteSet {
-            property_name: "color".to_string(),
+            property_name: authored_property("color"),
             values: vec!["#000".to_string(), "#fff".to_string()],
             pseudo_states: vec!["hover".to_string()],
         }
@@ -601,8 +721,8 @@ fn narrows_property_values_to_custom_property_reference_annotation_target() {
     assert_eq!(
         narrowed.value,
         AbstractPropertyValueV0::CustomPropertyReference {
-            property_name: "background".to_string(),
-            custom_property_name: "--surface".to_string(),
+            property_name: authored_property("background"),
+            custom_property_name: authored_property("--surface"),
             pseudo_state: Some("focus".to_string()),
         }
     );
@@ -805,7 +925,7 @@ fn narrows_property_values_with_canonical_css_value_equality() {
     assert_eq!(
         narrowed.value,
         AbstractPropertyValueV0::FiniteSet {
-            property_name: "margin-top".to_string(),
+            property_name: authored_property("margin-top"),
             values: vec!["0".to_string(), "0%".to_string()],
             pseudo_states: Vec::new(),
         }
@@ -817,7 +937,7 @@ fn narrows_property_values_to_requested_cascade_branch() {
     let media_context = vec!["@media (min-width: 40rem)".to_string()];
     let candidates = vec![
         AbstractPropertyValueCandidateV0 {
-            property_name: "color".to_string(),
+            property_name: authored_property("color"),
             value: "red".to_string(),
             pseudo_state: None,
             condition_context: media_context.clone(),
@@ -828,7 +948,7 @@ fn narrows_property_values_to_requested_cascade_branch() {
             same_selector_ordering: true,
         },
         AbstractPropertyValueCandidateV0 {
-            property_name: "color".to_string(),
+            property_name: authored_property("color"),
             value: "blue".to_string(),
             pseudo_state: None,
             condition_context: media_context.clone(),
@@ -839,7 +959,7 @@ fn narrows_property_values_to_requested_cascade_branch() {
             same_selector_ordering: true,
         },
         AbstractPropertyValueCandidateV0 {
-            property_name: "color".to_string(),
+            property_name: authored_property("color"),
             value: "green".to_string(),
             pseudo_state: None,
             condition_context: Vec::new(),
@@ -870,7 +990,7 @@ fn narrows_property_values_to_requested_cascade_branch() {
     assert_eq!(
         narrowed.value,
         AbstractPropertyValueV0::Exact {
-            property_name: "color".to_string(),
+            property_name: authored_property("color"),
             value: "#00f".to_string(),
             pseudo_state: None,
         }
@@ -883,7 +1003,7 @@ fn narrows_property_values_to_requested_cascade_branch() {
 fn narrows_same_selector_property_values_to_latest_source_order() {
     let candidates = vec![
         AbstractPropertyValueCandidateV0 {
-            property_name: "color".to_string(),
+            property_name: authored_property("color"),
             value: "red".to_string(),
             pseudo_state: None,
             condition_context: Vec::new(),
@@ -894,7 +1014,7 @@ fn narrows_same_selector_property_values_to_latest_source_order() {
             same_selector_ordering: true,
         },
         AbstractPropertyValueCandidateV0 {
-            property_name: "color".to_string(),
+            property_name: authored_property("color"),
             value: "blue".to_string(),
             pseudo_state: None,
             condition_context: Vec::new(),
@@ -919,7 +1039,7 @@ fn narrows_same_selector_property_values_to_latest_source_order() {
     assert_eq!(
         narrowed.value,
         AbstractPropertyValueV0::Exact {
-            property_name: "color".to_string(),
+            property_name: authored_property("color"),
             value: "#00f".to_string(),
             pseudo_state: None,
         }
@@ -932,7 +1052,7 @@ fn narrows_same_selector_property_values_to_latest_source_order() {
 fn keeps_property_value_set_when_selector_ordering_is_unknown() {
     let candidates = vec![
         AbstractPropertyValueCandidateV0 {
-            property_name: "color".to_string(),
+            property_name: authored_property("color"),
             value: "red".to_string(),
             pseudo_state: None,
             condition_context: Vec::new(),
@@ -943,7 +1063,7 @@ fn keeps_property_value_set_when_selector_ordering_is_unknown() {
             same_selector_ordering: false,
         },
         AbstractPropertyValueCandidateV0 {
-            property_name: "color".to_string(),
+            property_name: authored_property("color"),
             value: "blue".to_string(),
             pseudo_state: None,
             condition_context: Vec::new(),
@@ -968,7 +1088,7 @@ fn keeps_property_value_set_when_selector_ordering_is_unknown() {
     assert_eq!(
         narrowed.value,
         AbstractPropertyValueV0::FiniteSet {
-            property_name: "color".to_string(),
+            property_name: authored_property("color"),
             values: vec!["#00f".to_string(), "red".to_string()],
             pseudo_states: Vec::new(),
         }
@@ -4545,7 +4665,7 @@ fn property_candidate(
     pseudo_state: Option<&str>,
 ) -> AbstractPropertyValueCandidateV0 {
     AbstractPropertyValueCandidateV0 {
-        property_name: property_name.to_string(),
+        property_name: authored_property(property_name),
         value: value.to_string(),
         pseudo_state: pseudo_state.map(str::to_string),
         condition_context: Vec::new(),

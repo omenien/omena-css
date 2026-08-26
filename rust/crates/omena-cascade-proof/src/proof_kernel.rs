@@ -21,7 +21,7 @@ use omena_cascade::{
     tokenize_dom_class_attribute_v0,
 };
 use omena_parser::ModuleInstanceKeyV0;
-use omena_syntax::ident::{ClassNameV0, PropertyNameV0};
+use omena_syntax::ident::{AuthoredPropertyTextV0, ClassNameV0, PropertyNameV0, render_authored};
 use serde::{Deserialize, Serialize};
 
 pub const REWRITE_CERTIFICATE_SCHEMA_VERSION_V0: &str = "0";
@@ -219,13 +219,23 @@ pub struct ComputedValueEnvironmentEntryV0 {
     pub value: ComputedValueTermV0,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ComputedValueEqualityCertV0 {
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
     pub before_environment: Vec<ComputedValueEnvironmentEntryV0>,
     pub after_environment: Vec<ComputedValueEnvironmentEntryV0>,
 }
+
+impl PartialEq for ComputedValueEqualityCertV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.property.to_custom_key() == other.property.to_custom_key()
+            && self.before_environment == other.before_environment
+            && self.after_environment == other.after_environment
+    }
+}
+
+impl Eq for ComputedValueEqualityCertV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1997,16 +2007,20 @@ fn check_computed_value_equality_v0(
         computed_value_environment_v0(&certificate.after_environment, path, rule_id)?;
     let before_resolved = resolve_custom_property_env_least_fixed_point(&before_environment);
     let after_resolved = resolve_custom_property_env_least_fixed_point(&after_environment);
-    let property = PropertyNameV0::canonical_custom_key(&certificate.property);
+    let property = certificate.property.to_custom_key();
     let before_value = before_resolved.get(&property);
     let after_value = after_resolved.get(&property);
     if before_value.is_some() && before_value == after_value {
         return Ok(());
     }
+    let mut property_text = String::new();
+    if render_authored(&certificate.property, &mut property_text).is_err() {
+        property_text.clear();
+    }
     Err(CertificateRejectionV0::new(
         side_condition_site_v0(path, rule_id),
         CertificateRejectionKindV0::ComputedValueEqualityRejected {
-            property: certificate.property.clone(),
+            property: property_text,
             before_present: before_value.is_some(),
             after_present: after_value.is_some(),
         },
@@ -2284,6 +2298,18 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn computed_value_equality_cert_identity_uses_custom_property_keys() {
+        let certificate = |property: &str| ComputedValueEqualityCertV0 {
+            property: AuthoredPropertyTextV0::new(property),
+            before_environment: Vec::new(),
+            after_environment: Vec::new(),
+        };
+
+        assert_eq!(certificate(r"--f\6f o"), certificate("--foo"));
+        assert_ne!(certificate("--foo"), certificate("--FOO"));
+    }
+
     fn selector_terms() -> (RewriteTermV0, RewriteTermV0) {
         let before = RewriteTermV0::apply(
             "selectorConcat",
@@ -2513,7 +2539,7 @@ mod tests {
 
     fn computed_value_certificate(after_value: &str) -> ComputedValueEqualityCertV0 {
         ComputedValueEqualityCertV0 {
-            property: "--space".to_owned(),
+            property: AuthoredPropertyTextV0::new("--space"),
             before_environment: vec![
                 ComputedValueEnvironmentEntryV0 {
                     name: "--base".to_owned(),

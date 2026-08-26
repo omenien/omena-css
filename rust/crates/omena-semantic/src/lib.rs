@@ -15,10 +15,14 @@ use omena_parser::{
     ParseResult, ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind,
     ParsedCssModuleComposesFactKind, ParsedCssModuleValueFactKind, ParsedCst,
     ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind, ParsedSelectorFactKind,
-    ParsedStyleFacts, ParsedVariableFactKind, ParserDeclarationSyntaxFactV0, ProductSyntaxIndexV0,
-    StyleDialect, canonical_selector_asts_from_cst, facts_from_cst, parse,
+    ParsedStyleFacts, ParsedVariableFactKind, ParsedVariableFactNameV0,
+    ParserDeclarationSyntaxFactV0, ProductSyntaxIndexV0, StyleDialect,
+    canonical_selector_asts_from_cst, facts_from_cst, parse,
 };
-use omena_syntax::{SyntaxKind, SyntaxNode, css_keyword};
+use omena_syntax::{
+    SyntaxKind, SyntaxNode, css_keyword,
+    ident::{AuthoredPropertyTextV0, render_authored},
+};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -168,7 +172,7 @@ pub struct StyleSemanticSoaTablesV0 {
     pub ready_surfaces: Vec<&'static str>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StyleRuntimeIndexFactsV0 {
     pub schema_version: &'static str,
@@ -176,13 +180,40 @@ pub struct StyleRuntimeIndexFactsV0 {
     pub style_path: String,
     pub language: &'static str,
     pub class_selector_names: Vec<String>,
-    pub custom_property_names: Vec<String>,
-    pub custom_property_decl_names: Vec<String>,
-    pub custom_property_ref_names: Vec<String>,
+    pub custom_property_names: Vec<AuthoredPropertyTextV0>,
+    pub custom_property_decl_names: Vec<AuthoredPropertyTextV0>,
+    pub custom_property_ref_names: Vec<AuthoredPropertyTextV0>,
     pub keyframe_names: Vec<String>,
     pub animation_reference_names: Vec<String>,
     pub ready_surfaces: Vec<&'static str>,
 }
+
+impl PartialEq for StyleRuntimeIndexFactsV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.product == other.product
+            && self.style_path == other.style_path
+            && self.language == other.language
+            && self.class_selector_names == other.class_selector_names
+            && authored_custom_property_sequences_same(
+                &self.custom_property_names,
+                &other.custom_property_names,
+            )
+            && authored_custom_property_sequences_same(
+                &self.custom_property_decl_names,
+                &other.custom_property_decl_names,
+            )
+            && authored_custom_property_sequences_same(
+                &self.custom_property_ref_names,
+                &other.custom_property_ref_names,
+            )
+            && self.keyframe_names == other.keyframe_names
+            && self.animation_reference_names == other.animation_reference_names
+            && self.ready_surfaces == other.ready_surfaces
+    }
+}
+
+impl Eq for StyleRuntimeIndexFactsV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -314,16 +345,19 @@ pub fn summarize_style_runtime_index_facts_from_source(
     dialect_for_style_path(style_path)?;
     let boundary =
         summarize_omena_parser_style_semantic_boundary_from_source(style_path, style_source);
-    let custom_property_names = boundary
+    let mut custom_property_names_by_key = BTreeMap::new();
+    for name in boundary
         .semantic_facts
         .custom_properties
         .decl_names
         .iter()
         .chain(boundary.semantic_facts.custom_properties.ref_names.iter())
-        .cloned()
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect();
+    {
+        custom_property_names_by_key
+            .entry(name.to_custom_key())
+            .or_insert_with(|| name.clone());
+    }
+    let custom_property_names = custom_property_names_by_key.into_values().collect();
 
     Some(StyleRuntimeIndexFactsV0 {
         schema_version: "0",
@@ -354,7 +388,7 @@ pub fn summarize_style_semantic_soa_tables(
         semantic_facts.selector_identity.canonical_names.as_slice(),
         |name| intern_class_name(db, name).is_ok(),
     );
-    let custom_property_names = semantic_name_soa_table(
+    let custom_property_names = semantic_authored_property_name_soa_table(
         "customProperties",
         "customPropertyName",
         semantic_facts.custom_properties.decl_names.as_slice(),
@@ -446,6 +480,38 @@ fn semantic_name_soa_table(
         name_kind,
         row_indices: (0..names.len()).collect(),
         names: names.to_vec(),
+        interned_row_count,
+        unique_name_count: unique_names.len(),
+    }
+}
+
+fn semantic_authored_property_name_soa_table(
+    table_name: &'static str,
+    name_kind: &'static str,
+    names: &[AuthoredPropertyTextV0],
+    mut intern: impl FnMut(&str) -> bool,
+) -> SemanticNameSoaTableV0 {
+    let mut unique_names = BTreeSet::new();
+    let mut interned_row_count = 0usize;
+    let mut rendered_names = Vec::with_capacity(names.len());
+    for name in names {
+        let key = name.to_custom_key();
+        unique_names.insert(key.clone());
+        if intern(key.as_str()) {
+            interned_row_count += 1;
+        }
+        let mut rendered = String::new();
+        if render_authored(name, &mut rendered).is_err() {
+            continue;
+        }
+        rendered_names.push(rendered);
+    }
+
+    SemanticNameSoaTableV0 {
+        table_name,
+        name_kind,
+        row_indices: (0..names.len()).collect(),
+        names: rendered_names,
         interned_row_count,
         unique_name_count: unique_names.len(),
     }
@@ -1199,16 +1265,20 @@ fn summarize_omena_parser_custom_property_facts(
                 let Some(property_key) = variable.property_key.clone() else {
                     continue;
                 };
+                let ParsedVariableFactNameV0::CustomProperty(name) = &variable.name else {
+                    continue;
+                };
                 let byte_span = parser_byte_span_for_offsets(
                     u32::from(variable.range.start()) as usize,
                     u32::from(variable.range.end()) as usize,
                 );
+                let name = name.clone();
                 decl_names
                     .entry(property_key.clone())
-                    .or_insert_with(|| variable.name.clone());
+                    .or_insert_with(|| name.clone());
                 let context = style_context_for_cst_offset(source, cst, byte_span.start);
                 decl_facts.push(ParserIndexCustomPropertyDeclFactV0 {
-                    name: variable.name.clone(),
+                    name,
                     property_key,
                     value: declaration_value_text(source, byte_span.start),
                     source_order: decl_facts.len(),
@@ -1226,13 +1296,17 @@ fn summarize_omena_parser_custom_property_facts(
                 let Some(property_key) = variable.property_key.clone() else {
                     continue;
                 };
+                let ParsedVariableFactNameV0::CustomProperty(name) = &variable.name else {
+                    continue;
+                };
                 let byte_offset = u32::from(variable.range.start()) as usize;
                 let context = style_context_for_cst_offset(source, cst, byte_offset);
+                let name = name.clone();
                 ref_names
                     .entry(property_key.clone())
-                    .or_insert_with(|| variable.name.clone());
+                    .or_insert_with(|| name.clone());
                 ref_facts.push(ParserIndexCustomPropertyRefFactV0 {
-                    name: variable.name.clone(),
+                    name,
                     property_key,
                     source_order: ref_facts.len(),
                     selector_contexts: context.selector_contexts,
@@ -1305,6 +1379,17 @@ fn summarize_omena_parser_custom_property_facts(
             .into_iter()
             .collect(),
     }
+}
+
+fn authored_custom_property_sequences_same(
+    left: &[AuthoredPropertyTextV0],
+    right: &[AuthoredPropertyTextV0],
+) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| left.to_custom_key() == right.to_custom_key())
 }
 
 fn summarize_omena_parser_sass_syntax_facts(facts: &ParsedStyleFacts) -> ParserSassSyntaxFactsV0 {

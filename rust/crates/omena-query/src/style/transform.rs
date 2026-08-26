@@ -2821,7 +2821,11 @@ fn find_import_origin_generated_range(
                 .iter()
                 .map(|name| format!(".{name}")),
         );
-        candidate_needles.extend(runtime_index.custom_property_names.iter().cloned());
+        candidate_needles.extend(runtime_index.custom_property_names.iter().map(|name| {
+            let mut rendered = String::new();
+            let _ = omena_syntax::ident::render_authored(name, &mut rendered);
+            rendered
+        }));
         candidate_needles.extend(
             runtime_index
                 .keyframe_names
@@ -2839,7 +2843,11 @@ fn find_import_origin_generated_range(
                 .iter()
                 .map(|name| format!(".{name}")),
         );
-        candidate_needles.extend(facts.custom_property_names.iter().cloned());
+        candidate_needles.extend(facts.custom_property_names.iter().map(|name| {
+            let mut rendered = String::new();
+            let _ = omena_syntax::ident::render_authored(name, &mut rendered);
+            rendered
+        }));
         candidate_needles.extend(
             facts
                 .keyframe_names
@@ -4862,12 +4870,10 @@ fn style_sources_to_closed_world_metadata(
             let mut metadata = ClosedWorldModuleMetadataV0::new(input.instance.clone())
                 .with_interface_hash(linker_input_interface_hash(
                     input.source_path.as_str(),
-                    [
-                        input.class_names.as_slice(),
-                        input.keyframe_names.as_slice(),
-                        input.value_names.as_slice(),
-                        input.custom_property_names.as_slice(),
-                    ],
+                    input.class_names.as_slice(),
+                    input.keyframe_names.as_slice(),
+                    input.value_names.as_slice(),
+                    input.custom_property_names.as_slice(),
                 ))
                 .with_source_precision(source_precision)
                 .with_composes_scan_state(if source_set_closed {
@@ -4892,23 +4898,35 @@ fn style_sources_to_closed_world_metadata(
         .collect()
 }
 
-fn linker_input_interface_hash(source_path: &str, symbol_domains: [&[String]; 4]) -> String {
+fn linker_input_interface_hash(
+    source_path: &str,
+    class_names: &[String],
+    keyframe_names: &[String],
+    value_names: &[String],
+    custom_property_names: &[AuthoredPropertyTextV0],
+) -> String {
     let mut digest = 0xcbf2_9ce4_8422_2325_u64;
-    for byte in source_path.as_bytes().iter().copied().chain([0]) {
-        digest ^= u64::from(byte);
-        digest = digest.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    for domain in symbol_domains {
+    hash_linker_interface_piece(&mut digest, source_path);
+    for domain in [class_names, keyframe_names, value_names] {
         for value in domain {
-            for byte in value.as_bytes().iter().copied().chain([0]) {
-                digest ^= u64::from(byte);
-                digest = digest.wrapping_mul(0x0000_0100_0000_01b3);
-            }
+            hash_linker_interface_piece(&mut digest, value);
         }
         digest ^= 0xff;
         digest = digest.wrapping_mul(0x0000_0100_0000_01b3);
     }
+    for value in custom_property_names {
+        hash_linker_interface_piece(&mut digest, value.to_custom_key().as_str());
+    }
+    digest ^= 0xff;
+    digest = digest.wrapping_mul(0x0000_0100_0000_01b3);
     format!("local-interface-fnv1a64:{digest:016x}")
+}
+
+fn hash_linker_interface_piece(digest: &mut u64, value: &str) {
+    for byte in value.as_bytes().iter().copied().chain([0]) {
+        *digest ^= u64::from(byte);
+        *digest = digest.wrapping_mul(0x0000_0100_0000_01b3);
+    }
 }
 
 fn closed_world_source_precision_summary(

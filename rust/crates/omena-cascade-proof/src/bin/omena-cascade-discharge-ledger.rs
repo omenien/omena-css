@@ -416,7 +416,7 @@ mod enabled {
             .into_iter()
             .enumerate()
             .map(|(index, property)| LonghandMergeInputV0 {
-                property: property.to_string(),
+                property: omena_cascade::AuthoredPropertyTextV0::new(property),
                 value: if no_empty_value {
                     "1px".to_string()
                 } else {

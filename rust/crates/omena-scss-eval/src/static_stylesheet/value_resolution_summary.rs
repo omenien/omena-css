@@ -99,8 +99,9 @@ pub(super) fn summarize_static_scss_value_resolution_values(
         {
             continue;
         }
+        let reference_name = fact.name.as_non_property()?;
         if static_scss_reference_is_content_parameter_binding(
-            fact.name.as_str(),
+            reference_name,
             reference_start,
             mixin_include_calls.as_slice(),
         ) {
@@ -122,7 +123,7 @@ pub(super) fn summarize_static_scss_value_resolution_values(
         let reference_end = parser_text_size_to_usize(fact.range.end().into());
         let mut stack = BTreeSet::new();
         let resolution = resolve_static_scss_variable_abstract_value_at_position(
-            fact.name.as_str(),
+            reference_name,
             reference_start,
             scopes,
             &declarations,
@@ -130,7 +131,7 @@ pub(super) fn summarize_static_scss_value_resolution_values(
             STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
         );
         values.push(static_value_resolution_record(
-            fact.name.as_str(),
+            reference_name,
             reference_start,
             reference_end,
             style_source
@@ -255,9 +256,10 @@ pub(super) fn summarize_static_less_value_resolution_values(
             continue;
         }
         let reference_scope_id = static_stylesheet_scope_for_position(scopes, reference_start)?;
+        let reference_name = fact.name.as_non_property()?;
         if static_stylesheet_position_is_inside_ranges(reference_start, &mixin_call_ranges)
             && static_less_value_is_detached_ruleset_reference(
-                fact.name.as_str(),
+                reference_name,
                 reference_scope_id,
                 scopes,
                 detached_rulesets.as_slice(),
@@ -267,7 +269,7 @@ pub(super) fn summarize_static_less_value_resolution_values(
         }
         let mut stack = BTreeSet::new();
         let resolution = resolve_static_less_variable_abstract_value_in_scope(
-            fact.name.as_str(),
+            reference_name,
             reference_scope_id,
             scopes,
             &declarations,
@@ -277,7 +279,7 @@ pub(super) fn summarize_static_less_value_resolution_values(
             STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
         );
         values.push(static_value_resolution_record(
-            fact.name.as_str(),
+            reference_name,
             reference_start,
             reference_end,
             style_source

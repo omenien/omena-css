@@ -45,7 +45,6 @@ use omena_query::{
     summarize_omena_query_bundle_code_split_workspace_plan,
     summarize_omena_transform_bundle_from_source,
 };
-use omena_syntax::ident::PropertyNameV0;
 use serde::Serialize;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -1140,7 +1139,7 @@ fn merge_cli_transform_context(
     let mut custom_properties_by_identity = BTreeMap::new();
     for authored in base.reachable_custom_property_names.drain(..) {
         custom_properties_by_identity
-            .entry(PropertyNameV0::canonical_custom_key(&authored))
+            .entry(authored.to_custom_key())
             .or_insert(authored);
     }
     base.reachable_custom_property_names = custom_properties_by_identity.into_values().collect();

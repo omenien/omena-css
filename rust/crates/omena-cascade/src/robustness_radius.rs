@@ -544,7 +544,7 @@ fn fragment_with_keys(
             GuardedCascadeCandidateV0::new(
                 candidate.declaration_id(),
                 candidate.element_signature(),
-                candidate.property(),
+                candidate.property().clone(),
                 key,
                 GuardedCascadeSpecificityExactnessV0::Exact,
                 candidate.scope_proximity(),
@@ -675,6 +675,7 @@ fn numeric_boundary(source: &str, name: &str) -> Option<(u32, String)> {
 #[cfg(test)]
 mod tests {
     use crate::{GuardedCascadeConditionAtomV0, GuardedCascadeSpecificityExactnessV0};
+    use omena_syntax::ident::AuthoredPropertyTextV0;
 
     use super::*;
 
@@ -686,7 +687,7 @@ mod tests {
         GuardedCascadeCandidateV0::new(
             declaration_id,
             ".a",
-            "color",
+            AuthoredPropertyTextV0::new("color"),
             CascadeKey::new(
                 CascadeLevel::AuthorNormal,
                 normalized_layer_rank(false, LayerOrdinal::new(0)),
@@ -709,7 +710,7 @@ mod tests {
         GuardedCascadeCandidateV0::new(
             declaration_id,
             ".a",
-            "color",
+            AuthoredPropertyTextV0::new("color"),
             key,
             GuardedCascadeSpecificityExactnessV0::Exact,
             0,

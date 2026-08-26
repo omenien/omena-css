@@ -22,6 +22,7 @@ mod tests {
         ClosedWorldSourcePrecisionSummaryV0, ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0,
         summarize_closed_world_reachability_bitset_parity_v0,
     };
+    use omena_syntax::ident::{AuthoredPropertyTextV0, PropertyNameV0};
 
     #[test]
     fn module_instance_key_distinguishes_configurations() {
@@ -44,7 +45,7 @@ mod tests {
                 .with_dependency(tokens.clone())
                 .with_class_name("button"),
             ClosedWorldLinkedModuleV0::new(tokens.clone())
-                .with_custom_property_name("--brand")
+                .with_custom_property_name(AuthoredPropertyTextV0::new("--brand"))
                 .with_value_name("spacing"),
         ];
 
@@ -59,12 +60,11 @@ mod tests {
                 .class_names()
                 .contains(&"button".to_string())
         );
-        assert!(
-            bundle
-                .reachability()
-                .custom_property_names()
-                .contains(&"--brand".to_string())
-        );
+        assert!(bundle
+            .reachability()
+            .custom_property_names()
+            .iter()
+            .any(|name| name.to_custom_key() == PropertyNameV0::canonical_custom_key("--brand")));
         Ok(())
     }
 
@@ -75,16 +75,24 @@ mod tests {
             vec![app.clone()],
             vec![
                 ClosedWorldLinkedModuleV0::new(app)
-                    .with_custom_property_name("--foo")
-                    .with_custom_property_name(r"--f\6f o")
-                    .with_custom_property_name("--FOO"),
+                    .with_custom_property_name(AuthoredPropertyTextV0::new("--foo"))
+                    .with_custom_property_name(AuthoredPropertyTextV0::new(r"--f\6f o"))
+                    .with_custom_property_name(AuthoredPropertyTextV0::new("--FOO")),
             ],
         )
         .map_err(|error| format!("{error:?}"))?;
 
         assert_eq!(
-            bundle.reachability().custom_property_names(),
-            ["--FOO", "--foo"]
+            bundle
+                .reachability()
+                .custom_property_names()
+                .iter()
+                .map(AuthoredPropertyTextV0::to_custom_key)
+                .collect::<Vec<_>>(),
+            vec![
+                PropertyNameV0::canonical_custom_key("--FOO"),
+                PropertyNameV0::canonical_custom_key("--foo")
+            ]
         );
         Ok(())
     }
@@ -122,12 +130,12 @@ mod tests {
                     .with_class_name("shared")
                     .with_keyframe_name("spin")
                     .with_value_name("tone")
-                    .with_custom_property_name("--brand"),
+                    .with_custom_property_name(AuthoredPropertyTextV0::new("--brand")),
                 ClosedWorldLinkedModuleV0::new(detached.clone())
                     .with_class_name("shared")
                     .with_keyframe_name("spin")
                     .with_value_name("tone")
-                    .with_custom_property_name("--brand"),
+                    .with_custom_property_name(AuthoredPropertyTextV0::new("--brand")),
             ],
         )
         .map_err(|err| format!("{err:?}"))?;
@@ -146,8 +154,8 @@ mod tests {
         assert_eq!(app_symbols.keyframe_names(), &["spin".to_string()]);
         assert_eq!(app_symbols.value_names(), &["tone".to_string()]);
         assert_eq!(
-            app_symbols.custom_property_names(),
-            &["--brand".to_string()]
+            app_symbols.custom_property_names()[0].to_custom_key(),
+            PropertyNameV0::canonical_custom_key("--brand")
         );
         assert!(!detached_symbols.is_reachable());
         assert!(detached_symbols.class_names().is_empty());
@@ -262,7 +270,7 @@ mod tests {
                     .with_value_name("spacing"),
                 ClosedWorldLinkedModuleV0::new(theme)
                     .with_keyframe_name("fade")
-                    .with_custom_property_name("--brand"),
+                    .with_custom_property_name(AuthoredPropertyTextV0::new("--brand")),
             ],
         )
         .map_err(|err| format!("{err:?}"))?;

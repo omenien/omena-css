@@ -83,6 +83,30 @@ fn source_class_splitter_consumes_dom_ordered_tokenization() {
 }
 
 #[test]
+fn inline_style_declaration_identity_uses_standard_property_keys() -> serde_json::Result<()> {
+    let fact = |property_name: &str| SourceInlineStyleDeclarationFactV0 {
+        byte_span: ParserByteSpanV0 { start: 0, end: 5 },
+        value_byte_span: Some(ParserByteSpanV0 { start: 6, end: 9 }),
+        property_name: AuthoredPropertyTextV0::new(property_name),
+        value: Some("red".to_string()),
+        target_style_uri: None,
+        cascade_tier: "inline-style",
+        important: false,
+        static_value: true,
+    };
+
+    let uppercase = fact("COLOR");
+    let escaped = fact(r"C\4f LOR");
+
+    assert_eq!(uppercase, escaped);
+    assert_eq!(
+        serde_json::to_value(&uppercase)?.get("propertyName"),
+        Some(&serde_json::Value::String("COLOR".to_string()))
+    );
+    Ok(())
+}
+
+#[test]
 fn class_tokenizer_migration_table_names_both_previous_splitters()
 -> Result<(), Box<dyn std::error::Error>> {
     let rows: serde_json::Value =
@@ -859,7 +883,15 @@ export function View() {
         .iter()
         .map(|declaration| {
             (
-                declaration.property_name.as_str(),
+                {
+                    let mut property_name = String::new();
+                    let render_result = omena_syntax::ident::render_authored(
+                        &declaration.property_name,
+                        &mut property_name,
+                    );
+                    assert!(render_result.is_ok(), "writing into a String must succeed");
+                    property_name
+                },
                 declaration.value.as_deref(),
                 declaration.cascade_tier,
                 declaration.static_value,
@@ -872,21 +904,21 @@ export function View() {
         declarations,
         vec![
             (
-                "color",
+                "color".to_string(),
                 Some("\"red\""),
                 "authorInlineStyle",
                 true,
                 Some("file:///workspace/App.module.scss")
             ),
             (
-                "border-color",
+                "border-color".to_string(),
                 Some("`blue`"),
                 "authorInlineStyle",
                 true,
                 Some("file:///workspace/App.module.scss")
             ),
             (
-                "--brand",
+                "--brand".to_string(),
                 None,
                 "authorInlineStyle",
                 false,

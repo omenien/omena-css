@@ -8,7 +8,7 @@ use omena_interner::{
     NameKind, intern_class_name, intern_css_ident, intern_custom_property_name, intern_file_path,
     intern_keyframes_name, intern_mixin_name, intern_property_name, intern_selector_key,
 };
-use omena_syntax::{StyleDialect, SyntaxKind};
+use omena_syntax::{StyleDialect, SyntaxKind, ident::AuthoredPropertyTextV0};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -17,8 +17,8 @@ use crate::{
     BuiltinDialectExtension, ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind,
     ParsedCssModuleComposesFactKind, ParsedCssModuleValueFactKind, ParsedIcssFactKind,
     ParsedSassModuleEdgeFactKind, ParsedSassSymbolFact, ParsedSassSymbolFactKind,
-    ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind, SelectorBranch, Token,
-    collect_class_selector_names_from_header, collect_style_facts,
+    ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind, ParsedVariableFactNameV0,
+    SelectorBranch, Token, collect_class_selector_names_from_header, collect_style_facts,
     css_module_block_scope_marker_in_header, css_module_value_statement_end,
     declaration_colon_index, find_block_after_header, find_selector_block_after_header, lex,
     matches_ignore_ascii_case, matching_right_brace, next_non_trivia_token_index_until, parse,
@@ -102,7 +102,7 @@ pub(crate) struct ParserSemanticNameCandidateV0 {
     pub(crate) text: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaParserStyleFactsSummaryV0 {
     pub schema_version: &'static str,
@@ -136,12 +136,75 @@ pub struct OmenaParserStyleFactsSummaryV0 {
     pub sass_module_forward_sources: Vec<String>,
     pub sass_module_import_sources: Vec<String>,
     pub sass_module_edges: Vec<OmenaParserSassModuleEdgeFactV0>,
-    pub custom_property_names: Vec<String>,
-    pub custom_property_decl_names: Vec<String>,
-    pub custom_property_ref_names: Vec<String>,
+    pub custom_property_names: Vec<AuthoredPropertyTextV0>,
+    pub custom_property_decl_names: Vec<AuthoredPropertyTextV0>,
+    pub custom_property_ref_names: Vec<AuthoredPropertyTextV0>,
     pub at_rule_names: Vec<String>,
     pub parser_error_count: usize,
 }
+
+fn authored_custom_property_sequences_same(
+    left: &[AuthoredPropertyTextV0],
+    right: &[AuthoredPropertyTextV0],
+) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| left.to_custom_key() == right.to_custom_key())
+}
+
+impl PartialEq for OmenaParserStyleFactsSummaryV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.product == other.product
+            && self.dialect == other.dialect
+            && self.class_selector_names == other.class_selector_names
+            && self.id_selector_names == other.id_selector_names
+            && self.placeholder_selector_names == other.placeholder_selector_names
+            && self.keyframe_names == other.keyframe_names
+            && self.animation_reference_names == other.animation_reference_names
+            && self.css_module_value_definition_names == other.css_module_value_definition_names
+            && self.css_module_value_reference_names == other.css_module_value_reference_names
+            && self.css_module_value_import_sources == other.css_module_value_import_sources
+            && self.css_module_value_import_edges == other.css_module_value_import_edges
+            && self.css_module_value_definition_edges == other.css_module_value_definition_edges
+            && self.css_module_composes_target_names == other.css_module_composes_target_names
+            && self.css_module_composes_import_sources == other.css_module_composes_import_sources
+            && self.css_module_composes_edges == other.css_module_composes_edges
+            && self.icss_export_names == other.icss_export_names
+            && self.icss_import_local_names == other.icss_import_local_names
+            && self.icss_import_remote_names == other.icss_import_remote_names
+            && self.icss_import_sources == other.icss_import_sources
+            && self.icss_import_edges == other.icss_import_edges
+            && self.icss_export_edges == other.icss_export_edges
+            && self.variable_names == other.variable_names
+            && self.sass_symbol_declaration_names == other.sass_symbol_declaration_names
+            && self.sass_symbol_reference_names == other.sass_symbol_reference_names
+            && self.sass_symbol_facts == other.sass_symbol_facts
+            && self.sass_symbol_resolution == other.sass_symbol_resolution
+            && self.sass_module_use_sources == other.sass_module_use_sources
+            && self.sass_module_forward_sources == other.sass_module_forward_sources
+            && self.sass_module_import_sources == other.sass_module_import_sources
+            && self.sass_module_edges == other.sass_module_edges
+            && authored_custom_property_sequences_same(
+                &self.custom_property_names,
+                &other.custom_property_names,
+            )
+            && authored_custom_property_sequences_same(
+                &self.custom_property_decl_names,
+                &other.custom_property_decl_names,
+            )
+            && authored_custom_property_sequences_same(
+                &self.custom_property_ref_names,
+                &other.custom_property_ref_names,
+            )
+            && self.at_rule_names == other.at_rule_names
+            && self.parser_error_count == other.parser_error_count
+    }
+}
+
+impl Eq for OmenaParserStyleFactsSummaryV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -605,26 +668,32 @@ pub fn summarize_omena_parser_style_facts(
             | ParsedVariableFactKind::ScssReference
             | ParsedVariableFactKind::LessDeclaration
             | ParsedVariableFactKind::LessReference => {
-                variable_names.insert(variable.name);
+                let ParsedVariableFactNameV0::NonProperty(name) = variable.name else {
+                    continue;
+                };
+                variable_names.insert(name);
             }
             ParsedVariableFactKind::CustomPropertyDeclaration
             | ParsedVariableFactKind::CustomPropertyReference => {
                 let Some(property_key) = variable.property_key else {
                     continue;
                 };
+                let ParsedVariableFactNameV0::CustomProperty(name) = variable.name else {
+                    continue;
+                };
                 custom_property_names
                     .entry(property_key.clone())
-                    .or_insert_with(|| variable.name.clone());
+                    .or_insert_with(|| name.clone());
                 match variable.kind {
                     ParsedVariableFactKind::CustomPropertyDeclaration => {
                         custom_property_decl_names
                             .entry(property_key)
-                            .or_insert(variable.name);
+                            .or_insert_with(|| name.clone());
                     }
                     ParsedVariableFactKind::CustomPropertyReference => {
                         custom_property_ref_names
                             .entry(property_key)
-                            .or_insert(variable.name);
+                            .or_insert(name);
                     }
                     _ => {}
                 }
@@ -1464,15 +1533,24 @@ fn parser_semantic_name_candidates(facts: &ParsedStyleFacts) -> Vec<ParserSemant
     }
 
     for variable in &facts.variables {
-        let kind = match variable.kind {
+        let candidate = match variable.kind {
             ParsedVariableFactKind::CustomPropertyDeclaration
-            | ParsedVariableFactKind::CustomPropertyReference => NameKind::CustomPropertyName,
+            | ParsedVariableFactKind::CustomPropertyReference => variable
+                .property_key
+                .as_ref()
+                .map(|property_key| (NameKind::CustomPropertyName, property_key.as_str())),
             ParsedVariableFactKind::ScssDeclaration
             | ParsedVariableFactKind::ScssReference
             | ParsedVariableFactKind::LessDeclaration
-            | ParsedVariableFactKind::LessReference => NameKind::CssIdent,
+            | ParsedVariableFactKind::LessReference => variable
+                .name
+                .as_non_property()
+                .map(|name| (NameKind::CssIdent, name)),
         };
-        push_parser_semantic_name_candidate(&mut candidates, kind, &variable.name);
+        let Some((kind, text)) = candidate else {
+            continue;
+        };
+        push_parser_semantic_name_candidate(&mut candidates, kind, text);
     }
 
     for symbol in &facts.sass_symbols {

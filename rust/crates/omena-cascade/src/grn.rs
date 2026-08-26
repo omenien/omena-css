@@ -5,6 +5,8 @@
 
 use serde::Serialize;
 
+use omena_syntax::ident::AuthoredPropertyTextV0;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BooleanGRNStateV0 {
@@ -22,13 +24,26 @@ pub enum GrnTopHandlingPolicyV0 {
     ScBoolSeqUnknown,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GrnVertexV0 {
     pub vertex_id: String,
     pub selector: String,
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
 }
+
+impl PartialEq for GrnVertexV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.vertex_id == other.vertex_id
+            && self.selector == other.selector
+            && self
+                .property
+                .to_property_name()
+                .same_as(&other.property.to_property_name())
+    }
+}
+
+impl Eq for GrnVertexV0 {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

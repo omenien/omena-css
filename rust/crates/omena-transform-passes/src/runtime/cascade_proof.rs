@@ -18,6 +18,7 @@ use omena_cascade_proof::{
 use omena_cascade_proof::{SmtBackendKindV0, canonical_layer_flatten_inversion_input_v0};
 use omena_evidence_graph::GuaranteeFamilyV0;
 use omena_parser::{ClosedWorldBundleV0, StyleDialect};
+use omena_syntax::ident::{AuthoredPropertyTextV0, render_authored};
 use omena_transform_cst::TransformPassKind;
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -543,20 +544,23 @@ fn stale_prefix_removal_obligation(
     pass_id: &'static str,
     source_span_start: usize,
     source_span_end: usize,
-    prefixed_property: String,
+    prefixed_property: AuthoredPropertyTextV0,
     unprefixed_property: &'static str,
     value: String,
     important: bool,
 ) -> TransformCascadeProofObligationV0 {
+    let mut witness = String::new();
+    let _ = render_authored(&prefixed_property, &mut witness);
+    witness.push_str(" is removed only because ");
+    witness.push_str(unprefixed_property);
+    witness.push_str(" has an exact value peer with the same importance flag");
     proof_obligation(
         pass_id,
         "omena-cascade.stale-prefix-removal-proof",
         true,
         None,
         true,
-        format!(
-            "{prefixed_property} is removed only because {unprefixed_property} has an exact value peer with the same importance flag"
-        ),
+        witness,
         Some(source_span_start),
         Some(source_span_end),
         vec![
@@ -568,7 +572,10 @@ fn stale_prefix_removal_obligation(
             "stale-prefix-removal-candidate",
             "prove_stale_prefix_exact_peer",
             vec![
-                format!("prefixed-property:{prefixed_property}"),
+                format!(
+                    "prefixed-property:{}",
+                    prefixed_property.to_standard_key().as_str()
+                ),
                 format!("unprefixed-property:{unprefixed_property}"),
                 format!("value:{value}"),
                 format!("important:{important}"),

@@ -1088,7 +1088,7 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
             omena_query::OmenaQuerySourceInlineStyleDeclarationFactV0 {
                 byte_span: selector_span,
                 value_byte_span: Some(selector_span),
-                property_name: "color".to_string(),
+                property_name: omena_syntax::ident::AuthoredPropertyTextV0::new("color"),
                 value: Some("red".to_string()),
                 target_style_uri: Some(style_uri.clone()),
                 cascade_tier: "authorInlineStyle",

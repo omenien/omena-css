@@ -3,6 +3,7 @@
 
 use std::collections::BTreeMap;
 
+use omena_syntax::ident::AuthoredPropertyTextV0;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
@@ -92,7 +93,7 @@ pub struct ClosedWorldComposesEdgeV0 {
     pub to_symbol: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClosedWorldLinkedModuleV0 {
     pub instance: ModuleInstanceKeyV0,
@@ -102,8 +103,26 @@ pub struct ClosedWorldLinkedModuleV0 {
     pub class_names: Vec<String>,
     pub keyframe_names: Vec<String>,
     pub value_names: Vec<String>,
-    pub custom_property_names: Vec<String>,
+    pub custom_property_names: Vec<AuthoredPropertyTextV0>,
 }
+
+impl PartialEq for ClosedWorldLinkedModuleV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.instance == other.instance
+            && self.dependencies == other.dependencies
+            && self.composes_edges == other.composes_edges
+            && self.composes_edge_observation_count == other.composes_edge_observation_count
+            && self.class_names == other.class_names
+            && self.keyframe_names == other.keyframe_names
+            && self.value_names == other.value_names
+            && authored_custom_property_sequences_same(
+                &self.custom_property_names,
+                &other.custom_property_names,
+            )
+    }
+}
+
+impl Eq for ClosedWorldLinkedModuleV0 {}
 
 impl ClosedWorldLinkedModuleV0 {
     pub fn new(instance: ModuleInstanceKeyV0) -> Self {
@@ -146,8 +165,8 @@ impl ClosedWorldLinkedModuleV0 {
         self
     }
 
-    pub fn with_custom_property_name(mut self, name: impl Into<String>) -> Self {
-        self.custom_property_names.push(name.into());
+    pub fn with_custom_property_name(mut self, name: AuthoredPropertyTextV0) -> Self {
+        self.custom_property_names.push(name);
         self
     }
 }
@@ -305,7 +324,7 @@ impl ClosedWorldInterfaceHashSetV0 {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModuleQualifiedSymbolSetV0 {
     module_instance: ModuleInstanceKeyV0,
@@ -313,8 +332,24 @@ pub struct ModuleQualifiedSymbolSetV0 {
     class_names: Vec<String>,
     keyframe_names: Vec<String>,
     value_names: Vec<String>,
-    custom_property_names: Vec<String>,
+    custom_property_names: Vec<AuthoredPropertyTextV0>,
 }
+
+impl PartialEq for ModuleQualifiedSymbolSetV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.module_instance == other.module_instance
+            && self.reachable == other.reachable
+            && self.class_names == other.class_names
+            && self.keyframe_names == other.keyframe_names
+            && self.value_names == other.value_names
+            && authored_custom_property_sequences_same(
+                &self.custom_property_names,
+                &other.custom_property_names,
+            )
+    }
+}
+
+impl Eq for ModuleQualifiedSymbolSetV0 {}
 
 impl ModuleQualifiedSymbolSetV0 {
     pub(crate) fn new(
@@ -323,7 +358,7 @@ impl ModuleQualifiedSymbolSetV0 {
         class_names: Vec<String>,
         keyframe_names: Vec<String>,
         value_names: Vec<String>,
-        custom_property_names: Vec<String>,
+        custom_property_names: Vec<AuthoredPropertyTextV0>,
     ) -> Self {
         Self {
             module_instance,
@@ -355,12 +390,12 @@ impl ModuleQualifiedSymbolSetV0 {
         &self.value_names
     }
 
-    pub fn custom_property_names(&self) -> &[String] {
+    pub fn custom_property_names(&self) -> &[AuthoredPropertyTextV0] {
         &self.custom_property_names
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReachabilityIndexV0 {
     module_instances: Vec<ModuleInstanceKeyV0>,
@@ -368,8 +403,24 @@ pub struct ReachabilityIndexV0 {
     class_names: Vec<String>,
     keyframe_names: Vec<String>,
     value_names: Vec<String>,
-    custom_property_names: Vec<String>,
+    custom_property_names: Vec<AuthoredPropertyTextV0>,
 }
+
+impl PartialEq for ReachabilityIndexV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.module_instances == other.module_instances
+            && self.module_qualified_symbols == other.module_qualified_symbols
+            && self.class_names == other.class_names
+            && self.keyframe_names == other.keyframe_names
+            && self.value_names == other.value_names
+            && authored_custom_property_sequences_same(
+                &self.custom_property_names,
+                &other.custom_property_names,
+            )
+    }
+}
+
+impl Eq for ReachabilityIndexV0 {}
 
 impl ReachabilityIndexV0 {
     pub(crate) fn from_parts(
@@ -378,7 +429,7 @@ impl ReachabilityIndexV0 {
         class_names: Vec<String>,
         keyframe_names: Vec<String>,
         value_names: Vec<String>,
-        custom_property_names: Vec<String>,
+        custom_property_names: Vec<AuthoredPropertyTextV0>,
     ) -> Self {
         Self {
             module_instances,
@@ -420,8 +471,73 @@ impl ReachabilityIndexV0 {
         &self.value_names
     }
 
-    pub fn custom_property_names(&self) -> &[String] {
+    pub fn custom_property_names(&self) -> &[AuthoredPropertyTextV0] {
         &self.custom_property_names
+    }
+}
+
+fn authored_custom_property_sequences_same(
+    left: &[AuthoredPropertyTextV0],
+    right: &[AuthoredPropertyTextV0],
+) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| left.to_custom_key() == right.to_custom_key())
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use super::*;
+
+    fn instance() -> ModuleInstanceKeyV0 {
+        ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("/workspace/app.module.css"))
+    }
+
+    #[test]
+    fn closed_world_linked_module_identity_uses_custom_property_keys() {
+        let module = |property: &str| {
+            ClosedWorldLinkedModuleV0::new(instance())
+                .with_custom_property_name(AuthoredPropertyTextV0::new(property))
+        };
+
+        assert_eq!(module(r"--f\6f o"), module("--foo"));
+        assert_ne!(module("--foo"), module("--FOO"));
+    }
+
+    #[test]
+    fn module_qualified_symbol_set_identity_uses_custom_property_keys() {
+        let symbols = |property: &str| {
+            ModuleQualifiedSymbolSetV0::new(
+                instance(),
+                true,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                vec![AuthoredPropertyTextV0::new(property)],
+            )
+        };
+
+        assert_eq!(symbols(r"--f\6f o"), symbols("--foo"));
+        assert_ne!(symbols("--foo"), symbols("--FOO"));
+    }
+
+    #[test]
+    fn reachability_index_identity_uses_custom_property_keys() {
+        let index = |property: &str| {
+            ReachabilityIndexV0::from_parts(
+                vec![instance()],
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                vec![AuthoredPropertyTextV0::new(property)],
+            )
+        };
+
+        assert_eq!(index(r"--f\6f o"), index("--foo"));
+        assert_ne!(index("--foo"), index("--FOO"));
     }
 }
 
@@ -548,7 +664,7 @@ impl ClosedWorldBundleV0 {
             digest.symbol_names("class", symbols.class_names());
             digest.symbol_names("keyframe", symbols.keyframe_names());
             digest.symbol_names("value", symbols.value_names());
-            digest.symbol_names("custom-property", symbols.custom_property_names());
+            digest.custom_property_names(symbols.custom_property_names());
         }
 
         digest.finish_hex()
@@ -636,6 +752,17 @@ impl StableModuleOwnershipDigestV0 {
             .collect::<std::collections::BTreeSet<_>>();
         for name in names {
             self.piece(name);
+        }
+    }
+
+    fn custom_property_names(&mut self, names: &[AuthoredPropertyTextV0]) {
+        self.piece("custom-property");
+        let names = names
+            .iter()
+            .map(AuthoredPropertyTextV0::to_custom_key)
+            .collect::<std::collections::BTreeSet<_>>();
+        for name in names {
+            self.piece(name.as_str());
         }
     }
 

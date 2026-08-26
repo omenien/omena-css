@@ -24,7 +24,7 @@ use super::diagnostics::{
     summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace_from_resolution,
 };
 use super::*;
-use omena_syntax::ident::{AuthoredPropertyTextV0, PropertyNameV0, property_names_same};
+use omena_syntax::ident::{AuthoredPropertyTextV0, CanonicalPropertyKeyV0};
 pub type OmenaQueryStyleMemoDatabaseV0 = OmenaSalsaDatabaseV0;
 use salsa::Setter;
 use std::collections::{BTreeMap, BTreeSet};
@@ -428,18 +428,35 @@ pub enum OmenaQueryElementComputedValueStatusV0 {
     UnsupportedStaticValue,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryElementComputedValueV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub target: omena_cascade::ElementIdentityV0,
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
     pub status: OmenaQueryElementComputedValueStatusV0,
     pub parent_chain: omena_cascade::ElementParentChainV0,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub computed_value: Option<omena_cascade::CascadeComputedValueResultV0>,
 }
+
+impl PartialEq for OmenaQueryElementComputedValueV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.product == other.product
+            && self.target == other.target
+            && self
+                .property
+                .to_property_name()
+                .same_as(&other.property.to_property_name())
+            && self.status == other.status
+            && self.parent_chain == other.parent_chain
+            && self.computed_value == other.computed_value
+    }
+}
+
+impl Eq for OmenaQueryElementComputedValueV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SourceElementDeclarationProjectionV0 {
@@ -2371,10 +2388,10 @@ impl OmenaQueryStyleMemoHostV0 {
         &mut self,
         source_documents: &[OmenaQuerySourceDocumentInputV0],
         target: omena_cascade::ElementIdentityV0,
-        property: impl Into<String>,
+        property: AuthoredPropertyTextV0,
     ) -> OmenaQueryElementComputedValueV0 {
         let workspace = self.sync_source_workspace(source_documents);
-        memo_source_element_computed_value(&self.db, workspace, target, property.into())
+        memo_source_element_computed_value(&self.db, workspace, target, property)
     }
 
     /// Sync the in-hand inputs into the database (diff-only), commit a graph,
@@ -3279,12 +3296,31 @@ pub fn memo_source_scope_proximity(
     )
 }
 
-#[salsa::tracked(returns(clone))]
 pub fn memo_source_element_computed_value(
     db: &dyn salsa::Database,
     workspace: OmenaQueryStyleWorkspaceInputV0,
     target: omena_cascade::ElementIdentityV0,
-    property: String,
+    property: AuthoredPropertyTextV0,
+) -> OmenaQueryElementComputedValueV0 {
+    let mut report = memo_source_element_computed_value_by_key(
+        db,
+        workspace,
+        target,
+        property.to_property_name().canonical_key(),
+    );
+    report.property = property.clone();
+    if let Some(computed_value) = report.computed_value.as_mut() {
+        computed_value.property = property;
+    }
+    report
+}
+
+#[salsa::tracked(returns(clone))]
+fn memo_source_element_computed_value_by_key(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    target: omena_cascade::ElementIdentityV0,
+    property_key: CanonicalPropertyKeyV0,
 ) -> OmenaQueryElementComputedValueV0 {
     use omena_cascade::{
         CascadeComputedValueInputV0, CascadeStandardValueVerdictV0, CascadeValue,
@@ -3295,6 +3331,8 @@ pub fn memo_source_element_computed_value(
 
     #[cfg(test)]
     source_element_computed_value_probe::record();
+
+    let property = AuthoredPropertyTextV0::new(property_key.as_str());
 
     let parent_chain = memo_source_element_parent_chain(db, workspace, target.clone());
     if !parent_chain.is_complete() {
@@ -3331,7 +3369,7 @@ pub fn memo_source_element_computed_value(
             db,
             workspace,
             identity.clone(),
-            property.clone(),
+            property_key.clone(),
         );
         if projection.status != OmenaQueryElementComputedValueStatusV0::Resolved {
             return element_computed_value_report(
@@ -3417,7 +3455,11 @@ fn source_element_static_custom_property_env(
         .inline_style_declarations
         .iter()
         .filter(|declaration| {
-            declaration.property_name.starts_with("--")
+            declaration
+                .property_name
+                .to_property_name()
+                .as_custom_key()
+                .is_some()
                 && declaration.byte_span.start >= identity.byte_start
                 && declaration.byte_span.end <= identity.byte_end
         })
@@ -3430,10 +3472,7 @@ fn source_element_static_custom_property_env(
             .filter(|_| !declaration.important_suffix_present())
             .and_then(|value| parse_static_css_cascade_value(value.as_str()))
             .unwrap_or(CascadeValue::Indeterminate);
-        env.insert(
-            PropertyNameV0::canonical_custom_key(&declaration.property_name),
-            value,
-        );
+        env.insert(declaration.property_name.to_custom_key(), value);
     }
     Ok(env)
 }
@@ -3443,7 +3482,7 @@ fn memo_source_element_static_declarations(
     db: &dyn salsa::Database,
     workspace: OmenaQueryStyleWorkspaceInputV0,
     identity: omena_cascade::ElementIdentityV0,
-    property: String,
+    property_key: CanonicalPropertyKeyV0,
 ) -> SourceElementDeclarationProjectionV0 {
     use omena_cascade::{
         CascadeDeclaration, CascadeKey, CascadeOriginV0, OpenWorldTieEvidence, Specificity,
@@ -3487,7 +3526,7 @@ fn memo_source_element_static_declarations(
         .inline_style_declarations
         .iter()
         .filter(|declaration| {
-            property_names_same(&declaration.property_name, &property)
+            declaration.property_name.to_property_name().canonical_key() == property_key
                 && declaration.byte_span.start >= identity.byte_start
                 && declaration.byte_span.end <= identity.byte_end
         })
@@ -3519,11 +3558,11 @@ fn memo_source_element_static_declarations(
         };
         declarations.push(CascadeDeclaration {
             id: format!(
-                "{}:{}:{}",
-                identity.source_path, property, declaration.byte_span.start
+                "{}:{property_key:?}:{}",
+                identity.source_path, declaration.byte_span.start
             ),
-            property: AuthoredPropertyTextV0::new(property.clone()),
-            property_key: PropertyNameV0::from_authored(&property).canonical_key(),
+            property: declaration.property_name.clone(),
+            property_key: property_key.clone(),
             value,
             key: CascadeKey::new(
                 cascade_level_for_origin(CascadeOriginV0::Inline, false),
@@ -3566,7 +3605,7 @@ fn source_inline_css_value(value_source: &str) -> Option<String> {
 
 fn element_computed_value_report(
     target: omena_cascade::ElementIdentityV0,
-    property: String,
+    property: AuthoredPropertyTextV0,
     parent_chain: omena_cascade::ElementParentChainV0,
     status: OmenaQueryElementComputedValueStatusV0,
     computed_value: Option<omena_cascade::CascadeComputedValueResultV0>,
@@ -3957,6 +3996,31 @@ mod tests {
         build_salsa_demand_evidence_graph_v0,
     };
     use std::collections::BTreeSet;
+
+    #[test]
+    fn element_computed_value_identity_uses_sealed_property_keys() {
+        let target = omena_cascade::ElementIdentityV0 {
+            source_path: "App.tsx".to_string(),
+            byte_start: 0,
+            byte_end: 1,
+        };
+        let value = |property: &str| OmenaQueryElementComputedValueV0 {
+            schema_version: "0",
+            product: "test",
+            target: target.clone(),
+            property: AuthoredPropertyTextV0::new(property),
+            status: OmenaQueryElementComputedValueStatusV0::MissingElement,
+            parent_chain: omena_cascade::ElementParentChainV0 {
+                target: target.clone(),
+                ancestors: Vec::new(),
+                status: omena_cascade::ElementParentChainStatusV0::MissingElement,
+            },
+            computed_value: None,
+        };
+
+        assert_eq!(value("COLOR"), value(r"C\4f LOR"));
+        assert_ne!(value("--foo"), value("--FOO"));
+    }
 
     fn summarize_omena_query_source_syntax_index_for_source_language(
         source_path: &str,
@@ -6773,8 +6837,11 @@ $_private-token: changed;
         };
         let mut host = OmenaQueryStyleMemoHostV0::new();
 
-        let color =
-            host.source_element_computed_value(documents.as_slice(), target.clone(), "color");
+        let color = host.source_element_computed_value(
+            documents.as_slice(),
+            target.clone(),
+            AuthoredPropertyTextV0::new("color"),
+        );
         assert_eq!(
             color.status,
             OmenaQueryElementComputedValueStatusV0::Resolved
@@ -6790,8 +6857,11 @@ $_private-token: changed;
             ))
         );
 
-        let opacity =
-            host.source_element_computed_value(documents.as_slice(), target.clone(), "opacity");
+        let opacity = host.source_element_computed_value(
+            documents.as_slice(),
+            target.clone(),
+            AuthoredPropertyTextV0::new("opacity"),
+        );
         assert_eq!(
             opacity.computed_value.as_ref().map(|value| (
                 &value.status,
@@ -6805,8 +6875,11 @@ $_private-token: changed;
             ))
         );
 
-        let dynamic =
-            host.source_element_computed_value(documents.as_slice(), target.clone(), "font-family");
+        let dynamic = host.source_element_computed_value(
+            documents.as_slice(),
+            target.clone(),
+            AuthoredPropertyTextV0::new("font-family"),
+        );
         assert_eq!(
             dynamic.status,
             OmenaQueryElementComputedValueStatusV0::DynamicDeclaration
@@ -6816,8 +6889,11 @@ $_private-token: changed;
         documents[2].source_source.push_str("\n// unrelated edit\n");
         reset_source_element_parent_chain_run_paths_for_test();
         reset_source_element_computed_value_compute_count_for_test();
-        let color_after_unrelated_edit =
-            host.source_element_computed_value(documents.as_slice(), target, "color");
+        let color_after_unrelated_edit = host.source_element_computed_value(
+            documents.as_slice(),
+            target,
+            AuthoredPropertyTextV0::new("color"),
+        );
         assert_eq!(color_after_unrelated_edit, color);
         assert_eq!(
             read_source_element_computed_value_compute_count_for_test(),
@@ -6857,7 +6933,11 @@ $_private-token: changed;
         };
         let mut host = OmenaQueryStyleMemoHostV0::new();
 
-        let color = host.source_element_computed_value(documents.as_slice(), target, "color");
+        let color = host.source_element_computed_value(
+            documents.as_slice(),
+            target,
+            AuthoredPropertyTextV0::new("color"),
+        );
 
         assert_eq!(
             color.status,
@@ -6893,7 +6973,11 @@ $_private-token: changed;
         };
         let mut host = OmenaQueryStyleMemoHostV0::new();
 
-        let value = host.source_element_computed_value(documents.as_slice(), target, "box-sizing");
+        let value = host.source_element_computed_value(
+            documents.as_slice(),
+            target,
+            AuthoredPropertyTextV0::new("box-sizing"),
+        );
 
         assert_eq!(
             value
@@ -6943,7 +7027,11 @@ $_private-token: changed;
             };
             let mut host = OmenaQueryStyleMemoHostV0::new();
 
-            let color = host.source_element_computed_value(documents.as_slice(), target, "color");
+            let color = host.source_element_computed_value(
+                documents.as_slice(),
+                target,
+                AuthoredPropertyTextV0::new("color"),
+            );
             assert!(
                 color.computed_value.is_some(),
                 "the static declaration must reach computed-value resolution"
@@ -7011,7 +7099,11 @@ $_private-token: changed;
             };
             let mut host = OmenaQueryStyleMemoHostV0::new();
 
-            let value = host.source_element_computed_value(documents.as_slice(), target, property);
+            let value = host.source_element_computed_value(
+                documents.as_slice(),
+                target,
+                AuthoredPropertyTextV0::new(property),
+            );
             let computed = value.computed_value.as_ref();
             assert!(computed.is_some(), "{property}: {custom_value}");
             let Some(computed) = computed else {
@@ -7057,7 +7149,11 @@ $_private-token: changed;
             byte_end: element.byte_span.end,
         };
         let mut host = OmenaQueryStyleMemoHostV0::new();
-        let value = host.source_element_computed_value(documents.as_slice(), target, "box-sizing");
+        let value = host.source_element_computed_value(
+            documents.as_slice(),
+            target,
+            AuthoredPropertyTextV0::new("box-sizing"),
+        );
         let computed = value.computed_value.as_ref();
         assert!(
             computed.is_some(),
@@ -7130,7 +7226,11 @@ $_private-token: changed;
         };
         let mut host = OmenaQueryStyleMemoHostV0::new();
 
-        let color = host.source_element_computed_value(documents.as_slice(), target, "color");
+        let color = host.source_element_computed_value(
+            documents.as_slice(),
+            target,
+            AuthoredPropertyTextV0::new("color"),
+        );
 
         assert_eq!(
             color.computed_value.as_ref().map(|value| (
@@ -7188,7 +7288,11 @@ $_private-token: changed;
             };
             let mut host = OmenaQueryStyleMemoHostV0::new();
 
-            let color = host.source_element_computed_value(documents.as_slice(), target, "color");
+            let color = host.source_element_computed_value(
+                documents.as_slice(),
+                target,
+                AuthoredPropertyTextV0::new("color"),
+            );
 
             assert_eq!(
                 color

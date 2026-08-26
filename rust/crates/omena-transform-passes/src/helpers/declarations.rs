@@ -1,7 +1,10 @@
 use omena_parser::LexedToken;
 use omena_syntax::{
     SyntaxKind,
-    ident::{AuthoredPropertyTextV0, CanonicalPropertyKeyV0, PropertyNameKindV0, PropertyNameV0},
+    ident::{
+        AuthoredPropertyTextV0, CanonicalPropertyKeyV0, PropertyNameKindV0, PropertyNameV0,
+        render_authored,
+    },
 };
 
 use super::tokens::{
@@ -172,10 +175,12 @@ pub(crate) fn format_replacement_declaration_like_source(
     } else {
         ""
     };
-    format!(
-        "{}{separator}{replacement_value}{terminator}",
-        declaration.property
-    )
+    let mut replacement = String::new();
+    let _ = render_authored(&declaration.property, &mut replacement);
+    replacement.push_str(separator);
+    replacement.push_str(replacement_value);
+    replacement.push_str(terminator);
+    replacement
 }
 
 pub(crate) fn declaration_ranges_are_adjacent(

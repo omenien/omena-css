@@ -1,6 +1,6 @@
 //! Cascade conformance verdicts for transform passes against recorded oracles.
 
-use omena_syntax::ident::{is_custom_property_name, property_names_same};
+use omena_syntax::ident::{PropertyNameV0, is_custom_property_name, property_names_same};
 
 use super::*;
 
@@ -524,7 +524,12 @@ fn transform_pass_cascade_section_projection(
 ) -> Option<TransformPassCascadeSectionProjectionV0> {
     let mut matching = summarize_omena_query_cascade_section_outcomes_from_source(source)
         .into_iter()
-        .filter(|outcome| property_names_same(&outcome.property, property));
+        .filter(|outcome| {
+            outcome
+                .property
+                .to_property_name()
+                .same_as(&PropertyNameV0::from_authored(property))
+        });
     let first = matching.next()?;
     if matching.next().is_some() {
         return None;

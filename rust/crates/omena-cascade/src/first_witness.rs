@@ -7,7 +7,7 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
-use omena_syntax::ident::property_names_same;
+use omena_syntax::ident::AuthoredPropertyTextV0;
 use serde::Serialize;
 
 pub type NodeId = u32;
@@ -193,12 +193,12 @@ impl GuardedCascadeConditionAtomV0 {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GuardedCascadeCandidateV0<K> {
     declaration_id: u32,
     element_signature: String,
-    property: String,
+    property: AuthoredPropertyTextV0,
     cascade_key: K,
     specificity_exactness: GuardedCascadeSpecificityExactnessV0,
     scope_proximity: u32,
@@ -210,7 +210,7 @@ impl<K> GuardedCascadeCandidateV0<K> {
     pub fn new(
         declaration_id: u32,
         element_signature: impl Into<String>,
-        property: impl Into<String>,
+        property: AuthoredPropertyTextV0,
         cascade_key: K,
         specificity_exactness: GuardedCascadeSpecificityExactnessV0,
         scope_proximity: u32,
@@ -219,7 +219,7 @@ impl<K> GuardedCascadeCandidateV0<K> {
         Self {
             declaration_id,
             element_signature: element_signature.into(),
-            property: property.into(),
+            property,
             cascade_key,
             specificity_exactness,
             scope_proximity,
@@ -235,8 +235,8 @@ impl<K> GuardedCascadeCandidateV0<K> {
         self.element_signature.as_str()
     }
 
-    pub fn property(&self) -> &str {
-        self.property.as_str()
+    pub const fn property(&self) -> &AuthoredPropertyTextV0 {
+        &self.property
     }
 
     pub const fn cascade_key(&self) -> &K {
@@ -256,7 +256,24 @@ impl<K> GuardedCascadeCandidateV0<K> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+impl<K: PartialEq> PartialEq for GuardedCascadeCandidateV0<K> {
+    fn eq(&self, other: &Self) -> bool {
+        self.declaration_id == other.declaration_id
+            && self.element_signature == other.element_signature
+            && self
+                .property
+                .to_property_name()
+                .same_as(&other.property.to_property_name())
+            && self.cascade_key == other.cascade_key
+            && self.specificity_exactness == other.specificity_exactness
+            && self.scope_proximity == other.scope_proximity
+            && self.conditions == other.conditions
+    }
+}
+
+impl<K: Eq> Eq for GuardedCascadeCandidateV0<K> {}
+
+#[derive(Debug, Clone, Serialize)]
 #[serde(
     tag = "reason",
     rename_all = "camelCase",
@@ -288,8 +305,8 @@ pub enum GuardedCascadeFragmentRefusalV0 {
         atom: String,
     },
     MultipleProperties {
-        expected: String,
-        observed: String,
+        expected: AuthoredPropertyTextV0,
+        observed: AuthoredPropertyTextV0,
     },
     MultipleElementSignatures {
         expected: String,
@@ -304,6 +321,125 @@ pub enum GuardedCascadeFragmentRefusalV0 {
     },
     ConditionAlphabetCapacityExceeded,
 }
+
+impl PartialEq for GuardedCascadeFragmentRefusalV0 {
+    fn eq(&self, other: &Self) -> bool {
+        use GuardedCascadeFragmentRefusalV0 as Refusal;
+        match (self, other) {
+            (Refusal::EmptyCandidateSet, Refusal::EmptyCandidateSet)
+            | (
+                Refusal::ConditionAlphabetCapacityExceeded,
+                Refusal::ConditionAlphabetCapacityExceeded,
+            ) => true,
+            (
+                Refusal::InexactSpecificity {
+                    declaration_id: left,
+                },
+                Refusal::InexactSpecificity {
+                    declaration_id: right,
+                },
+            )
+            | (
+                Refusal::DuplicateDeclarationId {
+                    declaration_id: left,
+                },
+                Refusal::DuplicateDeclarationId {
+                    declaration_id: right,
+                },
+            ) => left == right,
+            (
+                Refusal::ScopeProximityPresent {
+                    declaration_id: left_id,
+                    scope_proximity: left_scope,
+                },
+                Refusal::ScopeProximityPresent {
+                    declaration_id: right_id,
+                    scope_proximity: right_scope,
+                },
+            ) => left_id == right_id && left_scope == right_scope,
+            (
+                Refusal::ContainerCondition {
+                    declaration_id: left_id,
+                    atom: left_atom,
+                },
+                Refusal::ContainerCondition {
+                    declaration_id: right_id,
+                    atom: right_atom,
+                },
+            )
+            | (
+                Refusal::StructuralPseudoCondition {
+                    declaration_id: left_id,
+                    atom: left_atom,
+                },
+                Refusal::StructuralPseudoCondition {
+                    declaration_id: right_id,
+                    atom: right_atom,
+                },
+            )
+            | (
+                Refusal::NumericConditionOutsideAlphabet {
+                    declaration_id: left_id,
+                    atom: left_atom,
+                },
+                Refusal::NumericConditionOutsideAlphabet {
+                    declaration_id: right_id,
+                    atom: right_atom,
+                },
+            )
+            | (
+                Refusal::ConditionOutsideDeclaredAlphabet {
+                    declaration_id: left_id,
+                    atom: left_atom,
+                },
+                Refusal::ConditionOutsideDeclaredAlphabet {
+                    declaration_id: right_id,
+                    atom: right_atom,
+                },
+            ) => left_id == right_id && left_atom == right_atom,
+            (
+                Refusal::MultipleProperties {
+                    expected: left_expected,
+                    observed: left_observed,
+                },
+                Refusal::MultipleProperties {
+                    expected: right_expected,
+                    observed: right_observed,
+                },
+            ) => {
+                left_expected
+                    .to_property_name()
+                    .same_as(&right_expected.to_property_name())
+                    && left_observed
+                        .to_property_name()
+                        .same_as(&right_observed.to_property_name())
+            }
+            (
+                Refusal::MultipleElementSignatures {
+                    expected: left_expected,
+                    observed: left_observed,
+                },
+                Refusal::MultipleElementSignatures {
+                    expected: right_expected,
+                    observed: right_observed,
+                },
+            ) => left_expected == right_expected && left_observed == right_observed,
+            (
+                Refusal::NonUniqueCascadeKey {
+                    first_declaration_id: left_first,
+                    second_declaration_id: left_second,
+                },
+                Refusal::NonUniqueCascadeKey {
+                    first_declaration_id: right_first,
+                    second_declaration_id: right_second,
+                },
+            ) => left_first == right_first && left_second == right_second,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for GuardedCascadeFragmentRefusalV0 {}
 
 impl GuardedCascadeFragmentRefusalV0 {
     pub const fn name(&self) -> &'static str {
@@ -336,11 +472,11 @@ impl std::fmt::Display for GuardedCascadeFragmentRefusalV0 {
 
 impl std::error::Error for GuardedCascadeFragmentRefusalV0 {}
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GuardedCascadeFragmentV0<K> {
     element_signature: String,
-    property: String,
+    property: AuthoredPropertyTextV0,
     condition_alphabet: Vec<String>,
     candidates: Vec<GuardedCascadeCandidateV0<K>>,
 }
@@ -372,7 +508,11 @@ impl<K: Clone + Ord> GuardedCascadeFragmentV0<K> {
                     observed: candidate.element_signature.clone(),
                 });
             }
-            if !property_names_same(&candidate.property, &property) {
+            if !candidate
+                .property
+                .to_property_name()
+                .same_as(&property.to_property_name())
+            {
                 return Err(GuardedCascadeFragmentRefusalV0::MultipleProperties {
                     expected: property,
                     observed: candidate.property.clone(),
@@ -447,8 +587,8 @@ impl<K: Clone + Ord> GuardedCascadeFragmentV0<K> {
         self.element_signature.as_str()
     }
 
-    pub fn property(&self) -> &str {
-        self.property.as_str()
+    pub const fn property(&self) -> &AuthoredPropertyTextV0 {
+        &self.property
     }
 
     pub fn condition_alphabet(&self) -> &[String] {
@@ -459,6 +599,20 @@ impl<K: Clone + Ord> GuardedCascadeFragmentV0<K> {
         self.candidates.as_slice()
     }
 }
+
+impl<K: PartialEq> PartialEq for GuardedCascadeFragmentV0<K> {
+    fn eq(&self, other: &Self) -> bool {
+        self.element_signature == other.element_signature
+            && self
+                .property
+                .to_property_name()
+                .same_as(&other.property.to_property_name())
+            && self.condition_alphabet == other.condition_alphabet
+            && self.candidates == other.candidates
+    }
+}
+
+impl<K: Eq> Eq for GuardedCascadeFragmentV0<K> {}
 
 pub fn at_rule_nesting_order_for_fragment_v0<K>(
     fragment: &GuardedCascadeFragmentV0<K>,
@@ -495,13 +649,26 @@ impl GuardedCascadeWinnerRootV0 {
 
 /// The exact fragment predicate attached to an MTBDD-owned answer.
 #[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GuardedCascadeFragmentPredicateV0 {
     pub element_signature: String,
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
     pub condition_alphabet: Vec<String>,
 }
+
+impl PartialEq for GuardedCascadeFragmentPredicateV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.element_signature == other.element_signature
+            && self
+                .property
+                .to_property_name()
+                .same_as(&other.property.to_property_name())
+            && self.condition_alphabet == other.condition_alphabet
+    }
+}
+
+impl Eq for GuardedCascadeFragmentPredicateV0 {}
 
 impl<K> GuardedCascadeFragmentV0<K> {
     pub fn predicate(&self) -> GuardedCascadeFragmentPredicateV0 {
@@ -2052,7 +2219,7 @@ mod tests {
             rule: GuardedCascadeWinnerAuthorityRuleV0::CanonicalMtbddInsideFragment {
                 fragment: GuardedCascadeFragmentPredicateV0 {
                     element_signature: ".a".to_string(),
-                    property: "color".to_string(),
+                    property: AuthoredPropertyTextV0::new("color"),
                     condition_alphabet: vec!["@media (min-width: 1px)".to_string()],
                 },
             },
@@ -2117,7 +2284,7 @@ mod tests {
             [GuardedCascadeCandidateV0::new(
                 declaration_id,
                 ".typed-fragment",
-                "color",
+                AuthoredPropertyTextV0::new("color"),
                 declaration_id,
                 GuardedCascadeSpecificityExactnessV0::Exact,
                 0,
@@ -3092,7 +3259,7 @@ mod tests {
                         GuardedCascadeCandidateV0::new(
                             u32::try_from(index).unwrap_or_default(),
                             "button.primary",
-                            "color",
+                            AuthoredPropertyTextV0::new("color"),
                             PAIR_COUNT - index,
                             GuardedCascadeSpecificityExactnessV0::Exact,
                             0,

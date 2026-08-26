@@ -6,8 +6,12 @@
 //! internal parser state.
 
 use omena_parser::StyleDialect;
-use omena_syntax::{CanonicalSelectorAst, ident::CanonicalCustomPropertyNameV0};
+use omena_syntax::{
+    CanonicalSelectorAst,
+    ident::{AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0},
+};
 use serde::Serialize;
+use std::cmp::Ordering;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Stylesheet {
@@ -101,16 +105,16 @@ pub struct ParserIndexValueFactsV0 {
     pub selectors_with_imported_refs_under_layer_names: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[derive(Debug, Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ParserIndexCustomPropertyFactsV0 {
-    pub decl_names: Vec<String>,
+    pub decl_names: Vec<AuthoredPropertyTextV0>,
     pub decl_facts: Vec<ParserIndexCustomPropertyDeclFactV0>,
     pub decl_context_selectors: Vec<String>,
-    pub decl_names_under_media: Vec<String>,
-    pub decl_names_under_supports: Vec<String>,
-    pub decl_names_under_layer: Vec<String>,
-    pub ref_names: Vec<String>,
+    pub decl_names_under_media: Vec<AuthoredPropertyTextV0>,
+    pub decl_names_under_supports: Vec<AuthoredPropertyTextV0>,
+    pub decl_names_under_layer: Vec<AuthoredPropertyTextV0>,
+    pub ref_names: Vec<AuthoredPropertyTextV0>,
     pub ref_facts: Vec<ParserIndexCustomPropertyRefFactV0>,
     pub selectors_with_refs_names: Vec<String>,
     pub selectors_with_refs_under_media_names: Vec<String>,
@@ -118,10 +122,41 @@ pub struct ParserIndexCustomPropertyFactsV0 {
     pub selectors_with_refs_under_layer_names: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+impl PartialEq for ParserIndexCustomPropertyFactsV0 {
+    fn eq(&self, other: &Self) -> bool {
+        authored_custom_property_sequences_same(&self.decl_names, &other.decl_names)
+            && self.decl_facts == other.decl_facts
+            && self.decl_context_selectors == other.decl_context_selectors
+            && authored_custom_property_sequences_same(
+                &self.decl_names_under_media,
+                &other.decl_names_under_media,
+            )
+            && authored_custom_property_sequences_same(
+                &self.decl_names_under_supports,
+                &other.decl_names_under_supports,
+            )
+            && authored_custom_property_sequences_same(
+                &self.decl_names_under_layer,
+                &other.decl_names_under_layer,
+            )
+            && authored_custom_property_sequences_same(&self.ref_names, &other.ref_names)
+            && self.ref_facts == other.ref_facts
+            && self.selectors_with_refs_names == other.selectors_with_refs_names
+            && self.selectors_with_refs_under_media_names
+                == other.selectors_with_refs_under_media_names
+            && self.selectors_with_refs_under_supports_names
+                == other.selectors_with_refs_under_supports_names
+            && self.selectors_with_refs_under_layer_names
+                == other.selectors_with_refs_under_layer_names
+    }
+}
+
+impl Eq for ParserIndexCustomPropertyFactsV0 {}
+
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ParserIndexCustomPropertyDeclFactV0 {
-    pub name: String,
+    pub name: AuthoredPropertyTextV0,
     pub value: String,
     pub source_order: usize,
     pub byte_span: ParserByteSpanV0,
@@ -136,10 +171,65 @@ pub struct ParserIndexCustomPropertyDeclFactV0 {
     pub property_key: CanonicalCustomPropertyNameV0,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+impl PartialEq for ParserIndexCustomPropertyDeclFactV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.property_key == other.property_key
+            && self.value == other.value
+            && self.source_order == other.source_order
+            && self.byte_span == other.byte_span
+            && self.range == other.range
+            && self.selector_contexts == other.selector_contexts
+            && self.condition_context == other.condition_context
+            && self.layer_names == other.layer_names
+            && self.under_media == other.under_media
+            && self.under_supports == other.under_supports
+            && self.under_layer == other.under_layer
+    }
+}
+
+impl Eq for ParserIndexCustomPropertyDeclFactV0 {}
+
+impl PartialOrd for ParserIndexCustomPropertyDeclFactV0 {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ParserIndexCustomPropertyDeclFactV0 {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (
+            &self.property_key,
+            &self.value,
+            self.source_order,
+            self.byte_span,
+            self.range,
+            &self.selector_contexts,
+            &self.condition_context,
+            &self.layer_names,
+            self.under_media,
+            self.under_supports,
+            self.under_layer,
+        )
+            .cmp(&(
+                &other.property_key,
+                &other.value,
+                other.source_order,
+                other.byte_span,
+                other.range,
+                &other.selector_contexts,
+                &other.condition_context,
+                &other.layer_names,
+                other.under_media,
+                other.under_supports,
+                other.under_layer,
+            ))
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ParserIndexCustomPropertyRefFactV0 {
-    pub name: String,
+    pub name: AuthoredPropertyTextV0,
     pub source_order: usize,
     pub selector_contexts: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -149,6 +239,52 @@ pub struct ParserIndexCustomPropertyRefFactV0 {
     pub under_supports: bool,
     pub under_layer: bool,
     pub property_key: CanonicalCustomPropertyNameV0,
+}
+
+impl PartialEq for ParserIndexCustomPropertyRefFactV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.property_key == other.property_key
+            && self.source_order == other.source_order
+            && self.selector_contexts == other.selector_contexts
+            && self.condition_context == other.condition_context
+            && self.layer_names == other.layer_names
+            && self.under_media == other.under_media
+            && self.under_supports == other.under_supports
+            && self.under_layer == other.under_layer
+    }
+}
+
+impl Eq for ParserIndexCustomPropertyRefFactV0 {}
+
+impl PartialOrd for ParserIndexCustomPropertyRefFactV0 {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ParserIndexCustomPropertyRefFactV0 {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (
+            &self.property_key,
+            self.source_order,
+            &self.selector_contexts,
+            &self.condition_context,
+            &self.layer_names,
+            self.under_media,
+            self.under_supports,
+            self.under_layer,
+        )
+            .cmp(&(
+                &other.property_key,
+                other.source_order,
+                &other.selector_contexts,
+                &other.condition_context,
+                &other.layer_names,
+                other.under_media,
+                other.under_supports,
+                other.under_layer,
+            ))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -431,14 +567,43 @@ pub struct StyleSelectorIdentityFactsV0 {
     pub nested_safety_counts: NestedSafetyCountsV0,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StyleCustomPropertySemanticFactsV0 {
-    pub decl_names: Vec<String>,
-    pub ref_names: Vec<String>,
-    pub resolved_ref_names: Vec<String>,
-    pub unresolved_ref_names: Vec<String>,
+    pub decl_names: Vec<AuthoredPropertyTextV0>,
+    pub ref_names: Vec<AuthoredPropertyTextV0>,
+    pub resolved_ref_names: Vec<AuthoredPropertyTextV0>,
+    pub unresolved_ref_names: Vec<AuthoredPropertyTextV0>,
     pub selectors_with_refs_names: Vec<String>,
+}
+
+impl PartialEq for StyleCustomPropertySemanticFactsV0 {
+    fn eq(&self, other: &Self) -> bool {
+        authored_custom_property_sequences_same(&self.decl_names, &other.decl_names)
+            && authored_custom_property_sequences_same(&self.ref_names, &other.ref_names)
+            && authored_custom_property_sequences_same(
+                &self.resolved_ref_names,
+                &other.resolved_ref_names,
+            )
+            && authored_custom_property_sequences_same(
+                &self.unresolved_ref_names,
+                &other.unresolved_ref_names,
+            )
+            && self.selectors_with_refs_names == other.selectors_with_refs_names
+    }
+}
+
+impl Eq for StyleCustomPropertySemanticFactsV0 {}
+
+fn authored_custom_property_sequences_same(
+    left: &[AuthoredPropertyTextV0],
+    right: &[AuthoredPropertyTextV0],
+) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| left.to_custom_key() == right.to_custom_key())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

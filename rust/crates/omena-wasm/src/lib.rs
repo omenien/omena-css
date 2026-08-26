@@ -1689,12 +1689,9 @@ mod tests {
             .map_err(|_| "style hover candidates should be available".to_string())?;
 
         assert_eq!(hover.product, "omena-query.style-hover-candidates");
-        assert!(
-            hover
-                .candidates
-                .iter()
-                .any(|candidate| candidate.name.to_string() == "--brand")
-        );
+        assert!(hover.candidates.iter().any(|candidate| {
+            candidate.property_key.as_ref().map(|key| key.as_str()) == Some("--brand")
+        }));
 
         let completion =
             read_style_completion_at_position_summary(source, "fixture.module.css", 1, 23)

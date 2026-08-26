@@ -1,6 +1,20 @@
 #[cfg(feature = "transform-catalog-trace")]
 use super::execute_omena_query_transform_passes_from_source_with_transform_catalog_trace;
 
+pub(crate) fn rendered_authored(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> String {
+    let mut text = String::new();
+    let _ = omena_syntax::ident::render_authored(property, &mut text);
+    text
+}
+
+fn authored_custom_matches(
+    property: &omena_syntax::ident::AuthoredPropertyTextV0,
+    expected: &str,
+) -> bool {
+    property.to_custom_key()
+        == omena_syntax::ident::AuthoredPropertyTextV0::new(expected).to_custom_key()
+}
+
 #[cfg(feature = "transform-catalog-trace")]
 #[deprecated(
     since = "0.4.0",
@@ -112,6 +126,243 @@ use crate::{
     summarize_omena_query_style_hover_render_parts_for_workspace_file_with_substrate,
     summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests,
 };
+
+#[test]
+fn cascade_section_outcome_identity_uses_standard_property_keys() {
+    let outcome = |property: &str| super::OmenaQueryCascadeSectionOutcomeV0 {
+        schema_version: "0",
+        product: "test",
+        selector: ".button".to_string(),
+        property: omena_syntax::ident::AuthoredPropertyTextV0::new(property),
+        winning_value: "red".to_string(),
+    };
+
+    assert_eq!(outcome("COLOR"), outcome(r"C\4f LOR"));
+    assert_ne!(outcome("color"), outcome("background"));
+}
+
+#[test]
+#[allow(deprecated)]
+fn cascade_site_outcome_identity_uses_standard_property_keys() {
+    let outcome = |property: &str| super::OmenaQueryCascadeSiteOutcomeV0 {
+        schema_version: "0",
+        product: "test",
+        selector: ".button".to_string(),
+        property: omena_syntax::ident::AuthoredPropertyTextV0::new(property),
+        winning_value: "red".to_string(),
+    };
+
+    assert_eq!(outcome("COLOR"), outcome(r"C\4f LOR"));
+    assert_ne!(outcome("color"), outcome("background"));
+}
+
+#[test]
+fn style_document_summary_identity_uses_custom_property_keys() -> Result<(), String> {
+    let mut plain = summarize_omena_query_style_document(
+        "fixture.css",
+        ":root { --foo: red; color: var(--foo); }",
+    )
+    .ok_or_else(|| "fixture must summarize".to_string())?;
+    plain.custom_property_decl_names =
+        vec![omena_syntax::ident::AuthoredPropertyTextV0::new("--foo")];
+    plain.custom_property_ref_names = plain.custom_property_decl_names.clone();
+    let mut escaped = plain.clone();
+    escaped.custom_property_decl_names = vec![omena_syntax::ident::AuthoredPropertyTextV0::new(
+        r"--f\6f o",
+    )];
+    escaped.custom_property_ref_names = escaped.custom_property_decl_names.clone();
+    assert_eq!(plain, escaped);
+
+    escaped.custom_property_decl_names =
+        vec![omena_syntax::ident::AuthoredPropertyTextV0::new("--FOO")];
+    escaped.custom_property_ref_names = escaped.custom_property_decl_names.clone();
+    assert_ne!(plain, escaped);
+    Ok(())
+}
+
+#[test]
+fn query_parser_style_facts_identity_uses_custom_property_keys() {
+    let mut plain = summarize_omena_query_omena_parser_style_facts(
+        ":root { --foo: red; color: var(--foo); }",
+        omena_parser::StyleDialect::Css,
+    );
+    let names = vec![omena_syntax::ident::AuthoredPropertyTextV0::new("--foo")];
+    plain.custom_property_names = names.clone();
+    plain.custom_property_decl_names = names.clone();
+    plain.custom_property_ref_names = names;
+    let mut escaped = plain.clone();
+    let escaped_names = vec![omena_syntax::ident::AuthoredPropertyTextV0::new(
+        r"--f\6f o",
+    )];
+    escaped.custom_property_names = escaped_names.clone();
+    escaped.custom_property_decl_names = escaped_names.clone();
+    escaped.custom_property_ref_names = escaped_names;
+    assert_eq!(plain, escaped);
+
+    let different_names = vec![omena_syntax::ident::AuthoredPropertyTextV0::new("--FOO")];
+    escaped.custom_property_names = different_names.clone();
+    escaped.custom_property_decl_names = different_names.clone();
+    escaped.custom_property_ref_names = different_names;
+    assert_ne!(plain, escaped);
+}
+
+#[test]
+fn runtime_state_scenario_evidence_identity_uses_sealed_property_keys() {
+    let evidence = |property: &str| super::OmenaQueryRuntimeStateScenarioEvidenceV0 {
+        schema_version: "0",
+        product: "test",
+        selector: ".button".to_string(),
+        selector_class_names: vec!["button".to_string()],
+        property_name: omena_syntax::ident::AuthoredPropertyTextV0::new(property),
+        scenario_join_kind: "test",
+        confidence_tier: "test",
+        confidence_tier_within_modeled_environment: "test",
+        static_boundary: super::OmenaQueryRuntimeStateStaticBoundaryV0 {
+            boundary_kind: "test",
+            static_value_assuming_no_runtime_override: true,
+            tracks_dom_mutation: false,
+            tracks_class_list_mutation: false,
+        },
+        driver_summaries: Vec::new(),
+        scenarios: Vec::new(),
+        static_condition_pruning: Vec::new(),
+        inline_style_overrides: Vec::new(),
+        cascade_layer_topology_incomplete: None,
+        guarded_winner_authority: None,
+        fragile_guarded_winner_diagnostics: Vec::new(),
+    };
+
+    assert_eq!(evidence("COLOR"), evidence(r"C\4f LOR"));
+    assert_ne!(evidence("--foo"), evidence("--FOO"));
+}
+
+fn property_identity_test_range() -> omena_parser::ParserRangeV0 {
+    omena_parser::ParserRangeV0 {
+        start: omena_parser::ParserPositionV0 {
+            line: 0,
+            character: 0,
+        },
+        end: omena_parser::ParserPositionV0 {
+            line: 0,
+            character: 1,
+        },
+    }
+}
+
+#[test]
+fn inline_style_runtime_override_identity_uses_sealed_property_keys() {
+    let override_value = |property: &str| super::OmenaQueryInlineStyleRuntimeOverrideV0 {
+        source_path: "App.tsx".to_string(),
+        range: property_identity_test_range(),
+        property_name: omena_syntax::ident::AuthoredPropertyTextV0::new(property),
+        value: Some("red".to_string()),
+        cascade_tier: "inline",
+        important: false,
+        static_value: true,
+    };
+
+    assert_eq!(override_value("COLOR"), override_value(r"C\4f LOR"));
+    assert_ne!(override_value("--foo"), override_value("--FOO"));
+}
+
+#[test]
+fn cascade_insight_identity_uses_sealed_property_keys() {
+    let insight = |property: &str| super::OmenaQueryCascadeInsightV0 {
+        relationship: "overrides",
+        selector: ".button".to_string(),
+        property: omena_syntax::ident::AuthoredPropertyTextV0::new(property),
+        related_selector: Some(".base".to_string()),
+        related_property: Some(omena_syntax::ident::AuthoredPropertyTextV0::new(property)),
+        source_order: 1,
+        related_source_order: Some(0),
+    };
+
+    assert_eq!(insight("COLOR"), insight(r"C\4f LOR"));
+    assert_ne!(insight("--foo"), insight("--FOO"));
+}
+
+#[test]
+fn cascade_at_position_identity_uses_sealed_property_keys() {
+    let cascade = |property: &str| super::OmenaQueryCascadeAtPositionV0 {
+        schema_version: "0",
+        product: "test",
+        style_path: "fixture.css".to_string(),
+        query_position: omena_parser::ParserPositionV0 {
+            line: 0,
+            character: 0,
+        },
+        status: "resolved",
+        cascade_engine: "test",
+        reference_name: Some("--token".to_string()),
+        reference_range: Some(property_identity_test_range()),
+        winner_declaration_source_order: Some(0),
+        winner_declaration_file_path: Some("fixture.css".to_string()),
+        winner_declaration_range: Some(property_identity_test_range()),
+        winner_context_kind: Some("root"),
+        winner_declaration_layer_rank: Some(0),
+        winner_declaration_layer_name: None,
+        candidate_declaration_count: 1,
+        shadowed_declaration_source_orders: Vec::new(),
+        referenced_declaration_property: Some(omena_syntax::ident::AuthoredPropertyTextV0::new(
+            property,
+        )),
+        referenced_declaration_value: Some("red".to_string()),
+        referenced_declaration_computed_value_status: Some("resolved"),
+        referenced_declaration_computed_value: Some("red".to_string()),
+        referenced_declaration_invalid_at_computed_value_time: false,
+        referenced_declaration_computed_value_indeterminate: false,
+        referenced_declaration_computed_value_indeterminate_reason: None,
+        referenced_declaration_computed_value_derivation_steps: Vec::new(),
+        custom_property_fixed_point_iteration_count: 0,
+        custom_property_fixed_point_guaranteed_invalid_count: 0,
+        reference_custom_property_fixed_point_status: None,
+        reference_custom_property_fixed_point_value: None,
+        refinement_evidence: None,
+        categorical_evidence: None,
+    };
+
+    assert_eq!(cascade("COLOR"), cascade(r"C\4f LOR"));
+    assert_ne!(cascade("--foo"), cascade("--FOO"));
+}
+
+#[test]
+fn create_custom_property_action_identity_uses_custom_property_keys() {
+    let action = |property: &str| super::OmenaQueryCreateCustomPropertyActionV0 {
+        uri: "file:///fixture.css".to_string(),
+        range: property_identity_test_range(),
+        new_text: ":root {}".to_string(),
+        property_name: omena_syntax::ident::AuthoredPropertyTextV0::new(property),
+        property_key: omena_syntax::ident::AuthoredPropertyTextV0::new(property).to_custom_key(),
+    };
+
+    assert_eq!(action("--foo"), action(r"--f\6f o"));
+    assert_ne!(action("--foo"), action("--FOO"));
+}
+
+#[test]
+fn custom_property_occurrence_identity_and_order_use_custom_property_keys() {
+    let occurrence = |name: &str| super::OmenaQueryCustomPropertyOccurrenceV0 {
+        uri: "file:///fixture.css".to_string(),
+        name: omena_syntax::ident::AuthoredPropertyTextV0::new(name),
+        range: property_identity_test_range(),
+        byte_span: omena_parser::ParserByteSpanV0 { start: 0, end: 1 },
+        kind: "declaration",
+        has_fallback: false,
+        source: "parser",
+        property_key: omena_syntax::ident::AuthoredPropertyTextV0::new(name).to_custom_key(),
+    };
+
+    let plain = occurrence("--foo");
+    let escaped = occurrence(r"--f\6f o");
+    assert_eq!(plain, escaped);
+    assert_eq!(plain.cmp(&escaped), std::cmp::Ordering::Equal);
+    assert_ne!(plain, occurrence("--FOO"));
+
+    let mut occurrences = vec![escaped, plain];
+    occurrences.sort();
+    occurrences.dedup();
+    assert_eq!(occurrences.len(), 1);
+}
 
 #[test]
 fn strict_consumer_build_surfaces_typed_refusal_while_default_remains_descriptive() {
@@ -245,7 +496,7 @@ fn custom_property_occurrence_index_preserves_exact_ranges_and_fallback_precisio
         .iter()
         .find(|occurrence| occurrence.has_fallback)
         .ok_or_else(|| "fallback occurrence is missing".to_string())?;
-    assert_eq!(fallback.name, "--brand");
+    assert!(authored_custom_matches(&fallback.name, "--brand"));
     assert_eq!(fallback.property_key.as_str(), "--brand");
     assert_eq!(
         source.get(fallback.byte_span.start..fallback.byte_span.end),
@@ -850,7 +1101,8 @@ fn exposes_omena_parser_style_fact_surface() {
     assert!(
         summary
             .custom_property_names
-            .contains(&"--space".to_string())
+            .iter()
+            .any(|name| authored_custom_matches(name, "--space"))
     );
     assert_eq!(
         summary.at_rule_names,
@@ -891,14 +1143,14 @@ fn exposes_fast_facts_analyzed_graph_and_custom_property_annotations() {
     );
     assert_eq!(annotations.annotation_count, 2);
     assert!(annotations.annotations.iter().any(|annotation| {
-        annotation.name.to_string() == "--surface"
+        rendered_authored(&annotation.name) == "--surface"
             && annotation.declaration_count == 1
             && annotation.reference_count == 1
             && annotation.annotation_kind == "declarationAndReference"
             && annotation.participates_in_fixed_point
     }));
     assert!(annotations.annotations.iter().any(|annotation| {
-        annotation.name.to_string() == "--accent"
+        rendered_authored(&annotation.name) == "--accent"
             && annotation.declaration_count == 0
             && annotation.reference_count == 1
             && annotation.annotation_kind == "reference"
@@ -918,12 +1170,12 @@ fn custom_property_annotations_join_escape_identity_without_folding_case() {
 
     assert_eq!(annotations.annotation_count, 2);
     assert!(annotations.annotations.iter().any(|annotation| {
-        annotation.name.to_string() == "--foo"
+        rendered_authored(&annotation.name) == "--foo"
             && annotation.declaration_count == 1
             && annotation.reference_count == 1
     }));
     assert!(annotations.annotations.iter().any(|annotation| {
-        annotation.name.to_string() == "--FOO"
+        rendered_authored(&annotation.name) == "--FOO"
             && annotation.declaration_count == 1
             && annotation.reference_count == 1
     }));
@@ -1540,8 +1792,14 @@ fn style_document_summary_is_omena_parser_owned() {
     assert_eq!(summary.product, "omena-query.style-document-summary");
     assert_eq!(summary.language, "scss");
     assert_eq!(summary.selector_names, vec!["card"]);
-    assert_eq!(summary.custom_property_decl_names, vec!["--brand"]);
-    assert_eq!(summary.custom_property_ref_names, vec!["--brand"]);
+    assert!(authored_custom_matches(
+        &summary.custom_property_decl_names[0],
+        "--brand"
+    ));
+    assert!(authored_custom_matches(
+        &summary.custom_property_ref_names[0],
+        "--brand"
+    ));
     assert_eq!(summary.sass_module_use_sources, vec!["./tokens"]);
     assert_eq!(summary.sass_module_forward_sources, vec!["./theme"]);
     assert_eq!(summary.diagnostic_count, 0);
@@ -1805,15 +2063,15 @@ fn derives_transform_context_from_workspace_sources() {
     assert_eq!(summary.reachable_value_name_count, 0);
     assert_eq!(summary.reachable_custom_property_name_count, 0);
     assert_eq!(summary.context.reachable_class_names, Vec::<String>::new());
-    assert_eq!(
-        summary.context.reachable_custom_property_names,
-        Vec::<String>::new()
-    );
+    assert!(summary.context.reachable_custom_property_names.is_empty());
     assert_eq!(
         summary.context.import_inlines[0].import_source,
         "./tokens.css"
     );
-    assert_eq!(summary.context.design_token_routes[0].token_name, "--brand");
+    assert!(authored_custom_matches(
+        &summary.context.design_token_routes[0].token_name,
+        "--brand"
+    ));
     assert_eq!(summary.context.design_token_routes[0].routed_value, "red");
     assert!(summary.ready_surfaces.contains(&"designTokenRouteProducer"));
     assert_eq!(
@@ -1859,9 +2117,15 @@ fn derives_transform_context_with_transitive_design_token_routes() {
             .context
             .design_token_routes
             .iter()
-            .map(|route| (route.token_name.as_str(), route.routed_value.as_str()))
+            .map(|route| (
+                rendered_authored(&route.token_name),
+                route.routed_value.as_str()
+            ))
             .collect::<Vec<_>>(),
-        vec![("--alias", "var(--brand)"), ("--brand", "red")]
+        vec![
+            ("--alias".to_string(), "var(--brand)"),
+            ("--brand".to_string(), "red")
+        ]
     );
 }
 
@@ -1891,7 +2155,10 @@ fn derives_transform_context_design_tokens_through_workspace_aliases() {
 
     assert_eq!(summary.import_inline_count, 1, "{summary:?}");
     assert_eq!(summary.design_token_route_count, 1, "{summary:?}");
-    assert_eq!(summary.context.design_token_routes[0].token_name, "--brand");
+    assert!(authored_custom_matches(
+        &summary.context.design_token_routes[0].token_name,
+        "--brand"
+    ));
     assert_eq!(summary.context.design_token_routes[0].routed_value, "red");
 }
 
@@ -2007,7 +2274,7 @@ fn explicit_context_extends_query_derived_transform_context()
     ];
     let context = OmenaQueryTransformExecutionContextV0 {
         design_token_routes: vec![OmenaQueryTransformDesignTokenRouteV0 {
-            token_name: "--external".to_string(),
+            token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--external"),
             routed_value: "blue".to_string(),
         }],
         ..OmenaQueryTransformExecutionContextV0::default()
@@ -2031,14 +2298,20 @@ fn explicit_context_extends_query_derived_transform_context()
             .execution
             .design_token_routes
             .iter()
-            .any(|route| route.token_name == "--brand" && route.routed_value == "red")
+            .any(
+                |route| authored_custom_matches(&route.token_name, "--brand")
+                    && route.routed_value == "red"
+            )
     );
     assert!(
         summary
             .execution
             .design_token_routes
             .iter()
-            .any(|route| route.token_name == "--external" && route.routed_value == "blue")
+            .any(
+                |route| authored_custom_matches(&route.token_name, "--external")
+                    && route.routed_value == "blue"
+            )
     );
     assert!(!summary.execution.output_css.contains("@import"));
     assert!(
@@ -2145,14 +2418,20 @@ fn consumer_build_style_sources_routes_transitive_design_token_aliases()
             .execution
             .design_token_routes
             .iter()
-            .any(|route| route.token_name == "--alias" && route.routed_value == "var(--brand)")
+            .any(
+                |route| authored_custom_matches(&route.token_name, "--alias")
+                    && route.routed_value == "var(--brand)"
+            )
     );
     assert!(
         summary
             .execution
             .design_token_routes
             .iter()
-            .any(|route| route.token_name == "--brand" && route.routed_value == "red")
+            .any(
+                |route| authored_custom_matches(&route.token_name, "--brand")
+                    && route.routed_value == "red"
+            )
     );
     assert!(!summary.execution.output_css.contains("@import"));
     assert!(
@@ -3666,7 +3945,10 @@ fn derives_transform_context_from_package_manifest_style_exports() {
         summary.context.import_inlines[0].replacement_css,
         ":root { --brand: package; }"
     );
-    assert_eq!(summary.context.design_token_routes[0].token_name, "--brand");
+    assert!(authored_custom_matches(
+        &summary.context.design_token_routes[0].token_name,
+        "--brand"
+    ));
     assert_eq!(
         summary.context.design_token_routes[0].routed_value,
         "package"

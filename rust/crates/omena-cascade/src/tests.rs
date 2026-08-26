@@ -11,6 +11,17 @@ fn custom_property_key(name: &str) -> CanonicalCustomPropertyNameV0 {
     PropertyNameV0::canonical_custom_key(name)
 }
 
+fn rendered_authored_properties(properties: &[AuthoredPropertyTextV0]) -> Vec<String> {
+    properties
+        .iter()
+        .map(|property| {
+            let mut rendered = String::new();
+            let _ = omena_syntax::ident::render_authored(property, &mut rendered);
+            rendered
+        })
+        .collect()
+}
+
 struct FixtureStandardValueValidator;
 
 impl CascadeStandardValueValidatorV0 for FixtureStandardValueValidator {
@@ -86,6 +97,234 @@ fn property_declaration(
         open_world_tie_evidence: OpenWorldTieEvidence::NONE,
         specificity_exactness: SpecificityExactnessV0::Exact,
     }
+}
+
+#[test]
+fn cascade_evidence_identity_uses_sealed_property_keys() {
+    let evidence = |property: &str| CascadeEvidenceV0 {
+        selector: ".button".to_string(),
+        property: AuthoredPropertyTextV0::new(property),
+        declaration_ids: vec!["declaration".to_string()],
+    };
+
+    assert_eq!(evidence("COLOR"), evidence(r"C\4f LOR"));
+    assert_ne!(evidence("--foo"), evidence("--FOO"));
+}
+
+#[test]
+fn custom_property_evidence_identity_uses_forced_custom_keys() {
+    let evidence = |name: &str| CustomPropertyEvidenceV0 {
+        custom_property_name: AuthoredPropertyTextV0::new(name),
+        dependency_names: vec![AuthoredPropertyTextV0::new(name)],
+    };
+
+    assert_eq!(evidence(r"--f\6f o"), evidence("--foo"));
+    assert_ne!(evidence("--foo"), evidence("--FOO"));
+}
+
+#[test]
+fn grn_vertex_identity_uses_sealed_property_keys() {
+    let vertex = |property: &str| GrnVertexV0 {
+        vertex_id: "vertex".to_string(),
+        selector: ".button".to_string(),
+        property: AuthoredPropertyTextV0::new(property),
+    };
+
+    assert_eq!(vertex("COLOR"), vertex(r"C\4f LOR"));
+    assert_ne!(vertex("--foo"), vertex("--FOO"));
+}
+
+#[test]
+fn guarded_fragment_refusal_identity_uses_sealed_property_keys() {
+    let refusal =
+        |expected: &str, observed: &str| GuardedCascadeFragmentRefusalV0::MultipleProperties {
+            expected: AuthoredPropertyTextV0::new(expected),
+            observed: AuthoredPropertyTextV0::new(observed),
+        };
+
+    assert_eq!(refusal("COLOR", r"C\4f LOR"), refusal("color", "color"));
+    assert_ne!(refusal("--foo", "--foo"), refusal("--FOO", "--foo"));
+}
+
+#[test]
+fn guarded_fragment_predicate_identity_uses_sealed_property_keys() {
+    let predicate = |property: &str| GuardedCascadeFragmentPredicateV0 {
+        element_signature: "button".to_string(),
+        property: AuthoredPropertyTextV0::new(property),
+        condition_alphabet: vec!["screen".to_string()],
+    };
+
+    assert_eq!(predicate("COLOR"), predicate(r"C\4f LOR"));
+    assert_ne!(predicate("--foo"), predicate("--FOO"));
+}
+
+#[test]
+fn registered_custom_property_identity_uses_forced_custom_keys() {
+    let registration = |name: &str| CascadeRegisteredCustomPropertyV0 {
+        name: AuthoredPropertyTextV0::new(name),
+        inherits: false,
+        initial_value: CascadeValue::Literal("red".to_string()),
+        declaration_value_verdicts: BTreeMap::new(),
+    };
+
+    assert_eq!(registration(r"--f\6f o"), registration("--foo"));
+    assert_ne!(registration("--foo"), registration("--FOO"));
+}
+
+#[test]
+fn computed_value_input_identity_uses_sealed_property_keys() {
+    let input = |property: &str| CascadeComputedValueInputV0 {
+        property: AuthoredPropertyTextV0::new(property),
+        declarations: Vec::new(),
+        custom_property_env: CustomPropertyEnv::new(),
+        parent_computed_value: None,
+        registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
+    };
+
+    assert_eq!(input("COLOR"), input(r"C\4f LOR"));
+    assert_ne!(input("--foo"), input("--FOO"));
+}
+
+#[test]
+fn computed_value_result_identity_uses_sealed_property_keys() {
+    let result = |property: &str| CascadeComputedValueResultV0 {
+        schema_version: "0",
+        product: "test",
+        property: AuthoredPropertyTextV0::new(property),
+        status: ComputedCascadeValueStatusV0::Resolved,
+        value: CascadeValue::Literal("red".to_string()),
+        winner_declaration_id: Some("winner".to_string()),
+        inherited: false,
+        used_initial_value: false,
+        invalid_at_computed_value_time: false,
+        indeterminate_reason: None,
+        fallback_indeterminate_reason: None,
+        derivation_steps: vec!["test"],
+    };
+
+    assert_eq!(result("COLOR"), result(r"C\4f LOR"));
+    assert_ne!(result("--foo"), result("--FOO"));
+}
+
+#[test]
+fn box_longhand_input_identity_uses_standard_property_keys() {
+    let input = |property: &str| BoxLonghandInputV0 {
+        property: AuthoredPropertyTextV0::new(property),
+        value: "1px".to_string(),
+        important: false,
+        source_order: 1,
+    };
+
+    assert_eq!(input("MARGIN-TOP"), input(r"margin\2d top"));
+    assert_ne!(input("margin-top"), input("padding-top"));
+}
+
+#[test]
+fn shorthand_combination_proof_identity_uses_standard_property_keys() {
+    let proof = |property: &str| ShorthandCombinationProofV0 {
+        schema_version: "0",
+        product: "test",
+        shorthand_property: AuthoredPropertyTextV0::new(property),
+        accepted: true,
+        blocked_reason: None,
+        ordered_longhand_properties: vec![AuthoredPropertyTextV0::new("margin-top")],
+        provenance_preserved: true,
+        cascade_safe_witness: "witness".to_string(),
+    };
+
+    assert_eq!(proof("MARGIN"), proof(r"marg\69 n"));
+    assert_ne!(proof("margin"), proof("padding"));
+}
+
+#[test]
+fn ranked_set_loss_row_identity_uses_sealed_property_keys() {
+    let row = |property: &str| CascadeRankedSetLossCensusRowV0 {
+        function: CascadeRankedSetFunctionV0::CascadeProperty,
+        invocation_site: "test",
+        source_path: "test.rs".to_string(),
+        property: AuthoredPropertyTextV0::new(property),
+        declaration_ids: vec!["declaration".to_string()],
+        candidate_count: 0,
+        candidates: Vec::new(),
+        classification: CascadeRankedSetLossClassV0::SingleInexactCandidate,
+        final_outcome: CascadeRankedSetFinalOutcomeV0::RankedSet,
+        definite_winner_declaration_id: None,
+    };
+
+    assert_eq!(row("COLOR"), row(r"C\4f LOR"));
+    assert_ne!(row("--foo"), row("--FOO"));
+}
+
+#[test]
+fn cascade_declaration_identity_uses_sealed_property_keys() {
+    let declaration = |property: &str| {
+        property_declaration(
+            "declaration",
+            property,
+            CascadeValue::Literal("red".to_string()),
+            1,
+        )
+    };
+
+    assert_eq!(declaration("COLOR"), declaration(r"C\4f LOR"));
+    assert_ne!(declaration("--foo"), declaration("--FOO"));
+}
+
+#[test]
+fn cascade_proof_identity_uses_sealed_property_keys() {
+    let proof = |property: &str| {
+        CascadeProof::from_declaration(&property_declaration(
+            "declaration",
+            property,
+            CascadeValue::Literal("red".to_string()),
+            1,
+        ))
+    };
+
+    assert_eq!(proof("COLOR"), proof(r"C\4f LOR"));
+    assert_ne!(proof("--foo"), proof("--FOO"));
+}
+
+#[test]
+fn guarded_cascade_candidate_identity_uses_sealed_property_keys() {
+    let candidate = |property: &str| -> GuardedCascadeCandidateV0<u32> {
+        GuardedCascadeCandidateV0::new(
+            1,
+            ".fixture",
+            AuthoredPropertyTextV0::new(property),
+            1,
+            GuardedCascadeSpecificityExactnessV0::Exact,
+            0,
+            Vec::new(),
+        )
+    };
+
+    assert_eq!(candidate("COLOR"), candidate(r"C\4f LOR"));
+    assert_ne!(candidate("--foo"), candidate("--FOO"));
+}
+
+#[test]
+fn guarded_cascade_fragment_identity_uses_sealed_property_keys() -> Result<(), String> {
+    let fragment = |property: &str| -> Result<GuardedCascadeFragmentV0<u32>, String> {
+        GuardedCascadeFragmentV0::admit(
+            Vec::<String>::new(),
+            [GuardedCascadeCandidateV0::new(
+                1,
+                ".fixture",
+                AuthoredPropertyTextV0::new(property),
+                1,
+                GuardedCascadeSpecificityExactnessV0::Exact,
+                0,
+                Vec::new(),
+            )],
+        )
+        .map_err(|error| format!("fixture fragment must admit: {error:?}"))
+    };
+
+    assert_eq!(fragment("COLOR")?, fragment(r"C\4f LOR")?);
+    assert_ne!(fragment("--foo")?, fragment("--FOO")?);
+    Ok(())
 }
 
 #[test]
@@ -1175,7 +1414,7 @@ fn computes_values_through_var_substitution() {
 
     let result = compute_cascade_computed_value_with_standard_value_validator_v0(
         CascadeComputedValueInputV0 {
-            property: "color".to_string(),
+            property: AuthoredPropertyTextV0::new("color"),
             declarations: vec![property_declaration(
                 "color-decl",
                 "color",
@@ -1209,7 +1448,7 @@ fn computes_values_through_var_substitution() {
 #[test]
 fn resolves_inheritance_initial_and_unset_keywords() {
     let inherited = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "color".to_string(),
+        property: AuthoredPropertyTextV0::new("color"),
         declarations: Vec::new(),
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("purple".to_string())),
@@ -1221,7 +1460,7 @@ fn resolves_inheritance_initial_and_unset_keywords() {
     assert!(inherited.inherited);
 
     let initial = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "opacity".to_string(),
+        property: AuthoredPropertyTextV0::new("opacity"),
         declarations: Vec::new(),
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("0.5".to_string())),
@@ -1233,7 +1472,7 @@ fn resolves_inheritance_initial_and_unset_keywords() {
     assert!(initial.used_initial_value);
 
     let unset_inherited = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "color".to_string(),
+        property: AuthoredPropertyTextV0::new("color"),
         declarations: vec![property_declaration(
             "unset-color",
             "color",
@@ -1255,7 +1494,7 @@ fn resolves_inheritance_initial_and_unset_keywords() {
     );
 
     let unset_initial = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "opacity".to_string(),
+        property: AuthoredPropertyTextV0::new("opacity"),
         declarations: vec![property_declaration(
             "unset-opacity",
             "opacity",
@@ -1330,7 +1569,7 @@ fn registered_custom_properties_drive_inheritance_initial_values_and_syntax_fall
     let registration =
         |inherits: bool, verdicts: BTreeMap<String, CascadeRegisteredValueVerdictV0>| {
             CascadeRegisteredCustomPropertyV0 {
-                name: "--gap".to_string(),
+                name: AuthoredPropertyTextV0::new("--gap"),
                 inherits,
                 initial_value: CascadeValue::Literal("8px".to_string()),
                 declaration_value_verdicts: verdicts,
@@ -1338,7 +1577,7 @@ fn registered_custom_properties_drive_inheritance_initial_values_and_syntax_fall
         };
 
     let initial = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "--gap".to_string(),
+        property: AuthoredPropertyTextV0::new("--gap"),
         declarations: Vec::new(),
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("16px".to_string())),
@@ -1350,7 +1589,7 @@ fn registered_custom_properties_drive_inheritance_initial_values_and_syntax_fall
     assert!(!initial.inherited);
 
     let inherited = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "--gap".to_string(),
+        property: AuthoredPropertyTextV0::new("--gap"),
         declarations: Vec::new(),
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("16px".to_string())),
@@ -1367,7 +1606,7 @@ fn registered_custom_properties_drive_inheritance_initial_values_and_syntax_fall
         1,
     );
     let invalid = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "--gap".to_string(),
+        property: AuthoredPropertyTextV0::new("--gap"),
         declarations: vec![invalid_declaration],
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("16px".to_string())),
@@ -1395,7 +1634,7 @@ fn registered_custom_properties_drive_inheritance_initial_values_and_syntax_fall
         1,
     );
     let valid = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "--gap".to_string(),
+        property: AuthoredPropertyTextV0::new("--gap"),
         declarations: vec![valid_declaration],
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("16px".to_string())),
@@ -1416,7 +1655,7 @@ fn registered_custom_properties_drive_inheritance_initial_values_and_syntax_fall
 fn standard_property_syntax_unmatched_uses_iacvt_fallback() {
     let declaration_id = "invalid-color";
     let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "color".to_string(),
+        property: AuthoredPropertyTextV0::new("color"),
         declarations: vec![property_declaration(
             declaration_id,
             "color",
@@ -1455,7 +1694,7 @@ fn standard_property_syntax_unmatched_uses_iacvt_fallback() {
 fn standard_property_syntax_unknown_is_typed_indeterminate() {
     let declaration_id = "unknown-color";
     let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "color".to_string(),
+        property: AuthoredPropertyTextV0::new("color"),
         declarations: vec![property_declaration(
             declaration_id,
             "color",
@@ -1497,7 +1736,7 @@ fn standard_property_syntax_is_revalidated_after_var_substitution() {
         );
         let result = compute_cascade_computed_value_with_standard_value_validator_v0(
             CascadeComputedValueInputV0 {
-                property: "color".to_string(),
+                property: AuthoredPropertyTextV0::new("color"),
                 declarations: vec![property_declaration(
                     declaration_id.as_str(),
                     "color",
@@ -1545,7 +1784,7 @@ fn standard_property_syntax_is_revalidated_after_var_substitution() {
 #[test]
 fn missing_standard_property_verdict_is_explicitly_unavailable() {
     let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "color".to_string(),
+        property: AuthoredPropertyTextV0::new("color"),
         declarations: vec![property_declaration(
             "unchecked-color",
             "color",
@@ -1579,7 +1818,7 @@ fn missing_standard_property_verdict_is_explicitly_unavailable() {
 fn iacvt_fallback_preserves_its_indeterminate_reason_separately() {
     let declaration_id = "invalid-future-property";
     let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "future-property".to_string(),
+        property: AuthoredPropertyTextV0::new("future-property"),
         declarations: vec![property_declaration(
             declaration_id,
             "future-property",
@@ -1611,7 +1850,7 @@ fn iacvt_fallback_preserves_its_indeterminate_reason_separately() {
 #[test]
 fn unregistered_custom_property_keeps_the_inherited_computed_value_contract() {
     let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "--gap".to_string(),
+        property: AuthoredPropertyTextV0::new("--gap"),
         declarations: Vec::new(),
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("16px".to_string())),
@@ -1668,7 +1907,7 @@ fn property_metadata_lookup_respects_the_supplied_sorted_registry() {
 #[test]
 fn unknown_property_metadata_is_typed_as_indeterminate() {
     let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "future-property".to_string(),
+        property: AuthoredPropertyTextV0::new("future-property"),
         declarations: Vec::new(),
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: None,
@@ -1692,7 +1931,7 @@ fn unknown_property_metadata_is_typed_as_indeterminate() {
 #[test]
 fn every_computed_value_indeterminate_reason_has_a_typed_fixture() {
     let cascade_outcome = crate::computed_value::computed_value_from_indeterminate_cascade_outcome(
-        "color",
+        &AuthoredPropertyTextV0::new("color"),
         &CascadeOutcome::RankedSet(Vec::new()),
     );
     assert!(cascade_outcome.is_some());
@@ -1701,7 +1940,7 @@ fn every_computed_value_indeterminate_reason_has_a_typed_fixture() {
     };
 
     let unknown_inheritance = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "future-property".to_string(),
+        property: AuthoredPropertyTextV0::new("future-property"),
         declarations: Vec::new(),
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: None,
@@ -1710,7 +1949,7 @@ fn every_computed_value_indeterminate_reason_has_a_typed_fixture() {
     });
 
     let unknown_initial_value = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "background".to_string(),
+        property: AuthoredPropertyTextV0::new("background"),
         declarations: Vec::new(),
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: None,
@@ -1725,12 +1964,12 @@ fn every_computed_value_indeterminate_reason_has_a_typed_fixture() {
         1,
     );
     let unknown_registered_syntax = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "--gap".to_string(),
+        property: AuthoredPropertyTextV0::new("--gap"),
         declarations: vec![unknown_declaration],
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: None,
         registered_custom_property: Some(CascadeRegisteredCustomPropertyV0 {
-            name: "--gap".to_string(),
+            name: AuthoredPropertyTextV0::new("--gap"),
             inherits: false,
             initial_value: CascadeValue::Literal("8px".to_string()),
             declaration_value_verdicts: BTreeMap::from([(
@@ -1742,7 +1981,7 @@ fn every_computed_value_indeterminate_reason_has_a_typed_fixture() {
     });
 
     let unknown_standard_syntax = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "color".to_string(),
+        property: AuthoredPropertyTextV0::new("color"),
         declarations: vec![property_declaration(
             "unknown-color",
             "color",
@@ -1760,7 +1999,7 @@ fn every_computed_value_indeterminate_reason_has_a_typed_fixture() {
 
     let inherited_from_indeterminate =
         compute_cascade_computed_value(CascadeComputedValueInputV0 {
-            property: "color".to_string(),
+            property: AuthoredPropertyTextV0::new("color"),
             declarations: Vec::new(),
             custom_property_env: CustomPropertyEnv::new(),
             parent_computed_value: Some(CascadeValue::Indeterminate),
@@ -1806,7 +2045,7 @@ fn genuine_substitution_failure_survives_unknown_metadata_fallbacks() {
             },
         );
         let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-            property: property.to_string(),
+            property: AuthoredPropertyTextV0::new(property),
             declarations: vec![property_declaration(
                 "cyclic-value",
                 property,
@@ -1852,7 +2091,7 @@ fn treats_guaranteed_invalid_var_substitution_as_iacvt_unset() {
     );
 
     let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "color".to_string(),
+        property: AuthoredPropertyTextV0::new("color"),
         declarations: vec![property_declaration(
             "cycle-color",
             "color",
@@ -1888,25 +2127,25 @@ fn proves_adjacent_box_longhands_can_combine_to_shorthand() {
         "margin",
         &[
             BoxLonghandInputV0 {
-                property: "margin-top".to_string(),
+                property: AuthoredPropertyTextV0::new("margin-top"),
                 value: "1px".to_string(),
                 important: false,
                 source_order: 1,
             },
             BoxLonghandInputV0 {
-                property: "margin-right".to_string(),
+                property: AuthoredPropertyTextV0::new("margin-right"),
                 value: "2px".to_string(),
                 important: false,
                 source_order: 2,
             },
             BoxLonghandInputV0 {
-                property: "margin-bottom".to_string(),
+                property: AuthoredPropertyTextV0::new("margin-bottom"),
                 value: "3px".to_string(),
                 important: false,
                 source_order: 3,
             },
             BoxLonghandInputV0 {
-                property: "margin-left".to_string(),
+                property: AuthoredPropertyTextV0::new("margin-left"),
                 value: "4px".to_string(),
                 important: false,
                 source_order: 4,
@@ -1924,25 +2163,25 @@ fn proves_adjacent_box_longhands_can_combine_to_shorthand() {
         "border-color",
         &[
             BoxLonghandInputV0 {
-                property: "border-top-color".to_string(),
+                property: AuthoredPropertyTextV0::new("border-top-color"),
                 value: "red".to_string(),
                 important: false,
                 source_order: 1,
             },
             BoxLonghandInputV0 {
-                property: "border-right-color".to_string(),
+                property: AuthoredPropertyTextV0::new("border-right-color"),
                 value: "blue".to_string(),
                 important: false,
                 source_order: 2,
             },
             BoxLonghandInputV0 {
-                property: "border-bottom-color".to_string(),
+                property: AuthoredPropertyTextV0::new("border-bottom-color"),
                 value: "red".to_string(),
                 important: false,
                 source_order: 3,
             },
             BoxLonghandInputV0 {
-                property: "border-left-color".to_string(),
+                property: AuthoredPropertyTextV0::new("border-left-color"),
                 value: "blue".to_string(),
                 important: false,
                 source_order: 4,
@@ -1956,25 +2195,25 @@ fn proves_adjacent_box_longhands_can_combine_to_shorthand() {
         "scroll-margin",
         &[
             BoxLonghandInputV0 {
-                property: "scroll-margin-top".to_string(),
+                property: AuthoredPropertyTextV0::new("scroll-margin-top"),
                 value: "1px".to_string(),
                 important: false,
                 source_order: 1,
             },
             BoxLonghandInputV0 {
-                property: "scroll-margin-right".to_string(),
+                property: AuthoredPropertyTextV0::new("scroll-margin-right"),
                 value: "2px".to_string(),
                 important: false,
                 source_order: 2,
             },
             BoxLonghandInputV0 {
-                property: "scroll-margin-bottom".to_string(),
+                property: AuthoredPropertyTextV0::new("scroll-margin-bottom"),
                 value: "1px".to_string(),
                 important: false,
                 source_order: 3,
             },
             BoxLonghandInputV0 {
-                property: "scroll-margin-left".to_string(),
+                property: AuthoredPropertyTextV0::new("scroll-margin-left"),
                 value: "2px".to_string(),
                 important: false,
                 source_order: 4,
@@ -1992,13 +2231,13 @@ fn proves_generic_longhand_merge_with_canonical_order_contract() {
         &["align-content", "justify-content"],
         &[
             LonghandMergeInputV0 {
-                property: "align-content".to_string(),
+                property: AuthoredPropertyTextV0::new("align-content"),
                 value: "center".to_string(),
                 important: false,
                 source_order: 10,
             },
             LonghandMergeInputV0 {
-                property: "justify-content".to_string(),
+                property: AuthoredPropertyTextV0::new("justify-content"),
                 value: "space-between".to_string(),
                 important: false,
                 source_order: 11,
@@ -2008,7 +2247,7 @@ fn proves_generic_longhand_merge_with_canonical_order_contract() {
 
     assert!(proof.accepted);
     assert_eq!(
-        proof.ordered_longhand_properties,
+        rendered_authored_properties(&proof.ordered_longhand_properties),
         vec!["align-content".to_string(), "justify-content".to_string()]
     );
 
@@ -2017,13 +2256,13 @@ fn proves_generic_longhand_merge_with_canonical_order_contract() {
         &["align-content", "justify-content"],
         &[
             LonghandMergeInputV0 {
-                property: "justify-content".to_string(),
+                property: AuthoredPropertyTextV0::new("justify-content"),
                 value: "space-between".to_string(),
                 important: false,
                 source_order: 10,
             },
             LonghandMergeInputV0 {
-                property: "align-content".to_string(),
+                property: AuthoredPropertyTextV0::new("align-content"),
                 value: "center".to_string(),
                 important: false,
                 source_order: 11,
@@ -2045,13 +2284,13 @@ fn longhand_merge_canonicalizes_standard_property_identity_and_preserves_authore
         &["align-content", "justify-content"],
         &[
             LonghandMergeInputV0 {
-                property: r"ALIGN-\63 ONTENT".to_string(),
+                property: AuthoredPropertyTextV0::new(r"ALIGN-\63 ONTENT"),
                 value: "center".to_string(),
                 important: false,
                 source_order: 10,
             },
             LonghandMergeInputV0 {
-                property: "JUSTIFY-CONTENT".to_string(),
+                property: AuthoredPropertyTextV0::new("JUSTIFY-CONTENT"),
                 value: "space-between".to_string(),
                 important: false,
                 source_order: 11,
@@ -2060,13 +2299,23 @@ fn longhand_merge_canonicalizes_standard_property_identity_and_preserves_authore
     );
 
     assert!(proof.accepted);
-    assert_eq!(proof.shorthand_property, "PLACE-CONTENT");
+    assert!(
+        proof
+            .shorthand_property
+            .to_property_name()
+            .same_as(&PropertyNameV0::standard("PLACE-CONTENT"))
+    );
     assert_eq!(
-        proof.ordered_longhand_properties,
+        rendered_authored_properties(&proof.ordered_longhand_properties),
         vec![
             r"ALIGN-\63 ONTENT".to_string(),
             "JUSTIFY-CONTENT".to_string()
         ]
+    );
+    let wire = serde_json::to_value(&proof).unwrap_or(serde_json::Value::Null);
+    assert_eq!(
+        wire["orderedLonghandProperties"],
+        serde_json::json!([r"ALIGN-\63 ONTENT", "JUSTIFY-CONTENT"])
     );
 }
 
@@ -2076,25 +2325,25 @@ fn box_shorthand_uses_property_authority_without_rewriting_authored_names() {
         "MARGIN",
         &[
             BoxLonghandInputV0 {
-                property: r"MARGIN-\74 OP".to_string(),
+                property: AuthoredPropertyTextV0::new(r"MARGIN-\74 OP"),
                 value: "1px".to_string(),
                 important: false,
                 source_order: 1,
             },
             BoxLonghandInputV0 {
-                property: "MARGIN-RIGHT".to_string(),
+                property: AuthoredPropertyTextV0::new("MARGIN-RIGHT"),
                 value: "2px".to_string(),
                 important: false,
                 source_order: 2,
             },
             BoxLonghandInputV0 {
-                property: "margin-bottom".to_string(),
+                property: AuthoredPropertyTextV0::new("margin-bottom"),
                 value: "3px".to_string(),
                 important: false,
                 source_order: 3,
             },
             BoxLonghandInputV0 {
-                property: "margin-left".to_string(),
+                property: AuthoredPropertyTextV0::new("margin-left"),
                 value: "4px".to_string(),
                 important: false,
                 source_order: 4,
@@ -2103,9 +2352,14 @@ fn box_shorthand_uses_property_authority_without_rewriting_authored_names() {
     );
 
     assert!(proof.accepted);
-    assert_eq!(proof.shorthand_property, "MARGIN");
+    assert!(
+        proof
+            .shorthand_property
+            .to_property_name()
+            .same_as(&PropertyNameV0::standard("MARGIN"))
+    );
     assert_eq!(
-        proof.ordered_longhand_properties,
+        rendered_authored_properties(&proof.ordered_longhand_properties),
         vec![
             r"MARGIN-\74 OP".to_string(),
             "MARGIN-RIGHT".to_string(),
@@ -2121,25 +2375,25 @@ fn blocks_box_shorthand_combination_when_intervening_order_is_possible() {
         "padding",
         &[
             BoxLonghandInputV0 {
-                property: "padding-top".to_string(),
+                property: AuthoredPropertyTextV0::new("padding-top"),
                 value: "1px".to_string(),
                 important: false,
                 source_order: 1,
             },
             BoxLonghandInputV0 {
-                property: "padding-right".to_string(),
+                property: AuthoredPropertyTextV0::new("padding-right"),
                 value: "2px".to_string(),
                 important: false,
                 source_order: 3,
             },
             BoxLonghandInputV0 {
-                property: "padding-bottom".to_string(),
+                property: AuthoredPropertyTextV0::new("padding-bottom"),
                 value: "3px".to_string(),
                 important: false,
                 source_order: 4,
             },
             BoxLonghandInputV0 {
-                property: "padding-left".to_string(),
+                property: AuthoredPropertyTextV0::new("padding-left"),
                 value: "4px".to_string(),
                 important: false,
                 source_order: 5,
@@ -2541,25 +2795,25 @@ fn modal_check_witness_consolidates_existing_proof_witnesses_as_strict_superset(
         "margin",
         &[
             BoxLonghandInputV0 {
-                property: "margin-top".to_string(),
+                property: AuthoredPropertyTextV0::new("margin-top"),
                 value: "1px".to_string(),
                 important: false,
                 source_order: 1,
             },
             BoxLonghandInputV0 {
-                property: "margin-right".to_string(),
+                property: AuthoredPropertyTextV0::new("margin-right"),
                 value: "2px".to_string(),
                 important: false,
                 source_order: 2,
             },
             BoxLonghandInputV0 {
-                property: "margin-bottom".to_string(),
+                property: AuthoredPropertyTextV0::new("margin-bottom"),
                 value: "3px".to_string(),
                 important: false,
                 source_order: 3,
             },
             BoxLonghandInputV0 {
-                property: "margin-left".to_string(),
+                property: AuthoredPropertyTextV0::new("margin-left"),
                 value: "4px".to_string(),
                 important: false,
                 source_order: 4,
@@ -3079,7 +3333,7 @@ fn unknown_specificity_axis_blocks_later_scope_when_boundary_completions_disagre
 #[test]
 fn inexact_specificity_reaches_computed_value_as_indeterminate() {
     let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: "color".to_string(),
+        property: AuthoredPropertyTextV0::new("color"),
         declarations: vec![declaration_with_specificity_exactness(
             "inexact",
             "red",
@@ -3764,10 +4018,11 @@ fn summarizes_custom_property_least_fixed_point() {
             .contains(&"customPropertyLeastFixedPointTrace")
     );
     assert!(summary.entries.iter().any(|entry| {
-        entry.name == "--alias" && entry.resolved == CascadeValue::Literal("red".to_string())
+        entry.name.as_str() == "--alias"
+            && entry.resolved == CascadeValue::Literal("red".to_string())
     }));
     assert!(summary.entries.iter().any(|entry| {
-        entry.name == "--shadow"
+        entry.name.as_str() == "--shadow"
             && entry.resolved
                 == CascadeValue::Composite(vec![
                     CascadeValue::Literal("0 0 ".to_string()),
@@ -3775,7 +4030,7 @@ fn summarizes_custom_property_least_fixed_point() {
                 ])
     }));
     assert!(summary.entries.iter().any(|entry| {
-        entry.name == "--cycle-a" && entry.resolved == CascadeValue::GuaranteedInvalid
+        entry.name.as_str() == "--cycle-a" && entry.resolved == CascadeValue::GuaranteedInvalid
     }));
 }
 
@@ -3818,21 +4073,21 @@ fn classifies_guaranteed_invalid_custom_property_causes() {
         .collect::<BTreeMap<_, _>>();
 
     assert_eq!(
-        reasons.get("--cycle-a"),
+        reasons.get(&custom_property_key("--cycle-a")),
         Some(&Some(CustomPropertyGuaranteedInvalidReasonV0::CycleMember))
     );
     assert_eq!(
-        reasons.get("--cycle-b"),
+        reasons.get(&custom_property_key("--cycle-b")),
         Some(&Some(CustomPropertyGuaranteedInvalidReasonV0::CycleMember))
     );
     assert_eq!(
-        reasons.get("--missing-user"),
+        reasons.get(&custom_property_key("--missing-user")),
         Some(&Some(
             CustomPropertyGuaranteedInvalidReasonV0::MissingReference
         ))
     );
     assert_eq!(
-        reasons.get("--cycle-user"),
+        reasons.get(&custom_property_key("--cycle-user")),
         Some(&Some(
             CustomPropertyGuaranteedInvalidReasonV0::InvalidDependencyWithoutFallback
         ))

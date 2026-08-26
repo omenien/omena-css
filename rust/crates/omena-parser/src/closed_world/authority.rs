@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0};
+use omena_syntax::ident::{AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0};
 
 use super::contract::{
     ClosedWorldBundleBuildErrorV0, ClosedWorldBundleEvidenceV0, ClosedWorldBundleV0,
@@ -374,19 +374,19 @@ fn dedupe_symbol_names(names: &[String]) -> Vec<String> {
         .collect()
 }
 
-fn dedupe_custom_property_names(names: &[String]) -> Vec<String> {
+fn dedupe_custom_property_names(names: &[AuthoredPropertyTextV0]) -> Vec<AuthoredPropertyTextV0> {
     let mut by_identity = BTreeMap::new();
     extend_custom_property_names(&mut by_identity, names.iter().cloned());
     by_identity.into_values().collect()
 }
 
 fn extend_custom_property_names(
-    by_identity: &mut BTreeMap<CanonicalCustomPropertyNameV0, String>,
-    names: impl IntoIterator<Item = String>,
+    by_identity: &mut BTreeMap<CanonicalCustomPropertyNameV0, AuthoredPropertyTextV0>,
+    names: impl IntoIterator<Item = AuthoredPropertyTextV0>,
 ) {
     for authored in names {
         by_identity
-            .entry(PropertyNameV0::canonical_custom_key(&authored))
+            .entry(authored.to_custom_key())
             .or_insert(authored);
     }
 }
@@ -512,7 +512,7 @@ fn stable_closure_hash(
     }
     for name in reachability.custom_property_names() {
         hash.piece("custom-property");
-        hash.piece(PropertyNameV0::canonical_custom_key(name).as_str());
+        hash.piece(name.to_custom_key().as_str());
     }
     hash.finish_hex()
 }

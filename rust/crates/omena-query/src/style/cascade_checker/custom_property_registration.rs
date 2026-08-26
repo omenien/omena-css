@@ -4,7 +4,7 @@ use omena_parser::{LexedToken, lex};
 use omena_query_checker_orchestrator::OmenaCheckerCustomPropertyRegistrationInputV0;
 use omena_syntax::{
     SyntaxKind,
-    ident::{PropertyNameKindV0, PropertyNameV0},
+    ident::{AuthoredPropertyTextV0, PropertyNameKindV0, PropertyNameV0},
 };
 
 use super::omena_parser_dialect_for_style_path;
@@ -110,10 +110,10 @@ fn skip_query_trivia(tokens: &[LexedToken], mut index: usize, end: usize) -> usi
     index
 }
 
-fn normalize_query_checker_custom_property_name(text: &str) -> Option<String> {
+fn normalize_query_checker_custom_property_name(text: &str) -> Option<AuthoredPropertyTextV0> {
     let property = PropertyNameV0::from_authored(text);
     (property.kind() == PropertyNameKindV0::Custom && property.canonical_name().len() > 2)
-        .then(|| property.authored_text().to_string())
+        .then(|| property.authored_text())
 }
 
 fn find_query_registration_block_start(tokens: &[LexedToken], index: usize) -> Option<usize> {

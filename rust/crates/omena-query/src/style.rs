@@ -114,13 +114,13 @@ pub use transform::*;
 
 mod cascade_checker;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCascadeSectionOutcomeV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub selector: String,
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
     pub winning_value: String,
 }
 
@@ -132,15 +132,36 @@ pub struct OmenaQueryCascadeSectionOutcomeV0 {
     since = "0.4.0",
     note = "use OmenaQueryCascadeSectionOutcomeV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
 )]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCascadeSiteOutcomeV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub selector: String,
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
     pub winning_value: String,
 }
+
+macro_rules! impl_cascade_outcome_identity {
+    ($type_name:ty) => {
+        #[allow(deprecated)]
+        impl PartialEq for $type_name {
+            fn eq(&self, other: &Self) -> bool {
+                self.schema_version == other.schema_version
+                    && self.product == other.product
+                    && self.selector == other.selector
+                    && self.property.to_standard_key() == other.property.to_standard_key()
+                    && self.winning_value == other.winning_value
+            }
+        }
+
+        #[allow(deprecated)]
+        impl Eq for $type_name {}
+    };
+}
+
+impl_cascade_outcome_identity!(OmenaQueryCascadeSectionOutcomeV0);
+impl_cascade_outcome_identity!(OmenaQueryCascadeSiteOutcomeV0);
 
 /// Project the CST-backed cascade declaration facts and ranker onto selector/property
 /// outcomes.
@@ -174,7 +195,11 @@ pub fn summarize_omena_query_cascade_section_outcomes_from_source(
     outcomes.sort_by(|left, right| {
         left.selector
             .cmp(&right.selector)
-            .then_with(|| left.property.cmp(&right.property))
+            .then_with(|| {
+                left.property
+                    .to_standard_key()
+                    .cmp(&right.property.to_standard_key())
+            })
             .then_with(|| left.winning_value.cmp(&right.winning_value))
     });
     outcomes
@@ -235,7 +260,10 @@ mod cascade_section_outcome_tests {
         assert_eq!(outcomes.len(), 1);
         assert_eq!(outcomes[0].product, "omena-query.cascade-section-outcome");
         assert_eq!(outcomes[0].selector, ".card");
-        assert_eq!(outcomes[0].property, "color");
+        assert_eq!(
+            outcomes[0].property.to_standard_key(),
+            AuthoredPropertyTextV0::new("color").to_standard_key()
+        );
         assert_eq!(outcomes[0].winning_value, "blue");
     }
 
@@ -342,9 +370,12 @@ pub fn summarize_omena_query_custom_property_occurrence_index(
                 start: u32::from(fact.range.start()) as usize,
                 end: u32::from(fact.range.end()) as usize,
             };
+            let Some(name) = fact.name.as_custom_property().cloned() else {
+                continue;
+            };
             occurrences.push(OmenaQueryCustomPropertyOccurrenceV0 {
                 uri: style.style_path.clone(),
-                name: fact.name,
+                name,
                 property_key,
                 range: parser_range_for_byte_span(style.style_source.as_str(), byte_span),
                 byte_span,
@@ -1854,7 +1885,8 @@ fn sass_module_public_member_names_from_parser_facts(
         .variables
         .iter()
         .filter(|fact| fact.kind == ParsedVariableFactKind::ScssDeclaration && fact.is_top_level)
-        .filter_map(|fact| canonical_public_sass_member_name(fact.name.as_str()))
+        .filter_map(|fact| fact.name.as_non_property())
+        .filter_map(canonical_public_sass_member_name)
         .collect();
     let mixin_names = facts
         .sass_symbols
@@ -1888,29 +1920,39 @@ fn style_selector_definitions_for_query(
     ) else {
         return Vec::new();
     };
-    let mut definitions = candidates
+    let mut keyed_definitions = Vec::new();
+    for candidate in candidates
         .candidates
         .into_iter()
-        .filter_map(|candidate| {
-            (candidate.kind == "selector").then(|| OmenaQueryStyleSelectorDefinitionV0 {
+        .filter(|candidate| candidate.kind == "selector")
+    {
+        let mut name = String::new();
+        let _ = omena_syntax::ident::render_authored(&candidate.name, &mut name);
+        let identity_key = canonical_class_key(&name);
+        keyed_definitions.push((
+            identity_key,
+            OmenaQueryStyleSelectorDefinitionV0 {
                 uri: entry.style_path.clone(),
-                name: candidate.name.to_string(),
+                name,
                 range: candidate.range,
-            })
-        })
-        .collect::<Vec<_>>();
-    definitions.sort_by_key(|definition| {
+            },
+        ));
+    }
+    keyed_definitions.sort_by_key(|(identity_key, definition)| {
         (
             definition.uri.clone(),
             definition.range.start.line,
             definition.range.start.character,
-            definition.name.clone(),
+            identity_key.clone(),
         )
     });
-    definitions.dedup_by(|left, right| {
-        left.uri == right.uri && left.name == right.name && left.range == right.range
+    keyed_definitions.dedup_by(|(left_key, left), (right_key, right)| {
+        left.uri == right.uri && left_key == right_key && left.range == right.range
     });
-    definitions
+    keyed_definitions
+        .into_iter()
+        .map(|(_, definition)| definition)
+        .collect()
 }
 
 fn custom_property_decl_names_for_query(
@@ -1923,7 +1965,7 @@ fn custom_property_decl_names_for_query(
             index
                 .custom_property_decl_names
                 .iter()
-                .filter_map(|name| PropertyNameV0::from_authored(name).as_custom_key())
+                .map(AuthoredPropertyTextV0::to_custom_key)
                 .collect()
         })
         .unwrap_or_else(|| {
@@ -1931,7 +1973,7 @@ fn custom_property_decl_names_for_query(
                 .facts
                 .custom_property_decl_names
                 .iter()
-                .filter_map(|name| PropertyNameV0::from_authored(name).as_custom_key())
+                .map(AuthoredPropertyTextV0::to_custom_key)
                 .collect()
         })
 }
@@ -1946,7 +1988,7 @@ fn custom_property_ref_names_for_query(
             index
                 .custom_property_ref_names
                 .iter()
-                .filter_map(|name| PropertyNameV0::from_authored(name).as_custom_key())
+                .map(AuthoredPropertyTextV0::to_custom_key)
                 .collect()
         })
         .unwrap_or_else(|| {
@@ -1954,7 +1996,7 @@ fn custom_property_ref_names_for_query(
                 .facts
                 .custom_property_ref_names
                 .iter()
-                .filter_map(|name| PropertyNameV0::from_authored(name).as_custom_key())
+                .map(AuthoredPropertyTextV0::to_custom_key)
                 .collect()
         })
 }
@@ -3884,6 +3926,7 @@ fn collect_style_selector_hover_candidates_from_omena_parser_facts(
             candidates.push(OmenaQueryStyleHoverCandidateV0 {
                 kind: "selector",
                 name: AuthoredPropertyTextV0::new(fact.name.clone()),
+                selector_key: Some(ClassNameV0::new(&fact.name).canonical_key()),
                 property_key: None,
                 range: parser_range_for_byte_span(source, byte_span),
                 source: "omenaParserSelectorFacts",
@@ -3911,11 +3954,22 @@ fn collect_custom_property_hover_candidates_from_omena_parser_facts(
             start: start as usize,
             end: end as usize,
         };
-        if seen.insert((byte_span.start, byte_span.end, fact.name.clone())) {
+        let Some(property_key) = fact.property_key.clone() else {
+            continue;
+        };
+        let Some(name) = fact.name.as_custom_property().cloned() else {
+            continue;
+        };
+        if seen.insert((
+            byte_span.start,
+            byte_span.end,
+            property_key.as_str().to_string(),
+        )) {
             candidates.push(OmenaQueryStyleHoverCandidateV0 {
                 kind,
-                name: AuthoredPropertyTextV0::new(fact.name.clone()),
-                property_key: fact.property_key.clone(),
+                name,
+                selector_key: None,
+                property_key: Some(property_key),
                 range: parser_range_for_byte_span(source, byte_span),
                 source: "omenaParserVariableFacts",
                 namespace: None,
@@ -3962,6 +4016,7 @@ fn collect_sass_symbol_hover_candidates_from_omena_parser_facts(
             candidates.push(OmenaQueryStyleHoverCandidateV0 {
                 kind,
                 name: AuthoredPropertyTextV0::new(fact.name.clone()),
+                selector_key: None,
                 property_key: None,
                 range: parser_range_for_byte_span(source, byte_span),
                 source: "omenaParserSassSymbolFacts",
@@ -3988,7 +4043,8 @@ fn collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts(
             if seen.insert((range_span.start, range_span.end, selector_name.clone())) {
                 candidates.push(OmenaQueryStyleHoverCandidateV0 {
                     kind: "selector",
-                    name: AuthoredPropertyTextV0::new(selector_name),
+                    name: AuthoredPropertyTextV0::new(selector_name.clone()),
+                    selector_key: Some(ClassNameV0::new(selector_name).canonical_key()),
                     property_key: None,
                     range: parser_range_for_byte_span(source, range_span),
                     source: "sassPartialEvaluatorGeneratedSelectors",

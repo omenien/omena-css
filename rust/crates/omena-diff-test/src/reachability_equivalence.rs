@@ -23,6 +23,7 @@ use omena_streaming_ifds::{
     run_demand_sliced_monotone_fact_propagation_demand_v0,
     run_demand_sliced_monotone_fact_propagation_exact_v0,
 };
+use omena_syntax::ident::AuthoredPropertyTextV0;
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -553,7 +554,7 @@ fn closure_hash_bitset_parity_fixtures_v0() -> Vec<ClosureHashBitsetParityFixtur
                     .with_value_name("spacing"),
                 ClosedWorldLinkedModuleV0::new(theme)
                     .with_keyframe_name("fade")
-                    .with_custom_property_name("--brand"),
+                    .with_custom_property_name(AuthoredPropertyTextV0::new("--brand")),
             ],
         },
         ClosureHashBitsetParityFixtureV0 {

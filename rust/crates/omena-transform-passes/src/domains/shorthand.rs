@@ -317,7 +317,7 @@ fn box_shorthand_replacement_for_declarations(
     let proof_inputs = declarations
         .iter()
         .map(|declaration| LonghandMergeInputV0 {
-            property: declaration.property.to_string(),
+            property: declaration.property.clone(),
             value: declaration.value.clone(),
             important: declaration.important,
             source_order: declaration.source_order,
@@ -523,12 +523,12 @@ fn longhand_merge_proof_candidate(
 ) -> Option<LonghandMergeProofCandidateV0> {
     let expected_longhands = declarations
         .iter()
-        .map(|declaration| declaration.property.to_string())
+        .map(|declaration| declaration.property.to_standard_key().as_str().to_string())
         .collect::<Vec<_>>();
     let proof_inputs = declarations
         .iter()
         .map(|declaration| LonghandMergeInputV0 {
-            property: declaration.property.to_string(),
+            property: declaration.property.clone(),
             value: declaration.value.clone(),
             important: declaration.important,
             source_order: declaration.source_order,

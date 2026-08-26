@@ -1,5 +1,5 @@
 use super::*;
-use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0};
+use omena_syntax::ident::CanonicalCustomPropertyNameV0;
 
 #[cfg(any(test, feature = "test-support"))]
 thread_local! {
@@ -263,6 +263,8 @@ fn summarize_omena_query_cross_file_summary_from_design_token_surfaces(
             let provenance = target.provenance();
             let target_style_path = target.target_style_path;
             let status = target.status;
+            let mut rendered_authored = String::new();
+            let _ = omena_syntax::ident::render_authored(authored, &mut rendered_authored);
             edges.push(build_omena_query_cross_file_summary_edge(
                 OmenaQueryCrossFileSummaryEdgeInput {
                     edge_kind: "styleDesignTokenReference",
@@ -272,9 +274,9 @@ fn summarize_omena_query_cross_file_summary_from_design_token_surfaces(
                     target_path: target_style_path,
                     source: None,
                     owner_selector_name: None,
-                    local_name: Some(authored.clone()),
+                    local_name: Some(rendered_authored.clone()),
                     remote_name: None,
-                    target_names: vec![authored.clone()],
+                    target_names: vec![rendered_authored],
                     status,
                     provenance,
                 },
@@ -341,11 +343,11 @@ struct DesignTokenReachableStylePath {
     target_style_path: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 struct OmenaQueryStyleDesignTokenSurfaceV0 {
     style_path: String,
-    custom_property_declarations: BTreeMap<CanonicalCustomPropertyNameV0, String>,
-    custom_property_references: BTreeMap<CanonicalCustomPropertyNameV0, String>,
+    custom_property_declarations: BTreeMap<CanonicalCustomPropertyNameV0, AuthoredPropertyTextV0>,
+    custom_property_references: BTreeMap<CanonicalCustomPropertyNameV0, AuthoredPropertyTextV0>,
 }
 
 fn style_design_token_surface_for_entry(
@@ -369,12 +371,22 @@ fn style_design_token_surface_for_module_interface(
         custom_property_declarations: projection
             .custom_property_decl_names
             .iter()
-            .map(|key| (key.clone(), key.as_str().to_string()))
+            .map(|key| {
+                (
+                    key.clone(),
+                    AuthoredPropertyTextV0::new(key.as_str().to_string()),
+                )
+            })
             .collect(),
         custom_property_references: projection
             .custom_property_ref_names
             .iter()
-            .map(|key| (key.clone(), key.as_str().to_string()))
+            .map(|key| {
+                (
+                    key.clone(),
+                    AuthoredPropertyTextV0::new(key.as_str().to_string()),
+                )
+            })
             .collect(),
     }
 }
@@ -436,8 +448,8 @@ fn collect_design_token_reachable_style_paths_by_origin(
 fn custom_property_index_names_for_entry(
     entry: &OmenaQueryStyleFactEntry,
 ) -> (
-    BTreeMap<CanonicalCustomPropertyNameV0, String>,
-    BTreeMap<CanonicalCustomPropertyNameV0, String>,
+    BTreeMap<CanonicalCustomPropertyNameV0, AuthoredPropertyTextV0>,
+    BTreeMap<CanonicalCustomPropertyNameV0, AuthoredPropertyTextV0>,
 ) {
     let (declaration_names, reference_names) =
         if let Some(index) = entry.semantic_runtime_index.as_ref() {
@@ -459,15 +471,11 @@ fn custom_property_index_names_for_entry(
 }
 
 fn canonical_custom_property_spellings<'a>(
-    names: impl IntoIterator<Item = &'a String>,
-) -> BTreeMap<CanonicalCustomPropertyNameV0, String> {
+    names: impl IntoIterator<Item = &'a AuthoredPropertyTextV0>,
+) -> BTreeMap<CanonicalCustomPropertyNameV0, AuthoredPropertyTextV0> {
     names
         .into_iter()
-        .filter_map(|name| {
-            PropertyNameV0::from_authored(name)
-                .as_custom_key()
-                .map(|property_key| (property_key, name.clone()))
-        })
+        .map(|name| (name.to_custom_key(), name.clone()))
         .collect()
 }
 

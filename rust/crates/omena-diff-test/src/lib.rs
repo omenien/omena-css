@@ -62,7 +62,7 @@ use omena_sif::{
     OmenaSifExportsV1, OmenaSifGeneratorV1, OmenaSifSourceSyntaxV1, OmenaSifSourceV1, OmenaSifV1,
     OmenaSifVariableExportV1,
 };
-use omena_syntax::ident::property_names_same;
+use omena_syntax::ident::{property_names_same, render_authored};
 use omena_testkit::{
     OmenaFixtureDiagnosticV0, OmenaFixtureExpectationOutcomeV0, evaluate_omena_fixture_v0_with,
 };
@@ -1972,7 +1972,11 @@ pub fn compare_omena_parser_with_legacy(
         field_report(
             "customPropertyNames",
             legacy_custom_properties,
-            omena_summary.custom_property_names,
+            omena_summary.custom_property_names.into_iter().map(|name| {
+                let mut rendered = String::new();
+                let _ = render_authored(&name, &mut rendered);
+                rendered
+            }),
         ),
     ];
 
@@ -2438,10 +2442,16 @@ fn style_fact_category_value_sets(facts: &ParsedStyleFacts) -> Vec<(&'static str
         (
             "variables",
             sorted_unique(facts.variables.iter().map(|fact| {
-                format!(
-                    "{:?}:{}:fallback={}",
-                    fact.kind, fact.name, fact.has_fallback
-                )
+                let name = if let Some(name) = fact.name.as_non_property() {
+                    name.to_string()
+                } else if let Some(name) = fact.name.as_custom_property() {
+                    let mut rendered = String::new();
+                    let _ = render_authored(name, &mut rendered);
+                    rendered
+                } else {
+                    String::new()
+                };
+                format!("{:?}:{}:fallback={}", fact.kind, name, fact.has_fallback)
             })),
         ),
         (

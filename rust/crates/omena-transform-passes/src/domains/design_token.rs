@@ -1,5 +1,8 @@
 use omena_parser::StyleDialect;
-use omena_syntax::ident::{CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0, PropertyNameV0};
+use omena_syntax::ident::{
+    AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0, PropertyNameV0,
+    render_authored,
+};
 use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -110,10 +113,16 @@ fn collect_design_token_route_replacements(
             } else {
                 ""
             };
+            let mut replacement = String::new();
+            let _ = render_authored(&declaration.property, &mut replacement);
+            replacement.push_str(": ");
+            replacement.push_str(routed_value.as_str());
+            replacement.push_str(important);
+            replacement.push(';');
             replacements.push(TransformIrSourceReplacementV0 {
                 source_span_start: declaration.start,
                 source_span_end: declaration.end,
-                replacement: format!("{}: {routed_value}{important};", declaration.property),
+                replacement,
                 kind: TransformIrReplacementKindV0::CustomPropertyReference,
             });
         }
@@ -130,7 +139,7 @@ struct DesignTokenAtRuleViewV0<'source> {
 }
 
 struct DesignTokenDeclarationViewV0 {
-    property: String,
+    property: AuthoredPropertyTextV0,
     property_key: CanonicalPropertyKeyV0,
     value: String,
     important: bool,
@@ -192,10 +201,16 @@ fn collect_design_token_route_replacements_from_ir(
         } else {
             ""
         };
+        let mut replacement = String::new();
+        let _ = render_authored(&declaration.property, &mut replacement);
+        replacement.push_str(": ");
+        replacement.push_str(routed_value.as_str());
+        replacement.push_str(important);
+        replacement.push(';');
         replacements.push(TransformIrSourceReplacementV0 {
             source_span_start: declaration.source_span_start,
             source_span_end: declaration.source_span_end,
-            replacement: format!("{}: {routed_value}{important};", declaration.property),
+            replacement,
             kind: TransformIrReplacementKindV0::Declaration,
         });
     }
@@ -298,7 +313,7 @@ fn design_token_declaration_view_from_ir(
     }
     let property_name = PropertyNameV0::from_authored(property);
     Some(DesignTokenDeclarationViewV0 {
-        property: property_name.authored_text().to_string(),
+        property: property_name.authored_text(),
         property_key: property_name.canonical_key(),
         value: value.to_string(),
         important: declaration_value_without_important(value).is_some(),
@@ -515,7 +530,10 @@ fn design_token_routed_value<'a>(
     routes: &'a [TransformDesignTokenRouteV0],
 ) -> Option<&'a str> {
     routes.iter().find_map(|route| {
-        let route_name = normalize_design_token_name(&route.token_name)?;
+        let route_name = route.token_name.to_property_name().as_custom_key()?;
+        if route_name.as_str().len() <= 2 {
+            return None;
+        }
         let routed_value = route.routed_value.trim();
         if routed_value.is_empty() || routed_value.chars().any(|ch| matches!(ch, ';' | '{' | '}')) {
             return None;

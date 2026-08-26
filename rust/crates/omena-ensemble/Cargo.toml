@@ -23,6 +23,7 @@ sequential = []
 
 [dependencies]
 omena-cascade = { path = "../omena-cascade", version = "=0.4.0" }
+omena-syntax = { path = "../omena-syntax", version = "=0.4.0" }
 serde.workspace = true
 
 [dev-dependencies]

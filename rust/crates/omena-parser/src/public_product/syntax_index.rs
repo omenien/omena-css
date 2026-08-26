@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use cstree::syntax::SyntaxNode;
-use omena_syntax::ident::{CanonicalPropertyKeyV0, PropertyNameKindV0, PropertyNameV0};
+use omena_syntax::ident::{
+    AuthoredPropertyTextV0, CanonicalPropertyKeyV0, PropertyNameKindV0, PropertyNameV0,
+};
 use omena_syntax::{SyntaxKind, css_keyword};
 
 use crate::{ParseResult, ParserByteSpanV0, StyleDialect, is_at_rule_node_kind, parse};
@@ -18,11 +20,11 @@ pub struct ParserDeclarationSelectorContextV0 {
 }
 
 /// CST-owned syntax projection for one declaration.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct ParserDeclarationSyntaxFactV0 {
     pub byte_span: ParserByteSpanV0,
     /// Authored spelling without surrounding declaration trivia.
-    pub property_name: String,
+    pub property_name: AuthoredPropertyTextV0,
     /// The sole identity carrier used by downstream declaration consumers.
     pub property_key: CanonicalPropertyKeyV0,
     pub value_span: ParserByteSpanV0,
@@ -32,6 +34,21 @@ pub struct ParserDeclarationSyntaxFactV0 {
     pub condition_contexts: Vec<String>,
     pub source_order: usize,
 }
+
+impl PartialEq for ParserDeclarationSyntaxFactV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.byte_span == other.byte_span
+            && self.property_key == other.property_key
+            && self.value_span == other.value_span
+            && self.value_text == other.value_text
+            && self.important == other.important
+            && self.selector_contexts == other.selector_contexts
+            && self.condition_contexts == other.condition_contexts
+            && self.source_order == other.source_order
+    }
+}
+
+impl Eq for ParserDeclarationSyntaxFactV0 {}
 
 #[derive(Default)]
 struct DeclarationContextCache {
@@ -163,9 +180,12 @@ impl ProductSyntaxIndexV0 {
         )
     }
 
-    pub(super) fn declaration_property_name_for_offset(&self, offset: usize) -> Option<&str> {
+    pub(super) fn declaration_property_key_for_offset(
+        &self,
+        offset: usize,
+    ) -> Option<CanonicalPropertyKeyV0> {
         self.declaration_for_offset(offset)
-            .map(|declaration| declaration.property_name.as_str())
+            .map(|declaration| declaration.property_key.clone())
     }
 
     pub(super) fn declaration_value_text(&self, source: &str, offset: usize) -> Option<String> {
@@ -313,7 +333,7 @@ fn declaration_syntax_with_context(
             PropertyNameKindV0::Standard
         },
     );
-    let property_name = property.authored_text().to_string();
+    let property_name = property.authored_text();
     let property_key = property.canonical_key();
     let value_text = value_text.trim().to_string();
     (!property_name.is_empty()).then_some(ParserDeclarationSyntaxFactV0 {

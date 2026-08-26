@@ -61,9 +61,9 @@ pub use facts::{
     ParsedSassModuleEdgeFactKind, ParsedSassPlaceholderDefinitionFact, ParsedSassSymbolFact,
     ParsedSassSymbolFactKind, ParsedSelectorFact, ParsedSelectorFactKind,
     ParsedStyleFactCollectionV0, ParsedStyleFacts, ParsedVariableFact, ParsedVariableFactKind,
-    collect_emission_selector_facts_from_cst, collect_icss_export_values_from_cst,
-    collect_style_fact_collection_with_extension, collect_style_facts_with_extension,
-    facts_from_cst,
+    ParsedVariableFactNameV0, collect_emission_selector_facts_from_cst,
+    collect_icss_export_values_from_cst, collect_style_fact_collection_with_extension,
+    collect_style_facts_with_extension, facts_from_cst,
 };
 pub(crate) use facts::{
     SelectorBranch, collect_class_selector_names_from_header,

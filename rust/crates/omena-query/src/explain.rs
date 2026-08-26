@@ -8,6 +8,7 @@ use omena_query_transform_runner::{
     TransformDecision, TransformExecutionContextV0, TransformSemanticGuaranteeTierV0,
     TransformStrictPolicyEventV0, TransformStrictPolicySummaryV0,
 };
+use omena_syntax::ident::PropertyNameV0;
 use serde::Serialize;
 
 use crate::{
@@ -645,15 +646,30 @@ fn flat_symbol_is_reachable(
     symbol_name: &str,
 ) -> bool {
     match symbol_kind {
-        OmenaQueryExplainSymbolKindV0::Class => bundle.reachability().class_names(),
-        OmenaQueryExplainSymbolKindV0::Keyframes => bundle.reachability().keyframe_names(),
-        OmenaQueryExplainSymbolKindV0::Value => bundle.reachability().value_names(),
+        OmenaQueryExplainSymbolKindV0::Class => bundle
+            .reachability()
+            .class_names()
+            .iter()
+            .any(|candidate| candidate == symbol_name),
+        OmenaQueryExplainSymbolKindV0::Keyframes => bundle
+            .reachability()
+            .keyframe_names()
+            .iter()
+            .any(|candidate| candidate == symbol_name),
+        OmenaQueryExplainSymbolKindV0::Value => bundle
+            .reachability()
+            .value_names()
+            .iter()
+            .any(|candidate| candidate == symbol_name),
         OmenaQueryExplainSymbolKindV0::CustomProperty => {
-            bundle.reachability().custom_property_names()
+            let symbol_key = PropertyNameV0::canonical_custom_key(symbol_name);
+            bundle
+                .reachability()
+                .custom_property_names()
+                .iter()
+                .any(|candidate| candidate.to_custom_key() == symbol_key)
         }
     }
-    .iter()
-    .any(|candidate| candidate == symbol_name)
 }
 
 fn module_symbol_is_reachable(
@@ -662,13 +678,26 @@ fn module_symbol_is_reachable(
     symbol_name: &str,
 ) -> bool {
     match symbol_kind {
-        OmenaQueryExplainSymbolKindV0::Class => symbols.class_names(),
-        OmenaQueryExplainSymbolKindV0::Keyframes => symbols.keyframe_names(),
-        OmenaQueryExplainSymbolKindV0::Value => symbols.value_names(),
-        OmenaQueryExplainSymbolKindV0::CustomProperty => symbols.custom_property_names(),
+        OmenaQueryExplainSymbolKindV0::Class => symbols
+            .class_names()
+            .iter()
+            .any(|candidate| candidate == symbol_name),
+        OmenaQueryExplainSymbolKindV0::Keyframes => symbols
+            .keyframe_names()
+            .iter()
+            .any(|candidate| candidate == symbol_name),
+        OmenaQueryExplainSymbolKindV0::Value => symbols
+            .value_names()
+            .iter()
+            .any(|candidate| candidate == symbol_name),
+        OmenaQueryExplainSymbolKindV0::CustomProperty => {
+            let symbol_key = PropertyNameV0::canonical_custom_key(symbol_name);
+            symbols
+                .custom_property_names()
+                .iter()
+                .any(|candidate| candidate.to_custom_key() == symbol_key)
+        }
     }
-    .iter()
-    .any(|candidate| candidate == symbol_name)
 }
 
 pub fn explain_omena_query_tree_shake_unavailable(

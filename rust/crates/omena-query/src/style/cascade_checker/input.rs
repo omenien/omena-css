@@ -17,7 +17,11 @@ use omena_semantic::{
     summarize_style_layer_order_from_source,
 };
 use omena_syntax::StyleDialect;
-use omena_syntax::ident::{CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0, PropertyNameV0};
+#[cfg(test)]
+use omena_syntax::ident::PropertyNameV0;
+use omena_syntax::ident::{
+    AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0,
+};
 
 use super::super::{
     ParserByteSpanV0, ParserRangeV0, omena_parser_dialect_for_style_path,
@@ -63,13 +67,13 @@ pub(super) fn collect_query_checker_cascade_input(
             .entries
             .into_iter()
             .filter(|entry| entry.guaranteed_invalid)
-            .map(|entry| PropertyNameV0::canonical_custom_key(entry.name))
+            .map(|entry| entry.name)
             .collect::<BTreeSet<_>>();
     let mut custom_properties_by_name = BTreeMap::<
         CanonicalCustomPropertyNameV0,
         (
-            String,
-            BTreeMap<CanonicalCustomPropertyNameV0, String>,
+            AuthoredPropertyTextV0,
+            BTreeMap<CanonicalCustomPropertyNameV0, AuthoredPropertyTextV0>,
             bool,
             ParserByteSpanV0,
         ),
@@ -532,7 +536,7 @@ fn push_query_checker_declaration(
         input: OmenaCheckerCascadeDeclarationInputV0 {
             declaration_id,
             selector: CanonicalSelector::from_canonical(selector),
-            property: property.to_string(),
+            property: AuthoredPropertyTextV0::new(property),
             value: value.clone(),
             source_order: source_order.min(u32::MAX as usize) as u32,
             condition_context: scope.condition_context.clone(),
@@ -587,6 +591,12 @@ mod layer_binding_tests {
         run_omena_query_checker_cascade_gate_with_standard_property_value_verdicts_v0,
     };
 
+    fn authored_text(property: &AuthoredPropertyTextV0) -> String {
+        let mut text = String::new();
+        let _ = omena_syntax::ident::render_authored(property, &mut text);
+        text
+    }
+
     #[test]
     fn query_property_identity_survives_fact_join_checker_and_ranking_planes() -> Result<(), String>
     {
@@ -610,11 +620,14 @@ mod layer_binding_tests {
             custom_declarations
                 .iter()
                 .map(|declaration| (
-                    declaration.input.property.as_str(),
+                    authored_text(&declaration.input.property),
                     declaration.property_key.as_str(),
                 ))
                 .collect::<Vec<_>>(),
-            [("--foo", "--foo"), ("--FOO", "--FOO")]
+            [
+                ("--foo".to_string(), "--foo"),
+                ("--FOO".to_string(), "--FOO"),
+            ]
         );
         let ranked = cascade_property(
             custom_declarations.iter().map(|declaration| {
@@ -634,7 +647,7 @@ mod layer_binding_tests {
                 ));
             }
         };
-        assert_eq!(winner.property.to_string(), "--foo");
+        assert_eq!(authored_text(&winner.property), "--foo");
         assert!(
             also_considered.is_empty(),
             "custom-property case must stay split"
@@ -650,7 +663,11 @@ mod layer_binding_tests {
         }));
         assert!(gate.evaluations.iter().any(|evaluation| {
             evaluation.rule_code_name == "registered-property-type-mismatch"
-                && evaluation.custom_property_names == vec!["--foo"]
+                && evaluation
+                    .custom_property_names
+                    .iter()
+                    .map(authored_text)
+                    .eq(["--foo".to_string()])
         }));
         assert!(gate.evaluations.iter().any(|evaluation| {
             evaluation.rule_code_name == "unspecified-cascade-tie"
@@ -675,7 +692,7 @@ mod layer_binding_tests {
             declarations: vec![OmenaCheckerCascadeDeclarationInputV0 {
                 declaration_id: declaration_id.to_string(),
                 selector: CanonicalSelector::from_canonical(".target"),
-                property: "box-sizing".to_string(),
+                property: AuthoredPropertyTextV0::new("box-sizing"),
                 value: invalid_value.to_string(),
                 source_order: 0,
                 condition_context: Vec::new(),
@@ -695,7 +712,7 @@ mod layer_binding_tests {
                 &verdicts,
             );
         let computed = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-            property: "box-sizing".to_string(),
+            property: AuthoredPropertyTextV0::new("box-sizing"),
             declarations: vec![CascadeDeclaration {
                 id: declaration_id.to_string(),
                 property: omena_syntax::ident::AuthoredPropertyTextV0::new("box-sizing"),

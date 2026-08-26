@@ -101,6 +101,8 @@ pub(crate) fn external_sif_sass_symbol_target_for_candidate(
     let sources =
         summarize_omena_query_sass_module_sources(document.uri.as_str(), document.text.as_str())?;
     let mut visiting = BTreeSet::new();
+    let mut candidate_name = String::new();
+    let _ = omena_syntax::ident::render_authored(&candidate.name, &mut candidate_name);
     for source in resolve_omena_query_sass_module_use_sources_for_candidate(
         &sources,
         candidate.namespace.as_deref(),
@@ -110,7 +112,7 @@ pub(crate) fn external_sif_sass_symbol_target_for_candidate(
             document,
             source.as_str(),
             family,
-            candidate.name.to_string().as_str(),
+            candidate_name.as_str(),
             &mut visiting,
         ) {
             return Some(target);
@@ -125,15 +127,17 @@ pub(crate) fn external_sif_sass_symbol_target_for_candidate(
         else {
             continue;
         };
+        let mut private_name = String::new();
+        let _ = omena_syntax::ident::render_authored(&private_candidate.name, &mut private_name);
         if let Some(mut target) = external_sif_sass_symbol_target_for_module_source(
             state,
             document,
             forward_edge.source.as_str(),
             family,
-            private_candidate.name.to_string().as_str(),
+            private_name.as_str(),
             &mut visiting,
         ) {
-            target.name = candidate.name.to_string();
+            target.name = candidate_name.clone();
             return Some(target);
         }
     }
@@ -316,6 +320,8 @@ pub(crate) fn external_sif_sass_symbol_definition_location(
         summarize_omena_query_sass_module_sources(document.uri.as_str(), document.text.as_str())?;
     let mut visiting = BTreeSet::new();
     let mut target = None;
+    let mut candidate_name = String::new();
+    let _ = omena_syntax::ident::render_authored(&candidate.name, &mut candidate_name);
     for source in resolve_omena_query_sass_module_use_sources_for_candidate(
         &sources,
         candidate.namespace.as_deref(),
@@ -325,7 +331,7 @@ pub(crate) fn external_sif_sass_symbol_definition_location(
             document,
             source.as_str(),
             family,
-            candidate.name.to_string().as_str(),
+            candidate_name.as_str(),
             &mut visiting,
         );
         if target.is_some() {
@@ -356,12 +362,11 @@ fn external_sif_sass_symbol_definition_range(
     candidates
         .into_iter()
         .find(|candidate| {
+            let mut candidate_name = String::new();
+            let _ = omena_syntax::ident::render_authored(&candidate.name, &mut candidate_name);
             is_sass_symbol_declaration_kind(candidate.kind)
                 && sass_symbol_kind_from_candidate_kind(candidate.kind) == Some(target.family)
-                && sass_symbol_names_match(
-                    candidate.name.to_string().as_str(),
-                    target.name.as_str(),
-                )
+                && sass_symbol_names_match(candidate_name.as_str(), target.name.as_str())
         })
         .map(|candidate| candidate.range)
 }

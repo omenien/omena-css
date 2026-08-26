@@ -15,31 +15,33 @@ pub(crate) fn render_style_hover_candidate_markdown_from_parts(
         file_label_from_uri(document_uri),
         candidate.range.start.line + 1
     );
+    let mut candidate_name = String::new();
+    let _ = omena_syntax::ident::render_authored(&candidate.name, &mut candidate_name);
     match candidate.kind {
         "selector" => {
             let narrowing_markdown =
                 render_property_value_narrowings_markdown(&render_parts.property_value_narrowings);
             format!(
                 "**`.{}`** - _{}_\n\n```scss\n{}\n```{}",
-                candidate.name, location, render_parts.snippet, narrowing_markdown
+                candidate_name, location, render_parts.snippet, narrowing_markdown
             )
         }
         "customPropertyReference" => {
             format!(
                 "**`var({})`** - _{}_\n\n```scss\n{}\n```",
-                candidate.name, location, render_parts.snippet
+                candidate_name, location, render_parts.snippet
             )
         }
         "customPropertyDeclaration" => {
             format!(
                 "**`{}`** - _{}_\n\n```scss\n{}\n```",
-                candidate.name, location, render_parts.snippet
+                candidate_name, location, render_parts.snippet
             )
         }
         kind if is_omena_query_sass_symbol_candidate_kind(kind) => {
             render_sass_symbol_hover_markdown(candidate, location.as_str(), render_parts)
         }
-        _ => candidate.name.to_string(),
+        _ => candidate_name,
     }
 }
 
@@ -53,9 +55,11 @@ fn render_property_value_narrowings_markdown(
         .iter()
         .take(6)
         .map(|narrowing| {
+            let mut property_name = String::new();
+            let _ =
+                omena_syntax::ident::render_authored(&narrowing.property_name, &mut property_name);
             format!(
-                "- `{}`: {}{}",
-                narrowing.property_name,
+                "- `{property_name}`: {}{}",
                 render_property_value_narrowing_value(narrowing),
                 render_property_value_narrowing_context(narrowing)
             )
@@ -93,7 +97,12 @@ fn render_abstract_property_value(value: &AbstractPropertyValueV0) -> String {
             custom_property_name,
             ..
         } => {
-            format!("`var({custom_property_name})`")
+            let mut custom_property_text = String::new();
+            let _ = omena_syntax::ident::render_authored(
+                custom_property_name,
+                &mut custom_property_text,
+            );
+            format!("`var({custom_property_text})`")
         }
         AbstractPropertyValueV0::Top { .. } => "`<top>`".to_string(),
     }
@@ -159,13 +168,15 @@ fn render_sass_symbol_label(candidate: &LspStyleHoverCandidate) -> String {
         .as_deref()
         .map(|namespace| format!("{namespace}."))
         .unwrap_or_default();
+    let mut candidate_name = String::new();
+    let _ = omena_syntax::ident::render_authored(&candidate.name, &mut candidate_name);
     match omena_query_sass_symbol_kind_from_candidate_kind(candidate.kind) {
-        Some("variable") => format!("{namespace_prefix}${}", candidate.name),
+        Some("variable") => format!("{namespace_prefix}${candidate_name}"),
         Some("mixin") if is_omena_query_sass_symbol_declaration_kind(candidate.kind) => {
-            format!("@mixin {}", candidate.name)
+            format!("@mixin {candidate_name}")
         }
-        Some("mixin") => format!("@include {namespace_prefix}{}", candidate.name),
-        Some("function") => format!("{namespace_prefix}{}()", candidate.name),
-        _ => candidate.name.to_string(),
+        Some("mixin") => format!("@include {namespace_prefix}{candidate_name}"),
+        Some("function") => format!("{namespace_prefix}{candidate_name}()"),
+        _ => candidate_name,
     }
 }

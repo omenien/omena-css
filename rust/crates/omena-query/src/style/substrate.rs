@@ -254,8 +254,9 @@ pub fn summarize_omena_query_custom_property_annotations(
     let dialect = omena_parser_dialect_for_style_path(style_path);
     let facts = collect_omena_query_omena_parser_style_facts_raw(style_source, dialect);
     let mut declarations_by_name =
-        BTreeMap::<CanonicalCustomPropertyNameV0, (String, usize)>::new();
-    let mut references_by_name = BTreeMap::<CanonicalCustomPropertyNameV0, (String, usize)>::new();
+        BTreeMap::<CanonicalCustomPropertyNameV0, (AuthoredPropertyTextV0, usize)>::new();
+    let mut references_by_name =
+        BTreeMap::<CanonicalCustomPropertyNameV0, (AuthoredPropertyTextV0, usize)>::new();
 
     for fact in facts.variables {
         let Some(property_key) = fact.property_key else {
@@ -263,16 +264,22 @@ pub fn summarize_omena_query_custom_property_annotations(
         };
         match fact.kind {
             ParsedVariableFactKind::CustomPropertyDeclaration => {
+                let Some(name) = fact.name.as_custom_property().cloned() else {
+                    continue;
+                };
                 declarations_by_name
                     .entry(property_key)
                     .and_modify(|entry| entry.1 += 1)
-                    .or_insert((fact.name, 1));
+                    .or_insert((name, 1));
             }
             ParsedVariableFactKind::CustomPropertyReference => {
+                let Some(name) = fact.name.as_custom_property().cloned() else {
+                    continue;
+                };
                 references_by_name
                     .entry(property_key)
                     .and_modify(|entry| entry.1 += 1)
-                    .or_insert((fact.name, 1));
+                    .or_insert((name, 1));
             }
             _ => {}
         }
@@ -291,12 +298,10 @@ pub fn summarize_omena_query_custom_property_annotations(
             let declaration_count = declaration.map(|entry| entry.1).unwrap_or(0);
             let reference_count = reference.map(|entry| entry.1).unwrap_or(0);
             OmenaQueryCustomPropertyAnnotationV0 {
-                name: omena_syntax::ident::AuthoredPropertyTextV0::new(
-                    declaration
-                        .or(reference)
-                        .map(|entry| entry.0.clone())
-                        .unwrap_or_else(|| property_key.as_str().to_string()),
-                ),
+                name: declaration
+                    .or(reference)
+                    .map(|entry| entry.0.clone())
+                    .unwrap_or_else(|| AuthoredPropertyTextV0::new(property_key.as_str())),
                 property_key,
                 declaration_count,
                 reference_count,
@@ -332,6 +337,7 @@ mod fragile_guarded_winner_tests {
         compute_guarded_cascade_robustness_radius_v0, guarded_cascade_perturbation_cost_model_v0,
         normalized_layer_rank,
     };
+    use omena_syntax::ident::AuthoredPropertyTextV0;
 
     use super::summarize_omena_query_fragile_guarded_winner_v0;
 
@@ -343,7 +349,7 @@ mod fragile_guarded_winner_tests {
         GuardedCascadeCandidateV0::new(
             declaration_id,
             ".a",
-            "color",
+            AuthoredPropertyTextV0::new("color"),
             CascadeKey::new(
                 CascadeLevel::AuthorNormal,
                 normalized_layer_rank(false, LayerOrdinal::new(0)),

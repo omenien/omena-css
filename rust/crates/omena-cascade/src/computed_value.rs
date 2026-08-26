@@ -3,14 +3,14 @@
 //! This module owns the seed implementation for turning a cascaded declaration
 //! into a computed value witness without hiding indeterminate cascade outcomes.
 
-use omena_syntax::ident::{PropertyNameKindV0, PropertyNameV0};
+use omena_syntax::ident::{AuthoredPropertyTextV0, PropertyNameKindV0, PropertyNameV0};
 
 use crate::{
     CascadeComputedValueInputV0, CascadeComputedValueResultV0, CascadeOutcome,
     CascadeRegisteredCustomPropertyV0, CascadeRegisteredValueVerdictV0,
     CascadeStandardValueVerdictV0, CascadeValue, ComputedCascadeIndeterminateReasonV0,
     ComputedCascadeValueStatusV0, CssPropertyInheritanceV0, CssPropertyInitialValueV0,
-    cascade_property, css_property_initial_value, css_property_is_inherited,
+    cascade_property_for_key, css_property_initial_value, css_property_is_inherited,
     substitute_custom_properties,
 };
 
@@ -49,11 +49,11 @@ fn compute_cascade_computed_value_inner(
         registered_custom_property,
         standard_property_value_verdicts,
     } = input;
-    let property_identity = PropertyNameV0::from_authored(&property);
+    let property_identity = property.to_property_name();
     let registered_custom_property = registered_custom_property.filter(|registration| {
-        property_identity.same_as(&PropertyNameV0::custom(&registration.name))
+        property_identity.as_custom_key().as_ref() == Some(&registration.name.to_custom_key())
     });
-    let outcome = cascade_property(declarations, &property);
+    let outcome = cascade_property_for_key(declarations, &property_identity.canonical_key());
     if let Some(result) = computed_value_from_indeterminate_cascade_outcome(&property, &outcome) {
         return result;
     }
@@ -334,7 +334,7 @@ fn cascade_value_contains_var_reference(value: &CascadeValue) -> bool {
 }
 
 fn computed_value_from_unset(
-    property: String,
+    property: AuthoredPropertyTextV0,
     winner_declaration_id: Option<String>,
     parent_computed_value: Option<CascadeValue>,
     invalid_at_computed_value_time: bool,
@@ -377,7 +377,7 @@ fn computed_value_from_unset(
 }
 
 fn computed_value_from_inherit(
-    property: String,
+    property: AuthoredPropertyTextV0,
     winner_declaration_id: Option<String>,
     parent_computed_value: Option<CascadeValue>,
     mut derivation_steps: Vec<&'static str>,
@@ -423,7 +423,7 @@ fn computed_value_from_inherit(
 }
 
 fn computed_value_from_initial(
-    property: String,
+    property: AuthoredPropertyTextV0,
     winner_declaration_id: Option<String>,
     mut derivation_steps: Vec<&'static str>,
     registered_custom_property: Option<&CascadeRegisteredCustomPropertyV0>,
@@ -446,7 +446,7 @@ fn computed_value_from_initial(
         };
     }
     derivation_steps.push("initialValueTableConsulted");
-    let canonical_property = PropertyNameV0::from_authored(&property);
+    let canonical_property = property.to_property_name();
     match css_property_initial_value(canonical_property.canonical_name()) {
         CssPropertyInitialValueV0::Literal(value) => CascadeComputedValueResultV0 {
             schema_version: "0",
@@ -489,7 +489,7 @@ fn computed_value_from_initial(
 }
 
 fn property_inheritance(
-    property: &str,
+    property: &AuthoredPropertyTextV0,
     registered_custom_property: Option<&CascadeRegisteredCustomPropertyV0>,
 ) -> CssPropertyInheritanceV0 {
     // Preserve unknown metadata for the caller's fail-closed diagnostic path.
@@ -497,14 +497,14 @@ fn property_inheritance(
         Some(registration) if registration.inherits => CssPropertyInheritanceV0::Inherited,
         Some(_) => CssPropertyInheritanceV0::NotInherited,
         None => {
-            let property = PropertyNameV0::from_authored(property);
+            let property = property.to_property_name();
             css_property_is_inherited(property.canonical_name())
         }
     }
 }
 
 fn computed_value_from_unknown_metadata(
-    property: String,
+    property: AuthoredPropertyTextV0,
     winner_declaration_id: Option<String>,
     reason: ComputedCascadeIndeterminateReasonV0,
     derivation_steps: Vec<&'static str>,
@@ -526,13 +526,13 @@ fn computed_value_from_unknown_metadata(
 }
 
 pub(crate) fn computed_value_from_indeterminate_cascade_outcome(
-    property: &str,
+    property: &AuthoredPropertyTextV0,
     outcome: &CascadeOutcome,
 ) -> Option<CascadeComputedValueResultV0> {
     match outcome {
         CascadeOutcome::RankedSet(_) | CascadeOutcome::Top => {
             Some(computed_value_from_unknown_metadata(
-                property.to_string(),
+                property.clone(),
                 None,
                 ComputedCascadeIndeterminateReasonV0::CascadeOutcomeIndeterminate,
                 vec!["cascadeOutcomeIndeterminate"],

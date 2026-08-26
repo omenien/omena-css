@@ -1336,10 +1336,25 @@ pub fn build_stable_transform_ir_from_source(
     }
 
     for variable in facts.variables {
-        push_ir_node(
+        let (label, semantic_label) = match variable.name {
+            omena_parser::ParsedVariableFactNameV0::NonProperty(name) => (name.clone(), name),
+            omena_parser::ParsedVariableFactNameV0::CustomProperty(name) => {
+                let mut label = String::new();
+                if omena_syntax::ident::render_authored(&name, &mut label).is_err() {
+                    continue;
+                }
+                let Some(property_key) = variable.property_key.as_ref() else {
+                    continue;
+                };
+                let semantic_label = property_key.as_str().to_string();
+                (label, semantic_label)
+            }
+        };
+        push_ir_node_with_semantic_label(
             &mut nodes,
             stable_ir_variable_kind(variable.kind),
-            variable.name,
+            label,
+            semantic_label,
             variable.range.start().into(),
             variable.range.end().into(),
         );
@@ -1420,7 +1435,7 @@ pub fn build_stable_transform_ir_from_source(
             .cmp(&right.source_span_start)
             .then_with(|| left.source_span_end.cmp(&right.source_span_end))
             .then_with(|| left.kind.cmp(&right.kind))
-            .then_with(|| left.label.cmp(&right.label))
+            .then_with(|| left.semantic_key.cmp(&right.semantic_key))
     });
 
     let mut provenance_anchors = Vec::with_capacity(nodes.len());
@@ -1812,6 +1827,26 @@ fn push_ir_node(
     source_span_end: usize,
 ) {
     let label = label.into();
+    push_ir_node_with_semantic_label(
+        nodes,
+        kind,
+        label.clone(),
+        label,
+        source_span_start,
+        source_span_end,
+    );
+}
+
+fn push_ir_node_with_semantic_label(
+    nodes: &mut Vec<StableTransformIrNodeV0>,
+    kind: StableTransformIrNodeKindV0,
+    label: impl Into<String>,
+    semantic_label: impl Into<String>,
+    source_span_start: usize,
+    source_span_end: usize,
+) {
+    let label = label.into();
+    let semantic_label = semantic_label.into();
     let kind_id = kind.id();
     nodes.push(StableTransformIrNodeV0 {
         node_id: String::new(),
@@ -1820,7 +1855,7 @@ fn push_ir_node(
         node_key_seed: None,
         kind,
         kind_id,
-        semantic_key: format!("{kind_id}:{label}"),
+        semantic_key: format!("{kind_id}:{semantic_label}"),
         label,
         source_span_start,
         source_span_end,

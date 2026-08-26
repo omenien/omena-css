@@ -4,7 +4,7 @@
 //! preserving non-winning declarations as evidence for diagnostics and proof
 //! reports.
 
-use omena_syntax::ident::PropertyNameV0;
+use omena_syntax::ident::{CanonicalPropertyKeyV0, PropertyNameV0};
 use std::cmp::{Ordering, Reverse};
 
 use crate::{
@@ -85,9 +85,16 @@ pub fn cascade_property(
     property: &str,
 ) -> CascadeOutcome {
     let property_key = PropertyNameV0::from_authored(property).canonical_key();
+    cascade_property_for_key(declarations, &property_key)
+}
+
+pub fn cascade_property_for_key(
+    declarations: impl IntoIterator<Item = CascadeDeclaration>,
+    property_key: &CanonicalPropertyKeyV0,
+) -> CascadeOutcome {
     let mut matching: Vec<CascadeDeclaration> = declarations
         .into_iter()
-        .filter(|declaration| declaration.property_key == property_key)
+        .filter(|declaration| &declaration.property_key == property_key)
         .collect();
 
     if matching.is_empty() {
@@ -118,9 +125,16 @@ pub fn cascade_property_open_world(
     property: &str,
 ) -> CascadeOutcome {
     let property_key = PropertyNameV0::from_authored(property).canonical_key();
+    cascade_property_open_world_for_key(declarations, &property_key)
+}
+
+pub fn cascade_property_open_world_for_key(
+    declarations: impl IntoIterator<Item = CascadeDeclaration>,
+    property_key: &CanonicalPropertyKeyV0,
+) -> CascadeOutcome {
     let mut matching: Vec<CascadeDeclaration> = declarations
         .into_iter()
-        .filter(|declaration| declaration.property_key == property_key)
+        .filter(|declaration| &declaration.property_key == property_key)
         .collect();
 
     if matching.is_empty() {

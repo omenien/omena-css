@@ -4,11 +4,12 @@ use omena_query::{
     ParserPositionV0, resolve_omena_query_source_provider_candidates,
     resolve_omena_query_style_selector_definitions_for_source_candidate,
 };
+use omena_syntax::ident::ClassNameV0;
 use serde_json::Value;
 
 use crate::{
-    LspQueryReadView, LspStyleHoverCandidate, LspStyleHoverCandidateIdentityRefV0,
-    LspTextDocumentState, document_uri_from_params, lsp_position_from_params,
+    LspQueryReadView, LspStyleHoverCandidate, LspTextDocumentState, document_uri_from_params,
+    lsp_position_from_params,
     protocol::{
         file_uri_equivalent, is_style_document_uri, parser_range_contains_position,
         workspace_folder_compatible,
@@ -128,6 +129,8 @@ pub(crate) fn style_selector_definitions_from_open_documents(
     selector_name: &str,
     workspace_folder_uri: Option<&str>,
 ) -> Vec<(String, LspStyleHoverCandidate)> {
+    let selector_key =
+        (!selector_name.is_empty()).then(|| ClassNameV0::new(selector_name).canonical_key());
     let mut definitions = Vec::new();
     for document in state.query_documents().values() {
         if !document_has_style_index(document)
@@ -143,11 +146,9 @@ pub(crate) fn style_selector_definitions_from_open_documents(
                 .into_iter()
                 .filter(|candidate| {
                     candidate.kind == "selector"
-                        && (selector_name.is_empty()
-                            || candidate.identity()
-                                == LspStyleHoverCandidateIdentityRefV0::Other(
-                                    selector_name.to_string(),
-                                ))
+                        && selector_key.as_ref().is_none_or(|selector_key| {
+                            candidate.selector_key.as_ref() == Some(selector_key)
+                        })
                 })
                 .map(|candidate| (document.uri.clone(), candidate)),
         );
@@ -216,9 +217,11 @@ fn style_selector_definitions_for_source_candidate(
     definitions
         .into_iter()
         .filter(|(uri, definition)| {
+            let mut definition_name = String::new();
+            let _ = omena_syntax::ident::render_authored(&definition.name, &mut definition_name);
             matched_identities.contains(&query_definition_identity(
                 uri.as_str(),
-                definition.name.to_string().as_str(),
+                definition_name.as_str(),
                 definition.range,
             ))
         })
@@ -256,7 +259,9 @@ fn source_candidate_definition_lookup_name(candidate: &LspStyleHoverCandidate) -
     if candidate.kind == "sourceSelectorPrefixReference" {
         String::new()
     } else {
-        candidate.name.to_string()
+        let mut name = String::new();
+        let _ = omena_syntax::ident::render_authored(&candidate.name, &mut name);
+        name
     }
 }
 

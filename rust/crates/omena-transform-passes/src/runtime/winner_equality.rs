@@ -12,7 +12,7 @@ use omena_cascade::{
     SelectorMatchVerdict, SpecificityExactnessV0, at_rule_nesting_dfs_paths_v0,
     at_rule_nesting_order_for_fragment_v0, build_guarded_cascade_winner_v0,
     cascade_driven_levels_v0, cascade_driven_winner_axes_v0, cascade_level_for_origin,
-    cascade_property, compare_guarded_cascade_winner_functions_v0,
+    cascade_property_for_key, compare_guarded_cascade_winner_functions_v0,
     evaluate_guarded_cascade_winner_v0, guarded_cascade_winner_is_total_v0, normalized_layer_rank,
     parse_simple_selector_signature, reconcile_guarded_cascade_winner_planes_v0,
     selector_match_witness,
@@ -21,7 +21,7 @@ use omena_parser::{StyleDialect, css_keyword};
 use omena_semantic::{
     LayerBindingResolutionV0, layer_ordinal_for_byte_span, summarize_style_layer_order_from_source,
 };
-use omena_syntax::ident::PropertyNameV0;
+use omena_syntax::ident::AuthoredPropertyTextV0;
 use omena_transform_cst::{
     ObservationKindV0, PassAssumptionKindV0, PassObservationSurfaceV0, TransformIrV0,
     TransformPassKind, pass_observation_contract,
@@ -56,7 +56,7 @@ struct GuardedCandidateSeedV0 {
     stable_identity: String,
     scenario_witness_id: String,
     element_signature: String,
-    property: String,
+    property: AuthoredPropertyTextV0,
     cascade_key: omena_cascade::CascadeKey,
     conditions: Vec<GuardedCascadeConditionAtomV0>,
 }
@@ -453,12 +453,15 @@ fn winner_for_pair(
     let mut conditional_context_open = false;
     let mut saw_inexact_candidate = false;
     let mut saw_inexact_maybe_candidate = false;
-    let pair_property = PropertyNameV0::from_authored(&pair.property);
+    let pair_property = pair.property.to_property_name();
     let stylesheet_source_order_base = cascade_environment
         .map(|environment| environment.stylesheet_source_order_base)
         .unwrap_or_default();
     for candidate in candidates.iter().filter(|candidate| {
-        PropertyNameV0::from_authored(&candidate.property).same_as(&pair_property)
+        candidate
+            .property
+            .to_property_name()
+            .same_as(&pair_property)
     }) {
         let witness = selector_match_witness(candidate.selector.as_str(), &pair.element_signature);
         match witness.verdict {
@@ -512,12 +515,13 @@ fn winner_for_pair(
         let source_order = stylesheet_source_order_base
             .saturating_add(u32::try_from(matched_ordinal).unwrap_or(u32::MAX));
         matched_ordinal = matched_ordinal.saturating_add(1);
+        let candidate_property_key = candidate.property.to_property_name().canonical_key();
         declarations.push(CascadeDeclaration {
             id: format!(
-                "{}|{}|{}|{}",
-                candidate.selector, candidate.property, candidate.value, candidate.important
+                "{}|{candidate_property_key:?}|{}|{}",
+                candidate.selector, candidate.value, candidate.important
             ),
-            property: omena_syntax::ident::AuthoredPropertyTextV0::new(candidate.property.clone()),
+            property: candidate.property.clone(),
             property_key: pair_property.canonical_key(),
             value: CascadeValue::Literal(candidate.value.clone()),
             key: omena_cascade::CascadeKey::new(level, layer_rank, 0, specificity, source_order),
@@ -528,7 +532,10 @@ fn winner_for_pair(
 
     if let Some(environment) = cascade_environment {
         for declaration in environment.declarations.iter().filter(|declaration| {
-            PropertyNameV0::from_authored(&declaration.property).same_as(&pair_property)
+            declaration
+                .property
+                .to_property_name()
+                .same_as(&pair_property)
         }) {
             let witness =
                 selector_match_witness(declaration.selector.as_str(), &pair.element_signature);
@@ -587,10 +594,8 @@ fn winner_for_pair(
             let layer_rank = normalized_layer_rank(declaration.important, layer_ordinal);
             declarations.push(CascadeDeclaration {
                 id: declaration.declaration_id.clone(),
-                property: omena_syntax::ident::AuthoredPropertyTextV0::new(
-                    declaration.property.clone(),
-                ),
-                property_key: PropertyNameV0::from_authored(&declaration.property).canonical_key(),
+                property: declaration.property.clone(),
+                property_key: declaration.property.to_property_name().canonical_key(),
                 value: CascadeValue::Literal(declaration.value.clone()),
                 key: omena_cascade::CascadeKey::new(
                     level,
@@ -605,7 +610,7 @@ fn winner_for_pair(
         }
     }
 
-    let outcome = cascade_property(declarations, pair.property.as_str());
+    let outcome = cascade_property_for_key(declarations, &pair_property.canonical_key());
     if matches!(&outcome, omena_cascade::CascadeOutcome::RankedSet(_)) {
         if saw_inexact_candidate {
             reasons.push(TransformWinnerEqualityAbsenceV0 {
@@ -776,9 +781,12 @@ fn guarded_candidate_seeds_for_pair(
 ) -> Option<Vec<GuardedCandidateSeedV0>> {
     let mut prepared = Vec::new();
     let mut matched_ordinal = 0usize;
-    let pair_property = PropertyNameV0::from_authored(&pair.property);
+    let pair_property = pair.property.to_property_name();
     for candidate in candidates.iter().filter(|candidate| {
-        PropertyNameV0::from_authored(&candidate.property).same_as(&pair_property)
+        candidate
+            .property
+            .to_property_name()
+            .same_as(&pair_property)
     }) {
         let witness = selector_match_witness(candidate.selector.as_str(), &pair.element_signature);
         match witness.verdict {
@@ -828,9 +836,10 @@ fn guarded_candidate_seeds_for_pair(
     for ((candidate, specificity, layer_rank, source_order, context), paths) in
         prepared.into_iter().zip(paths)
     {
+        let candidate_property_key = candidate.property.to_property_name().canonical_key();
         let scenario_witness_id = format!(
-            "{}|{}|{}|{}",
-            candidate.selector, candidate.property, candidate.value, candidate.important
+            "{}|{candidate_property_key:?}|{}|{}",
+            candidate.selector, candidate.value, candidate.important
         );
         let base_identity = format!("source|{scenario_witness_id}");
         let occurrence = occurrence_by_identity
@@ -865,9 +874,12 @@ fn guarded_environment_candidate_seeds_for_pair(
     element_signature: &str,
 ) -> Option<Vec<GuardedCandidateSeedV0>> {
     let mut seeds = Vec::new();
-    let pair_property = PropertyNameV0::from_authored(&pair.property);
+    let pair_property = pair.property.to_property_name();
     for declaration in environment.declarations.iter().filter(|declaration| {
-        PropertyNameV0::from_authored(&declaration.property).same_as(&pair_property)
+        declaration
+            .property
+            .to_property_name()
+            .same_as(&pair_property)
     }) {
         let witness =
             selector_match_witness(declaration.selector.as_str(), &pair.element_signature);
@@ -1127,7 +1139,7 @@ fn winner_difference_absences(
 }
 
 fn pair_identity(pair: &TransformWinnerEqualityAffectedPairV0) -> String {
-    let property_key = PropertyNameV0::from_authored(&pair.property).canonical_key();
+    let property_key = pair.property.to_property_name().canonical_key();
     format!("{:?}|{property_key:?}", pair.element_signature)
 }
 
@@ -1186,6 +1198,12 @@ mod tests {
 
     use super::*;
 
+    fn authored_text(property: &AuthoredPropertyTextV0) -> String {
+        let mut text = String::new();
+        let _ = omena_syntax::ident::render_authored(property, &mut text);
+        text
+    }
+
     fn mutation_span(source: &str, output: &str) -> TransformProvenanceMutationSpanV0 {
         TransformProvenanceMutationSpanV0 {
             source_span_start: 0,
@@ -1200,11 +1218,11 @@ mod tests {
     fn candidate_selection_keeps_custom_property_identity_case_sensitive() {
         let pair = TransformWinnerEqualityAffectedPairV0 {
             element_signature: ElementSignature::concrete(None::<String>, None::<String>, ["a"]),
-            property: "--FOO".to_string(),
+            property: AuthoredPropertyTextV0::new("--FOO"),
         };
         let candidates = ["--foo", "--FOO"].map(|property| SemanticCascadeCandidateV0 {
             selector: ".a".to_string(),
-            property: property.to_string(),
+            property: AuthoredPropertyTextV0::new(property),
             value: property.to_string(),
             important: false,
             source_span_start: 0,
@@ -1228,12 +1246,12 @@ mod tests {
         assert_eq!(
             seeds
                 .iter()
-                .map(|seed| seed.property.as_str())
+                .map(|seed| authored_text(&seed.property))
                 .collect::<Vec<_>>(),
-            ["--FOO"]
+            ["--FOO".to_string()]
         );
         let lower_pair = TransformWinnerEqualityAffectedPairV0 {
-            property: "--foo".to_string(),
+            property: AuthoredPropertyTextV0::new("--foo"),
             ..pair.clone()
         };
         assert_ne!(pair_identity(&pair), pair_identity(&lower_pair));
@@ -1365,7 +1383,7 @@ mod tests {
             declarations: vec![TransformCascadeEnvironmentDeclarationV0 {
                 declaration_id: "user-important-environment".to_string(),
                 selector: "*".to_string(),
-                property: "color".to_string(),
+                property: AuthoredPropertyTextV0::new("color"),
                 value: "blue".to_string(),
                 origin: omena_cascade::CascadeOriginV0::User,
                 important: true,
@@ -1474,7 +1492,7 @@ mod tests {
         let color_observation = result
             .obligations
             .iter()
-            .find(|obligation| obligation.affected_pair.property == "color")
+            .find(|obligation| authored_text(&obligation.affected_pair.property) == "color")
             .map(|obligation| &obligation.observation);
         eprintln!("GUARDED_RECONCILED_OBSERVATION={color_observation:?}");
 
@@ -1501,7 +1519,7 @@ mod tests {
             fragment.element_signature,
             format!("{:?}", obligation.affected_pair.element_signature)
         );
-        assert_eq!(fragment.property, "color");
+        assert_eq!(authored_text(&fragment.property), "color");
         assert_eq!(
             fragment.condition_alphabet,
             vec!["@media (min-width: 1px)".to_string()]
@@ -1613,7 +1631,7 @@ mod tests {
             declarations: vec![TransformCascadeEnvironmentDeclarationV0 {
                 declaration_id: "environment-inexact".to_string(),
                 selector: environment_selector.to_string(),
-                property: "color".to_string(),
+                property: AuthoredPropertyTextV0::new("color"),
                 value: "blue".to_string(),
                 origin: omena_cascade::CascadeOriginV0::Author,
                 important: false,
@@ -1662,11 +1680,11 @@ mod tests {
                 tag_is_exact: true,
                 id_is_exact: true,
             },
-            property: "color".to_string(),
+            property: AuthoredPropertyTextV0::new("color"),
         };
         let candidates = vec![SemanticCascadeCandidateV0 {
             selector: selector.to_string(),
-            property: "color".to_string(),
+            property: AuthoredPropertyTextV0::new("color"),
             value: "red".to_string(),
             important: false,
             source_span_start: 0,
@@ -1707,7 +1725,7 @@ mod tests {
             declarations: vec![TransformCascadeEnvironmentDeclarationV0 {
                 declaration_id: "environment-unparsed".to_string(),
                 selector: ".a, :unknown(".to_string(),
-                property: "color".to_string(),
+                property: AuthoredPropertyTextV0::new("color"),
                 value: "blue".to_string(),
                 origin: omena_cascade::CascadeOriginV0::Author,
                 important: false,
@@ -1796,7 +1814,7 @@ mod tests {
 
         let color_observation = obligations
             .iter()
-            .find(|obligation| obligation.affected_pair.property == "color")
+            .find(|obligation| authored_text(&obligation.affected_pair.property) == "color")
             .map(|obligation| &obligation.observation)
             .ok_or_else(|| "color winner-equality obligation missing".to_string())?;
         match color_observation {
@@ -1907,7 +1925,7 @@ mod tests {
             declarations: vec![TransformCascadeEnvironmentDeclarationV0 {
                 declaration_id: "user-important".to_string(),
                 selector: ".a".to_string(),
-                property: "color".to_string(),
+                property: AuthoredPropertyTextV0::new("color"),
                 value: "green".to_string(),
                 origin: omena_cascade::CascadeOriginV0::User,
                 important: true,
@@ -1947,7 +1965,7 @@ mod tests {
             declarations: vec![TransformCascadeEnvironmentDeclarationV0 {
                 declaration_id: "later-author-rule".to_string(),
                 selector: ".a".to_string(),
-                property: "color".to_string(),
+                property: AuthoredPropertyTextV0::new("color"),
                 value: "green".to_string(),
                 origin: omena_cascade::CascadeOriginV0::Author,
                 important: false,
@@ -1990,7 +2008,7 @@ mod tests {
             declarations: vec![TransformCascadeEnvironmentDeclarationV0 {
                 declaration_id: "earlier-environment-rule".to_string(),
                 selector: ".a".to_string(),
-                property: "color".to_string(),
+                property: AuthoredPropertyTextV0::new("color"),
                 value: "green".to_string(),
                 origin: omena_cascade::CascadeOriginV0::Author,
                 important: false,
@@ -2014,7 +2032,7 @@ mod tests {
         let color_observation = result
             .obligations
             .iter()
-            .find(|obligation| obligation.affected_pair.property == "color")
+            .find(|obligation| authored_text(&obligation.affected_pair.property) == "color")
             .map(|obligation| &obligation.observation);
         eprintln!("GUARDED_BASE_OBSERVATION={color_observation:?}");
 

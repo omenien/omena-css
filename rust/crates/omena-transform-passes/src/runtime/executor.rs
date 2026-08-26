@@ -5087,7 +5087,7 @@ mod dispatch_table_tests {
                 exported_class_names: vec!["base".to_string(), "utility".to_string()],
             }],
             design_token_routes: vec![TransformDesignTokenRouteV0 {
-                token_name: "--pkg-brand".to_string(),
+                token_name: omena_syntax::ident::AuthoredPropertyTextV0::new("--pkg-brand"),
                 routed_value: "#123456".to_string(),
             }],
             ..TransformExecutionContextV0::default()
@@ -5347,7 +5347,9 @@ mod dispatch_table_tests {
             .with_class_name("utility")
             .with_keyframe_name("spin")
             .with_value_name("keepExport")
-            .with_custom_property_name("keepExport");
+            .with_custom_property_name(omena_syntax::ident::AuthoredPropertyTextV0::new(
+                "keepExport",
+            ));
         ClosedWorldBundleV0::try_from_linked_modules(vec![instance], vec![module])
             .map_err(|err| format!("structural dispatch fixture bundle should be valid: {err:?}"))
     }

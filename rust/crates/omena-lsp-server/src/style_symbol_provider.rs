@@ -417,7 +417,7 @@ fn sass_symbol_declarations_in_document(
     resolve_omena_query_sass_symbol_declarations(
         query_candidates.as_slice(),
         symbol_kind,
-        candidate.name.to_string().as_str(),
+        candidate.identity_name().as_str(),
     )
     .into_iter()
     .map(lsp_style_hover_candidate_from_query)
@@ -540,7 +540,7 @@ impl SassForwardEdgeForLsp {
     ) -> Option<LspStyleHoverCandidate> {
         let private_name = unapply_sass_forward_prefix(
             self.forward_prefix.as_deref(),
-            candidate.name.to_string().as_str(),
+            candidate.identity_name().as_str(),
         )?;
         let mut target = candidate.clone();
         target.name = omena_syntax::ident::AuthoredPropertyTextV0::new(private_name);
@@ -693,14 +693,14 @@ pub(crate) fn render_style_hover_candidate_markdown_for_workspace(
             style_sources.as_slice(),
             &narrowing_substrate,
             candidate.kind,
-            candidate.name.to_string().as_str(),
+            candidate.identity_name().as_str(),
             candidate.range.start,
         )
         .unwrap_or_else(|| {
             summarize_omena_query_style_hover_render_parts_for_hover_position(
                 source,
                 candidate.kind,
-                candidate.name.to_string().as_str(),
+                candidate.identity_name().as_str(),
                 candidate.range.start,
             )
         });

@@ -4,7 +4,7 @@
 //! blocker witnesses for shorthand combination, static supports evaluation, and
 //! scope/layer flattening so transform passes can remain proof-driven.
 
-use omena_syntax::ident::{PropertyNameV0, property_names_same};
+use omena_syntax::ident::PropertyNameV0;
 
 use crate::{
     BoxLonghandInputV0, LayerFlattenInputV0, LayerFlattenProofV0, LonghandMergeInputV0,
@@ -44,7 +44,10 @@ where
     if longhands
         .iter()
         .zip(expected_longhands.iter())
-        .any(|(actual, expected)| !property_names_same(&actual.property, expected.as_ref()))
+        .any(|(actual, expected)| {
+            actual.property.to_standard_key()
+                != PropertyNameV0::canonical_standard_key(expected.as_ref())
+        })
     {
         return shorthand_combination_proof(
             shorthand_property,
@@ -719,7 +722,7 @@ fn shorthand_combination_proof(
     ShorthandCombinationProofV0 {
         schema_version: "0",
         product: "omena-cascade.shorthand-combination-proof",
-        shorthand_property: shorthand_property.to_string(),
+        shorthand_property: omena_syntax::ident::AuthoredPropertyTextV0::new(shorthand_property),
         accepted,
         blocked_reason,
         ordered_longhand_properties: longhands

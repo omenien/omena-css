@@ -807,7 +807,8 @@ fn stale_prefix_removal_witnesses(
                 return None;
             }
 
-            let prefixed_property = egg_safe_symbol(candidate.prefixed_property.as_str());
+            let prefixed_property =
+                egg_safe_symbol(candidate.prefixed_property.to_standard_key().as_str());
             let unprefixed_property = egg_safe_symbol(candidate.unprefixed_property);
             let value = egg_safe_symbol(candidate.value.as_str());
             let importance = if candidate.important {
@@ -815,6 +816,15 @@ fn stale_prefix_removal_witnesses(
             } else {
                 "normal"
             };
+            let mut cascade_safety_gap = String::new();
+            let _ = candidate
+                .prefixed_property
+                .write_into(&mut cascade_safety_gap);
+            let _ = write!(
+                &mut cascade_safety_gap,
+                " has exact unprefixed declaration peer {} with the same value and importance",
+                candidate.unprefixed_property
+            );
             let execution = execute_checked_egg_rewrite(CheckedEggRewriteCandidateV0 {
                 pass_id: TransformPassKind::StalePrefixRemoval.id(),
                 before: format!(
@@ -825,10 +835,7 @@ fn stale_prefix_removal_witnesses(
                     declared_specificity_gap_v0(),
                     ObligationFamilyIdV0::ComputedValuePreservation,
                     declared_provenance_gap_v0(),
-                    declared_cascade_safety_gap_v0(format!(
-                        "{} has exact unprefixed declaration peer {} with the same value and importance",
-                        candidate.prefixed_property, candidate.unprefixed_property
-                    )),
+                    declared_cascade_safety_gap_v0(cascade_safety_gap),
                 ),
             });
             Some(EggRewriteSourceWitnessV0 {

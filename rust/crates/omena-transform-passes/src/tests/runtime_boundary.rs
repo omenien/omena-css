@@ -1600,14 +1600,18 @@ fn closed_world_bundle_authority_drives_reachability_transform_families() -> Res
                 .with_class_name("used")
                 .with_keyframe_name("live")
                 .with_value_name("usedValue")
-                .with_custom_property_name("--explicit"),
+                .with_custom_property_name(omena_syntax::ident::AuthoredPropertyTextV0::new(
+                    "--explicit",
+                )),
         ],
     );
     let misleading_context = TransformExecutionContextV0 {
         reachable_class_names: vec!["dead".to_string()],
         reachable_keyframe_names: vec!["ghost".to_string()],
         reachable_value_names: vec!["deadValue".to_string()],
-        reachable_custom_property_names: vec!["--dead".to_string()],
+        reachable_custom_property_names: vec![omena_syntax::ident::AuthoredPropertyTextV0::new(
+            "--dead",
+        )],
         ..TransformExecutionContextV0::default()
     };
 
@@ -1696,7 +1700,9 @@ fn tree_shake_bundle_driven_matches_reachability_projection_byte_identical() -> 
                 .with_class_name("used")
                 .with_keyframe_name("live")
                 .with_value_name("usedValue")
-                .with_custom_property_name("--explicit"),
+                .with_custom_property_name(omena_syntax::ident::AuthoredPropertyTextV0::new(
+                    "--explicit",
+                )),
         ],
     );
     let cases = [

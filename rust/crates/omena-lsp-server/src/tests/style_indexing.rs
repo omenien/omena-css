@@ -26,12 +26,28 @@ fn indexes_style_documents_on_open_and_change() {
         Some(vec!["root".to_string()]),
     );
     assert_eq!(
-        summary.map(|summary| summary.custom_property_decl_names.clone()),
-        Some(vec!["--brand".to_string()]),
+        summary.map(|summary| {
+            summary
+                .custom_property_decl_names
+                .iter()
+                .map(|name| name.to_custom_key())
+                .collect::<Vec<_>>()
+        }),
+        Some(vec![
+            omena_syntax::ident::AuthoredPropertyTextV0::new("--brand").to_custom_key(),
+        ]),
     );
     assert_eq!(
-        summary.map(|summary| summary.custom_property_ref_names.clone()),
-        Some(vec!["--brand".to_string()]),
+        summary.map(|summary| {
+            summary
+                .custom_property_ref_names
+                .iter()
+                .map(|name| name.to_custom_key())
+                .collect::<Vec<_>>()
+        }),
+        Some(vec![
+            omena_syntax::ident::AuthoredPropertyTextV0::new("--brand").to_custom_key(),
+        ]),
     );
 
     handle_lsp_message(
@@ -60,8 +76,16 @@ fn indexes_style_documents_on_open_and_change() {
         Some(vec!["card".to_string()]),
     );
     assert_eq!(
-        updated.map(|summary| summary.custom_property_decl_names.clone()),
-        Some(vec!["--gap".to_string()]),
+        updated.map(|summary| {
+            summary
+                .custom_property_decl_names
+                .iter()
+                .map(|name| name.to_custom_key())
+                .collect::<Vec<_>>()
+        }),
+        Some(vec![
+            omena_syntax::ident::AuthoredPropertyTextV0::new("--gap").to_custom_key(),
+        ]),
     );
 
     handle_lsp_message(

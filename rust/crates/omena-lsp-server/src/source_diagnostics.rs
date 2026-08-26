@@ -138,12 +138,14 @@ fn gather_source_diagnostics_render_inputs(
             let is_property_access = property_access_ranges
                 .iter()
                 .any(|range| parser_range_contains(range, &candidate.range));
-            let candidate_key = ClassNameV0::new(candidate.name.to_string()).canonical_key();
+            let mut candidate_name = String::new();
+            let _ = omena_syntax::ident::render_authored(&candidate.name, &mut candidate_name);
+            let candidate_key = ClassNameV0::new(candidate_name.clone()).canonical_key();
             if !is_property_access
                 && let Some(global_uri) = global_class_definitions.get(&candidate_key)
             {
                 global_class_fallthroughs.push(crate::LspGlobalClassFallthroughCandidateV0 {
-                    selector_name: candidate.name.to_string(),
+                    selector_name: candidate_name.clone(),
                     global_definition_uri: global_uri.clone(),
                     target_style_uri,
                     target_style_source: target_style_document.text.clone(),
@@ -154,7 +156,7 @@ fn gather_source_diagnostics_render_inputs(
             Some(OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 {
                 target_style_uri,
                 target_style_source: target_style_document.text.clone(),
-                selector_name: candidate.name.to_string(),
+                selector_name: candidate_name,
                 source_reference_range: candidate.range,
             })
         })
@@ -362,8 +364,10 @@ fn global_class_definitions_for_workspace(
         }
         for candidate in &document.style_candidates {
             if candidate.kind == "selector" {
+                let mut candidate_name = String::new();
+                let _ = omena_syntax::ident::render_authored(&candidate.name, &mut candidate_name);
                 definitions
-                    .entry(ClassNameV0::new(candidate.name.to_string()).canonical_key())
+                    .entry(ClassNameV0::new(candidate_name).canonical_key())
                     .or_insert_with(|| document.uri.clone());
             }
         }

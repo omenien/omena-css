@@ -1,15 +1,23 @@
 use std::collections::BTreeMap;
 
 use omena_query_core::split_top_level_value_arguments;
-use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0};
+use omena_syntax::ident::{AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, PropertyNameV0};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub(super) struct QueryCustomPropertyReferenceV0 {
-    pub(super) authored: String,
+    pub(super) authored: AuthoredPropertyTextV0,
     pub(super) key: CanonicalCustomPropertyNameV0,
 }
 
-pub(super) fn collect_query_var_references_in_value(value: &str) -> Vec<String> {
+impl PartialEq for QueryCustomPropertyReferenceV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+
+impl Eq for QueryCustomPropertyReferenceV0 {}
+
+pub(super) fn collect_query_var_references_in_value(value: &str) -> Vec<AuthoredPropertyTextV0> {
     collect_query_var_reference_facts_in_value(value)
         .into_iter()
         .map(|reference| reference.authored)
@@ -66,7 +74,7 @@ pub(super) fn collect_query_var_reference_facts_in_value(
 
 fn collect_var_references_from_arguments(
     arguments: &str,
-    references: &mut BTreeMap<CanonicalCustomPropertyNameV0, String>,
+    references: &mut BTreeMap<CanonicalCustomPropertyNameV0, AuthoredPropertyTextV0>,
 ) {
     let parts = split_top_level_value_arguments(arguments, 0)
         .map(|segments| segments.into_iter().map(|segment| segment.text).collect())
@@ -78,7 +86,7 @@ fn collect_var_references_from_arguments(
     if let Some(property_key) = property.as_custom_key() {
         references
             .entry(property_key)
-            .or_insert_with(|| property.authored_text().to_string());
+            .or_insert_with(|| property.authored_text());
     }
     for fallback in parts.iter().skip(1) {
         for reference in collect_query_var_reference_facts_in_value(fallback) {
@@ -136,10 +144,19 @@ fn matching_paren_end(source: &str, open_index: usize) -> Option<usize> {
 mod tests {
     use super::*;
 
+    fn authored_text(property: &AuthoredPropertyTextV0) -> String {
+        let mut text = String::new();
+        let _ = omena_syntax::ident::render_authored(property, &mut text);
+        text
+    }
+
     #[test]
     fn nested_var_fallbacks_remain_value_facts_not_declaration_scanning() {
         assert_eq!(
-            collect_query_var_references_in_value("linear-gradient(var(--a), var(--b, var(--c)))"),
+            collect_query_var_references_in_value("linear-gradient(var(--a), var(--b, var(--c)))")
+                .iter()
+                .map(authored_text)
+                .collect::<Vec<_>>(),
             ["--a", "--b", "--c"]
         );
         assert!(collect_query_var_references_in_value("'var(--quoted)'").is_empty());
@@ -152,7 +169,7 @@ mod tests {
         );
 
         assert_eq!(references.len(), 1);
-        assert_eq!(references[0].authored, "--foo");
+        assert_eq!(authored_text(&references[0].authored), "--foo");
         assert_eq!(references[0].key.as_str(), "--foo");
     }
 
@@ -161,7 +178,17 @@ mod tests {
         let references = collect_query_var_reference_facts_in_value(r"var(\2d\2d FOO)");
 
         assert_eq!(references.len(), 1);
-        assert_eq!(references[0].authored, r"\2d\2d FOO");
+        assert_eq!(authored_text(&references[0].authored), r"\2d\2d FOO");
         assert_eq!(references[0].key.as_str(), "--FOO");
+    }
+
+    #[test]
+    fn query_custom_property_reference_identity_uses_custom_property_keys() {
+        let plain = collect_query_var_reference_facts_in_value("var(--foo)");
+        let escaped = collect_query_var_reference_facts_in_value(r"var(--f\6f o)");
+        let different_case = collect_query_var_reference_facts_in_value("var(--FOO)");
+
+        assert_eq!(plain[0], escaped[0]);
+        assert_ne!(plain[0], different_case[0]);
     }
 }

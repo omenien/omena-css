@@ -2,7 +2,7 @@ use super::{
     CssModulesComposesEdgeFactV0, CssModulesCrossFileStyleFactsV0, CssModulesIcssExportEdgeFactV0,
     CssModulesIcssImportEdgeFactV0, CssModulesValueDefinitionEdgeFactV0,
     CssModulesValueImportEdgeFactV0, DesignTokenWorkspaceDeclarationFactV0,
-    LayerBindingResolutionV0, ParserByteSpanV0, ParserRangeV0,
+    LayerBindingResolutionV0, ParserByteSpanV0, ParserPositionV0, ParserRangeV0,
     SassModuleConfigurableNamesResolverV0, SassModuleForwardConfigurationRequestV0,
     SassModuleGraphConfigurationResolverV0, SassModuleGraphEdgeFactV0,
     SassModuleUseConfigurationRequestV0, SassModuleVisibleSymbolsResolverV0, SassSymbolKeyV0,
@@ -28,13 +28,198 @@ use super::{
     summarize_style_semantic_graph_from_source, summarize_style_semantic_soa_tables,
     summarize_theory_observation_contract, summarize_theory_observation_harness,
 };
+use crate::design_tokens::DesignTokenDeclarationCandidateV0;
 use engine_input_producers::{
     ClassExpressionInputV2, EngineInputV2, PositionV2, RangeV2, SourceAnalysisInputV2,
     SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2, StyleSelectorV2,
     TypeFactEntryV2,
 };
-use omena_syntax::ident::PropertyNameV0;
+use omena_syntax::ident::{AuthoredPropertyTextV0, PropertyNameV0};
 use std::collections::{BTreeMap, BTreeSet};
+
+fn identity_test_span() -> ParserByteSpanV0 {
+    ParserByteSpanV0 { start: 0, end: 1 }
+}
+
+fn identity_test_range() -> ParserRangeV0 {
+    ParserRangeV0 {
+        start: ParserPositionV0 {
+            line: 0,
+            character: 0,
+        },
+        end: ParserPositionV0 {
+            line: 0,
+            character: 1,
+        },
+    }
+}
+
+#[test]
+fn design_token_ranked_reference_identity_uses_custom_property_keys() {
+    let reference = |name: &str| super::DesignTokenRankedReferenceV0 {
+        reference_name: AuthoredPropertyTextV0::new(name),
+        reference_source_order: 0,
+        winner_declaration_source_order: 0,
+        winner_declaration_file_path: None,
+        winner_declaration_range: None,
+        winner_import_graph_distance: None,
+        winner_import_graph_order: None,
+        winner_declaration_layer_rank: 0,
+        winner_scope_proximity_status: "sameScope",
+        winner_importance_status: "unknown",
+        winner_source_order_status: "sameFile",
+        winner_layer_resolution_status: "unlayered",
+        winner_declaration_layer_name: None,
+        shadowed_declaration_source_orders: Vec::new(),
+        candidate_declaration_count: 1,
+        winner_context_kind: "root",
+        cross_file_candidate_declaration_count: 0,
+        cross_file_shadowed_declaration_count: 0,
+    };
+
+    assert_eq!(reference(r"--f\6f o"), reference("--foo"));
+    assert_ne!(reference("--foo"), reference("--FOO"));
+}
+
+#[test]
+fn design_token_workspace_declaration_identity_uses_custom_property_keys() {
+    let declaration = |name: &str| DesignTokenWorkspaceDeclarationFactV0 {
+        file_path: "tokens.css".to_string(),
+        name: AuthoredPropertyTextV0::new(name),
+        value: "red".to_string(),
+        source_order: 0,
+        import_graph_distance: None,
+        import_graph_order: None,
+        byte_span: identity_test_span(),
+        range: identity_test_range(),
+        selector_contexts: Vec::new(),
+        condition_context: Vec::new(),
+        layer_names: Vec::new(),
+        under_media: false,
+        under_supports: false,
+        under_layer: false,
+        property_key: AuthoredPropertyTextV0::new(name).to_custom_key(),
+    };
+
+    assert_eq!(declaration(r"--f\6f o"), declaration("--foo"));
+    assert_ne!(declaration("--foo"), declaration("--FOO"));
+}
+
+#[test]
+fn design_token_declaration_candidate_identity_uses_custom_property_keys() {
+    let candidate = |name: &str| DesignTokenDeclarationCandidateV0 {
+        name: AuthoredPropertyTextV0::new(name),
+        value: "red".to_string(),
+        source_order: 0,
+        file_path: "tokens.css".to_string(),
+        range: identity_test_range(),
+        selector_contexts: Vec::new(),
+        condition_context: Vec::new(),
+        layer_names: Vec::new(),
+        under_media: false,
+        under_supports: false,
+        under_layer: false,
+        candidate_scope: "sameFile",
+        import_graph_distance: None,
+        import_graph_order: None,
+    };
+
+    assert_eq!(candidate(r"--f\6f o"), candidate("--foo"));
+    assert_ne!(candidate("--foo"), candidate("--FOO"));
+}
+
+#[test]
+fn semantic_parser_custom_property_facts_identity_uses_custom_property_keys() {
+    let facts = |name: &str| super::ParserIndexCustomPropertyFactsV0 {
+        decl_names: vec![AuthoredPropertyTextV0::new(name)],
+        ref_names: vec![AuthoredPropertyTextV0::new(name)],
+        ..super::ParserIndexCustomPropertyFactsV0::default()
+    };
+
+    assert_eq!(facts(r"--f\6f o"), facts("--foo"));
+    assert_ne!(facts("--foo"), facts("--FOO"));
+}
+
+#[test]
+fn semantic_parser_custom_property_decl_fact_identity_uses_sealed_keys() {
+    let fact = |name: &str| super::ParserIndexCustomPropertyDeclFactV0 {
+        name: AuthoredPropertyTextV0::new(name),
+        value: "red".to_string(),
+        source_order: 0,
+        byte_span: identity_test_span(),
+        range: identity_test_range(),
+        selector_contexts: Vec::new(),
+        condition_context: Vec::new(),
+        layer_names: Vec::new(),
+        under_media: false,
+        under_supports: false,
+        under_layer: false,
+        property_key: AuthoredPropertyTextV0::new(name).to_custom_key(),
+    };
+
+    assert_eq!(fact(r"--f\6f o"), fact("--foo"));
+    assert_eq!(
+        fact(r"--f\6f o").cmp(&fact("--foo")),
+        std::cmp::Ordering::Equal
+    );
+    assert_ne!(fact("--foo"), fact("--FOO"));
+}
+
+#[test]
+fn semantic_parser_custom_property_ref_fact_identity_uses_sealed_keys() {
+    let fact = |name: &str| super::ParserIndexCustomPropertyRefFactV0 {
+        name: AuthoredPropertyTextV0::new(name),
+        source_order: 0,
+        selector_contexts: Vec::new(),
+        condition_context: Vec::new(),
+        layer_names: Vec::new(),
+        under_media: false,
+        under_supports: false,
+        under_layer: false,
+        property_key: AuthoredPropertyTextV0::new(name).to_custom_key(),
+    };
+
+    assert_eq!(fact(r"--f\6f o"), fact("--foo"));
+    assert_eq!(
+        fact(r"--f\6f o").cmp(&fact("--foo")),
+        std::cmp::Ordering::Equal
+    );
+    assert_ne!(fact("--foo"), fact("--FOO"));
+}
+
+#[test]
+fn style_custom_property_semantic_facts_identity_uses_custom_property_keys() {
+    let facts = |name: &str| super::StyleCustomPropertySemanticFactsV0 {
+        decl_names: vec![AuthoredPropertyTextV0::new(name)],
+        ref_names: vec![AuthoredPropertyTextV0::new(name)],
+        resolved_ref_names: vec![AuthoredPropertyTextV0::new(name)],
+        unresolved_ref_names: Vec::new(),
+        selectors_with_refs_names: Vec::new(),
+    };
+
+    assert_eq!(facts(r"--f\6f o"), facts("--foo"));
+    assert_ne!(facts("--foo"), facts("--FOO"));
+}
+
+#[test]
+fn style_runtime_index_facts_identity_uses_custom_property_keys() {
+    let facts = |name: &str| super::StyleRuntimeIndexFactsV0 {
+        schema_version: "0",
+        product: "test",
+        style_path: "app.css".to_string(),
+        language: "css",
+        class_selector_names: Vec::new(),
+        custom_property_names: vec![AuthoredPropertyTextV0::new(name)],
+        custom_property_decl_names: vec![AuthoredPropertyTextV0::new(name)],
+        custom_property_ref_names: vec![AuthoredPropertyTextV0::new(name)],
+        keyframe_names: Vec::new(),
+        animation_reference_names: Vec::new(),
+        ready_surfaces: Vec::new(),
+    };
+
+    assert_eq!(facts(r"--f\6f o"), facts("--foo"));
+    assert_ne!(facts("--foo"), facts("--FOO"));
+}
 
 #[test]
 fn malformed_source_boundary_rejects_out_of_bounds_cst_spans() {
@@ -116,9 +301,31 @@ fn style_runtime_index_facts_surface_transform_hot_path_names() -> Result<(), St
     assert_eq!(index.product, "omena-semantic.style-runtime-index-facts");
     assert_eq!(index.language, "scss");
     assert_eq!(index.class_selector_names, vec!["card"]);
-    assert_eq!(index.custom_property_names, vec!["--brand"]);
-    assert_eq!(index.custom_property_decl_names, vec!["--brand"]);
-    assert_eq!(index.custom_property_ref_names, vec!["--brand"]);
+    let brand_key = PropertyNameV0::canonical_custom_key("--brand");
+    assert_eq!(
+        index
+            .custom_property_names
+            .iter()
+            .map(AuthoredPropertyTextV0::to_custom_key)
+            .collect::<Vec<_>>(),
+        vec![brand_key.clone()]
+    );
+    assert_eq!(
+        index
+            .custom_property_decl_names
+            .iter()
+            .map(AuthoredPropertyTextV0::to_custom_key)
+            .collect::<Vec<_>>(),
+        vec![brand_key.clone()]
+    );
+    assert_eq!(
+        index
+            .custom_property_ref_names
+            .iter()
+            .map(AuthoredPropertyTextV0::to_custom_key)
+            .collect::<Vec<_>>(),
+        vec![brand_key]
+    );
     assert_eq!(index.keyframe_names, vec!["fade"]);
     assert_eq!(index.animation_reference_names, vec!["fade"]);
     assert!(index.ready_surfaces.contains(&"semanticRuntimeIndexFacts"));
@@ -878,17 +1085,18 @@ $local: red;
         summary.parser_facts.selectors.names,
         vec!["button".to_string(), "button__icon".to_string()]
     );
+    let brand_key = PropertyNameV0::canonical_custom_key("--brand");
     assert_eq!(
-        summary.parser_facts.custom_properties.decl_names,
-        vec!["--brand".to_string()]
+        summary.parser_facts.custom_properties.decl_names[0].to_custom_key(),
+        brand_key
     );
     assert_eq!(
-        summary.parser_facts.custom_properties.ref_names,
-        vec!["--brand".to_string()]
+        summary.parser_facts.custom_properties.ref_names[0].to_custom_key(),
+        brand_key
     );
     assert_eq!(
-        summary.semantic_facts.custom_properties.resolved_ref_names,
-        vec!["--brand".to_string()]
+        summary.semantic_facts.custom_properties.resolved_ref_names[0].to_custom_key(),
+        brand_key
     );
     assert_eq!(
         summary.parser_facts.sass.module_use_sources,
@@ -2215,7 +2423,10 @@ fn exposes_design_token_source_order_cascade_ranking_signal() -> Result<(), Stri
     );
     assert_eq!(summary.cascade_ranking_signal.ranked_references.len(), 2);
     let first_ranked_reference = &summary.cascade_ranking_signal.ranked_references[0];
-    assert_eq!(first_ranked_reference.reference_name, "--surface");
+    assert_eq!(
+        first_ranked_reference.reference_name.to_custom_key(),
+        PropertyNameV0::canonical_custom_key("--surface")
+    );
     assert_eq!(first_ranked_reference.reference_source_order, 0);
     assert_eq!(first_ranked_reference.winner_declaration_source_order, 1);
     assert_eq!(
@@ -2224,7 +2435,10 @@ fn exposes_design_token_source_order_cascade_ranking_signal() -> Result<(), Stri
     );
     assert_eq!(first_ranked_reference.candidate_declaration_count, 2);
     let second_ranked_reference = &summary.cascade_ranking_signal.ranked_references[1];
-    assert_eq!(second_ranked_reference.reference_name, "--surface");
+    assert_eq!(
+        second_ranked_reference.reference_name.to_custom_key(),
+        PropertyNameV0::canonical_custom_key("--surface")
+    );
     assert_eq!(second_ranked_reference.reference_source_order, 1);
     assert_eq!(second_ranked_reference.winner_declaration_source_order, 2);
     assert_eq!(
@@ -2257,7 +2471,10 @@ fn ranks_design_tokens_with_exact_conditional_context() -> Result<(), String> {
 
     assert_eq!(summary.cascade_ranking_signal.ranked_reference_count, 1);
     let ranked_reference = &summary.cascade_ranking_signal.ranked_references[0];
-    assert_eq!(ranked_reference.reference_name, "--surface");
+    assert_eq!(
+        ranked_reference.reference_name.to_custom_key(),
+        PropertyNameV0::canonical_custom_key("--surface")
+    );
     assert_eq!(ranked_reference.winner_declaration_source_order, 1);
     assert_eq!(ranked_reference.shadowed_declaration_source_orders, vec![0]);
     assert_eq!(ranked_reference.candidate_declaration_count, 2);
@@ -2299,7 +2516,10 @@ fn ranks_theme_context_declarations_ahead_of_later_root_tokens() -> Result<(), S
         1
     );
     let ranked_reference = &summary.cascade_ranking_signal.ranked_references[0];
-    assert_eq!(ranked_reference.reference_name, "--surface");
+    assert_eq!(
+        ranked_reference.reference_name.to_custom_key(),
+        PropertyNameV0::canonical_custom_key("--surface")
+    );
     assert_eq!(ranked_reference.winner_declaration_source_order, 1);
     assert_eq!(
         ranked_reference.shadowed_declaration_source_orders,
@@ -2335,7 +2555,10 @@ fn ranks_unlayered_design_tokens_above_later_layered_tokens() -> Result<(), Stri
 
     assert_eq!(summary.cascade_ranking_signal.ranked_reference_count, 1);
     let ranked_reference = &summary.cascade_ranking_signal.ranked_references[0];
-    assert_eq!(ranked_reference.reference_name, "--surface");
+    assert_eq!(
+        ranked_reference.reference_name.to_custom_key(),
+        PropertyNameV0::canonical_custom_key("--surface")
+    );
     assert_eq!(ranked_reference.winner_declaration_source_order, 0);
     // Unlayered ranks are opaque ordering tokens, not layer-count magnitudes.
     assert_eq!(ranked_reference.winner_declaration_layer_rank, i32::MAX);
@@ -2372,7 +2595,10 @@ fn ranks_named_layer_order_above_later_layer_source_order() -> Result<(), String
 
     assert_eq!(summary.cascade_ranking_signal.ranked_reference_count, 1);
     let ranked_reference = &summary.cascade_ranking_signal.ranked_references[0];
-    assert_eq!(ranked_reference.reference_name, "--surface");
+    assert_eq!(
+        ranked_reference.reference_name.to_custom_key(),
+        PropertyNameV0::canonical_custom_key("--surface")
+    );
     assert_eq!(ranked_reference.winner_declaration_source_order, 0);
     assert_eq!(ranked_reference.winner_declaration_layer_rank, 1);
     assert_eq!(
@@ -2422,7 +2648,7 @@ fn design_token_workspace_provenance_is_permutation_invariant_and_load_bearing()
     let workspace_candidate = |file_path: &str, value: &str, import_graph_distance: usize| {
         DesignTokenWorkspaceDeclarationFactV0 {
             file_path: file_path.to_string(),
-            name: "--brand".to_string(),
+            name: AuthoredPropertyTextV0::new("--brand"),
             property_key: PropertyNameV0::canonical_custom_key("--brand"),
             value: value.to_string(),
             source_order: 0,
@@ -2494,7 +2720,7 @@ fn design_token_full_tie_pins_local_before_workspace_chain_order() -> Result<(),
     .ok_or_else(|| "CSS module path should parse".to_string())?;
     let workspace_candidate = DesignTokenWorkspaceDeclarationFactV0 {
         file_path: "/tmp/workspace.css".to_string(),
-        name: "--brand".to_string(),
+        name: AuthoredPropertyTextV0::new("--brand"),
         property_key: PropertyNameV0::canonical_custom_key("--brand"),
         value: "workspace".to_string(),
         source_order: 0,

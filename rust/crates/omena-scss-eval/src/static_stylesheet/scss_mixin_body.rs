@@ -36,7 +36,7 @@ pub(super) fn collect_static_scss_mixin_body_local_declarations(
             return None;
         }
         declarations.push(StaticScssMixinBodyLocalDeclaration {
-            name: fact.name.clone(),
+            name: fact.name.as_non_property()?.to_string(),
             declaration,
         });
     }

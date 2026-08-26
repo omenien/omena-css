@@ -2691,6 +2691,7 @@ name = "omena-ensemble"
 version = "0.4.0"
 dependencies = [
  "omena-cascade",
+ "omena-syntax",
  "serde",
  "serde_json",
 ]
@@ -2787,6 +2788,7 @@ name = "omena-product-hints"
 version = "0.4.0"
 dependencies = [
  "omena-cascade",
+ "omena-syntax",
  "serde",
  "serde_json",
 ]
@@ -2823,6 +2825,7 @@ dependencies = [
  "omena-abstract-value",
  "omena-checker",
  "omena-product-hints",
+ "omena-syntax",
  "serde",
  "serde_json",
 ]
@@ -2996,6 +2999,7 @@ version = "0.4.0"
 dependencies = [
  "cstree",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -3081,6 +3085,7 @@ dependencies = [
 name = "omena-transform-target"
 version = "0.4.0"
 dependencies = [
+ "omena-syntax",
  "omena-transform-cst",
  "omena-transform-passes",
  "oxc-browserslist",

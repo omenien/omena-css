@@ -7,7 +7,7 @@ use omena_cascade::{
     GuardedCascadeWinnerAuthorityV0, LayerOrdinal, OpenWorldTieEvidence, SelectorMatchVerdict,
     Specificity, SpecificityExactnessV0, StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0,
     at_rule_nesting_dfs_paths_v0, at_rule_nesting_order_for_fragment_v0,
-    build_guarded_cascade_winner_v0, cascade_level_for_origin, cascade_property,
+    build_guarded_cascade_winner_v0, cascade_level_for_origin, cascade_property_for_key,
     compute_guarded_cascade_robustness_radius_v0, evaluate_static_supports_condition,
     guarded_cascade_perturbation_cost_model_v0, guarded_cascade_winner_authority_v0,
     guarded_cascade_winner_is_total_v0, normalized_layer_rank, parse_simple_selector_signature,
@@ -18,13 +18,10 @@ use omena_query_checker_orchestrator::{
 };
 use omena_query_core::{
     AbstractClassValueV0, AbstractPropertyValueCandidateV0,
-    narrow_abstract_property_value_for_cascade_branch, prefix_suffix_class_value,
+    narrow_abstract_property_value_for_authored_cascade_branch, prefix_suffix_class_value,
 };
-use omena_syntax::ident::{AuthoredPropertyTextV0, PropertyNameV0};
-use omena_syntax::{
-    css_keyword,
-    ident::{class_selector_names, property_names_same},
-};
+use omena_syntax::ident::AuthoredPropertyTextV0;
+use omena_syntax::{css_keyword, ident::class_selector_names};
 
 #[cfg(test)]
 use crate::types::runtime_state_result_certainty_labels;
@@ -62,7 +59,12 @@ pub(super) fn summarize_query_runtime_state_for_evaluation(
     let selector_class_names = query_selector_class_names(anchor.selector.as_str());
     let candidate_declarations = declarations
         .iter()
-        .filter(|declaration| property_names_same(&declaration.property, &anchor.property))
+        .filter(|declaration| {
+            declaration
+                .property
+                .to_property_name()
+                .same_as(&anchor.property.to_property_name())
+        })
         .filter(|declaration| {
             query_runtime_selector_matches_anchor_classes(
                 anchor.selector.as_str(),
@@ -83,14 +85,14 @@ pub(super) fn summarize_query_runtime_state_for_evaluation(
 
     for condition_context in &condition_contexts {
         scenarios.push(query_runtime_state_scenario(
-            anchor.property.as_str(),
+            &anchor.property,
             None,
             condition_context.as_slice(),
             candidate_declarations.as_slice(),
         ));
         for pseudo_state in &pseudo_states {
             scenarios.push(query_runtime_state_scenario(
-                anchor.property.as_str(),
+                &anchor.property,
                 Some(pseudo_state.as_str()),
                 condition_context.as_slice(),
                 candidate_declarations.as_slice(),
@@ -120,7 +122,7 @@ pub(super) fn summarize_query_runtime_state_for_evaluation(
         );
     let guarded_winner_analysis = query_runtime_guarded_winner_analysis(
         anchor.selector.as_str(),
-        anchor.property.as_str(),
+        &anchor.property,
         candidate_declarations.as_slice(),
         scenarios.as_slice(),
     );
@@ -237,7 +239,7 @@ pub(crate) fn query_runtime_state_confidence_tier(
 #[cfg(test)]
 fn query_runtime_guarded_winner_authority(
     anchor_selector: &str,
-    property_name: &str,
+    property_name: &AuthoredPropertyTextV0,
     declarations: &[&OmenaCheckerCascadeDeclarationInputV0],
 ) -> Option<GuardedCascadeWinnerAuthorityV0> {
     let fragment =
@@ -247,7 +249,7 @@ fn query_runtime_guarded_winner_authority(
 
 fn query_runtime_guarded_winner_analysis(
     anchor_selector: &str,
-    property_name: &str,
+    property_name: &AuthoredPropertyTextV0,
     declarations: &[&OmenaCheckerCascadeDeclarationInputV0],
     scenarios: &[OmenaQueryRuntimeStateScenarioV0],
 ) -> Option<(
@@ -295,7 +297,7 @@ fn query_runtime_guarded_winner_analysis(
 
 fn query_runtime_guarded_winner_fragment(
     anchor_selector: &str,
-    property_name: &str,
+    property_name: &AuthoredPropertyTextV0,
     declarations: &[&OmenaCheckerCascadeDeclarationInputV0],
 ) -> Option<GuardedCascadeFragmentV0<CascadeKey>> {
     let declaration_ids = declarations
@@ -335,7 +337,7 @@ fn query_runtime_guarded_winner_fragment(
             Some(GuardedCascadeCandidateV0::new(
                 *declaration_ids.get(declaration.declaration_id.as_str())?,
                 anchor_selector,
-                property_name,
+                property_name.clone(),
                 ranked.key,
                 GuardedCascadeSpecificityExactnessV0::Exact,
                 0,
@@ -565,7 +567,7 @@ fn query_static_supports_verdict_label(verdict: StaticSupportsEvalVerdictV0) -> 
 }
 
 fn query_runtime_state_scenario(
-    property_name: &str,
+    property_name: &AuthoredPropertyTextV0,
     pseudo_state: Option<&str>,
     condition_context: &[String],
     declarations: &[&OmenaCheckerCascadeDeclarationInputV0],
@@ -581,13 +583,18 @@ fn query_runtime_state_scenario(
 
 pub(in crate::style) fn query_runtime_state_scenario_with_inline_override(
     selector: &str,
-    property_name: &str,
+    property_name: &AuthoredPropertyTextV0,
     declarations: &[OmenaCheckerCascadeDeclarationInputV0],
     override_fact: &OmenaQueryInlineStyleRuntimeOverrideV0,
 ) -> OmenaQueryRuntimeStateScenarioV0 {
     let candidate_declarations = declarations
         .iter()
-        .filter(|declaration| property_names_same(&declaration.property, property_name))
+        .filter(|declaration| {
+            declaration
+                .property
+                .to_property_name()
+                .same_as(&property_name.to_property_name())
+        })
         .filter(|declaration| {
             query_runtime_selector_matches_anchor_classes(selector, declaration.selector.as_str())
         })
@@ -602,7 +609,7 @@ pub(in crate::style) fn query_runtime_state_scenario_with_inline_override(
 }
 
 fn query_runtime_state_scenario_with_optional_inline_override(
-    property_name: &str,
+    property_name: &AuthoredPropertyTextV0,
     pseudo_state: Option<&str>,
     condition_context: &[String],
     declarations: &[&OmenaCheckerCascadeDeclarationInputV0],
@@ -619,7 +626,7 @@ fn query_runtime_state_scenario_with_optional_inline_override(
 }
 
 fn query_runtime_state_scenario_evaluation(
-    property_name: &str,
+    property_name: &AuthoredPropertyTextV0,
     pseudo_state: Option<&str>,
     condition_context: &[String],
     declarations: &[&OmenaCheckerCascadeDeclarationInputV0],
@@ -678,7 +685,7 @@ fn query_runtime_state_scenario_evaluation(
             .clone()
             .unwrap_or_else(|| "<dynamic>".to_string());
         property_candidates.push(AbstractPropertyValueCandidateV0 {
-            property_name: property_name.to_string(),
+            property_name: property_name.clone(),
             value,
             pseudo_state: None,
             condition_context: Vec::new(),
@@ -693,7 +700,7 @@ fn query_runtime_state_scenario_evaluation(
             override_fact,
         ));
     }
-    let property_value_narrowing = narrow_abstract_property_value_for_cascade_branch(
+    let property_value_narrowing = narrow_abstract_property_value_for_authored_cascade_branch(
         property_name,
         pseudo_state,
         condition_context,
@@ -705,7 +712,10 @@ fn query_runtime_state_scenario_evaluation(
     let outcome = if ranked_declarations.is_empty() {
         CascadeOutcome::Top
     } else {
-        cascade_property(ranked_declarations, property_name)
+        cascade_property_for_key(
+            ranked_declarations,
+            &property_name.to_property_name().canonical_key(),
+        )
     };
     let (winner_declaration_id, winner_value) = if has_unknown_activation {
         (None, None)
@@ -766,7 +776,7 @@ fn query_runtime_inline_style_declaration_id(
 }
 
 fn query_runtime_inline_style_cascade_declaration(
-    property_name: &str,
+    property_name: &AuthoredPropertyTextV0,
     override_fact: &OmenaQueryInlineStyleRuntimeOverrideV0,
 ) -> CascadeDeclaration {
     let value = override_fact
@@ -775,8 +785,8 @@ fn query_runtime_inline_style_cascade_declaration(
         .unwrap_or_else(|| "<dynamic>".to_string());
     CascadeDeclaration {
         id: query_runtime_inline_style_declaration_id(override_fact),
-        property: AuthoredPropertyTextV0::new(property_name),
-        property_key: PropertyNameV0::from_authored(property_name).canonical_key(),
+        property: property_name.clone(),
+        property_key: property_name.to_property_name().canonical_key(),
         value: CascadeValue::Literal(value),
         key: CascadeKey::new(
             cascade_level_for_origin(CascadeOriginV0::Inline, false),
@@ -838,8 +848,8 @@ pub(in crate::style) fn query_runtime_cascade_declaration_from_input(
 
     CascadeDeclaration {
         id: input.declaration_id.clone(),
-        property: AuthoredPropertyTextV0::new(input.property.clone()),
-        property_key: PropertyNameV0::from_authored(&input.property).canonical_key(),
+        property: input.property.clone(),
+        property_key: input.property.to_property_name().canonical_key(),
         value: CascadeValue::Literal(value),
         key: CascadeKey::new(level, layer_rank, 0, specificity, input.source_order),
         open_world_tie_evidence: OpenWorldTieEvidence::NONE,
@@ -892,7 +902,7 @@ mod tests {
         OmenaCheckerCascadeDeclarationInputV0 {
             declaration_id: id.to_string(),
             selector: CanonicalSelector::from_canonical(".target"),
-            property: "color".to_string(),
+            property: AuthoredPropertyTextV0::new("color"),
             value: id.to_string(),
             source_order: 0,
             condition_context: Vec::new(),
@@ -913,7 +923,7 @@ mod tests {
         OmenaCheckerCascadeDeclarationInputV0 {
             declaration_id: id.to_string(),
             selector: CanonicalSelector::from_canonical(selector),
-            property: "color".to_string(),
+            property: AuthoredPropertyTextV0::new("color"),
             value: value.to_string(),
             source_order,
             condition_context: Vec::new(),
@@ -1000,14 +1010,24 @@ mod tests {
         );
 
         let references = declarations.iter().collect::<Vec<_>>();
-        let scenario = query_runtime_state_scenario("color", None, &[], &references);
+        let scenario = query_runtime_state_scenario(
+            &AuthoredPropertyTextV0::new("color"),
+            None,
+            &[],
+            &references,
+        );
         assert_eq!(
             scenario.winner_declaration_id.as_deref(),
             Some("ua-important")
         );
 
         let normal_references = declarations[..3].iter().collect::<Vec<_>>();
-        let normal_scenario = query_runtime_state_scenario("color", None, &[], &normal_references);
+        let normal_scenario = query_runtime_state_scenario(
+            &AuthoredPropertyTextV0::new("color"),
+            None,
+            &[],
+            &normal_references,
+        );
         assert_eq!(
             normal_scenario.winner_declaration_id.as_deref(),
             Some("author-normal")
@@ -1021,7 +1041,12 @@ mod tests {
             selector_declaration("simple", ".item", "blue", 1),
         ];
         let references = declarations.iter().collect::<Vec<_>>();
-        let scenario = query_runtime_state_scenario("color", None, &[], &references);
+        let scenario = query_runtime_state_scenario(
+            &AuthoredPropertyTextV0::new("color"),
+            None,
+            &[],
+            &references,
+        );
 
         assert_eq!(scenario.winner_declaration_id.as_deref(), Some("complex"));
         assert_eq!(scenario.winner_value.as_deref(), Some("red"));
@@ -1036,7 +1061,12 @@ mod tests {
             0,
         )];
         let references = declarations.iter().collect::<Vec<_>>();
-        let scenario = query_runtime_state_scenario("color", None, &[], &references);
+        let scenario = query_runtime_state_scenario(
+            &AuthoredPropertyTextV0::new("color"),
+            None,
+            &[],
+            &references,
+        );
 
         assert_eq!(scenario.winner_declaration_id, None);
         assert_eq!(scenario.winner_value, None);
@@ -1059,14 +1089,14 @@ mod tests {
         let inline_override = OmenaQueryInlineStyleRuntimeOverrideV0 {
             source_path: "file:///workspace/src/App.tsx".to_string(),
             range: Default::default(),
-            property_name: "color".to_string(),
+            property_name: AuthoredPropertyTextV0::new("color"),
             value: Some("blue".to_string()),
             cascade_tier: "authorInlineStyle",
             important: false,
             static_value: true,
         };
         let (scenario, outcome) = query_runtime_state_scenario_evaluation(
-            "color",
+            &AuthoredPropertyTextV0::new("color"),
             None,
             &[],
             &[&author_important],
@@ -1103,14 +1133,14 @@ mod tests {
         let inline_override = OmenaQueryInlineStyleRuntimeOverrideV0 {
             source_path: "file:///workspace/src/App.tsx".to_string(),
             range: Default::default(),
-            property_name: "color".to_string(),
+            property_name: AuthoredPropertyTextV0::new("color"),
             value: Some("blue !important".to_string()),
             cascade_tier: "authorInlineStyleImportantSuffix",
             important: true,
             static_value: true,
         };
         let (_, outcome) = query_runtime_state_scenario_evaluation(
-            "color",
+            &AuthoredPropertyTextV0::new("color"),
             None,
             &[],
             &[&author_normal],
@@ -1139,7 +1169,7 @@ mod tests {
         let inline_style_overrides = [OmenaQueryInlineStyleRuntimeOverrideV0 {
             source_path: "file:///workspace/src/App.tsx".to_string(),
             range: Default::default(),
-            property_name: "color".to_string(),
+            property_name: AuthoredPropertyTextV0::new("color"),
             value: Some("red".to_string()),
             cascade_tier: "authorInlineStyle",
             important: false,
@@ -1159,8 +1189,12 @@ mod tests {
 
         let definite_declarations = [selector_declaration("decl-0", ".target", "red", 0)];
         let definite_references = definite_declarations.iter().collect::<Vec<_>>();
-        let definite_scenario =
-            query_runtime_state_scenario("color", None, &[], &definite_references);
+        let definite_scenario = query_runtime_state_scenario(
+            &AuthoredPropertyTextV0::new("color"),
+            None,
+            &[],
+            &definite_references,
+        );
         let unknown_scenario = OmenaQueryRuntimeStateScenarioV0 {
             declaration_ids: vec![runtime_state_unknown_activation_declaration_id("decl-1")],
             winner_declaration_id: None,
@@ -1264,9 +1298,12 @@ mod tests {
         let mut guarded = selector_declaration("guarded", ".target", "red", 1);
         guarded.condition_context = vec!["@media (min-width: 40rem)".to_string()];
         let declarations = [&base, &guarded];
-        let authority =
-            query_runtime_guarded_winner_authority(".target", "color", declarations.as_slice())
-                .ok_or("declared fragment authority missing")?;
+        let authority = query_runtime_guarded_winner_authority(
+            ".target",
+            &AuthoredPropertyTextV0::new("color"),
+            declarations.as_slice(),
+        )
+        .ok_or("declared fragment authority missing")?;
         assert!(authority.winner_defined_for_all_assignments);
 
         let scenario = OmenaQueryRuntimeStateScenarioV0 {
@@ -1277,7 +1314,7 @@ mod tests {
             winner_declaration_id: None,
             winner_value: None,
             property_value_narrowing: query_runtime_state_scenario(
-                "color",
+                &AuthoredPropertyTextV0::new("color"),
                 None,
                 guarded.condition_context.as_slice(),
                 &[&guarded],
@@ -1312,7 +1349,7 @@ mod tests {
         );
         let (_, fragile_guarded_winner_diagnostics) = query_runtime_guarded_winner_analysis(
             ".target",
-            "color",
+            &AuthoredPropertyTextV0::new("color"),
             declarations.as_slice(),
             std::slice::from_ref(&scenario),
         )
@@ -1324,7 +1361,7 @@ mod tests {
             product: "omena-query.runtime-state-scenario-evidence",
             selector: ".target".to_string(),
             selector_class_names: vec!["target".to_string()],
-            property_name: "color".to_string(),
+            property_name: AuthoredPropertyTextV0::new("color"),
             scenario_join_kind: "fixtureWitnessedScenarioJoin",
             confidence_tier: "conditionalDefinite",
             confidence_tier_within_modeled_environment: "conditionalDefiniteWithinModeledEnvironment",

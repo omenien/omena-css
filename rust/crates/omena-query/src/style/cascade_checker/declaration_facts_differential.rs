@@ -4,6 +4,7 @@ use omena_query_checker_orchestrator::{
     standard_property_value_verdicts_v0,
 };
 use omena_syntax::StyleDialect;
+use omena_syntax::ident::CanonicalPropertyKeyV0;
 
 use crate::{
     OmenaQueryTransformExecutionContextV0,
@@ -21,7 +22,7 @@ use super::summarize_query_cascade_checker_diagnostics_with_deep_analysis;
 struct CandidateSignature {
     declaration_id: String,
     selector: String,
-    property: String,
+    property: CanonicalPropertyKeyV0,
     value: String,
     source_order: u32,
     condition_context: Vec<String>,
@@ -39,7 +40,7 @@ struct EvaluationSignature {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct EmissionCandidateSignature {
     selector: String,
-    property: String,
+    property: CanonicalPropertyKeyV0,
     value: String,
     important: bool,
 }
@@ -68,7 +69,11 @@ fn candidate_signatures(
         .map(|declaration| CandidateSignature {
             declaration_id: declaration.input.declaration_id.clone(),
             selector: declaration.input.selector.as_str().to_string(),
-            property: declaration.input.property.clone(),
+            property: declaration
+                .input
+                .property
+                .to_property_name()
+                .canonical_key(),
             value: declaration.input.value.clone(),
             source_order: declaration.input.source_order,
             condition_context: declaration.input.condition_context.clone(),
@@ -112,7 +117,11 @@ fn emission_candidate_signature(
 ) -> EmissionCandidateSignature {
     EmissionCandidateSignature {
         selector: declaration.input.selector.as_str().to_string(),
-        property: declaration.input.property.clone(),
+        property: declaration
+            .input
+            .property
+            .to_property_name()
+            .canonical_key(),
         value: declaration.input.value.clone(),
         important: declaration.input.important,
     }

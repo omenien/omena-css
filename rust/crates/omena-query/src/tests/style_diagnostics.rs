@@ -1,5 +1,6 @@
 #![allow(clippy::expect_used)]
 #![allow(deprecated)]
+use super::rendered_authored;
 use crate::{
     OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
     OmenaQuerySourceImportedStyleBindingV0, OmenaQuerySourceSelectorReferenceFactV0,
@@ -41,7 +42,7 @@ fn custom_property_escape_identity_resolves_without_case_merging() {
         .candidates
         .iter()
         .filter(|candidate| candidate.kind == "customPropertyDeclaration")
-        .map(|candidate| candidate.name.to_string())
+        .map(|candidate| rendered_authored(&candidate.name))
         .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(
         authored_custom_names,
@@ -193,6 +194,7 @@ fn missing_custom_property_diagnostics_fail_closed_without_sealed_identity() {
     let candidate = crate::OmenaQueryStyleHoverCandidateV0 {
         kind: "customPropertyReference",
         name: omena_syntax::ident::AuthoredPropertyTextV0::new("--missing"),
+        selector_key: None,
         property_key: None,
         range: ParserRangeV0 {
             start: ParserPositionV0 {
@@ -234,7 +236,11 @@ fn statement_layer_order_controls_the_winner_and_dead_layer_anchor() {
     let outcomes = crate::summarize_omena_query_cascade_section_outcomes_from_source(source);
     let outcome = outcomes
         .iter()
-        .filter(|outcome| outcome.selector == ".target" && outcome.property == "color")
+        .filter(|outcome| {
+            outcome.selector == ".target"
+                && outcome.property.to_standard_key()
+                    == omena_syntax::ident::PropertyNameV0::canonical_standard_key("color")
+        })
         .collect::<Vec<_>>();
     // For normal declarations, the later declared layer `base` outranks `overrides`.
     assert_eq!(outcome.len(), 1);
@@ -279,7 +285,11 @@ fn invalid_layer_block_declarations_do_not_participate_in_the_cascade() {
     let outcomes = crate::summarize_omena_query_cascade_section_outcomes_from_source(source);
     let color = outcomes
         .iter()
-        .filter(|outcome| outcome.selector == ".target" && outcome.property == "color")
+        .filter(|outcome| {
+            outcome.selector == ".target"
+                && outcome.property.to_standard_key()
+                    == omena_syntax::ident::PropertyNameV0::canonical_standard_key("color")
+        })
         .collect::<Vec<_>>();
 
     assert_eq!(color.len(), 1, "{outcomes:#?}");
@@ -302,7 +312,11 @@ fn nested_layer_paths_do_not_collapse_into_a_source_order_tie() {
     let outcomes = crate::summarize_omena_query_cascade_section_outcomes_from_source(source);
     let outcome = outcomes
         .iter()
-        .filter(|outcome| outcome.selector == ".target" && outcome.property == "color")
+        .filter(|outcome| {
+            outcome.selector == ".target"
+                && outcome.property.to_standard_key()
+                    == omena_syntax::ident::PropertyNameV0::canonical_standard_key("color")
+        })
         .collect::<Vec<_>>();
     // The nested `a.b` layer is a distinct later layer and therefore wins.
     assert_eq!(outcome.len(), 1);
@@ -676,8 +690,11 @@ fn style_diagnostics_for_file_include_cascade_aware_lints() -> Result<(), &'stat
     assert_eq!(narrowing.product, "omena-query.cascade-narrowing-evidence");
     assert_eq!(narrowing.selector, ".btn");
     assert_eq!(narrowing.selector_class_names, vec!["btn".to_string()]);
-    assert_eq!(narrowing.property_name.to_string(), "color");
-    assert_eq!(narrowing.property_value_narrowing.property_name, "color");
+    assert_eq!(rendered_authored(&narrowing.property_name), "color");
+    assert_eq!(
+        rendered_authored(&narrowing.property_value_narrowing.property_name),
+        "color"
+    );
     assert_eq!(narrowing.property_value_narrowing.candidate_count, 2);
     assert_eq!(
         narrowing.property_value_narrowing.matched_candidate_count,
@@ -760,6 +777,35 @@ fn style_diagnostics_for_file_include_cascade_aware_lints() -> Result<(), &'stat
             .tags
             .is_empty()
     );
+    Ok(())
+}
+
+#[test]
+fn cascade_narrowing_evidence_identity_uses_sealed_property_keys() -> Result<(), &'static str> {
+    let source = r#"
+@layer base { .btn { color: red; } }
+@layer overrides { .btn { color: blue; } }
+"#;
+    let candidates =
+        crate::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+            .ok_or("style candidates")?;
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        candidates.candidates.as_slice(),
+    );
+    let plain: crate::OmenaQueryCascadeNarrowingEvidenceV0 = diagnostics
+        .diagnostics
+        .iter()
+        .find_map(|diagnostic| diagnostic.cascade_narrowing.clone())
+        .ok_or("cascade narrowing evidence")?;
+    let mut escaped = plain.clone();
+    escaped.property_name = omena_syntax::ident::AuthoredPropertyTextV0::new(r"C\4f LOR");
+    assert_eq!(plain, escaped);
+
+    escaped.property_name = omena_syntax::ident::AuthoredPropertyTextV0::new("background");
+    escaped.property_key = escaped.property_name.to_property_name().canonical_key();
+    assert_ne!(plain, escaped);
     Ok(())
 }
 
@@ -970,7 +1016,7 @@ export function App() {
         "omena-query.runtime-state-scenario-evidence"
     );
     assert_eq!(runtime_state.selector_class_names, vec!["btn".to_string()]);
-    assert_eq!(runtime_state.property_name, "color");
+    assert_eq!(rendered_authored(&runtime_state.property_name), "color");
     assert_eq!(
         runtime_state.scenario_join_kind,
         "fixtureWitnessedScenarioJoin"
@@ -1064,7 +1110,7 @@ export function App() {
         "authorInlineStyle"
     );
     assert_eq!(
-        runtime_state.inline_style_overrides[0].property_name,
+        rendered_authored(&runtime_state.inline_style_overrides[0].property_name),
         "color"
     );
     assert_eq!(

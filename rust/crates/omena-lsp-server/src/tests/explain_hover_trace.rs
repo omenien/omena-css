@@ -129,7 +129,7 @@ fn explain_hover_trace_keeps_case_distinct_custom_property_definitions_separate(
         .style_candidates
         .iter()
         .filter(|candidate| candidate.kind == "customPropertyDeclaration")
-        .map(|candidate| candidate.name.to_string())
+        .map(LspStyleHoverCandidate::identity_name)
         .collect::<Vec<_>>();
     assert_eq!(
         supplied_names,

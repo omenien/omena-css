@@ -36,7 +36,7 @@ use omena_parser::{
     ParsedStyleFacts, ParsedVariableFactKind, StyleDialect, collect_style_fact_collection,
     collect_style_facts,
 };
-use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0};
+use omena_syntax::ident::{AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0};
 use omena_transform_cst::{
     IrNodeKindV0, TransformPassKind, lower_transform_ir_from_source, transform_pass_sort_ordinal,
 };
@@ -322,15 +322,33 @@ impl TransformBundleParsedModuleInputV0 {
 #[deprecated(
     note = "use TransformBundleInstanceReachabilityInputV0 so the module instance and derivation are explicit"
 )]
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default)]
 pub struct TransformBundleSemanticReachabilityInputV0 {
     pub source_path: String,
     pub class_names: Vec<String>,
     pub keyframe_names: Vec<String>,
     pub value_names: Vec<String>,
-    pub custom_property_names: Vec<String>,
+    pub custom_property_names: Vec<AuthoredPropertyTextV0>,
     pub analysis: TransformBundleReachabilityAnalysisV0,
 }
+
+#[allow(deprecated)]
+impl PartialEq for TransformBundleSemanticReachabilityInputV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.source_path == other.source_path
+            && self.class_names == other.class_names
+            && self.keyframe_names == other.keyframe_names
+            && self.value_names == other.value_names
+            && authored_custom_property_sequences_same(
+                &self.custom_property_names,
+                &other.custom_property_names,
+            )
+            && self.analysis == other.analysis
+    }
+}
+
+#[allow(deprecated)]
+impl Eq for TransformBundleSemanticReachabilityInputV0 {}
 
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -381,16 +399,33 @@ pub enum InstanceReachabilityDerivationV0 {
 }
 
 #[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct TransformBundleInstanceReachabilityInputV0 {
     pub module_instance: ModuleInstanceKeyV0,
     pub class_names: Vec<String>,
     pub keyframe_names: Vec<String>,
     pub value_names: Vec<String>,
-    pub custom_property_names: Vec<String>,
+    pub custom_property_names: Vec<AuthoredPropertyTextV0>,
     pub derivation: InstanceReachabilityDerivationV0,
     pub analysis: TransformBundleReachabilityAnalysisV0,
 }
+
+impl PartialEq for TransformBundleInstanceReachabilityInputV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.module_instance == other.module_instance
+            && self.class_names == other.class_names
+            && self.keyframe_names == other.keyframe_names
+            && self.value_names == other.value_names
+            && authored_custom_property_sequences_same(
+                &self.custom_property_names,
+                &other.custom_property_names,
+            )
+            && self.derivation == other.derivation
+            && self.analysis == other.analysis
+    }
+}
+
+impl Eq for TransformBundleInstanceReachabilityInputV0 {}
 
 impl TransformBundleInstanceReachabilityInputV0 {
     pub fn new(
@@ -476,7 +511,7 @@ pub struct LinkerRuleV0 {
     pub range_end: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LinkerInputV0 {
     pub source_path: String,
@@ -487,9 +522,28 @@ pub struct LinkerInputV0 {
     pub class_names: Vec<String>,
     pub keyframe_names: Vec<String>,
     pub value_names: Vec<String>,
-    pub custom_property_names: Vec<String>,
+    pub custom_property_names: Vec<AuthoredPropertyTextV0>,
     pub ordered_rules: Vec<LinkerRuleV0>,
 }
+
+impl PartialEq for LinkerInputV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.source_path == other.source_path
+            && self.dialect == other.dialect
+            && self.instance == other.instance
+            && self.dependency_edges == other.dependency_edges
+            && self.class_names == other.class_names
+            && self.keyframe_names == other.keyframe_names
+            && self.value_names == other.value_names
+            && authored_custom_property_sequences_same(
+                &self.custom_property_names,
+                &other.custom_property_names,
+            )
+            && self.ordered_rules == other.ordered_rules
+    }
+}
+
+impl Eq for LinkerInputV0 {}
 
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1969,7 +2023,7 @@ fn linker_input_from_module_facts(
                 .filter(|variable| {
                     variable.kind == ParsedVariableFactKind::CustomPropertyDeclaration
                 })
-                .map(|variable| variable.name.clone()),
+                .filter_map(|variable| variable.name.as_custom_property().cloned()),
         ),
         ordered_rules: collect_ordered_linker_rules(facts),
     }
@@ -2602,14 +2656,27 @@ fn dedupe_names(names: impl IntoIterator<Item = String>) -> Vec<String> {
         .collect()
 }
 
-fn dedupe_custom_property_names(names: impl IntoIterator<Item = String>) -> Vec<String> {
-    let mut by_identity = BTreeMap::<CanonicalCustomPropertyNameV0, String>::new();
+fn dedupe_custom_property_names(
+    names: impl IntoIterator<Item = AuthoredPropertyTextV0>,
+) -> Vec<AuthoredPropertyTextV0> {
+    let mut by_identity = BTreeMap::<CanonicalCustomPropertyNameV0, AuthoredPropertyTextV0>::new();
     for authored in names {
         by_identity
-            .entry(PropertyNameV0::canonical_custom_key(&authored))
+            .entry(authored.to_custom_key())
             .or_insert(authored);
     }
     by_identity.into_values().collect()
+}
+
+fn authored_custom_property_sequences_same(
+    left: &[AuthoredPropertyTextV0],
+    right: &[AuthoredPropertyTextV0],
+) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| left.to_custom_key() == right.to_custom_key())
 }
 
 fn collect_bundle_edges_from_facts(
@@ -3119,6 +3186,60 @@ mod tests {
         ClosedWorldModuleReachabilityEvidenceV0, ConfigurationHashV0, ModuleIdV0,
         ModuleInstanceKeyV0, ParsedSelectorFactKind, StyleDialect,
     };
+    use omena_syntax::ident::AuthoredPropertyTextV0;
+
+    fn bundle_test_instance() -> ModuleInstanceKeyV0 {
+        ModuleInstanceKeyV0::new(
+            ModuleIdV0::new("/workspace/src/app.module.css"),
+            ConfigurationHashV0::new("default"),
+        )
+    }
+
+    #[test]
+    fn semantic_reachability_input_identity_uses_custom_property_keys() {
+        let input = |property: &str| {
+            let mut input =
+                TransformBundleSemanticReachabilityInputV0::new("/workspace/src/app.module.css");
+            input.custom_property_names = vec![AuthoredPropertyTextV0::new(property)];
+            input
+        };
+
+        assert_eq!(input(r"--f\6f o"), input("--foo"));
+        assert_ne!(input("--foo"), input("--FOO"));
+    }
+
+    #[test]
+    fn instance_reachability_input_identity_uses_custom_property_keys() {
+        let input = |property: &str| {
+            let mut input = TransformBundleInstanceReachabilityInputV0::new(
+                bundle_test_instance(),
+                InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+            );
+            input.custom_property_names = vec![AuthoredPropertyTextV0::new(property)];
+            input
+        };
+
+        assert_eq!(input(r"--f\6f o"), input("--foo"));
+        assert_ne!(input("--foo"), input("--FOO"));
+    }
+
+    #[test]
+    fn linker_input_identity_uses_custom_property_keys() {
+        let input = |property: &str| LinkerInputV0 {
+            source_path: "/workspace/src/app.module.css".to_string(),
+            dialect: StyleDialect::Css,
+            instance: bundle_test_instance(),
+            dependency_edges: Vec::new(),
+            class_names: Vec::new(),
+            keyframe_names: Vec::new(),
+            value_names: Vec::new(),
+            custom_property_names: vec![AuthoredPropertyTextV0::new(property)],
+            ordered_rules: Vec::new(),
+        };
+
+        assert_eq!(input(r"--f\6f o"), input("--foo"));
+        assert_ne!(input("--foo"), input("--FOO"));
+    }
 
     #[test]
     fn public_path_normalizer_collapses_equivalent_cross_platform_spellings() {
@@ -3511,7 +3632,9 @@ mod tests {
                 .closed_world_bundle
                 .reachability()
                 .custom_property_names()
-                .contains(&"--brand".to_string())
+                .iter()
+                .any(|name| name.to_custom_key()
+                    == AuthoredPropertyTextV0::new("--brand").to_custom_key())
         );
         Ok(())
     }
@@ -4600,18 +4723,31 @@ mod tests {
             instance.clone(),
             InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
         );
-        first
-            .custom_property_names
-            .extend(["--foo".to_string(), r"--f\6f o".to_string()]);
+        first.custom_property_names.extend([
+            AuthoredPropertyTextV0::new("--foo"),
+            AuthoredPropertyTextV0::new(r"--f\6f o"),
+        ]);
         let mut second = TransformBundleInstanceReachabilityInputV0::new(
             instance,
             InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
         );
-        second.custom_property_names.push("--FOO".to_string());
+        second
+            .custom_property_names
+            .push(AuthoredPropertyTextV0::new("--FOO"));
 
         apply_semantic_reachability_to_linker_inputs(inputs.as_mut_slice(), &[first, second]);
 
-        assert_eq!(inputs[0].custom_property_names, ["--FOO", "--foo"]);
+        assert_eq!(
+            inputs[0]
+                .custom_property_names
+                .iter()
+                .map(AuthoredPropertyTextV0::to_custom_key)
+                .collect::<Vec<_>>(),
+            vec![
+                AuthoredPropertyTextV0::new("--FOO").to_custom_key(),
+                AuthoredPropertyTextV0::new("--foo").to_custom_key(),
+            ]
+        );
     }
 
     #[test]
@@ -4633,12 +4769,16 @@ mod tests {
         first.class_names.push("alpha".to_string());
         first.keyframe_names.push("enter".to_string());
         first.value_names.push("primary".to_string());
-        first.custom_property_names.push("--primary".to_string());
+        first
+            .custom_property_names
+            .push(AuthoredPropertyTextV0::new("--primary"));
         let mut second = TransformBundleSemanticReachabilityInputV0::new("shared.module.css");
         second.class_names.push("beta".to_string());
         second.keyframe_names.push("leave".to_string());
         second.value_names.push("secondary".to_string());
-        second.custom_property_names.push("--secondary".to_string());
+        second
+            .custom_property_names
+            .push(AuthoredPropertyTextV0::new("--secondary"));
 
         let projection = project_omena_transform_bundle_linker_inputs(&modules, &[first, second]);
         let input = &projection.inputs()[0];
@@ -4841,7 +4981,7 @@ mod tests {
                     class_names: vec!["theme".to_string()],
                     keyframe_names: Vec::new(),
                     value_names: Vec::new(),
-                    custom_property_names: vec!["--brand".to_string()],
+                    custom_property_names: vec![AuthoredPropertyTextV0::new("--brand")],
                     ordered_rules: vec![LinkerRuleV0 {
                         selector_name: "theme".to_string(),
                         selector_kind: ParsedSelectorFactKind::Class,
@@ -4868,7 +5008,9 @@ mod tests {
                 .closed_world_bundle
                 .reachability()
                 .custom_property_names()
-                .contains(&"--brand".to_string())
+                .iter()
+                .any(|name| name.to_custom_key()
+                    == AuthoredPropertyTextV0::new("--brand").to_custom_key())
         );
         Ok(())
     }

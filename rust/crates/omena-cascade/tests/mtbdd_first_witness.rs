@@ -5,6 +5,7 @@ use omena_cascade::{
     VariableOrderRegistrationV0, build_guarded_cascade_winner_v0,
     evaluate_guarded_cascade_winner_v0, normalized_layer_rank, same_canonical_winner_function_v0,
 };
+use omena_syntax::ident::AuthoredPropertyTextV0;
 use serde::Serialize;
 
 fn candidate(
@@ -15,7 +16,7 @@ fn candidate(
     GuardedCascadeCandidateV0::new(
         declaration_id,
         "button.primary",
-        "color",
+        AuthoredPropertyTextV0::new("color"),
         cascade_key,
         GuardedCascadeSpecificityExactnessV0::Exact,
         0,
@@ -159,7 +160,7 @@ fn cascade_key_input_orders_build_one_canonical_winner_root()
         GuardedCascadeCandidateV0::new(
             declaration_id,
             "button.primary",
-            "color",
+            AuthoredPropertyTextV0::new("color"),
             CascadeKey::new(
                 CascadeLevel::AuthorNormal,
                 normalized_layer_rank(false, LayerOrdinal::new(0)),
@@ -224,7 +225,7 @@ fn fragment_admission_returns_closed_reasons_for_unsupported_candidates() {
     let inexact = GuardedCascadeCandidateV0::new(
         1,
         "button.primary",
-        "color",
+        AuthoredPropertyTextV0::new("color"),
         1_u32,
         GuardedCascadeSpecificityExactnessV0::Inexact,
         0,
@@ -276,7 +277,7 @@ fn synthetic_refusal_corpus_reports_each_attempted_boundary()
         GuardedCascadeCandidateV0::new(
             declaration_id,
             element,
-            property,
+            AuthoredPropertyTextV0::new(property),
             key,
             GuardedCascadeSpecificityExactnessV0::Exact,
             0,
@@ -300,7 +301,7 @@ fn synthetic_refusal_corpus_reports_each_attempted_boundary()
                 [GuardedCascadeCandidateV0::new(
                     1,
                     "button",
-                    "color",
+                    AuthoredPropertyTextV0::new("color"),
                     10,
                     GuardedCascadeSpecificityExactnessV0::Inexact,
                     0,
@@ -315,7 +316,7 @@ fn synthetic_refusal_corpus_reports_each_attempted_boundary()
                 [GuardedCascadeCandidateV0::new(
                     2,
                     "button",
-                    "color",
+                    AuthoredPropertyTextV0::new("color"),
                     10,
                     GuardedCascadeSpecificityExactnessV0::Exact,
                     1,

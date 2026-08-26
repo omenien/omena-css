@@ -1,6 +1,6 @@
 use omena_parser::{
-    ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind, ParsedVariableFactKind, StyleDialect,
-    collect_style_facts,
+    ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind, ParsedVariableFactKind,
+    ParsedVariableFactNameV0, StyleDialect, collect_style_facts,
 };
 use omena_value_lattice::canonicalize_css_value;
 
@@ -91,10 +91,15 @@ fn parse_static_sass_exports_from_facts_v1(
         .variables
         .iter()
         .filter(|fact| fact.kind == ParsedVariableFactKind::ScssDeclaration && fact.is_top_level)
-        .map(|fact| OmenaSifVariableExportV1 {
-            name: fact.name.clone(),
-            defaulted: fact.defaulted,
-            value_repr: fact.value_repr.as_deref().and_then(canonical_sif_value),
+        .filter_map(|fact| {
+            let ParsedVariableFactNameV0::NonProperty(name) = &fact.name else {
+                return None;
+            };
+            Some(OmenaSifVariableExportV1 {
+                name: name.clone(),
+                defaulted: fact.defaulted,
+                value_repr: fact.value_repr.as_deref().and_then(canonical_sif_value),
+            })
         })
         .collect();
     let mut mixins = Vec::new();

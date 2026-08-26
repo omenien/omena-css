@@ -43,7 +43,7 @@ use omena_smt::{
     layer_inversion_declaration_v0, smt_check_layer_flatten_inversion_v0,
 };
 use omena_syntax::ident::{
-    CanonicalCustomPropertyNameV0, PropertyNameKindV0, PropertyNameV0, property_names_same,
+    AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, PropertyNameKindV0,
 };
 use serde::{Deserialize, Serialize};
 
@@ -572,12 +572,12 @@ pub struct OmenaCheckerCascadeInputV0 {
 ///     var_references: Vec::new(),
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaCheckerCascadeDeclarationInputV0 {
     pub declaration_id: String,
     pub selector: CanonicalSelector,
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
     pub value: String,
     pub source_order: u32,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -592,21 +592,52 @@ pub struct OmenaCheckerCascadeDeclarationInputV0 {
     )]
     pub origin: omena_cascade::CascadeOriginV0,
     pub important: bool,
-    pub var_references: Vec<String>,
+    pub var_references: Vec<AuthoredPropertyTextV0>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+impl PartialEq for OmenaCheckerCascadeDeclarationInputV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.declaration_id == other.declaration_id
+            && self.selector == other.selector
+            && self
+                .property
+                .to_property_name()
+                .same_as(&other.property.to_property_name())
+            && self.value == other.value
+            && self.source_order == other.source_order
+            && self.condition_context == other.condition_context
+            && self.layer_name == other.layer_name
+            && self.layer_order == other.layer_order
+            && self.origin == other.origin
+            && self.important == other.important
+            && custom_property_text_sequence_same(&self.var_references, &other.var_references)
+    }
+}
+
+impl Eq for OmenaCheckerCascadeDeclarationInputV0 {}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaCheckerCustomPropertyInputV0 {
-    pub name: String,
-    pub dependencies: Vec<String>,
+    pub name: AuthoredPropertyTextV0,
+    pub dependencies: Vec<AuthoredPropertyTextV0>,
     pub guaranteed_invalid: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+impl PartialEq for OmenaCheckerCustomPropertyInputV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.name.to_custom_key() == other.name.to_custom_key()
+            && custom_property_text_sequence_same(&self.dependencies, &other.dependencies)
+            && self.guaranteed_invalid == other.guaranteed_invalid
+    }
+}
+
+impl Eq for OmenaCheckerCustomPropertyInputV0 {}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaCheckerCustomPropertyRegistrationInputV0 {
-    pub name: String,
+    pub name: AuthoredPropertyTextV0,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub syntax: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -615,17 +646,39 @@ pub struct OmenaCheckerCustomPropertyRegistrationInputV0 {
     pub initial_value: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+impl PartialEq for OmenaCheckerCustomPropertyRegistrationInputV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.name.to_custom_key() == other.name.to_custom_key()
+            && self.syntax == other.syntax
+            && self.inherits == other.inherits
+            && self.initial_value == other.initial_value
+    }
+}
+
+impl Eq for OmenaCheckerCustomPropertyRegistrationInputV0 {}
+
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaCheckerActiveCustomPropertyRegistrationV0 {
-    pub name: String,
+    pub name: AuthoredPropertyTextV0,
     pub syntax: String,
     pub inherits: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub initial_value: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+impl PartialEq for OmenaCheckerActiveCustomPropertyRegistrationV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.name.to_custom_key() == other.name.to_custom_key()
+            && self.syntax == other.syntax
+            && self.inherits == other.inherits
+            && self.initial_value == other.initial_value
+    }
+}
+
+impl Eq for OmenaCheckerActiveCustomPropertyRegistrationV0 {}
+
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaCheckerCascadeEvaluationV0 {
     pub rule_code: OmenaCheckerRuleCodeV0,
@@ -635,11 +688,30 @@ pub struct OmenaCheckerCascadeEvaluationV0 {
     pub declaration_ids: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub layer_name: Option<String>,
-    pub custom_property_names: Vec<String>,
+    pub custom_property_names: Vec<AuthoredPropertyTextV0>,
     pub message: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub mechanism_products: Vec<&'static str>,
 }
+
+impl PartialEq for OmenaCheckerCascadeEvaluationV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.rule_code == other.rule_code
+            && self.rule_code_name == other.rule_code_name
+            && self.severity == other.severity
+            && self.severity_name == other.severity_name
+            && self.declaration_ids == other.declaration_ids
+            && self.layer_name == other.layer_name
+            && property_text_sequence_same(
+                &self.custom_property_names,
+                &other.custom_property_names,
+            )
+            && self.message == other.message
+            && self.mechanism_products == other.mechanism_products
+    }
+}
+
+impl Eq for OmenaCheckerCascadeEvaluationV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -647,13 +719,49 @@ pub struct OmenaCheckerGrnInputV0 {
     pub vertices: Vec<OmenaCheckerGrnVertexStateInputV0>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaCheckerGrnVertexStateInputV0 {
     pub vertex_id: String,
     pub selector: String,
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
     pub state: OmenaCheckerGrnVertexStateKindV0,
+}
+
+impl PartialEq for OmenaCheckerGrnVertexStateInputV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.vertex_id == other.vertex_id
+            && self.selector == other.selector
+            && self
+                .property
+                .to_property_name()
+                .same_as(&other.property.to_property_name())
+            && self.state == other.state
+    }
+}
+
+impl Eq for OmenaCheckerGrnVertexStateInputV0 {}
+
+fn custom_property_text_sequence_same(
+    left: &[AuthoredPropertyTextV0],
+    right: &[AuthoredPropertyTextV0],
+) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| left.to_custom_key() == right.to_custom_key())
+}
+
+fn property_text_sequence_same(
+    left: &[AuthoredPropertyTextV0],
+    right: &[AuthoredPropertyTextV0],
+) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| left.to_property_name().same_as(&right.to_property_name()))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
@@ -1697,11 +1805,10 @@ pub fn standard_property_value_verdicts_v0(
     declarations
         .iter()
         .filter(|declaration| {
-            PropertyNameV0::from_authored(&declaration.property).kind()
-                == PropertyNameKindV0::Standard
+            declaration.property.to_property_name().kind() == PropertyNameKindV0::Standard
         })
         .map(|declaration| {
-            let property = PropertyNameV0::from_authored(&declaration.property);
+            let property = declaration.property.to_property_name();
             (
                 declaration.declaration_id.clone(),
                 standard_property_value_verdict_v0(
@@ -1725,17 +1832,12 @@ pub fn evaluate_omena_checker_cascade_rules_with_standard_property_value_verdict
     let invalid_custom_properties = custom_properties
         .iter()
         .filter(|property| property.guaranteed_invalid)
-        .map(|property| PropertyNameV0::canonical_custom_key(&property.name))
+        .map(|property| property.name.to_custom_key())
         .collect::<BTreeSet<_>>();
     let cyclic_custom_properties = cyclic_custom_property_names(&custom_properties);
     let known_custom_properties = custom_properties
         .iter()
-        .map(|property| {
-            (
-                PropertyNameV0::canonical_custom_key(&property.name),
-                property.name.clone(),
-            )
-        })
+        .map(|property| (property.name.to_custom_key(), property.name.clone()))
         .collect::<BTreeMap<_, _>>();
     let mut evaluations = Vec::new();
 
@@ -1794,14 +1896,14 @@ pub fn evaluate_omena_checker_cascade_rules_with_standard_property_value_verdict
             .var_references
             .iter()
             .filter(|name| {
-                let key = PropertyNameV0::canonical_custom_key(*name);
+                let key = name.to_custom_key();
                 !known_custom_properties.contains_key(&key)
                     || invalid_custom_properties.contains(&key)
                     || cyclic_custom_properties.contains(&key)
             })
-            .cloned()
-            .collect::<BTreeSet<_>>()
-            .into_iter()
+            .map(|name| (name.to_custom_key(), name.clone()))
+            .collect::<BTreeMap<_, _>>()
+            .into_values()
             .collect::<Vec<_>>();
         if !risky_refs.is_empty() {
             evaluations.push(cascade_evaluation(
@@ -1816,7 +1918,7 @@ pub fn evaluate_omena_checker_cascade_rules_with_standard_property_value_verdict
     }
 
     for declaration in &declarations {
-        let property = PropertyNameV0::from_authored(&declaration.property);
+        let property = declaration.property.to_property_name();
         let Some(property_key) = property.as_custom_key() else {
             continue;
         };
@@ -1842,8 +1944,7 @@ pub fn evaluate_omena_checker_cascade_rules_with_standard_property_value_verdict
     }
 
     for declaration in &declarations {
-        if PropertyNameV0::from_authored(&declaration.property).kind() == PropertyNameKindV0::Custom
-        {
+        if declaration.property.to_property_name().kind() == PropertyNameKindV0::Custom {
             continue;
         }
         if standard_property_value_verdicts.get(declaration.declaration_id.as_str())
@@ -1867,7 +1968,7 @@ pub fn evaluate_omena_checker_cascade_rules_with_standard_property_value_verdict
                 known_custom_properties
                     .get(&name)
                     .cloned()
-                    .unwrap_or_else(|| name.as_str().to_string())
+                    .unwrap_or_else(|| AuthoredPropertyTextV0::new(name.as_str()))
             })
             .collect();
         evaluations.push(cascade_evaluation(
@@ -1937,7 +2038,7 @@ pub fn active_omena_checker_custom_property_registrations_v0(
             continue;
         }
         active_registrations.insert(
-            PropertyNameV0::canonical_custom_key(&registration.name),
+            registration.name.to_custom_key(),
             OmenaCheckerActiveCustomPropertyRegistrationV0 {
                 name: registration.name.clone(),
                 syntax: syntax.to_string(),
@@ -2245,7 +2346,7 @@ fn cascade_evaluation(
     severity: OmenaCheckerSeverityV0,
     declaration_ids: Vec<String>,
     layer_name: Option<String>,
-    custom_property_names: Vec<String>,
+    custom_property_names: Vec<AuthoredPropertyTextV0>,
     message: &'static str,
 ) -> OmenaCheckerCascadeEvaluationV0 {
     cascade_evaluation_with_mechanism_products(
@@ -2264,7 +2365,7 @@ fn cascade_evaluation_with_mechanism_products(
     severity: OmenaCheckerSeverityV0,
     declaration_ids: Vec<String>,
     layer_name: Option<String>,
-    custom_property_names: Vec<String>,
+    custom_property_names: Vec<AuthoredPropertyTextV0>,
     message: &'static str,
     mechanism_products: Vec<&'static str>,
 ) -> OmenaCheckerCascadeEvaluationV0 {
@@ -2563,7 +2664,12 @@ fn is_progressive_enhancement_pair(
     left: &OmenaCheckerCascadeDeclarationInputV0,
     right: &OmenaCheckerCascadeDeclarationInputV0,
 ) -> bool {
-    if !property_names_same(&left.property, &right.property) || left.value == right.value {
+    if !left
+        .property
+        .to_property_name()
+        .same_as(&right.property.to_property_name())
+        || left.value == right.value
+    {
         return false;
     }
     let left_token = leading_value_token(&left.value);
@@ -2597,7 +2703,10 @@ fn declarations_share_cascade_context(
     right: &OmenaCheckerCascadeDeclarationInputV0,
 ) -> bool {
     left.selector.as_str() == right.selector.as_str()
-        && property_names_same(&left.property, &right.property)
+        && left
+            .property
+            .to_property_name()
+            .same_as(&right.property.to_property_name())
         && left.condition_context == right.condition_context
 }
 
@@ -2608,17 +2717,17 @@ fn cyclic_custom_property_names(
         .iter()
         .map(|property| {
             (
-                PropertyNameV0::canonical_custom_key(&property.name),
+                property.name.to_custom_key(),
                 property
                     .dependencies
                     .iter()
                     .filter(|dependency| {
-                        let dependency_key = PropertyNameV0::canonical_custom_key(*dependency);
-                        custom_properties.iter().any(|property| {
-                            PropertyNameV0::canonical_custom_key(&property.name) == dependency_key
-                        })
+                        let dependency_key = dependency.to_custom_key();
+                        custom_properties
+                            .iter()
+                            .any(|property| property.name.to_custom_key() == dependency_key)
                     })
-                    .map(PropertyNameV0::canonical_custom_key)
+                    .map(AuthoredPropertyTextV0::to_custom_key)
                     .collect::<Vec<_>>(),
             )
         })
@@ -3044,6 +3153,19 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     use super::*;
+
+    fn authored(value: &str) -> AuthoredPropertyTextV0 {
+        AuthoredPropertyTextV0::new(value)
+    }
+
+    fn authored_names_match(actual: &[AuthoredPropertyTextV0], expected: &[&str]) -> bool {
+        actual.len() == expected.len()
+            && actual.iter().zip(expected).all(|(actual, expected)| {
+                actual
+                    .to_property_name()
+                    .same_as(&authored(expected).to_property_name())
+            })
+    }
 
     fn sha256_hex(bytes: &[u8]) -> String {
         let mut digest = String::with_capacity(64);
@@ -3473,18 +3595,18 @@ mod tests {
             ],
             custom_properties: vec![
                 OmenaCheckerCustomPropertyInputV0 {
-                    name: "--gap".to_string(),
+                    name: authored("--gap"),
                     dependencies: Vec::new(),
                     guaranteed_invalid: true,
                 },
                 OmenaCheckerCustomPropertyInputV0 {
-                    name: "--a".to_string(),
-                    dependencies: vec!["--b".to_string()],
+                    name: authored("--a"),
+                    dependencies: vec![authored("--b")],
                     guaranteed_invalid: false,
                 },
                 OmenaCheckerCustomPropertyInputV0 {
-                    name: "--b".to_string(),
-                    dependencies: vec!["--a".to_string()],
+                    name: authored("--b"),
+                    dependencies: vec![authored("--a")],
                     guaranteed_invalid: false,
                 },
             ],
@@ -3503,10 +3625,10 @@ mod tests {
         assert!(evaluations.iter().any(|evaluation| evaluation.rule_code
             == OmenaCheckerRuleCodeV0::IacvtProne
             && evaluation.declaration_ids == vec!["gap-use"]
-            && evaluation.custom_property_names == vec!["--gap"]));
+            && authored_names_match(&evaluation.custom_property_names, &["--gap"])));
         assert!(evaluations.iter().any(|evaluation| evaluation.rule_code
             == OmenaCheckerRuleCodeV0::CircularVar
-            && evaluation.custom_property_names == vec!["--a", "--b"]));
+            && authored_names_match(&evaluation.custom_property_names, &["--a", "--b"])));
     }
 
     #[test]
@@ -3577,13 +3699,13 @@ mod tests {
             custom_properties: Vec::new(),
             custom_property_registrations: vec![
                 OmenaCheckerCustomPropertyRegistrationInputV0 {
-                    name: "--gap".to_string(),
+                    name: authored("--gap"),
                     syntax: Some("'<length>'".to_string()),
                     inherits: Some("false".to_string()),
                     initial_value: Some("8px".to_string()),
                 },
                 OmenaCheckerCustomPropertyRegistrationInputV0 {
-                    name: "--mode".to_string(),
+                    name: authored("--mode"),
                     syntax: Some("'*'".to_string()),
                     inherits: Some("false".to_string()),
                     initial_value: None,
@@ -3599,7 +3721,10 @@ mod tests {
 
         assert_eq!(mismatches.len(), 1);
         assert_eq!(mismatches[0].declaration_ids, vec!["bad-gap"]);
-        assert_eq!(mismatches[0].custom_property_names, vec!["--gap"]);
+        assert!(authored_names_match(
+            &mismatches[0].custom_property_names,
+            &["--gap"]
+        ));
     }
 
     #[test]
@@ -3669,18 +3794,18 @@ mod tests {
             ],
             custom_properties: vec![
                 OmenaCheckerCustomPropertyInputV0 {
-                    name: "--foo".to_string(),
+                    name: authored("--foo"),
                     dependencies: Vec::new(),
                     guaranteed_invalid: false,
                 },
                 OmenaCheckerCustomPropertyInputV0 {
-                    name: "--FOO".to_string(),
+                    name: authored("--FOO"),
                     dependencies: Vec::new(),
                     guaranteed_invalid: false,
                 },
             ],
             custom_property_registrations: vec![OmenaCheckerCustomPropertyRegistrationInputV0 {
-                name: r"--f\6f o".to_string(),
+                name: authored(r"--f\6f o"),
                 syntax: Some("'<length>'".to_string()),
                 inherits: Some("false".to_string()),
                 initial_value: Some("8px".to_string()),
@@ -3707,6 +3832,17 @@ mod tests {
             evaluation.rule_code == OmenaCheckerRuleCodeV0::UnspecifiedCascadeTie
                 && evaluation.declaration_ids == vec!["standard-upper", "standard-lower"]
         }));
+    }
+
+    #[test]
+    fn keyless_dependency_names_preserve_forced_custom_kind_without_leading_hyphens() {
+        let cyclic = cyclic_custom_property_names(&[OmenaCheckerCustomPropertyInputV0 {
+            name: authored("color"),
+            dependencies: vec![authored("color")],
+            guaranteed_invalid: false,
+        }]);
+
+        assert_eq!(cyclic, BTreeSet::from([authored("color").to_custom_key()]));
     }
 
     #[test]
@@ -3740,7 +3876,7 @@ mod tests {
             ],
             custom_properties: Vec::new(),
             custom_property_registrations: vec![OmenaCheckerCustomPropertyRegistrationInputV0 {
-                name: "--tone".to_string(),
+                name: authored("--tone"),
                 syntax: Some("'<color>'".to_string()),
                 inherits: Some("false".to_string()),
                 initial_value: Some("red".to_string()),
@@ -3755,7 +3891,10 @@ mod tests {
 
         assert_eq!(mismatches.len(), 1);
         assert_eq!(mismatches[0].declaration_ids, vec!["bad-color"]);
-        assert_eq!(mismatches[0].custom_property_names, vec!["--tone"]);
+        assert!(authored_names_match(
+            &mismatches[0].custom_property_names,
+            &["--tone"]
+        ));
     }
 
     #[test]
@@ -3802,25 +3941,25 @@ mod tests {
             custom_properties: Vec::new(),
             custom_property_registrations: vec![
                 OmenaCheckerCustomPropertyRegistrationInputV0 {
-                    name: "--missing-inherits".to_string(),
+                    name: authored("--missing-inherits"),
                     syntax: Some("'<length>'".to_string()),
                     inherits: None,
                     initial_value: Some("8px".to_string()),
                 },
                 OmenaCheckerCustomPropertyRegistrationInputV0 {
-                    name: "--missing-initial".to_string(),
+                    name: authored("--missing-initial"),
                     syntax: Some("'<length>'".to_string()),
                     inherits: Some("false".to_string()),
                     initial_value: None,
                 },
                 OmenaCheckerCustomPropertyRegistrationInputV0 {
-                    name: "--tone".to_string(),
+                    name: authored("--tone"),
                     syntax: Some("'<length>'".to_string()),
                     inherits: Some("false".to_string()),
                     initial_value: Some("8px".to_string()),
                 },
                 OmenaCheckerCustomPropertyRegistrationInputV0 {
-                    name: "--tone".to_string(),
+                    name: authored("--tone"),
                     syntax: Some("'<color>'".to_string()),
                     inherits: Some("false".to_string()),
                     initial_value: Some("red".to_string()),
@@ -3837,25 +3976,25 @@ mod tests {
     fn active_registered_properties_require_valid_descriptors_and_initial_values() {
         let registrations = vec![
             OmenaCheckerCustomPropertyRegistrationInputV0 {
-                name: "--invalid-inherits".to_string(),
+                name: authored("--invalid-inherits"),
                 syntax: Some("'<length>'".to_string()),
                 inherits: Some("sometimes".to_string()),
                 initial_value: Some("8px".to_string()),
             },
             OmenaCheckerCustomPropertyRegistrationInputV0 {
-                name: "--invalid-initial".to_string(),
+                name: authored("--invalid-initial"),
                 syntax: Some("'<length>'".to_string()),
                 inherits: Some("false".to_string()),
                 initial_value: Some("red".to_string()),
             },
             OmenaCheckerCustomPropertyRegistrationInputV0 {
-                name: "--universal".to_string(),
+                name: authored("--universal"),
                 syntax: Some("'*'".to_string()),
                 inherits: Some("TRUE".to_string()),
                 initial_value: None,
             },
             OmenaCheckerCustomPropertyRegistrationInputV0 {
-                name: "--gap".to_string(),
+                name: authored("--gap"),
                 syntax: Some("'<length>'".to_string()),
                 inherits: Some("false".to_string()),
                 initial_value: Some("8px".to_string()),
@@ -3866,16 +4005,16 @@ mod tests {
             active_omena_checker_custom_property_registrations_v0(registrations.as_slice());
 
         assert_eq!(active.len(), 2);
-        assert!(!active.contains_key(&PropertyNameV0::canonical_custom_key("--invalid-inherits")));
-        assert!(!active.contains_key(&PropertyNameV0::canonical_custom_key("--invalid-initial")));
-        assert!(active[&PropertyNameV0::canonical_custom_key("--universal")].inherits);
+        assert!(!active.contains_key(&authored("--invalid-inherits").to_custom_key()));
+        assert!(!active.contains_key(&authored("--invalid-initial").to_custom_key()));
+        assert!(active[&authored("--universal").to_custom_key()].inherits);
         assert_eq!(
-            active[&PropertyNameV0::canonical_custom_key("--universal")].initial_value,
+            active[&authored("--universal").to_custom_key()].initial_value,
             None
         );
-        assert!(!active[&PropertyNameV0::canonical_custom_key("--gap")].inherits);
+        assert!(!active[&authored("--gap").to_custom_key()].inherits);
         assert_eq!(
-            active[&PropertyNameV0::canonical_custom_key("--gap")]
+            active[&authored("--gap").to_custom_key()]
                 .initial_value
                 .as_deref(),
             Some("8px")
@@ -3912,7 +4051,10 @@ mod tests {
 
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].declaration_ids, vec!["bad"]);
-        assert_eq!(findings[0].custom_property_names, vec!["box-sizing"]);
+        assert!(authored_names_match(
+            &findings[0].custom_property_names,
+            &["box-sizing"]
+        ));
     }
 
     #[test]
@@ -5067,7 +5209,7 @@ mod tests {
         OmenaCheckerCascadeDeclarationInputV0 {
             declaration_id: fixture.declaration_id.to_string(),
             selector: CanonicalSelector::from_canonical(fixture.selector),
-            property: fixture.property.to_string(),
+            property: authored(fixture.property),
             value: fixture.value.to_string(),
             source_order: fixture.source_order,
             condition_context: fixture
@@ -5082,7 +5224,7 @@ mod tests {
             var_references: fixture
                 .var_references
                 .iter()
-                .map(|value| value.to_string())
+                .map(|value| authored(value))
                 .collect(),
         }
     }
@@ -5110,8 +5252,103 @@ mod tests {
         OmenaCheckerGrnVertexStateInputV0 {
             vertex_id: vertex_id.to_string(),
             selector: selector.to_string(),
-            property: property.to_string(),
+            property: authored(property),
             state,
         }
+    }
+
+    #[test]
+    fn cascade_declaration_input_identity_uses_sealed_property_keys() {
+        let declaration = |property: &str, reference: &str| {
+            cascade_declaration(CascadeDeclarationFixture {
+                declaration_id: "decl",
+                selector: ".button",
+                property,
+                value: "red",
+                source_order: 0,
+                condition_context: &[],
+                layer_name: None,
+                layer_order: None,
+                important: false,
+                var_references: &[reference],
+            })
+        };
+
+        assert_eq!(
+            declaration("COLOR", r"--f\6f o"),
+            declaration(r"C\4f LOR", "--foo")
+        );
+        assert_ne!(declaration("color", "--foo"), declaration("color", "--FOO"));
+    }
+
+    #[test]
+    fn custom_property_input_identity_uses_forced_custom_keys() {
+        let input = |name: &str, dependency: &str| OmenaCheckerCustomPropertyInputV0 {
+            name: authored(name),
+            dependencies: vec![authored(dependency)],
+            guaranteed_invalid: false,
+        };
+
+        assert_eq!(input(r"--f\6f o", "color"), input("--foo", "color"));
+        assert_ne!(input("--foo", "color"), input("--FOO", "color"));
+        assert_ne!(input("--foo", "color"), input("--foo", "COLOR"));
+    }
+
+    #[test]
+    fn custom_property_registration_input_identity_uses_forced_custom_keys() {
+        let input = |name: &str| OmenaCheckerCustomPropertyRegistrationInputV0 {
+            name: authored(name),
+            syntax: Some("*".to_string()),
+            inherits: Some("false".to_string()),
+            initial_value: None,
+        };
+
+        assert_eq!(input(r"--f\6f o"), input("--foo"));
+        assert_ne!(input("--foo"), input("--FOO"));
+    }
+
+    #[test]
+    fn active_custom_property_registration_identity_uses_forced_custom_keys() {
+        let registration = |name: &str| OmenaCheckerActiveCustomPropertyRegistrationV0 {
+            name: authored(name),
+            syntax: "*".to_string(),
+            inherits: false,
+            initial_value: None,
+        };
+
+        assert_eq!(registration(r"--f\6f o"), registration("--foo"));
+        assert_ne!(registration("--foo"), registration("--FOO"));
+    }
+
+    #[test]
+    fn cascade_evaluation_identity_uses_sealed_property_keys() {
+        let evaluation = |property: &str| OmenaCheckerCascadeEvaluationV0 {
+            rule_code: OmenaCheckerRuleCodeV0::CircularVar,
+            rule_code_name: "circular-var",
+            severity: OmenaCheckerSeverityV0::Warning,
+            severity_name: "warning",
+            declaration_ids: vec!["decl".to_string()],
+            layer_name: None,
+            custom_property_names: vec![authored(property)],
+            message: "cycle".to_string(),
+            mechanism_products: Vec::new(),
+        };
+
+        assert_eq!(evaluation(r"--f\6f o"), evaluation("--foo"));
+        assert_ne!(evaluation("--foo"), evaluation("--FOO"));
+    }
+
+    #[test]
+    fn grn_vertex_state_input_identity_uses_standard_property_keys() {
+        let vertex = |property: &str| {
+            grn_vertex(
+                "vertex",
+                ".button",
+                property,
+                OmenaCheckerGrnVertexStateKindV0::Applied,
+            )
+        };
+
+        assert_eq!(vertex("COLOR"), vertex(r"C\4f LOR"));
     }
 }

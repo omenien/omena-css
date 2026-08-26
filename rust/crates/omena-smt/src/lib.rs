@@ -147,25 +147,25 @@ mod tests {
             "margin",
             &[
                 BoxLonghandInputV0 {
-                    property: "margin-top".to_string(),
+                    property: omena_cascade::AuthoredPropertyTextV0::new("margin-top"),
                     value: "1px".to_string(),
                     important: false,
                     source_order: 1,
                 },
                 BoxLonghandInputV0 {
-                    property: "margin-right".to_string(),
+                    property: omena_cascade::AuthoredPropertyTextV0::new("margin-right"),
                     value: "1px".to_string(),
                     important: false,
                     source_order: 2,
                 },
                 BoxLonghandInputV0 {
-                    property: "margin-bottom".to_string(),
+                    property: omena_cascade::AuthoredPropertyTextV0::new("margin-bottom"),
                     value: "1px".to_string(),
                     important: false,
                     source_order: 3,
                 },
                 BoxLonghandInputV0 {
-                    property: "margin-left".to_string(),
+                    property: omena_cascade::AuthoredPropertyTextV0::new("margin-left"),
                     value: "1px".to_string(),
                     important: false,
                     source_order: 4,
@@ -177,25 +177,25 @@ mod tests {
             "margin",
             &[
                 BoxLonghandInputV0 {
-                    property: "margin-top".to_string(),
+                    property: omena_cascade::AuthoredPropertyTextV0::new("margin-top"),
                     value: "1px".to_string(),
                     important: false,
                     source_order: 1,
                 },
                 BoxLonghandInputV0 {
-                    property: "margin-bottom".to_string(),
+                    property: omena_cascade::AuthoredPropertyTextV0::new("margin-bottom"),
                     value: "1px".to_string(),
                     important: false,
                     source_order: 2,
                 },
                 BoxLonghandInputV0 {
-                    property: "margin-right".to_string(),
+                    property: omena_cascade::AuthoredPropertyTextV0::new("margin-right"),
                     value: "1px".to_string(),
                     important: false,
                     source_order: 3,
                 },
                 BoxLonghandInputV0 {
-                    property: "margin-left".to_string(),
+                    property: omena_cascade::AuthoredPropertyTextV0::new("margin-left"),
                     value: "1px".to_string(),
                     important: false,
                     source_order: 4,

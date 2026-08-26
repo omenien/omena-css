@@ -148,7 +148,7 @@ pub(super) fn derive_static_less_stylesheet_module_evaluation(
         ) {
             continue;
         }
-        if fact.name == "@"
+        if fact.name.as_non_property() == Some("@")
             && static_less_indirect_variable_reference_at(style_source, fact_reference_start)
                 .is_some()
         {
@@ -166,7 +166,11 @@ pub(super) fn derive_static_less_stylesheet_module_evaluation(
             {
                 (indirect_name, fact_reference_start, indirect_end)
             } else {
-                (fact.name.clone(), fact_reference_start, fact_reference_end)
+                (
+                    fact.name.as_non_property()?.to_string(),
+                    fact_reference_start,
+                    fact_reference_end,
+                )
             };
         if static_stylesheet_position_is_inside_scoped_declaration(&declarations, reference_start) {
             continue;

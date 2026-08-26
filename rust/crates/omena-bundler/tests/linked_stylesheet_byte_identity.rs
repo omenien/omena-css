@@ -15,6 +15,7 @@ use omena_bundler::{
     link_resolved_bundle, project_omena_transform_bundle_linker_and_emission_items,
 };
 use omena_parser::StyleDialect;
+use omena_syntax::ident::AuthoredPropertyTextV0;
 use serde_json::{Value, json};
 
 const LINKED_STYLESHEET_BYTE_IDENTITY_SNAPSHOT: &str =
@@ -569,7 +570,7 @@ fn linked_stylesheet_inputs() -> (
     reachability.class_names.push("app-live".to_string());
     reachability
         .custom_property_names
-        .push("--app-token".to_string());
+        .push(AuthoredPropertyTextV0::new("--app-token"));
 
     (modules, vec![reachability])
 }

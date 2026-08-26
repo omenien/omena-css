@@ -5,8 +5,9 @@ use omena_abstract_value::{
 };
 use omena_parser::ParserByteSpanV0;
 use omena_syntax::ident::{
-    class_selector_name_end, is_css_name_continue as is_css_identifier_continue,
-    is_custom_property_name, is_safe_css_identifier,
+    AuthoredPropertyTextV0, class_selector_name_end,
+    is_css_name_continue as is_css_identifier_continue, is_custom_property_name,
+    is_safe_css_identifier,
 };
 use oxc_allocator::Allocator;
 use oxc_ast::ast::TSModuleReference;
@@ -298,12 +299,12 @@ pub struct SourceStylePropertyAccessFactV0 {
     pub target_style_uri: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceInlineStyleDeclarationFactV0 {
     pub byte_span: ParserByteSpanV0,
     pub value_byte_span: Option<ParserByteSpanV0>,
-    pub property_name: String,
+    pub property_name: AuthoredPropertyTextV0,
     pub value: Option<String>,
     pub target_style_uri: Option<String>,
     pub cascade_tier: &'static str,
@@ -313,6 +314,24 @@ pub struct SourceInlineStyleDeclarationFactV0 {
     pub important: bool,
     pub static_value: bool,
 }
+
+impl PartialEq for SourceInlineStyleDeclarationFactV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.byte_span == other.byte_span
+            && self.value_byte_span == other.value_byte_span
+            && self
+                .property_name
+                .to_property_name()
+                .same_as(&other.property_name.to_property_name())
+            && self.value == other.value
+            && self.target_style_uri == other.target_style_uri
+            && self.cascade_tier == other.cascade_tier
+            && self.important == other.important
+            && self.static_value == other.static_value
+    }
+}
+
+impl Eq for SourceInlineStyleDeclarationFactV0 {}
 
 impl SourceInlineStyleDeclarationFactV0 {
     /// Whether the static source text ended with a CSS `!important` suffix.
@@ -3959,7 +3978,7 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
     fn inline_style_property_name(
         &self,
         key: &oxc_ast::ast::PropertyKey<'a>,
-    ) -> Option<(String, ParserByteSpanV0)> {
+    ) -> Option<(AuthoredPropertyTextV0, ParserByteSpanV0)> {
         let byte_span = parser_byte_span(key.span());
         let raw = self.source.get(byte_span.start..byte_span.end)?.trim();
         let unquoted = raw
@@ -4331,7 +4350,12 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
                 .start
                 .cmp(&right.byte_span.start)
                 .then_with(|| left.byte_span.end.cmp(&right.byte_span.end))
-                .then_with(|| left.property_name.cmp(&right.property_name))
+                .then_with(|| {
+                    left.property_name
+                        .to_property_name()
+                        .canonical_key()
+                        .cmp(&right.property_name.to_property_name().canonical_key())
+                })
                 .then_with(|| left.target_style_uri.cmp(&right.target_style_uri))
         });
         self.inline_style_declarations.dedup();
@@ -4413,9 +4437,9 @@ fn is_jsx_style_attribute(name: &JSXAttributeName<'_>) -> bool {
     matches!(name, JSXAttributeName::Identifier(identifier) if identifier.name.as_str() == "style")
 }
 
-fn normalize_inline_style_property_name(name: &str) -> String {
+fn normalize_inline_style_property_name(name: &str) -> AuthoredPropertyTextV0 {
     if is_custom_property_name(name) {
-        return name.to_string();
+        return AuthoredPropertyTextV0::new(name);
     }
     let mut normalized = String::new();
     for character in name.chars() {
@@ -4428,7 +4452,7 @@ fn normalize_inline_style_property_name(name: &str) -> String {
             normalized.push(character);
         }
     }
-    normalized
+    AuthoredPropertyTextV0::new(normalized)
 }
 
 fn jsx_expression_span(expression: &JSXExpression<'_>) -> Option<ParserByteSpanV0> {

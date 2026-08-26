@@ -98,9 +98,11 @@ pub(crate) fn style_foreign_sass_symbol_moniker(
 ) -> Option<String> {
     let identity = foreign_sass_package_identity_for_uri(state, uri)?;
     let family = crate::sass_symbol_kind_from_candidate_kind(candidate.kind).unwrap_or("symbol");
+    let mut candidate_name = String::new();
+    let _ = omena_syntax::ident::render_authored(&candidate.name, &mut candidate_name);
     Some(format!(
         "sass-symbol-foreign:pkg:{}@{}/{}#{}:{}",
-        identity.package_name, identity.version, identity.subpath, family, candidate.name
+        identity.package_name, identity.version, identity.subpath, family, candidate_name
     ))
 }
 

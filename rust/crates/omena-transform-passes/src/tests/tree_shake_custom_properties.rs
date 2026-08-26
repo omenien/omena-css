@@ -11,7 +11,9 @@ fn execution_runtime_tree_shakes_custom_properties_with_closed_world_context() {
     let source = r#":root { --used: VAR(--alias); --alias: red; --dead: VAR(--dead-dep); --dead-dep: blue; --string-only: orange; --dead-from-rule: black; color: VAR(--used); content: "var(--string-only)"; } .btn { color: var(--external); } .dead { color: var(--dead-from-rule); }"#;
     let context = TransformExecutionContextV0 {
         reachable_class_names: vec!["btn".to_string()],
-        reachable_custom_property_names: vec!["--external".to_string()],
+        reachable_custom_property_names: vec![omena_syntax::ident::AuthoredPropertyTextV0::new(
+            "--external",
+        )],
         ..TransformExecutionContextV0::default()
     };
     let execution = execute_transform_passes_on_source_with_closed_world_context(
@@ -61,7 +63,9 @@ fn execution_runtime_tree_shakes_custom_properties_with_closed_world_context() {
 fn execution_runtime_tree_shakes_custom_property_icss_exports_with_closed_world_context() {
     let source = r#":root { --brand: red; --dead: blue; } :export { brand: var(--brand); dead: var(--dead); }"#;
     let context = TransformExecutionContextV0 {
-        reachable_custom_property_names: vec!["brand".to_string()],
+        reachable_custom_property_names: vec![omena_syntax::ident::AuthoredPropertyTextV0::new(
+            "brand",
+        )],
         ..TransformExecutionContextV0::default()
     };
     let execution = execute_transform_passes_on_source_with_closed_world_context(
@@ -121,7 +125,9 @@ fn execution_runtime_tree_shakes_custom_property_icss_exports_with_closed_world_
             TransformPassKind::PrintCss,
         ],
         &TransformExecutionContextV0 {
-            reachable_custom_property_names: vec!["--brand".to_string()],
+            reachable_custom_property_names: vec![
+                omena_syntax::ident::AuthoredPropertyTextV0::new("--brand"),
+            ],
             ..TransformExecutionContextV0::default()
         },
     );
@@ -271,7 +277,10 @@ fn custom_property_registration_rules_preserve_syntax_and_inherits_descriptors()
     let registrations = collect_custom_property_registration_rules(lexed.tokens());
 
     assert_eq!(registrations.len(), 1);
-    assert_eq!(registrations[0].name, "--x");
+    let mut registration_name = String::new();
+    let write_result = registrations[0].name.write_into(&mut registration_name);
+    assert!(write_result.is_ok(), "writing into a String must succeed");
+    assert_eq!(registration_name, "--x");
     assert_eq!(registrations[0].syntax.as_deref(), Some("'<color>'"));
     assert_eq!(registrations[0].inherits.as_deref(), Some("false"));
     assert_eq!(registrations[0].initial_value.as_deref(), Some("red"));

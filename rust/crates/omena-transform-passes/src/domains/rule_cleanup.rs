@@ -226,15 +226,26 @@ fn collect_duplicate_ordinary_rule_replacements_from_rules(
     replacements
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 struct RuleDedupDeclarationV0 {
-    property: String,
     property_key: CanonicalPropertyKeyV0,
     value: String,
     important: bool,
     start: usize,
     end: usize,
 }
+
+impl PartialEq for RuleDedupDeclarationV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.property_key == other.property_key
+            && self.value == other.value
+            && self.important == other.important
+            && self.start == other.start
+            && self.end == other.end
+    }
+}
+
+impl Eq for RuleDedupDeclarationV0 {}
 
 fn collect_declaration_ordinary_rule_slices_from_ir(ir: &TransformIrV0) -> Vec<SimpleRuleSlice> {
     let mut rules = ir
@@ -367,7 +378,6 @@ fn simple_declaration_from_ir(
     }
     let property_name = PropertyNameV0::from_authored(property);
     Some(RuleDedupDeclarationV0 {
-        property: property_name.authored_text().to_string(),
         property_key: property_name.canonical_key(),
         value: value.to_string(),
         important: declaration_value_is_important(value),
@@ -741,4 +751,23 @@ fn is_empty_removable_group_at_keyword(text: &str) -> bool {
         text.to_ascii_lowercase().as_str(),
         "@container" | "@layer" | "@media" | "@scope" | "@supports"
     )
+}
+
+#[cfg(test)]
+mod authored_property_identity_tests {
+    use super::*;
+
+    #[test]
+    fn rule_dedup_declaration_identity_uses_sealed_property_keys() {
+        let declaration = |property: &str| RuleDedupDeclarationV0 {
+            property_key: PropertyNameV0::from_authored(property).canonical_key(),
+            value: "red".to_string(),
+            important: false,
+            start: 0,
+            end: 1,
+        };
+
+        assert_eq!(declaration("COLOR"), declaration(r"C\4f LOR"));
+        assert_ne!(declaration("--foo"), declaration("--FOO"));
+    }
 }

@@ -462,7 +462,10 @@ fn style_semantic_graph_batch_feeds_workspace_design_token_candidates() {
     assert_eq!(winner_range.map(|range| range.start.character), Some(8));
     assert_eq!(design_tokens.declaration_candidates.len(), 1);
     let declaration_candidate = &design_tokens.declaration_candidates[0];
-    assert_eq!(declaration_candidate.name, "--brand");
+    assert_eq!(
+        declaration_candidate.name.to_custom_key().as_str(),
+        "--brand"
+    );
     assert_eq!(declaration_candidate.file_path, "/tmp/tokens.module.scss");
     assert_eq!(
         declaration_candidate.candidate_scope,
@@ -1226,7 +1229,10 @@ fn style_semantic_graph_batch_resolves_package_manifest_style_exports() {
     assert_eq!(ranked_reference.winner_import_graph_distance, Some(1));
     assert_eq!(ranked_reference.cross_file_candidate_declaration_count, 1);
     let declaration_candidate = &app_graph.design_token_semantics.declaration_candidates[0];
-    assert_eq!(declaration_candidate.name, "--brand");
+    assert_eq!(
+        declaration_candidate.name.to_custom_key().as_str(),
+        "--brand"
+    );
     assert_eq!(
         declaration_candidate.file_path,
         "/fake/workspace/node_modules/@design/tokens/dist/theme.css"

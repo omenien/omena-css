@@ -1187,10 +1187,14 @@ pub(super) fn summarize_omena_query_style_selector_definitions(
             continue;
         };
         definitions.extend(candidates.candidates.into_iter().filter_map(|candidate| {
-            (candidate.kind == "selector").then(|| OmenaQueryStyleSelectorDefinitionV0 {
-                uri: source.style_path.clone(),
-                name: candidate.name.to_string(),
-                range: candidate.range,
+            (candidate.kind == "selector").then(|| {
+                let mut name = String::new();
+                let _ = omena_syntax::ident::render_authored(&candidate.name, &mut name);
+                OmenaQueryStyleSelectorDefinitionV0 {
+                    uri: source.style_path.clone(),
+                    name,
+                    range: candidate.range,
+                }
             })
         }));
     }
@@ -1199,7 +1203,7 @@ pub(super) fn summarize_omena_query_style_selector_definitions(
             definition.uri.clone(),
             definition.range.start.line,
             definition.range.start.character,
-            definition.name.clone(),
+            canonical_class_key(definition.name.as_str()),
         )
     });
     definitions.dedup();

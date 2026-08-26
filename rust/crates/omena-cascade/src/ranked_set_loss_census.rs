@@ -6,6 +6,7 @@ use std::{
     },
 };
 
+use omena_syntax::ident::AuthoredPropertyTextV0;
 use serde::Serialize;
 
 use crate::{
@@ -66,13 +67,13 @@ pub struct CascadeRankedSetLossCandidateV0 {
     pub specificity_exactness: SpecificityExactnessV0,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeRankedSetLossCensusRowV0 {
     pub function: CascadeRankedSetFunctionV0,
     pub invocation_site: &'static str,
     pub source_path: String,
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
     pub declaration_ids: Vec<String>,
     pub candidate_count: usize,
     pub candidates: Vec<CascadeRankedSetLossCandidateV0>,
@@ -80,6 +81,26 @@ pub struct CascadeRankedSetLossCensusRowV0 {
     pub final_outcome: CascadeRankedSetFinalOutcomeV0,
     pub definite_winner_declaration_id: Option<String>,
 }
+
+impl PartialEq for CascadeRankedSetLossCensusRowV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.function == other.function
+            && self.invocation_site == other.invocation_site
+            && self.source_path == other.source_path
+            && self
+                .property
+                .to_property_name()
+                .same_as(&other.property.to_property_name())
+            && self.declaration_ids == other.declaration_ids
+            && self.candidate_count == other.candidate_count
+            && self.candidates == other.candidates
+            && self.classification == other.classification
+            && self.final_outcome == other.final_outcome
+            && self.definite_winner_declaration_id == other.definite_winner_declaration_id
+    }
+}
+
+impl Eq for CascadeRankedSetLossCensusRowV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -115,18 +136,20 @@ pub fn capture_cascade_ranked_set_losses<R>(
     let result = operation();
     let mut rows = std::mem::take(&mut *captured_rows());
     rows.sort_by(|left, right| {
+        let left_property_key = left.property.to_property_name().canonical_key();
+        let right_property_key = right.property.to_property_name().canonical_key();
         (
             left.function,
             left.invocation_site,
             left.source_path.as_str(),
-            left.property.as_str(),
+            left_property_key,
             left.declaration_ids.as_slice(),
         )
             .cmp(&(
                 right.function,
                 right.invocation_site,
                 right.source_path.as_str(),
-                right.property.as_str(),
+                right_property_key,
                 right.declaration_ids.as_slice(),
             ))
     });
@@ -237,8 +260,8 @@ pub(crate) fn observe_cascade_outcome(
         source_path: caller.file().to_string(),
         property: declarations
             .first()
-            .map(|declaration| declaration.property.to_string())
-            .unwrap_or_default(),
+            .map(|declaration| declaration.property.clone())
+            .unwrap_or_else(|| AuthoredPropertyTextV0::new("")),
         declaration_ids: declarations
             .iter()
             .map(|declaration| declaration.id.clone())

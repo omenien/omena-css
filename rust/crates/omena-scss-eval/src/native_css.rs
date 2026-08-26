@@ -2409,7 +2409,12 @@ mod tests {
                 ]
             })
         );
-        assert_eq!(report.functions[0].parameters[0].name.to_string(), "--size");
+        let mut parameter_name = String::new();
+        let write_result = report.functions[0].parameters[0]
+            .name
+            .write_into(&mut parameter_name);
+        assert!(write_result.is_ok(), "writing into a String must succeed");
+        assert_eq!(parameter_name, "--size");
         assert_eq!(
             report.functions[0].parameters[0].syntax_source.as_deref(),
             Some("<length>")

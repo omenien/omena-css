@@ -2,6 +2,12 @@ use std::collections::BTreeSet;
 
 use super::*;
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum StyleCompletionIdentityKey {
+    Selector(CanonicalClassKeyV0),
+    CustomProperty(CanonicalCustomPropertyNameV0),
+}
+
 pub fn summarize_omena_query_style_completion_at_position(
     style_uri: &str,
     source: &str,
@@ -13,17 +19,28 @@ pub fn summarize_omena_query_style_completion_at_position(
     let mut ranked_items = candidates
         .iter()
         .filter_map(|candidate| {
-            let (label, detail, item_kind) = match candidate.kind {
-                "selector" if context_kind == "styleDocument" => (
-                    format!(".{}", candidate.name),
-                    "CSS Module selector",
-                    "cssModuleSelector",
-                ),
-                "customPropertyDeclaration" => (
-                    candidate.name.to_string(),
-                    "CSS custom property",
-                    "cssCustomProperty",
-                ),
+            let (identity_key, label, detail, item_kind) = match candidate.kind {
+                "selector" if context_kind == "styleDocument" => {
+                    let mut authored_name = String::new();
+                    let _ =
+                        omena_syntax::ident::render_authored(&candidate.name, &mut authored_name);
+                    (
+                        StyleCompletionIdentityKey::Selector(canonical_class_key(&authored_name)),
+                        format!(".{authored_name}"),
+                        "CSS Module selector",
+                        "cssModuleSelector",
+                    )
+                }
+                "customPropertyDeclaration" => {
+                    let mut label = String::new();
+                    let _ = omena_syntax::ident::render_authored(&candidate.name, &mut label);
+                    (
+                        StyleCompletionIdentityKey::CustomProperty(candidate.name.to_custom_key()),
+                        label,
+                        "CSS custom property",
+                        "cssCustomProperty",
+                    )
+                }
                 _ => return None,
             };
             if prefix
@@ -35,23 +52,27 @@ pub fn summarize_omena_query_style_completion_at_position(
             let (sort_text, ranking_source) =
                 style_completion_ranking(context_kind, position, candidate, label.as_str());
             let documentation = style_completion_documentation(source, context_kind, candidate);
-            Some(OmenaQueryCompletionItemV0 {
-                insert_text: label.clone(),
-                label,
-                sort_text,
-                detail,
-                documentation,
-                item_kind,
-                ranking_source,
-                source: "omenaQueryCompletionAtPosition",
-            })
+            Some((
+                identity_key,
+                OmenaQueryCompletionItemV0 {
+                    insert_text: label.clone(),
+                    label,
+                    sort_text,
+                    detail,
+                    documentation,
+                    item_kind,
+                    ranking_source,
+                    source: "omenaQueryCompletionAtPosition",
+                },
+            ))
         })
         .collect::<Vec<_>>();
-    ranked_items.sort_by_key(|item| (item.sort_text.clone(), item.label.clone()));
+    ranked_items.sort_by_key(|(identity_key, item)| (item.sort_text.clone(), identity_key.clone()));
     let mut emitted_labels = BTreeSet::new();
     let items = ranked_items
         .into_iter()
-        .filter(|item| emitted_labels.insert(item.label.clone()))
+        .filter(|(identity_key, _)| emitted_labels.insert(identity_key.clone()))
+        .map(|(_, item)| item)
         .collect::<Vec<_>>();
 
     OmenaQueryCompletionAtPositionV0 {
@@ -343,7 +364,8 @@ fn style_completion_documentation(
     if context_kind != "styleDocument" || candidate.kind != "selector" {
         return None;
     }
-    let candidate_name = candidate.name.to_string();
+    let mut candidate_name = String::new();
+    let _ = omena_syntax::ident::render_authored(&candidate.name, &mut candidate_name);
 
     summarize_omena_query_style_completion_candidate_documentation(
         source,
@@ -434,12 +456,12 @@ fn render_property_value_narrowings_markdown(
         .iter()
         .take(6)
         .map(|narrowing| {
-            format!(
-                "- `{}`: {}{}",
-                narrowing.property_name,
-                render_property_value_narrowing_value(narrowing),
-                render_property_value_narrowing_context(narrowing)
-            )
+            let mut line = String::from("- `");
+            let _ = omena_syntax::ident::render_authored(&narrowing.property_name, &mut line);
+            line.push_str("`: ");
+            line.push_str(render_property_value_narrowing_value(narrowing).as_str());
+            line.push_str(render_property_value_narrowing_context(narrowing).as_str());
+            line
         })
         .collect::<Vec<_>>()
         .join("\n");
@@ -474,7 +496,10 @@ fn render_abstract_property_value(value: &AbstractPropertyValueV0) -> String {
             custom_property_name,
             ..
         } => {
-            format!("`var({custom_property_name})`")
+            let mut rendered = String::from("`var(");
+            let _ = omena_syntax::ident::render_authored(custom_property_name, &mut rendered);
+            rendered.push_str(")`");
+            rendered
         }
         AbstractPropertyValueV0::Top { .. } => "`<top>`".to_string(),
     }
@@ -611,7 +636,8 @@ fn collect_omena_query_completion_candidates(
             if candidate.kind != "selector" {
                 return None;
             }
-            let candidate_name = candidate.name.to_string();
+            let mut candidate_name = String::new();
+            let _ = omena_syntax::ident::render_authored(&candidate.name, &mut candidate_name);
             let documentation =
                 summarize_omena_query_style_completion_candidate_documentation_for_workspace_file(
                     source.style_path.as_str(),
@@ -632,7 +658,7 @@ fn collect_omena_query_completion_candidates(
                 });
             Some(OmenaQueryCompletionCandidateV0 {
                 file_uri: source.style_path.clone(),
-                name: candidate.name.to_string(),
+                name: candidate_name,
                 kind: "selector",
                 range: candidate.range,
                 source: "omenaQueryStyleHoverCandidates",

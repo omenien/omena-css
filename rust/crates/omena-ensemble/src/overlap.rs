@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use omena_cascade::CascadeOutcome;
+use omena_syntax::ident::AuthoredPropertyTextV0;
 
 #[allow(deprecated)]
 use crate::types::CascadeSiteKeyV0;
@@ -496,7 +497,7 @@ pub fn cascade_section_key(
         layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
         feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
         element_selector: element_selector.into(),
-        property: property.into(),
+        property: AuthoredPropertyTextV0::new(property),
     }
 }
 
@@ -522,6 +523,6 @@ pub fn site(element_selector: impl Into<String>, property: impl Into<String>) ->
         layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
         feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
         element_selector: element_selector.into(),
-        property: property.into(),
+        property: AuthoredPropertyTextV0::new(property),
     }
 }

@@ -142,10 +142,14 @@ pub fn summarize_omena_query_style_document(
     for variable in facts.variables {
         match variable.kind {
             ParsedVariableFactKind::CustomPropertyDeclaration => {
-                custom_property_decl_names.push(variable.name);
+                if let Some(name) = variable.name.as_custom_property() {
+                    custom_property_decl_names.push(name.clone());
+                }
             }
             ParsedVariableFactKind::CustomPropertyReference => {
-                custom_property_ref_names.push(variable.name);
+                if let Some(name) = variable.name.as_custom_property() {
+                    custom_property_ref_names.push(name.clone());
+                }
             }
             _ => {}
         }
@@ -230,26 +234,31 @@ pub(super) fn summarize_omena_query_omena_parser_style_facts_from_facts(
             | ParsedVariableFactKind::ScssReference
             | ParsedVariableFactKind::LessDeclaration
             | ParsedVariableFactKind::LessReference => {
-                variable_names.insert(variable.name);
+                if let Some(name) = variable.name.as_non_property() {
+                    variable_names.insert(name.to_string());
+                }
             }
             ParsedVariableFactKind::CustomPropertyDeclaration
             | ParsedVariableFactKind::CustomPropertyReference => {
                 let Some(property_key) = variable.property_key else {
                     continue;
                 };
+                let Some(property_name) = variable.name.as_custom_property().cloned() else {
+                    continue;
+                };
                 custom_property_names
                     .entry(property_key.clone())
-                    .or_insert_with(|| variable.name.clone());
+                    .or_insert_with(|| property_name.clone());
                 match variable.kind {
                     ParsedVariableFactKind::CustomPropertyDeclaration => {
                         custom_property_decl_names
                             .entry(property_key)
-                            .or_insert(variable.name);
+                            .or_insert(property_name);
                     }
                     ParsedVariableFactKind::CustomPropertyReference => {
                         custom_property_ref_names
                             .entry(property_key)
-                            .or_insert(variable.name);
+                            .or_insert(property_name);
                     }
                     _ => {}
                 }

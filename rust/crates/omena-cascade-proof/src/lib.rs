@@ -16,7 +16,7 @@ use omena_evidence_graph::{
     ObligationFamilyIdV0, ProseObligationProvenanceV0, build_evidence_graph_from_edges_v0,
 };
 use omena_refinement_trait::RefinementVerdictV0;
-use omena_syntax::ident::property_names_same;
+use omena_syntax::ident::PropertyNameV0;
 use serde::Serialize;
 
 pub mod discharge_ledger;
@@ -571,7 +571,10 @@ fn canonical_box_shorthand_combination_input_v0(
             && longhands
                 .iter()
                 .zip(expected.iter())
-                .all(|(actual, expected)| property_names_same(&actual.property, expected))
+                .all(|(actual, expected)| {
+                    actual.property.to_standard_key()
+                        == PropertyNameV0::canonical_standard_key(*expected)
+                })
     });
     canonical_smt_input_v0(
         "box-shorthand-combination",
@@ -610,7 +613,10 @@ where
         && longhands
             .iter()
             .zip(expected_longhands.iter())
-            .all(|(actual, expected)| property_names_same(&actual.property, expected.as_ref()));
+            .all(|(actual, expected)| {
+                actual.property.to_standard_key()
+                    == PropertyNameV0::canonical_standard_key(expected.as_ref())
+            });
     canonical_smt_input_v0(
         "longhand-merge",
         "prove_longhand_merge",
@@ -1060,25 +1066,25 @@ mod tests {
             "margin",
             &[
                 BoxLonghandInputV0 {
-                    property: "margin-top".to_string(),
+                    property: omena_cascade::AuthoredPropertyTextV0::new("margin-top"),
                     value: "1px".to_string(),
                     important: false,
                     source_order: 1,
                 },
                 BoxLonghandInputV0 {
-                    property: "margin-right".to_string(),
+                    property: omena_cascade::AuthoredPropertyTextV0::new("margin-right"),
                     value: "1px".to_string(),
                     important: false,
                     source_order: 2,
                 },
                 BoxLonghandInputV0 {
-                    property: "margin-bottom".to_string(),
+                    property: omena_cascade::AuthoredPropertyTextV0::new("margin-bottom"),
                     value: "1px".to_string(),
                     important: false,
                     source_order: 3,
                 },
                 BoxLonghandInputV0 {
-                    property: "margin-left".to_string(),
+                    property: omena_cascade::AuthoredPropertyTextV0::new("margin-left"),
                     value: "1px".to_string(),
                     important: false,
                     source_order: 4,
@@ -1135,25 +1141,25 @@ mod tests {
         let backend = StubSmtBackendV0::default();
         let longhands = vec![
             BoxLonghandInputV0 {
-                property: "margin-top".to_string(),
+                property: omena_cascade::AuthoredPropertyTextV0::new("margin-top"),
                 value: "1px".to_string(),
                 important: false,
                 source_order: 1,
             },
             BoxLonghandInputV0 {
-                property: "margin-right".to_string(),
+                property: omena_cascade::AuthoredPropertyTextV0::new("margin-right"),
                 value: "1px".to_string(),
                 important: false,
                 source_order: 2,
             },
             BoxLonghandInputV0 {
-                property: "margin-bottom".to_string(),
+                property: omena_cascade::AuthoredPropertyTextV0::new("margin-bottom"),
                 value: "1px".to_string(),
                 important: false,
                 source_order: 3,
             },
             BoxLonghandInputV0 {
-                property: "margin-left".to_string(),
+                property: omena_cascade::AuthoredPropertyTextV0::new("margin-left"),
                 value: "1px".to_string(),
                 important: false,
                 source_order: 4,
@@ -1353,25 +1359,25 @@ mod tests {
         let backend = StubSmtBackendV0::default();
         let longhands = vec![
             LonghandMergeInputV0 {
-                property: "margin-top".to_string(),
+                property: omena_cascade::AuthoredPropertyTextV0::new("margin-top"),
                 value: "1px".to_string(),
                 important: false,
                 source_order: 1,
             },
             LonghandMergeInputV0 {
-                property: "margin-right".to_string(),
+                property: omena_cascade::AuthoredPropertyTextV0::new("margin-right"),
                 value: "1px".to_string(),
                 important: false,
                 source_order: 2,
             },
             LonghandMergeInputV0 {
-                property: "margin-bottom".to_string(),
+                property: omena_cascade::AuthoredPropertyTextV0::new("margin-bottom"),
                 value: "1px".to_string(),
                 important: false,
                 source_order: 3,
             },
             LonghandMergeInputV0 {
-                property: "margin-left".to_string(),
+                property: omena_cascade::AuthoredPropertyTextV0::new("margin-left"),
                 value: "1px".to_string(),
                 important: false,
                 source_order: 4,

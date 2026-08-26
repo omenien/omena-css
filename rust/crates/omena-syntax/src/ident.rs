@@ -149,8 +149,9 @@ pub enum PropertyNameKindV0 {
 /// This type deliberately implements no structural equality, ordering, hashing,
 /// or raw-string borrowing. Identity-bearing carriers pair it with a sealed
 /// canonical property key and use that key for every comparison or lookup.
-/// [`fmt::Display`], [`AuthoredPropertyTextV0::write_into`], and serialization are
-/// the only presentation exits.
+/// [`AuthoredPropertyTextV0::write_into`] and serialization are the only
+/// presentation exits. Identity projections stay inside the property-name
+/// authority.
 ///
 /// ```compile_fail,E0369
 /// use omena_syntax::ident::AuthoredPropertyTextV0;
@@ -204,7 +205,50 @@ pub enum PropertyNameKindV0 {
 /// let mut values = HashMap::<String, usize>::new();
 /// values.insert(AuthoredPropertyTextV0::new("--token"), 1);
 /// ```
-#[derive(Debug, Clone, serde::Serialize)]
+///
+/// ```compile_fail,E0599
+/// use omena_syntax::ident::AuthoredPropertyTextV0;
+///
+/// let property = AuthoredPropertyTextV0::new("--token");
+/// let _ = property.to_string();
+/// ```
+///
+/// ```compile_fail,E0277
+/// use omena_syntax::ident::AuthoredPropertyTextV0;
+///
+/// let property = AuthoredPropertyTextV0::new("--token");
+/// let _ = format!("{}", property);
+/// ```
+///
+/// ```compile_fail,E0277
+/// use std::fmt::Write;
+/// use omena_syntax::ident::AuthoredPropertyTextV0;
+///
+/// let property = AuthoredPropertyTextV0::new("--token");
+/// let mut output = String::new();
+/// let _ = write!(&mut output, "{}", property);
+/// ```
+///
+/// ```compile_fail,E0277
+/// use std::fmt;
+/// use omena_syntax::ident::AuthoredPropertyTextV0;
+///
+/// struct Shown(AuthoredPropertyTextV0);
+/// impl fmt::Display for Shown {
+///     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+///         write!(formatter, "{}", self.0)
+///     }
+/// }
+/// ```
+///
+/// ```compile_fail,E0277
+/// use omena_syntax::ident::AuthoredPropertyTextV0;
+///
+/// struct Carrier(AuthoredPropertyTextV0);
+/// let mut values = vec![Carrier(AuthoredPropertyTextV0::new("--token"))];
+/// values.sort();
+/// ```
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
 pub struct AuthoredPropertyTextV0(String);
 
@@ -218,12 +262,31 @@ impl AuthoredPropertyTextV0 {
     pub fn write_into(&self, out: &mut impl fmt::Write) -> fmt::Result {
         out.write_str(&self.0)
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn to_property_name(&self) -> PropertyNameV0 {
+        PropertyNameV0::from_authored(self.0.clone())
+    }
+
+    pub fn to_custom_key(&self) -> CanonicalCustomPropertyNameV0 {
+        PropertyNameV0::canonical_custom_key(self.0.clone())
+    }
+
+    pub fn to_standard_key(&self) -> CanonicalStandardPropertyNameV0 {
+        PropertyNameV0::canonical_standard_key(self.0.clone())
+    }
 }
 
-impl fmt::Display for AuthoredPropertyTextV0 {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.write_into(formatter)
-    }
+/// Writes authored property text into an owned presentation buffer.
+///
+/// This is the named cross-crate escape for emitters that already own their
+/// output `String`; identity-bearing code must use one of the projections on
+/// [`AuthoredPropertyTextV0`] instead.
+pub fn render_authored(authored: &AuthoredPropertyTextV0, output: &mut String) -> fmt::Result {
+    authored.write_into(output)
 }
 
 /// A CSS property name with an authored spelling and one sealed canonical identity.
@@ -241,18 +304,42 @@ impl fmt::Display for AuthoredPropertyTextV0 {
 ///
 /// let _ = PropertyNameV0::new("color", PropertyNameKindV0::Standard);
 /// ```
+///
+/// ```compile_fail,E0599
+/// use omena_syntax::ident::PropertyNameV0;
+///
+/// let property = PropertyNameV0::custom("--token");
+/// let _ = property.decoded();
+/// ```
+///
+/// ```compile_fail,E0616
+/// use omena_syntax::ident::PropertyNameV0;
+///
+/// let property = PropertyNameV0::custom("--token");
+/// let PropertyNameV0::Custom(payload) = property else { unreachable!() };
+/// let _ = payload.decoded;
+/// ```
 #[derive(Debug, Clone)]
+#[allow(private_interfaces)]
 pub enum PropertyNameV0 {
-    Standard {
-        authored: AuthoredPropertyTextV0,
-        decoded: String,
-        canonical: CanonicalStandardPropertyNameV0,
-    },
-    Custom {
-        authored: AuthoredPropertyTextV0,
-        decoded: String,
-        canonical: CanonicalCustomPropertyNameV0,
-    },
+    Standard(StandardPropertyNamePayloadV0),
+    Custom(CustomPropertyNamePayloadV0),
+}
+
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+struct StandardPropertyNamePayloadV0 {
+    authored: AuthoredPropertyTextV0,
+    decoded: String,
+    canonical: CanonicalStandardPropertyNameV0,
+}
+
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+struct CustomPropertyNamePayloadV0 {
+    authored: AuthoredPropertyTextV0,
+    decoded: String,
+    canonical: CanonicalCustomPropertyNameV0,
 }
 
 impl PropertyNameV0 {
@@ -279,22 +366,22 @@ impl PropertyNameV0 {
 
     fn from_decoded(authored: String, decoded: String, kind: PropertyNameKindV0) -> Self {
         match kind {
-            PropertyNameKindV0::Standard => Self::Standard {
+            PropertyNameKindV0::Standard => Self::Standard(StandardPropertyNamePayloadV0 {
                 canonical: CanonicalStandardPropertyNameV0(
                     decoded.to_ascii_lowercase(),
                     CanonicalStandardPropertyNameSealV0(()),
                 ),
                 authored: AuthoredPropertyTextV0::new(authored),
                 decoded,
-            },
-            PropertyNameKindV0::Custom => Self::Custom {
+            }),
+            PropertyNameKindV0::Custom => Self::Custom(CustomPropertyNamePayloadV0 {
                 canonical: CanonicalCustomPropertyNameV0(
                     decoded.clone(),
                     CanonicalCustomPropertyNameSealV0(()),
                 ),
                 authored: AuthoredPropertyTextV0::new(authored),
                 decoded,
-            },
+            }),
         }
     }
 
@@ -308,84 +395,65 @@ impl PropertyNameV0 {
 
     pub fn kind(&self) -> PropertyNameKindV0 {
         match self {
-            Self::Standard { .. } => PropertyNameKindV0::Standard,
-            Self::Custom { .. } => PropertyNameKindV0::Custom,
+            Self::Standard(_) => PropertyNameKindV0::Standard,
+            Self::Custom(_) => PropertyNameKindV0::Custom,
         }
     }
 
     pub fn authored_text(&self) -> AuthoredPropertyTextV0 {
         match self {
-            Self::Standard { authored, .. } | Self::Custom { authored, .. } => authored.clone(),
-        }
-    }
-
-    pub fn decoded(&self) -> &str {
-        match self {
-            Self::Standard { decoded, .. } | Self::Custom { decoded, .. } => decoded,
+            Self::Standard(payload) => payload.authored.clone(),
+            Self::Custom(payload) => payload.authored.clone(),
         }
     }
 
     pub fn canonical_name(&self) -> &str {
         match self {
-            Self::Standard { canonical, .. } => canonical.as_str(),
-            Self::Custom { canonical, .. } => canonical.as_str(),
+            Self::Standard(payload) => payload.canonical.as_str(),
+            Self::Custom(payload) => payload.canonical.as_str(),
         }
     }
 
     pub fn same_as(&self, other: &Self) -> bool {
         match (self, other) {
-            (
-                Self::Standard {
-                    canonical: left, ..
-                },
-                Self::Standard {
-                    canonical: right, ..
-                },
-            ) => left == right,
-            (
-                Self::Custom {
-                    canonical: left, ..
-                },
-                Self::Custom {
-                    canonical: right, ..
-                },
-            ) => left == right,
+            (Self::Standard(left), Self::Standard(right)) => left.canonical == right.canonical,
+            (Self::Custom(left), Self::Custom(right)) => left.canonical == right.canonical,
             _ => false,
         }
     }
 
     pub fn canonical_key(&self) -> CanonicalPropertyKeyV0 {
         match self {
-            Self::Standard { canonical, .. } => CanonicalPropertyKeyV0::Standard(canonical.clone()),
-            Self::Custom { canonical, .. } => CanonicalPropertyKeyV0::Custom(canonical.clone()),
+            Self::Standard(payload) => CanonicalPropertyKeyV0::Standard(payload.canonical.clone()),
+            Self::Custom(payload) => CanonicalPropertyKeyV0::Custom(payload.canonical.clone()),
         }
     }
 
     pub fn as_custom_key(&self) -> Option<CanonicalCustomPropertyNameV0> {
         match self {
-            Self::Custom { canonical, .. } => Some(canonical.clone()),
-            Self::Standard { .. } => None,
+            Self::Custom(payload) => Some(payload.canonical.clone()),
+            Self::Standard(_) => None,
         }
     }
 
     pub fn as_standard_key(&self) -> Option<&CanonicalStandardPropertyNameV0> {
         match self {
-            Self::Standard { canonical, .. } => Some(canonical),
-            Self::Custom { .. } => None,
+            Self::Standard(payload) => Some(&payload.canonical),
+            Self::Custom(_) => None,
         }
     }
 
     pub fn canonical_custom_key(authored: impl Into<String>) -> CanonicalCustomPropertyNameV0 {
         match Self::custom(authored) {
-            Self::Custom { canonical, .. } => canonical,
-            Self::Standard { .. } => unreachable!("custom constructor returned a standard name"),
+            Self::Custom(payload) => payload.canonical,
+            Self::Standard(_) => unreachable!("custom constructor returned a standard name"),
         }
     }
 
     pub fn canonical_standard_key(authored: impl Into<String>) -> CanonicalStandardPropertyNameV0 {
         match Self::standard(authored) {
-            Self::Standard { canonical, .. } => canonical,
-            Self::Custom { .. } => unreachable!("standard constructor returned a custom name"),
+            Self::Standard(payload) => payload.canonical,
+            Self::Custom(_) => unreachable!("standard constructor returned a custom name"),
         }
     }
 }
@@ -424,6 +492,16 @@ impl serde::Serialize for CanonicalStandardPropertyNameV0 {
     }
 }
 
+impl<'de> serde::Deserialize<'de> for CanonicalStandardPropertyNameV0 {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let authored = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(PropertyNameV0::canonical_standard_key(authored))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct CanonicalCustomPropertyNameSealV0(());
 
@@ -452,6 +530,16 @@ impl serde::Serialize for CanonicalCustomPropertyNameV0 {
         S: serde::Serializer,
     {
         serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for CanonicalCustomPropertyNameV0 {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let authored = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(PropertyNameV0::canonical_custom_key(authored))
     }
 }
 
@@ -497,6 +585,16 @@ impl serde::Serialize for CanonicalPropertyKeyV0 {
         S: serde::Serializer,
     {
         serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for CanonicalPropertyKeyV0 {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let authored = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(PropertyNameV0::from_authored(authored).canonical_key())
     }
 }
 
@@ -821,6 +919,13 @@ fn is_css_newline(ch: char) -> bool {
 mod tests {
     use super::*;
 
+    fn authored_text(property: &PropertyNameV0) -> String {
+        let mut output = String::new();
+        let result = property.authored_text().write_into(&mut output);
+        assert!(result.is_ok(), "writing into a String must not fail");
+        output
+    }
+
     #[test]
     fn decodes_css_escapes_without_changing_plain_names() {
         // These assertions fail on the supplied escape spellings, all of which
@@ -865,9 +970,9 @@ mod tests {
 
         assert!(!custom_upper.same_as(&custom_lower));
         assert!(standard_upper.same_as(&standard_lower));
-        assert_eq!(custom_upper.authored_text().to_string(), "--FOO");
+        assert_eq!(authored_text(&custom_upper), "--FOO");
         assert_eq!(custom_upper.canonical_name(), "--FOO");
-        assert_eq!(standard_upper.authored_text().to_string(), "COLOR");
+        assert_eq!(authored_text(&standard_upper), "COLOR");
         assert_eq!(standard_upper.canonical_name(), "color");
     }
 
@@ -877,8 +982,7 @@ mod tests {
         let plain = PropertyNameV0::custom("--foo");
 
         assert!(escaped.same_as(&plain));
-        assert_eq!(escaped.authored_text().to_string(), r"--f\6f o");
-        assert_eq!(escaped.decoded(), "--foo");
+        assert_eq!(authored_text(&escaped), r"--f\6f o");
         assert_eq!(escaped.canonical_name(), "--foo");
         assert_eq!(
             escaped
@@ -890,11 +994,43 @@ mod tests {
     }
 
     #[test]
+    fn authored_text_serde_roundtrip_preserves_untrimmed_wire_bytes() {
+        let authored = serde_json::from_str::<AuthoredPropertyTextV0>(r#""  --f\\6f o  ""#);
+        assert!(
+            authored.is_ok(),
+            "transparent authored text should deserialize"
+        );
+        let Ok(authored) = authored else {
+            return;
+        };
+        let serialized = serde_json::to_string(&authored);
+        assert!(serialized.is_ok(), "authored text should serialize");
+
+        assert_eq!(serialized.ok().as_deref(), Some(r#""  --f\\6f o  ""#));
+        assert_eq!(authored.to_custom_key().as_str(), "--foo");
+    }
+
+    #[test]
+    fn sealed_key_deserialization_preserves_forced_and_inferred_kind_rules() {
+        let forced = serde_json::from_str::<CanonicalCustomPropertyNameV0>(r#""color""#);
+        let inferred = serde_json::from_str::<CanonicalPropertyKeyV0>(r#""color""#);
+        assert!(forced.is_ok(), "custom key should deserialize");
+        assert!(inferred.is_ok(), "mixed key should deserialize");
+        let (Ok(forced), Ok(inferred)) = (forced, inferred) else {
+            return;
+        };
+
+        assert_eq!(forced.as_str(), "color");
+        assert_eq!(inferred.kind(), PropertyNameKindV0::Standard);
+        assert_eq!(inferred.as_str(), "color");
+    }
+
+    #[test]
     fn property_name_kind_is_classified_after_escape_decoding() {
         let property = PropertyNameV0::from_authored(r"\2d\2d FOO");
 
         assert_eq!(property.kind(), PropertyNameKindV0::Custom);
-        assert_eq!(property.authored_text().to_string(), r"\2d\2d FOO");
+        assert_eq!(authored_text(&property), r"\2d\2d FOO");
         assert_eq!(property.canonical_name(), "--FOO");
         assert!(is_custom_property_name(r"\2d\2d FOO"));
         assert!(!is_custom_property_name("COLOR"));

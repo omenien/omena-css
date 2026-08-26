@@ -429,6 +429,7 @@ mod tests {
         SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2,
         StyleSelectorV2, TypeFactEntryV2,
     };
+    use omena_syntax::ident::PropertyNameV0;
 
     #[test]
     fn declares_cme_coupled_bridge_boundary() {
@@ -657,12 +658,12 @@ const lazy = import("./ignored.module.scss");
 
         assert_eq!(graph.product, "omena-semantic.style-semantic-graph");
         assert_eq!(
-            graph.parser_facts.custom_properties.decl_names,
-            vec!["--brand".to_string()]
+            graph.parser_facts.custom_properties.decl_names[0].to_custom_key(),
+            PropertyNameV0::canonical_custom_key("--brand")
         );
         assert_eq!(
-            graph.parser_facts.custom_properties.ref_names,
-            vec!["--brand".to_string()]
+            graph.parser_facts.custom_properties.ref_names[0].to_custom_key(),
+            PropertyNameV0::canonical_custom_key("--brand")
         );
         assert_eq!(
             graph.parser_facts.sass.module_use_edges[0].namespace_kind,
@@ -693,9 +694,12 @@ const lazy = import("./ignored.module.scss");
         assert_eq!(
             declarations
                 .iter()
-                .map(|declaration| declaration.name.as_str())
+                .map(|declaration| declaration.name.to_custom_key())
                 .collect::<Vec<_>>(),
-            vec!["--brand", "--local"]
+            vec![
+                PropertyNameV0::canonical_custom_key("--brand"),
+                PropertyNameV0::canonical_custom_key("--local")
+            ]
         );
         assert!(
             declarations

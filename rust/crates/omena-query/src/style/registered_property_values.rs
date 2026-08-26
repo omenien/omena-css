@@ -10,7 +10,7 @@ use omena_cascade::{
 use omena_query_checker_orchestrator::active_omena_checker_custom_property_registrations_v0;
 use omena_query_core::{CssValueValidationClassV0, validate_registered_property_value_v0};
 use omena_query_transform_runner::parse_static_css_cascade_value;
-use omena_syntax::ident::{PropertyNameV0, property_names_same};
+use omena_syntax::ident::{AuthoredPropertyTextV0, PropertyNameV0};
 use serde::Serialize;
 
 use super::cascade_checker::{
@@ -19,14 +19,14 @@ use super::cascade_checker::{
     query_runtime_cascade_declaration_from_input,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryRegisteredCustomPropertyComputedValueV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub style_uri: String,
     pub selector: String,
-    pub property: String,
+    pub property: AuthoredPropertyTextV0,
     pub registration_applied: bool,
     pub registration_projection_complete: bool,
     pub matched_value_count: usize,
@@ -34,6 +34,27 @@ pub struct OmenaQueryRegisteredCustomPropertyComputedValueV0 {
     pub unknown_value_count: usize,
     pub computed_value: CascadeComputedValueResultV0,
 }
+
+impl PartialEq for OmenaQueryRegisteredCustomPropertyComputedValueV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.product == other.product
+            && self.style_uri == other.style_uri
+            && self.selector == other.selector
+            && self
+                .property
+                .to_property_name()
+                .same_as(&other.property.to_property_name())
+            && self.registration_applied == other.registration_applied
+            && self.registration_projection_complete == other.registration_projection_complete
+            && self.matched_value_count == other.matched_value_count
+            && self.unmatched_value_count == other.unmatched_value_count
+            && self.unknown_value_count == other.unknown_value_count
+            && self.computed_value == other.computed_value
+    }
+}
+
+impl Eq for OmenaQueryRegisteredCustomPropertyComputedValueV0 {}
 
 pub fn summarize_omena_query_registered_custom_property_computed_value_v0(
     style_uri: &str,
@@ -47,6 +68,7 @@ pub fn summarize_omena_query_registered_custom_property_computed_value_v0(
     let active_registrations =
         active_omena_checker_custom_property_registrations_v0(registration_inputs.as_slice());
     let property_key = PropertyNameV0::canonical_custom_key(property);
+    let property_name = PropertyNameV0::from_authored(property);
     let active_registration = active_registrations.get(&property_key);
     let mut verdicts = BTreeMap::new();
     let mut matched_value_count = 0usize;
@@ -55,7 +77,11 @@ pub fn summarize_omena_query_registered_custom_property_computed_value_v0(
     let declarations = collect_query_checker_cascade_declarations(source)
         .into_iter()
         .filter(|declaration| {
-            property_names_same(&declaration.input.property, property)
+            declaration
+                .input
+                .property
+                .to_property_name()
+                .same_as(&property_name)
                 && declaration.input.selector.as_str() == selector
                 && declaration.input.condition_context.is_empty()
         })
@@ -115,7 +141,7 @@ pub fn summarize_omena_query_registered_custom_property_computed_value_v0(
     };
     let registration_applied = registered_custom_property.is_some();
     let computed_value = compute_cascade_computed_value(CascadeComputedValueInputV0 {
-        property: property.to_string(),
+        property: AuthoredPropertyTextV0::new(property),
         declarations,
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value,
@@ -128,7 +154,7 @@ pub fn summarize_omena_query_registered_custom_property_computed_value_v0(
         product: "omena-query.registered-custom-property-computed-value",
         style_uri: style_uri.to_string(),
         selector: selector.to_string(),
-        property: property.to_string(),
+        property: AuthoredPropertyTextV0::new(property),
         registration_applied,
         registration_projection_complete,
         matched_value_count,
@@ -142,6 +168,26 @@ pub fn summarize_omena_query_registered_custom_property_computed_value_v0(
 mod tests {
     use super::*;
     use omena_cascade::{ComputedCascadeIndeterminateReasonV0, ComputedCascadeValueStatusV0};
+
+    #[test]
+    fn registered_computed_value_identity_uses_sealed_property_keys() {
+        let plain = summarize_omena_query_registered_custom_property_computed_value_v0(
+            "tokens.css",
+            "",
+            ":root",
+            "--foo",
+            None,
+        );
+        let mut escaped = plain.clone();
+        escaped.property = AuthoredPropertyTextV0::new(r"--f\6f o");
+        escaped.computed_value.property = AuthoredPropertyTextV0::new(r"--f\6f o");
+        assert_eq!(plain, escaped);
+
+        let mut different_case = plain.clone();
+        different_case.property = AuthoredPropertyTextV0::new("--FOO");
+        different_case.computed_value.property = AuthoredPropertyTextV0::new("--FOO");
+        assert_ne!(plain, different_case);
+    }
 
     #[test]
     fn registered_properties_use_typed_syntax_inheritance_and_initial_values() {

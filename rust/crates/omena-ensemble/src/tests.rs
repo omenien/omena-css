@@ -11,15 +11,15 @@ use crate::overlap::LEGACY_CASCADE_SECTION_KEY_PRODUCT_V0;
 #[allow(deprecated)]
 use crate::{
     CascadeSectionKeyV0, CascadeSiteKeyV0, DetectabilityPhase, DistributionModality,
-    LinearProvenanceTagV0, ModuleGraphEdgeV0, ModuleGraphV0, OutcomeMode, ParisiM4AlphaSource,
-    ParisiSource, PartitionHypothesisLabel, REPLICA_ENSEMBLE_DEFAULT_PRODUCT_DECISION_MECHANISM_V0,
-    REPLICA_ENSEMBLE_FEATURE_GATE_V0, REPLICA_ENSEMBLE_LAYER_MARKER_V0,
-    REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0, REPLICA_ENSEMBLE_PRODUCT_SURFACE_V0,
-    REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReportOptionsV0, ReportRecommendation, RgExponentHandleV0,
-    SamplingPolicy, SpectralMethod, UniversalityClassHint, build_cross_file_inconsistency_report,
-    cascade_section_key, compute_overlap_distribution, compute_replica_overlap,
-    compute_sbm_detectability, grn_outcome_projection_policy, outcome_projection_policy_for_mode,
-    site,
+    LinearProvenanceTagV0, ModuleGraphEdgeV0, ModuleGraphV0, OutcomeMode, OverlapAttributionV0,
+    ParisiM4AlphaSource, ParisiSource, PartitionHypothesisLabel,
+    REPLICA_ENSEMBLE_DEFAULT_PRODUCT_DECISION_MECHANISM_V0, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
+    REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0,
+    REPLICA_ENSEMBLE_PRODUCT_SURFACE_V0, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReportOptionsV0,
+    ReportRecommendation, RgExponentHandleV0, SamplingPolicy, SpectralMethod,
+    UniversalityClassHint, build_cross_file_inconsistency_report, cascade_section_key,
+    compute_overlap_distribution, compute_replica_overlap, compute_sbm_detectability,
+    grn_outcome_projection_policy, outcome_projection_policy_for_mode, site,
 };
 use crate::{ConsumerId, ProjectionFamily, TopVariantTreatment};
 
@@ -56,12 +56,18 @@ fn cascade_section_key_adds_an_accurate_product_without_changing_legacy_fields()
     assert_eq!(legacy.layer_marker, "replica-ensemble");
     assert_eq!(legacy.feature_gate, "replica-ensemble");
     assert_eq!(legacy.element_selector, ".button");
-    assert_eq!(legacy.property, "color");
+    assert_eq!(
+        legacy.property.to_standard_key(),
+        omena_syntax::ident::AuthoredPropertyTextV0::new("color").to_standard_key()
+    );
     assert_eq!(legacy.schema_version, canonical.schema_version);
     assert_eq!(legacy.layer_marker, canonical.layer_marker);
     assert_eq!(legacy.feature_gate, canonical.feature_gate);
     assert_eq!(legacy.element_selector, canonical.element_selector);
-    assert_eq!(legacy.property, canonical.property);
+    assert_eq!(
+        legacy.property.to_property_name().canonical_key(),
+        canonical.property.to_property_name().canonical_key()
+    );
 
     assert_eq!(
         serde_json::to_string(&legacy).expect("legacy key serializes"),
@@ -73,6 +79,46 @@ fn cascade_section_key_adds_an_accurate_product_without_changing_legacy_fields()
     );
 
     assert_compatibility_key_conversion_v0(canonical, legacy);
+}
+
+#[test]
+#[allow(deprecated)]
+fn cascade_site_key_identity_uses_standard_property_keys() {
+    let uppercase = site(".button", "COLOR");
+    let escaped = site(".button", r"C\4f LOR");
+
+    assert_eq!(uppercase, escaped);
+    assert_eq!(uppercase.cmp(&escaped), std::cmp::Ordering::Equal);
+}
+
+#[test]
+fn cascade_section_key_identity_uses_custom_property_keys() {
+    let escaped = cascade_section_key(".button", r"--f\6f o");
+    let decoded = cascade_section_key(".button", "--foo");
+    let case_distinct = cascade_section_key(".button", "--FOO");
+
+    assert_eq!(escaped, decoded);
+    assert_eq!(escaped.cmp(&decoded), std::cmp::Ordering::Equal);
+    assert_ne!(decoded, case_distinct);
+}
+
+#[test]
+fn overlap_attribution_identity_uses_sealed_property_keys() {
+    let fixture = |property: &str| OverlapAttributionV0 {
+        schema_version: "0",
+        product: "omena-ensemble.replica-overlap",
+        layer_marker: "replica-ensemble",
+        feature_gate: "replica-ensemble",
+        site_element_selector: ".button".to_string(),
+        site_property: omena_syntax::ident::AuthoredPropertyTextV0::new(property),
+        winner_alpha: "alpha".to_string(),
+        winner_beta: "beta".to_string(),
+        provenance_alpha: None,
+        provenance_beta: None,
+    };
+
+    assert_eq!(fixture(r"--f\6f o"), fixture("--foo"));
+    assert_ne!(fixture("--foo"), fixture("--FOO"));
 }
 
 #[test]

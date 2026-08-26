@@ -98,6 +98,8 @@ pub(super) fn style_symbol_occurrence_for_candidate(
     family: &'static str,
     role: &'static str,
 ) -> LspStyleSymbolOccurrenceV0 {
+    let mut name = String::new();
+    let _ = omena_syntax::ident::render_authored(&candidate.name, &mut name);
     LspStyleSymbolOccurrenceV0 {
         moniker,
         uri: uri.to_string(),
@@ -105,7 +107,7 @@ pub(super) fn style_symbol_occurrence_for_candidate(
             .unwrap_or(OmenaWorkspaceOccurrenceKindV0::CustomPropertyReference),
         family: workspace_occurrence_family_from_style_symbol_family(family)
             .unwrap_or(OmenaWorkspaceOccurrenceFamilyV0::Symbol),
-        name: candidate.name.to_string(),
+        name,
         range: candidate.range,
         role: workspace_occurrence_role_from_style_symbol_role(role),
         namespace: candidate.namespace.clone(),
