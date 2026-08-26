@@ -307,7 +307,16 @@ function wildcardReexportBaseline(wildcardReexports: {
 }
 
 function normalizeOutput(output: string): string {
-  return output.replace(/\r\n/g, "\n").replace(/\s+$/u, "") + "\n";
+  const lines = output
+    .replace(/\r\n/g, "\n")
+    .replace(/\b(?:alloc|core)::io::read::Read\b/gu, "std::io::Read")
+    .replace(/\b(?:alloc|core)::io::write::Write\b/gu, "std::io::Write")
+    .replace(/\b(?:alloc|core)::io::/gu, "std::io::")
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .filter((line) => line.length > 0)
+    .toSorted();
+  return `${lines.join("\n")}\n`;
 }
 
 function firstDifferingLine(expected: string, actual: string): string {

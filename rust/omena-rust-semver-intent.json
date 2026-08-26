@@ -109,7 +109,7 @@
     {
       "crate": "omena-bridge",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints, binds style and utility projections to Rust-authored declaration identities, and exposes those identities on serialized source-frontend facts.",
+      "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints, binds style and utility projections to Rust-authored declaration identities, exposes those identities on serialized source-frontend facts, and makes inline-style declaration equality use the shared property authority while retaining authored wire text.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -142,6 +142,28 @@
         }
       ],
       "expectedRuntimeValueChanges": [
+        {
+          "id": "source-inline-style-property-identity",
+          "kind": "selection-outcome-changing",
+          "surface": "SourceInlineStyleDeclarationFactV0 equality",
+          "reason": "Escape-equivalent and ASCII-case-equivalent standard property spellings now compare as one inline-style declaration identity while the serde-transparent authored spelling remains unchanged in propertyName.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-bridge/src/source_syntax.rs",
+              "needles": [
+                "pub property_name: AuthoredPropertyTextV0,",
+                "impl PartialEq for SourceInlineStyleDeclarationFactV0"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-bridge/src/source_syntax/tests.rs",
+              "needles": [
+                "fn inline_style_declaration_identity_uses_standard_property_keys()",
+                "Some(&serde_json::Value::String(\"COLOR\".to_string()))"
+              ]
+            }
+          ]
+        },
         {
           "id": "source-import-declaration-identity-wire",
           "kind": "wire-value-order-preserving",
@@ -216,7 +238,7 @@
     {
       "crate": "omena-bundler",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor distinguishes analyzed-empty reachability from unavailable analysis and binds source dialect to emission-cycle admission so unsupported import cycles fail closed with typed evidence.",
+      "reason": "The next pre-1.0 minor distinguishes analyzed-empty reachability from unavailable analysis, binds source dialect to emission-cycle admission, and compares authored custom-property reachability collections through sealed custom-property identity.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -240,6 +262,22 @@
         }
       ],
       "expectedRuntimeValueChanges": [
+        {
+          "id": "bundle-reachability-custom-property-identity",
+          "kind": "selection-outcome-changing",
+          "surface": "TransformBundleSemanticReachabilityInputV0, TransformBundleInstanceReachabilityInputV0, and LinkerInputV0 equality",
+          "reason": "Escape-equivalent custom-property spellings now compare as the same reachability input while case-distinct custom properties remain separate and serde-transparent authored elements retain their prior wire strings.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
+              "needles": [
+                "fn semantic_reachability_input_identity_uses_custom_property_keys()",
+                "fn instance_reachability_input_identity_uses_custom_property_keys()",
+                "fn linker_input_identity_uses_custom_property_keys()"
+              ]
+            }
+          ]
+        },
         {
           "id": "analyzed-empty-module-reachability",
           "kind": "selection-outcome-changing",
@@ -294,7 +332,7 @@
     {
       "crate": "omena-cascade-proof",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor adds an identity-keyed, catalog-sealed module-export preservation certificate and removes arbitrary assumption parameters plus their orphan schema, carrier, input, and rejection vocabulary because none constrained a proof derivation.",
+      "reason": "The next pre-1.0 minor adds an identity-keyed, catalog-sealed module-export preservation certificate, removes arbitrary assumption parameters, and compares computed-value certificates through forced custom-property identity while retaining authored wire text.",
       "expectedFailures": [
         {
           "lint": "enum_no_repr_variant_discriminant_changed",
@@ -331,6 +369,21 @@
         }
       ],
       "expectedRuntimeValueChanges": [
+        {
+          "id": "computed-value-certificate-property-identity",
+          "kind": "selection-outcome-changing",
+          "surface": "ComputedValueEqualityCertV0 equality",
+          "reason": "Escape-equivalent custom-property spellings now identify the same computed-value certificate while case-distinct custom properties remain separate and the serialized property string remains authored.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-cascade-proof/src/proof_kernel.rs",
+              "needles": [
+                "impl PartialEq for ComputedValueEqualityCertV0",
+                "fn computed_value_equality_cert_identity_uses_custom_property_keys()"
+              ]
+            }
+          ]
+        },
         {
           "id": "module-export-preservation-certificate-wire",
           "kind": "wire-value-order-preserving",
@@ -400,7 +453,8 @@
             "field OmenaBundlerHostResolveModuleResponseV0.class_exports",
             "field OmenaBundlerHostResolveModuleResponseV0.value_exports",
             "field OmenaQueryCssModuleIcssExportV0.source_spans",
-            "field OmenaBundlerHostDiagnosticV0.source_anchors"
+            "field OmenaBundlerHostDiagnosticV0.source_anchors",
+            "field OmenaQueryStyleHoverCandidateV0.selector_key"
           ],
           "witnessLinePrefix": "  field ",
           "expectedWitnesses": [
@@ -413,7 +467,8 @@
             "OmenaBundlerHostResolveModuleResponseV0.class_exports",
             "OmenaBundlerHostResolveModuleResponseV0.value_exports",
             "OmenaQueryCssModuleIcssExportV0.source_spans",
-            "OmenaBundlerHostDiagnosticV0.source_anchors"
+            "OmenaBundlerHostDiagnosticV0.source_anchors",
+            "OmenaQueryStyleHoverCandidateV0.selector_key"
           ]
         },
         {
@@ -439,6 +494,51 @@
         }
       ],
       "expectedRuntimeValueChanges": [
+        {
+          "id": "query-authored-property-carrier-identity",
+          "kind": "selection-outcome-changing",
+          "surface": "query cascade, parser, runtime-state, computed-value, occurrence, registration, and document-summary carrier equality and ordering",
+          "reason": "Query carriers now compare authored property fields through sealed inferred, standard, or custom keys, so escape-equivalent names share one identity, standard property case folds, custom property case stays distinct, and occurrence ordering no longer depends on authored spelling.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/tests.rs",
+              "needles": [
+                "fn cascade_section_outcome_identity_uses_standard_property_keys()",
+                "fn cascade_site_outcome_identity_uses_standard_property_keys()",
+                "fn style_document_summary_identity_uses_custom_property_keys()",
+                "fn query_parser_style_facts_identity_uses_custom_property_keys()",
+                "fn runtime_state_scenario_evidence_identity_uses_sealed_property_keys()",
+                "fn inline_style_runtime_override_identity_uses_sealed_property_keys()",
+                "fn cascade_insight_identity_uses_sealed_property_keys()",
+                "fn cascade_at_position_identity_uses_sealed_property_keys()",
+                "fn custom_property_occurrence_identity_and_order_use_custom_property_keys()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/cascade_checker/value_references.rs",
+              "needles": ["fn query_custom_property_reference_identity_uses_custom_property_keys()"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/cascade_checker/declaration_facts.rs",
+              "needles": ["fn parsed_declaration_fact_identity_uses_sealed_property_keys()"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/cascade_position.rs",
+              "needles": [
+                "fn referenced_computed_value_seed_identity_uses_sealed_property_keys()",
+                "fn style_declaration_at_offset_identity_uses_sealed_property_keys()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/registered_property_values.rs",
+              "needles": ["fn registered_computed_value_identity_uses_sealed_property_keys()"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
+              "needles": ["fn element_computed_value_identity_uses_sealed_property_keys()"]
+            }
+          ]
+        },
         {
           "id": "query-bundler-host-typed-export-namespaces",
           "kind": "wire-value-order-preserving",
@@ -547,7 +647,7 @@
               "sourcePath": "rust/crates/omena-query/src/style/cascade_checker/input.rs",
               "needles": [
                 "fn query_property_identity_survives_fact_join_checker_and_ranking_planes",
-                "BTreeMap<CanonicalCustomPropertyNameV0, String>"
+                "BTreeMap<CanonicalCustomPropertyNameV0, AuthoredPropertyTextV0>"
               ]
             },
             {
@@ -701,6 +801,48 @@
       ],
       "expectedRuntimeValueChanges": [
         {
+          "id": "transform-authored-property-carrier-identity",
+          "kind": "selection-outcome-changing",
+          "surface": "transform candidate, context, registration, route, environment, deduplication, and semantic-preservation carrier equality",
+          "reason": "Transform carriers now delegate authored property identity to inferred, forced-custom, or forced-standard sealed keys, preserving authored output while preventing raw spelling from deciding candidate equality, route identity, or deduplication.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+              "needles": [
+                "fn custom_property_semantic_fact_identity_uses_sealed_property_keys()",
+                "fn custom_property_registration_rule_identity_uses_custom_property_keys()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
+              "needles": ["fn stale_vendor_prefix_candidate_identity_uses_standard_property_keys()"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
+              "needles": [
+                "fn css_modules_value_declaration_view_identity_uses_sealed_property_keys()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
+              "needles": ["fn rule_dedup_declaration_identity_uses_sealed_property_keys()"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+              "needles": ["fn semantic_cascade_candidate_identity_uses_sealed_property_keys()"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
+              "needles": [
+                "fn winner_equality_affected_pair_identity_uses_sealed_property_keys()",
+                "fn execution_context_identity_uses_custom_property_keys()",
+                "fn cascade_environment_declaration_identity_uses_sealed_property_keys()",
+                "fn design_token_route_identity_uses_custom_property_keys()"
+              ]
+            }
+          ]
+        },
+        {
           "id": "module-export-preservation-admission-evidence",
           "kind": "selection-outcome-changing",
           "surface": "TransformExecutionSummaryV0 moduleExportPreservationTelemetry and structural pass rejection outcome",
@@ -778,7 +920,7 @@
             {
               "sourcePath": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
               "needles": [
-                "PropertyNameV0::from_authored(&candidate.property).same_as(&pair_property)",
+                ".to_property_name()\n            .same_as(&pair_property)",
                 "fn candidate_selection_keeps_custom_property_identity_case_sensitive()"
               ]
             },
@@ -918,7 +1060,7 @@
     {
       "crate": "omena-scss-eval",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor makes native CSS function parameter identity explicit by pairing presentation-only authored text with a sealed, decoded, case-preserving custom-property key.",
+      "reason": "The next pre-1.0 minor makes native CSS function parameter identity explicit and makes SCSS/Less value-oracle equality use the shared property authority while preserving authored presentation bytes.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -944,6 +1086,21 @@
               ]
             }
           ]
+        },
+        {
+          "id": "scss-value-oracle-property-identity",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaScssEvalValueOracleV0 equality",
+          "reason": "Escape-equivalent and ASCII-case-equivalent standard property spellings now compare as the same value-oracle observation; the serde-transparent authored field retains its prior JSON string value.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-scss-eval/src/lib.rs",
+              "needles": [
+                "pub property_name: AuthoredPropertyTextV0,",
+                "fn value_oracle_identity_uses_standard_property_keys()"
+              ]
+            }
+          ]
         }
       ]
     },
@@ -964,7 +1121,9 @@
               "needles": [
                 "pub enum PropertyNameV0",
                 "pub struct AuthoredPropertyTextV0(String);",
-                "impl fmt::Display for AuthoredPropertyTextV0",
+                "pub fn to_custom_key(&self) -> CanonicalCustomPropertyNameV0",
+                "pub fn to_standard_key(&self) -> CanonicalStandardPropertyNameV0",
+                "pub fn render_authored(authored: &AuthoredPropertyTextV0, output: &mut String) -> fmt::Result",
                 "pub struct CanonicalStandardPropertyNameV0",
                 "pub struct CanonicalCustomPropertyNameV0",
                 "pub fn property_names_same(left: &str, right: &str) -> bool",
@@ -1033,7 +1192,7 @@
               "sourcePath": "rust/crates/omena-parser/src/public_product/syntax_index.rs",
               "needles": [
                 "let property = PropertyNameV0::new(",
-                "let property_name = property.authored_text().to_string();",
+                "let property_name = property.authored_text();",
                 "let property_key = property.canonical_key();"
               ]
             },
@@ -1077,17 +1236,47 @@
           "evidenceNeedles": [
             "field CascadeProof.property_key",
             "field CascadeDeclaration.property_key",
-            "field CustomPropertyLeastFixedPointEntryV0.guaranteed_invalid_reason"
+            "field CustomPropertyLeastFixedPointEntryV0.guaranteed_invalid_reason",
+            "field CascadeRankedSetLossCensusRowV0.final_outcome",
+            "field CascadeRankedSetLossCensusRowV0.definite_winner_declaration_id",
+            "field CascadeRankedSetLossCaptureV0.recovered_definite_outcome_count"
           ],
           "witnessLinePrefix": "  field ",
           "expectedWitnesses": [
             "CascadeProof.property_key",
             "CascadeDeclaration.property_key",
-            "CustomPropertyLeastFixedPointEntryV0.guaranteed_invalid_reason"
+            "CustomPropertyLeastFixedPointEntryV0.guaranteed_invalid_reason",
+            "CascadeRankedSetLossCensusRowV0.final_outcome",
+            "CascadeRankedSetLossCensusRowV0.definite_winner_declaration_id",
+            "CascadeRankedSetLossCaptureV0.recovered_definite_outcome_count"
           ]
         }
       ],
       "expectedRuntimeValueChanges": [
+        {
+          "id": "cascade-authored-property-carrier-identity",
+          "kind": "selection-outcome-changing",
+          "surface": "cascade evidence, guarded-fragment, computed-value, longhand, shorthand, GRN, registration, and ranked-set carrier equality",
+          "reason": "Cascade carriers now compare authored property fields through the exact inferred, forced-custom, or forced-standard sealed key required by each surface; escape-equivalent spellings merge, standard ASCII case folds, and custom-property case remains distinct without changing authored wire strings.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/tests.rs",
+              "needles": [
+                "fn cascade_evidence_identity_uses_sealed_property_keys()",
+                "fn custom_property_evidence_identity_uses_forced_custom_keys()",
+                "fn grn_vertex_identity_uses_sealed_property_keys()",
+                "fn guarded_fragment_refusal_identity_uses_sealed_property_keys()",
+                "fn guarded_fragment_predicate_identity_uses_sealed_property_keys()",
+                "fn registered_custom_property_identity_uses_forced_custom_keys()",
+                "fn computed_value_input_identity_uses_sealed_property_keys()",
+                "fn computed_value_result_identity_uses_sealed_property_keys()",
+                "fn box_longhand_input_identity_uses_standard_property_keys()",
+                "fn shorthand_combination_proof_identity_uses_standard_property_keys()",
+                "fn ranked_set_loss_row_identity_uses_sealed_property_keys()"
+              ]
+            }
+          ]
+        },
         {
           "id": "cascade-canonical-property-identity",
           "kind": "selection-outcome-changing",
@@ -1213,7 +1402,7 @@
     {
       "crate": "omena-abstract-value",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor separates positive matcher-completeness certification from identifier rejection authority: a bare identifier is definitely rejected only when the expanded property grammar has no open identifier production and the identifier is absent from the pinned css-tree accepted-keyword set. Other token kinds retain their imported-grammar closure rules, and unwitnessed builtin domains remain open.",
+      "reason": "The next pre-1.0 minor separates positive matcher-completeness certification from identifier rejection authority, and makes abstract property-value carriers compare authored property fields through the shared sealed property identity while retaining authored wire spelling. A bare identifier is definitely rejected only when the expanded property grammar has no open identifier production and the identifier is absent from the pinned css-tree accepted-keyword set. Other token kinds retain their imported-grammar closure rules, and unwitnessed builtin domains remain open.",
       "expectedFailures": [
         {
           "lint": "enum_variant_added",
@@ -1221,6 +1410,24 @@
         }
       ],
       "expectedRuntimeValueChanges": [
+        {
+          "id": "abstract-value-property-carrier-identity",
+          "kind": "selection-outcome-changing",
+          "surface": "abstract value, candidate, narrowing, family, and stalk-evaluation equality",
+          "reason": "Escape-equivalent standard and custom property spellings now compare through their sealed decoded keys, standard property identity remains ASCII-case-insensitive, custom property identity remains case-sensitive, and serde-transparent authored strings retain their original bytes.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/tests.rs",
+              "needles": [
+                "fn cascade_value_family_identity_uses_standard_property_keys()",
+                "fn cascade_stalk_evaluation_identity_uses_standard_property_keys()",
+                "fn abstract_property_value_identity_uses_sealed_property_keys()",
+                "fn abstract_property_value_candidate_identity_uses_standard_property_keys()",
+                "fn abstract_property_value_narrowing_identity_uses_standard_property_keys()"
+              ]
+            }
+          ]
+        },
         {
           "id": "standard-value-matcher-coverage-gate",
           "kind": "selection-outcome-changing",
@@ -1297,7 +1504,7 @@
               "sourcePath": "rust/crates/omena-checker/src/lib.rs",
               "needles": [
                 "BTreeMap<CanonicalCustomPropertyNameV0, OmenaCheckerActiveCustomPropertyRegistrationV0>",
-                "let key = PropertyNameV0::canonical_custom_key(*name);",
+                "property.name.to_custom_key()",
                 "fn checker_joins_property_identity_without_merging_custom_property_case()"
               ]
             }
@@ -1324,16 +1531,41 @@
     {
       "crate": "omena-lsp-server",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor joins global class source diagnostics through the shared escape-decoded selector identity.",
+      "reason": "The next pre-1.0 minor joins global class source diagnostics through shared selector identity and compares document-summary custom-property collections through forced custom-property identity.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
-          "evidenceNeedles": ["field LspStyleHoverCandidate.property_key"],
+          "evidenceNeedles": [
+            "field LspStyleHoverCandidate.property_key",
+            "field LspStyleHoverCandidate.selector_key"
+          ],
           "witnessLinePrefix": "  field ",
-          "expectedWitnesses": ["LspStyleHoverCandidate.property_key"]
+          "expectedWitnesses": [
+            "LspStyleHoverCandidate.property_key",
+            "LspStyleHoverCandidate.selector_key"
+          ]
         }
       ],
       "expectedRuntimeValueChanges": [
+        {
+          "id": "lsp-style-document-custom-property-identity",
+          "kind": "selection-outcome-changing",
+          "surface": "LspStyleDocumentSummary equality",
+          "reason": "Escape-equivalent custom-property spellings now compare as the same declaration/reference summary while case-distinct custom properties remain separate and authored JSON strings are preserved.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
+              "needles": [
+                "impl PartialEq for LspStyleDocumentSummary",
+                "fn authored_custom_property_sequences_same("
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-lsp-server/src/tests.rs",
+              "needles": ["fn style_document_summary_identity_uses_custom_property_keys()"]
+            }
+          ]
+        },
         {
           "id": "lsp-canonical-global-class-join",
           "kind": "selection-outcome-changing",
@@ -1344,7 +1576,7 @@
               "sourcePath": "rust/crates/omena-lsp-server/src/source_diagnostics.rs",
               "needles": [
                 "BTreeMap<CanonicalClassKeyV0, String>",
-                "ClassNameV0::new(candidate.name.to_string()).canonical_key()"
+                "ClassNameV0::new(candidate_name.clone()).canonical_key()"
               ]
             },
             {
@@ -1360,7 +1592,7 @@
     {
       "crate": "omena-semantic",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor adds sealed custom-property keys and CST selector authority facts while preserving authored presentation, resolves decoded cascade-layer paths, and exposes a typed refusal for declarations inside discarded invalid layer rules.",
+      "reason": "The next pre-1.0 minor adds sealed custom-property keys and CST selector authority facts while preserving authored presentation, makes semantic design-token and parser-index carriers compare authored property fields through sealed custom-property identity, resolves decoded cascade-layer paths, and exposes a typed refusal for declarations inside discarded invalid layer rules.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -1410,6 +1642,27 @@
         }
       ],
       "expectedRuntimeValueChanges": [
+        {
+          "id": "semantic-authored-property-carrier-identity",
+          "kind": "selection-outcome-changing",
+          "surface": "design-token, parser-index, and style-runtime semantic carrier equality and ordering",
+          "reason": "Escape-equivalent authored custom-property spellings now compare through decoded case-preserving keys across design-token candidates, parser facts, and runtime summaries without changing their serde-transparent authored wire strings.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-semantic/src/tests.rs",
+              "needles": [
+                "fn design_token_ranked_reference_identity_uses_custom_property_keys()",
+                "fn design_token_workspace_declaration_identity_uses_custom_property_keys()",
+                "fn design_token_declaration_candidate_identity_uses_custom_property_keys()",
+                "fn semantic_parser_custom_property_facts_identity_uses_custom_property_keys()",
+                "fn semantic_parser_custom_property_decl_fact_identity_uses_sealed_keys()",
+                "fn semantic_parser_custom_property_ref_fact_identity_uses_sealed_keys()",
+                "fn style_custom_property_semantic_facts_identity_uses_custom_property_keys()",
+                "fn style_runtime_index_facts_identity_uses_custom_property_keys()"
+              ]
+            }
+          ]
+        },
         {
           "id": "semantic-custom-property-identity-wire",
           "kind": "wire-value-order-preserving",
@@ -1470,6 +1723,104 @@
             {
               "sourcePath": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
               "needles": ["fn discarded_layer_block_cannot_mask_a_transform_winner_change()"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-refinement",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor routes refinement predicates, dimensional bridge summaries, and calc diagnostics through the shared property identity while keeping authored property spellings on the wire.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "refinement-property-identity",
+          "kind": "selection-outcome-changing",
+          "surface": "RefinementPropertyPredicateV0, CascadeDimensionalRefinementBridgeV0, and CalcDimensionDiagnosticV0 equality",
+          "reason": "Escape-equivalent and ASCII-case-equivalent standard properties now compare together, custom references retain case-sensitive decoded identity, and serde-transparent authored values preserve the established serialized strings.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-refinement/src/lib.rs",
+              "needles": [
+                "fn refinement_property_predicate_identity_uses_sealed_keys()",
+                "fn dimensional_refinement_bridge_identity_uses_standard_property_keys()",
+                "fn calc_dimension_diagnostic_identity_uses_standard_property_keys()"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-ensemble",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor makes replica-overlap site and section carriers compare and order property names through the shared sealed property authority while preserving their transparent authored-text wire bytes.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "ensemble-property-identity",
+          "kind": "selection-outcome-changing",
+          "surface": "CascadeSiteKeyV0, CascadeSectionKeyV0, and OverlapAttributionV0 equality and ordering",
+          "reason": "Escape-equivalent property spellings and standard-property ASCII case variants now identify the same site, while case-distinct custom properties remain separate; serde-transparent authored text preserves the established JSON values.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-ensemble/src/tests.rs",
+              "needles": [
+                "fn cascade_site_key_identity_uses_standard_property_keys()",
+                "fn cascade_section_key_identity_uses_custom_property_keys()",
+                "fn overlap_attribution_identity_uses_sealed_property_keys()"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-product-hints",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor makes replica-overlap site and section carriers compare and order property names through the shared sealed property authority while preserving their transparent authored-text wire bytes.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "product-hint-property-identity",
+          "kind": "selection-outcome-changing",
+          "surface": "CascadeSiteKeyV0, CascadeSectionKeyV0, and OverlapAttributionV0 equality and ordering",
+          "reason": "Escape-equivalent property spellings and standard-property ASCII case variants now identify the same site, while case-distinct custom properties remain separate; serde-transparent authored text preserves the established JSON values.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-product-hints/src/lib.rs",
+              "needles": [
+                "impl_cascade_key_identity!(CascadeSiteKeyV0);",
+                "impl_cascade_key_identity!(CascadeSectionKeyV0);",
+                "fn cascade_site_key_identity_uses_standard_property_keys()",
+                "fn cascade_section_key_identity_uses_custom_property_keys()",
+                "fn overlap_attribution_identity_uses_sealed_property_keys()"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-transform-target",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor makes native target-coverage diagnostics compare observed property collections through standard-property identity while preserving their existing string-array wire representation.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "target-uncovered-property-identity",
+          "kind": "selection-outcome-changing",
+          "surface": "NativeStage2UncoveredFeatureV0 equality over observedProperties",
+          "reason": "Equivalent escaped and ASCII-case standard-property spellings no longer make otherwise identical uncovered-feature observations unequal; serde-transparent authored elements preserve JSON bytes.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-transform-target/src/lib.rs",
+              "needles": [
+                "pub observed_properties: Vec<omena_syntax::ident::AuthoredPropertyTextV0>",
+                "left.to_standard_key() == right.to_standard_key()",
+                "fn uncovered_feature_identity_uses_standard_property_keys()"
+              ]
             }
           ]
         }

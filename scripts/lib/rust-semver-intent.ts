@@ -13,7 +13,10 @@ interface ExpectedCargoSemverDiagnostic {
 
 interface ExpectedRuntimeValueChange {
   readonly id: string;
-  readonly kind: "wire-value-order-preserving" | "selection-outcome-changing";
+  readonly kind:
+    | "wire-value-order-preserving"
+    | "wire-order-changing"
+    | "selection-outcome-changing";
   readonly surface: string;
   readonly reason: string;
   readonly evidence: readonly {
@@ -39,6 +42,23 @@ interface RustSemverIntentRegister {
   readonly intents: readonly RustSemverIntent[];
 }
 
+interface RuntimeHonestySurface {
+  readonly owner: string;
+  readonly changeId: string;
+  readonly surface: string;
+  readonly evidenceNeedles: readonly string[];
+}
+
+interface AuthoredTextEgressHonestyTable {
+  readonly derivation: "final-head-byte-differential";
+  readonly orderBranchSurfaces: readonly RuntimeHonestySurface[];
+  readonly valueBranchSurfaces: readonly RuntimeHonestySurface[];
+  readonly zeroBranchSurfaces: readonly {
+    readonly surface: string;
+    readonly evidenceGate: string;
+  }[];
+}
+
 interface RunDeclaredRustSemverCheckOptions {
   readonly repoRoot: string;
   readonly crate: string;
@@ -59,6 +79,7 @@ const registerRelativePath = "rust/omena-rust-semver-intent.json";
 const diagnosticHeaderPattern = /^--- (failure|warning) ([a-z0-9_]+):[^\n]*$/gmu;
 const runtimeValueChangeKinds = new Set<ExpectedRuntimeValueChange["kind"]>([
   "wire-value-order-preserving",
+  "wire-order-changing",
   "selection-outcome-changing",
 ]);
 
@@ -69,6 +90,10 @@ export function declaredRustSemverIntentCrates(repoRoot: string): readonly strin
 export function validateRustSemverIntentRegister(repoRoot: string): {
   readonly intentCount: number;
   readonly runtimeValueChangeCount: number;
+  readonly honestyOrderSurfaceCount: number;
+  readonly honestyValueSurfaceCount: number;
+  readonly honestyZeroSurfaceCount: number;
+  readonly honestySelftestMutationCount: 2;
 } {
   const register = readRegister(repoRoot);
   const workspaceVersion = readWorkspaceVersion(repoRoot);
@@ -123,10 +148,181 @@ export function validateRustSemverIntentRegister(repoRoot: string): {
     runtimeValueChangeCount += runtimeChanges.length;
   }
 
+  const honestyTable = readAuthoredTextEgressHonestyTable(repoRoot);
+  const honestyCounts = validateRuntimeHonestyTable(register.intents, honestyTable);
+  runRuntimeHonestyTableSelftest();
+
   return {
     intentCount: register.intents.length,
     runtimeValueChangeCount,
+    ...honestyCounts,
+    honestySelftestMutationCount: 2,
   };
+}
+
+function validateRuntimeHonestyTable(
+  intents: readonly RustSemverIntent[],
+  table: AuthoredTextEgressHonestyTable,
+): {
+  readonly honestyOrderSurfaceCount: number;
+  readonly honestyValueSurfaceCount: number;
+  readonly honestyZeroSurfaceCount: number;
+} {
+  const declared = new Map(
+    intents.flatMap((intent) =>
+      (intent.expectedRuntimeValueChanges ?? []).map(
+        (change) => [`${intent.crate}\0${change.id}`, change] as const,
+      ),
+    ),
+  );
+  const branchRows = [
+    ...table.orderBranchSurfaces.map((surface) => ({
+      surface,
+      expectedKind: "wire-order-changing" as const,
+      branch: "order" as const,
+    })),
+    ...table.valueBranchSurfaces.map((surface) => ({
+      surface,
+      expectedKind: "selection-outcome-changing" as const,
+      branch: "value" as const,
+    })),
+  ];
+  assert.equal(
+    new Set(branchRows.map(({ surface }) => `${surface.owner}\0${surface.changeId}`)).size,
+    branchRows.length,
+    "authored-text egress honesty rows must have unique owner/change ids",
+  );
+  for (const { surface, expectedKind, branch } of branchRows) {
+    const change = declared.get(`${surface.owner}\0${surface.changeId}`);
+    assert.ok(
+      change,
+      `${branch}-branch honesty surface ${surface.owner}:${surface.changeId} requires a runtime value change row`,
+    );
+    assert.equal(
+      change.kind,
+      expectedKind,
+      `${surface.owner}:${surface.changeId} ${branch}-branch honesty surface requires ${expectedKind}`,
+    );
+    assert.equal(
+      change.surface,
+      surface.surface,
+      `${surface.owner}:${surface.changeId} honesty surface text drifted`,
+    );
+    assert.ok(
+      surface.evidenceNeedles.length > 0,
+      `${surface.owner}:${surface.changeId} honesty surface requires a manual identity implementation needle`,
+    );
+    const declaredNeedles = new Set(change.evidence.flatMap((evidence) => evidence.needles));
+    for (const needle of surface.evidenceNeedles) {
+      assert.ok(
+        declaredNeedles.has(needle),
+        `${surface.owner}:${surface.changeId} honesty surface is missing manual identity evidence ${JSON.stringify(needle)}`,
+      );
+    }
+  }
+  assert.equal(
+    new Set(table.zeroBranchSurfaces.map((surface) => surface.surface)).size,
+    table.zeroBranchSurfaces.length,
+    "authored-text zero-branch surfaces must be unique",
+  );
+  for (const surface of table.zeroBranchSurfaces) {
+    assert.ok(surface.surface.trim().length > 0, "zero-branch honesty surface requires a name");
+    assert.ok(
+      surface.evidenceGate.trim().length > 0,
+      `${surface.surface} zero-branch honesty surface requires an evidence gate`,
+    );
+  }
+  return {
+    honestyOrderSurfaceCount: table.orderBranchSurfaces.length,
+    honestyValueSurfaceCount: table.valueBranchSurfaces.length,
+    honestyZeroSurfaceCount: table.zeroBranchSurfaces.length,
+  };
+}
+
+function runRuntimeHonestyTableSelftest(): void {
+  const orderSurface: RuntimeHonestySurface = {
+    owner: "fixture-order",
+    changeId: "manual-order",
+    surface: "fixture order surface",
+    evidenceNeedles: ["impl Ord for FixtureOrder"],
+  };
+  const valueSurface: RuntimeHonestySurface = {
+    owner: "fixture-value",
+    changeId: "manual-value",
+    surface: "fixture value surface",
+    evidenceNeedles: ["impl PartialEq for FixtureValue"],
+  };
+  const change = (
+    id: string,
+    kind: ExpectedRuntimeValueChange["kind"],
+    surface: string,
+    needle: string,
+  ): ExpectedRuntimeValueChange => ({
+    id,
+    kind,
+    surface,
+    reason: "validator selftest fixture",
+    evidence: [{ sourcePath: "rust/selftest.rs", needles: [needle] }],
+  });
+  const intent = (crate: string, runtimeChange: ExpectedRuntimeValueChange): RustSemverIntent => ({
+    crate,
+    releaseClass: "pre1MinorBreaking",
+    reason: "validator selftest fixture",
+    expectedFailures: [],
+    expectedRuntimeValueChanges: [runtimeChange],
+  });
+  const table: AuthoredTextEgressHonestyTable = {
+    derivation: "final-head-byte-differential",
+    orderBranchSurfaces: [orderSurface],
+    valueBranchSurfaces: [valueSurface],
+    zeroBranchSurfaces: [],
+  };
+  const validIntents = [
+    intent(
+      orderSurface.owner,
+      change(
+        orderSurface.changeId,
+        "wire-order-changing",
+        orderSurface.surface,
+        orderSurface.evidenceNeedles[0]!,
+      ),
+    ),
+    intent(
+      valueSurface.owner,
+      change(
+        valueSurface.changeId,
+        "selection-outcome-changing",
+        valueSurface.surface,
+        valueSurface.evidenceNeedles[0]!,
+      ),
+    ),
+  ];
+  validateRuntimeHonestyTable(validIntents, table);
+  assert.throws(
+    () =>
+      validateRuntimeHonestyTable(
+        [
+          intent(
+            orderSurface.owner,
+            change(
+              orderSurface.changeId,
+              "wire-value-order-preserving",
+              orderSurface.surface,
+              orderSurface.evidenceNeedles[0]!,
+            ),
+          ),
+          validIntents[1]!,
+        ],
+        table,
+      ),
+    /requires wire-order-changing/u,
+    "order-branch honesty selftest must reject a missing wire-order-changing row",
+  );
+  assert.throws(
+    () => validateRuntimeHonestyTable([validIntents[0]!], table),
+    /value-branch honesty surface .* requires a runtime value change row/u,
+    "value-branch honesty selftest must reject a missing selection-outcome-changing row",
+  );
 }
 
 export function runDeclaredRustSemverCheck(
@@ -364,6 +560,30 @@ function readRegister(repoRoot: string): RustSemverIntentRegister {
     `${registerRelativePath} must contain at most one intent per crate`,
   );
   return register;
+}
+
+function readAuthoredTextEgressHonestyTable(repoRoot: string): AuthoredTextEgressHonestyTable {
+  const census = JSON.parse(
+    readFileSync(path.join(repoRoot, "rust/omena-identifier-authority-census.json"), "utf8"),
+  ) as {
+    readonly propertyIdentity?: {
+      readonly egressHonestyTable?: AuthoredTextEgressHonestyTable;
+    };
+  };
+  const table = census.propertyIdentity?.egressHonestyTable;
+  assert.ok(
+    table,
+    "identifier-authority census must record the authored-text egress honesty table",
+  );
+  assert.equal(
+    table.derivation,
+    "final-head-byte-differential",
+    "authored-text egress honesty table derivation",
+  );
+  assert.ok(Array.isArray(table.orderBranchSurfaces), "honesty order-branch surfaces");
+  assert.ok(Array.isArray(table.valueBranchSurfaces), "honesty value-branch surfaces");
+  assert.ok(Array.isArray(table.zeroBranchSurfaces), "honesty zero-branch surfaces");
+  return table;
 }
 
 function readWorkspaceVersion(repoRoot: string): string {
