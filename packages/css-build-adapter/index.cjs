@@ -24,6 +24,7 @@ function createOmenaBuildState(options = {}, overrides = {}) {
     command: overrides.command ?? "build",
     cache: new Map(),
     generations: new Map(),
+    // Kept for the public state shape; configuration snapshots are intentionally reloaded per build.
     configPromise: null,
     enginePromise: null,
     cacheMetrics: {
