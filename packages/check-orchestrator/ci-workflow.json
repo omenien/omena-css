@@ -680,6 +680,48 @@
       "needs": ["preflight"]
     },
     {
+      "name": "rust-identifier-authority-matrix",
+      "block": [
+        "  rust-identifier-authority-matrix:",
+        "    # omena-ci-tier: verify",
+        "    # omena-ci-required: true",
+        "    needs: preflight",
+        "    runs-on: ubuntu-latest",
+        "    timeout-minutes: 1",
+        "    steps:",
+        "      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1",
+        "        with:",
+        "          persist-credentials: false",
+        "      - uses: ./.github/actions/setup-pnpm",
+        "      - run: pnpm run check:rust-omena-identifier-authority-matrix",
+        ""
+      ],
+      "requiredAnnotation": true,
+      "tierAnnotation": "verify",
+      "needs": ["preflight"]
+    },
+    {
+      "name": "rust-identifier-authority-mutations",
+      "block": [
+        "  rust-identifier-authority-mutations:",
+        "    # omena-ci-tier: verify",
+        "    # omena-ci-required: true",
+        "    needs: preflight",
+        "    runs-on: ubuntu-latest",
+        "    timeout-minutes: 25",
+        "    steps:",
+        "      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1",
+        "        with:",
+        "          persist-credentials: false",
+        "      - uses: ./.github/actions/setup-pnpm",
+        "      - run: pnpm run check:rust-omena-identifier-authority-mutations",
+        ""
+      ],
+      "requiredAnnotation": true,
+      "tierAnnotation": "verify",
+      "needs": ["preflight"]
+    },
+    {
       "name": "extension-host-smoke",
       "block": [
         "  extension-host-smoke:",
@@ -800,6 +842,8 @@
         "      - benchmark-contracts",
         "      - plugin-consumers",
         "      - closure-fast-shards",
+        "      - rust-identifier-authority-matrix",
+        "      - rust-identifier-authority-mutations",
         "      - extension-host-smoke",
         "      - package",
         "    runs-on: ubuntu-latest",
@@ -827,6 +871,8 @@
         "benchmark-contracts",
         "plugin-consumers",
         "closure-fast-shards",
+        "rust-identifier-authority-matrix",
+        "rust-identifier-authority-mutations",
         "extension-host-smoke",
         "package"
       ]

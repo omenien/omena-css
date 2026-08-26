@@ -832,6 +832,30 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/omena-cli-persona-presets", "gate", "rust"),
   declaredClosurePackageGate("rust/product-surface-boundary-reviews", "gate", "rust"),
   {
+    id: "rust/omena-identifier-authority-matrix",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/omena-identifier-authority-matrix",
+    tags: ["verify", "rust", "identity-authority"],
+    ciTier: "verify",
+    ciGroup: "verify",
+    ciReason:
+      "Runs the generated authored-text origin, comparison, position, and escape coverage matrix independently of the full census selftest.",
+    timeoutMinutes: 1,
+  },
+  {
+    id: "rust/omena-identifier-authority-mutations",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/omena-identifier-authority-mutations",
+    tags: ["verify", "rust", "identity-authority"],
+    ciTier: "verify",
+    ciGroup: "verify",
+    ciReason:
+      "Runs authored-text identity mutation, laundering, and disclosed-control arms independently of the immutable census check.",
+    timeoutMinutes: 25,
+  },
+  {
     id: "rust/omena-syntax-authority-raw-scan-census",
     kind: "gate",
     scope: "rust",
@@ -840,7 +864,7 @@ export const DECLARED_CHECK_GATES = [
     ciTier: "closure-fast",
     ciGroup: "closure-fast",
     ciReason:
-      "Chains raw-syntax and identifier-authority censuses with the identifier firing selftest.",
+      "Checks the committed raw-syntax and identifier-authority censuses without adopting new sites.",
     timeoutMinutes: 20,
   },
   declaredClosurePackageGate("rust/omena-keyword-case-authority-census", "gate", "rust"),

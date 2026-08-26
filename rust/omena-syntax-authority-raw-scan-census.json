@@ -70,7 +70,7 @@
   "sites": [
     {
       "path": "rust/crates/omena-bridge/src/source_syntax.rs",
-      "line": 1678,
+      "line": 1697,
       "idiom": "brace-contains",
       "family": "engine-support",
       "disposition": "named-exempt",
@@ -79,7 +79,7 @@
     },
     {
       "path": "rust/crates/omena-cascade/src/proofs.rs",
-      "line": 444,
+      "line": 447,
       "idiom": "brace-contains",
       "family": "cascade-analysis",
       "disposition": "named-exempt",
@@ -88,7 +88,7 @@
     },
     {
       "path": "rust/crates/omena-cascade/src/proofs.rs",
-      "line": 498,
+      "line": 501,
       "idiom": "brace-contains",
       "family": "cascade-analysis",
       "disposition": "named-exempt",
@@ -97,7 +97,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/summaries.rs",
-      "line": 947,
+      "line": 1016,
       "idiom": "matching-brace-helper",
       "family": "parser-owned-syntax",
       "disposition": "named-exempt",
@@ -124,20 +124,11 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 1209,
+      "line": 1240,
       "idiom": "brace-list-search",
       "family": "query-surface",
       "disposition": "named-exempt",
       "evidence": ".rfind(['{', '}', ';'])",
-      "reason": "Query-layer source editing and diagnostics are outside the four authority migration families."
-    },
-    {
-      "path": "rust/crates/omena-query/src/style.rs",
-      "line": 4164,
-      "idiom": "brace-find",
-      "family": "query-surface",
-      "disposition": "named-exempt",
-      "evidence": "let open_brace = source[line_start..].find('{')? + line_start;",
       "reason": "Query-layer source editing and diagnostics are outside the four authority migration families."
     },
     {
@@ -151,7 +142,16 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 4306,
+      "line": 4276,
+      "idiom": "brace-find",
+      "family": "query-surface",
+      "disposition": "named-exempt",
+      "evidence": "let open_brace = source[line_start..].find('{')? + line_start;",
+      "reason": "Query-layer source editing and diagnostics are outside the four authority migration families."
+    },
+    {
+      "path": "rust/crates/omena-query/src/style.rs",
+      "line": 4362,
       "idiom": "brace-contains",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -169,7 +169,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-      "line": 451,
+      "line": 483,
       "idiom": "brace-list-search",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -178,7 +178,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-      "line": 456,
+      "line": 488,
       "idiom": "brace-list-search",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -286,7 +286,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1727,
+      "line": 1812,
       "idiom": "brace-list-search",
       "family": "semantic-model",
       "disposition": "named-exempt",
@@ -295,7 +295,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1733,
+      "line": 1818,
       "idiom": "brace-find",
       "family": "semantic-model",
       "disposition": "named-exempt",
@@ -304,7 +304,7 @@
     },
     {
       "path": "rust/crates/omena-sif/src/generator.rs",
-      "line": 398,
+      "line": 403,
       "idiom": "brace-find",
       "family": "module-interface",
       "disposition": "named-exempt",
@@ -340,7 +340,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/cascade_flatten.rs",
-      "line": 994,
+      "line": 991,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -349,7 +349,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/cascade_flatten.rs",
-      "line": 995,
+      "line": 992,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -358,7 +358,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/cascade_flatten.rs",
-      "line": 1015,
+      "line": 1012,
       "idiom": "brace-contains",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -367,7 +367,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/cascade_flatten.rs",
-      "line": 1015,
+      "line": 1012,
       "idiom": "source-substring-gate",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -376,7 +376,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/cascade_flatten.rs",
-      "line": 1040,
+      "line": 1037,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -385,7 +385,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/color_lowering.rs",
-      "line": 181,
+      "line": 185,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -556,7 +556,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
-      "line": 114,
+      "line": 117,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -565,7 +565,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
-      "line": 1583,
+      "line": 1595,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -574,7 +574,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
-      "line": 1621,
+      "line": 1633,
       "idiom": "body-bounds-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -583,7 +583,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
-      "line": 1704,
+      "line": 1716,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -592,7 +592,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
-      "line": 1919,
+      "line": 1931,
       "idiom": "body-bounds-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -601,7 +601,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
-      "line": 1953,
+      "line": 1965,
       "idiom": "body-bounds-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -610,7 +610,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
-      "line": 2041,
+      "line": 2066,
       "idiom": "body-bounds-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -619,7 +619,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
-      "line": 2054,
+      "line": 2079,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -628,7 +628,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
-      "line": 2060,
+      "line": 2085,
       "idiom": "body-bounds-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -637,7 +637,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
-      "line": 2062,
+      "line": 2087,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -646,7 +646,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
-      "line": 2063,
+      "line": 2088,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -655,7 +655,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
-      "line": 2073,
+      "line": 2098,
       "idiom": "body-bounds-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -664,7 +664,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
-      "line": 2075,
+      "line": 2100,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -673,7 +673,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
-      "line": 2076,
+      "line": 2101,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -682,7 +682,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
-      "line": 2154,
+      "line": 2179,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -691,7 +691,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-      "line": 116,
+      "line": 177,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -700,7 +700,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-      "line": 312,
+      "line": 373,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -709,7 +709,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-      "line": 1245,
+      "line": 1323,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -718,7 +718,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-      "line": 1311,
+      "line": 1389,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -727,7 +727,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-      "line": 1343,
+      "line": 1421,
       "idiom": "body-bounds-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -736,7 +736,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-      "line": 1480,
+      "line": 1562,
       "idiom": "body-bounds-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -745,7 +745,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-      "line": 1537,
+      "line": 1619,
       "idiom": "body-bounds-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -754,7 +754,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-      "line": 1709,
+      "line": 1791,
       "idiom": "body-bounds-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -763,7 +763,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-      "line": 1722,
+      "line": 1804,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -772,7 +772,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-      "line": 1728,
+      "line": 1810,
       "idiom": "body-bounds-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -781,7 +781,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-      "line": 1730,
+      "line": 1812,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -790,7 +790,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-      "line": 1731,
+      "line": 1813,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -799,7 +799,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-      "line": 1741,
+      "line": 1823,
       "idiom": "body-bounds-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -808,7 +808,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-      "line": 1743,
+      "line": 1825,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -817,7 +817,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-      "line": 1744,
+      "line": 1826,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -826,7 +826,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-      "line": 1875,
+      "line": 1957,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -835,7 +835,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-      "line": 1895,
+      "line": 1977,
       "idiom": "brace-list-search",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -844,7 +844,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
-      "line": 1943,
+      "line": 2025,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -853,7 +853,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/design_token.rs",
-      "line": 85,
+      "line": 88,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -961,7 +961,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/nesting.rs",
-      "line": 74,
+      "line": 77,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -970,7 +970,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/nesting.rs",
-      "line": 320,
+      "line": 323,
       "idiom": "body-bounds-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -979,7 +979,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/nesting.rs",
-      "line": 375,
+      "line": 378,
       "idiom": "body-bounds-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -988,7 +988,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/nesting.rs",
-      "line": 377,
+      "line": 380,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -997,7 +997,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/nesting.rs",
-      "line": 378,
+      "line": 381,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1006,7 +1006,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/nesting.rs",
-      "line": 394,
+      "line": 397,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1015,7 +1015,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/nesting.rs",
-      "line": 395,
+      "line": 398,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1024,7 +1024,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/nesting.rs",
-      "line": 493,
+      "line": 496,
       "idiom": "brace-contains",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1033,7 +1033,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/nesting.rs",
-      "line": 637,
+      "line": 652,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1051,7 +1051,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
-      "line": 253,
+      "line": 264,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1060,7 +1060,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
-      "line": 254,
+      "line": 265,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1069,7 +1069,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
-      "line": 291,
+      "line": 302,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1078,7 +1078,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
-      "line": 294,
+      "line": 305,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1087,7 +1087,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
-      "line": 604,
+      "line": 614,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1096,7 +1096,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
-      "line": 605,
+      "line": 615,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1105,7 +1105,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
-      "line": 656,
+      "line": 666,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1213,7 +1213,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
-      "line": 124,
+      "line": 174,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1222,7 +1222,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
-      "line": 180,
+      "line": 230,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1231,7 +1231,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
-      "line": 308,
+      "line": 360,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1249,7 +1249,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/helpers/declarations.rs",
-      "line": 40,
+      "line": 43,
       "idiom": "matching-brace-helper",
       "family": "transform-helper",
       "disposition": "named-exempt",
@@ -1302,7 +1302,7 @@
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
     }
   ],
-  "siteDigest": "sha256:31032608f9ae200f0a1f4eb95ef775538520e8f457b9aa58bb2b5eb2686b9e7a",
+  "siteDigest": "sha256:0d24eb29ac4c0476512da8dcd60294e4b448c84382d7553a5d60a29b87fcbac9",
   "classSelectorScanner": {
     "policy": "decrease-only",
     "baselineSiteCount": 3,
@@ -1319,7 +1319,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1635,
+        "line": 1720,
         "idiom": "class-dot-byte-walk",
         "family": "semantic-model",
         "disposition": "named-exempt",
@@ -1328,7 +1328,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1639,
+        "line": 1724,
         "idiom": "class-dot-byte-walk",
         "family": "semantic-model",
         "disposition": "named-exempt",
@@ -1336,7 +1336,7 @@
         "reason": "Semantic-model source scanning remains a named consumer follow-up."
       }
     ],
-    "siteDigest": "sha256:b2a6b1fdf47668820cb7f971e69104260c5a5a98460e902c225cc9f44c8cbb7d"
+    "siteDigest": "sha256:5a001af197a5217ffccf47c2a224d2fff0912a57f884a67f68191f710271a6e0"
   },
   "selectorAuthority": {
     "policy": "single-cst-projected-authority",
