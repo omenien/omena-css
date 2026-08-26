@@ -65,7 +65,6 @@ export interface OmenaBuildState {
   command: string;
   cache: Map<string, unknown>;
   generations: Map<string, number>;
-  /** Compatibility slot; configuration snapshots are reloaded for every build. */
   configPromise: Promise<Partial<OmenaBuildAdapterOptions>> | null;
   enginePromise: Promise<unknown> | null;
 }
