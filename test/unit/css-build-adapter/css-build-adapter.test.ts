@@ -16,6 +16,8 @@ type OmenaBuildState = {
 };
 
 type CacheEntry = {
+  readonly buildSnapshotDigest?: string | null;
+  readonly cacheBypassReason?: string | null;
   readonly output: {
     readonly code: string;
   };
@@ -40,6 +42,7 @@ type AdapterExports = {
     state: OmenaBuildState,
   ) => Promise<{
     readonly code: string;
+    readonly map: unknown;
     readonly classExports?: Readonly<Record<string, string>>;
     readonly valueExports?: Readonly<Record<string, string>>;
     readonly namedExports?: readonly {
@@ -181,6 +184,7 @@ describe("@omena/css-build-adapter", () => {
       "utf8",
     );
     expect(nativeSource).toContain("compute_omena_sif_leaf_hash_v1");
+    expect(nativeSource).toContain("write_omena_canonical_json_bytes_v1");
     expect(nativeSource).toContain("omena_resolver_style_identity_generation()");
     expect(nativeSource).toContain("target_data_snapshot_id: target_plan.target_data_snapshot_id");
     expect(nativeSource).toContain('env!("CARGO_PKG_VERSION")');
@@ -733,6 +737,159 @@ source-map = true
     expect(fs.statSync(configPath).mtimeMs).toBe(fixedTimestamp.getTime());
     expect(buildCount).toBe(2);
     expect(state.cacheMetrics).toMatchObject({ hits: 1, misses: 2, bypasses: 0, builds: 2 });
+  });
+
+  it("binds resolved pass ids before serving a cached build", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-build-adapter-pass-identity-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "App.css");
+    const source = ".button { color: red; }";
+    const buildPasses: string[][] = [];
+    const engine = {
+      buildSnapshotIdentity: buildSnapshotIdentityMock,
+      buildStyleSourcesWithContextJson: (
+        _targetPath: string,
+        _sourcesJson: string,
+        passIds: string[],
+      ) => {
+        buildPasses.push(passIds);
+        return JSON.stringify({
+          execution: {
+            outputCss: passIds.includes("whitespace-strip")
+              ? ".button{color:red}"
+              : ".button { color: red; }",
+            executedPassIds: passIds,
+          },
+        });
+      },
+    };
+    const baseOptions = {
+      cwd: root,
+      configFile: false,
+      engine,
+      moduleInterface: false,
+      sourceMap: false,
+    };
+    const state = createOmenaBuildState({ cwd: root });
+
+    const unminified = await rebuildAndCache(
+      stylePath,
+      source,
+      { ...baseOptions, passes: ["comment-strip"] },
+      state,
+    );
+    const minified = await rebuildAndCache(
+      stylePath,
+      source,
+      { ...baseOptions, passes: ["comment-strip", "whitespace-strip"] },
+      state,
+    );
+    const unchanged = await rebuildAndCache(
+      stylePath,
+      source,
+      { ...baseOptions, passes: ["comment-strip", "whitespace-strip"] },
+      state,
+    );
+
+    expect(unminified.code).toBe(".button { color: red; }");
+    expect(minified.code).toBe(".button{color:red}");
+    expect(unchanged.code).toBe(minified.code);
+    expect(buildPasses).toEqual([["comment-strip"], ["comment-strip", "whitespace-strip"]]);
+    expect(state.cacheMetrics).toMatchObject({ hits: 1, misses: 2, bypasses: 0, builds: 2 });
+  });
+
+  it("binds adapter environment changes before serving a cached build", async () => {
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), "omena-build-adapter-environment-identity-"),
+    );
+    tempRoots.push(root);
+    const stylePath = path.join(root, "App.css");
+    const source = ".button { color: red; }";
+    let buildCount = 0;
+    const engine = {
+      buildSnapshotIdentity: buildSnapshotIdentityMock,
+      buildStyleSourcesWithContextJson: () => {
+        buildCount += 1;
+        return JSON.stringify({
+          execution: { outputCss: source, executedPassIds: [] },
+          sourceMapV3: {
+            version: 3,
+            sources: [stylePath],
+            names: [],
+            mappings: "AAAA",
+          },
+        });
+      },
+    };
+    const baseOptions = {
+      cwd: root,
+      configFile: false,
+      engine,
+      moduleInterface: false,
+    };
+    const state = createOmenaBuildState({ cwd: root });
+
+    const withMap = await rebuildAndCache(
+      stylePath,
+      source,
+      { ...baseOptions, sourceMap: true },
+      state,
+    );
+    const withoutMap = await rebuildAndCache(
+      stylePath,
+      source,
+      { ...baseOptions, sourceMap: false },
+      state,
+    );
+    const unchanged = await rebuildAndCache(
+      stylePath,
+      source,
+      { ...baseOptions, sourceMap: false },
+      state,
+    );
+
+    expect(withMap.map).toMatchObject({ version: 3, mappings: "AAAA" });
+    expect(withoutMap.map).toBeNull();
+    expect(unchanged.map).toBeNull();
+    expect(buildCount).toBe(2);
+    expect(state.cacheMetrics).toMatchObject({ hits: 1, misses: 2, bypasses: 0, builds: 2 });
+  });
+
+  it("keeps dynamic configuration dependencies on the fail-closed path", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-build-adapter-dynamic-config-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "App.css");
+    const source = ".button { color: red; }";
+    fs.writeFileSync(
+      path.join(root, "build-settings.cjs"),
+      "module.exports = { sourceMap: false };\n",
+    );
+    fs.writeFileSync(
+      path.join(root, "omena.config.cjs"),
+      'module.exports = { build: require("./build-settings.cjs") };\n',
+    );
+    let buildCount = 0;
+    const engine = {
+      buildSnapshotIdentity: buildSnapshotIdentityMock,
+      buildStyleSourcesWithContextJson: () => {
+        buildCount += 1;
+        return JSON.stringify({ execution: { outputCss: source, executedPassIds: [] } });
+      },
+    };
+    const explicitOptions = { cwd: root, engine, moduleInterface: false };
+    const state = createOmenaBuildState({ cwd: root });
+
+    for (let iteration = 0; iteration < 2; iteration += 1) {
+      const options = await resolveEffectiveOptions(explicitOptions, state);
+      await rebuildAndCache(stylePath, source, options, state);
+    }
+
+    expect(buildCount).toBe(2);
+    expect(state.cacheMetrics).toMatchObject({ hits: 0, misses: 0, bypasses: 2, builds: 2 });
+    expect(state.cache.get(stylePath) as CacheEntry | undefined).toMatchObject({
+      buildSnapshotDigest: null,
+      cacheBypassReason: "dynamicBuildConfigurationDependencies",
+    });
   });
 
   it("rebuilds instead of serving a hopeful hit when the engine cannot seal an identity", async () => {

@@ -348,6 +348,35 @@ mod tests {
     }
 
     #[test]
+    fn adapter_environment_and_target_options_change_the_build_snapshot_digest()
+    -> Result<(), String> {
+        let baseline = fixture_input();
+        let baseline_digest =
+            compute_build_snapshot_identity_with_native_facts(&baseline, native_facts())?.digest;
+
+        let mut environment_changed = baseline.clone();
+        environment_changed.adapter_environment = serde_json::json!({"sourceMap": false});
+        let environment_digest = compute_build_snapshot_identity_with_native_facts(
+            &environment_changed,
+            native_facts(),
+        )?
+        .digest;
+
+        let mut target_options_changed = baseline;
+        target_options_changed.target_options.allow_scope_flatten = true;
+        let target_options_digest = compute_build_snapshot_identity_with_native_facts(
+            &target_options_changed,
+            native_facts(),
+        )?
+        .digest;
+
+        assert_ne!(environment_digest, baseline_digest);
+        assert_ne!(target_options_digest, baseline_digest);
+        assert_ne!(target_options_digest, environment_digest);
+        Ok(())
+    }
+
+    #[test]
     fn live_resolver_generation_changes_the_public_build_snapshot_digest() -> Result<(), String> {
         let input = fixture_input();
         let before = compute_omena_query_build_snapshot_identity_v0(&input)?;
