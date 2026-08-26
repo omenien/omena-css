@@ -279,10 +279,12 @@ function findJavaScriptMergedNamespaceMaps(entry: SourceEntry): MergeSite[] {
 function mergeOperandFamilies(node: ts.Node): Set<"class" | "value"> {
   const families = new Set<"class" | "value">();
   const visit = (candidate: ts.Node): void => {
-    if (candidate !== node && ts.isFunctionLike(candidate)) return;
+    if (candidate !== node && isNestedFunctionBoundary(candidate)) return;
     if (ts.isObjectLiteralExpression(candidate)) {
       for (const property of candidate.properties) {
-        if (ts.isSpreadAssignment(property)) visit(property.expression);
+        if (property.kind === ts.SyntaxKind.SpreadAssignment) {
+          visit((property as { readonly expression: ts.Expression }).expression);
+        }
       }
       return;
     }
@@ -308,8 +310,12 @@ function mergeOperandFamilies(node: ts.Node): Set<"class" | "value"> {
 
 function mergeConstructKind(node: ts.Node): string | null {
   if (ts.isObjectLiteralExpression(node)) {
-    const spreads = node.properties.filter(ts.isSpreadAssignment);
-    if (spreads.length > 0 && hasBothFamilies(spreads.map(({ expression }) => expression))) {
+    const spreads = node.properties.flatMap((property) =>
+      property.kind === ts.SyntaxKind.SpreadAssignment
+        ? [(property as { readonly expression: ts.Expression }).expression]
+        : [],
+    );
+    if (spreads.length > 0 && hasBothFamilies(spreads)) {
       return "object-spread";
     }
   }
@@ -335,6 +341,18 @@ function mergeConstructKind(node: ts.Node): string | null {
     return "Map";
   }
   return null;
+}
+
+function isNestedFunctionBoundary(node: ts.Node): boolean {
+  return (
+    ts.isArrowFunction(node) ||
+    ts.isFunctionDeclaration(node) ||
+    ts.isFunctionExpression(node) ||
+    ts.isMethodDeclaration(node) ||
+    ts.isConstructorDeclaration(node) ||
+    ts.isGetAccessorDeclaration(node) ||
+    ts.isSetAccessorDeclaration(node)
+  );
 }
 
 function hasBothFamilies(nodes: readonly ts.Node[]): boolean {
