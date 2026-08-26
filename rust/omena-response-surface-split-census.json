@@ -63,7 +63,7 @@
     "omena-lawvere": 32,
     "omena-parser": 167,
     "omena-product-hints": 45,
-    "omena-query": 337,
+    "omena-query": 343,
     "omena-query-checker-orchestrator": 11,
     "omena-query-core": 10,
     "omena-query-transform-runner": 14,
@@ -7286,6 +7286,18 @@
     },
     {
       "crate": "omena-query",
+      "typeName": "BuildSnapshotDigestMaterialV0",
+      "sourcePath": "rust/crates/omena-query/src/build_snapshot.rs",
+      "line": 77
+    },
+    {
+      "crate": "omena-query",
+      "typeName": "BuildSnapshotNativeIdentityV0",
+      "sourcePath": "rust/crates/omena-query/src/build_snapshot.rs",
+      "line": 69
+    },
+    {
+      "crate": "omena-query",
       "typeName": "BundleEmissionExecutionV0",
       "sourcePath": "rust/crates/omena-query/src/types.rs",
       "line": 943
@@ -7577,6 +7589,30 @@
       "typeName": "OmenaQueryBuildAdmissionRequirementsV0",
       "sourcePath": "rust/crates/omena-query/src/types.rs",
       "line": 727
+    },
+    {
+      "crate": "omena-query",
+      "typeName": "OmenaQueryBuildSnapshotContentDigestV0",
+      "sourcePath": "rust/crates/omena-query/src/build_snapshot.rs",
+      "line": 42
+    },
+    {
+      "crate": "omena-query",
+      "typeName": "OmenaQueryBuildSnapshotContentInputV0",
+      "sourcePath": "rust/crates/omena-query/src/build_snapshot.rs",
+      "line": 17
+    },
+    {
+      "crate": "omena-query",
+      "typeName": "OmenaQueryBuildSnapshotIdentityInputV0",
+      "sourcePath": "rust/crates/omena-query/src/build_snapshot.rs",
+      "line": 24
+    },
+    {
+      "crate": "omena-query",
+      "typeName": "OmenaQueryBuildSnapshotIdentityV0",
+      "sourcePath": "rust/crates/omena-query/src/build_snapshot.rs",
+      "line": 49
     },
     {
       "crate": "omena-query",
@@ -8644,7 +8680,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQuerySourceTypeFactControlFlowGraphV0",
       "sourcePath": "rust/crates/omena-query/src/lib.rs",
-      "line": 144
+      "line": 151
     },
     {
       "crate": "omena-query",
