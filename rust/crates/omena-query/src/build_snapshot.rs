@@ -306,10 +306,17 @@ mod tests {
         let mut config_changed = baseline.clone();
         config_changed.config_inputs[0].source = "{\"build\":{\"minify\":true}}".to_owned();
 
-        for changed in [source_changed, manifest_changed, config_changed] {
+        for (family, changed) in [
+            ("style-source", source_changed),
+            ("package-manifest", manifest_changed),
+            ("config", config_changed),
+        ] {
             let digest =
                 compute_build_snapshot_identity_with_native_facts(&changed, native_facts())?.digest;
-            assert_ne!(digest, baseline_digest);
+            assert_ne!(
+                digest, baseline_digest,
+                "{family} content must change the build snapshot digest"
+            );
         }
         Ok(())
     }
@@ -326,9 +333,16 @@ mod tests {
         let mut abi_changed = native_facts();
         abi_changed.engine_abi_version = "omena-query@next".to_owned();
 
-        for facts in [resolver_changed, target_data_changed, abi_changed] {
+        for (family, facts) in [
+            ("resolver-generation", resolver_changed),
+            ("target-data-snapshot", target_data_changed),
+            ("engine-abi", abi_changed),
+        ] {
             let changed = compute_build_snapshot_identity_with_native_facts(&input, facts)?;
-            assert_ne!(changed.digest, baseline.digest);
+            assert_ne!(
+                changed.digest, baseline.digest,
+                "{family} must change the build snapshot digest"
+            );
         }
         Ok(())
     }
