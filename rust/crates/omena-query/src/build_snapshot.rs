@@ -384,23 +384,36 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_or_missing_style_paths_fail_closed() {
+    fn duplicate_or_missing_style_paths_fail_closed() -> Result<(), String> {
         let mut missing = fixture_input();
         missing.style_sources.remove(0);
+        let missing_error = match compute_build_snapshot_identity_with_native_facts(
+            &missing,
+            native_facts(),
+        ) {
+            Err(error) => error,
+            Ok(_) => return Err("a missing target source must fail closed".to_owned()),
+        };
         assert!(
-            compute_build_snapshot_identity_with_native_facts(&missing, native_facts())
-                .unwrap_err()
-                .contains("absent from styleSources")
+            missing_error.contains("absent from styleSources"),
+            "missing target source failure must identify the absent style source"
         );
 
         let mut duplicate = fixture_input();
         duplicate
             .style_sources
             .push(duplicate.style_sources[0].clone());
+        let duplicate_error = match compute_build_snapshot_identity_with_native_facts(
+            &duplicate,
+            native_facts(),
+        ) {
+            Err(error) => error,
+            Ok(_) => return Err("a duplicate style source path must fail closed".to_owned()),
+        };
         assert!(
-            compute_build_snapshot_identity_with_native_facts(&duplicate, native_facts())
-                .unwrap_err()
-                .contains("duplicate style source path")
+            duplicate_error.contains("duplicate style source path"),
+            "duplicate style source failure must identify the duplicated path"
         );
+        Ok(())
     }
 }
