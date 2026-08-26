@@ -213,11 +213,12 @@ async function runBrowserDevHmrGate() {
     await delay(150);
     const editBaseline = await waitForPageState(page, (state) => state?.color === "rgb(255, 0, 0)");
 
-    for (const color of ["green", "orange", "blue"]) {
+    await ["green", "orange", "blue"].reduce(async (previousWrite, color) => {
+      await previousWrite;
       fs.writeFileSync(dependencyPath, `:root { --brand: ${color}; }\n`, "utf8");
       fs.utimesSync(dependencyPath, fixedDependencyTimestamp, fixedDependencyTimestamp);
       await delay(35);
-    }
+    }, Promise.resolve());
 
     if (fs.statSync(dependencyPath).mtimeMs !== fixedDependencyTimestamp.getTime()) {
       throw new Error("Vite dependency identity fixture failed to preserve the dependency mtime.");

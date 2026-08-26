@@ -98,12 +98,16 @@ function omenaCss(options = {}) {
       }
       if (targetPaths.length === 0) return;
 
+      const rebuiltTargets = await Promise.all(
+        targetPaths.filter(fs.existsSync).map(async (targetPath) => {
+          const source = await fs.promises.readFile(targetPath, "utf8");
+          const previousOutput = state.cache.get(targetPath)?.output;
+          const output = await rebuildAndCache(targetPath, source, effectiveOptions, state);
+          return { output, previousOutput, targetPath };
+        }),
+      );
       const invalidatedModules = [];
-      for (const targetPath of targetPaths) {
-        if (!fs.existsSync(targetPath)) continue;
-        const source = await fs.promises.readFile(targetPath, "utf8");
-        const previousOutput = state.cache.get(targetPath)?.output;
-        const output = await rebuildAndCache(targetPath, source, effectiveOptions, state);
+      for (const { output, previousOutput, targetPath } of rebuiltTargets) {
         registerBuildDependencies(this, state, targetPath);
         reportBundlerHostDiagnostics(this, output, pluginName);
 
