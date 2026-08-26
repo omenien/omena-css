@@ -40,6 +40,9 @@ The published `0.2.1` scope is intentionally conservative:
 - CLI and `cargo run` fallback are intentionally not used in Vite transforms
 - Vite dev serves an Omena-owned CSS Modules runtime with `import.meta.hot`
   acceptance so style edits update without a full page reload
+- additional style sources, package manifests, and static config files are
+  registered with Vite's watcher; their edits rebuild every cached target whose
+  native build-snapshot receipt names that dependency
 - `treeShake`, `bundle`, and `minify` compose built-in pass presets; provide
   `sources`/`packageManifests` when bundle context needs additional workspace
   files

@@ -54,3 +54,15 @@ console.log(result.map);
 
 The package is part of the Omena CSS mode surface. It is not a separate bundler
 product boundary.
+
+## Cache identity
+
+`rebuildAndCache` serves a cached result only after the native engine seals the
+current target, additional style sources, package manifests, static config,
+resolver generation, target-data snapshot, engine ABI, and pass plan into one
+BLAKE3 build-snapshot digest. File paths and mtimes are not sufficient cache
+identity: changing dependency bytes at the same path forces a rebuild.
+
+JSON and TOML configuration files participate by content. Dynamic JS, MJS,
+CJS, and TypeScript configs can read transitive inputs that the adapter cannot
+enumerate, so those shapes rebuild instead of taking a hopeful cache hit.
