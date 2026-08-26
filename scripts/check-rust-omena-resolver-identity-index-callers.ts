@@ -691,6 +691,38 @@ function runScannerSelfTests(): void {
     false,
     "comments and literals must not create call sites",
   );
+  assert.equal(
+    privateItemVisibleFrom(
+      "rust/crates/example-crate/src/style.rs",
+      "rust/crates/example-crate/examples/consumer.rs",
+    ),
+    false,
+    "a private library item must not be projected into a separate example crate",
+  );
+  assert.equal(
+    privateItemVisibleFrom(
+      "rust/crates/example-crate/examples/consumer.rs",
+      "rust/crates/example-crate/examples/consumer/helper.rs",
+    ),
+    true,
+    "an example crate's private item must remain visible to its child module",
+  );
+  assert.equal(
+    privateItemVisibleFrom(
+      "rust/crates/example-crate/examples/consumer.rs",
+      "rust/crates/example-crate/examples/sibling.rs",
+    ),
+    false,
+    "private items must not leak between separate example crates",
+  );
+  assert.equal(
+    privateItemVisibleFrom(
+      "rust/crates/example-crate/src/lib.rs",
+      "rust/crates/example-crate/build.rs",
+    ),
+    false,
+    "a private library item must not be projected into the build-script crate",
+  );
 }
 
 function disguisedNoneFixture(): string {
@@ -863,14 +895,18 @@ function privateItemVisibleFrom(declarationPath: string, callerPath: string): bo
 
 function rustModuleKey(sourcePath: string): string {
   if (sourcePath.startsWith("<")) return sourcePath;
-  const match = sourcePath.match(/^rust\/crates\/([^/]+)\/src\/(.+)\.rs$/u);
-  assert.ok(match, `Rust source must live below a crate src directory: ${sourcePath}`);
-  const [, crateName, relative] = match;
+  const buildScript = sourcePath.match(/^rust\/crates\/([^/]+)\/build\.rs$/u);
+  if (buildScript) return `${buildScript[1]}::$build`;
+  const match = sourcePath.match(
+    /^rust\/crates\/([^/]+)\/(src|examples|tests|benches)\/(.+)\.rs$/u,
+  );
+  assert.ok(match, `Rust source must live below a supported crate target: ${sourcePath}`);
+  const [, crateName, targetKind, relative] = match;
   const segments = relative.split("/");
   const file = segments.pop();
   assert.ok(file, `Rust source file missing: ${sourcePath}`);
   if (file !== "lib" && file !== "main" && file !== "mod") segments.push(file);
-  return [crateName, ...segments].join("::");
+  return [crateName, `$${targetKind}`, ...segments].join("::");
 }
 
 function stripOuterParentheses(expression: string): string {
