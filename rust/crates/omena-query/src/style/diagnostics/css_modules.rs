@@ -76,16 +76,25 @@ pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<Vec<_>>();
     let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+        package_manifests: package_manifests.to_vec(),
+        ..Default::default()
+    };
+    let available_style_paths = style_fact_entries
+        .iter()
+        .map(|entry| entry.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let resolver_identity_index = build_omena_resolver_style_module_confirmation_identity_index(
+        &available_style_paths,
+        resolution_inputs.disk_style_path_identities.as_slice(),
+    );
     summarize_omena_query_css_modules_resolution_style_diagnostics_from_entries(
         target_style_path,
         target_source,
         &style_fact_entries,
         package_manifests,
-        &OmenaQueryStyleResolutionInputsV0 {
-            package_manifests: package_manifests.to_vec(),
-            ..Default::default()
-        },
-        None,
+        &resolution_inputs,
+        Some(&resolver_identity_index),
     )
 }
 

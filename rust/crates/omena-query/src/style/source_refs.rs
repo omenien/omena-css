@@ -595,12 +595,44 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_resoluti
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> OmenaQuerySourceDiagnosticsForFileV0 {
+    let available_style_paths = style_sources
+        .iter()
+        .map(|source| source.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let resolver_identity_index = build_omena_resolver_style_module_confirmation_identity_index(
+        &available_style_paths,
+        resolution_inputs.disk_style_path_identities.as_slice(),
+    );
     summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth(
         source_path,
         source_source,
         style_sources,
         package_manifests,
         resolution_inputs,
+        Some(&resolver_identity_index),
+        OMENA_QUERY_WORKSPACE_DYNAMIC_CLASSNAME_CONTEXT_DEPTH,
+    )
+}
+
+/// Workspace source diagnostics that reuse a caller-owned resolver identity index.
+///
+/// Batch callers should prefer this entry point so canonical path identities are indexed once per
+/// workspace invocation instead of once for every imported source document.
+pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_identity_index(
+    source_path: &str,
+    source_source: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: &OmenaResolverStyleModuleConfirmationIdentityIndexV0,
+) -> OmenaQuerySourceDiagnosticsForFileV0 {
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth(
+        source_path,
+        source_source,
+        style_sources,
+        package_manifests,
+        resolution_inputs,
+        Some(resolver_identity_index),
         OMENA_QUERY_WORKSPACE_DYNAMIC_CLASSNAME_CONTEXT_DEPTH,
     )
 }
@@ -611,6 +643,7 @@ fn summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_i
     style_sources: &[OmenaQueryStyleSourceInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
     max_context_depth: usize,
 ) -> OmenaQuerySourceDiagnosticsForFileV0 {
     let available_style_paths = style_sources
@@ -635,7 +668,7 @@ fn summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_i
             continue;
         }
 
-        match resolve_style_module_source_with_path_mappings(
+        match resolve_style_module_source_with_path_mappings_and_identity_index(
             source_path,
             import.specifier.as_str(),
             &available_style_paths,
@@ -643,6 +676,7 @@ fn summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_i
             resolution_inputs.bundler_path_mappings.as_slice(),
             resolution_inputs.tsconfig_path_mappings.as_slice(),
             resolution_inputs.disk_style_path_identities.as_slice(),
+            resolver_identity_index,
         ) {
             Some(style_path) => {
                 style_import_resolutions.push(import.style_resolution(style_path.as_str()))
@@ -719,12 +753,22 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     max_context_depth: usize,
 ) -> OmenaQuerySourceDiagnosticsForFileV0 {
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let available_style_paths = style_sources
+        .iter()
+        .map(|source| source.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let resolver_identity_index = build_omena_resolver_style_module_confirmation_identity_index(
+        &available_style_paths,
+        resolution_inputs.disk_style_path_identities.as_slice(),
+    );
     summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth(
         source_path,
         source_source,
         style_sources,
         package_manifests,
-        &OmenaQueryStyleResolutionInputsV0::default(),
+        &resolution_inputs,
+        Some(&resolver_identity_index),
         max_context_depth,
     )
 }

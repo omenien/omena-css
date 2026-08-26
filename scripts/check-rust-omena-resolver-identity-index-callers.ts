@@ -12,6 +12,12 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const censusPath = path.join(repoRoot, "rust/omena-resolver-identity-index-caller-census.json");
 const writeMode = process.argv.includes("--write");
 const injectDisguisedNone = process.argv.includes("--inject-disguised-none");
+const sourceRef = valueAfter("--source-ref");
+
+assert.ok(
+  !(writeMode && sourceRef !== undefined),
+  "a historical source ref cannot update the current caller census",
+);
 
 type ExceptionKind =
   | "legacy-public-compatibility"
@@ -97,7 +103,7 @@ const existing = readExistingCensus();
 const typedExceptions = existing?.typedExceptions ?? [];
 runScannerSelfTests();
 
-const repoSources = loadTrackedRustSources(injectDisguisedNone);
+const repoSources = loadTrackedRustSources(injectDisguisedNone, sourceRef);
 const repoFunctions = repoSources.flatMap((source) => source.functions);
 const identityAcceptingFunctions = repoFunctions.filter(
   (entry) => entry.identityParameterIndex !== undefined,
@@ -136,7 +142,7 @@ if (writeMode) {
     { cwd: repoRoot, encoding: "utf8" },
   );
   assert.equal(format.status, 0, `failed to format caller census: ${format.stderr}`);
-} else {
+} else if (sourceRef === undefined) {
   assert.ok(
     existsSync(censusPath),
     "resolver identity-index caller census is missing; run the update command",
@@ -169,23 +175,44 @@ function readExistingCensus(): ExistingCensus | undefined {
   return JSON.parse(readFileSync(censusPath, "utf8")) as ExistingCensus;
 }
 
-function loadTrackedRustSources(includeInjection: boolean): RustSource[] {
-  const result = spawnSync("git", ["ls-files", "rust/crates"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
-  assert.equal(result.status, 0, `failed to enumerate Rust sources: ${result.stderr}`);
+function loadTrackedRustSources(includeInjection: boolean, ref: string | undefined): RustSource[] {
+  const result = spawnSync(
+    "git",
+    ref === undefined
+      ? ["ls-files", "rust/crates"]
+      : ["ls-tree", "-r", "--name-only", ref, "--", "rust/crates"],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+    },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `failed to enumerate Rust sources${ref === undefined ? "" : ` at ${ref}`}: ${result.stderr}`,
+  );
   const paths = result.stdout
     .split(/\r?\n/u)
     .filter((entry) => entry.endsWith(".rs"))
     .toSorted();
-  const loaded = paths.map(loadRustSource);
+  const loaded = paths.map((relativePath) => loadRustSource(relativePath, ref));
   if (includeInjection) loaded.push(loadSyntheticSource(disguisedNoneFixture(), "<injected>"));
   return loaded;
 }
 
-function loadRustSource(relativePath: string): RustSource {
-  return loadSyntheticSource(readFileSync(path.join(repoRoot, relativePath), "utf8"), relativePath);
+function loadRustSource(relativePath: string, ref?: string): RustSource {
+  if (ref === undefined) {
+    return loadSyntheticSource(
+      readFileSync(path.join(repoRoot, relativePath), "utf8"),
+      relativePath,
+    );
+  }
+  const result = spawnSync("git", ["show", `${ref}:${relativePath}`], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, `failed to read ${relativePath} at ${ref}: ${result.stderr}`);
+  return loadSyntheticSource(result.stdout, relativePath);
 }
 
 function loadSyntheticSource(source: string, sourcePath: string): RustSource {
@@ -359,6 +386,112 @@ function deriveCallerSites(
     }
   }
 
+  const unthreadedPrivateAdapters = new Map<string, RustFunction>();
+  for (const site of sites) {
+    if (site.disposition !== "violation") continue;
+    const caller = allFunctions.find(
+      (entry) => entry.path === site.path && entry.name === site.caller,
+    );
+    if (
+      caller?.visibility === "private" &&
+      caller.identityParameterIndex === undefined &&
+      caller.bodyStart !== undefined
+    ) {
+      unthreadedPrivateAdapters.set(`${caller.path}#${caller.name}`, caller);
+    }
+  }
+
+  let discoveredAdapter = true;
+  while (discoveredAdapter) {
+    discoveredAdapter = false;
+    const adapterNames = new Set(
+      [...unthreadedPrivateAdapters.values()].map((entry) => entry.name),
+    );
+    for (const candidate of allFunctions) {
+      const key = `${candidate.path}#${candidate.name}`;
+      if (
+        unthreadedPrivateAdapters.has(key) ||
+        candidate.visibility !== "private" ||
+        candidate.identityParameterIndex !== undefined ||
+        candidate.bodyStart === undefined
+      ) {
+        continue;
+      }
+      const candidateSource = sources.find((source) => source.path === candidate.path);
+      assert.ok(candidateSource, `source missing for ${key}`);
+      const body = candidateSource.code.slice(candidate.bodyStart + 1, candidate.end - 1);
+      if (
+        [...unthreadedPrivateAdapters.values()].some(
+          (adapter) =>
+            privateItemVisibleFrom(adapter.path, candidate.path) &&
+            adapterNames.has(adapter.name) &&
+            new RegExp(`\\b${escapeRegExp(adapter.name)}\\s*\\(`, "u").test(body),
+        )
+      ) {
+        unthreadedPrivateAdapters.set(key, candidate);
+        discoveredAdapter = true;
+      }
+    }
+  }
+
+  const adapterDeclarationsByName = Map.groupBy(
+    [...unthreadedPrivateAdapters.values()],
+    (entry) => entry.name,
+  );
+  for (const source of sources) {
+    for (const [callee, declarations] of adapterDeclarationsByName) {
+      const visibleDeclarations = declarations
+        .filter((declaration) => privateItemVisibleFrom(declaration.path, source.path))
+        .toSorted(
+          (left, right) =>
+            rustModuleKey(right.path).split("::").length -
+            rustModuleKey(left.path).split("::").length,
+        );
+      if (visibleDeclarations.length === 0) continue;
+      const callPattern = new RegExp(`\\b${escapeRegExp(callee)}\\s*\\(`, "gu");
+      const ordinalByCaller = new Map<string, number>();
+      for (const match of source.code.matchAll(callPattern)) {
+        const nameStart = match.index;
+        if (source.functions.some((entry) => entry.nameStart === nameStart)) continue;
+        const caller = enclosingFunction(source.functions, nameStart);
+        const callerName = caller?.name ?? "<module>";
+        const ordinalKey = `${callerName}#${callee}`;
+        const callOrdinal = ordinalByCaller.get(ordinalKey) ?? 0;
+        ordinalByCaller.set(ordinalKey, callOrdinal + 1);
+        const declaration = visibleDeclarations[0];
+        assert.ok(declaration, `private adapter declaration missing for ${callee}`);
+        const provisional: CallerSite = {
+          path: source.path,
+          line: lineNumberAt(source.source, nameStart),
+          caller: callerName,
+          callee,
+          callOrdinal,
+          identityArgument: `<implicit-none:${declaration.path}#${declaration.name}>`,
+          identityFlow: "none",
+          disposition: "violation",
+        };
+        const key = stableSiteKey(provisional);
+        if (sites.some((site) => stableSiteKey(site) === key)) continue;
+        const exception = exceptionsByKey.get(key);
+        if (exception === undefined) {
+          sites.push(provisional);
+          continue;
+        }
+        assert.ok(caller, `exception caller must be a Rust function: ${key}`);
+        assert.ok(
+          exceptionGroundHolds(exception.kind, caller, allFunctions, source),
+          `typed exception ground no longer holds: ${key} (${exception.kind})`,
+        );
+        seenExceptionKeys.add(key);
+        sites.push({
+          ...provisional,
+          disposition: "none-with-typed-justification",
+          exceptionKind: exception.kind,
+        });
+      }
+    }
+  }
+
   assert.deepEqual(
     [...exceptionsByKey.keys()].filter((key) => !seenExceptionKeys.has(key)),
     [],
@@ -366,10 +499,10 @@ function deriveCallerSites(
   );
   return sites.toSorted(
     (left, right) =>
-      left.path.localeCompare(right.path) ||
+      compareCodeUnits(left.path, right.path) ||
       left.line - right.line ||
-      left.caller.localeCompare(right.caller) ||
-      left.callee.localeCompare(right.callee) ||
+      compareCodeUnits(left.caller, right.caller) ||
+      compareCodeUnits(left.callee, right.callee) ||
       left.callOrdinal - right.callOrdinal,
   );
 }
@@ -440,7 +573,8 @@ function functionBodyReturnsNone(
   visited: Set<string>,
 ): boolean {
   if (helper.bodyStart === undefined) return false;
-  const helperSource = helper.path === callSource.path ? callSource : loadRustSource(helper.path);
+  const helperSource =
+    helper.path === callSource.path ? callSource : loadRustSource(helper.path, sourceRef);
   const body = helperSource.code.slice(helper.bodyStart + 1, helper.end - 1).trim();
   const returned = body.match(/^(?:return\s+)?(.+?);?$/su)?.[1] ?? body;
   return expressionIsProvablyNone(
@@ -499,7 +633,7 @@ function buildCensus(
     .map((entry) => `${entry.path}#${entry.name}`)
     .toSorted();
   const normalizedExceptions = [...exceptionRegistry].toSorted((left, right) =>
-    left.siteKey.localeCompare(right.siteKey),
+    compareCodeUnits(left.siteKey, right.siteKey),
   );
   const summary = {
     acceptingFunctionCount: acceptingFunctionKeys.length,
@@ -541,12 +675,17 @@ function runScannerSelfTests(): void {
   assert.deepEqual(
     sites
       .filter((site) => site.identityFlow === "none")
-      .map((site) => site.caller)
+      .map((site) => `${site.caller}->${site.callee}`)
       .toSorted(),
-    ["helper_default_caller", "local_alias_caller"],
-    "scanner must resolve local aliases and helper-default None flows",
+    [
+      "helper_default_caller->consume_identity_index",
+      "local_alias_caller->consume_identity_index",
+      "private_adapter->consume_identity_index",
+      "private_adapter_caller->private_adapter",
+    ],
+    "scanner must resolve disguised None flows and callers of private unthreaded adapters",
   );
-  assert.equal(sites.filter((site) => site.disposition === "violation").length, 2);
+  assert.equal(sites.filter((site) => site.disposition === "violation").length, 4);
   assert.equal(
     sites.some((site) => site.caller === "literal_decoy"),
     false,
@@ -569,6 +708,12 @@ fn local_alias_caller() {
 }
 fn helper_default_caller() {
   consume_identity_index(default_identity_index());
+}
+fn private_adapter() {
+  consume_identity_index(None);
+}
+fn private_adapter_caller() {
+  private_adapter();
 }
 fn literal_decoy() {
   let _ = "consume_identity_index(None)";
@@ -697,8 +842,35 @@ function previousNonWhitespace(source: string, position: number): string | undef
   return source.slice(0, position).match(/\S(?=\s*$)/u)?.[0];
 }
 
+function valueAfter(flag: string): string | undefined {
+  const index = process.argv.indexOf(flag);
+  return index < 0 ? undefined : process.argv[index + 1];
+}
+
 function compactExpression(expression: string): string {
   return expression.replace(/\s+/gu, " ").trim();
+}
+
+function compareCodeUnits(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function privateItemVisibleFrom(declarationPath: string, callerPath: string): boolean {
+  const declarationModule = rustModuleKey(declarationPath);
+  const callerModule = rustModuleKey(callerPath);
+  return callerModule === declarationModule || callerModule.startsWith(`${declarationModule}::`);
+}
+
+function rustModuleKey(sourcePath: string): string {
+  if (sourcePath.startsWith("<")) return sourcePath;
+  const match = sourcePath.match(/^rust\/crates\/([^/]+)\/src\/(.+)\.rs$/u);
+  assert.ok(match, `Rust source must live below a crate src directory: ${sourcePath}`);
+  const [, crateName, relative] = match;
+  const segments = relative.split("/");
+  const file = segments.pop();
+  assert.ok(file, `Rust source file missing: ${sourcePath}`);
+  if (file !== "lib" && file !== "main" && file !== "mod") segments.push(file);
+  return [crateName, ...segments].join("::");
 }
 
 function stripOuterParentheses(expression: string): string {

@@ -463,6 +463,14 @@ fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode
         resolution_inputs.bundler_path_mappings.as_slice(),
         resolution_inputs.tsconfig_path_mappings.as_slice(),
     );
+    let available_style_paths = style_sources
+        .iter()
+        .map(|source| source.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let resolver_identity_index = build_omena_resolver_style_module_confirmation_identity_index(
+        &available_style_paths,
+        resolution_inputs.disk_style_path_identities.as_slice(),
+    );
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared(
         target_style_path,
         style_sources,
@@ -474,7 +482,7 @@ fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode
         resolution_inputs,
         suppression_mode,
         &substrate,
-        None,
+        Some(&resolver_identity_index),
         source_corpus_complete,
         None::<&substrate::OmenaQueryWorkspaceSharedPassProductsV0>,
     )

@@ -3733,13 +3733,17 @@ fn resolve_style_module_source_with_resolution_inputs(
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Option<String> {
+    let identity_index = build_omena_resolver_style_module_confirmation_identity_index(
+        available_style_paths,
+        resolution_inputs.disk_style_path_identities.as_slice(),
+    );
     resolve_style_module_source_with_resolution_inputs_and_identity_index(
         from_style_path,
         source,
         available_style_paths,
         package_manifests,
         resolution_inputs,
-        None,
+        Some(&identity_index),
     )
 }
 
@@ -3774,6 +3778,10 @@ fn resolve_style_module_source_with_path_mappings(
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
     disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
 ) -> Option<String> {
+    let identity_index = build_omena_resolver_style_module_confirmation_identity_index(
+        available_style_paths,
+        disk_style_path_identities,
+    );
     resolve_style_module_source_with_path_mappings_and_identity_index(
         from_style_path,
         source,
@@ -3782,7 +3790,7 @@ fn resolve_style_module_source_with_path_mappings(
         bundler_path_mappings,
         tsconfig_path_mappings,
         disk_style_path_identities,
-        None,
+        Some(&identity_index),
     )
 }
 

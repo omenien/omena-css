@@ -10,7 +10,9 @@ use crate::{
         dynamic_classname_diagnostics_summary, resolve_in_process_external_sifs,
         source_diagnostics_summary, style_diagnostics_summary,
         summarize_cross_file_streaming_reachability_diagnostics,
-        workspace_source_diagnostics_summaries, workspace_style_diagnostics_summaries,
+        workspace_source_diagnostics_summaries,
+        workspace_source_diagnostics_summaries_unthreaded_for_test,
+        workspace_style_diagnostics_summaries,
         workspace_style_diagnostics_summaries_unthreaded_for_test,
     },
     dispatch::{run, run_with_exit},
@@ -4328,6 +4330,90 @@ export function Component() {
     cleanup(&second_source_path);
     cleanup(&style_path);
     Ok(())
+}
+
+#[cfg(unix)]
+#[test]
+fn source_diagnostics_share_one_identity_index_for_miss_bearing_imports() -> Result<(), String> {
+    with_instrumentation_session(InstrumentationSessionV0::default(), || {
+        let root = temp_dir("source-identity-index-once");
+        let real_targets = root.join("real-targets");
+        let linked_targets = root.join("linked-targets");
+        fs::create_dir_all(&real_targets).map_err(|error| {
+            format!("source identity-index fixture should be writable: {error}")
+        })?;
+        unix_fs::symlink(&real_targets, &linked_targets).map_err(|error| {
+            format!("source identity-index fixture symlink should be writable: {error}")
+        })?;
+
+        let target_path = real_targets.join("Shared.module.css");
+        fs::write(&target_path, ".shared { color: red; }\n")
+            .map_err(|error| format!("source identity-index target should be writable: {error}"))?;
+        let mut source_paths = Vec::new();
+        for index in 0..8 {
+            let source_path = root.join(format!("Consumer{index}.tsx"));
+            fs::write(
+                &source_path,
+                format!(
+                    "import styles from \"./linked-targets/Shared.module.css\";\nexport const Consumer{index} = () => <div className={{styles.shared}} />;\n"
+                ),
+            )
+            .map_err(|error| format!("source identity-index consumer should be writable: {error}"))?;
+            source_paths.push(source_path);
+        }
+
+        omena_query::reset_omena_resolver_style_identity_cache_for_test();
+        let baseline_started = std::time::Instant::now();
+        let baseline = workspace_source_diagnostics_summaries_unthreaded_for_test(
+            source_paths.as_slice(),
+            std::slice::from_ref(&target_path),
+            &[],
+        )?;
+        let baseline_elapsed = baseline_started.elapsed();
+        let baseline_build_count =
+            omena_query::omena_resolver_style_identity_index_build_count_for_test();
+        let baseline_work_count =
+            omena_query::omena_resolver_style_identity_index_build_work_count_for_test();
+
+        omena_query::reset_omena_resolver_style_identity_cache_for_test();
+        let threaded_started = std::time::Instant::now();
+        let threaded = workspace_source_diagnostics_summaries(
+            source_paths.as_slice(),
+            std::slice::from_ref(&target_path),
+            &[],
+        )?;
+        let threaded_elapsed = threaded_started.elapsed();
+        let threaded_build_count =
+            omena_query::omena_resolver_style_identity_index_build_count_for_test();
+        let threaded_work_count =
+            omena_query::omena_resolver_style_identity_index_build_work_count_for_test();
+        cleanup_dir(&root);
+
+        let baseline_bytes = serde_json::to_vec(&baseline)
+            .map_err(|error| format!("baseline summaries should serialize: {error}"))?;
+        let threaded_bytes = serde_json::to_vec(&threaded)
+            .map_err(|error| format!("threaded summaries should serialize: {error}"))?;
+        assert_eq!(threaded.len(), source_paths.len());
+        assert_eq!(
+            threaded_bytes, baseline_bytes,
+            "threading the resolver identity index must not change diagnostics bytes"
+        );
+        eprintln!(
+            "source-resolver-identity-index baseline_builds={baseline_build_count} baseline_work={baseline_work_count} baseline_ms={} threaded_builds={threaded_build_count} threaded_work={threaded_work_count} threaded_ms={}",
+            baseline_elapsed.as_millis(),
+            threaded_elapsed.as_millis(),
+        );
+        assert_eq!(
+            baseline_build_count,
+            source_paths.len(),
+            "the permanent unthreaded control must expose one resolver identity-index build per imported source document; work={baseline_work_count}"
+        );
+        assert_eq!(
+            threaded_build_count, 1,
+            "source diagnostics must construct one resolver identity index per workspace invocation; work={threaded_work_count}"
+        );
+        Ok(())
+    })
 }
 
 #[cfg(unix)]

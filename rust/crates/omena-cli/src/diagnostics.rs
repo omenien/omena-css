@@ -21,6 +21,7 @@ use omena_query::{
     summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth,
     summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs,
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_identity_index,
     summarize_omena_query_style_diagnostics_for_file_with_local_composes_and_deep_analysis,
     summarize_omena_query_style_hover_candidates,
     summarize_omena_query_unified_cross_file_hypergraph,
@@ -532,6 +533,34 @@ pub(crate) fn workspace_source_diagnostics_summaries(
     style_paths: &[PathBuf],
     package_manifest_paths: &[PathBuf],
 ) -> Result<Vec<OmenaQuerySourceDiagnosticsForFileV0>, String> {
+    workspace_source_diagnostics_summaries_with_identity_index_mode(
+        source_paths,
+        style_paths,
+        package_manifest_paths,
+        true,
+    )
+}
+
+#[cfg(test)]
+pub(crate) fn workspace_source_diagnostics_summaries_unthreaded_for_test(
+    source_paths: &[PathBuf],
+    style_paths: &[PathBuf],
+    package_manifest_paths: &[PathBuf],
+) -> Result<Vec<OmenaQuerySourceDiagnosticsForFileV0>, String> {
+    workspace_source_diagnostics_summaries_with_identity_index_mode(
+        source_paths,
+        style_paths,
+        package_manifest_paths,
+        false,
+    )
+}
+
+fn workspace_source_diagnostics_summaries_with_identity_index_mode(
+    source_paths: &[PathBuf],
+    style_paths: &[PathBuf],
+    package_manifest_paths: &[PathBuf],
+    thread_identity_index: bool,
+) -> Result<Vec<OmenaQuerySourceDiagnosticsForFileV0>, String> {
     let Some(first_source_path) = source_paths.first() else {
         return Ok(Vec::new());
     };
@@ -544,18 +573,37 @@ pub(crate) fn workspace_source_diagnostics_summaries(
         workspace_folder_uri.as_deref(),
         package_manifests.as_slice(),
     );
+    let resolver_identity_index = thread_identity_index.then(|| {
+        let available_style_paths = style_sources
+            .iter()
+            .map(|source| source.style_path.as_str())
+            .collect::<BTreeSet<_>>();
+        build_omena_resolver_style_module_confirmation_identity_index(
+            &available_style_paths,
+            resolution_inputs.disk_style_path_identities.as_slice(),
+        )
+    });
     let mut summaries = Vec::with_capacity(source_paths.len());
     for source_path in source_paths {
         let source_source = read_source(source_path)?;
-        summaries.push(
+        summaries.push(if let Some(resolver_identity_index) = resolver_identity_index.as_ref() {
+            summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_identity_index(
+                path_string(source_path).as_str(),
+                source_source.as_str(),
+                style_sources.as_slice(),
+                package_manifests.as_slice(),
+                &resolution_inputs,
+                resolver_identity_index,
+            )
+        } else {
             summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs(
                 path_string(source_path).as_str(),
                 source_source.as_str(),
                 style_sources.as_slice(),
                 package_manifests.as_slice(),
                 &resolution_inputs,
-            ),
-        );
+            )
+        });
     }
     Ok(summaries)
 }
