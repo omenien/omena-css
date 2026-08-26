@@ -176,7 +176,7 @@ assert.ok(
   "winner trust must consume the cascade driver census instead of a local driven-axis list",
 );
 assert.ok(
-  winnerEquality.includes("cascade_property(") &&
+  winnerEquality.includes("cascade_property_for_key(") &&
     winnerEquality.includes("TransformWinnerEqualityWitnessV0::from_cascade_outcome"),
   "winner equality must consume the cascade authority outcome",
 );

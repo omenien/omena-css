@@ -612,7 +612,7 @@
   },
   "exit": {
     "sourceRef": "WORKTREE",
-    "sourceFileSha256": "74cf55fd8627690e6109723e236e94db0642d582b655a646a3db394850916c9c",
+    "sourceFileSha256": "97e7f468ea07411d7be336bbe7ea633331eea68401063a6ee6e8d9a23079f90e",
     "rowCount": 17,
     "planeCounts": {
       "cascadeObligation": 12,
@@ -625,7 +625,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
           "symbol": "collect_cascade_proof_obligations_for_ir_pass_input -> layer_flatten_missing_bundle_obligation",
-          "lineHint": 239,
+          "lineHint": 240,
           "lineSha256": "0d3b497242424774e6249775bb4b69b3b05a4a98de9abe4a3e8b1926024e9f94"
         },
         "plane": "cascadeObligation",
@@ -640,7 +640,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
           "symbol": "collect_cascade_proof_obligations_for_ir_pass_input -> layer_inversion_obligation",
-          "lineHint": 229,
+          "lineHint": 230,
           "lineSha256": "a88af79dd1855e2e0ee699765b9fe179e4983f16324a4e5a209a9d92687666d8"
         },
         "plane": "cascadeObligation",
@@ -655,7 +655,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
           "symbol": "collect_cascade_proof_obligations_for_ir_pass_input -> layer_obligation",
-          "lineHint": 218,
+          "lineHint": 219,
           "lineSha256": "86cd35de895b5f9e3e64339c67ff24bc2dbf3cb0b0c8bbb8fb6e78004142a338"
         },
         "plane": "cascadeObligation",
@@ -670,7 +670,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
           "symbol": "collect_cascade_proof_obligations_for_ir_pass_input -> scope_obligation",
-          "lineHint": 204,
+          "lineHint": 205,
           "lineSha256": "24705189d912903d9a225f1fafc969e187563a35e64605ccce2283ac5faa71cb"
         },
         "plane": "cascadeObligation",
@@ -685,7 +685,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
           "symbol": "collect_cascade_proof_obligations_for_ir_pass_input -> supports_obligation",
-          "lineHint": 248,
+          "lineHint": 249,
           "lineSha256": "e4b1251c87c9737b06e77f34d47392c43410e1b5a2a0614b6a3240f49d444f8f"
         },
         "plane": "cascadeObligation",
@@ -700,7 +700,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
           "symbol": "collect_cascade_proof_obligations_for_pass_input -> layer_flatten_missing_bundle_obligation",
-          "lineHint": 118,
+          "lineHint": 119,
           "lineSha256": "0d3b497242424774e6249775bb4b69b3b05a4a98de9abe4a3e8b1926024e9f94"
         },
         "plane": "cascadeObligation",
@@ -715,7 +715,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
           "symbol": "collect_cascade_proof_obligations_for_pass_input -> layer_inversion_obligation",
-          "lineHint": 108,
+          "lineHint": 109,
           "lineSha256": "a88af79dd1855e2e0ee699765b9fe179e4983f16324a4e5a209a9d92687666d8"
         },
         "plane": "cascadeObligation",
@@ -730,7 +730,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
           "symbol": "collect_cascade_proof_obligations_for_pass_input -> layer_obligation",
-          "lineHint": 93,
+          "lineHint": 94,
           "lineSha256": "86cd35de895b5f9e3e64339c67ff24bc2dbf3cb0b0c8bbb8fb6e78004142a338"
         },
         "plane": "cascadeObligation",
@@ -745,7 +745,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
           "symbol": "collect_cascade_proof_obligations_for_pass_input -> scope_obligation",
-          "lineHint": 78,
+          "lineHint": 79,
           "lineSha256": "f57b19f4f1bab9ec32a46b7583a437c09bd4bebbc9a527213eb0125ba0e3047b"
         },
         "plane": "cascadeObligation",
@@ -760,7 +760,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
           "symbol": "collect_cascade_proof_obligations_for_pass_input -> shorthand_obligation",
-          "lineHint": 62,
+          "lineHint": 63,
           "lineSha256": "93d5cf2b0a68d2f6dfee19c364044ce83d4ca75f6f29fce36116b208cd51f35d"
         },
         "plane": "cascadeObligation",
@@ -775,7 +775,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
           "symbol": "collect_cascade_proof_obligations_for_pass_input -> stale_prefix_removal_obligation",
-          "lineHint": 140,
+          "lineHint": 141,
           "lineSha256": "72cadfd68151093e0a064f91675db699fc790adb750001adce808b3d18f0ea96"
         },
         "plane": "cascadeObligation",
@@ -790,7 +790,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
           "symbol": "collect_cascade_proof_obligations_for_pass_input -> supports_obligation",
-          "lineHint": 128,
+          "lineHint": 129,
           "lineSha256": "e4b1251c87c9737b06e77f34d47392c43410e1b5a2a0614b6a3240f49d444f8f"
         },
         "plane": "cascadeObligation",
@@ -820,7 +820,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/proof_kernel.rs",
           "symbol": "check_rewrite_certificate_v0 -> RewriteIssuanceTokenV0::issue",
-          "lineHint": 798,
+          "lineHint": 808,
           "lineSha256": "a10ba8c32c6d98a971d80a6885175be0dfa0eea458ae36b37471476ccae95f0d"
         },
         "plane": "eGraph",
@@ -850,7 +850,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-transform-egg/src/lib.rs",
           "symbol": "stale_prefix_removal_witnesses",
-          "lineHint": 824,
+          "lineHint": 834,
           "lineSha256": "e313c582aafb10184fc7ae26b8a8fce5c1bd0aeb733626eae0cf9ef525f48c08"
         },
         "plane": "eGraph",
@@ -897,7 +897,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_box_shorthand_combination_input_v0:adjacent-source-order",
-          "lineHint": 590,
+          "lineHint": 593,
           "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
         }
       },
@@ -908,7 +908,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_box_shorthand_combination_input_v0:canonical-longhand-quartet",
-          "lineHint": 581,
+          "lineHint": 584,
           "lineSha256": "18b3cd44421452e6273864b1ef096559d92ebe48794e74276279f2e28c514ad3"
         }
       },
@@ -919,7 +919,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_box_shorthand_combination_input_v0:no-empty-longhand-value",
-          "lineHint": 586,
+          "lineHint": 589,
           "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
         }
       },
@@ -930,7 +930,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_box_shorthand_combination_input_v0:no-important-longhand",
-          "lineHint": 582,
+          "lineHint": 585,
           "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
         }
       },
@@ -941,7 +941,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_box_shorthand_combination_input_v0:supported-shorthand-property",
-          "lineHint": 580,
+          "lineHint": 583,
           "lineSha256": "6001e9298287a3de0b15aab090b59c226ce54158da5fdde1057599ec7500bf1b"
         }
       },
@@ -952,7 +952,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_layer_flatten_candidate_input_v0:closed-bundle",
-          "lineHint": 664,
+          "lineHint": 670,
           "lineSha256": "458737241bd2789c10c8472f0b4cc507589f3fdc9ed3a61343d7f4e2d9b3379f"
         }
       },
@@ -963,7 +963,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_layer_flatten_candidate_input_v0:no-important-declaration",
-          "lineHint": 667,
+          "lineHint": 673,
           "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
         }
       },
@@ -974,7 +974,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_layer_flatten_candidate_input_v0:no-peer-layer",
-          "lineHint": 665,
+          "lineHint": 671,
           "lineSha256": "0b49d91ea12b50b284f1ce9f07c6fb0288390cc92613043aa0d67e6044d79734"
         }
       },
@@ -985,7 +985,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_layer_flatten_candidate_input_v0:no-unlayered-rule",
-          "lineHint": 666,
+          "lineHint": 672,
           "lineSha256": "686ef49c1eff33e1e1a353a14b916b10a9346aef5fbf7bcb70a9e6854a732839"
         }
       },
@@ -996,7 +996,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_longhand_merge_input_v0:adjacent-source-order",
-          "lineHint": 631,
+          "lineHint": 637,
           "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
         }
       },
@@ -1007,7 +1007,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_longhand_merge_input_v0:canonical-longhand-order",
-          "lineHint": 622,
+          "lineHint": 628,
           "lineSha256": "6c69d88989d4ec35459177ed3ac7bed425003bbfecb6449c1413b63d60bf97be"
         }
       },
@@ -1018,7 +1018,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_longhand_merge_input_v0:no-empty-longhand-value",
-          "lineHint": 627,
+          "lineHint": 633,
           "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
         }
       },
@@ -1029,7 +1029,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_longhand_merge_input_v0:no-important-longhand",
-          "lineHint": 623,
+          "lineHint": 629,
           "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
         }
       },
@@ -1040,7 +1040,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_longhand_merge_input_v0:supported-merge-family",
-          "lineHint": 618,
+          "lineHint": 624,
           "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
         }
       },
@@ -1051,7 +1051,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_scope_flatten_candidate_input_v0:no-competing-unscoped-rule",
-          "lineHint": 650,
+          "lineHint": 656,
           "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
         }
       },
@@ -1062,7 +1062,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_scope_flatten_candidate_input_v0:no-limit-selector",
-          "lineHint": 647,
+          "lineHint": 653,
           "lineSha256": "d684ea745b46abf9e970f059bae56ee449714c990ca60d36a96ea123fc96ede1"
         }
       },
@@ -1073,7 +1073,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_scope_flatten_candidate_input_v0:no-peer-scope",
-          "lineHint": 649,
+          "lineHint": 655,
           "lineSha256": "61beccbcbf7b934245ab875199b1e15b49b9b5a98249babda1b574552310b103"
         }
       },
@@ -1084,7 +1084,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_scope_flatten_candidate_input_v0:not-inside-layer",
-          "lineHint": 654,
+          "lineHint": 660,
           "lineSha256": "4e6cf49ef0bafff765058a6ef82cdd6b25a0019c847fea2f31552f95782f8721"
         }
       },
@@ -1095,19 +1095,8 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_scope_flatten_candidate_input_v0:root-scope",
-          "lineHint": 648,
+          "lineHint": 654,
           "lineSha256": "ac82a272ae83fddfa37b03e73687f97d5dbe061ebfc68b51c320eb3bdff672a2"
-        }
-      },
-      {
-        "constructor": "canonical_static_supports_condition_input_v0",
-        "name": "supports-condition-known-true",
-        "classification": "IR_COMPUTED",
-        "site": {
-          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
-          "symbol": "canonical_static_supports_condition_input_v0:supports-condition-known-true",
-          "lineHint": 680,
-          "lineSha256": "a14165a6c429d1e7dcef92e57e11f0415b24344cbf3bbdfec37c5ebddd37435a"
         }
       },
       {
@@ -1122,13 +1111,24 @@
         }
       },
       {
+        "constructor": "canonical_static_supports_condition_input_v0",
+        "name": "supports-condition-known-true",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_static_supports_condition_input_v0:supports-condition-known-true",
+          "lineHint": 692,
+          "lineSha256": "a14165a6c429d1e7dcef92e57e11f0415b24344cbf3bbdfec37c5ebddd37435a"
+        }
+      },
+      {
         "constructor": "canonical_transform_rewrite_candidate_input_v0",
         "name": "cascade-obligation-declared",
         "classification": "PRODUCER_PASS_THROUGH",
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_transform_rewrite_candidate_input_v0:cascade-obligation-declared",
-          "lineHint": 708,
+          "lineHint": 714,
           "lineSha256": "85781eb9245b10ac2851a5121699c804a7fbfd0517890df4c5255212c796b179"
         }
       },
@@ -1139,7 +1139,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_transform_rewrite_candidate_input_v0:no-bogus-or-trivia",
-          "lineHint": 714,
+          "lineHint": 720,
           "lineSha256": "f76f0d9e4cd960b4d5e3b12a9da3961b775da26e98f4916d3457b507c7565496"
         }
       },
@@ -1150,7 +1150,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_transform_rewrite_candidate_input_v0:provenance-preserved",
-          "lineHint": 713,
+          "lineHint": 719,
           "lineSha256": "00d82eb152d68b08cc3fe3a257e154a99568939e68666fd90c6e7db74e234855"
         }
       },
@@ -1161,7 +1161,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_transform_rewrite_candidate_input_v0:provenance-recomputed",
-          "lineHint": 712,
+          "lineHint": 718,
           "lineSha256": "53d38124d764da8bfe9b5caaeff240e9bf68ea0af031987c5522d30196639ad9"
         }
       },
@@ -1172,7 +1172,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
           "symbol": "canonical_transform_rewrite_candidate_input_v0:stable-post-semantic-ir",
-          "lineHint": 715,
+          "lineHint": 721,
           "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
         }
       }
@@ -1184,7 +1184,7 @@
       },
       "ComputedValueEqualityCertV0": {
         "production": 0,
-        "test": 2
+        "test": 3
       },
       "ModuleExportPreservationCertV0": {
         "production": 1,

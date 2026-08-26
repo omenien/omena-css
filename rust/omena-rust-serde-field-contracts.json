@@ -2965,7 +2965,7 @@
           "rustName": "property_name",
           "serializeKey": "propertyName",
           "deserializeKey": "propertyName",
-          "typeExpression": "String",
+          "typeExpression": "AuthoredPropertyTextV0",
           "optional": false,
           "flatten": false,
           "skipSerializing": false,

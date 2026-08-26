@@ -276,7 +276,7 @@
       "authority": "test-only precision expectation or mutation fixture"
     },
     {
-      "sourcePath": "rust/crates/omena-cli/src/migrate/mod.rs",
+      "sourcePath": "rust/crates/omena-cli/src/migrate/normalize.rs",
       "owner": "fn conservative_workspace_safety",
       "lexicalContext": "code",
       "testOnly": false,
@@ -291,7 +291,7 @@
       "authority": "the migration policy deliberately supplies a sound but non-exact workspace reference"
     },
     {
-      "sourcePath": "rust/crates/omena-cli/src/migrate/mod.rs",
+      "sourcePath": "rust/crates/omena-cli/src/migrate/normalize.rs",
       "owner": "fn exact_workspace_safety",
       "lexicalContext": "code",
       "testOnly": false,
@@ -306,7 +306,7 @@
       "authority": "the migration policy requires syntax, local semantics, and closed-world evidence together"
     },
     {
-      "sourcePath": "rust/crates/omena-cli/src/migrate/mod.rs",
+      "sourcePath": "rust/crates/omena-cli/src/migrate/normalize.rs",
       "owner": "fn manual_review_safety",
       "lexicalContext": "code",
       "testOnly": false,

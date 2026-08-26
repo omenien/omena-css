@@ -26,7 +26,7 @@ const frozenBundlerFields = new Map<string, readonly string[]>([
     "LinkerInputV0",
     [
       "pub omena_bundler::LinkerInputV0::class_names: alloc::vec::Vec<alloc::string::String>",
-      "pub omena_bundler::LinkerInputV0::custom_property_names: alloc::vec::Vec<alloc::string::String>",
+      "pub omena_bundler::LinkerInputV0::custom_property_names: alloc::vec::Vec<omena_syntax::ident::AuthoredPropertyTextV0>",
       "pub omena_bundler::LinkerInputV0::dependency_edges: alloc::vec::Vec<omena_bundler::LinkerDependencyEdgeV0>",
       "pub omena_bundler::LinkerInputV0::dialect: omena_syntax::StyleDialect",
       "pub omena_bundler::LinkerInputV0::instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0",
@@ -103,7 +103,7 @@ for (const [typeName, expectedFields] of frozenBundlerFields) {
   assert.deepEqual(
     observedFields,
     expectedFields,
-    `${typeName} field surface changed; carry new state in an additive non-exhaustive type`,
+    `${typeName} field surface changed; review the public carrier and semver intent explicitly`,
   );
 }
 

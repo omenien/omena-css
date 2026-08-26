@@ -83,11 +83,11 @@
       ]
     },
     "moduleQualifiedSymbols": {
-      "totalOccurrences": 59,
+      "totalOccurrences": 60,
       "definitionOccurrences": 1,
       "reexportOccurrences": 0,
       "testOccurrences": 7,
-      "otherProductionOccurrences": 51,
+      "otherProductionOccurrences": 52,
       "productOccurrencesByCrate": {
         "omena-query": 0,
         "omena-cli": 0,

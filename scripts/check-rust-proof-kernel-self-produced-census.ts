@@ -659,8 +659,8 @@ function scanExportPreservationProducerClaims(source: string): string[] {
 function countStructConstructions(source: string, typeName: string): number {
   const pattern = new RegExp(`\\b${escapeRegExp(typeName)}\\s*\\{`, "gu");
   return [...source.matchAll(pattern)].filter((match) => {
-    const prefix = source.slice(Math.max(0, match.index - 32), match.index);
-    return !/\b(?:pub\s+)?struct\s*$/u.test(prefix);
+    const prefix = source.slice(Math.max(0, match.index - 512), match.index);
+    return !/\b(?:pub\s+)?struct\s*$/u.test(prefix) && !/\bimpl\b[^{};]*$/u.test(prefix);
   }).length;
 }
 

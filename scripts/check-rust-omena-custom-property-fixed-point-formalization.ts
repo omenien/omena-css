@@ -970,7 +970,7 @@ function runAcceptedKeywordRemovalMutation(): ReturnType<typeof spawnSync> {
                     .accepted_keywords
                     .iter()
                     .filter(|keyword| {
-                        !(property_test.property == "content"
+                        !(property_test.property.as_str() == "content"
                             && keyword.as_str() == "open-quote")
                     })
                     .cloned()

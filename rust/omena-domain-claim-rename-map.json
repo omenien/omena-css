@@ -72,6 +72,62 @@
   ],
   "expectedClaims": [
     {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-ensemble/src/tests.rs",
+      "line": 86,
+      "lineSha256": "413a12444abf80c741ee6431c295b6a5caf733fc3ea3fe505d1aad4af4f962bd",
+      "occurrenceInLine": 0,
+      "justification": "The named regression test explicitly pins standard-property identity for the deprecated site-key compatibility carrier; it does not claim a categorical site construction."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-ensemble/src/types.rs",
+      "line": 95,
+      "lineSha256": "132dad5622b9754ec7dbedf6ff520eabe4778ce0b1dcd2d84aa6fe140e72c5b8",
+      "occurrenceInLine": 0,
+      "justification": "The manual identity implementation names the deprecated site-key compatibility carrier so its property field delegates to the sealed canonical authority."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-product-hints/src/lib.rs",
+      "line": 1499,
+      "lineSha256": "132dad5622b9754ec7dbedf6ff520eabe4778ce0b1dcd2d84aa6fe140e72c5b8",
+      "occurrenceInLine": 0,
+      "justification": "The manual identity implementation names the deprecated product-hint site-key compatibility carrier so its property field delegates to the sealed canonical authority."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-product-hints/src/lib.rs",
+      "line": 2308,
+      "lineSha256": "de2b032b7adb48a8a51cf9c9644ce534a57abdd99a13476f7b85ef5aa906fc7d",
+      "occurrenceInLine": 0,
+      "justification": "The named regression test explicitly pins standard-property identity for the deprecated product-hint site-key carrier; it does not claim a categorical site construction."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-query/src/style.rs",
+      "line": 164,
+      "lineSha256": "479bc2dd379c9125d3e06f7bb952706121038068f2f2a87d7f263ce501c2b778",
+      "occurrenceInLine": 0,
+      "justification": "The manual identity implementation names the deprecated query outcome compatibility carrier so its property field delegates to standard-property identity."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-query/src/tests.rs",
+      "line": 146,
+      "lineSha256": "48d3d05a50d365e928fa8bd8628869b88c95a6695c18658bea26a5cda69b8657",
+      "occurrenceInLine": 0,
+      "justification": "The named regression test identifies the deprecated query outcome solely to pin standard-property equality at the compatibility boundary."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-query/src/tests.rs",
+      "line": 147,
+      "lineSha256": "ecd392f092ed4f44418e7e987de9a60b5ee1f5adff6b72d97d71cc1cc410c18a",
+      "occurrenceInLine": 0,
+      "justification": "The regression fixture constructs the deprecated query outcome compatibility carrier to verify sealed property identity without asserting the superseded domain claim."
+    },
+    {
       "familyId": "f06",
       "sourcePath": "docs/concepts/custom-property-bounded-substitution.md",
       "line": 66,
@@ -900,6 +956,13 @@
     },
     {
       "familyId": "f05",
+      "sourcePath": "rust/omena-rust-semver-intent.json",
+      "declarations": ["CascadeSiteKeyV0"],
+      "owner": "Rust semver intent maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
       "sourcePath": "scripts/check-rust-m4-closure-audit.ts",
       "declarations": ["LEGACY_CONTEXT_GLUE_OR_MODAL_THEOREM_KEY_V0"],
       "owner": "omena-categorical maintainers",
@@ -1121,12 +1184,12 @@
       "reviewCondition": "Remove a form only when the independent lexical seed and every mapped compatibility or escalation obligation are removed in the same reviewed change."
     },
     {
-      "id": "identifier-authority-generated-census",
-      "pathExact": "rust/omena-identifier-authority-census.json",
+      "id": "rust-semver-intent-governance-data",
+      "pathExact": "rust/omena-rust-semver-intent.json",
       "familyIds": ["f05"],
-      "owner": "identifier authority census maintainers",
-      "justification": "The generated identifier-authority census records existing compatibility type names as measured governance data; those names are evidence rows and do not assert the superseded domain claim.",
-      "reviewCondition": "Remove this rule when the generated census no longer contains any compatibility type name matched by the independent domain-claim scanner."
+      "owner": "Rust semver intent maintainers",
+      "justification": "The semver intent ledger names deprecated compatibility carriers and their regression evidence as release-governance data; those descriptions do not assert the superseded domain claim.",
+      "reviewCondition": "Remove this rule when the semver intent ledger no longer names any compatibility surface matched by the independent domain-claim scanner."
     }
   ]
 }
