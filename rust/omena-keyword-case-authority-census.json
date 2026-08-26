@@ -813,7 +813,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 4126,
+      "line": 4134,
       "function": "committed_css_modules_graph_resolves_alias_targets_and_reachability",
       "idiom": "direct-equality",
       "keyword": "composes",
@@ -824,7 +824,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 6290,
+      "line": 6298,
       "function": "css_modules_import_edges_from_module_interface_projection_recompute_only_import_dependents",
       "idiom": "direct-equality",
       "keyword": "composes",
@@ -2121,7 +2121,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:c9e360ce814d24912a87cf7e2c1ab8833096306284134da434d7b6e642100f00",
+  "siteDigest": "sha256:fd3c096ad3c2a80cc9a459327cb1d9b7936ca9cb8bfa8d164da595c43d610815",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [

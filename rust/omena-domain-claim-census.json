@@ -83,12 +83,12 @@
   "exit": {
     "sourceRef": null,
     "domain": {
-      "trackedFileCount": 2614,
-      "textualFileCount": 2614,
+      "trackedFileCount": 2617,
+      "textualFileCount": 2617,
       "nulExcludedCount": 0,
       "bootstrapUntrackedFileCount": 0,
       "deletedTrackedFileCount": 0,
-      "fileListSha256": "c9b08e68fea90a40ef1364ba3774629db4a75eb6c88c34ecec55089dd0147bef"
+      "fileListSha256": "ddf497d2d8fa8f886aa0dd0c740cf345737989782dbbcb5397202e1948b69920"
     },
     "occurrenceCount": 1697,
     "dispositionCounts": {
@@ -123,7 +123,7 @@
         "compatCount": 247,
         "identityEscalationCount": 179,
         "governanceDataCount": 79,
-        "siteSetSha256": "06c62646998fb32bef01e5a59c4cc8409992c8382acbd834f2103f402fc46dd2"
+        "siteSetSha256": "f74c772e66043c84729203a8e4c642e2571b6e258e844f1be169deab7bc1e635"
       },
       {
         "familyId": "f04",
@@ -132,7 +132,7 @@
         "compatCount": 264,
         "identityEscalationCount": 182,
         "governanceDataCount": 97,
-        "siteSetSha256": "f49d6a964b29a27695dbbc5f9c1e90c6bdf52d769a3fb56d1e9078815c6bce75"
+        "siteSetSha256": "0a17e1c745324fc6ca82f4839925bc510a28c4cfe960c47862745e6b5a7f9a4c"
       },
       {
         "familyId": "f05",
@@ -141,7 +141,7 @@
         "compatCount": 188,
         "identityEscalationCount": 0,
         "governanceDataCount": 50,
-        "siteSetSha256": "6fb5524ba74bcda120e359b775c21f9d45930db8ee177dded2f88e5213796d3f"
+        "siteSetSha256": "de27ed52ba3faf4c7ed3cefb45959e19a71239675a493b11c606bf7585117398"
       },
       {
         "familyId": "f06",
@@ -153,7 +153,7 @@
         "siteSetSha256": "e6a17a115a6e3c53db5bbad359b7319de4ae18f779a764f690607eafea21a566"
       }
     ],
-    "siteSetSha256": "ff81423fd783dd869a9942159ebe4c9754c2e2489b77400d41b1f3807adc970a",
+    "siteSetSha256": "254b247f7590ea433c4506a93be5628a49dfb6c3f3625d9453b25523e8786fd8",
     "claimSiteSetSha256": "3efd22abebf1020ba147225a76161d8d2e283553f82244ead98fb85283f3e10b",
     "compatDeclarationSetSha256": "83276fa27e53d092ba713ed2c1ab5a81df822763a1d9ca5a4a15d09e30ca1dd0",
     "identityCrateSetSha256": "301477ffa6f128519a55a9aa55d336d35400f48ae4fd73cd66b4d2fcc60ae772",
