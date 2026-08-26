@@ -5285,7 +5285,7 @@ function carrierTestNameStems(typeName: string): readonly string[] {
   for (let start = 1; start < Math.min(tokens.length - 1, 4); start += 1) {
     stems.add(tokens.slice(start).join("_"));
   }
-  for (const stem of [...stems]) {
+  for (const stem of Array.from(stems)) {
     stems.add(stem.replace(/_custom_property_/u, "_"));
     if (stem.endsWith("_annotation")) stems.add(`${stem}s`);
   }
