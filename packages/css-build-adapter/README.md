@@ -66,3 +66,14 @@ identity: changing dependency bytes at the same path forces a rebuild.
 JSON and TOML configuration files participate by content. Dynamic JS, MJS,
 CJS, and TypeScript configs can read transitive inputs that the adapter cannot
 enumerate, so those shapes rebuild instead of taking a hopeful cache hit.
+
+The `engine` option is an advanced custom-integration and test seam. An
+injected engine is responsible for returning an authoritative
+`buildSnapshotIdentity`, including its own ABI identity. Do not reuse one build
+state while replacing it with a different injected engine that reports the same
+digest. The official N-API engine binds its ABI in the native receipt; engines
+without the identity endpoint rebuild instead of serving a cache hit.
+
+Repeated `sources` paths are deduplicated before sealing. Repeated
+`packageManifests` paths currently make native sealing fail closed, so the build
+remains fresh but bypasses the cache until the caller removes the duplicate.
