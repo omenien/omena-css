@@ -10,10 +10,18 @@ type ViteTransformResult = null | {
   readonly map: unknown;
 };
 
+type BuildSource = {
+  readonly stylePath: string;
+  readonly styleSource: string;
+};
+
 type OmenaVitePlugin = {
   readonly configResolved: (config: { readonly root: string; readonly command: string }) => void;
   readonly transform: (
-    this: { readonly warn?: (message: string) => void },
+    this: {
+      readonly warn?: (message: string) => void;
+      readonly addWatchFile?: (file: string) => void;
+    },
     code: string,
     id: string,
   ) => Promise<ViteTransformResult>;
@@ -29,7 +37,10 @@ type OmenaVitePlugin = {
     };
   }) => Promise<readonly unknown[] | undefined>;
   readonly load: (
-    this: { readonly warn?: (message: string) => void },
+    this: {
+      readonly warn?: (message: string) => void;
+      readonly addWatchFile?: (file: string) => void;
+    },
     id: string,
   ) => Promise<string | ViteTransformResult | null>;
   readonly resolveId: (id: string) => Promise<string | null>;
@@ -60,6 +71,13 @@ function bundlerHostMock(
   valueExports: Readonly<Record<string, string>> = {},
 ) {
   return {
+    buildSnapshotIdentityJson: (inputJson: string) =>
+      JSON.stringify({
+        schemaVersion: "0",
+        product: "omena-query.build-snapshot-digest",
+        contentHashAlgorithm: "blake3",
+        digest: `blake3:test-${inputJson}`,
+      }),
     bundlerHostCapabilitiesJson: () =>
       JSON.stringify({
         protocolVersion: "0",
@@ -412,6 +430,71 @@ describe("@omena/vite-plugin", () => {
     expect(code).toContain('    themeColor = valueExports["themeColor"]');
     expect(code).toContain("export default classExports;");
     expect(code).not.toContain("export default { ...classExports, ...valueExports };");
+  });
+
+  it("watches additional sources and rebuilds their cached target on dependency edits", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-dependency-hmr-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "App.module.scss");
+    const dependencyPath = path.join(root, "tokens.module.scss");
+    const source = '@use "./tokens.module.scss";\n.button { color: tokens.$brand; }';
+    const fixedTimestamp = new Date("2026-01-02T03:04:05.000Z");
+    const addWatchFile = vi.fn();
+    const send = vi.fn();
+    const buildSources: BuildSource[][] = [];
+    const engine = {
+      ...bundlerHostMock({ button: "_button_0" }),
+      summarizeTransformBundleFromSourceJson: () =>
+        JSON.stringify({ plannedPassIds: ["scss-module-evaluate"] }),
+      buildStyleSourcesWithContextJson: (_targetPath: string, sourcesJson: string) => {
+        const sources = JSON.parse(sourcesJson) as BuildSource[];
+        buildSources.push(sources);
+        const dependency = sources.find(({ stylePath }) => stylePath === dependencyPath);
+        return JSON.stringify({
+          execution: {
+            outputCss: `.button{color:${dependency?.styleSource.includes("blue") ? "blue" : "red"}}`,
+            executedPassIds: ["scss-module-evaluate"],
+          },
+        });
+      },
+    };
+    fs.writeFileSync(stylePath, source);
+    fs.writeFileSync(dependencyPath, "$brand: red;");
+    fs.utimesSync(dependencyPath, fixedTimestamp, fixedTimestamp);
+
+    const plugin = omenaCss({
+      cwd: root,
+      configFile: false,
+      engine,
+      sources: [dependencyPath],
+    });
+    plugin.configResolved({ root, command: "serve" });
+    const runtimeId = await plugin.resolveId(stylePath);
+    await plugin.load.call({ addWatchFile }, runtimeId!);
+    expect(addWatchFile).toHaveBeenCalledWith(fs.realpathSync.native(dependencyPath));
+
+    fs.writeFileSync(dependencyPath, "$brand: blue;");
+    fs.utimesSync(dependencyPath, fixedTimestamp, fixedTimestamp);
+    await expect(
+      plugin.handleHotUpdate({
+        file: dependencyPath,
+        modules: [],
+        server: { ws: { send }, moduleGraph: { getModuleById: () => ({ id: runtimeId }) } },
+      }),
+    ).resolves.toEqual([]);
+
+    expect(buildSources).toHaveLength(2);
+    expect(buildSources[1]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ stylePath: dependencyPath, styleSource: "$brand: blue;" }),
+      ]),
+    );
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: expect.stringContaining("omena-css:update:"),
+        data: expect.objectContaining({ css: ".button{color:blue}" }),
+      }),
+    );
   });
 
   it("invalidates changed style modules and keeps the latest rapid-edit result", async () => {

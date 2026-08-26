@@ -54,6 +54,7 @@ function omenaCss(options = {}) {
       const fileId = fromDevRuntimeId(id);
       const source = await fs.promises.readFile(fileId, "utf8");
       const output = await rebuildAndCache(fileId, source, effectiveOptions, state);
+      registerBuildDependencies(this, state, fileId);
       reportBundlerHostDiagnostics(this, output, pluginName);
       return {
         code: renderDevCssModule(fileId, output),
@@ -79,6 +80,7 @@ function omenaCss(options = {}) {
       }
 
       const output = await rebuildAndCache(fileId, code, effectiveOptions, state);
+      registerBuildDependencies(this, state, fileId);
       reportBundlerHostDiagnostics(this, output, pluginName);
       if (output.code === code) return null;
       return {
@@ -89,50 +91,76 @@ function omenaCss(options = {}) {
     async handleHotUpdate(ctx) {
       const effectiveOptions = await resolveEffectiveOptions(options, state);
       const include = effectiveOptions.include ?? DEFAULT_INCLUDE;
-      if (!matchesInclude(ctx.file, include)) return;
+      const changedPath = normalizeFilePath(ctx.file);
+      const targetPaths = dependentBuildTargets(state.cache, changedPath);
+      if (targetPaths.length === 0 && matchesInclude(changedPath, include)) {
+        targetPaths.push(changedPath);
+      }
+      if (targetPaths.length === 0) return;
 
-      const fileId = normalizeFilePath(ctx.file);
-      const source = await fs.promises.readFile(fileId, "utf8");
-      const previousOutput = state.cache.get(fileId)?.output;
-      const output = await rebuildAndCache(fileId, source, effectiveOptions, state);
-      reportBundlerHostDiagnostics(this, output, pluginName);
+      const invalidatedModules = [];
+      for (const targetPath of targetPaths) {
+        if (!fs.existsSync(targetPath)) continue;
+        const source = await fs.promises.readFile(targetPath, "utf8");
+        const previousOutput = state.cache.get(targetPath)?.output;
+        const output = await rebuildAndCache(targetPath, source, effectiveOptions, state);
+        registerBuildDependencies(this, state, targetPath);
+        reportBundlerHostDiagnostics(this, output, pluginName);
 
-      if (shouldUseDevRuntime(effectiveOptions, state)) {
-        const classDecision = classifyCssModuleExportDelta(
-          previousOutput?.classExports,
-          output.classExports,
-        );
-        const valueDecision = classifyCssModuleExportDelta(
-          previousOutput?.valueExports,
-          output.valueExports,
-        );
-        const decision = combineCssModuleExportDelta(classDecision, valueDecision);
-        const runtimeModule = ctx.server?.moduleGraph?.getModuleById?.(toDevRuntimeId(fileId));
-        if (decision === "shapeChanged") {
-          const affectedModules = collectAffectedRuntimeModules(runtimeModule);
-          for (const mod of affectedModules) {
-            ctx.server?.moduleGraph?.invalidateModule?.(mod);
+        if (shouldUseDevRuntime(effectiveOptions, state)) {
+          const classDecision = classifyCssModuleExportDelta(
+            previousOutput?.classExports,
+            output.classExports,
+          );
+          const valueDecision = classifyCssModuleExportDelta(
+            previousOutput?.valueExports,
+            output.valueExports,
+          );
+          const decision = combineCssModuleExportDelta(classDecision, valueDecision);
+          const runtimeModule = ctx.server?.moduleGraph?.getModuleById?.(
+            toDevRuntimeId(targetPath),
+          );
+          if (decision === "shapeChanged") {
+            invalidatedModules.push(...collectAffectedRuntimeModules(runtimeModule));
+          } else {
+            ctx.server?.ws?.send?.({
+              type: "custom",
+              event: devRuntimeEventName(targetPath),
+              data: devRuntimeUpdatePayload(targetPath, output, decision),
+            });
           }
-          return affectedModules;
+          continue;
         }
-        ctx.server?.ws?.send?.({
-          type: "custom",
-          event: devRuntimeEventName(fileId),
-          data: devRuntimeUpdatePayload(fileId, output, decision),
-        });
-        return [];
+
+        const runtimeModule = ctx.server?.moduleGraph?.getModuleById?.(toDevRuntimeId(targetPath));
+        const modules =
+          targetPath === changedPath && ctx.modules?.length
+            ? ctx.modules
+            : [runtimeModule, ctx.server?.moduleGraph?.getModuleById?.(targetPath)].filter(Boolean);
+        invalidatedModules.push(...modules);
       }
 
-      const runtimeModule = ctx.server?.moduleGraph?.getModuleById?.(toDevRuntimeId(fileId));
-      const modules = ctx.modules?.length
-        ? ctx.modules
-        : [runtimeModule, ctx.server?.moduleGraph?.getModuleById?.(fileId)].filter(Boolean);
-      for (const mod of modules) {
+      const uniqueModules = [...new Set(invalidatedModules)];
+      for (const mod of uniqueModules) {
         ctx.server?.moduleGraph?.invalidateModule?.(mod);
       }
-      return modules;
+      return uniqueModules;
     },
   };
+}
+
+function registerBuildDependencies(pluginContext, state, targetPath) {
+  const entry = state.cache.get(targetPath);
+  for (const dependencyPath of entry?.dependencyPaths ?? []) {
+    if (dependencyPath !== targetPath) pluginContext.addWatchFile?.(dependencyPath);
+  }
+}
+
+function dependentBuildTargets(cache, changedPath) {
+  return [...cache.entries()]
+    .filter(([, entry]) => entry.dependencyPaths?.includes(changedPath))
+    .map(([targetPath]) => targetPath)
+    .toSorted((left, right) => (left < right ? -1 : left > right ? 1 : 0));
 }
 
 function shouldUseDevRuntime(options, state) {
