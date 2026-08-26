@@ -537,6 +537,109 @@ source-map = true
     expect(state.generations.get(stylePath)).toBe(2);
     expect(cacheEntry?.output.code).toBe(".button{color:blue}");
   });
+
+  it("invalidates a cached build when an additional style source changes at the same path and mtime", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-build-adapter-source-identity-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "App.module.css");
+    const dependencyPath = path.join(root, "tokens.module.css");
+    const source = '@import "./tokens.module.css";\n.button { color: var(--brand); }';
+    const fixedTimestamp = new Date("2026-01-02T03:04:05.000Z");
+    const buildInputs: BuildSource[][] = [];
+    const engine = {
+      buildStyleSourcesWithContextJson: (_targetPath: string, sourcesJson: string) => {
+        const sources = JSON.parse(sourcesJson) as BuildSource[];
+        buildInputs.push(sources);
+        return JSON.stringify({
+          execution: {
+            outputCss: sources.map(({ styleSource }) => styleSource).join("\n"),
+            executedPassIds: [],
+          },
+        });
+      },
+    };
+    const options = {
+      cwd: root,
+      configFile: false,
+      engine,
+      moduleInterface: false,
+      sourceMap: false,
+      sources: [dependencyPath],
+    };
+    const state = createOmenaBuildState({ cwd: root });
+
+    fs.writeFileSync(stylePath, source);
+    fs.writeFileSync(dependencyPath, ":root { --brand: red; }");
+    fs.utimesSync(dependencyPath, fixedTimestamp, fixedTimestamp);
+    const first = await rebuildAndCache(stylePath, source, options, state);
+
+    fs.writeFileSync(dependencyPath, ":root { --brand: blue; }");
+    fs.utimesSync(dependencyPath, fixedTimestamp, fixedTimestamp);
+    const second = await rebuildAndCache(stylePath, source, options, state);
+
+    expect(fs.statSync(dependencyPath).mtimeMs).toBe(fixedTimestamp.getTime());
+    expect(first.code).toContain("--brand: red");
+    expect(second.code).toContain("--brand: blue");
+    expect(buildInputs).toHaveLength(2);
+  });
+
+  it("invalidates a cached build when a package manifest changes at the same path and mtime", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-build-adapter-manifest-identity-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "App.module.css");
+    const manifestPath = path.join(root, "node_modules/@design/tokens/package.json");
+    const source = '@import "@design/tokens/theme";';
+    const fixedTimestamp = new Date("2026-01-02T03:04:05.000Z");
+    const buildManifests: string[][] = [];
+    const engine = {
+      buildStyleSourcesWithContextJson: (
+        _targetPath: string,
+        _sourcesJson: string,
+        _passIds: string[],
+        _contextJson: string,
+        packageManifestsJson: string,
+      ) => {
+        const manifests = JSON.parse(packageManifestsJson) as Array<{
+          readonly packageJsonSource: string;
+        }>;
+        buildManifests.push(manifests.map(({ packageJsonSource }) => packageJsonSource));
+        const exportTarget = JSON.parse(manifests[0]!.packageJsonSource).exports["./theme"].style;
+        return JSON.stringify({
+          execution: { outputCss: exportTarget, executedPassIds: [] },
+        });
+      },
+    };
+    const options = {
+      cwd: root,
+      configFile: false,
+      engine,
+      moduleInterface: false,
+      packageManifests: [manifestPath],
+      sourceMap: false,
+    };
+    const state = createOmenaBuildState({ cwd: root });
+
+    fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+    fs.writeFileSync(stylePath, source);
+    fs.writeFileSync(
+      manifestPath,
+      JSON.stringify({ exports: { "./theme": { style: "./dist/red.css" } } }),
+    );
+    fs.utimesSync(manifestPath, fixedTimestamp, fixedTimestamp);
+    const first = await rebuildAndCache(stylePath, source, options, state);
+
+    fs.writeFileSync(
+      manifestPath,
+      JSON.stringify({ exports: { "./theme": { style: "./dist/blue.css" } } }),
+    );
+    fs.utimesSync(manifestPath, fixedTimestamp, fixedTimestamp);
+    const second = await rebuildAndCache(stylePath, source, options, state);
+
+    expect(fs.statSync(manifestPath).mtimeMs).toBe(fixedTimestamp.getTime());
+    expect(first.code).toBe("./dist/red.css");
+    expect(second.code).toBe("./dist/blue.css");
+    expect(buildManifests).toHaveLength(2);
+  });
 });
 
 function deferred<T>() {

@@ -114,6 +114,8 @@ async function runBrowserDevHmrGate() {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-hmr-browser-"));
   const srcRoot = path.join(tempRoot, "src");
   const stylePath = path.join(srcRoot, "App.module.scss");
+  const dependencyPath = path.join(srcRoot, "tokens.module.scss");
+  const fixedDependencyTimestamp = new Date("2026-01-02T03:04:05.000Z");
   let server;
   let chrome;
   let page;
@@ -147,7 +149,13 @@ async function runBrowserDevHmrGate() {
         `window.__readOmenaBuildSummary = async () => (await import("virtual:omena-css/build-summary")).default;`,
       ].join("\n"),
     );
-    fs.writeFileSync(stylePath, "/* omena */\n.root { color: red; }\n", "utf8");
+    fs.writeFileSync(
+      stylePath,
+      '/* omena */\n@import "./tokens.module.scss";\n.root { color: var(--brand); }\n',
+      "utf8",
+    );
+    fs.writeFileSync(dependencyPath, ":root { --brand: red; }\n", "utf8");
+    fs.utimesSync(dependencyPath, fixedDependencyTimestamp, fixedDependencyTimestamp);
 
     server = await createServer({
       root: tempRoot,
@@ -155,10 +163,11 @@ async function runBrowserDevHmrGate() {
       plugins: [
         omenaCss({
           include: /\.module\.scss$/,
-          passes: ["comment-strip"],
+          passes: ["comment-strip", "import-inline"],
           sourceMap: true,
           configFile: false,
           cwd: tempRoot,
+          sources: [dependencyPath],
         }),
       ],
       server: {
@@ -205,8 +214,13 @@ async function runBrowserDevHmrGate() {
     const editBaseline = await waitForPageState(page, (state) => state?.color === "rgb(255, 0, 0)");
 
     for (const color of ["green", "orange", "blue"]) {
-      fs.writeFileSync(stylePath, `/* omena */\n.root { color: ${color}; }\n`, "utf8");
+      fs.writeFileSync(dependencyPath, `:root { --brand: ${color}; }\n`, "utf8");
+      fs.utimesSync(dependencyPath, fixedDependencyTimestamp, fixedDependencyTimestamp);
       await delay(35);
+    }
+
+    if (fs.statSync(dependencyPath).mtimeMs !== fixedDependencyTimestamp.getTime()) {
+      throw new Error("Vite dependency identity fixture failed to preserve the dependency mtime.");
     }
 
     const finalState = await waitForPageState(
