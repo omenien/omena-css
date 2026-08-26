@@ -13,8 +13,8 @@ use engine_napi_contract_idl_generated::{
 use napi_derive::napi;
 use omena_query::{
     OmenaBundlerHostResolveModuleRequestV0, OmenaParserStyleDialect,
-    OmenaQueryBuildVerificationProfileV0, OmenaQueryBundleArtifactV0 as OmenaNapiBundleArtifactV0,
-    OmenaQueryBundleEmissionPathV0,
+    OmenaQueryBuildSnapshotIdentityInputV0, OmenaQueryBuildVerificationProfileV0,
+    OmenaQueryBundleArtifactV0 as OmenaNapiBundleArtifactV0, OmenaQueryBundleEmissionPathV0,
     OmenaQueryBundleExecutionScopeEvidenceV0 as OmenaNapiBundleExecutionScopeEvidenceV0,
     OmenaQueryBundleWithEvidenceV0 as OmenaNapiBundleWithEvidenceV0,
     OmenaQueryCascadeAtPositionV0 as OmenaNapiCascadeAtPositionV0,
@@ -46,8 +46,8 @@ use omena_query::{
     OmenaQueryTransformExecutionContextV0 as OmenaNapiTransformExecutionContextV0,
     OmenaQueryTransformPassSummaryV0 as OmenaNapiPassSummaryV0, ParserPositionV0,
     attach_omena_query_consumer_build_source_map_v3_with_sources,
-    conservative_omena_query_target_options, current_omena_bundler_host_capabilities_v0,
-    execute_omena_query_consumer_build_style_source,
+    compute_omena_query_build_snapshot_identity_v0, conservative_omena_query_target_options,
+    current_omena_bundler_host_capabilities_v0, execute_omena_query_consumer_build_style_source,
     execute_omena_query_consumer_build_style_source_for_target_query,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_for_target_query_with_options,
@@ -129,6 +129,17 @@ pub fn resolve_css_module_for_bundler_host_json(request_json: String) -> napi::R
             napi::Error::from_reason(format!("invalid bundler host request: {error}"))
         })?;
     to_json_string(&resolve_omena_bundler_host_module_v0(request))
+}
+
+#[napi(js_name = "buildSnapshotIdentityJson")]
+pub fn build_snapshot_identity_json(input_json: String) -> napi::Result<String> {
+    let input = serde_json::from_str::<OmenaQueryBuildSnapshotIdentityInputV0>(&input_json)
+        .map_err(|error| {
+            napi::Error::from_reason(format!("invalid build snapshot identity input: {error}"))
+        })?;
+    let identity =
+        compute_omena_query_build_snapshot_identity_v0(&input).map_err(napi::Error::from_reason)?;
+    to_json_string(&identity)
 }
 
 #[napi(js_name = "checkStyleSourceJson")]

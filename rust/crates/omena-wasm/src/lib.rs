@@ -6,8 +6,9 @@ pub use sdk_workspace::OmenaWasmWorkspaceV0;
 
 use omena_query::{
     OmenaBundlerHostResolveModuleRequestV0, OmenaBundlerHostResolveModuleResponseV0,
-    OmenaParserStyleDialect, OmenaQueryBuildVerificationProfileV0,
-    OmenaQueryBundleArtifactV0 as OmenaWasmBundleArtifactV0, OmenaQueryBundleEmissionPathV0,
+    OmenaParserStyleDialect, OmenaQueryBuildSnapshotIdentityInputV0,
+    OmenaQueryBuildVerificationProfileV0, OmenaQueryBundleArtifactV0 as OmenaWasmBundleArtifactV0,
+    OmenaQueryBundleEmissionPathV0,
     OmenaQueryBundleExecutionScopeEvidenceV0 as OmenaWasmBundleExecutionScopeEvidenceV0,
     OmenaQueryBundleWithEvidenceV0 as OmenaWasmBundleWithEvidenceV0,
     OmenaQueryCascadeAtPositionV0 as OmenaWasmCascadeAtPositionV0,
@@ -40,8 +41,8 @@ use omena_query::{
     OmenaQueryTransformExecutionContextV0 as OmenaWasmTransformExecutionContextV0,
     OmenaQueryTransformPassSummaryV0 as OmenaWasmPassSummaryV0, ParserPositionV0,
     attach_omena_query_consumer_build_source_map_v3_with_sources,
-    conservative_omena_query_target_options, current_omena_bundler_host_capabilities_v0,
-    execute_omena_query_consumer_build_style_source,
+    compute_omena_query_build_snapshot_identity_v0, conservative_omena_query_target_options,
+    current_omena_bundler_host_capabilities_v0, execute_omena_query_consumer_build_style_source,
     execute_omena_query_consumer_build_style_source_for_target_query,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_for_target_query_with_options,
@@ -93,6 +94,17 @@ pub fn resolve_css_module_for_bundler_host(request: JsValue) -> Result<JsValue, 
     let request = serde_wasm_bindgen::from_value::<OmenaBundlerHostResolveModuleRequestV0>(request)
         .map_err(|error| JsValue::from_str(&format!("invalid bundler host request: {error}")))?;
     to_json_compatible_js_value(&resolve_css_module_for_bundler_host_response(request))
+}
+
+#[wasm_bindgen(js_name = buildSnapshotIdentity)]
+pub fn build_snapshot_identity(input: JsValue) -> Result<JsValue, JsValue> {
+    let input = serde_wasm_bindgen::from_value::<OmenaQueryBuildSnapshotIdentityInputV0>(input)
+        .map_err(|error| {
+            JsValue::from_str(&format!("invalid build snapshot identity input: {error}"))
+        })?;
+    let identity = compute_omena_query_build_snapshot_identity_v0(&input)
+        .map_err(|error| JsValue::from_str(&error))?;
+    to_json_compatible_js_value(&identity)
 }
 
 #[wasm_bindgen(js_name = checkStyleSource)]

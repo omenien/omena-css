@@ -840,6 +840,37 @@ pub omena_query::OmenaQueryBuildAdmissionRequirementsV0::require_closed_world_ev
 pub omena_query::OmenaQueryBuildAdmissionRequirementsV0::require_complete_decisions: bool
 impl omena_query::OmenaQueryBuildAdmissionRequirementsV0
 pub const fn omena_query::OmenaQueryBuildAdmissionRequirementsV0::strict() -> Self
+pub struct omena_query::OmenaQueryBuildSnapshotContentDigestV0
+pub omena_query::OmenaQueryBuildSnapshotContentDigestV0::content_digest: alloc::string::String
+pub omena_query::OmenaQueryBuildSnapshotContentDigestV0::path: alloc::string::String
+pub struct omena_query::OmenaQueryBuildSnapshotContentInputV0
+pub omena_query::OmenaQueryBuildSnapshotContentInputV0::path: alloc::string::String
+pub omena_query::OmenaQueryBuildSnapshotContentInputV0::source: alloc::string::String
+pub struct omena_query::OmenaQueryBuildSnapshotIdentityInputV0
+pub omena_query::OmenaQueryBuildSnapshotIdentityInputV0::adapter_environment: serde_json::value::Value
+pub omena_query::OmenaQueryBuildSnapshotIdentityInputV0::config_inputs: alloc::vec::Vec<omena_query::OmenaQueryBuildSnapshotContentInputV0>
+pub omena_query::OmenaQueryBuildSnapshotIdentityInputV0::package_manifests: alloc::vec::Vec<omena_query::OmenaQueryStylePackageManifestV0>
+pub omena_query::OmenaQueryBuildSnapshotIdentityInputV0::pass_ids: alloc::vec::Vec<alloc::string::String>
+pub omena_query::OmenaQueryBuildSnapshotIdentityInputV0::style_sources: alloc::vec::Vec<omena_query::OmenaQueryStyleSourceInputV0>
+pub omena_query::OmenaQueryBuildSnapshotIdentityInputV0::target_options: omena_transform_target::TargetTransformOptionsV0
+pub omena_query::OmenaQueryBuildSnapshotIdentityInputV0::target_path: alloc::string::String
+pub omena_query::OmenaQueryBuildSnapshotIdentityInputV0::target_query: core::option::Option<alloc::string::String>
+pub struct omena_query::OmenaQueryBuildSnapshotIdentityV0
+pub omena_query::OmenaQueryBuildSnapshotIdentityV0::config_digests: alloc::vec::Vec<omena_query::OmenaQueryBuildSnapshotContentDigestV0>
+pub omena_query::OmenaQueryBuildSnapshotIdentityV0::content_hash_algorithm: &'static str
+pub omena_query::OmenaQueryBuildSnapshotIdentityV0::digest: alloc::string::String
+pub omena_query::OmenaQueryBuildSnapshotIdentityV0::engine_abi_version: alloc::string::String
+pub omena_query::OmenaQueryBuildSnapshotIdentityV0::ordered_pass_ids: alloc::vec::Vec<alloc::string::String>
+pub omena_query::OmenaQueryBuildSnapshotIdentityV0::package_manifest_digests: alloc::vec::Vec<omena_query::OmenaQueryBuildSnapshotContentDigestV0>
+pub omena_query::OmenaQueryBuildSnapshotIdentityV0::pass_plan_digest: alloc::string::String
+pub omena_query::OmenaQueryBuildSnapshotIdentityV0::product: &'static str
+pub omena_query::OmenaQueryBuildSnapshotIdentityV0::requested_pass_ids: alloc::vec::Vec<alloc::string::String>
+pub omena_query::OmenaQueryBuildSnapshotIdentityV0::resolver_generation: u64
+pub omena_query::OmenaQueryBuildSnapshotIdentityV0::schema_version: &'static str
+pub omena_query::OmenaQueryBuildSnapshotIdentityV0::style_source_digests: alloc::vec::Vec<omena_query::OmenaQueryBuildSnapshotContentDigestV0>
+pub omena_query::OmenaQueryBuildSnapshotIdentityV0::target_data_snapshot_id: alloc::string::String
+pub omena_query::OmenaQueryBuildSnapshotIdentityV0::target_source_digest: alloc::string::String
+pub omena_query::OmenaQueryBuildSnapshotIdentityV0::unknown_pass_ids: alloc::vec::Vec<alloc::string::String>
 pub struct omena_query::OmenaQueryBundleArtifactV0
 pub omena_query::OmenaQueryBundleArtifactV0::asset_rewrites: alloc::vec::Vec<omena_bundler::TransformBundleAssetUrlRewriteSummaryV0>
 pub omena_query::OmenaQueryBundleArtifactV0::bundle: omena_bundler::TransformBundleSourceSummaryV0
@@ -2597,6 +2628,7 @@ pub fn omena_query::check_omena_query_schema_version(core::option::Option<&str>)
 pub fn omena_query::collect_omena_query_style_cascade_narrowing_substrate(&[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryStylePackageManifestV0], &omena_query::OmenaQueryStyleResolutionInputsV0) -> omena_query::OmenaQueryStyleCascadeNarrowingSubstrateV0
 pub fn omena_query::collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs(&[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryStylePackageManifestV0], &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0) -> omena_query::OmenaQueryStyleCascadeNarrowingSubstrateV0
 pub fn omena_query::collect_omena_query_vue_style_module_bindings(&str, &str, core::option::Option<&str>) -> alloc::vec::Vec<alloc::string::String>
+pub fn omena_query::compute_omena_query_build_snapshot_identity_v0(&omena_query::OmenaQueryBuildSnapshotIdentityInputV0) -> core::result::Result<omena_query::OmenaQueryBuildSnapshotIdentityV0, alloc::string::String>
 pub fn omena_query::current_omena_bundler_host_capabilities_v0() -> omena_query::OmenaBundlerHostCapabilitiesV0
 pub fn omena_query::derive_omena_query_module_reachability_from_engine_input(&engine_input_producers::EngineInputV2, &str, bool) -> omena_query::OmenaQueryEngineInputModuleReachabilityV0
 pub fn omena_query::execute_omena_query_consumer_build_style_source(&str, &str, &[alloc::string::String]) -> omena_query::OmenaQueryConsumerBuildSummaryV0

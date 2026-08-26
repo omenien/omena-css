@@ -37,6 +37,13 @@ pub use omena_cascade::{
 };
 pub use omena_query_core::{GuardedTokenLanguageV0, GuardedTokenMapV0};
 
+mod build_snapshot;
+pub use build_snapshot::{
+    OmenaQueryBuildSnapshotContentDigestV0, OmenaQueryBuildSnapshotContentInputV0,
+    OmenaQueryBuildSnapshotIdentityInputV0, OmenaQueryBuildSnapshotIdentityV0,
+    compute_omena_query_build_snapshot_identity_v0,
+};
+
 mod explain;
 pub use explain::{
     OmenaQueryExplainAvailabilityV0, OmenaQueryExplainCapabilityV0,
