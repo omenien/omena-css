@@ -1,6 +1,5 @@
 const fs = require("node:fs");
 const path = require("node:path");
-const crypto = require("node:crypto");
 const { pathToFileURL } = require("node:url");
 const { SourceMapGenerator } = require("source-map-js");
 
@@ -8,6 +7,7 @@ const DEFAULT_INCLUDE = /\.module\.(css|scss|less)$/;
 const CSS_MODULE_PATH = /\.module\.(css|scss|less)$/;
 const REPO_ROOT = path.resolve(__dirname, "../..");
 const ABSENT_JSON_ARGUMENT = "";
+const BUILD_CONFIG_SNAPSHOT = Symbol("omena.build-config-snapshot");
 
 const MINIFY_PASS_IDS = Object.freeze(require("./semantic-minify-pass-ids.json"));
 
@@ -26,20 +26,48 @@ function createOmenaBuildState(options = {}, overrides = {}) {
     generations: new Map(),
     configPromise: null,
     enginePromise: null,
+    cacheMetrics: {
+      hits: 0,
+      misses: 0,
+      bypasses: 0,
+      digestComputations: 0,
+      digestComputeNanoseconds: 0n,
+      builds: 0,
+      buildNanoseconds: 0n,
+    },
   };
 }
 
 async function rebuildAndCache(filePath, source, options, state) {
   const generation = (state.generations.get(filePath) ?? 0) + 1;
   state.generations.set(filePath, generation);
-  const cacheKey = buildCacheKey(filePath, source, options);
+  const prepared = await prepareOmenaBuild(filePath, source, options, state);
+  const snapshot = await resolveBuildSnapshotIdentity(prepared, options, state);
   const cached = state.cache.get(filePath);
-  if (cached?.cacheKey === cacheKey) return cached.output;
+  if (
+    snapshot.cacheable &&
+    cached?.buildSnapshotDigest != null &&
+    cached.buildSnapshotDigest === snapshot.identity.digest
+  ) {
+    state.cacheMetrics.hits += 1;
+    return cached.output;
+  }
+  if (snapshot.cacheable) {
+    state.cacheMetrics.misses += 1;
+  } else {
+    state.cacheMetrics.bypasses += 1;
+  }
 
-  const output = await runOmenaBuild(filePath, source, options, state);
+  const buildStartedAt = process.hrtime.bigint();
+  const output = await executePreparedOmenaBuild(prepared, options, state);
+  state.cacheMetrics.builds += 1;
+  state.cacheMetrics.buildNanoseconds += process.hrtime.bigint() - buildStartedAt;
   if (state.generations.get(filePath) === generation) {
     state.cache.set(filePath, {
-      cacheKey,
+      buildSnapshotDigest: snapshot.cacheable ? snapshot.identity.digest : null,
+      buildSnapshotIdentity: snapshot.cacheable ? snapshot.identity : null,
+      cacheBypassReason: snapshot.cacheable ? null : snapshot.reason,
+      dependencyPaths: preparedDependencyPaths(prepared, options),
       output,
       summary: output.summary,
       updatedAt: Date.now(),
@@ -49,10 +77,20 @@ async function rebuildAndCache(filePath, source, options, state) {
 }
 
 async function runOmenaBuild(filePath, source, options, state) {
+  const prepared = await prepareOmenaBuild(filePath, source, options, state);
+  return executePreparedOmenaBuild(prepared, options, state);
+}
+
+async function prepareOmenaBuild(filePath, source, options, state) {
   const engine = await resolveOmenaEngine(options, state);
   const sources = collectStyleSources(filePath, source, options);
   const packageManifests = collectPackageManifests(options);
   const passIds = await resolvePassIds(options, engine, sources);
+  return { engine, filePath, source, sources, packageManifests, passIds };
+}
+
+async function executePreparedOmenaBuild(prepared, options, state) {
+  const { engine, filePath, source, sources, packageManifests, passIds } = prepared;
   const resolvedModuleInterface =
     options.moduleInterface !== false && CSS_MODULE_PATH.test(filePath)
       ? await resolveCssModuleInterface(engine, filePath, sources, packageManifests, state)
@@ -116,6 +154,90 @@ async function runOmenaBuild(filePath, source, options, state) {
         }
       : {}),
   };
+}
+
+async function resolveBuildSnapshotIdentity(prepared, options, state) {
+  const configSnapshot = options[BUILD_CONFIG_SNAPSHOT] ?? directConfigSnapshot(options);
+  if (!configSnapshot.cacheable) {
+    return { cacheable: false, reason: configSnapshot.reason };
+  }
+  if (typeof prepared.engine.buildSnapshotIdentity !== "function") {
+    return {
+      cacheable: false,
+      reason: "engineMissingBuildSnapshotIdentity",
+    };
+  }
+
+  const startedAt = process.hrtime.bigint();
+  try {
+    const identity = await prepared.engine.buildSnapshotIdentity({
+      targetPath: prepared.sources[0].stylePath,
+      styleSources: prepared.sources,
+      packageManifests: prepared.packageManifests,
+      configInputs: configSnapshot.inputs,
+      passIds: prepared.passIds,
+      targetQuery: options.targetQuery ?? null,
+      targetOptions: options.targetOptions ?? {},
+      adapterEnvironment: buildAdapterEnvironment(options, state),
+    });
+    state.cacheMetrics.digestComputations += 1;
+    state.cacheMetrics.digestComputeNanoseconds += process.hrtime.bigint() - startedAt;
+    if (
+      identity?.product !== "omena-query.build-snapshot-digest" ||
+      typeof identity.digest !== "string" ||
+      !identity.digest.startsWith("blake3:")
+    ) {
+      return { cacheable: false, reason: "invalidBuildSnapshotIdentity" };
+    }
+    return { cacheable: true, identity };
+  } catch (error) {
+    state.cacheMetrics.digestComputations += 1;
+    state.cacheMetrics.digestComputeNanoseconds += process.hrtime.bigint() - startedAt;
+    return {
+      cacheable: false,
+      reason: `buildSnapshotIdentityError:${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+function directConfigSnapshot(options) {
+  if (options.configFile === false) {
+    return { cacheable: true, inputs: [], reason: null };
+  }
+  return {
+    cacheable: false,
+    inputs: [],
+    reason: "untrackedBuildConfiguration",
+  };
+}
+
+function buildAdapterEnvironment(options, state) {
+  return {
+    schemaVersion: "0",
+    product: "omena-css-build-adapter.environment",
+    root: path.resolve(options.cwd ?? state.root),
+    command: state.command,
+    sourceMap: options.sourceMap !== false,
+    treeShake: Boolean(options.treeShake),
+    bundle: Boolean(options.bundle),
+    closedStyleWorld: Boolean(options.closedStyleWorld),
+    moduleInterface: options.moduleInterface !== false,
+    devRuntime: Boolean(options.devRuntime),
+    context: options.context ?? null,
+  };
+}
+
+function preparedDependencyPaths(prepared, options) {
+  const configSnapshot = options[BUILD_CONFIG_SNAPSHOT] ?? directConfigSnapshot(options);
+  return [
+    ...new Set(
+      [
+        ...prepared.sources.map(({ stylePath }) => stylePath),
+        ...prepared.packageManifests.map(({ packageJsonPath }) => packageJsonPath),
+        ...configSnapshot.inputs.map(({ path: inputPath }) => inputPath),
+      ].map(normalizeFilePath),
+    ),
+  ].toSorted((left, right) => (left < right ? -1 : left > right ? 1 : 0));
 }
 
 function validateBundleAdmission(summary) {
@@ -298,11 +420,15 @@ function replaceFirstEmittedClass(emittedClasses, selected) {
 }
 
 async function resolveEffectiveOptions(options, state) {
-  if (!state.configPromise) {
-    state.configPromise = loadOmenaConfig(options, state);
-  }
-  const configOptions = await state.configPromise;
-  return mergeOptions(configOptions, options, state);
+  const loaded = await loadOmenaConfig(options, state);
+  const merged = mergeOptions(loaded.options, options, state);
+  Object.defineProperty(merged, BUILD_CONFIG_SNAPSHOT, {
+    configurable: false,
+    enumerable: false,
+    value: loaded.snapshot,
+    writable: false,
+  });
+  return merged;
 }
 
 function mergeOptions(configOptions, explicitOptions, state) {
@@ -312,29 +438,79 @@ function mergeOptions(configOptions, explicitOptions, state) {
 }
 
 async function loadOmenaConfig(options, state) {
-  if (options.configFile === false) return {};
+  if (options.configFile === false) {
+    return {
+      options: {},
+      snapshot: { cacheable: true, inputs: [], reason: null },
+    };
+  }
   const configPath =
     typeof options.configFile === "string"
       ? path.resolve(options.cwd ?? state.root, options.configFile)
       : findOmenaConfig(options.cwd ?? state.root);
-  if (!configPath) return {};
+  if (!configPath) {
+    return {
+      options: {},
+      snapshot: { cacheable: true, inputs: [], reason: null },
+    };
+  }
+
+  const configSource = await fs.promises.readFile(configPath, "utf8");
+  const input = { path: configPath, source: configSource };
 
   if (configPath.endsWith(".json")) {
-    return selectBuildConfig(JSON.parse(await fs.promises.readFile(configPath, "utf8")));
+    return {
+      options: selectBuildConfig(JSON.parse(configSource)),
+      snapshot: { cacheable: true, inputs: [input], reason: null },
+    };
   }
   if (configPath.endsWith(".toml")) {
-    return selectBuildConfig(parseFlatToml(await fs.promises.readFile(configPath, "utf8")));
+    return {
+      options: selectBuildConfig(parseFlatToml(configSource)),
+      snapshot: { cacheable: true, inputs: [input], reason: null },
+    };
   }
   if (configPath.endsWith(".cjs")) {
-    return normalizeConfigExport(require(configPath));
+    delete require.cache[require.resolve(configPath)];
+    return {
+      options: normalizeConfigExport(require(configPath)),
+      snapshot: {
+        cacheable: false,
+        inputs: [input],
+        reason: "dynamicBuildConfigurationDependencies",
+      },
+    };
   }
   if (configPath.endsWith(".js") || configPath.endsWith(".mjs")) {
-    return normalizeConfigExport(await import(pathToFileURL(configPath).href));
+    const configUrl = new URL(pathToFileURL(configPath).href);
+    configUrl.searchParams.set("omenaConfigLoad", String(process.hrtime.bigint()));
+    return {
+      options: normalizeConfigExport(await import(configUrl.href)),
+      snapshot: {
+        cacheable: false,
+        inputs: [input],
+        reason: "dynamicBuildConfigurationDependencies",
+      },
+    };
   }
   if (configPath.endsWith(".ts")) {
-    return loadTypeScriptConfigWithVite(configPath, options.cwd ?? state.root);
+    return {
+      options: await loadTypeScriptConfigWithVite(configPath, options.cwd ?? state.root),
+      snapshot: {
+        cacheable: false,
+        inputs: [input],
+        reason: "dynamicBuildConfigurationDependencies",
+      },
+    };
   }
-  return {};
+  return {
+    options: {},
+    snapshot: {
+      cacheable: false,
+      inputs: [input],
+      reason: "unsupportedBuildConfigurationFormat",
+    },
+  };
 }
 
 function findOmenaConfig(root) {
@@ -465,6 +641,13 @@ function normalizeEngine(binding, kind) {
   if (typeof binding.buildStyleSourcesWithContextJson === "function") {
     return {
       kind,
+      ...(typeof binding.buildSnapshotIdentityJson === "function"
+        ? {
+            async buildSnapshotIdentity(input) {
+              return JSON.parse(await binding.buildSnapshotIdentityJson(JSON.stringify(input)));
+            },
+          }
+        : {}),
       async buildSources(input) {
         return JSON.parse(
           await binding.buildStyleSourcesWithContextJson(
@@ -535,6 +718,13 @@ function normalizeEngine(binding, kind) {
   if (typeof binding.buildStyleSourcesWithContext === "function") {
     return {
       kind,
+      ...(typeof binding.buildSnapshotIdentity === "function"
+        ? {
+            async buildSnapshotIdentity(input) {
+              return binding.buildSnapshotIdentity(input);
+            },
+          }
+        : {}),
       async buildSources(input) {
         return binding.buildStyleSourcesWithContext(
           input.targetPath,
@@ -619,31 +809,6 @@ function localNapiPackagePath() {
 
 function localWasmPackagePath() {
   return pathToFileURL(path.join(REPO_ROOT, "rust/crates/omena-wasm/pkg/omena_wasm.js")).href;
-}
-
-function buildCacheKey(filePath, source, options) {
-  const hash = crypto.createHash("sha256");
-  hash.update(filePath);
-  hash.update("\0");
-  hash.update(source);
-  hash.update("\0");
-  hash.update(
-    JSON.stringify({
-      passes: options.passes ?? [],
-      minify: Boolean(options.minify),
-      targetQuery: options.targetQuery ?? null,
-      targetOptions: options.targetOptions ?? null,
-      context: options.context ?? null,
-      sources: options.sources ?? [],
-      packageManifests: options.packageManifests ?? [],
-      sourceMap: options.sourceMap !== false,
-      treeShake: Boolean(options.treeShake),
-      bundle: Boolean(options.bundle),
-      closedStyleWorld: Boolean(options.closedStyleWorld),
-      devRuntime: Boolean(options.devRuntime),
-    }),
-  );
-  return hash.digest("hex");
 }
 
 function normalizeFilePath(filePath) {

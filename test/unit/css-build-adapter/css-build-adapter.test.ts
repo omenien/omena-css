@@ -7,6 +7,12 @@ import { afterEach, describe, expect, it } from "vitest";
 type OmenaBuildState = {
   readonly cache: Map<string, unknown>;
   readonly generations: Map<string, number>;
+  readonly cacheMetrics: {
+    readonly hits: number;
+    readonly misses: number;
+    readonly bypasses: number;
+    readonly builds: number;
+  };
 };
 
 type CacheEntry = {
@@ -67,6 +73,7 @@ function bundlerHostMock(
   valueExports: Readonly<Record<string, string>> = {},
 ) {
   return {
+    buildSnapshotIdentityJson: buildSnapshotIdentityJsonMock,
     bundlerHostCapabilitiesJson: () =>
       JSON.stringify({
         protocolVersion: "0",
@@ -111,6 +118,15 @@ function bundlerHostMock(
       });
     },
   };
+}
+
+function buildSnapshotIdentityJsonMock(inputJson: string) {
+  return JSON.stringify({
+    schemaVersion: "0",
+    product: "omena-query.build-snapshot-digest",
+    contentHashAlgorithm: "blake3",
+    digest: `blake3:test-${inputJson}`,
+  });
 }
 
 function closedWorldEvidence(stylePath: string) {
@@ -547,6 +563,7 @@ source-map = true
     const fixedTimestamp = new Date("2026-01-02T03:04:05.000Z");
     const buildInputs: BuildSource[][] = [];
     const engine = {
+      buildSnapshotIdentityJson: buildSnapshotIdentityJsonMock,
       buildStyleSourcesWithContextJson: (_targetPath: string, sourcesJson: string) => {
         const sources = JSON.parse(sourcesJson) as BuildSource[];
         buildInputs.push(sources);
@@ -576,11 +593,14 @@ source-map = true
     fs.writeFileSync(dependencyPath, ":root { --brand: blue; }");
     fs.utimesSync(dependencyPath, fixedTimestamp, fixedTimestamp);
     const second = await rebuildAndCache(stylePath, source, options, state);
+    const unchanged = await rebuildAndCache(stylePath, source, options, state);
 
     expect(fs.statSync(dependencyPath).mtimeMs).toBe(fixedTimestamp.getTime());
     expect(first.code).toContain("--brand: red");
     expect(second.code).toContain("--brand: blue");
+    expect(unchanged.code).toBe(second.code);
     expect(buildInputs).toHaveLength(2);
+    expect(state.cacheMetrics).toMatchObject({ hits: 1, misses: 2, bypasses: 0, builds: 2 });
   });
 
   it("invalidates a cached build when a package manifest changes at the same path and mtime", async () => {
@@ -592,6 +612,7 @@ source-map = true
     const fixedTimestamp = new Date("2026-01-02T03:04:05.000Z");
     const buildManifests: string[][] = [];
     const engine = {
+      buildSnapshotIdentityJson: buildSnapshotIdentityJsonMock,
       buildStyleSourcesWithContextJson: (
         _targetPath: string,
         _sourcesJson: string,
@@ -634,11 +655,87 @@ source-map = true
     );
     fs.utimesSync(manifestPath, fixedTimestamp, fixedTimestamp);
     const second = await rebuildAndCache(stylePath, source, options, state);
+    const unchanged = await rebuildAndCache(stylePath, source, options, state);
 
     expect(fs.statSync(manifestPath).mtimeMs).toBe(fixedTimestamp.getTime());
     expect(first.code).toBe("./dist/red.css");
     expect(second.code).toBe("./dist/blue.css");
+    expect(unchanged.code).toBe(second.code);
     expect(buildManifests).toHaveLength(2);
+    expect(state.cacheMetrics).toMatchObject({ hits: 1, misses: 2, bypasses: 0, builds: 2 });
+  });
+
+  it("binds static config bytes and reloads same-path same-mtime edits", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-build-adapter-config-identity-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "App.module.css");
+    const configPath = path.join(root, "omena.config.json");
+    const source = ".button { color: red; }";
+    const fixedTimestamp = new Date("2026-01-02T03:04:05.000Z");
+    let buildCount = 0;
+    const engine = {
+      buildSnapshotIdentityJson: buildSnapshotIdentityJsonMock,
+      buildStyleSourcesWithContextJson: () => {
+        buildCount += 1;
+        return JSON.stringify({ execution: { outputCss: source, executedPassIds: [] } });
+      },
+    };
+    const explicitOptions = {
+      cwd: root,
+      engine,
+      moduleInterface: false,
+      sourceMap: false,
+    };
+    const state = createOmenaBuildState({ cwd: root });
+
+    fs.writeFileSync(stylePath, source);
+    fs.writeFileSync(configPath, '{"build":{"sourceMap":false}}\n');
+    fs.utimesSync(configPath, fixedTimestamp, fixedTimestamp);
+    const firstOptions = await resolveEffectiveOptions(explicitOptions, state);
+    await rebuildAndCache(stylePath, source, firstOptions, state);
+
+    fs.writeFileSync(configPath, '{ "build": { "sourceMap": false } }\n');
+    fs.utimesSync(configPath, fixedTimestamp, fixedTimestamp);
+    const secondOptions = await resolveEffectiveOptions(explicitOptions, state);
+    await rebuildAndCache(stylePath, source, secondOptions, state);
+    const unchangedOptions = await resolveEffectiveOptions(explicitOptions, state);
+    await rebuildAndCache(stylePath, source, unchangedOptions, state);
+
+    expect(fs.statSync(configPath).mtimeMs).toBe(fixedTimestamp.getTime());
+    expect(buildCount).toBe(2);
+    expect(state.cacheMetrics).toMatchObject({ hits: 1, misses: 2, bypasses: 0, builds: 2 });
+  });
+
+  it("rebuilds instead of serving a hopeful hit when the engine cannot seal an identity", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-build-adapter-fail-closed-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "App.module.css");
+    const source = ".button { color: red; }";
+    let buildCount = 0;
+    const engine = {
+      buildStyleSourcesWithContextJson: () => {
+        buildCount += 1;
+        return JSON.stringify({ execution: { outputCss: source, executedPassIds: [] } });
+      },
+    };
+    const options = {
+      cwd: root,
+      configFile: false,
+      engine,
+      moduleInterface: false,
+      sourceMap: false,
+    };
+    const state = createOmenaBuildState({ cwd: root });
+
+    await rebuildAndCache(stylePath, source, options, state);
+    await rebuildAndCache(stylePath, source, options, state);
+
+    expect(buildCount).toBe(2);
+    expect(state.cacheMetrics).toMatchObject({ hits: 0, misses: 0, bypasses: 2, builds: 2 });
+    expect(state.cache.get(stylePath)).toMatchObject({
+      buildSnapshotDigest: null,
+      cacheBypassReason: "engineMissingBuildSnapshotIdentity",
+    });
   });
 });
 
