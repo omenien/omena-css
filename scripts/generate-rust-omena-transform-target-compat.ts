@@ -23,7 +23,7 @@ const rustWorkspaceManifestPath = "rust/Cargo.toml";
 const thresholdSourcePolicy = "mdnFullUnprefixedResolverCoveredV0";
 const sourceKeyReconciliationMode = "manualReviewNoUpstreamTimestampV0";
 const sourceKeyReconciliationReason =
-  "@mdn/browser-compat-data@8.0.8 __compat metadata exposes no per-feature last-changed timestamp; sourceKeyReconciledAt is an explicit source-key review stamp.";
+  "@mdn/browser-compat-data@8.0.11 __compat metadata exposes no per-feature last-changed timestamp; sourceKeyReconciledAt is an explicit source-key review stamp.";
 const mdnTimestampMetadataKeys = [
   "last_changed",
   "lastChanged",
@@ -51,6 +51,7 @@ interface SpecSourcePinsV0 {
     readonly name: string;
     readonly package: string;
     readonly version: string;
+    readonly declaredVersionSource?: string;
   }[];
 }
 
