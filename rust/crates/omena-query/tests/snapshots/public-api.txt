@@ -229,6 +229,7 @@ pub fn omena_query::OmenaSdkWorkspaceV0::snapshot(&self) -> omena_query::OmenaSd
 pub fn omena_query::OmenaSdkWorkspaceV0::snapshot_id(&self) -> omena_incremental::OmenaWorkspaceSnapshotIdV0
 pub fn omena_query::OmenaWorkspaceOccurrenceFamilyV0::as_str(self) -> &'static str
 pub fn omena_query::OmenaWorkspaceOccurrenceKindV0::as_str(self) -> &'static str
+pub fn omena_query::OmenaWorkspaceOccurrenceKindV0::family(self) -> omena_query::OmenaWorkspaceOccurrenceFamilyV0
 pub fn omena_query::OmenaWorkspaceOccurrenceRoleV0::as_str(self) -> &'static str
 pub fn omena_query::OmenaWorkspaceOccurrenceSurfaceV0::as_str(self) -> &'static str
 pub fn omena_query::OmenaWorkspaceOccurrenceV0::cmp(&self, &Self) -> core::cmp::Ordering
@@ -2249,8 +2250,12 @@ pub omena_query::OmenaWorkspaceOccurrenceKindV0::CustomPropertyDeclaration
 pub omena_query::OmenaWorkspaceOccurrenceKindV0::CustomPropertyReference
 pub omena_query::OmenaWorkspaceOccurrenceKindV0::SassFunctionCall
 pub omena_query::OmenaWorkspaceOccurrenceKindV0::SassFunctionDeclaration
+pub omena_query::OmenaWorkspaceOccurrenceKindV0::SassFunctionReference
 pub omena_query::OmenaWorkspaceOccurrenceKindV0::SassMixinDeclaration
 pub omena_query::OmenaWorkspaceOccurrenceKindV0::SassMixinInclude
+pub omena_query::OmenaWorkspaceOccurrenceKindV0::SassMixinReference
+pub omena_query::OmenaWorkspaceOccurrenceKindV0::SassSymbolDeclaration
+pub omena_query::OmenaWorkspaceOccurrenceKindV0::SassSymbolReference
 pub omena_query::OmenaWorkspaceOccurrenceKindV0::SassVariableDeclaration
 pub omena_query::OmenaWorkspaceOccurrenceKindV0::SassVariableReference
 pub omena_query::OmenaWorkspaceOccurrenceKindV0::SourceSelectorPrefixReference

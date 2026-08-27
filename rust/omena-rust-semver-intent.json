@@ -478,7 +478,11 @@
         {
           "lint": "enum_variant_added",
           "evidenceNeedles": [
-            "variant OmenaQueryClosedWorldBlockerV0:UnsupportedDialectEmissionCycle"
+            "variant OmenaQueryClosedWorldBlockerV0:UnsupportedDialectEmissionCycle",
+            "variant OmenaWorkspaceOccurrenceKindV0:SassMixinReference",
+            "variant OmenaWorkspaceOccurrenceKindV0:SassFunctionReference",
+            "variant OmenaWorkspaceOccurrenceKindV0:SassSymbolDeclaration",
+            "variant OmenaWorkspaceOccurrenceKindV0:SassSymbolReference"
           ]
         },
         {
@@ -541,6 +545,23 @@
               "sourcePath": "rust/crates/omena-query/src/types.rs",
               "needles": [
                 "fn workspace_occurrence_identity_uses_custom_property_keys_without_changing_wire_name()"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "query-sass-occurrence-kind-completeness",
+          "kind": "selection-outcome-changing",
+          "surface": "query and LSP workspace occurrence identity, references, and rename grouping for accepted Sass symbol kinds",
+          "reason": "Every Sass style-symbol kind accepted by the producer now maps without a custom-property fallback, and kind-derived family identity keeps escape-distinct Sass names distinct during ordering and deduplication.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-lsp-server/src/occurrence_mapping.rs",
+              "needles": [
+                "filtered style symbol occurrence kind must be mapped",
+                "style symbol occurrence kind and family must name the same identity domain",
+                "fn sass_mixin_reference_identity_preserves_escape_distinct_authored_names()",
+                "fn every_accepted_sass_candidate_kind_has_a_lossless_occurrence_mapping()"
               ]
             }
           ]
