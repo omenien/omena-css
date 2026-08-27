@@ -779,7 +779,7 @@ if (!generatedMatrixOnly) {
     [...redCases, unlabelledControlCase],
     4,
     ([checker, variable, args]) =>
-      spawnCaptured(process.execPath, [checker, ...args], {
+      spawnCaptured("node", ["--import", "tsx", checker, ...args], {
         cwd: repoRoot,
         env: { ...process.env, [variable]: "1" },
         stdio: ["ignore", "pipe", "pipe"],
@@ -850,8 +850,8 @@ process.stdout.write(
   `${orPatternCompiled ? "ok  " : "FAIL"} generated or-pattern fixture compiles without E0408\n`,
 );
 const generatedResult = spawnSync(
-  process.execPath,
-  [identifierChecker, "--generated-fixture-only"],
+  "node",
+  ["--import", "tsx", identifierChecker, "--generated-fixture-only"],
   {
     cwd: repoRoot,
     encoding: "utf8",
@@ -901,16 +901,20 @@ const generatedMutationCases = [
 ];
 let generatedMutationFailures = 0;
 for (const [variable, receipt] of generatedMutationCases) {
-  const mutation = spawnSync(process.execPath, [identifierChecker, "--generated-fixture-only"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      [variable]: "1",
-      OMENA_IDENTIFIER_AUTHORITY_GENERATED_FIXTURE_MANIFEST: generatedManifestPath,
+  const mutation = spawnSync(
+    "node",
+    ["--import", "tsx", identifierChecker, "--generated-fixture-only"],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        [variable]: "1",
+        OMENA_IDENTIFIER_AUTHORITY_GENERATED_FIXTURE_MANIFEST: generatedManifestPath,
+      },
+      maxBuffer: 16 * 1024 * 1024,
     },
-    maxBuffer: 16 * 1024 * 1024,
-  });
+  );
   const output = `${mutation.stdout ?? ""}\n${mutation.stderr ?? ""}`;
   const passed = mutation.status !== 0 && output.includes(receipt);
   if (!passed) {
@@ -944,7 +948,7 @@ let exactLaunderingWriteAuthorityCount = 0;
 let exactLaunderingRecheckAuthorityCount = 0;
 
 try {
-  const writeAttempt = spawnSync(process.execPath, [identifierChecker, "--write"], {
+  const writeAttempt = spawnSync("node", ["--import", "tsx", identifierChecker, "--write"], {
     cwd: repoRoot,
     encoding: "utf8",
     env: {
@@ -963,7 +967,7 @@ try {
   const censusUnchangedAfterWrite =
     readFileSync(exactLaunderingCensusPath).equals(originalLaunderingCensus);
 
-  const recheck = spawnSync(process.execPath, [identifierChecker], {
+  const recheck = spawnSync("node", ["--import", "tsx", identifierChecker], {
     cwd: repoRoot,
     encoding: "utf8",
     env: {
@@ -1014,15 +1018,19 @@ const escapeLaunderingCases = escapeLaunderingVariables.map((variable, index) =>
   return { variable, censusPath };
 });
 const escapeLaunderingPromise = mapWithConcurrency(escapeLaunderingCases, 3, (testCase) =>
-  spawnCaptured(process.execPath, [identifierChecker, "--write", "--accept-inventory-change"], {
-    cwd: repoRoot,
-    env: {
-      ...process.env,
-      [testCase.variable]: "1",
-      OMENA_IDENTIFIER_AUTHORITY_CENSUS_PATH: testCase.censusPath,
+  spawnCaptured(
+    "node",
+    ["--import", "tsx", identifierChecker, "--write", "--accept-inventory-change"],
+    {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        [testCase.variable]: "1",
+        OMENA_IDENTIFIER_AUTHORITY_CENSUS_PATH: testCase.censusPath,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
     },
-    stdio: ["ignore", "pipe", "pipe"],
-  }),
+  ),
 );
 const escapeLaunderingResults = await escapeLaunderingPromise;
 let escapeLaunderingPassedCount = 0;
