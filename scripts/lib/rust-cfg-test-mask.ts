@@ -1,9 +1,16 @@
 export function maskRustCfgTestItems(source: string): string {
   const structure = rustStructuralSource(source);
   const spans: { readonly start: number; readonly end: number }[] = [];
-  const testAttribute = /#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]/gu;
-  for (const match of structure.matchAll(testAttribute)) {
-    const end = cfgTestItemEnd(structure, match.index + match[0].length);
+  for (const match of structure.matchAll(/#\s*\[\s*cfg\s*\(/gu)) {
+    const openParenthesis = match.index + match[0].lastIndexOf("(");
+    const closeParenthesis = matchingDelimiter(structure, openParenthesis, "(", ")");
+    if (closeParenthesis === undefined) continue;
+    let attributeEnd = closeParenthesis + 1;
+    while (/\s/u.test(structure[attributeEnd] ?? "")) attributeEnd += 1;
+    if (structure[attributeEnd] !== "]") continue;
+    attributeEnd += 1;
+    if (!/\btest\b/u.test(structure.slice(openParenthesis + 1, closeParenthesis))) continue;
+    const end = cfgTestItemEnd(structure, attributeEnd);
     if (end !== undefined) spans.push({ start: match.index, end });
   }
   if (spans.length === 0) return source;
@@ -15,6 +22,23 @@ export function maskRustCfgTestItems(source: string): string {
     }
   }
   return chars.join("");
+}
+
+function matchingDelimiter(
+  source: string,
+  openOffset: number,
+  open: string,
+  close: string,
+): number | undefined {
+  let depth = 0;
+  for (let index = openOffset; index < source.length; index += 1) {
+    if (source[index] === open) depth += 1;
+    else if (source[index] === close) {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  return undefined;
 }
 
 function rustStructuralSource(source: string): string {

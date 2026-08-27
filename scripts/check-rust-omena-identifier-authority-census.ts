@@ -6,6 +6,40 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { maskRustCfgTestItems } from "./lib/rust-cfg-test-mask";
 
+const cfgTestMaskProbe = maskRustCfgTestItems(
+  `#[cfg(any(test, feature = "test-support"))]\nfn compound_test_item() { let _ = ("}", b'{'); }\nfn production_after_cfg() {}`,
+);
+assert.doesNotMatch(
+  cfgTestMaskProbe,
+  /compound_test_item/u,
+  "compound cfg(test) items must be excluded from production authority scans",
+);
+assert.match(
+  cfgTestMaskProbe,
+  /production_after_cfg/u,
+  "a compound cfg(test) item must not mask adjacent production source",
+);
+assert.match(
+  maskRustCfgTestItems("/// #[cfg(test)]\nfn documented_production_item() {}"),
+  /documented_production_item/u,
+  "a cfg(test) spelling inside a doc comment must not mask production source",
+);
+assert.equal(
+  hasDebugFormatSpecifier('"{}", fallible()?'),
+  false,
+  "a try operator in a non-Debug format argument must not become a Debug escape",
+);
+assert.equal(
+  hasDebugFormatSpecifier('"{0:x?}", value'),
+  true,
+  "a positional hexadecimal Debug format specifier must remain an escape",
+);
+assert.deepEqual(
+  debugFormatOperands('r"prefix, {:?}", value'),
+  ["value"],
+  "raw Debug format strings and embedded commas must preserve the positional operand",
+);
+
 type Disposition = "sanctioned" | "named-exempt" | "unclassified";
 type PrimitiveId = "str-eq" | "contains" | "insert" | "map-get" | "cmp";
 type ResidualPropertyProvenance = "p-authored" | "p-canonical" | "p-non-property";
@@ -348,6 +382,9 @@ interface IdentifierAuthorityCensus {
       readonly unresolvedCallEdges: readonly CensusSite[];
       readonly unresolvedCallEdgeCount: number;
       readonly unresolvedCallEdgeDigest: string;
+      readonly unresolvedBindingEdges: readonly CensusSite[];
+      readonly unresolvedBindingEdgeCount: number;
+      readonly unresolvedBindingEdgeDigest: string;
       readonly carrierAudit: readonly AuthoredIdentityCarrierAudit[];
       readonly carrierAuditDigest: string;
       readonly identityDeriveViolationCount: 0;
@@ -454,15 +491,31 @@ const injectRawSelectorDefinitionSort =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_RAW_SELECTOR_DEFINITION_SORT === "1";
 const injectRawTransformNodeSort =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_RAW_TRANSFORM_NODE_SORT === "1";
+const injectInlineEscapeIdentities =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_INLINE_ESCAPE_IDENTITIES === "1";
+const injectPatternEscapeIdentities =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PATTERN_ESCAPE_IDENTITIES === "1";
+const injectNestedEscapeIdentities =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_NESTED_ESCAPE_IDENTITIES === "1";
+const injectMultilineDebugEscapeIdentity =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_MULTILINE_DEBUG_ESCAPE_IDENTITY === "1";
+const injectEscapeAliasAndCallIdentities =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_ESCAPE_ALIAS_AND_CALL_IDENTITIES === "1";
+const injectUnresolvedWriteIntoSink =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNRESOLVED_WRITE_INTO_SINK === "1";
 const generatedFixtureManifestPath =
   process.env.OMENA_IDENTIFIER_AUTHORITY_GENERATED_FIXTURE_MANIFEST;
 const generatedFixtureOnly = process.argv.includes("--generated-fixture-only");
-const injectGeneratedForLoopResolverDeletion =
-  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_FOR_LOOP_RESOLVER === "1";
-const injectGeneratedArgumentReturnEdgeDeletion =
-  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_ARGUMENT_RETURN_EDGE === "1";
+const injectGeneratedForLoopDetectorDeletion =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_PAIRED_DETECTOR_FOR_LOOP_ARM === "1";
+const injectGeneratedArgumentReturnDetectorDeletion =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_PAIRED_DETECTOR_ARGUMENT_RETURN_ARM === "1";
 const injectGeneratedEntryPointIdDeletion =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_ENTRY_POINT_ID === "1";
+const injectUnregisteredSerdeFrontend =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNREGISTERED_SERDE_FRONTEND === "1";
+const injectZeroBranchGateRegistryDeletion =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_ZERO_BRANCH_GATE_REGISTRY_ENTRY === "1";
 
 const authoredOriginAxis = [
   "field-access",
@@ -707,6 +760,12 @@ if (generatedFixtureOnly) {
   validateGeneratedFixtureManifest(generatedFixtureManifest);
   process.exit(0);
 }
+
+assert.deepEqual(
+  derivedEscapeAxisFromWorkspaceManifests(),
+  authoredEscapeAxis,
+  "serialization entry point has no escape id or the escape grammar shrank",
+);
 
 const sourceRoots = ["rust/crates"] as const;
 const authorityInventoryDecreaseReviews = [
@@ -1202,6 +1261,7 @@ const authoredEscapeIdentityViolations = authoredEscapeClosureAudit.identityFlow
   (flow) => !flow.sanctioned,
 );
 assertReferenceSanctionedEscapeSites(authoredEscapeClosureAudit.escapeSites);
+assertInjectedEscapeProbeOutcomes(authoredEscapeClosureAudit);
 process.stderr.write(`authoredEscapeSiteCount=${authoredEscapeClosureAudit.escapeSites.length}\n`);
 process.stderr.write(
   `authoredEscapeIdentityFlowCount=${authoredEscapeClosureAudit.identityFlows.length}\n`,
@@ -1228,6 +1288,7 @@ assert.equal(
 const unresolvedWriteIntoSites = authoredEscapeClosureAudit.writeIntoSites.filter(
   (site) => site.sinkClass === "unresolved",
 );
+process.stderr.write(`unresolvedWriteIntoSiteCount=${unresolvedWriteIntoSites.length}\n`);
 assert.deepEqual(
   unresolvedWriteIntoSites,
   [],
@@ -1280,6 +1341,21 @@ for (const row of residualCarrierConsumerRows.filter(
   );
 }
 const residualCarrierConsumerSites = residualCarrierConsumerRows.flatMap((row) => row.consumers);
+const egressZeroBranchSurfaces = [
+  { surface: "omena facts --json", evidenceGate: "rust/omena-cli-json-output-census" },
+  {
+    surface: "style-hover-candidates",
+    evidenceGate: "rust/omena-lsp-server/style-provider-parity",
+  },
+  { surface: "N-API JSON fixtures", evidenceGate: "contract/parity-v2-golden" },
+  { surface: "WASM JSON fixtures", evidenceGate: "contract/parity-v2-golden" },
+  { surface: "omena CLI text", evidenceGate: "rust/omena-cli-json-output-census" },
+  {
+    surface: "LSP wire payloads",
+    evidenceGate: "rust/omena-lsp-server/style-provider-parity",
+  },
+] as const;
+assertZeroBranchEvidenceGatesRegistered(egressZeroBranchSurfaces);
 const residualIdentityShapedConsumerCount = residualCarrierConsumerRows
   .filter((row) =>
     ["entry-parameter", "static-standard-literal"].includes(row.carrier.residualClass ?? ""),
@@ -1428,14 +1504,18 @@ if (existing && writeMode) {
   }
   const previousEscapeClosure = existing.propertyIdentity.authoredEscapeClosure;
   if (previousEscapeClosure) {
-    const sanctionedIdentityCount = authoredEscapeClosureAudit.identityFlows.filter(
-      (flow) => flow.sanctioned,
-    ).length;
-    assert.ok(
-      previousEscapeClosure.sanctionedIdentityCount === sanctionedIdentityCount ||
-        acceptInventoryChange,
-      "sanctioned escape inventory changed; rerun only after review with --accept-inventory-change",
-    );
+    if ("unresolvedBindingEdgeCount" in previousEscapeClosure) {
+      assert.ok(
+        authoredEscapeClosureAudit.unresolvedCallEdges.length <=
+          previousEscapeClosure.unresolvedCallEdgeCount,
+        `unresolved call-edge count increased: previous=${previousEscapeClosure.unresolvedCallEdgeCount} current=${authoredEscapeClosureAudit.unresolvedCallEdges.length}`,
+      );
+      assert.ok(
+        authoredEscapeClosureAudit.unresolvedBindingEdges.length <=
+          previousEscapeClosure.unresolvedBindingEdgeCount,
+        `unresolved binding-edge count increased: previous=${previousEscapeClosure.unresolvedBindingEdgeCount} current=${authoredEscapeClosureAudit.unresolvedBindingEdges.length}`,
+      );
+    }
     assert.ok(
       JSON.stringify(previousEscapeClosure.externalLeafTypes) ===
         JSON.stringify(externalLeafTypes) || acceptInventoryChange,
@@ -1445,6 +1525,42 @@ if (existing && writeMode) {
       digest(previousEscapeClosure.writeIntoSites) ===
         digest(authoredEscapeClosureAudit.writeIntoSites) || acceptInventoryChange,
       "write_into site inventory changed; rerun only after review with --accept-inventory-change",
+    );
+    const escapeSiteAdditions = addedAuthoredEscapeSites(
+      previousEscapeClosure.escapeSites,
+      authoredEscapeClosureAudit.escapeSites,
+    );
+    assert.ok(
+      escapeSiteAdditions.length === 0 || acceptInventoryChange,
+      `authored escape inventory gained ${escapeSiteAdditions.length} site(s); review each site and rerun with --accept-inventory-change`,
+    );
+    if (escapeSiteAdditions.length > 0) {
+      assert.deepEqual(
+        escapeSiteAdditions.filter((site) => site.disposition === "identity-violation"),
+        [],
+        "--accept-inventory-change cannot adopt an authored escape identity violation",
+      );
+      for (const site of escapeSiteAdditions) {
+        process.stderr.write(
+          `acceptedAuthoredEscapeSite=${JSON.stringify({
+            path: site.path,
+            line: site.line,
+            function: site.function,
+            escapeId: site.escapeId,
+            disposition: site.disposition,
+            operandDerivation: site.operandDerivation,
+            evidence: site.evidence,
+          })}\n`,
+        );
+      }
+    }
+    const sanctionedIdentityCount = authoredEscapeClosureAudit.identityFlows.filter(
+      (flow) => flow.sanctioned,
+    ).length;
+    assert.ok(
+      previousEscapeClosure.sanctionedIdentityCount === sanctionedIdentityCount ||
+        acceptInventoryChange,
+      "sanctioned escape inventory changed; rerun only after review with --accept-inventory-change",
     );
   }
   if (existing.propertyIdentity.residualRawCarrierSites) {
@@ -1461,6 +1577,48 @@ if (existing && writeMode) {
     );
   }
 }
+
+function authoredEscapeInventoryKey(site: AuthoredEscapeSite): string {
+  return [site.path, site.function, site.escapeId, site.evidence].join("\0");
+}
+
+function addedAuthoredEscapeSites(
+  previous: readonly AuthoredEscapeSite[],
+  current: readonly AuthoredEscapeSite[],
+): readonly AuthoredEscapeSite[] {
+  const availableCounts = new Map<string, number>();
+  for (const site of previous) {
+    const key = authoredEscapeInventoryKey(site);
+    availableCounts.set(key, (availableCounts.get(key) ?? 0) + 1);
+  }
+  return current.filter((site) => {
+    const key = authoredEscapeInventoryKey(site);
+    const available = availableCounts.get(key) ?? 0;
+    if (available === 0) return true;
+    availableCounts.set(key, available - 1);
+    return false;
+  });
+}
+
+const escapeInventoryMultiplicityProbe = {
+  path: "probe.rs",
+  line: 1,
+  function: "probe",
+  escapeId: "debug-format-spec",
+  evidence: 'format!("{property:?}")',
+  operandClasses: ["non-property"],
+  operandDerivation: "property=>non-property",
+  disposition: "presentation",
+  resultBindings: [],
+} as const satisfies AuthoredEscapeSite;
+assert.equal(
+  addedAuthoredEscapeSites(
+    [escapeInventoryMultiplicityProbe],
+    [escapeInventoryMultiplicityProbe, { ...escapeInventoryMultiplicityProbe, line: 2 }],
+  ).length,
+  1,
+  "authored escape inventory must count duplicate semantic sites instead of collapsing a set key",
+);
 
 const census: IdentifierAuthorityCensus = {
   schemaVersion: "0",
@@ -1574,32 +1732,7 @@ const census: IdentifierAuthorityCensus = {
       derivation: "final-head-byte-differential",
       orderBranchSurfaces: [],
       valueBranchSurfaces: [],
-      zeroBranchSurfaces: [
-        {
-          surface: "omena facts --json",
-          evidenceGate: "rust/omena-cli-json-output-census",
-        },
-        {
-          surface: "style-hover-candidates",
-          evidenceGate: "rust/omena-lsp-server/style-provider-parity",
-        },
-        {
-          surface: "N-API JSON fixtures",
-          evidenceGate: "contract/parity-v2-golden",
-        },
-        {
-          surface: "WASM JSON fixtures",
-          evidenceGate: "contract/parity-v2-golden",
-        },
-        {
-          surface: "omena CLI text",
-          evidenceGate: "rust/omena-cli-json-output-census",
-        },
-        {
-          surface: "LSP wire payloads",
-          evidenceGate: "rust/omena-lsp-server/style-provider-parity",
-        },
-      ],
+      zeroBranchSurfaces: egressZeroBranchSurfaces,
     },
     authoredEscapeClosure: {
       derivation: "manifest-entry-points-plus-rust-dataflow-fixpoint",
@@ -1647,10 +1780,16 @@ const census: IdentifierAuthorityCensus = {
       unresolvedCallEdges: authoredEscapeClosureAudit.unresolvedCallEdges,
       unresolvedCallEdgeCount: authoredEscapeClosureAudit.unresolvedCallEdges.length,
       unresolvedCallEdgeDigest: digest(authoredEscapeClosureAudit.unresolvedCallEdges),
+      unresolvedBindingEdges: authoredEscapeClosureAudit.unresolvedBindingEdges,
+      unresolvedBindingEdgeCount: authoredEscapeClosureAudit.unresolvedBindingEdges.length,
+      unresolvedBindingEdgeDigest: digest(authoredEscapeClosureAudit.unresolvedBindingEdges),
       carrierAudit: authoredEscapeClosureAudit.carrierAudit,
       carrierAuditDigest: digest(authoredEscapeClosureAudit.carrierAudit),
       identityDeriveViolationCount: 0,
-      cannotSee: authoredEscapeCannotSee(authoredEscapeClosureAudit.unresolvedCallEdges.length),
+      cannotSee: authoredEscapeCannotSee(
+        authoredEscapeClosureAudit.unresolvedCallEdges.length,
+        authoredEscapeClosureAudit.unresolvedBindingEdges.length,
+      ),
     },
   },
 };
@@ -3171,6 +3310,19 @@ function rustStructFieldTypes(
       }
       structures.set(structure[1], fields);
     }
+    for (const structure of scannable.matchAll(
+      /\bstruct\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^;]*)\)\s*;/gu,
+    )) {
+      const fields = structures.get(structure[1]) ?? new Map<string, string>();
+      for (const [index, segment] of topLevelSegments(structure[2], ",").entries()) {
+        const rustType = segment.text.trim().replace(/^pub(?:\([^)]*\))?\s+/u, "");
+        if (rustType) fields.set(`tuple_${index}`, normalizeRustType(rustType, aliases));
+      }
+      structures.set(structure[1], fields);
+    }
+    for (const alias of scannable.matchAll(/\btype\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([^;]+);/gu)) {
+      structures.set(alias[1], new Map([["alias_target", normalizeRustType(alias[2], aliases)]]));
+    }
     for (const enumeration of scannable.matchAll(/\benum\s+([A-Za-z_][A-Za-z0-9_]*)[^;{]*\{/gu)) {
       const openBrace = enumeration.index + enumeration[0].lastIndexOf("{");
       const closeBrace = matchingBrace(scannable, openBrace);
@@ -4323,11 +4475,31 @@ function derivedEscapeAxisFromWorkspaceManifests(): readonly AuthoredEscapeId[] 
     0,
     `failed to enumerate Rust manifests: ${(manifestResult.stderr ?? "").trim()}`,
   );
-  const manifestText = manifestResult.stdout
+  let manifestText = manifestResult.stdout
     .split(/\r?\n/u)
     .filter(Boolean)
     .map((relativePath) => readFileSync(path.join(repoRoot, relativePath), "utf8"))
     .join("\n");
+  if (injectUnregisteredSerdeFrontend) manifestText += '\nserde_future = "1"\n';
+  const registeredSerdeFrontends = new Set([
+    "serde",
+    "serde-wasm-bindgen",
+    "serde_ignored",
+    "serde_json",
+    "serde_yaml_ng",
+  ]);
+  const discoveredSerdeFrontends = [
+    ...new Set(
+      [...manifestText.matchAll(/^\s*(serde[A-Za-z0-9_-]*)\s*(?:=|\.)/gmu)].map(
+        (match) => match[1],
+      ),
+    ),
+  ].toSorted();
+  assert.deepEqual(
+    discoveredSerdeFrontends.filter((name) => !registeredSerdeFrontends.has(name)),
+    [],
+    "serde front-end dependency is not registered as an escape family or a named non-egress helper",
+  );
   const available = new Set<AuthoredEscapeId>([
     "write-into-call",
     "write-into-ufcs",
@@ -4453,7 +4625,7 @@ function detectGeneratedOrigin(scannable: string): AuthoredOriginId | undefined 
   if (/\blet\s*\(\s*authored\s*,\s*_\s*\)/u.test(scannable)) return "tuple-destructuring";
   if (/\btuple_carrier\s*\.\s*0\b/u.test(scannable)) return "tuple-field-access";
   if (/\bfor\s+carrier\s+in\s+carriers\b/u.test(scannable))
-    return injectGeneratedForLoopResolverDeletion ? undefined : "for-loop-binding";
+    return injectGeneratedForLoopDetectorDeletion ? undefined : "for-loop-binding";
   if (/\bwhile\s+let\s+Some\s*\(\s*carrier\s*\)/u.test(scannable)) return "while-let-binding";
   if (/(?:^|[;{}])\s*let\s+Some\s*\(\s*carrier\s*\)\s*=.*\belse\b/su.test(scannable))
     return "let-else-binding";
@@ -4462,7 +4634,12 @@ function detectGeneratedOrigin(scannable: string): AuthoredOriginId | undefined 
   if (/\bif\s+let\s+Some\s*\(\s*carrier\s*\)/u.test(scannable)) return "if-let-binding";
   if (/\bmatch\s+carriers\s*\.\s*first\s*\(\s*\)/u.test(scannable)) return "match-arm-binding";
   if (/\bauthored_carrier\s*@\s*_/u.test(scannable)) return "at-binding";
-  if (/Some\s*\(\s*bound\s*\)\s*\|\s*None/u.test(scannable)) return "or-pattern-binding";
+  if (
+    /\(\s*Some\s*\(\s*bound\s*\)\s*,\s*_\s*\)\s*\|\s*\(\s*_\s*,\s*Some\s*\(\s*bound\s*\)\s*\)/u.test(
+      scannable,
+    )
+  )
+    return "or-pattern-binding";
   if (/\{\s*property\s*:\s*authored\s*\}\s*=\s*carrier/u.test(scannable))
     return "struct-destructuring";
   if (/\[\s*first\s*,\s*\.\.\s*\]\s*=>/u.test(scannable)) return "slice-pattern";
@@ -4548,7 +4725,8 @@ function detectGeneratedComparison(scannable: string): AuthoredComparisonId | un
     ["sort", /\.\s*sort\s*\(/u],
   ];
   for (const [id, pattern] of orderedPatterns) {
-    if (id === "argument-position-compare" && injectGeneratedArgumentReturnEdgeDeletion) continue;
+    if (id === "argument-position-compare" && injectGeneratedArgumentReturnDetectorDeletion)
+      continue;
     if (pattern.test(scannable)) return id;
   }
   return undefined;
@@ -4603,6 +4781,7 @@ interface AuthoredEscapeClosureAuditResult {
   readonly identityFlows: readonly AuthoredEscapeIdentityFlow[];
   readonly writeIntoSites: readonly WriteIntoSinkSite[];
   readonly unresolvedCallEdges: readonly CensusSite[];
+  readonly unresolvedBindingEdges: readonly CensusSite[];
   readonly carrierAudit: readonly AuthoredIdentityCarrierAudit[];
   readonly identityDeriveViolationCount: number;
   readonly identityDeriveViolations: readonly string[];
@@ -4624,6 +4803,7 @@ interface EscapeOccurrenceDraft {
 
 interface EscapeFunctionRecord {
   readonly crateName: string;
+  readonly implType?: string;
   readonly path: string;
   readonly source: string;
   readonly functionName: string;
@@ -4639,6 +4819,7 @@ interface FunctionTaintResult {
   readonly bindingSources: ReadonlyMap<string, ReadonlySet<number>>;
   readonly returnSources: ReadonlySet<number>;
   readonly unresolvedEdges: readonly CensusSite[];
+  readonly shadowedBindings: ReadonlySet<string>;
 }
 
 function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult {
@@ -4682,6 +4863,7 @@ function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult 
       occurrenceDrafts.push(...occurrences);
       records.push({
         crateName: relativePath.split("/")[2] ?? "<unknown-crate>",
+        implType: enclosingImplType(source, functionSlice.bodyStart, aliases),
         path: relativePath,
         source,
         functionName: functionSlice.name,
@@ -4697,7 +4879,7 @@ function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult 
 
   const definitionCounts = new Map<string, number>();
   for (const record of records) {
-    const key = `${record.crateName}\0${record.functionName}`;
+    const key = escapeCallableKey(record.crateName, record.functionName, record.implType);
     definitionCounts.set(key, (definitionCounts.get(key) ?? 0) + 1);
   }
   const returnSummaries = new Map<string, ReadonlySet<number>>();
@@ -4708,9 +4890,14 @@ function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult 
     for (const record of records) {
       const taint = computeFunctionTaint(record, returnSummaries, definitionCounts);
       nextTaint.set(record, taint);
-      const key = `${record.crateName}\0${record.functionName}`;
+      const key = escapeCallableKey(record.crateName, record.functionName, record.implType);
       const prior = returnSummaries.get(key) ?? new Set<number>();
-      const merged = new Set([...prior, ...taint.returnSources]);
+      const returnedType = escapeFunctionReturnType(record.signature);
+      const returnedSources =
+        returnedType && /\b(?:String|str|Value)\b/u.test(returnedType)
+          ? taint.returnSources
+          : new Set<number>();
+      const merged = new Set([...prior, ...returnedSources]);
       if (merged.size !== prior.size) {
         returnSummaries.set(key, merged);
         changed = true;
@@ -4720,9 +4907,9 @@ function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult 
     if (!changed) break;
     assert.ok(pass < records.length, "escape taint fixpoint exceeded the finite function set");
   }
-
   const flows: AuthoredEscapeIdentityFlow[] = [];
   const flowSourceIndexes = new Set<number>();
+  const unresolvedBindingEdges: CensusSite[] = [];
   for (const record of records) {
     const taint = taintByFunction.get(record);
     if (!taint) continue;
@@ -4734,10 +4921,11 @@ function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult 
           ...taintedSourcesForText(
             statement.text,
             taint.bindingSources,
-            record.crateName,
+            record,
             returnSummaries,
             definitionCounts,
             record.occurrences,
+            taint.shadowedBindings,
           ),
         ].filter((index) => {
           const sourceSite = occurrenceDrafts[index];
@@ -4749,12 +4937,53 @@ function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult 
           );
         }),
       );
+      const shadowedBindingsInStatement = [...taint.shadowedBindings].filter(
+        (binding) =>
+          (taint.bindingSources.get(binding)?.size ?? 0) > 0 &&
+          new RegExp(`\\b${escapeRegExp(binding)}\\b`, "u").test(statement.text),
+      );
+      if (shadowedBindingsInStatement.length > 0) {
+        const unfilteredIndexes = taintedSourcesForText(
+          statement.text,
+          taint.bindingSources,
+          record,
+          returnSummaries,
+          definitionCounts,
+          record.occurrences,
+        );
+        const unfilteredSites = [...unfilteredIndexes]
+          .map((index) => occurrenceDrafts[index])
+          .filter((site): site is EscapeOccurrenceDraft => site !== undefined);
+        const unresolvedComparison = productionComparisonId(
+          statement.text,
+          taint.bindingSources,
+          unfilteredSites.filter((site) => statement.text.includes(site.matchedText)),
+          resolvedTaintedCallTexts(statement.text, record, definitionCounts, returnSummaries),
+        );
+        if (unresolvedComparison) {
+          unresolvedBindingEdges.push({
+            path: record.path,
+            line: flowLine,
+            function: record.functionName,
+            operation: "unresolved-shadowed-binding",
+            evidence: `${shadowedBindingsInStatement.join(",")} in ${statement.text.trim().replace(/\s+/gu, " ").slice(0, 160)}`,
+            disposition: "named-exempt",
+            reason:
+              "The text flow engine cannot assign a reused Rust binding spelling to one lexical scope; this identity-shaped use is not scored as a definite flow.",
+          });
+        }
+      }
       if (sourceIndexes.size === 0) continue;
-      const comparisonId = productionComparisonId(statement.text, taint.bindingSources);
-      if (!comparisonId) continue;
       const sourceSites = [...sourceIndexes]
         .map((index) => occurrenceDrafts[index])
         .filter((site): site is EscapeOccurrenceDraft => site !== undefined);
+      const comparisonId = productionComparisonId(
+        statement.text,
+        taint.bindingSources,
+        sourceSites.filter((site) => statement.text.includes(site.matchedText)),
+        resolvedTaintedCallTexts(statement.text, record, definitionCounts, returnSummaries),
+      );
+      if (!comparisonId) continue;
       const sanctioned = sourceSites.every(
         (site) => !site.operandClasses.includes("authored-bearing"),
       );
@@ -4818,7 +5047,7 @@ function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult 
       assert.ok(record, `write_into record missing for ${site.path}:${site.functionName}`);
       const taint = taintByFunction.get(record);
       assert.ok(taint, `write_into taint summary missing for ${site.path}:${site.functionName}`);
-      const sinkClass = classifyWriteIntoSink(site, taint, flowSourceIndexes);
+      const sinkClass = classifyWriteIntoSink(site, record, taint, flowSourceIndexes);
       return {
         path: site.path,
         line: site.line,
@@ -4837,12 +5066,14 @@ function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult 
     disposition: "named-exempt" as const,
     reason: "Text-only resolver cannot prove this tainted argument-to-return edge intra-crate.",
   }));
+  const uniqueUnresolvedBindingEdges = uniqueSites(unresolvedBindingEdges);
   const carrierResult = discoverAuthoredIdentityCarrierAudit(sources, structFields);
   return {
     escapeSites: escapeSites.toSorted(authoredEscapeSiteOrder),
     identityFlows: flows.toSorted(authoredEscapeFlowOrder),
     writeIntoSites: writeIntoSites.toSorted(writeIntoSiteOrder),
     unresolvedCallEdges,
+    unresolvedBindingEdges: uniqueUnresolvedBindingEdges,
     carrierAudit: carrierResult.audit,
     identityDeriveViolationCount: carrierResult.deriveViolationCount,
     identityDeriveViolations: carrierResult.deriveViolations,
@@ -4953,6 +5184,152 @@ function applyAuthoredEscapeProbeMutations(sources: MutableRustSource[]): void {
       "transform node sort mutation target",
     );
   }
+  if (injectInlineEscapeIdentities) {
+    appendTrackedSourceMutation(
+      sources,
+      [
+        'fn injected_inline_escape_equality(left: &omena_syntax::ident::AuthoredPropertyTextV0, right: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { format!("{left:?}") == format!("{right:?}") }',
+        'fn injected_inline_escape_sort(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { let mut values = vec![property]; values.sort_by_key(|value| format!("{value:?}")); true }',
+        'fn injected_inline_escape_map(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { let mut values = std::collections::BTreeMap::new(); values.insert(format!("{property:?}"), 1_u8); true }',
+        "fn injected_inline_escape_contains(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { let values = std::collections::BTreeSet::<String>::new(); values.contains(&serde_json::to_string(property).unwrap()) }",
+        'fn injected_inline_escape_matches(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { matches!(serde_json::to_string(property).unwrap().as_str(), "--probe") }',
+      ].join("\n"),
+      targetPath,
+    );
+  }
+  if (injectPatternEscapeIdentities) {
+    appendTrackedSourceMutation(
+      sources,
+      [
+        'fn injected_tuple_escape_binding(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { let (value, _) = (serde_json::to_string(property).unwrap(), 0_u8); value == "--probe" }',
+        'fn injected_struct_escape_binding(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { struct Pair { value: String } let Pair { value } = Pair { value: serde_json::to_string(property).unwrap() }; value == "--probe" }',
+        'fn injected_match_escape_binding(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { match Some(serde_json::to_string(property).unwrap()) { Some(value) => value == "--probe", None => false } }',
+        'fn injected_let_else_escape_binding(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { let Some(value) = Some(serde_json::to_string(property).unwrap()) else { return false; }; value == "--probe" }',
+        'fn injected_if_let_escape_binding(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { if let Some(value) = Some(serde_json::to_string(property).unwrap()) { value == "--probe" } else { false } }',
+        'fn injected_slice_escape_binding(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { let [value] = [serde_json::to_string(property).unwrap()]; value == "--probe" }',
+      ].join("\n"),
+      targetPath,
+    );
+  }
+  if (injectNestedEscapeIdentities) {
+    appendTrackedSourceMutation(
+      sources,
+      [
+        'fn injected_for_block_escape_identity(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool {\n  for _ in 0..1 {\n    let value = serde_json::to_string(property).unwrap();\n    if value == "--probe" { return true; }\n  }\n  false\n}',
+        'fn injected_if_let_block_escape_identity(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool {\n  if let Some(property) = Some(property) {\n    let value = serde_json::to_string(property).unwrap();\n    value == "--probe"\n  } else { false }\n}',
+        'fn injected_match_block_escape_identity(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool {\n  match Some(property) {\n    Some(property) => {\n      let value = serde_json::to_string(property).unwrap();\n      value == "--probe"\n    },\n    None => false,\n  }\n}',
+        'fn injected_bare_block_escape_identity(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool {\n  {\n    let value = serde_json::to_string(property).unwrap();\n    value == "--probe"\n  }\n}',
+      ].join("\n"),
+      targetPath,
+    );
+  }
+  if (injectMultilineDebugEscapeIdentity) {
+    replaceTrackedSourceMutation(
+      sources,
+      "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+      "let candidate_property_key = candidate.property.to_property_name().canonical_key();\n        let scenario_witness_id = format!(",
+      "let candidate_property_key = &candidate.property;\n        let scenario_witness_id = format!(",
+      "multiline debug escape identity mutation target",
+    );
+  }
+  if (injectEscapeAliasAndCallIdentities) {
+    appendTrackedSourceMutation(
+      sources,
+      [
+        "use serde_json::{to_string as encode_authored};",
+        "use serde_json as json_codec;",
+        'fn injected_braced_alias_escape_identity(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { let value = encode_authored(property).unwrap(); value == "--probe" }',
+        'fn injected_module_alias_escape_identity(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { let value = json_codec::to_string(property).unwrap(); value == "--probe" }',
+        "fn injected_escape_return(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> String { serde_json::to_string(property).unwrap() }",
+        'fn injected_qualified_escape_return_identity(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { self::injected_escape_return(property) == "--probe" }',
+        "struct InjectedEscapeMethod;",
+        "impl InjectedEscapeMethod { fn render(&self, property: &omena_syntax::ident::AuthoredPropertyTextV0) -> String { serde_json::to_string(property).unwrap() } }",
+        'fn injected_method_escape_return_identity(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { InjectedEscapeMethod.render(property) == "--probe" }',
+        "fn injected_escape_collect_identity(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { let _values = [property].into_iter().map(|value| serde_json::to_string(value).unwrap()).collect::<std::collections::BTreeSet<_>>(); true }",
+      ].join("\n"),
+      targetPath,
+    );
+  }
+  if (injectUnresolvedWriteIntoSink) {
+    appendTrackedSourceMutation(
+      sources,
+      "fn injected_unresolved_write_into_sink(property: &omena_syntax::ident::AuthoredPropertyTextV0, opaque: impl Fn(String)) { let mut output = String::new(); property.write_into(&mut output).unwrap(); opaque(output); }",
+      targetPath,
+    );
+  }
+}
+
+function assertInjectedEscapeProbeOutcomes(audit: AuthoredEscapeClosureAuditResult): void {
+  const requireViolatingFunctions = (enabled: boolean, names: readonly string[], label: string) => {
+    if (!enabled) return;
+    const violatingFunctions = new Set(
+      audit.identityFlows.filter((flow) => !flow.sanctioned).map((flow) => flow.function),
+    );
+    assert.deepEqual(
+      names.filter((name) => !violatingFunctions.has(name)),
+      [],
+      `${label} counterexamples must reach a production escape-flow identity sink`,
+    );
+  };
+  requireViolatingFunctions(
+    injectInlineEscapeIdentities,
+    [
+      "injected_inline_escape_equality",
+      "injected_inline_escape_sort",
+      "injected_inline_escape_map",
+      "injected_inline_escape_contains",
+      "injected_inline_escape_matches",
+    ],
+    "inline escape",
+  );
+  requireViolatingFunctions(
+    injectPatternEscapeIdentities,
+    [
+      "injected_tuple_escape_binding",
+      "injected_struct_escape_binding",
+      "injected_match_escape_binding",
+      "injected_let_else_escape_binding",
+      "injected_if_let_escape_binding",
+      "injected_slice_escape_binding",
+    ],
+    "pattern escape",
+  );
+  requireViolatingFunctions(
+    injectNestedEscapeIdentities,
+    [
+      "injected_for_block_escape_identity",
+      "injected_if_let_block_escape_identity",
+      "injected_match_block_escape_identity",
+      "injected_bare_block_escape_identity",
+    ],
+    "nested escape",
+  );
+  requireViolatingFunctions(
+    injectMultilineDebugEscapeIdentity,
+    ["guarded_candidate_seeds_for_pair"],
+    "multiline debug escape",
+  );
+  requireViolatingFunctions(
+    injectEscapeAliasAndCallIdentities,
+    [
+      "injected_braced_alias_escape_identity",
+      "injected_module_alias_escape_identity",
+      "injected_qualified_escape_return_identity",
+      "injected_method_escape_return_identity",
+      "injected_escape_collect_identity",
+    ],
+    "alias and call escape",
+  );
+  if (injectUnresolvedWriteIntoSink) {
+    assert.ok(
+      audit.writeIntoSites.some(
+        (site) =>
+          site.function === "injected_unresolved_write_into_sink" &&
+          site.sinkClass === "unresolved",
+      ),
+      "unrecognized write_into consumers must fail closed as unresolved",
+    );
+  }
 }
 
 function replaceTrackedSourceMutation(
@@ -4976,7 +5353,47 @@ function rustEscapeAliases(source: string): ReadonlyMap<string, AuthoredEscapeId
     const id = escapeIdForQualifiedPath(match[1]);
     if (id) aliases.set(match[2], "aliased-escape-path");
   }
+  for (const group of source.matchAll(
+    /\buse\s+(serde_json|serde_yaml_ng|toml|serde_wasm_bindgen)\s*::\s*\{([^}]+)\}\s*;/gu,
+  )) {
+    for (const item of group[2].split(",")) {
+      const parsed = item
+        .trim()
+        .match(/^([A-Za-z_][A-Za-z0-9_]*)(?:\s+as\s+([A-Za-z_][A-Za-z0-9_]*))?$/u);
+      if (!parsed) continue;
+      const qualifiedPath = `${group[1]}::${parsed[1]}`;
+      if (escapeIdForQualifiedPath(qualifiedPath)) {
+        aliases.set(parsed[2] ?? parsed[1], "aliased-escape-path");
+      }
+    }
+  }
+  for (const moduleAlias of source.matchAll(
+    /\buse\s+(serde_json|serde_yaml_ng|toml|serde_wasm_bindgen)\s+as\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/gu,
+  )) {
+    for (const qualifiedPath of escapeQualifiedPathsForModule(moduleAlias[1])) {
+      const member = qualifiedPath.slice(moduleAlias[1].length + 2);
+      aliases.set(`${moduleAlias[2]}::${member}`, "aliased-escape-path");
+    }
+  }
   return aliases;
+}
+
+function escapeQualifiedPathsForModule(moduleName: string): readonly string[] {
+  return [
+    "serde_json::to_string",
+    "serde_json::to_string_pretty",
+    "serde_json::to_vec",
+    "serde_json::to_vec_pretty",
+    "serde_json::to_writer",
+    "serde_json::to_writer_pretty",
+    "serde_json::to_value",
+    "serde_yaml_ng::to_string",
+    "serde_yaml_ng::to_writer",
+    "serde_yaml_ng::to_value",
+    "toml::to_string",
+    "toml::to_string_pretty",
+    "serde_wasm_bindgen::to_value",
+  ].filter((qualifiedPath) => qualifiedPath.startsWith(`${moduleName}::`));
 }
 
 function escapeIdForQualifiedPath(qualifiedPath: string): AuthoredEscapeId | undefined {
@@ -5057,6 +5474,12 @@ function inferredEscapeBindings(
     /\btoml\s*::\s*from_str\s*::\s*<\s*([^>]+)\s*>[\s\S]*?\.and_then\s*\(\s*\|\s*([A-Za-z_][A-Za-z0-9_]*)\s*\|/gu,
   )) {
     bindings.set(closure[2], normalizeRustType(closure[1], aliases));
+  }
+  for (const closure of functionSlice.scannable.matchAll(
+    /\b([A-Za-z_][A-Za-z0-9_]*)\s*\.\s*sort_by(?:_cached)?_key\s*\(\s*\|\s*([A-Za-z_][A-Za-z0-9_]*)\s*\|/gu,
+  )) {
+    const receiverType = bindings.get(closure[1]);
+    if (receiverType) bindings.set(closure[2], receiverType);
   }
   return bindings;
 }
@@ -5254,18 +5677,28 @@ function escapeCandidatesInBody(
     /\bdebug\s*=\s*\?\s*([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)/gu,
     (match) => [match[1]],
   );
-  for (const match of body.matchAll(/\bformat(?:_args)?\s*!\s*\(([^;\n]*\?[^;\n]*)\)/gu)) {
-    const evidence = match[1];
+  const debugScannable = maskCommentsStringsAndTestItems(body, false);
+  const debugMacroPattern = /\b(format(?:_args)?)\s*!\s*\(/gu;
+  for (const match of body.matchAll(debugMacroPattern)) {
+    const openParen = match.index + match[0].lastIndexOf("(");
+    const closeParen = matchingDelimiter(debugScannable, openParen, "(", ")");
+    if (closeParen === undefined) continue;
+    const evidence = body.slice(openParen + 1, closeParen);
+    if (!hasDebugFormatSpecifier(evidence)) continue;
     const operands = debugFormatOperands(evidence);
     candidates.push({
       offset: match.index,
-      escapeId: match[0].startsWith("format_args") ? "format-args-debug" : "debug-format-spec",
-      matchedText: match[0],
+      escapeId: match[1] === "format_args" ? "format-args-debug" : "debug-format-spec",
+      matchedText: body.slice(match.index, closeParen + 1),
       operands,
     });
+    debugMacroPattern.lastIndex = closeParen + 1;
   }
   for (const [alias] of useAliases) {
-    const pattern = new RegExp(`\\b${escapeRegExp(alias)}\\s*\\(\\s*&?\\s*([^,)]+)`, "gu");
+    const pattern = new RegExp(
+      `\\b${escapeRegExp(alias).replaceAll("\\ ", "\\s*")}\\s*\\(\\s*&?\\s*([^,)]+)`,
+      "gu",
+    );
     addMatches("aliased-escape-path", pattern, (match) => [match[1]]);
   }
   if (
@@ -5302,7 +5735,11 @@ function escapeOccurrencesInFunction(
   const candidates = escapeCandidatesInBody(body, useAliases, functionSlice);
   return candidates.map((candidate, localIndex) => {
     const statement = rustStatementAt(body, candidate.offset);
-    const resultBindings = resultBindingsForEscape(statement.text, candidate.sinkBinding);
+    const resultBindings = resultBindingsForEscape(
+      statement.text,
+      candidate.sinkBinding,
+      candidate.matchedText,
+    );
     const operandClasses = candidate.operands.map((operand) =>
       classifyAuthoredEscapeOperand(operand, bindings, structFields),
     );
@@ -5330,12 +5767,15 @@ function escapeOccurrencesInFunction(
 function debugFormatOperands(formatArguments: string): readonly string[] {
   const operands = new Set<string>();
   for (const interpolation of formatArguments.matchAll(
-    /\{\s*([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)?\s*:[^}]*\?[^}]*\}/gu,
+    /\{\s*((?:[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*|\d+))?\s*:[^}]*\?[^}]*\}/gu,
   )) {
-    if (interpolation[1]) operands.add(interpolation[1]);
+    if (interpolation[1] && !/^\d+$/u.test(interpolation[1])) operands.add(interpolation[1]);
   }
-  const afterLiteral = formatArguments.replace(/^\s*"(?:[^"\\]|\\.)*"\s*,?/u, "");
-  for (const argument of afterLiteral.split(",")) {
+  const structuralArguments = maskCommentsStringsAndTestItems(formatArguments, false);
+  const positionalArguments = topLevelSegments(structuralArguments, ",")
+    .slice(1)
+    .map((segment) => formatArguments.slice(segment.offset, segment.offset + segment.text.length));
+  for (const argument of positionalArguments) {
     const candidate = argument
       .trim()
       .replace(/^&/u, "")
@@ -5344,6 +5784,12 @@ function debugFormatOperands(formatArguments: string): readonly string[] {
   }
   if (operands.size === 0) operands.add("<unresolved-debug-operand>");
   return [...operands];
+}
+
+function hasDebugFormatSpecifier(formatArguments: string): boolean {
+  return /\{\s*(?:(?:[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*|\d+))?\s*:[^}]*\?[^}]*\}/u.test(
+    formatArguments,
+  );
 }
 
 function classifyAuthoredEscapeOperand(
@@ -5409,12 +5855,68 @@ function classifyAuthoredEscapeType(
 function resultBindingsForEscape(
   statement: string,
   sinkBinding: string | undefined,
+  matchedText: string,
 ): readonly string[] {
   const bindings = new Set<string>();
-  const assigned = statement.match(/\blet\s+(?:mut\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/u)?.[1];
-  if (assigned && assigned !== "_") bindings.add(assigned);
+  const occurrenceOffset = statement.indexOf(matchedText);
+  for (const assigned of statement.matchAll(
+    /\blet\s+([^=;{}]+?)\s*=|\b(?:if|while)\s+let\s+([^=;{}]+?)\s*=/gu,
+  )) {
+    if (occurrenceOffset < assigned.index + assigned[0].length) continue;
+    for (const binding of rustPatternBindings(assigned[1] ?? assigned[2])) bindings.add(binding);
+  }
+  const matchExpression = statement.match(/\bmatch\s+[\s\S]*?\{/u);
+  if (
+    matchExpression &&
+    occurrenceOffset >= 0 &&
+    occurrenceOffset < (matchExpression.index ?? 0) + matchExpression[0].length
+  ) {
+    for (const arm of statement
+      .slice((matchExpression.index ?? 0) + matchExpression[0].length)
+      .matchAll(/(?:^|[,{}])\s*([^,{}]+?)\s*(?:if\s+[^=]+)?=>/gu)) {
+      for (const binding of rustPatternBindings(arm[1])) bindings.add(binding);
+    }
+  }
   if (sinkBinding) bindings.add(sinkBinding);
   return [...bindings];
+}
+
+interface RustTaintBindingAssignment {
+  readonly bindings: readonly string[];
+  readonly expression: string;
+}
+
+function rustTaintBindingAssignments(body: string): readonly RustTaintBindingAssignment[] {
+  const assignments: RustTaintBindingAssignment[] = [];
+  const add = (pattern: string, expression: string): void => {
+    const bindings = rustPatternBindings(pattern);
+    if (bindings.length > 0) assignments.push({ bindings, expression });
+  };
+  for (const binding of body.matchAll(
+    /\blet\s+((?:[A-Z][A-Za-z0-9_]*\s*)?\{[^}]+\})\s*=\s*([^;]+);/gu,
+  )) {
+    add(binding[1], binding[2]);
+  }
+  for (const binding of body.matchAll(/\blet\s+([^=;{}]+?)\s*=\s*([^;]+);/gu)) {
+    add(binding[1], binding[2]);
+  }
+  for (const binding of body.matchAll(/\b(?:if|while)\s+let\s+([^=]+?)\s*=\s*([^{}]+)\{/gu)) {
+    add(binding[1], binding[2]);
+  }
+  for (const binding of body.matchAll(/\bfor\s+([^{}]+?)\s+in\s+([^{}]+)\{/gu)) {
+    add(binding[1], binding[2]);
+  }
+  const scannable = maskCommentsStringsAndTestItems(body, false);
+  for (const matched of scannable.matchAll(/\bmatch\s+([^{}]+)\{/gu)) {
+    const openBrace = matched.index + matched[0].lastIndexOf("{");
+    const closeBrace = matchingBrace(scannable, openBrace);
+    if (closeBrace === undefined) continue;
+    const matchBody = body.slice(openBrace + 1, closeBrace);
+    for (const arm of matchBody.matchAll(/(?:^|[,{}])\s*([^,{}]+?)\s*(?:if\s+[^=]+)?=>/gu)) {
+      add(arm[1], matched[1]);
+    }
+  }
+  return assignments;
 }
 
 function computeFunctionTaint(
@@ -5424,6 +5926,16 @@ function computeFunctionTaint(
 ): FunctionTaintResult {
   const bindings = new Map<string, Set<number>>();
   const unresolvedEdges: CensusSite[] = [];
+  const assignments = rustTaintBindingAssignments(record.body);
+  const assignmentCounts = new Map<string, number>();
+  for (const assignment of assignments) {
+    for (const binding of assignment.bindings) {
+      assignmentCounts.set(binding, (assignmentCounts.get(binding) ?? 0) + 1);
+    }
+  }
+  const shadowedBindings = new Set(
+    [...assignmentCounts].filter(([, count]) => count > 1).map(([binding]) => binding),
+  );
   for (const occurrence of record.occurrences) {
     for (const binding of occurrence.resultBindings) {
       const sources = bindings.get(binding) ?? new Set<number>();
@@ -5431,41 +5943,48 @@ function computeFunctionTaint(
       bindings.set(binding, sources);
     }
   }
-  for (let pass = 0; pass <= bindings.size + 8; pass += 1) {
+  for (let pass = 0; pass <= bindings.size + assignments.length + 8; pass += 1) {
     let changed = false;
-    for (const binding of record.body.matchAll(
-      /\blet\s+(?:mut\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([^;]+);/gu,
-    )) {
-      if (binding[1] === "_") continue;
-      const sources = sealedAuthorityExpression(binding[2])
+    for (const assignment of assignments) {
+      const sources = sealedAuthorityExpression(assignment.expression)
         ? new Set<number>()
         : taintedSourcesForText(
-            binding[2],
+            assignment.expression,
             bindings,
-            record.crateName,
+            record,
             returnSummaries,
             definitionCounts,
             record.occurrences,
           );
-      const prior = bindings.get(binding[1]) ?? new Set<number>();
-      const merged = new Set([...prior, ...sources]);
-      if (merged.size !== prior.size) {
-        bindings.set(binding[1], merged);
-        changed = true;
+      for (const binding of assignment.bindings) {
+        const prior = bindings.get(binding) ?? new Set<number>();
+        const merged = new Set([...prior, ...sources]);
+        if (merged.size !== prior.size) {
+          bindings.set(binding, merged);
+          changed = true;
+        }
       }
-      for (const call of unresolvedTaintedCalls(binding[2], bindings, record, definitionCounts)) {
+      for (const call of unresolvedTaintedCalls(
+        assignment.expression,
+        bindings,
+        record,
+        definitionCounts,
+      )) {
         unresolvedEdges.push(call);
       }
     }
     if (!changed) break;
-    assert.ok(pass < bindings.size + 8, `local taint did not converge in ${record.functionName}`);
+    assert.ok(
+      pass < bindings.size + assignments.length + 8,
+      `local taint did not converge in ${record.functionName}`,
+    );
   }
   const returnSources = new Set<number>();
   for (const returned of record.body.matchAll(/\breturn\s+([^;]+);/gu)) {
     for (const source of taintedSourcesForText(
       returned[1],
       bindings,
-      record.crateName,
+      record,
       returnSummaries,
       definitionCounts,
       record.occurrences,
@@ -5476,13 +5995,13 @@ function computeFunctionTaint(
   for (const source of taintedSourcesForText(
     tail,
     bindings,
-    record.crateName,
+    record,
     returnSummaries,
     definitionCounts,
     record.occurrences,
   ))
     returnSources.add(source);
-  return { bindingSources: bindings, returnSources, unresolvedEdges };
+  return { bindingSources: bindings, returnSources, unresolvedEdges, shadowedBindings };
 }
 
 function sealedAuthorityExpression(expression: string): boolean {
@@ -5498,26 +6017,91 @@ function sealedAuthorityExpression(expression: string): boolean {
 function taintedSourcesForText(
   text: string,
   bindingSources: ReadonlyMap<string, ReadonlySet<number>>,
-  crateName: string,
+  record: EscapeFunctionRecord,
   returnSummaries: ReadonlyMap<string, ReadonlySet<number>>,
   definitionCounts: ReadonlyMap<string, number>,
   localOccurrences: readonly EscapeOccurrenceDraft[],
+  excludedBindings: ReadonlySet<string> = new Set(),
 ): ReadonlySet<number> {
   const sources = new Set<number>();
   for (const occurrence of localOccurrences) {
-    if (text.includes(occurrence.matchedText)) sources.add(occurrence.siteIndex);
+    if (
+      text.includes(occurrence.matchedText) &&
+      !escapeInsideNonValueClosure(text, occurrence.matchedText)
+    )
+      sources.add(occurrence.siteIndex);
   }
   for (const [binding, bindingTaint] of bindingSources) {
+    if (excludedBindings.has(binding)) continue;
     if (new RegExp(`\\b${escapeRegExp(binding)}\\b`, "u").test(text)) {
       for (const source of bindingTaint) sources.add(source);
     }
   }
-  for (const call of text.matchAll(/(?<![.:])\b([A-Za-z_][A-Za-z0-9_]*)\s*\(/gu)) {
-    const key = `${crateName}\0${call[1]}`;
+  for (const key of resolvedEscapeCallKeys(text, record, definitionCounts)) {
     if (definitionCounts.get(key) !== 1) continue;
     for (const source of returnSummaries.get(key) ?? []) sources.add(source);
   }
   return sources;
+}
+
+function escapeInsideNonValueClosure(text: string, matchedText: string): boolean {
+  const occurrenceOffset = text.indexOf(matchedText);
+  if (occurrenceOffset < 0) return false;
+  const scannable = maskCommentsStringsAndTestItems(text, false);
+  const precedingArm = scannable.lastIndexOf("=>", occurrenceOffset);
+  if (
+    precedingArm >= 0 &&
+    /\b(?:return|break|continue)\b/u.test(scannable.slice(precedingArm + 2, occurrenceOffset))
+  )
+    return true;
+  for (const closure of scannable.matchAll(/\.(?:ok_or_else|map_err)\s*\(/gu)) {
+    const openParenthesis = closure.index + closure[0].lastIndexOf("(");
+    const closeParenthesis = matchingDelimiter(scannable, openParenthesis, "(", ")");
+    if (
+      closeParenthesis !== undefined &&
+      occurrenceOffset > openParenthesis &&
+      occurrenceOffset < closeParenthesis
+    )
+      return true;
+  }
+  return false;
+}
+
+function escapeCallableKey(crateName: string, name: string, implType?: string): string {
+  return `${crateName}\0${implType ? `method:${implType}` : "free"}\0${name}`;
+}
+
+function resolvedEscapeCallKeys(
+  text: string,
+  record: EscapeFunctionRecord,
+  definitionCounts: ReadonlyMap<string, number>,
+): readonly string[] {
+  const keys = new Set<string>();
+  const reserved = new Set(["if", "while", "for", "match", "Some", "None", "Ok", "Err"]);
+  for (const call of text.matchAll(
+    /(?<!\.)\b((?:[A-Za-z_][A-Za-z0-9_]*\s*::\s*)*)([A-Za-z_][A-Za-z0-9_]*)\s*\(/gu,
+  )) {
+    if (reserved.has(call[2])) continue;
+    const pathSegments = call[1]
+      .split("::")
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+    const associatedType = pathSegments.findLast((segment) => /^[A-Z]/u.test(segment));
+    const associatedKey = associatedType
+      ? escapeCallableKey(record.crateName, call[2], associatedType)
+      : undefined;
+    if (associatedKey && definitionCounts.has(associatedKey)) keys.add(associatedKey);
+    else keys.add(escapeCallableKey(record.crateName, call[2]));
+  }
+  for (const method of text.matchAll(
+    /\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/gu,
+  )) {
+    const root = method[1].split(".")[0];
+    const receiverType = /^[A-Z]/u.test(root) ? root : record.bindings.get(root);
+    if (!receiverType) continue;
+    keys.add(escapeCallableKey(record.crateName, method[2], receiverType));
+  }
+  return [...keys];
 }
 
 function unresolvedTaintedCalls(
@@ -5527,12 +6111,20 @@ function unresolvedTaintedCalls(
   definitionCounts: ReadonlyMap<string, number>,
 ): readonly CensusSite[] {
   const sites: CensusSite[] = [];
-  for (const call of text.matchAll(/(?<![.:])\b([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)/gu)) {
-    const key = `${record.crateName}\0${call[1]}`;
+  for (const call of text.matchAll(
+    /\b((?:[A-Za-z_][A-Za-z0-9_]*\s*::\s*)*)([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)/gu,
+  )) {
+    const pathSegments = call[1]
+      .split("::")
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+    const associatedType = pathSegments.findLast((segment) => /^[A-Z]/u.test(segment));
+    const key = escapeCallableKey(record.crateName, call[2], associatedType);
     if (definitionCounts.get(key) === 1) continue;
+    if (!definitionCounts.has(key)) continue;
     const receivesTaint = [...bindingSources].some(
       ([binding, sources]) =>
-        sources.size > 0 && new RegExp(`\\b${escapeRegExp(binding)}\\b`, "u").test(call[2]),
+        sources.size > 0 && new RegExp(`\\b${escapeRegExp(binding)}\\b`, "u").test(call[3]),
     );
     if (!receivesTaint) continue;
     const offset = record.body.indexOf(call[0]);
@@ -5552,23 +6144,17 @@ function unresolvedTaintedCalls(
 interface RustStatementSlice {
   readonly text: string;
   readonly start: number;
+  readonly end: number;
 }
 
 function rustStatementSlices(body: string): readonly RustStatementSlice[] {
   const statements: RustStatementSlice[] = [];
   const scannable = maskCommentsStringsAndTestItems(body, false);
   let start = 0;
-  let braceDepth = 0;
   let bracketDepth = 0;
   let parenthesisDepth = 0;
   for (let index = 0; index < body.length; index += 1) {
     switch (scannable[index]) {
-      case "{":
-        braceDepth += 1;
-        break;
-      case "}":
-        braceDepth -= 1;
-        break;
       case "[":
         bracketDepth += 1;
         break;
@@ -5584,32 +6170,45 @@ function rustStatementSlices(body: string): readonly RustStatementSlice[] {
     }
     if (
       (scannable[index] !== ";" && scannable[index] !== "\n") ||
-      braceDepth !== 0 ||
       bracketDepth !== 0 ||
       parenthesisDepth !== 0
     )
       continue;
-    const text = body.slice(start, index + 1).trim();
-    if (text) statements.push({ text, start });
+    const raw = body.slice(start, index + 1);
+    const leading = raw.length - raw.trimStart().length;
+    const text = raw.trim();
+    if (text) statements.push({ text, start: start + leading, end: index + 1 });
     start = index + 1;
   }
-  const tail = body.slice(start).trim();
-  if (tail) statements.push({ text: tail, start });
+  const rawTail = body.slice(start);
+  const tail = rawTail.trim();
+  if (tail)
+    statements.push({
+      text: tail,
+      start: start + rawTail.length - rawTail.trimStart().length,
+      end: body.length,
+    });
   return statements;
 }
 
 function rustStatementAt(body: string, offset: number): RustStatementSlice {
+  const statement = rustStatementSlices(body).find(
+    (candidate) => candidate.start <= offset && offset < candidate.end,
+  );
+  if (statement) return statement;
   const beforeSemicolon = body.lastIndexOf(";", offset - 1);
   const beforeNewline = body.lastIndexOf("\n", offset - 1);
   const start = Math.max(beforeSemicolon, beforeNewline) + 1;
   const afterSemicolon = body.indexOf(";", offset);
   const end = afterSemicolon < 0 ? body.length : afterSemicolon + 1;
-  return { text: body.slice(start, end), start };
+  return { text: body.slice(start, end), start, end };
 }
 
 function productionComparisonId(
   text: string,
   bindingSources: ReadonlyMap<string, ReadonlySet<number>>,
+  inlineEscapes: readonly EscapeOccurrenceDraft[] = [],
+  taintedCalls: readonly string[] = [],
 ): AuthoredComparisonId | undefined {
   if (sealedAuthorityExpression(text)) return undefined;
   if (
@@ -5627,33 +6226,130 @@ function productionComparisonId(
     .filter(([, sources]) => sources.size > 0)
     .map(([binding]) => binding);
   if (
+    inlineEscapes.length === 0 &&
+    taintedCalls.length === 0 &&
     !taintedBindings.some((binding) => new RegExp(`\\b${escapeRegExp(binding)}\\b`, "u").test(text))
   )
     return undefined;
   let normalized = text;
   for (const binding of taintedBindings)
     normalized = normalized.replaceAll(new RegExp(`\\b${escapeRegExp(binding)}\\b`, "gu"), "value");
+  for (const escape of inlineEscapes)
+    normalized = normalized.replaceAll(escape.matchedText, "value");
+  for (const call of taintedCalls) normalized = normalized.replaceAll(call, "value");
   const generated = detectGeneratedComparison(normalized);
+  if (
+    generated &&
+    [
+      "map-insert",
+      "map-get",
+      "map-entry",
+      "map-contains-key",
+      "map-remove",
+      "set-insert",
+      "set-get",
+      "set-contains",
+      "set-remove",
+    ].includes(generated) &&
+    !identityCallFirstArgumentContainsValue(normalized)
+  )
+    return undefined;
   if (generated) return generated;
-  if (/\.(?:insert|entry)\s*\([^)]*\bvalue\b/u.test(normalized)) return "map-insert";
-  if (/\.(?:get|contains_key|contains|remove)\s*\([^)]*\bvalue\b/u.test(normalized))
+  if (
+    /\.(?:insert|entry)\s*\([^)]*\bvalue\b/u.test(normalized) &&
+    identityCallFirstArgumentContainsValue(normalized)
+  )
+    return "map-insert";
+  if (
+    /\.(?:get|contains_key|contains|remove)\s*\([^)]*\bvalue\b/u.test(normalized) &&
+    identityCallFirstArgumentContainsValue(normalized)
+  )
     return "map-get";
   if (
     /\bmatch\s+value\s*\.\s*as_str\s*\(\s*\)\s*\{[\s\S]*?"(?:[^"\\]|\\.)*"\s*=>/u.test(normalized)
   )
     return "match-literal";
+  if (
+    /\.collect\s*::\s*<[^;]*(?:BTreeSet|BTreeMap|HashSet|HashMap)[^;]*>\s*\(\s*\)/u.test(
+      normalized,
+    ) &&
+    /\bvalue\b/u.test(normalized)
+  )
+    return "map-to-string-collect-sort";
   return undefined;
+}
+
+function resolvedTaintedCallTexts(
+  text: string,
+  record: EscapeFunctionRecord,
+  definitionCounts: ReadonlyMap<string, number>,
+  returnSummaries: ReadonlyMap<string, ReadonlySet<number>>,
+): readonly string[] {
+  const calls = new Set<string>();
+  const consider = (call: string): void => {
+    if (
+      resolvedEscapeCallKeys(call, record, definitionCounts).some(
+        (key) => (returnSummaries.get(key)?.size ?? 0) > 0,
+      )
+    )
+      calls.add(call);
+  };
+  for (const call of text.matchAll(
+    /(?<!\.)\b(?:[A-Za-z_][A-Za-z0-9_]*\s*::\s*)*[A-Za-z_][A-Za-z0-9_]*\s*\([^()]*\)/gu,
+  )) {
+    consider(call[0]);
+  }
+  for (const call of text.matchAll(
+    /\b[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+\s*\([^()]*\)/gu,
+  )) {
+    consider(call[0]);
+  }
+  return [...calls];
+}
+
+function identityCallFirstArgumentContainsValue(text: string): boolean {
+  const scannable = maskCommentsStringsAndTestItems(text, true);
+  for (const call of scannable.matchAll(
+    /\.(?:insert|get|entry|contains_key|contains|remove)\s*\(/gu,
+  )) {
+    const openParenthesis = call.index + call[0].lastIndexOf("(");
+    const closeParenthesis = matchingDelimiter(scannable, openParenthesis, "(", ")");
+    if (closeParenthesis === undefined) continue;
+    const firstArgument = topLevelSegments(
+      text.slice(openParenthesis + 1, closeParenthesis),
+      ",",
+    )[0]?.text;
+    if (firstArgument && /\bvalue\b/u.test(firstArgument)) return true;
+  }
+  return false;
 }
 
 function classifyWriteIntoSink(
   site: EscapeOccurrenceDraft & { readonly sinkBinding: string },
+  record: EscapeFunctionRecord,
   taint: FunctionTaintResult,
   identitySources: ReadonlySet<number>,
 ): WriteIntoSinkClass {
   const binding = site.sinkBinding;
   if (/^(?:f|fmt|formatter)$/u.test(binding)) return "formatter";
-  if (taint.returnSources.has(site.siteIndex)) return "returned-to-emitter";
   if (identitySources.has(site.siteIndex)) return "unresolved";
+  const callableParameters = new Set<string>();
+  for (const parameter of record.signature.matchAll(
+    /\b([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(?:impl\s+)?Fn(?:Once|Mut)?\b/gu,
+  )) {
+    callableParameters.add(parameter[1]);
+  }
+  const occurrenceOffset = record.body.indexOf(site.matchedText);
+  const remainder = record.body.slice(Math.max(occurrenceOffset + site.matchedText.length, 0));
+  for (const callable of callableParameters) {
+    const invocation = new RegExp(
+      `\\b${escapeRegExp(callable)}\\s*\\([^)]*\\b${escapeRegExp(binding)}\\b`,
+      "u",
+    );
+    if (invocation.test(remainder)) return "unresolved";
+  }
+  if (taint.returnSources.has(site.siteIndex)) return "returned-to-emitter";
+  if (!new RegExp(`\\b${escapeRegExp(binding)}\\b`, "u").test(remainder)) return "unresolved";
   return "emitter-output";
 }
 
@@ -5678,6 +6374,9 @@ function discoverAuthoredIdentityCarrierAudit(
       )
       .map(([typeName]) => typeName),
   );
+  for (const typeName of escapePopulatedStringCarrierTypes(sources, structFields)) {
+    directAuthoredTypes.add(typeName);
+  }
   const impls = new Map<string, Set<string>>();
   const paths = new Map<string, Set<string>>();
   let deriveViolationCount = 0;
@@ -5771,6 +6470,100 @@ function discoverAuthoredIdentityCarrierAudit(
     "manual authored-carrier identity implementations require one named discriminating test per carrier",
   );
   return { audit, deriveViolationCount, deriveViolations: deriveViolations.toSorted() };
+}
+
+function escapePopulatedStringCarrierTypes(
+  sources: readonly MutableRustSource[],
+  structFields: ReadonlyMap<string, ReadonlyMap<string, string>>,
+): ReadonlySet<string> {
+  const carriers = new Set<string>();
+  const functions: {
+    readonly source: string;
+    readonly slice: RustFunctionSlice;
+    readonly body: string;
+    readonly useAliases: ReadonlyMap<string, AuthoredEscapeId>;
+  }[] = [];
+  for (const { source } of sources) {
+    const scannable = maskCommentsStringsAndTestItems(source, false);
+    const useAliases = rustEscapeAliases(source);
+    for (const slice of rustFunctionSlices(scannable)) {
+      functions.push({
+        source,
+        slice,
+        body: source.slice(slice.bodyStart, slice.bodyEnd),
+        useAliases,
+      });
+    }
+  }
+  const namedStringCarrier = (typeName: string): boolean =>
+    structFields.get(typeName)?.get("name") === "String";
+  for (const { slice, body, useAliases } of functions) {
+    const sinkBindings = new Set(
+      escapeCandidatesInBody(body, useAliases, slice)
+        .map((candidate) => candidate.sinkBinding)
+        .filter((binding): binding is string => binding !== undefined),
+    );
+    if (sinkBindings.size === 0) continue;
+    for (const literal of rustStructLiterals(body)) {
+      if (!namedStringCarrier(literal.typeName)) continue;
+      if (
+        [...sinkBindings].some((binding) =>
+          new RegExp(
+            `(?:^|,)\\s*name\\s*(?::\\s*${escapeRegExp(binding)}(?:\\s*\\.\\s*clone\\s*\\(\\s*\\))?)?\\s*(?=,|$)`,
+            "u",
+          ).test(literal.fields),
+        )
+      )
+        carriers.add(literal.typeName);
+    }
+  }
+  for (let pass = 0; pass <= structFields.size; pass += 1) {
+    let changed = false;
+    for (const { slice, body } of functions) {
+      const carrierBindings = new Set<string>();
+      for (const typeName of carriers) {
+        const pattern = new RegExp(
+          `\\b([A-Za-z_][A-Za-z0-9_]*)\\s*:\\s*&?(?:mut\\s+)?(?:[A-Za-z_][A-Za-z0-9_]*\\s*::\\s*)*${escapeRegExp(typeName)}\\b`,
+          "gu",
+        );
+        for (const parameter of slice.signature.matchAll(pattern))
+          carrierBindings.add(parameter[1]);
+      }
+      if (carrierBindings.size === 0) continue;
+      for (const literal of rustStructLiterals(body)) {
+        if (carriers.has(literal.typeName) || !namedStringCarrier(literal.typeName)) continue;
+        const populated = [...carrierBindings].some((binding) =>
+          new RegExp(
+            `(?:^|,)\\s*name\\s*:\\s*${escapeRegExp(binding)}\\s*\\.\\s*name(?:\\s*\\.\\s*clone\\s*\\(\\s*\\))?\\s*(?=,|$)`,
+            "u",
+          ).test(literal.fields),
+        );
+        if (!populated) continue;
+        carriers.add(literal.typeName);
+        changed = true;
+      }
+    }
+    if (!changed) break;
+    assert.ok(pass < structFields.size, "escape-populated carrier closure did not converge");
+  }
+  return carriers;
+}
+
+function rustStructLiterals(body: string): readonly { typeName: string; fields: string }[] {
+  const literals: { typeName: string; fields: string }[] = [];
+  const scannable = maskCommentsStringsAndTestItems(body, false);
+  for (const candidate of scannable.matchAll(
+    /\b(?:[A-Za-z_][A-Za-z0-9_]*\s*::\s*)*([A-Z][A-Za-z0-9_]*)\s*\{/gu,
+  )) {
+    const openBrace = candidate.index + candidate[0].lastIndexOf("{");
+    const closeBrace = matchingBrace(scannable, openBrace);
+    if (closeBrace === undefined) continue;
+    literals.push({
+      typeName: candidate[1],
+      fields: body.slice(openBrace + 1, closeBrace),
+    });
+  }
+  return literals;
 }
 
 function carrierTestNameStems(typeName: string): readonly string[] {
@@ -6789,7 +7582,30 @@ function sourceNeedleLocation(relativePath: string, needle: string): string {
   return `${relativePath}:${lineNumberAt(source, offset)}`;
 }
 
-function authoredEscapeCannotSee(unresolvedCallEdgeCount: number): readonly string[] {
+function assertZeroBranchEvidenceGatesRegistered(
+  surfaces: readonly { readonly surface: string; readonly evidenceGate: string }[],
+): void {
+  const registrySource = readFileSync(
+    path.join(repoRoot, "packages/check-orchestrator/CHECKS.md"),
+    "utf8",
+  );
+  const registeredGateIds = new Set(
+    [...registrySource.matchAll(/^\|\s*`([^`]+)`\s*\|/gmu)].map((match) => match[1]),
+  );
+  if (injectZeroBranchGateRegistryDeletion) {
+    registeredGateIds.delete(surfaces[0]?.evidenceGate ?? "");
+  }
+  assert.deepEqual(
+    surfaces.filter((row) => !registeredGateIds.has(row.evidenceGate)),
+    [],
+    "zero-branch evidence gate is absent from the generated check registry",
+  );
+}
+
+function authoredEscapeCannotSee(
+  unresolvedCallEdgeCount: number,
+  unresolvedBindingEdgeCount: number,
+): readonly string[] {
   const checkerPath = "scripts/check-rust-omena-identifier-authority-census.ts";
   const scopeAnchor = sourceNeedleLocation(
     checkerPath,
@@ -6818,11 +7634,12 @@ function authoredEscapeCannotSee(unresolvedCallEdgeCount: number): readonly stri
     `${sourceNeedleLocation("rust/crates/omena-benchmarks/Cargo.toml", 'name = "omena-benchmarks"')}: fixture crate omena-benchmarks and repository examples are outside product escape-flow closure.`,
     `${sourceNeedleLocation("rust/crates/omena-syntax/src/ident.rs", "impl ClassNameV0 {")}: the ClassNameV0 raw/into_raw/decoded/same_as identity plane belongs to selector authority and is not property identity.`,
     `${sourceNeedleLocation("rust/crates/omena-syntax/src/ident.rs", "pub fn canonical_name(&self) -> &str {")}: canonical_name()/sealed-key as_str() text comparisons are not escape flows; they are canonical-correct only within a kind, and standard("--foo") collides textually with custom("--foo").`,
-    `${sourceNeedleLocation(checkerPath, "function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult {")}: cross-crate call flow and dyn dispatch are not resolved by the intra-crate text fixpoint.`,
-    `${sourceNeedleLocation(checkerPath, "const definitionCounts = new Map<string, number>();")}: ${unresolvedCallEdgeCount} ambiguous intra-crate call edges remain separately enumerated with file:line; same-name definitions, trait/inherent ambiguity, unknown receivers, and indirect function bindings are tainted by default.`,
+    `${sourceNeedleLocation(checkerPath, "function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult {")}: cross-crate calls, dyn dispatch, unknown method receivers, and indirect function bindings are not resolved by the intra-crate text fixpoint; module-qualified free calls and uniquely typed inherent methods are resolved.`,
+    `${sourceNeedleLocation(checkerPath, "const definitionCounts = new Map<string, number>();")}: ${unresolvedCallEdgeCount} known-but-ambiguous intra-crate call edges remain separately enumerated with file:line and do not contribute return taint.`,
+    `${sourceNeedleLocation(checkerPath, "const shadowedBindings = new Set(")}: ${unresolvedBindingEdgeCount} identity-shaped uses reached only through reused binding spellings remain separately enumerated with file:line; the text engine declines to infer through them because it cannot prove lexical scope.`,
     `${sourceNeedleLocation(checkerPath, "function discoverResidualRawPropertyCarrierSites(")}: key construction whose input was normalized before the authority constructor is visible only when the residual provenance resolver recognizes that normalization; any unrecognized pre-normalization remains outside the claim.`,
     `${sourceNeedleLocation(checkerPath, "function maskCommentsStringsAndTestItems(")}: proc-macro-generated bodies other than serde derives and unsafe transmute are outside the text scanner.`,
-    `${sourceNeedleLocation(checkerPath, 'const generatedFixtureOnly = process.argv.includes("--generated-fixture-only");')}: generated matrix cells are scanner-only and are never compiled.`,
+    `${sourceNeedleLocation(checkerPath, 'const generatedFixtureOnly = process.argv.includes("--generated-fixture-only");')}: generated matrix cells are scanner-only and are never compiled; their ORIGIN scores come from a paired fixture detector, not the production flow fixpoint.`,
     `${scopeAnchor}: non-Rust consumers of Serialize egress in packages/, N-API, and WASM are outside Rust source-flow closure.`,
   ];
 }

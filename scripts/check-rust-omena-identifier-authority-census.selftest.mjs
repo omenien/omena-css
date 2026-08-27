@@ -300,7 +300,7 @@ function originBinding(origin, carrierType) {
     case "at-binding":
       return "let authored_carrier @ _ = carrier; let authored = &authored_carrier.property;";
     case "or-pattern-binding":
-      return "let authored = match Some(carrier) { Some(bound) | None if carriers.is_empty() => &bound.property, _ => property };";
+      return "let authored = match (Some(carrier), Some(carrier)) { (Some(bound), _) | (_, Some(bound)) if carriers.is_empty() => &bound.property, _ => property };";
     case "struct-destructuring":
       return `let ${carrierType} { property: authored } = carrier;`;
     case "tuple-destructuring":
@@ -582,6 +582,18 @@ const redCases = [
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_DERIVED_CARRIER_IDENTITY", []],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_RAW_SELECTOR_DEFINITION_SORT", []],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_RAW_TRANSFORM_NODE_SORT", []],
+  [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_INLINE_ESCAPE_IDENTITIES", []],
+  [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PATTERN_ESCAPE_IDENTITIES", []],
+  [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_NESTED_ESCAPE_IDENTITIES", []],
+  [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_MULTILINE_DEBUG_ESCAPE_IDENTITY", []],
+  [
+    identifierChecker,
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_ESCAPE_ALIAS_AND_CALL_IDENTITIES",
+    [],
+  ],
+  [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNRESOLVED_WRITE_INTO_SINK", []],
+  [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNREGISTERED_SERDE_FRONTEND", []],
+  [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_ZERO_BRANCH_GATE_REGISTRY_ENTRY", []],
 ];
 
 const requiredMutationReceipts = new Map([
@@ -622,7 +634,7 @@ const requiredMutationReceipts = new Map([
   ],
   [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_SANCTIONED_ESCAPE_INVENTORY\0--write",
-    ["sanctioned escape inventory changed"],
+    ["authored escape inventory gained"],
   ],
   [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_DROP_RESIDUAL_EMPTY_BINDING_FORM\0",
@@ -661,6 +673,38 @@ const requiredMutationReceipts = new Map([
   [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_RAW_TRANSFORM_NODE_SORT\0",
     ["authoredEscapeIdentityViolationCount=1", "authored-bearing escape result reached"],
+  ],
+  [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_INLINE_ESCAPE_IDENTITIES\0",
+    ["authoredEscapeIdentityViolationCount=5", "authored-bearing escape result reached"],
+  ],
+  [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PATTERN_ESCAPE_IDENTITIES\0",
+    ["authoredEscapeIdentityViolationCount=6", "authored-bearing escape result reached"],
+  ],
+  [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_NESTED_ESCAPE_IDENTITIES\0",
+    ["authoredEscapeIdentityViolationCount=4", "authored-bearing escape result reached"],
+  ],
+  [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_MULTILINE_DEBUG_ESCAPE_IDENTITY\0",
+    ["authoredEscapeIdentityViolationCount=1", "authored-bearing escape result reached"],
+  ],
+  [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_ESCAPE_ALIAS_AND_CALL_IDENTITIES\0",
+    ["authoredEscapeIdentityViolationCount=5", "authored-bearing escape result reached"],
+  ],
+  [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNRESOLVED_WRITE_INTO_SINK\0",
+    ["unresolvedWriteIntoSiteCount=1", "write_into escape reached an unresolved sink"],
+  ],
+  [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNREGISTERED_SERDE_FRONTEND\0",
+    ["serde front-end dependency is not registered"],
+  ],
+  [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_ZERO_BRANCH_GATE_REGISTRY_ENTRY\0",
+    ["zero-branch evidence gate is absent from the generated check registry"],
   ],
 ]);
 
@@ -770,6 +814,30 @@ const generatedTempRoot = mkdtempSync(path.join(tmpdir(), "omena-identifier-matr
 const generatedManifestPath = path.join(generatedTempRoot, "manifest.json");
 const generatedManifest = generatedMatrixManifest();
 writeFileSync(generatedManifestPath, `${JSON.stringify(generatedManifest)}\n`);
+const orPatternCompile = spawnSync(
+  "rustc",
+  [
+    "--edition=2024",
+    "--crate-type=lib",
+    "-o",
+    path.join(generatedTempRoot, "or-pattern-fixture.rlib"),
+    "-",
+  ],
+  {
+    cwd: repoRoot,
+    encoding: "utf8",
+    input:
+      "fn valid_or_pattern<'a>(carrier: &'a u8, carriers: &[u8], property: &'a u8) -> &'a u8 { match (Some(carrier), Some(carrier)) { (Some(bound), _) | (_, Some(bound)) if carriers.is_empty() => bound, _ => property } }\n",
+  },
+);
+const orPatternCompiled = orPatternCompile.status === 0;
+if (!orPatternCompiled) {
+  failures += 1;
+  process.stderr.write(`${orPatternCompile.stdout ?? ""}${orPatternCompile.stderr ?? ""}`);
+}
+process.stdout.write(
+  `${orPatternCompiled ? "ok  " : "FAIL"} generated or-pattern fixture compiles without E0408\n`,
+);
 const generatedResult = spawnSync(
   "node",
   ["--import", "tsx", identifierChecker, "--generated-fixture-only"],
@@ -794,6 +862,7 @@ const generatedPairFamilyCount = Number(
   generatedOutput.match(/generatedPairFamilies=(\d+)\/6/u)?.[1] ?? "0",
 );
 const generatedPassed =
+  orPatternCompiled &&
   generatedResult.status === 0 &&
   generatedFullProductCount === generatedManifest.fullProductCells.length &&
   generatedEscapeCoveringCount === generatedManifest.escapeCoveringCells.length &&
@@ -803,15 +872,15 @@ if (!generatedPassed) {
   process.stderr.write(generatedOutput);
 }
 process.stdout.write(
-  `${generatedPassed ? "ok  " : "FAIL"} generated authored matrix: ${generatedFullProductCount}/${generatedManifest.fullProductCells.length} full-product cells + ${generatedEscapeCoveringCount}/${generatedManifest.escapeCoveringCells.length} escape covering cells; ${generatedPairFamilyCount}/6 pair families; ${generatedOrigins.length} origins x ${generatedComparisonGrammars.length} comparisons x ${generatedPositions.length} positions; ${generatedEscapeGrammars.length} entry-derived escapes\n`,
+  `${generatedPassed ? "ok  " : "FAIL"} generated paired-detector authored matrix: ${generatedFullProductCount}/${generatedManifest.fullProductCells.length} full-product cells + ${generatedEscapeCoveringCount}/${generatedManifest.escapeCoveringCells.length} escape covering cells; ${generatedPairFamilyCount}/6 pair families; ${generatedOrigins.length} origins x ${generatedComparisonGrammars.length} comparisons x ${generatedPositions.length} positions; ${generatedEscapeGrammars.length} entry-derived escapes\n`,
 );
 const generatedMutationCases = [
   [
-    "OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_FOR_LOOP_RESOLVER",
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_PAIRED_DETECTOR_FOR_LOOP_ARM",
     "generated_property_full_0_8_0: no authored origin arm fired",
   ],
   [
-    "OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_ARGUMENT_RETURN_EDGE",
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_PAIRED_DETECTOR_ARGUMENT_RETURN_ARM",
     "generated_property_full_0_0_49: no comparison arm fired",
   ],
   [
@@ -926,6 +995,57 @@ process.stdout.write(
   `${exactLaunderingPassed ? "ok  " : "FAIL"} exact laundering: eq_ignore_ascii_case; authority ${baselineAuthorityCount}->${exactLaunderingWriteAuthorityCount}; --write ${exactLaunderingWriteCount > 0 ? "RED" : "MISS"} raw=${exactLaunderingWriteCount}; recheck ${exactLaunderingRecheckCount > 0 ? "RED" : "MISS"} raw=${exactLaunderingRecheckCount}; census unchanged; in-memory mutation\n`,
 );
 
+const escapeLaunderingVariables = [
+  "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_INLINE_ESCAPE_IDENTITIES",
+  "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_NESTED_ESCAPE_IDENTITIES",
+  "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_MULTILINE_DEBUG_ESCAPE_IDENTITY",
+];
+const escapeLaunderingTempRoot = mkdtempSync(path.join(tmpdir(), "omena-escape-laundering-"));
+const escapeLaunderingCases = escapeLaunderingVariables.map((variable, index) => {
+  const censusPath = path.join(escapeLaunderingTempRoot, `census-${index}.json`);
+  writeFileSync(censusPath, originalLaunderingCensus);
+  return { variable, censusPath };
+});
+const escapeLaunderingResults = await mapWithConcurrency(escapeLaunderingCases, 3, (testCase) =>
+  spawnCaptured(
+    "node",
+    ["--import", "tsx", identifierChecker, "--write", "--accept-inventory-change"],
+    {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        [testCase.variable]: "1",
+        OMENA_IDENTIFIER_AUTHORITY_CENSUS_PATH: testCase.censusPath,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  ),
+);
+let escapeLaunderingPassedCount = 0;
+for (const [index, result] of escapeLaunderingResults.entries()) {
+  const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+  const violationCount = Number(
+    output.match(/authoredEscapeIdentityViolationCount=(\d+)/u)?.[1] ?? "0",
+  );
+  const passed =
+    result.status !== 0 &&
+    violationCount > 0 &&
+    output.includes("authored-bearing escape result reached");
+  if (passed) escapeLaunderingPassedCount += 1;
+  else process.stderr.write(`${escapeLaunderingCases[index].variable}\n${output}`);
+}
+const escapeLaunderingCensusUnchanged = escapeLaunderingCases.every((testCase) =>
+  readFileSync(testCase.censusPath).equals(originalLaunderingCensus),
+);
+const escapeLaunderingPassed =
+  escapeLaunderingPassedCount === escapeLaunderingVariables.length &&
+  escapeLaunderingCensusUnchanged;
+if (!escapeLaunderingPassed) failures += 1;
+process.stdout.write(
+  `${escapeLaunderingPassed ? "ok  " : "FAIL"} authored escape laundering: ${escapeLaunderingPassedCount}/${escapeLaunderingVariables.length} --write --accept-inventory-change attempts RED; census unchanged\n`,
+);
+rmSync(escapeLaunderingTempRoot, { recursive: true, force: true });
+
 const unlabelled = spawnSync("node", ["--import", "tsx", identifierChecker], {
   cwd: repoRoot,
   encoding: "utf8",
@@ -941,6 +1061,6 @@ process.stdout.write(
 );
 
 process.stdout.write(
-  `\n${redCases.length - redFailures}/${redCases.length} injected RED mutation arms; ${generatedPassed ? `${generatedFullProductCount + generatedEscapeCoveringCount}/${generatedManifest.fullProductCells.length + generatedManifest.escapeCoveringCells.length}` : `0/${generatedManifest.fullProductCells.length + generatedManifest.escapeCoveringCells.length}`} generated matrix cells with 6/6 pair families; ${exactLaunderingPassed ? "1/1" : "0/1"} exact laundering arm; ${blindSpotDisclosed ? "1/1" : "0/1"} disclosed GREEN control arm\n`,
+  `\n${redCases.length - redFailures}/${redCases.length} injected RED mutation arms; ${generatedPassed ? `${generatedFullProductCount + generatedEscapeCoveringCount}/${generatedManifest.fullProductCells.length + generatedManifest.escapeCoveringCells.length}` : `0/${generatedManifest.fullProductCells.length + generatedManifest.escapeCoveringCells.length}`} generated matrix cells with 6/6 pair families; ${exactLaunderingPassed ? "1/1" : "0/1"} exact laundering arm; ${escapeLaunderingPassed ? "3/3" : `${escapeLaunderingPassedCount}/3`} escape laundering arms; ${blindSpotDisclosed ? "1/1" : "0/1"} disclosed GREEN control arm\n`,
 );
 process.exit(failures === 0 ? 0 : 1);
