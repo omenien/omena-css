@@ -768,14 +768,25 @@ async function mapWithConcurrency(items, concurrency, transform) {
 }
 
 let failures = 0;
+let unlabelledControlResult = null;
 if (!generatedMatrixOnly) {
-  const redCaseResults = await mapWithConcurrency(redCases, 5, ([checker, variable, args]) =>
-    spawnCaptured(process.execPath, [checker, ...args], {
-      cwd: repoRoot,
-      env: { ...process.env, [variable]: "1" },
-      stdio: ["ignore", "pipe", "pipe"],
-    }),
+  const unlabelledControlCase = [
+    identifierChecker,
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNLABELLED_COMPARISON",
+    [],
+  ];
+  const executionResults = await mapWithConcurrency(
+    [...redCases, unlabelledControlCase],
+    4,
+    ([checker, variable, args]) =>
+      spawnCaptured(process.execPath, [checker, ...args], {
+        cwd: repoRoot,
+        env: { ...process.env, [variable]: "1" },
+        stdio: ["ignore", "pipe", "pipe"],
+      }),
   );
+  const redCaseResults = executionResults.slice(0, redCases.length);
+  unlabelledControlResult = executionResults.at(-1) ?? null;
   for (const [[, variable, args], result] of redCases.map((redCase, index) => [
     redCase,
     redCaseResults[index],
@@ -1039,15 +1050,7 @@ process.stdout.write(
 );
 rmSync(escapeLaunderingTempRoot, { recursive: true, force: true });
 
-const unlabelled = spawnSync(process.execPath, [identifierChecker], {
-  cwd: repoRoot,
-  encoding: "utf8",
-  env: {
-    ...process.env,
-    OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNLABELLED_COMPARISON: "1",
-  },
-});
-const blindSpotDisclosed = unlabelled.status === 0;
+const blindSpotDisclosed = unlabelledControlResult?.status === 0;
 if (!blindSpotDisclosed) failures += 1;
 process.stdout.write(
   `${blindSpotDisclosed ? "ok  " : "FAIL"} disclosed GREEN control: unlabelled class binding remains outside the idiom arm\n`,
