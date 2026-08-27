@@ -556,6 +556,7 @@ const redCases = [
     ["--write"],
   ],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_RESIDUAL_IDENTITY_CONSUMER", []],
+  [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_DROP_RESIDUAL_EMPTY_BINDING_FORM", []],
   [
     identifierChecker,
     "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_SANCTIONED_ESCAPE_INVENTORY",
@@ -622,6 +623,12 @@ const requiredMutationReceipts = new Map([
   [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_SANCTIONED_ESCAPE_INVENTORY\0--write",
     ["sanctioned escape inventory changed"],
+  ],
+  [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_DROP_RESIDUAL_EMPTY_BINDING_FORM\0",
+    [
+      "consumerless residual carrier binding-form audit must equal the authored origin axis byte-for-byte",
+    ],
   ],
   [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_WRITE_INTO_INVENTORY\0--write",

@@ -8369,7 +8369,7 @@
       "p-canonical": 14,
       "p-non-property": 6
     },
-    "residualCarrierConsumerDerivation": "resolved-type-access-and-parameter-use-scan",
+    "residualCarrierConsumerDerivation": "resolved-type-access-parameter-and-origin-binding-scan",
     "residualCarrierConsumerRows": [
       {
         "carrier": {
@@ -8383,7 +8383,224 @@
           "residualClass": "fixture-crate",
           "disposition": "named-exempt"
         },
-        "consumers": []
+        "consumers": [
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 1722,
+            "function": "collect_parity_names_with_parent",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "classify_declaration_kind(&declaration.property),",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2118,
+            "function": "collect_rule_composes_facts",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "&& classify_declaration_kind(&declaration.property) == DeclarationKind::Composes",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2206,
+            "function": "collect_rule_reference_facts",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "match classify_declaration_kind(&declaration.property) {",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2413,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "property_key: PropertyNameV0::canonical_custom_key(&fact.name),",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2414,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "name: fact.name,",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2429,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": ".map(|branch| branch.name.clone())",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2444,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "|(index, (name, byte_span))| ParserIndexSelectorDefinitionFactV0 {",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2445,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "name,",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2454,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "parent_branches.first().map(|parent| parent.name.clone())",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2512,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "acc.bem_suffix_parent_names.push(parent.name.clone());",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2577,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:egress",
+            "evidence": "} else if let Some((name, _)) = parse_local_value_decl_parts(&at_rule.params) {",
+            "classification": "egress"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2578,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:egress",
+            "evidence": "acc.value_decl_names.push(name.to_string());",
+            "classification": "egress"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2586,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "acc.sass_mixin_decl_names.push(name_span.name.clone());",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2610,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "acc.sass_mixin_include_names.push(name_span.name);",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2618,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "acc.sass_function_decl_names.push(name_span.name.clone());",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2622,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "name: name_span.name,",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2630,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": ".extend(parameter_names.iter().map(|name| SassVariableDeclFact {",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2657,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "if is_css_custom_property_name(&declaration.property) {",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2670,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": ".push(declaration.property.clone());",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2673,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "if let Some(name) = parse_sass_variable_decl_name(&declaration.property) {",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2676,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "end: node.span.start + declaration.property.len(),",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2687,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "name: name.clone(),",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2692,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "acc.sass_variable_decl_names.push(name);",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2731,
+            "function": "custom_property_decl_name_spans_in_rule",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "if is_css_custom_property_name(&declaration.property) =>",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2735,
+            "function": "custom_property_decl_name_spans_in_rule",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "end: child.span.start + declaration.property.len(),",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2738,
+            "function": "custom_property_decl_name_spans_in_rule",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "name: declaration.property.clone(),",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2778,
+            "function": "collect_index_refs_and_counts",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "match classify_declaration_kind(&declaration.property) {",
+            "classification": "presentation"
+          }
+        ]
       },
       {
         "carrier": {
@@ -8405,6 +8622,14 @@
             "operation": "residual-property-consumer:egress",
             "evidence": "if !property_names_same(&decl.name, &reference.name) {",
             "classification": "egress"
+          },
+          {
+            "path": "rust/crates/omena-query/src/style/cascade_position.rs",
+            "line": 435,
+            "function": "collect_same_file_custom_property_env_from_graph",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "let property_key = declaration.name.to_custom_key();",
+            "classification": "presentation"
           }
         ]
       },
@@ -8423,11 +8648,43 @@
         "consumers": [
           {
             "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 1516,
+            "function": "summarize_custom_property_resolution_names",
+            "operation": "residual-property-consumer:identity-shaped",
+            "evidence": "resolved.insert(ref_fact.name.clone());",
+            "classification": "identity-shaped"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 1518,
+            "function": "summarize_custom_property_resolution_names",
+            "operation": "residual-property-consumer:identity-shaped",
+            "evidence": "unresolved.insert(ref_fact.name.clone());",
+            "classification": "identity-shaped"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
             "line": 1547,
             "function": "custom_property_context_matches",
             "operation": "residual-property-consumer:egress",
             "evidence": "if !property_names_same(&decl.name, &reference.name) {",
             "classification": "egress"
+          },
+          {
+            "path": "rust/crates/omena-semantic/src/design_tokens.rs",
+            "line": 619,
+            "function": "summarize_design_token_cascade_ranking_signal",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "reference_name: reference.name.clone(),",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/omena-semantic/src/lib.rs",
+            "line": 1548,
+            "function": "summarize_omena_parser_custom_property_semantic_facts",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": ".or_insert_with(|| reference.name.clone());",
+            "classification": "presentation"
           }
         ]
       },
@@ -8444,6 +8701,22 @@
           "disposition": "named-exempt"
         },
         "consumers": [
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 919,
+            "function": "summarize_css_modules_intermediate",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "dedupe_custom_property_names(&mut acc.custom_property_decl_names);",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 1091,
+            "function": "summarize_css_modules_intermediate",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "decl_names: acc.custom_property_decl_names,",
+            "classification": "presentation"
+          },
           {
             "path": "rust/crates/engine-style-parser/src/lib.rs",
             "line": 2658,
@@ -8469,6 +8742,30 @@
         "consumers": [
           {
             "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 922,
+            "function": "summarize_css_modules_intermediate",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "acc.custom_property_decl_context_selectors.sort();",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 923,
+            "function": "summarize_css_modules_intermediate",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "acc.custom_property_decl_context_selectors.dedup();",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 1093,
+            "function": "summarize_css_modules_intermediate",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "decl_context_selectors: acc.custom_property_decl_context_selectors,",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
             "line": 2408,
             "function": "collect_index_names",
             "operation": "residual-property-consumer:presentation",
@@ -8490,6 +8787,22 @@
           "disposition": "named-exempt"
         },
         "consumers": [
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 924,
+            "function": "summarize_css_modules_intermediate",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "dedupe_custom_property_names(&mut acc.custom_property_decl_names_under_media);",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 1094,
+            "function": "summarize_css_modules_intermediate",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "decl_names_under_media: acc.custom_property_decl_names_under_media,",
+            "classification": "presentation"
+          },
           {
             "path": "rust/crates/engine-style-parser/src/lib.rs",
             "line": 2661,
@@ -8515,6 +8828,22 @@
         "consumers": [
           {
             "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 925,
+            "function": "summarize_css_modules_intermediate",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "dedupe_custom_property_names(&mut acc.custom_property_decl_names_under_supports);",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 1095,
+            "function": "summarize_css_modules_intermediate",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "decl_names_under_supports: acc.custom_property_decl_names_under_supports,",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
             "line": 2665,
             "function": "collect_index_names",
             "operation": "residual-property-consumer:presentation",
@@ -8536,6 +8865,22 @@
           "disposition": "named-exempt"
         },
         "consumers": [
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 926,
+            "function": "summarize_css_modules_intermediate",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "dedupe_custom_property_names(&mut acc.custom_property_decl_names_under_layer);",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 1096,
+            "function": "summarize_css_modules_intermediate",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "decl_names_under_layer: acc.custom_property_decl_names_under_layer,",
+            "classification": "presentation"
+          },
           {
             "path": "rust/crates/engine-style-parser/src/lib.rs",
             "line": 2669,
@@ -8561,6 +8906,22 @@
         "consumers": [
           {
             "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 927,
+            "function": "summarize_css_modules_intermediate",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "dedupe_custom_property_names(&mut acc.custom_property_ref_names);",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 1097,
+            "function": "summarize_css_modules_intermediate",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "ref_names: acc.custom_property_ref_names,",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
             "line": 2776,
             "function": "collect_index_refs_and_counts",
             "operation": "residual-property-consumer:presentation",
@@ -8582,6 +8943,30 @@
           "disposition": "named-exempt"
         },
         "consumers": [
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 930,
+            "function": "summarize_css_modules_intermediate",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "acc.selectors_with_custom_property_refs_names.sort();",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 931,
+            "function": "summarize_css_modules_intermediate",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "acc.selectors_with_custom_property_refs_names.dedup();",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 1099,
+            "function": "summarize_css_modules_intermediate",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "selectors_with_refs_names: acc.selectors_with_custom_property_refs_names,",
+            "classification": "presentation"
+          },
           {
             "path": "rust/crates/engine-style-parser/src/lib.rs",
             "line": 3127,
@@ -8607,6 +8992,14 @@
         "consumers": [
           {
             "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 934,
+            "function": "summarize_css_modules_intermediate",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "acc.selectors_with_custom_property_refs_under_media_names",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
             "line": 3146,
             "function": "collect_index_selector_attachment_facts_with_context",
             "operation": "residual-property-consumer:presentation",
@@ -8628,6 +9021,14 @@
           "disposition": "named-exempt"
         },
         "consumers": [
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 938,
+            "function": "summarize_css_modules_intermediate",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "acc.selectors_with_custom_property_refs_under_supports_names",
+            "classification": "presentation"
+          },
           {
             "path": "rust/crates/engine-style-parser/src/lib.rs",
             "line": 3150,
@@ -8653,6 +9054,14 @@
         "consumers": [
           {
             "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 942,
+            "function": "summarize_css_modules_intermediate",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "acc.selectors_with_custom_property_refs_under_layer_names",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
             "line": 3154,
             "function": "collect_index_selector_attachment_facts_with_context",
             "operation": "residual-property-consumer:presentation",
@@ -8673,7 +9082,16 @@
           "residualClass": "fixture-crate",
           "disposition": "named-exempt"
         },
-        "consumers": []
+        "consumers": [
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2237,
+            "function": "collect_rule_reference_facts",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "facts.custom_property_ref_names.extend(custom_property_refs);",
+            "classification": "presentation"
+          }
+        ]
       },
       {
         "carrier": {
@@ -8687,7 +9105,24 @@
           "residualClass": "fixture-crate",
           "disposition": "named-exempt"
         },
-        "consumers": []
+        "consumers": [
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2413,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "property_key: PropertyNameV0::canonical_custom_key(&fact.name),",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/engine-style-parser/src/lib.rs",
+            "line": 2414,
+            "function": "collect_index_names",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "name: fact.name,",
+            "classification": "presentation"
+          }
+        ]
       },
       {
         "carrier": {
@@ -8911,6 +9346,70 @@
         "consumers": [
           {
             "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+            "line": 935,
+            "function": "expression_matcher_coverage_complete",
+            "operation": "residual-property-consumer:egress",
+            "evidence": "if is_builtin_reference_name(reference.name.as_str()) {",
+            "classification": "egress"
+          },
+          {
+            "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+            "line": 936,
+            "function": "expression_matcher_coverage_complete",
+            "operation": "residual-property-consumer:egress",
+            "evidence": "return builtin_reference_matcher_coverage_complete(reference.name.as_str());",
+            "classification": "egress"
+          },
+          {
+            "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+            "line": 938,
+            "function": "expression_matcher_coverage_complete",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "let key = (reference.category, reference.name.clone());",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+            "line": 951,
+            "function": "expression_matcher_coverage_complete",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": ".syntax(category, reference.name.as_str())",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+            "line": 1339,
+            "function": "expression_sources_are_machine_imported_without_overrides",
+            "operation": "residual-property-consumer:egress",
+            "evidence": "if is_builtin_reference_name(reference.name.as_str()) {",
+            "classification": "egress"
+          },
+          {
+            "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+            "line": 1344,
+            "function": "expression_sources_are_machine_imported_without_overrides",
+            "operation": "residual-property-consumer:identity-shaped",
+            "evidence": ".any(|profile| profile.name == reference.name)",
+            "classification": "identity-shaped"
+          },
+          {
+            "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+            "line": 1347,
+            "function": "expression_sources_are_machine_imported_without_overrides",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "let key = (reference.category, reference.name.clone());",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+            "line": 1357,
+            "function": "expression_sources_are_machine_imported_without_overrides",
+            "operation": "residual-property-consumer:identity-shaped",
+            "evidence": ".entry(category, reference.name.as_str())",
+            "classification": "identity-shaped"
+          },
+          {
+            "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
             "line": 1522,
             "function": "reference_has_open_ident_production",
             "operation": "residual-property-consumer:egress",
@@ -8983,6 +9482,14 @@
           },
           {
             "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+            "line": 2724,
+            "function": "match_function_reference",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "self.match_function(name, expression, components, position, reference_depth)",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
             "line": 2796,
             "function": "match_builtin_reference",
             "operation": "residual-property-consumer:identity-shaped",
@@ -9004,6 +9511,38 @@
             "operation": "residual-property-consumer:identity-shaped",
             "evidence": "let accepted = match reference.name.as_str() {",
             "classification": "identity-shaped"
+          },
+          {
+            "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+            "line": 2811,
+            "function": "match_builtin_reference",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "let accepted = match reference.name.as_str() {",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+            "line": 2883,
+            "function": "match_builtin_reference",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "let accepted =",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+            "line": 2884,
+            "function": "match_builtin_reference",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "accepted && numeric_range_accepts(reference.range.as_ref(), component.text.as_str());",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
+            "line": 2885,
+            "function": "match_builtin_reference",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "Some(accepted.then_some(position + 1).into_iter().collect())",
+            "classification": "presentation"
           },
           {
             "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
@@ -9035,7 +9574,24 @@
           "residualClass": "non-property",
           "disposition": "named-exempt"
         },
-        "consumers": []
+        "consumers": [
+          {
+            "path": "rust/crates/omena-bridge/src/source_syntax.rs",
+            "line": 780,
+            "function": "summarize_omena_bridge_source_syntax_index_for_source_language_with_type_fact_attempts",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "let style_property_access_selector_names = ast_facts.style_property_access_selector_names;",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/omena-bridge/src/source_syntax.rs",
+            "line": 838,
+            "function": "summarize_omena_bridge_source_syntax_index_for_source_language_with_type_fact_attempts",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "let selector_name = style_property_access_selector_names",
+            "classification": "presentation"
+          }
+        ]
       },
       {
         "carrier": {
@@ -9050,6 +9606,14 @@
           "disposition": "named-exempt"
         },
         "consumers": [
+          {
+            "path": "rust/crates/omena-bridge/src/source_syntax.rs",
+            "line": 2271,
+            "function": "collect_source_syntax_ast_facts_from_program",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "style_property_access_selector_names: collector.style_property_access_selector_names,",
+            "classification": "presentation"
+          },
           {
             "path": "rust/crates/omena-bridge/src/source_syntax.rs",
             "line": 4233,
@@ -9095,6 +9659,30 @@
             "function": "normalize_inline_style_property_name",
             "operation": "residual-property-consumer:presentation",
             "evidence": "for character in name.chars() {",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/omena-bridge/src/source_syntax.rs",
+            "line": 4446,
+            "function": "normalize_inline_style_property_name",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "if character.is_ascii_uppercase() {",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/omena-bridge/src/source_syntax.rs",
+            "line": 4450,
+            "function": "normalize_inline_style_property_name",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "normalized.push(character.to_ascii_lowercase());",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/omena-bridge/src/source_syntax.rs",
+            "line": 4452,
+            "function": "normalize_inline_style_property_name",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "normalized.push(character);",
             "classification": "presentation"
           }
         ]
@@ -9196,7 +9784,35 @@
           "residualClass": "entry-parameter",
           "disposition": "named-exempt"
         },
-        "consumers": []
+        "consumers": [],
+        "bindingFormsSearched": [
+          "field-access",
+          "tuple-field-access",
+          "bare-parameter",
+          "fqn-parameter",
+          "alias-parameter",
+          "generic-bound-parameter",
+          "self-receiver",
+          "closure-inferred",
+          "for-loop-binding",
+          "while-let-binding",
+          "if-let-binding",
+          "let-else-binding",
+          "let-chain-binding",
+          "match-arm-binding",
+          "at-binding",
+          "or-pattern-binding",
+          "struct-destructuring",
+          "tuple-destructuring",
+          "slice-pattern",
+          "two-statement-local",
+          "wrapper-function",
+          "two-step-wrapper",
+          "trait-method-return",
+          "accessor-return-inline",
+          "macro-rules-body",
+          "named-escape"
+        ]
       },
       {
         "carrier": {
@@ -9374,6 +9990,22 @@
         },
         "consumers": [
           {
+            "path": "rust/crates/omena-cascade/src/computed_value.rs",
+            "line": 50,
+            "function": "compute_cascade_computed_value_inner",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "standard_property_value_verdicts,",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/omena-cascade/src/computed_value.rs",
+            "line": 78,
+            "function": "compute_cascade_computed_value_inner",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "standard_property_value_verdicts",
+            "classification": "presentation"
+          },
+          {
             "path": "rust/crates/omena-cascade/src/model.rs",
             "line": 451,
             "function": "eq",
@@ -9456,6 +10088,14 @@
             "function": "prove_box_shorthand_combination",
             "operation": "residual-property-consumer:egress",
             "evidence": "let expected = match box_shorthand_longhands(shorthand_property) {",
+            "classification": "egress"
+          },
+          {
+            "path": "rust/crates/omena-cascade/src/proofs.rs",
+            "line": 108,
+            "function": "prove_box_shorthand_combination",
+            "operation": "residual-property-consumer:egress",
+            "evidence": "Some(expected) => expected,",
             "classification": "egress"
           },
           {
@@ -9680,7 +10320,35 @@
           "residualClass": "entry-parameter",
           "disposition": "named-exempt"
         },
-        "consumers": []
+        "consumers": [],
+        "bindingFormsSearched": [
+          "field-access",
+          "tuple-field-access",
+          "bare-parameter",
+          "fqn-parameter",
+          "alias-parameter",
+          "generic-bound-parameter",
+          "self-receiver",
+          "closure-inferred",
+          "for-loop-binding",
+          "while-let-binding",
+          "if-let-binding",
+          "let-else-binding",
+          "let-chain-binding",
+          "match-arm-binding",
+          "at-binding",
+          "or-pattern-binding",
+          "struct-destructuring",
+          "tuple-destructuring",
+          "slice-pattern",
+          "two-statement-local",
+          "wrapper-function",
+          "two-step-wrapper",
+          "trait-method-return",
+          "accessor-return-inline",
+          "macro-rules-body",
+          "named-escape"
+        ]
       },
       {
         "carrier": {
@@ -9756,7 +10424,35 @@
           "residualClass": "static-standard-literal",
           "disposition": "named-exempt"
         },
-        "consumers": []
+        "consumers": [],
+        "bindingFormsSearched": [
+          "field-access",
+          "tuple-field-access",
+          "bare-parameter",
+          "fqn-parameter",
+          "alias-parameter",
+          "generic-bound-parameter",
+          "self-receiver",
+          "closure-inferred",
+          "for-loop-binding",
+          "while-let-binding",
+          "if-let-binding",
+          "let-else-binding",
+          "let-chain-binding",
+          "match-arm-binding",
+          "at-binding",
+          "or-pattern-binding",
+          "struct-destructuring",
+          "tuple-destructuring",
+          "slice-pattern",
+          "two-statement-local",
+          "wrapper-function",
+          "two-step-wrapper",
+          "trait-method-return",
+          "accessor-return-inline",
+          "macro-rules-body",
+          "named-escape"
+        ]
       },
       {
         "carrier": {
@@ -9770,7 +10466,35 @@
           "residualClass": "static-standard-literal",
           "disposition": "named-exempt"
         },
-        "consumers": []
+        "consumers": [],
+        "bindingFormsSearched": [
+          "field-access",
+          "tuple-field-access",
+          "bare-parameter",
+          "fqn-parameter",
+          "alias-parameter",
+          "generic-bound-parameter",
+          "self-receiver",
+          "closure-inferred",
+          "for-loop-binding",
+          "while-let-binding",
+          "if-let-binding",
+          "let-else-binding",
+          "let-chain-binding",
+          "match-arm-binding",
+          "at-binding",
+          "or-pattern-binding",
+          "struct-destructuring",
+          "tuple-destructuring",
+          "slice-pattern",
+          "two-statement-local",
+          "wrapper-function",
+          "two-step-wrapper",
+          "trait-method-return",
+          "accessor-return-inline",
+          "macro-rules-body",
+          "named-escape"
+        ]
       },
       {
         "carrier": {
@@ -9784,7 +10508,24 @@
           "residualClass": "static-standard-literal",
           "disposition": "named-exempt"
         },
-        "consumers": []
+        "consumers": [
+          {
+            "path": "rust/crates/omena-cli/src/perceptual.rs",
+            "line": 230,
+            "function": "collect_wcag_exact_color_contrast_bounds_v0",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "foreground_property: foreground.property,",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/omena-cli/src/perceptual.rs",
+            "line": 231,
+            "function": "collect_wcag_exact_color_contrast_bounds_v0",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "background_property: background.property,",
+            "classification": "presentation"
+          }
+        ]
       },
       {
         "carrier": {
@@ -9798,7 +10539,35 @@
           "residualClass": "fixture-crate",
           "disposition": "named-exempt"
         },
-        "consumers": []
+        "consumers": [],
+        "bindingFormsSearched": [
+          "field-access",
+          "tuple-field-access",
+          "bare-parameter",
+          "fqn-parameter",
+          "alias-parameter",
+          "generic-bound-parameter",
+          "self-receiver",
+          "closure-inferred",
+          "for-loop-binding",
+          "while-let-binding",
+          "if-let-binding",
+          "let-else-binding",
+          "let-chain-binding",
+          "match-arm-binding",
+          "at-binding",
+          "or-pattern-binding",
+          "struct-destructuring",
+          "tuple-destructuring",
+          "slice-pattern",
+          "two-statement-local",
+          "wrapper-function",
+          "two-step-wrapper",
+          "trait-method-return",
+          "accessor-return-inline",
+          "macro-rules-body",
+          "named-escape"
+        ]
       },
       {
         "carrier": {
@@ -9812,7 +10581,35 @@
           "residualClass": "fixture-crate",
           "disposition": "named-exempt"
         },
-        "consumers": []
+        "consumers": [],
+        "bindingFormsSearched": [
+          "field-access",
+          "tuple-field-access",
+          "bare-parameter",
+          "fqn-parameter",
+          "alias-parameter",
+          "generic-bound-parameter",
+          "self-receiver",
+          "closure-inferred",
+          "for-loop-binding",
+          "while-let-binding",
+          "if-let-binding",
+          "let-else-binding",
+          "let-chain-binding",
+          "match-arm-binding",
+          "at-binding",
+          "or-pattern-binding",
+          "struct-destructuring",
+          "tuple-destructuring",
+          "slice-pattern",
+          "two-statement-local",
+          "wrapper-function",
+          "two-step-wrapper",
+          "trait-method-return",
+          "accessor-return-inline",
+          "macro-rules-body",
+          "named-escape"
+        ]
       },
       {
         "carrier": {
@@ -9826,7 +10623,35 @@
           "residualClass": "fixture-crate",
           "disposition": "named-exempt"
         },
-        "consumers": []
+        "consumers": [],
+        "bindingFormsSearched": [
+          "field-access",
+          "tuple-field-access",
+          "bare-parameter",
+          "fqn-parameter",
+          "alias-parameter",
+          "generic-bound-parameter",
+          "self-receiver",
+          "closure-inferred",
+          "for-loop-binding",
+          "while-let-binding",
+          "if-let-binding",
+          "let-else-binding",
+          "let-chain-binding",
+          "match-arm-binding",
+          "at-binding",
+          "or-pattern-binding",
+          "struct-destructuring",
+          "tuple-destructuring",
+          "slice-pattern",
+          "two-statement-local",
+          "wrapper-function",
+          "two-step-wrapper",
+          "trait-method-return",
+          "accessor-return-inline",
+          "macro-rules-body",
+          "named-escape"
+        ]
       },
       {
         "carrier": {
@@ -9840,7 +10665,35 @@
           "residualClass": "fixture-crate",
           "disposition": "named-exempt"
         },
-        "consumers": []
+        "consumers": [],
+        "bindingFormsSearched": [
+          "field-access",
+          "tuple-field-access",
+          "bare-parameter",
+          "fqn-parameter",
+          "alias-parameter",
+          "generic-bound-parameter",
+          "self-receiver",
+          "closure-inferred",
+          "for-loop-binding",
+          "while-let-binding",
+          "if-let-binding",
+          "let-else-binding",
+          "let-chain-binding",
+          "match-arm-binding",
+          "at-binding",
+          "or-pattern-binding",
+          "struct-destructuring",
+          "tuple-destructuring",
+          "slice-pattern",
+          "two-statement-local",
+          "wrapper-function",
+          "two-step-wrapper",
+          "trait-method-return",
+          "accessor-return-inline",
+          "macro-rules-body",
+          "named-escape"
+        ]
       },
       {
         "carrier": {
@@ -9923,7 +10776,35 @@
           "residualClass": "fixture-crate",
           "disposition": "named-exempt"
         },
-        "consumers": []
+        "consumers": [],
+        "bindingFormsSearched": [
+          "field-access",
+          "tuple-field-access",
+          "bare-parameter",
+          "fqn-parameter",
+          "alias-parameter",
+          "generic-bound-parameter",
+          "self-receiver",
+          "closure-inferred",
+          "for-loop-binding",
+          "while-let-binding",
+          "if-let-binding",
+          "let-else-binding",
+          "let-chain-binding",
+          "match-arm-binding",
+          "at-binding",
+          "or-pattern-binding",
+          "struct-destructuring",
+          "tuple-destructuring",
+          "slice-pattern",
+          "two-statement-local",
+          "wrapper-function",
+          "two-step-wrapper",
+          "trait-method-return",
+          "accessor-return-inline",
+          "macro-rules-body",
+          "named-escape"
+        ]
       },
       {
         "carrier": {
@@ -10084,7 +10965,35 @@
           "residualClass": "static-standard-literal",
           "disposition": "named-exempt"
         },
-        "consumers": []
+        "consumers": [],
+        "bindingFormsSearched": [
+          "field-access",
+          "tuple-field-access",
+          "bare-parameter",
+          "fqn-parameter",
+          "alias-parameter",
+          "generic-bound-parameter",
+          "self-receiver",
+          "closure-inferred",
+          "for-loop-binding",
+          "while-let-binding",
+          "if-let-binding",
+          "let-else-binding",
+          "let-chain-binding",
+          "match-arm-binding",
+          "at-binding",
+          "or-pattern-binding",
+          "struct-destructuring",
+          "tuple-destructuring",
+          "slice-pattern",
+          "two-statement-local",
+          "wrapper-function",
+          "two-step-wrapper",
+          "trait-method-return",
+          "accessor-return-inline",
+          "macro-rules-body",
+          "named-escape"
+        ]
       },
       {
         "carrier": {
@@ -10145,7 +11054,32 @@
           "residualClass": "non-property",
           "disposition": "named-exempt"
         },
-        "consumers": []
+        "consumers": [
+          {
+            "path": "rust/crates/omena-query/src/style/cascade_checker.rs",
+            "line": 67,
+            "function": "summarize_query_cascade_checker_diagnostics_with_deep_analysis",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "standard_property_value_verdicts,",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/omena-query/src/style/cascade_checker.rs",
+            "line": 95,
+            "function": "summarize_query_cascade_checker_diagnostics_with_deep_analysis",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "&standard_property_value_verdicts,",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/omena-query/src/style/cascade_checker/input.rs",
+            "line": 658,
+            "function": "query_property_identity_survives_fact_join_checker_and_ranking_planes",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "&collection.standard_property_value_verdicts,",
+            "classification": "presentation"
+          }
+        ]
       },
       {
         "carrier": {
@@ -10260,7 +11194,16 @@
           "residualClass": "static-standard-literal",
           "disposition": "named-exempt"
         },
-        "consumers": []
+        "consumers": [
+          {
+            "path": "rust/crates/omena-refinement/src/lib.rs",
+            "line": 492,
+            "function": "refined_projection_preserves_legacy_value_v0",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "&& PropertyNameV0::canonical_standard_key(refined.property_name)",
+            "classification": "presentation"
+          }
+        ]
       },
       {
         "carrier": {
@@ -10421,7 +11364,35 @@
           "residualClass": "entry-parameter",
           "disposition": "named-exempt"
         },
-        "consumers": []
+        "consumers": [],
+        "bindingFormsSearched": [
+          "field-access",
+          "tuple-field-access",
+          "bare-parameter",
+          "fqn-parameter",
+          "alias-parameter",
+          "generic-bound-parameter",
+          "self-receiver",
+          "closure-inferred",
+          "for-loop-binding",
+          "while-let-binding",
+          "if-let-binding",
+          "let-else-binding",
+          "let-chain-binding",
+          "match-arm-binding",
+          "at-binding",
+          "or-pattern-binding",
+          "struct-destructuring",
+          "tuple-destructuring",
+          "slice-pattern",
+          "two-statement-local",
+          "wrapper-function",
+          "two-step-wrapper",
+          "trait-method-return",
+          "accessor-return-inline",
+          "macro-rules-body",
+          "named-escape"
+        ]
       },
       {
         "carrier": {
@@ -10584,10 +11555,42 @@
           },
           {
             "path": "rust/crates/omena-transform-passes/src/domains/color.rs",
+            "line": 322,
+            "function": "compress_static_color_references_in_declaration_value",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "if let Some(replacement) = compress_static_color_references_in_value(&current) {",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/omena-transform-passes/src/domains/color.rs",
+            "line": 326,
+            "function": "compress_static_color_references_in_declaration_value",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "if let Some(replacement) = compress_static_named_srgb_color_references_in_value(",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/omena-transform-passes/src/domains/color.rs",
             "line": 328,
             "function": "compress_static_color_references_in_declaration_value",
             "operation": "residual-property-consumer:presentation",
             "evidence": "preserves_currentcolor_keyword_case(property),",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/omena-transform-passes/src/domains/color.rs",
+            "line": 333,
+            "function": "compress_static_color_references_in_declaration_value",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "if let Some(replacement) = compress_static_linear_gradient_references_in_value(&current) {",
+            "classification": "presentation"
+          },
+          {
+            "path": "rust/crates/omena-transform-passes/src/domains/color.rs",
+            "line": 334,
+            "function": "compress_static_color_references_in_declaration_value",
+            "operation": "residual-property-consumer:presentation",
+            "evidence": "current = replacement;",
             "classification": "presentation"
           }
         ]
@@ -10935,6 +11938,14 @@
             "function": "push_longhand_merge_candidate_for_replacement",
             "operation": "residual-property-consumer:egress",
             "evidence": "&& PropertyNameV0::standard(existing.shorthand_property)",
+            "classification": "egress"
+          },
+          {
+            "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+            "line": 511,
+            "function": "push_longhand_merge_candidate_for_replacement",
+            "operation": "residual-property-consumer:egress",
+            "evidence": ".same_as(&PropertyNameV0::standard(candidate.shorthand_property))",
             "classification": "egress"
           }
         ]
@@ -11618,9 +12629,9 @@
         ]
       }
     ],
-    "residualCarrierConsumerSiteCount": 168,
+    "residualCarrierConsumerSiteCount": 255,
     "residualIdentityShapedConsumerCount": 0,
-    "residualCarrierConsumerDigest": "sha256:3fab7693fc1751ac9ba2f972b4c38c586ea90bed27a765e05f0270a4ea5aafcb",
+    "residualCarrierConsumerDigest": "sha256:5022366b54f84daa2e4790e2f3809f325b881b797b0f6ab9c3af3b5b4f08a7d3",
     "rawStringIdentitySiteCount": 0,
     "rawStringIdentitySites": [],
     "rawStringIdentitySiteDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -18710,24 +19721,24 @@
       "carrierAuditDigest": "sha256:9657fb1c10475dbe3bbb3a449b033f13bf4e7d968cba7406a426d89ef815be65",
       "identityDeriveViolationCount": 0,
       "cannotSee": [
-        "scripts/check-rust-omena-identifier-authority-census.ts:6157: /tests/ trees are outside the product escape-flow scan.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:6158: */tests.rs files are outside the product escape-flow scan.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:6159: *_test.rs files are outside the product escape-flow scan.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:6234: #[cfg(test)] items are masked before escape-flow analysis.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:6161: /src/bin/ files are excluded; named binaries: rust/crates/engine-style-parser/src/bin/engine-style-parser-canonical-candidate.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-canonical-producer.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-css-modules-intermediate.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-evaluator-candidates.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-index-producer.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-index-summary.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-summary.rs:1, rust/crates/omena-benchmarks/src/bin/bundler_productization_surface_snapshot.rs:1, rust/crates/omena-benchmarks/src/bin/emitted_css_golden_gate.rs:1, rust/crates/omena-benchmarks/src/bin/flow_artifact_reuse_profile.rs:1, rust/crates/omena-benchmarks/src/bin/headline_axis_fidelity_snapshot.rs:1, rust/crates/omena-benchmarks/src/bin/parser_edit_trace_slope_profile.rs:1, rust/crates/omena-benchmarks/src/bin/parser_fact_collection_profile.rs:1, rust/crates/omena-benchmarks/src/bin/transform_ir_transaction_profile.rs:1, rust/crates/omena-benchmarks/src/bin/transform_relex_baseline_gate.rs:1, rust/crates/omena-benchmarks/src/bin/z5_criterion_surface_snapshot.rs:1, rust/crates/omena-benchmarks/src/bin/z5_format_idempotence.rs:1, rust/crates/omena-benchmarks/src/bin/z5_parser_product_cutover.rs:1, rust/crates/omena-benchmarks/src/bin/z5_style_corpus_snapshot.rs:1, rust/crates/omena-bundler/src/bin/omena-emission-order-contract.rs:1, rust/crates/omena-cascade-proof/src/bin/omena-cascade-discharge-ledger.rs:1, rust/crates/omena-cli/src/bin/omenad.rs:1, rust/crates/omena-cli/src/bin/trace.rs:1, rust/crates/omena-diff-test/src/bin/cascade_key_producer_census.rs:1, rust/crates/omena-diff-test/src/bin/omena-diff-test-boundary.rs:1, rust/crates/omena-diff-test/src/bin/omena-linked-emission-byte-differential.rs:1, rust/crates/omena-diff-test/src/bin/omena-source-frontend-rust-capture.rs:1, rust/crates/omena-diff-test/src/bin/omena-source-precision-baseline.rs:1, rust/crates/omena-diff-test/src/bin/render_sass_bail_site_product_view.rs:1, rust/crates/omena-lsp-server/src/bin/omena-lsp-server-boundary.rs:1, rust/crates/omena-lsp-server/src/bin/omena-lsp-server.rs:1, rust/crates/omena-parser/src/bin/omena-parser-canonical-candidate.rs:1, rust/crates/omena-parser/src/bin/omena-parser-canonical-producer.rs:1, rust/crates/omena-parser/src/bin/omena-parser-css-modules-intermediate.rs:1, rust/crates/omena-parser/src/bin/omena-parser-evaluator-candidates.rs:1, rust/crates/omena-parser/src/bin/omena-parser-lex.rs:1, rust/crates/omena-parser/src/bin/omena-parser-style-facts.rs:1, rust/crates/omena-parser/src/bin/omena-parser-summary.rs:1, rust/crates/omena-query/src/bin/omena-query-m4-axis-c-readiness.rs:1, rust/crates/omena-semantic/src/bin/omena-semantic-boundary.rs:1, rust/crates/omena-semantic/src/bin/omena-semantic-graph.rs:1, rust/crates/omena-semantic/src/bin/omena-semantic-observation-contract.rs:1, rust/crates/omena-semantic/src/bin/omena-semantic-observation.rs:1, rust/crates/omena-semantic/src/bin/omena-semantic-source-evidence.rs:1, rust/crates/omena-spec-audit/src/bin/omena-spec-audit-boundary.rs:1, rust/crates/omena-testkit/src/bin/omena-testkit-boundary.rs:1, rust/crates/omena-testkit/src/bin/omena-testkit-parse-fixture.rs:1, rust/crates/omena-transform-print/src/bin/transform_source_map_integrity.rs:1, rust/crates/omena-tsgo-client/src/bin/omena-tsgo-client-boundary.rs:1, rust/crates/omena-tsgo-client/src/bin/omena-tsgo-span-type-fact-capture.rs:1.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:6162: *_generated.rs files are excluded.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:6156: benches/, examples/, and build.rs are outside the /src/ production-source root.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:6656: /tests/ trees are outside the product escape-flow scan.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:6657: */tests.rs files are outside the product escape-flow scan.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:6658: *_test.rs files are outside the product escape-flow scan.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:6733: #[cfg(test)] items are masked before escape-flow analysis.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:6660: /src/bin/ files are excluded; named binaries: rust/crates/engine-style-parser/src/bin/engine-style-parser-canonical-candidate.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-canonical-producer.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-css-modules-intermediate.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-evaluator-candidates.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-index-producer.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-index-summary.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-summary.rs:1, rust/crates/omena-benchmarks/src/bin/bundler_productization_surface_snapshot.rs:1, rust/crates/omena-benchmarks/src/bin/emitted_css_golden_gate.rs:1, rust/crates/omena-benchmarks/src/bin/flow_artifact_reuse_profile.rs:1, rust/crates/omena-benchmarks/src/bin/headline_axis_fidelity_snapshot.rs:1, rust/crates/omena-benchmarks/src/bin/parser_edit_trace_slope_profile.rs:1, rust/crates/omena-benchmarks/src/bin/parser_fact_collection_profile.rs:1, rust/crates/omena-benchmarks/src/bin/transform_ir_transaction_profile.rs:1, rust/crates/omena-benchmarks/src/bin/transform_relex_baseline_gate.rs:1, rust/crates/omena-benchmarks/src/bin/z5_criterion_surface_snapshot.rs:1, rust/crates/omena-benchmarks/src/bin/z5_format_idempotence.rs:1, rust/crates/omena-benchmarks/src/bin/z5_parser_product_cutover.rs:1, rust/crates/omena-benchmarks/src/bin/z5_style_corpus_snapshot.rs:1, rust/crates/omena-bundler/src/bin/omena-emission-order-contract.rs:1, rust/crates/omena-cascade-proof/src/bin/omena-cascade-discharge-ledger.rs:1, rust/crates/omena-cli/src/bin/omenad.rs:1, rust/crates/omena-cli/src/bin/trace.rs:1, rust/crates/omena-diff-test/src/bin/cascade_key_producer_census.rs:1, rust/crates/omena-diff-test/src/bin/omena-diff-test-boundary.rs:1, rust/crates/omena-diff-test/src/bin/omena-linked-emission-byte-differential.rs:1, rust/crates/omena-diff-test/src/bin/omena-source-frontend-rust-capture.rs:1, rust/crates/omena-diff-test/src/bin/omena-source-precision-baseline.rs:1, rust/crates/omena-diff-test/src/bin/render_sass_bail_site_product_view.rs:1, rust/crates/omena-lsp-server/src/bin/omena-lsp-server-boundary.rs:1, rust/crates/omena-lsp-server/src/bin/omena-lsp-server.rs:1, rust/crates/omena-parser/src/bin/omena-parser-canonical-candidate.rs:1, rust/crates/omena-parser/src/bin/omena-parser-canonical-producer.rs:1, rust/crates/omena-parser/src/bin/omena-parser-css-modules-intermediate.rs:1, rust/crates/omena-parser/src/bin/omena-parser-evaluator-candidates.rs:1, rust/crates/omena-parser/src/bin/omena-parser-lex.rs:1, rust/crates/omena-parser/src/bin/omena-parser-style-facts.rs:1, rust/crates/omena-parser/src/bin/omena-parser-summary.rs:1, rust/crates/omena-query/src/bin/omena-query-m4-axis-c-readiness.rs:1, rust/crates/omena-semantic/src/bin/omena-semantic-boundary.rs:1, rust/crates/omena-semantic/src/bin/omena-semantic-graph.rs:1, rust/crates/omena-semantic/src/bin/omena-semantic-observation-contract.rs:1, rust/crates/omena-semantic/src/bin/omena-semantic-observation.rs:1, rust/crates/omena-semantic/src/bin/omena-semantic-source-evidence.rs:1, rust/crates/omena-spec-audit/src/bin/omena-spec-audit-boundary.rs:1, rust/crates/omena-testkit/src/bin/omena-testkit-boundary.rs:1, rust/crates/omena-testkit/src/bin/omena-testkit-parse-fixture.rs:1, rust/crates/omena-transform-print/src/bin/transform_source_map_integrity.rs:1, rust/crates/omena-tsgo-client/src/bin/omena-tsgo-client-boundary.rs:1, rust/crates/omena-tsgo-client/src/bin/omena-tsgo-span-type-fact-capture.rs:1.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:6661: *_generated.rs files are excluded.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:6655: benches/, examples/, and build.rs are outside the /src/ production-source root.",
         "rust/crates/omena-diff-test/Cargo.toml:2: fixture crate omena-diff-test is outside product escape-flow closure.",
         "rust/crates/engine-style-parser/Cargo.toml:2: fixture crate engine-style-parser is outside product escape-flow closure.",
         "rust/crates/omena-benchmarks/Cargo.toml:2: fixture crate omena-benchmarks and repository examples are outside product escape-flow closure.",
         "rust/crates/omena-syntax/src/ident.rs:21: the ClassNameV0 raw/into_raw/decoded/same_as identity plane belongs to selector authority and is not property identity.",
         "rust/crates/omena-syntax/src/ident.rs:410: canonical_name()/sealed-key as_str() text comparisons are not escape flows; they are canonical-correct only within a kind, and standard(\"--foo\") collides textually with custom(\"--foo\").",
-        "scripts/check-rust-omena-identifier-authority-census.ts:4152: cross-crate call flow and dyn dispatch are not resolved by the intra-crate text fixpoint.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:4206: 20 ambiguous intra-crate call edges remain separately enumerated with file:line; same-name definitions, trait/inherent ambiguity, unknown receivers, and indirect function bindings are tainted by default.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:2262: key construction whose input was normalized before the authority constructor is visible only when the residual provenance resolver recognizes that normalization; any unrecognized pre-normalization remains outside the claim.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:6166: proc-macro-generated bodies other than serde derives and unsafe transmute are outside the text scanner.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:456: generated matrix cells are scanner-only and are never compiled.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:6156: non-Rust consumers of Serialize egress in packages/, N-API, and WASM are outside Rust source-flow closure."
+        "scripts/check-rust-omena-identifier-authority-census.ts:4644: cross-crate call flow and dyn dispatch are not resolved by the intra-crate text fixpoint.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:4698: 20 ambiguous intra-crate call edges remain separately enumerated with file:line; same-name definitions, trait/inherent ambiguity, unknown receivers, and indirect function bindings are tainted by default.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:2337: key construction whose input was normalized before the authority constructor is visible only when the residual provenance resolver recognizes that normalization; any unrecognized pre-normalization remains outside the claim.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:6665: proc-macro-generated bodies other than serde derives and unsafe transmute are outside the text scanner.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:459: generated matrix cells are scanner-only and are never compiled.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:6655: non-Rust consumers of Serialize egress in packages/, N-API, and WASM are outside Rust source-flow closure."
       ]
     }
   }

@@ -64,6 +64,7 @@ interface ResidualPropertyConsumerSite extends DiscoveredSite {
 interface ResidualPropertyCarrierConsumerRow {
   readonly carrier: CensusSite;
   readonly consumers: readonly ResidualPropertyConsumerSite[];
+  readonly bindingFormsSearched?: readonly AuthoredOriginId[];
 }
 
 type AuthoredEscapeOperandClass = "authored-bearing" | "key-bearing" | "non-property";
@@ -273,7 +274,7 @@ interface IdentifierAuthorityCensus {
     readonly residualRawCarrierSiteDigest: string;
     readonly residualClassCounts: Readonly<Record<ResidualPropertyClass, number>>;
     readonly residualProvenanceCounts: Readonly<Record<ResidualPropertyProvenance, number>>;
-    readonly residualCarrierConsumerDerivation: "resolved-type-access-and-parameter-use-scan";
+    readonly residualCarrierConsumerDerivation: "resolved-type-access-parameter-and-origin-binding-scan";
     readonly residualCarrierConsumerRows: readonly ResidualPropertyCarrierConsumerRow[];
     readonly residualCarrierConsumerSiteCount: number;
     readonly residualIdentityShapedConsumerCount: 0;
@@ -433,6 +434,8 @@ const injectResidualNonPropertyInventory =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_RESIDUAL_NON_PROPERTY_INVENTORY === "1";
 const injectResidualIdentityConsumer =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_RESIDUAL_IDENTITY_CONSUMER === "1";
+const injectResidualBindingFormOmission =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_DROP_RESIDUAL_EMPTY_BINDING_FORM === "1";
 const injectSanctionedEscapeInventory =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_SANCTIONED_ESCAPE_INVENTORY === "1";
 const injectWriteIntoInventory =
@@ -489,6 +492,69 @@ const authoredOriginAxis = [
   "macro-rules-body",
   "named-escape",
 ] as const;
+
+interface ResidualOriginBindingSearcher {
+  readonly id: AuthoredOriginId;
+  readonly pattern: RegExp;
+}
+
+const residualOriginBindingSearchers: readonly ResidualOriginBindingSearcher[] = [
+  { id: "field-access", pattern: /\b[A-Za-z_][A-Za-z0-9_]*\s*\.\s*[A-Za-z_][A-Za-z0-9_]*\b/u },
+  { id: "tuple-field-access", pattern: /\b[A-Za-z_][A-Za-z0-9_]*\s*\.\s*\d+\b/u },
+  {
+    id: "bare-parameter",
+    pattern: /\bfn\s+[A-Za-z_][A-Za-z0-9_]*[^({]*\([^)]*\b[A-Za-z_][A-Za-z0-9_]*\s*:/u,
+  },
+  {
+    id: "fqn-parameter",
+    pattern:
+      /\b[A-Za-z_][A-Za-z0-9_]*\s*:\s*&?\s*[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)+/u,
+  },
+  { id: "alias-parameter", pattern: /\b[A-Za-z_][A-Za-z0-9_]*\s*:\s*&?\s*[A-Z][A-Za-z0-9_]*\b/u },
+  { id: "generic-bound-parameter", pattern: /(?:<[^>]*\bAsRef\s*<|\bwhere\b[^{}]*\bAsRef\s*<)/su },
+  { id: "self-receiver", pattern: /(?:\bself\b|&\s*(?:mut\s+)?self\b)/u },
+  {
+    id: "closure-inferred",
+    pattern: /\|\s*(?:&\s*)?(?:mut\s+)?[A-Za-z_][A-Za-z0-9_]*(?:\s*,[^|]*)?\s*\|/u,
+  },
+  { id: "for-loop-binding", pattern: /\bfor\s+[A-Za-z_][A-Za-z0-9_]*\s+in\b/u },
+  { id: "while-let-binding", pattern: /\bwhile\s+let\b/u },
+  { id: "if-let-binding", pattern: /\bif\s+let\b/u },
+  { id: "let-else-binding", pattern: /\blet\s+[^;=]+\s*=\s*[^;]+\s+else\s*\{/u },
+  { id: "let-chain-binding", pattern: /\bif\s+let\b[^{}]+&&\s*let\b/su },
+  { id: "match-arm-binding", pattern: /\bmatch\b[\s\S]*?=>/u },
+  { id: "at-binding", pattern: /\b[A-Za-z_][A-Za-z0-9_]*\s*@\s*/u },
+  {
+    id: "or-pattern-binding",
+    pattern:
+      /(?:\([^)]*\)|\b[A-Za-z_][A-Za-z0-9_]*)\s*\|\s*(?:\([^)]*\)|\b[A-Za-z_][A-Za-z0-9_]*)\s*(?:if|=>)/u,
+  },
+  { id: "struct-destructuring", pattern: /\b[A-Z][A-Za-z0-9_:]*\s*\{[^{}]*\}\s*=/u },
+  { id: "tuple-destructuring", pattern: /\blet\s*\([^)]*,[^)]*\)\s*=/u },
+  { id: "slice-pattern", pattern: /\[(?:[^\]]*,)?\s*\.\.\s*\]/u },
+  { id: "two-statement-local", pattern: /\blet\b[^;]+;\s*let\b[^;]+=/su },
+  {
+    id: "wrapper-function",
+    pattern: /\blet\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*[A-Za-z_][A-Za-z0-9_]*\s*\(/u,
+  },
+  {
+    id: "two-step-wrapper",
+    pattern: /=\s*[A-Za-z_][A-Za-z0-9_]*\s*\(\s*[A-Za-z_][A-Za-z0-9_]*\s*\(/u,
+  },
+  {
+    id: "trait-method-return",
+    pattern: /\b[A-Z][A-Za-z0-9_:]*\s*::\s*[A-Za-z_][A-Za-z0-9_]*\s*\(/u,
+  },
+  {
+    id: "accessor-return-inline",
+    pattern: /\b[A-Za-z_][A-Za-z0-9_]*\s*\.\s*[A-Za-z_][A-Za-z0-9_]*\s*\(\s*\)/u,
+  },
+  { id: "macro-rules-body", pattern: /\b[A-Za-z_][A-Za-z0-9_]*\s*!\s*\(/u },
+  {
+    id: "named-escape",
+    pattern: /\b[A-Za-z_][A-Za-z0-9_]*(?:escape|render|write_into)[A-Za-z0-9_]*\s*[!(]/u,
+  },
+];
 const authoredComparisonAxis = [
   "binary-eq",
   "binary-ne",
@@ -1204,6 +1270,15 @@ const residualCarrierConsumerRows = discoverResidualPropertyCarrierConsumers(
   classifiedResidualRawPropertyCarrierSites,
   residualSweepSources,
 );
+for (const row of residualCarrierConsumerRows.filter(
+  (candidate) => candidate.consumers.length === 0,
+)) {
+  assert.deepEqual(
+    row.bindingFormsSearched,
+    authoredOriginAxis,
+    "consumerless residual carrier binding-form audit must equal the authored origin axis byte-for-byte",
+  );
+}
 const residualCarrierConsumerSites = residualCarrierConsumerRows.flatMap((row) => row.consumers);
 const residualIdentityShapedConsumerCount = residualCarrierConsumerRows
   .filter((row) =>
@@ -1487,7 +1562,7 @@ const census: IdentifierAuthorityCensus = {
           .length,
       ]),
     ) as Record<ResidualPropertyProvenance, number>,
-    residualCarrierConsumerDerivation: "resolved-type-access-and-parameter-use-scan",
+    residualCarrierConsumerDerivation: "resolved-type-access-parameter-and-origin-binding-scan",
     residualCarrierConsumerRows,
     residualCarrierConsumerSiteCount: residualCarrierConsumerSites.length,
     residualIdentityShapedConsumerCount: 0,
@@ -2678,25 +2753,228 @@ function discoverResidualPropertyCarrierConsumers(
 
   const aliasesByPath = rustTypeAliasesByPath(sources);
   const structFieldTypes = rustStructFieldTypes(sources, aliasesByPath);
+  const enumVariantPayloadTypes = rustEnumVariantPayloadTypes(sources, aliasesByPath);
+  const functionReturnTypes = uniqueRustFunctionReturnTypes(
+    sources,
+    aliasesByPath,
+    structFieldTypes,
+  );
+  const residualCarrierFields = new Map<string, Set<string>>();
+  for (const fieldKey of carrierByField.keys()) {
+    const separator = fieldKey.indexOf(".");
+    const typeName = fieldKey.slice(0, separator);
+    const fields = residualCarrierFields.get(typeName) ?? new Set<string>();
+    fields.add(fieldKey.slice(separator + 1));
+    residualCarrierFields.set(typeName, fields);
+  }
+  const authoredReturningFunctions = authoredReturningFunctionNames(sources, residualCarrierFields);
   const consumersByCarrier = new Map<CensusSite, ResidualPropertyConsumerSite[]>();
+  const bindingFormsSearched = new Set<AuthoredOriginId>();
   for (const carrier of carriers) consumersByCarrier.set(carrier, []);
 
   for (const { relativePath, source } of sources) {
     const scannable = maskCommentsStringsAndTestItems(source, false);
     const aliases = aliasesByPath.get(relativePath) ?? new Map<string, string>();
     for (const functionSlice of rustFunctionSlices(scannable)) {
+      for (const origin of searchResidualOriginBindingForms(
+        `${functionSlice.signature}{${functionSlice.scannable}}`,
+      )) {
+        bindingFormsSearched.add(origin);
+      }
       const bindings = resolvedRustBindingsForFunction(
         functionSlice,
         scannable,
         aliases,
         structFieldTypes,
+        {
+          crateName: relativePath.split("/")[2] ?? "<unknown-crate>",
+          enumVariantPayloadTypes,
+          functionReturnTypes,
+        },
       );
+      const carriersByBinding = new Map<string, Set<CensusSite>>();
+      const addBindingCarriers = (
+        binding: string,
+        bindingCarriers: ReadonlySet<CensusSite>,
+      ): boolean => {
+        const prior = carriersByBinding.get(binding) ?? new Set<CensusSite>();
+        const merged = new Set([...prior, ...bindingCarriers]);
+        if (merged.size === prior.size) return false;
+        carriersByBinding.set(binding, merged);
+        return true;
+      };
+      const authorityShadowEnd = (binding: string): number | undefined => {
+        const shadow = functionSlice.scannable.match(
+          new RegExp(
+            String.raw`\blet\s+${escapeRegExp(binding)}\s*=\s*(?:[A-Za-z_][A-Za-z0-9_]*\s*::\s*)*PropertyNameV0\s*::[^;]*\b${escapeRegExp(binding)}\b[^;]*;`,
+            "u",
+          ),
+        );
+        return shadow ? (shadow.index ?? 0) + shadow[0].length : undefined;
+      };
+      const expressionCarriesResidualText = (expression: string): boolean => {
+        const value = expression.trim();
+        if (sealedAuthorityExpression(value)) return false;
+        if (rawStringValueExpression(value)) return true;
+        if (
+          /^\(?\s*&?[A-Za-z_][A-Za-z0-9_]*(?:\s*\.\s*(?:[A-Za-z_][A-Za-z0-9_]*|\d+))*(?:\s*,\s*&?[A-Za-z_][A-Za-z0-9_]*(?:\s*\.\s*(?:[A-Za-z_][A-Za-z0-9_]*|\d+))*)+\s*\)?$/u.test(
+            value,
+          )
+        ) {
+          return true;
+        }
+        if (
+          /^(?:if\s+let|match\b)[\s\S]*(?:=>|\{)\s*&?[A-Za-z_][A-Za-z0-9_]*(?:\s*\.\s*(?:[A-Za-z_][A-Za-z0-9_]*|\d+))*\s*(?:,|\}|else\b)/u.test(
+            value,
+          )
+        ) {
+          return true;
+        }
+        if (
+          /^(?:format|dbg|[A-Za-z_][A-Za-z0-9_]*(?:escape|render|write_into)[A-Za-z0-9_]*)\s*!?\s*\(/u.test(
+            value,
+          )
+        ) {
+          return true;
+        }
+        const called = value.match(
+          /^\s*(?:[A-Za-z_][A-Za-z0-9_]*\s*::\s*)*([A-Za-z_][A-Za-z0-9_]*)\s*\(/u,
+        )?.[1];
+        return called !== undefined && authoredReturningFunctions.has(called);
+      };
+      const constructedReceiverType = (binding: string): string | undefined => {
+        const pattern = new RegExp(
+          String.raw`\b${escapeRegExp(binding)}\s*=\s*(?:Some\s*\(\s*)?(?:[A-Za-z_][A-Za-z0-9_]*\s*::\s*)*([A-Z][A-Za-z0-9_]*)\s*\{`,
+          "u",
+        );
+        return functionSlice.scannable.match(pattern)?.[1];
+      };
+      const carriersForExpression = (
+        expression: string,
+        expressionOffset = 0,
+      ): ReadonlySet<CensusSite> => {
+        const expressionCarriers = new Set<CensusSite>();
+        for (const [binding, bindingCarriers] of carriersByBinding) {
+          const shadowEnd = authorityShadowEnd(binding);
+          if (shadowEnd !== undefined && expressionOffset >= shadowEnd) continue;
+          if (new RegExp(`\\b${escapeRegExp(binding)}\\b`, "u").test(expression)) {
+            for (const carrier of bindingCarriers) expressionCarriers.add(carrier);
+          }
+        }
+        for (const access of expression.matchAll(
+          /\b([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b/gu,
+        )) {
+          const carrier = [bindings.get(access[1]), constructedReceiverType(access[1])]
+            .filter((receiverType): receiverType is string => receiverType !== undefined)
+            .map((receiverType) => carrierByField.get(`${receiverType}.${access[2]}`))
+            .find((candidate): candidate is CensusSite => candidate !== undefined);
+          if (carrier) expressionCarriers.add(carrier);
+        }
+        return expressionCarriers;
+      };
+
+      for (const [key, carrier] of carrierByParameter) {
+        const [carrierPath, functionAndParameter] = key.split("\u0000");
+        if (carrierPath !== relativePath) continue;
+        const separator = functionAndParameter.lastIndexOf(".");
+        if (functionAndParameter.slice(0, separator) !== functionSlice.name) continue;
+        addBindingCarriers(functionAndParameter.slice(separator + 1), new Set([carrier]));
+      }
+
+      const functionText = `${functionSlice.signature}{${functionSlice.scannable}}`;
+      for (const [fieldKey, carrier] of carrierByField) {
+        const separator = fieldKey.indexOf(".");
+        const typeName = fieldKey.slice(0, separator);
+        const fieldName = fieldKey.slice(separator + 1);
+        const destructuring = new RegExp(
+          `\\b${escapeRegExp(typeName)}\\s*\\{([^{}]*)\\}\\s*(?:=|=>|:)`,
+          "gu",
+        );
+        for (const pattern of functionText.matchAll(destructuring)) {
+          const field = pattern[1].match(
+            new RegExp(
+              `(?:^|,)\\s*${escapeRegExp(fieldName)}(?:\\s*:\\s*([A-Za-z_][A-Za-z0-9_]*))?(?:\\s*,|$)`,
+              "u",
+            ),
+          );
+          if (!field) continue;
+          addBindingCarriers(field[1] ?? fieldName, new Set([carrier]));
+        }
+      }
+
+      for (let pass = 0; pass <= functionSlice.scannable.length + 1; pass += 1) {
+        let changed = false;
+        for (const assignment of functionSlice.scannable.matchAll(
+          /\blet\s+(?:mut\s+)?([A-Za-z_][A-Za-z0-9_]*)(?:\s*:[^=;]+)?\s*=\s*([^;]+);/gu,
+        )) {
+          if (!expressionCarriesResidualText(assignment[2])) continue;
+          changed =
+            addBindingCarriers(
+              assignment[1],
+              carriersForExpression(assignment[2], assignment.index),
+            ) || changed;
+        }
+        for (const assignment of functionSlice.scannable.matchAll(
+          /\blet\s*\(([^)]*)\)\s*=\s*([^;]+);/gu,
+        )) {
+          if (!expressionCarriesResidualText(assignment[2])) continue;
+          const expressionCarriers = carriersForExpression(assignment[2], assignment.index);
+          for (const binding of rustPatternBindings(assignment[1])) {
+            changed = addBindingCarriers(binding, expressionCarriers) || changed;
+          }
+        }
+        for (const assignment of functionSlice.scannable.matchAll(
+          /\blet\s*\[([^\]]*)\]\s*=\s*([^;]+);/gu,
+        )) {
+          if (!expressionCarriesResidualText(assignment[2])) continue;
+          const expressionCarriers = carriersForExpression(assignment[2], assignment.index);
+          for (const binding of rustPatternBindings(assignment[1])) {
+            changed = addBindingCarriers(binding, expressionCarriers) || changed;
+          }
+        }
+        for (const binding of functionSlice.scannable.matchAll(
+          /\b(?:if|while)\s+let\s+(?:Some\s*\()?([A-Za-z_][A-Za-z0-9_]*)\)?\s*=\s*([^{]+)/gu,
+        )) {
+          changed =
+            addBindingCarriers(binding[1], carriersForExpression(binding[2], binding.index)) ||
+            changed;
+        }
+        for (const binding of functionSlice.scannable.matchAll(
+          /\bfor\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+([^{]+)/gu,
+        )) {
+          changed =
+            addBindingCarriers(binding[1], carriersForExpression(binding[2], binding.index)) ||
+            changed;
+        }
+        for (const closure of functionSlice.scannable.matchAll(
+          /\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\.(?:iter|into_iter)\s*\(\s*\)(?:\.[A-Za-z_][A-Za-z0-9_]*\s*\([^|;{}]*\))*\s*\.(?:any|all|map|filter|filter_map|find|find_map|for_each|position|rposition)\s*\(\s*\|\s*&?\s*(?:mut\s+)?([A-Za-z_][A-Za-z0-9_]*)/gu,
+        )) {
+          changed =
+            addBindingCarriers(closure[2], carriersForExpression(closure[1], closure.index)) ||
+            changed;
+        }
+        for (const closure of functionSlice.scannable.matchAll(
+          /\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\.(?:iter|into_iter)\s*\(\s*\)(?:\.[A-Za-z_][A-Za-z0-9_]*\s*\([^|;{}]*\))*\s*\.(?:any|all|map|filter|filter_map|find|find_map|for_each|position|rposition)\s*\(\s*\|([^|]+)\|/gu,
+        )) {
+          const expressionCarriers = carriersForExpression(closure[1], closure.index);
+          for (const binding of rustPatternBindings(closure[2])) {
+            changed = addBindingCarriers(binding, expressionCarriers) || changed;
+          }
+        }
+        if (!changed) break;
+        assert.ok(
+          pass < functionSlice.scannable.length,
+          `residual carrier binding flow did not converge in ${functionSlice.name}`,
+        );
+      }
+
       for (const access of functionSlice.scannable.matchAll(
         /\b([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b/gu,
       )) {
-        const receiverType = bindings.get(access[1]);
-        if (!receiverType) continue;
-        const carrier = carrierByField.get(`${receiverType}.${access[2]}`);
+        const carrier = [bindings.get(access[1]), constructedReceiverType(access[1])]
+          .filter((receiverType): receiverType is string => receiverType !== undefined)
+          .map((receiverType) => carrierByField.get(`${receiverType}.${access[2]}`))
+          .find((candidate): candidate is CensusSite => candidate !== undefined);
         if (!carrier) continue;
         const offset = functionSlice.bodyStart + access.index;
         consumersByCarrier
@@ -2713,47 +2991,40 @@ function discoverResidualPropertyCarrierConsumers(
           );
       }
 
-      for (const [key, carrier] of carrierByParameter) {
-        const [carrierPath, functionAndParameter] = key.split("\u0000");
-        if (carrierPath !== relativePath) continue;
-        const separator = functionAndParameter.lastIndexOf(".");
-        const functionName = functionAndParameter.slice(0, separator);
-        const parameterName = functionAndParameter.slice(separator + 1);
-        if (functionName !== functionSlice.name) continue;
-        const parameterUse = new RegExp(`\\b${escapeRegExp(parameterName)}\\b`, "gu");
-        const authorityShadow = functionSlice.scannable.match(
-          new RegExp(
-            String.raw`\blet\s+${escapeRegExp(parameterName)}\s*=\s*(?:[A-Za-z_][A-Za-z0-9_]*\s*::\s*)*PropertyNameV0\s*::[^;]*\b${escapeRegExp(parameterName)}\b[^;]*;`,
-            "u",
-          ),
-        );
-        const authorityShadowEnd = authorityShadow
-          ? (authorityShadow.index ?? 0) + authorityShadow[0].length
-          : undefined;
-        for (const use of functionSlice.scannable.matchAll(parameterUse)) {
-          if (authorityShadowEnd !== undefined && use.index >= authorityShadowEnd) continue;
+      for (const [binding, bindingCarriers] of carriersByBinding) {
+        const bindingUse = new RegExp(`\\b${escapeRegExp(binding)}\\b`, "gu");
+        const shadowEnd = authorityShadowEnd(binding);
+        for (const use of functionSlice.scannable.matchAll(bindingUse)) {
+          if (shadowEnd !== undefined && use.index >= shadowEnd) continue;
           const offset = functionSlice.bodyStart + use.index;
-          consumersByCarrier
-            .get(carrier)
-            ?.push(
-              residualConsumerSiteAt(
-                relativePath,
-                source,
-                scannable,
-                offset,
-                functionSlice,
-                parameterName,
-              ),
-            );
+          for (const carrier of bindingCarriers) {
+            consumersByCarrier
+              .get(carrier)
+              ?.push(
+                residualConsumerSiteAt(
+                  relativePath,
+                  source,
+                  scannable,
+                  offset,
+                  functionSlice,
+                  binding,
+                ),
+              );
+          }
         }
       }
     }
   }
 
-  return carriers.map((carrier) => ({
-    carrier,
-    consumers: uniqueSites(consumersByCarrier.get(carrier) ?? []),
-  }));
+  const searchedBindingForms = residualOriginBindingSearchers
+    .map((searcher) => searcher.id)
+    .filter((origin) => bindingFormsSearched.has(origin));
+  return carriers.map((carrier) => {
+    const consumers = uniqueSites(consumersByCarrier.get(carrier) ?? []);
+    return consumers.length === 0
+      ? { carrier, consumers, bindingFormsSearched: searchedBindingForms }
+      : { carrier, consumers };
+  });
 }
 
 function residualConsumerSiteAt(
@@ -2828,6 +3099,40 @@ function residualConsumerSiteAt(
   };
 }
 
+function searchResidualOriginBindingForms(text: string): readonly AuthoredOriginId[] {
+  const searchers = injectResidualBindingFormOmission
+    ? residualOriginBindingSearchers.slice(1)
+    : residualOriginBindingSearchers;
+  const searched: AuthoredOriginId[] = [];
+  for (const searcher of searchers) {
+    searcher.pattern.test(text);
+    searched.push(searcher.id);
+  }
+  return searched;
+}
+
+function rustPatternBindings(pattern: string): readonly string[] {
+  const reserved = new Set([
+    "Some",
+    "None",
+    "Ok",
+    "Err",
+    "mut",
+    "ref",
+    "self",
+    "Self",
+    "true",
+    "false",
+  ]);
+  return [
+    ...new Set(
+      (pattern.match(/\b[A-Za-z_][A-Za-z0-9_]*\b/gu) ?? []).filter(
+        (binding) => binding !== "_" && !reserved.has(binding) && !/^[A-Z]/u.test(binding),
+      ),
+    ),
+  ];
+}
+
 function rustTypeAliasesByPath(
   sources: readonly MutableRustSource[],
 ): ReadonlyMap<string, ReadonlyMap<string, string>> {
@@ -2894,35 +3199,222 @@ function rustStructFieldTypes(
   return structures;
 }
 
+function rustEnumVariantPayloadTypes(
+  sources: readonly MutableRustSource[],
+  aliasesByPath: ReadonlyMap<string, ReadonlyMap<string, string>>,
+): ReadonlyMap<string, string> {
+  const variants = new Map<string, string>();
+  for (const { relativePath, source } of sources) {
+    const aliases = aliasesByPath.get(relativePath) ?? new Map<string, string>();
+    const scannable = maskCommentsStringsAndTestItems(source, false);
+    for (const enumeration of scannable.matchAll(/\benum\s+([A-Za-z_][A-Za-z0-9_]*)[^;{]*\{/gu)) {
+      const openBrace = enumeration.index + enumeration[0].lastIndexOf("{");
+      const closeBrace = matchingBrace(scannable, openBrace);
+      if (closeBrace === undefined) continue;
+      const body = scannable.slice(openBrace + 1, closeBrace);
+      for (const variant of body.matchAll(
+        /\b([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*([^,)]+)(?:,[^)]*)?\)/gu,
+      )) {
+        variants.set(`${enumeration[1]}::${variant[1]}`, normalizeRustType(variant[2], aliases));
+      }
+    }
+  }
+  return variants;
+}
+
+interface RustBindingResolutionContext {
+  readonly crateName: string;
+  readonly enumVariantPayloadTypes: ReadonlyMap<string, string>;
+  readonly functionReturnTypes: ReadonlyMap<string, string>;
+}
+
 function resolvedRustBindingsForFunction(
   functionSlice: RustFunctionSlice,
   source: string,
   aliases: ReadonlyMap<string, string>,
   structFields: ReadonlyMap<string, ReadonlyMap<string, string>>,
+  context?: RustBindingResolutionContext,
 ): ReadonlyMap<string, string> {
   const bindings = new Map<string, string>();
   const text = `${functionSlice.signature}{${functionSlice.scannable}}`;
-  for (const binding of text.matchAll(
+  const normalizeResolvedType = (typeSource: string): string => {
+    if (!context) return normalizeRustType(typeSource, aliases);
+    const identifiers = typeSource.match(/[A-Za-z_][A-Za-z0-9_]*/gu) ?? [];
+    for (const identifier of identifiers) {
+      const resolved = aliases.get(identifier) ?? identifier;
+      if (structFields.has(resolved)) return resolved;
+    }
+    return normalizeRustType(typeSource, aliases);
+  };
+  const explicitlyTypedBindingSource = context ? functionSlice.signature : text;
+  for (const binding of explicitlyTypedBindingSource.matchAll(
     /\b([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([^,)=;{]+(?:<[^;{=]+>)?)/gu,
   )) {
-    bindings.set(binding[1], normalizeRustType(binding[2], aliases));
+    bindings.set(binding[1], normalizeResolvedType(binding[2]));
+  }
+  if (context) {
+    for (const binding of functionSlice.scannable.matchAll(
+      /\blet\s+(?:mut\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([^=;]+)\s*=/gu,
+    )) {
+      bindings.set(binding[1], normalizeResolvedType(binding[2]));
+    }
+    for (const binding of functionSlice.scannable.matchAll(
+      /(?:\||,)\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([^,|]+)(?=,|\|)/gu,
+    )) {
+      bindings.set(binding[1], normalizeResolvedType(binding[2]));
+    }
   }
   const selfType = enclosingImplType(source, functionSlice.bodyStart, aliases);
   if (selfType) bindings.set("self", selfType);
 
-  for (let pass = 0; pass < 4; pass += 1) {
-    let changed = false;
-    for (const closure of functionSlice.scannable.matchAll(
-      /\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\.iter\s*\(\s*\)(?:\.[A-Za-z_][A-Za-z0-9_]*\s*\([^|]*\))*\s*\.(?:any|all|map|filter|filter_map|find|find_map|for_each|position|rposition)\s*\(\s*\|\s*&?\s*(?:mut\s+)?([A-Za-z_][A-Za-z0-9_]*)/gu,
-    )) {
-      const receiverType = resolveRustAccessType(closure[1], bindings, structFields);
-      const elementType = rustCollectionElementType(receiverType, aliases) ?? receiverType;
-      if (elementType && bindings.get(closure[2]) !== elementType) {
-        bindings.set(closure[2], elementType);
-        changed = true;
+  const genericAsRefTargets = new Map<string, string>();
+  for (const generic of functionSlice.signature.matchAll(
+    /\b([A-Za-z_][A-Za-z0-9_]*)\s*:\s*AsRef\s*<\s*([^>]+)>/gu,
+  )) {
+    genericAsRefTargets.set(generic[1], normalizeResolvedType(generic[2]));
+  }
+
+  const inferredExpressionType = (expression: string): string | undefined => {
+    const value = expression
+      .trim()
+      .replace(/^&\s*(?:mut\s+)?/u, "")
+      .replace(/\.(?:clone|as_ref)\s*\(\s*\)\s*$/u, "")
+      .trim();
+    const some = value.match(/^Some\s*\(\s*([\s\S]*)\s*\)$/u);
+    if (some) return inferredExpressionType(some[1]);
+    const structure = value.match(
+      /^(?:[A-Za-z_][A-Za-z0-9_]*\s*::\s*)*([A-Z][A-Za-z0-9_]*)\s*\{/u,
+    )?.[1];
+    if (structure) return aliases.get(structure) ?? structure;
+    const associatedConstructor = value.match(
+      /^(?:[A-Za-z_][A-Za-z0-9_]*\s*::\s*)*([A-Z][A-Za-z0-9_]*)\s*::\s*(?:default|new)\s*\(/u,
+    )?.[1];
+    if (associatedConstructor) return aliases.get(associatedConstructor) ?? associatedConstructor;
+    const variant = value.match(
+      /^(?:[A-Za-z_][A-Za-z0-9_]*\s*::\s*)*([A-Z][A-Za-z0-9_]*)\s*::\s*([A-Z][A-Za-z0-9_]*)\s*\(/u,
+    );
+    if (variant) return context?.enumVariantPayloadTypes.get(`${variant[1]}::${variant[2]}`);
+    if (/^[A-Za-z_][A-Za-z0-9_]*$/u.test(value)) return bindings.get(value);
+    const access = value.match(/^([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)/u)?.[1];
+    if (access) {
+      const resolved = resolveRustAccessType(access, bindings, structFields);
+      if (resolved) return normalizeResolvedType(resolved);
+    }
+    const asRef = value.match(/^([A-Za-z_][A-Za-z0-9_]*)\.as_ref\s*\(\s*\)/u)?.[1];
+    if (asRef) {
+      const genericType = bindings.get(asRef);
+      if (genericType && genericAsRefTargets.has(genericType)) {
+        return genericAsRefTargets.get(genericType);
       }
     }
+    const call = value.match(
+      /^(?:[A-Za-z_][A-Za-z0-9_]*\s*::\s*)*([A-Za-z_][A-Za-z0-9_]*)\s*\(/u,
+    )?.[1];
+    if (call && context) {
+      const returnType = context.functionReturnTypes.get(`${context.crateName}\u0000${call}`);
+      if (returnType) return normalizeResolvedType(returnType);
+    }
+    const method = value.match(/\.([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*\)\s*$/u)?.[1];
+    if (method && context) {
+      const returnType = context.functionReturnTypes.get(`${context.crateName}\u0000${method}`);
+      if (returnType) return normalizeResolvedType(returnType);
+    }
+    return undefined;
+  };
+
+  for (let pass = 0; pass <= functionSlice.scannable.length + 1; pass += 1) {
+    let changed = false;
+    const setBinding = (binding: string, rustType: string | undefined): void => {
+      if (rustType && !bindings.has(binding)) {
+        bindings.set(binding, rustType);
+        changed = true;
+      }
+    };
+
+    for (const closure of functionSlice.scannable.matchAll(
+      /\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\.(?:iter|into_iter)\s*\(\s*\)(?:\.[A-Za-z_][A-Za-z0-9_]*\s*\([^|;{}]*\))*\s*\.(?:any|all|map|filter|filter_map|find|find_map|for_each|position|rposition)\s*\(\s*\|\s*&?\s*(?:mut\s+)?([A-Za-z_][A-Za-z0-9_]*)/gu,
+    )) {
+      if (!context && closure[0].includes(".into_iter")) continue;
+      const receiverType = resolveRustAccessType(closure[1], bindings, structFields);
+      const elementType = rustCollectionElementType(receiverType, aliases) ?? receiverType;
+      setBinding(closure[2], elementType && normalizeResolvedType(elementType));
+    }
+    if (context) {
+      for (const closure of functionSlice.scannable.matchAll(
+        /\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\.(?:iter|into_iter)\s*\(\s*\)(?:\.[A-Za-z_][A-Za-z0-9_]*\s*\([^|;{}]*\))*\s*\.(?:any|all|map|filter|filter_map|find|find_map|for_each|position|rposition)\s*\(\s*\|([^|]+)\|/gu,
+      )) {
+        const receiverType = resolveRustAccessType(closure[1], bindings, structFields);
+        const elementType = rustCollectionElementType(receiverType, aliases) ?? receiverType;
+        for (const binding of rustPatternBindings(closure[2])) {
+          setBinding(binding, elementType && normalizeResolvedType(elementType));
+        }
+      }
+    }
+    if (!context) {
+      if (!changed) break;
+      continue;
+    }
+    for (const loop of functionSlice.scannable.matchAll(
+      /\bfor\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+([^{]+)/gu,
+    )) {
+      setBinding(loop[1], inferredExpressionType(loop[2]));
+    }
+    for (const assignment of functionSlice.scannable.matchAll(
+      /\blet\s+(?:mut\s+)?([A-Za-z_][A-Za-z0-9_]*)(?:\s*:[^=;]+)?\s*=\s*([^;]+);/gu,
+    )) {
+      setBinding(assignment[1], inferredExpressionType(assignment[2]));
+    }
+    for (const assignment of functionSlice.scannable.matchAll(
+      /\b([A-Za-z_][A-Za-z0-9_]*)\s*=\s*Some\s*\(\s*((?:[A-Za-z_][A-Za-z0-9_]*\s*::\s*)*[A-Z][A-Za-z0-9_]*\s*[{])/gu,
+    )) {
+      setBinding(assignment[1], inferredExpressionType(assignment[2]));
+    }
+    for (const optional of functionSlice.scannable.matchAll(
+      /\b(?:if|while)\s+let\s+Some\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)\s*=\s*([^{]+)/gu,
+    )) {
+      setBinding(optional[1], inferredExpressionType(optional[2]));
+    }
+    for (const optional of functionSlice.scannable.matchAll(
+      /\blet\s+Some\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)\s*=\s*([^;]+?)(?:\s+else\s*\{|;)/gu,
+    )) {
+      setBinding(optional[1], inferredExpressionType(optional[2]));
+    }
+    for (const variant of functionSlice.scannable.matchAll(
+      /\b([A-Z][A-Za-z0-9_]*)\s*::\s*([A-Z][A-Za-z0-9_]*)\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)/gu,
+    )) {
+      setBinding(variant[3], context?.enumVariantPayloadTypes.get(`${variant[1]}::${variant[2]}`));
+    }
+    for (const destructuring of functionSlice.scannable.matchAll(
+      /\b([A-Z][A-Za-z0-9_]*)\s*\{([^{}]*)\}\s*(?:=|=>|:)/gu,
+    )) {
+      const fields = structFields.get(aliases.get(destructuring[1]) ?? destructuring[1]);
+      if (!fields) continue;
+      for (const field of destructuring[2].matchAll(
+        /(?:^|,)\s*([A-Za-z_][A-Za-z0-9_]*)(?:\s*:\s*([A-Za-z_][A-Za-z0-9_]*))?(?:\s*,|$)/gu,
+      )) {
+        setBinding(field[2] ?? field[1], fields.get(field[1]));
+      }
+    }
+    for (const tuple of functionSlice.scannable.matchAll(
+      /\blet\s*\(([^)]*)\)\s*=\s*\(([^;]*)\)\s*;/gu,
+    )) {
+      const targets = tuple[1].split(",").map((part) => part.trim());
+      const values = tuple[2].split(",").map((part) => part.trim());
+      for (const [index, target] of targets.entries()) {
+        const binding = target.match(/(?:Some\s*\()?([A-Za-z_][A-Za-z0-9_]*)/u)?.[1];
+        if (binding) setBinding(binding, inferredExpressionType(values[index] ?? ""));
+      }
+    }
+    for (const atBinding of functionSlice.scannable.matchAll(
+      /\blet\s+([A-Za-z_][A-Za-z0-9_]*)\s*@[^=]*=\s*([A-Za-z_][A-Za-z0-9_]*)/gu,
+    )) {
+      setBinding(atBinding[1], bindings.get(atBinding[2]));
+    }
     if (!changed) break;
+    assert.ok(
+      pass < functionSlice.scannable.length,
+      `Rust binding resolution did not converge in ${functionSlice.name}`,
+    );
   }
   return bindings;
 }
@@ -3324,8 +3816,8 @@ function applyResidualCarrierProbeMutations(sources: MutableRustSource[]): void 
   if (injectResidualIdentityConsumer) {
     appendTrackedSourceMutation(
       sources,
-      'struct InjectedResidualIdentityConsumer { property_name: &\'static str }\nconst INJECTED_RESIDUAL_IDENTITY_CONSUMER: InjectedResidualIdentityConsumer = InjectedResidualIdentityConsumer { property_name: "color" };\nfn injected_residual_identity_consumer(entry: &InjectedResidualIdentityConsumer, expected: &str) -> bool { entry.property_name == expected }',
-      targetPath,
+      "fn injected_residual_identity_consumer(entry: &SelectorSpecificitySeedCase, expected: &str) -> bool { let SelectorSpecificitySeedCase { property, .. } = entry; *property == expected }",
+      "rust/crates/omena-cascade/src/conformance.rs",
     );
   }
 }
@@ -4572,6 +5064,7 @@ function inferredEscapeBindings(
 function uniqueRustFunctionReturnTypes(
   sources: readonly MutableRustSource[],
   aliasesByPath: ReadonlyMap<string, ReadonlyMap<string, string>>,
+  structFields?: ReadonlyMap<string, ReadonlyMap<string, string>>,
 ): ReadonlyMap<string, string> {
   const candidates = new Map<string, Set<string>>();
   for (const { relativePath, source } of sources) {
@@ -4583,7 +5076,13 @@ function uniqueRustFunctionReturnTypes(
       if (!returnType) continue;
       const key = `${crateName}\0${functionSlice.name}`;
       const types = candidates.get(key) ?? new Set<string>();
-      types.add(normalizeRustType(returnType, aliases));
+      const identifiers = returnType.match(/[A-Za-z_][A-Za-z0-9_]*/gu) ?? [];
+      const declaredType = structFields
+        ? identifiers
+            .map((identifier) => aliases.get(identifier) ?? identifier)
+            .find((identifier) => structFields.has(identifier))
+        : undefined;
+      types.add(declaredType ?? normalizeRustType(returnType, aliases));
       candidates.set(key, types);
     }
   }
