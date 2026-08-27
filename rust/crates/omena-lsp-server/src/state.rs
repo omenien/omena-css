@@ -725,8 +725,8 @@ fn style_symbol_occurrence_name_cmp(
     left: &LspStyleSymbolOccurrenceV0,
     right: &LspStyleSymbolOccurrenceV0,
 ) -> CmpOrdering {
-    if left.family == OmenaWorkspaceOccurrenceFamilyV0::CustomProperty
-        && right.family == OmenaWorkspaceOccurrenceFamilyV0::CustomProperty
+    if left.kind.family() == OmenaWorkspaceOccurrenceFamilyV0::CustomProperty
+        && right.kind.family() == OmenaWorkspaceOccurrenceFamilyV0::CustomProperty
     {
         return PropertyNameV0::canonical_custom_key(left.name.clone())
             .cmp(&PropertyNameV0::canonical_custom_key(right.name.clone()));

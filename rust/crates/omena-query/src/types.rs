@@ -3189,8 +3189,10 @@ fn workspace_occurrence_name_cmp(
     left: &OmenaWorkspaceOccurrenceV0,
     right: &OmenaWorkspaceOccurrenceV0,
 ) -> Ordering {
-    let left_is_custom_property = left.kind.is_custom_property();
-    let right_is_custom_property = right.kind.is_custom_property();
+    let left_is_custom_property =
+        left.kind.family() == OmenaWorkspaceOccurrenceFamilyV0::CustomProperty;
+    let right_is_custom_property =
+        right.kind.family() == OmenaWorkspaceOccurrenceFamilyV0::CustomProperty;
     let identity_domain_order = left_is_custom_property.cmp(&right_is_custom_property);
     if identity_domain_order != Ordering::Equal {
         return identity_domain_order;
@@ -3215,14 +3217,34 @@ pub enum OmenaWorkspaceOccurrenceKindV0 {
     SassMixinInclude,
     SassFunctionDeclaration,
     SassFunctionCall,
+    SassMixinReference,
+    SassFunctionReference,
+    SassSymbolDeclaration,
+    SassSymbolReference,
 }
 
 impl OmenaWorkspaceOccurrenceKindV0 {
-    fn is_custom_property(self) -> bool {
-        matches!(
-            self,
-            Self::CustomPropertyDeclaration | Self::CustomPropertyReference
-        )
+    pub fn family(self) -> OmenaWorkspaceOccurrenceFamilyV0 {
+        match self {
+            Self::SourceSelectorReference | Self::SourceSelectorPrefixReference => {
+                OmenaWorkspaceOccurrenceFamilyV0::CssModuleSelector
+            }
+            Self::CustomPropertyDeclaration | Self::CustomPropertyReference => {
+                OmenaWorkspaceOccurrenceFamilyV0::CustomProperty
+            }
+            Self::SassVariableDeclaration | Self::SassVariableReference => {
+                OmenaWorkspaceOccurrenceFamilyV0::Variable
+            }
+            Self::SassMixinDeclaration | Self::SassMixinInclude | Self::SassMixinReference => {
+                OmenaWorkspaceOccurrenceFamilyV0::Mixin
+            }
+            Self::SassFunctionDeclaration
+            | Self::SassFunctionCall
+            | Self::SassFunctionReference => OmenaWorkspaceOccurrenceFamilyV0::Function,
+            Self::SassSymbolDeclaration | Self::SassSymbolReference => {
+                OmenaWorkspaceOccurrenceFamilyV0::Symbol
+            }
+        }
     }
 
     pub fn as_str(self) -> &'static str {
@@ -3235,8 +3257,12 @@ impl OmenaWorkspaceOccurrenceKindV0 {
             Self::SassVariableReference => "sassVariableReference",
             Self::SassMixinDeclaration => "sassMixinDeclaration",
             Self::SassMixinInclude => "sassMixinInclude",
+            Self::SassMixinReference => "sassMixinReference",
             Self::SassFunctionDeclaration => "sassFunctionDeclaration",
             Self::SassFunctionCall => "sassFunctionCall",
+            Self::SassFunctionReference => "sassFunctionReference",
+            Self::SassSymbolDeclaration => "sassSymbolDeclaration",
+            Self::SassSymbolReference => "sassSymbolReference",
         }
     }
 }
