@@ -1,1312 +1,1301 @@
 {
   "schemaVersion": "1",
   "product": "omena.check-orchestrator.ci-cost-ledger",
-  "generatedAt": "2026-08-26",
-  "sourceRunIds": [
-    "33020615509",
-    "33018350801",
-    "32960039780",
-    "32946234620",
-    "32934327688",
-    "32925337953",
-    "32914074286",
-    "32874004629",
-    "32845731895",
-    "32828615199"
-  ],
+  "generatedAt": "2026-08-27",
+  "sourceRunIds": ["33088518472"],
   "gates": [
     {
       "gateId": "contract/engine-v2-contract-idl-decisions",
-      "p50Ms": 188,
-      "p95Ms": 219,
-      "sampleCount": 10
+      "p50Ms": 197,
+      "p95Ms": 197,
+      "sampleCount": 1
     },
     {
       "gateId": "contract/engine-v2-contract-idl-fixtures",
-      "p50Ms": 1303,
-      "p95Ms": 1391,
-      "sampleCount": 10
+      "p50Ms": 1284,
+      "p95Ms": 1284,
+      "sampleCount": 1
     },
     {
       "gateId": "contract/engine-v2-contract-idl-generated",
-      "p50Ms": 16802,
-      "p95Ms": 17871,
-      "sampleCount": 10
+      "p50Ms": 17171,
+      "p95Ms": 17171,
+      "sampleCount": 1
     },
     {
       "gateId": "contract/engine-v2-contract-idl-rust-roundtrip",
-      "p50Ms": 17973,
-      "p95Ms": 22384,
-      "sampleCount": 10
+      "p50Ms": 4868,
+      "p95Ms": 4868,
+      "sampleCount": 1
     },
     {
       "gateId": "contract/engine-v2-contract-idl-toolchain",
-      "p50Ms": 8551,
-      "p95Ms": 9959,
-      "sampleCount": 10
+      "p50Ms": 7654,
+      "p95Ms": 7654,
+      "sampleCount": 1
     },
     {
       "gateId": "contract/engine-v2-contract-idl-ts-compat",
-      "p50Ms": 2647,
-      "p95Ms": 2863,
-      "sampleCount": 10
+      "p50Ms": 2728,
+      "p95Ms": 2728,
+      "sampleCount": 1
     },
     {
       "gateId": "contract/external-corpus-envelope-contract-idl-generated",
-      "p50Ms": 16922,
-      "p95Ms": 17896,
-      "sampleCount": 10
+      "p50Ms": 17273,
+      "p95Ms": 17273,
+      "sampleCount": 1
     },
     {
       "gateId": "contract/parity-v2-golden",
-      "p50Ms": 1542,
-      "p95Ms": 1637,
-      "sampleCount": 10
+      "p50Ms": 1506,
+      "p95Ms": 1506,
+      "sampleCount": 1
     },
     {
       "gateId": "contract/type-fact-backend-parity",
-      "p50Ms": 7112,
-      "p95Ms": 13301,
-      "sampleCount": 10
+      "p50Ms": 6651,
+      "p95Ms": 6651,
+      "sampleCount": 1
     },
     {
       "gateId": "core/build",
-      "p50Ms": 213659,
-      "p95Ms": 348646,
-      "sampleCount": 10
+      "p50Ms": 243531,
+      "p95Ms": 243531,
+      "sampleCount": 1
     },
     {
       "gateId": "core/build/omena-napi",
-      "p50Ms": 197895,
-      "p95Ms": 369986,
-      "sampleCount": 20
+      "p50Ms": 116220,
+      "p95Ms": 130491,
+      "sampleCount": 2
     },
     {
       "gateId": "core/check",
-      "p50Ms": 8867,
-      "p95Ms": 9742,
-      "sampleCount": 10
+      "p50Ms": 9773,
+      "p95Ms": 9773,
+      "sampleCount": 1
     },
     {
       "gateId": "docs/publication-material",
-      "p50Ms": 161,
-      "p95Ms": 174,
-      "sampleCount": 10
+      "p50Ms": 172,
+      "p95Ms": 172,
+      "sampleCount": 1
     },
     {
       "gateId": "docs/readme-example",
-      "p50Ms": 461,
-      "p95Ms": 499,
-      "sampleCount": 10
+      "p50Ms": 505,
+      "p95Ms": 505,
+      "sampleCount": 1
     },
     {
       "gateId": "docs/reference-surface",
-      "p50Ms": 96561,
-      "p95Ms": 125722,
-      "sampleCount": 10
+      "p50Ms": 60816,
+      "p95Ms": 60816,
+      "sampleCount": 1
     },
     {
       "gateId": "docs/site",
-      "p50Ms": 13920,
-      "p95Ms": 16019,
-      "sampleCount": 10
+      "p50Ms": 13828,
+      "p95Ms": 13828,
+      "sampleCount": 1
     },
     {
       "gateId": "docs/site-contracts",
-      "p50Ms": 212,
-      "p95Ms": 223,
-      "sampleCount": 10
+      "p50Ms": 216,
+      "p95Ms": 216,
+      "sampleCount": 1
     },
     {
       "gateId": "docs/smoke",
-      "p50Ms": 60,
-      "p95Ms": 69,
-      "sampleCount": 10
+      "p50Ms": 70,
+      "p95Ms": 70,
+      "sampleCount": 1
     },
     {
       "gateId": "docs/version-governance",
-      "p50Ms": 331,
-      "p95Ms": 347,
-      "sampleCount": 10
+      "p50Ms": 353,
+      "p95Ms": 353,
+      "sampleCount": 1
     },
     {
       "gateId": "docs/version-strings",
-      "p50Ms": 505,
-      "p95Ms": 529,
-      "sampleCount": 10
+      "p50Ms": 552,
+      "p95Ms": 552,
+      "sampleCount": 1
     },
     {
       "gateId": "plugin/bundler-product-gate",
-      "p50Ms": 104,
-      "p95Ms": 112,
-      "sampleCount": 10
+      "p50Ms": 99,
+      "p95Ms": 99,
+      "sampleCount": 1
     },
     {
       "gateId": "plugin/consumer-example",
-      "p50Ms": 3479,
-      "p95Ms": 3746,
-      "sampleCount": 10
+      "p50Ms": 3345,
+      "p95Ms": 3345,
+      "sampleCount": 1
     },
     {
       "gateId": "plugin/eslint-plugin-smoke",
-      "p50Ms": 94644,
-      "p95Ms": 136470,
-      "sampleCount": 10
+      "p50Ms": 38125,
+      "p95Ms": 38125,
+      "sampleCount": 1
     },
     {
       "gateId": "plugin/eslint-plugin-workspace-session",
-      "p50Ms": 143833,
-      "p95Ms": 216996,
-      "sampleCount": 10
+      "p50Ms": 114463,
+      "p95Ms": 114463,
+      "sampleCount": 1
     },
     {
       "gateId": "plugin/oxlint-plugin-smoke",
-      "p50Ms": 519,
-      "p95Ms": 548,
-      "sampleCount": 10
+      "p50Ms": 497,
+      "p95Ms": 497,
+      "sampleCount": 1
     },
     {
       "gateId": "plugin/package-staging",
-      "p50Ms": 7479,
-      "p95Ms": 9180,
-      "sampleCount": 10
+      "p50Ms": 8773,
+      "p95Ms": 8773,
+      "sampleCount": 1
     },
     {
       "gateId": "plugin/postcss-plugin-consumer-build",
-      "p50Ms": 112,
-      "p95Ms": 119,
-      "sampleCount": 10
+      "p50Ms": 110,
+      "p95Ms": 110,
+      "sampleCount": 1
     },
     {
       "gateId": "plugin/postcss-plugin-smoke",
-      "p50Ms": 79,
-      "p95Ms": 82,
-      "sampleCount": 10
+      "p50Ms": 76,
+      "p95Ms": 76,
+      "sampleCount": 1
     },
     {
       "gateId": "plugin/stylelint-plugin-smoke",
-      "p50Ms": 94059,
-      "p95Ms": 105272,
-      "sampleCount": 10
+      "p50Ms": 91435,
+      "p95Ms": 91435,
+      "sampleCount": 1
     },
     {
       "gateId": "plugin/vite-plugin-smoke",
-      "p50Ms": 47,
-      "p95Ms": 51,
-      "sampleCount": 10
+      "p50Ms": 43,
+      "p95Ms": 43,
+      "sampleCount": 1
     },
     {
       "gateId": "release/check/packaged-omena-napi-crossplatform",
-      "p50Ms": 3925,
-      "p95Ms": 4640,
-      "sampleCount": 20
+      "p50Ms": 3672,
+      "p95Ms": 5118,
+      "sampleCount": 2
     },
     {
       "gateId": "release/check/release-notes",
-      "p50Ms": 303,
-      "p95Ms": 322,
-      "sampleCount": 10
+      "p50Ms": 333,
+      "p95Ms": 333,
+      "sampleCount": 1
     },
     {
       "gateId": "release/check/release-tag-grammar",
-      "p50Ms": 172,
-      "p95Ms": 180,
-      "sampleCount": 10
+      "p50Ms": 176,
+      "p95Ms": 176,
+      "sampleCount": 1
     },
     {
       "gateId": "release/package/prepared",
-      "p50Ms": 25113,
-      "p95Ms": 25932,
-      "sampleCount": 10
+      "p50Ms": 25398,
+      "p95Ms": 25398,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/benchmark/ci-reachability",
-      "p50Ms": 661,
-      "p95Ms": 711,
-      "sampleCount": 10
+      "p50Ms": 435,
+      "p95Ms": 435,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/benchmark/emitted-css-golden-gate",
-      "p50Ms": 63270,
-      "p95Ms": 112585,
-      "sampleCount": 10
+      "p50Ms": 25343,
+      "p95Ms": 25343,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/benchmark/headline-axis",
-      "p50Ms": 784,
-      "p95Ms": 955,
-      "sampleCount": 10
+      "p50Ms": 581,
+      "p95Ms": 581,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/benchmark/transform-relex-baseline",
-      "p50Ms": 30793,
-      "p95Ms": 31560,
-      "sampleCount": 10
+      "p50Ms": 17117,
+      "p95Ms": 17117,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/bundler-productization-benchmark",
-      "p50Ms": 12227,
-      "p95Ms": 26666,
-      "sampleCount": 10
+      "p50Ms": 12668,
+      "p95Ms": 12668,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/closure-fast-aggregation-complete",
-      "p50Ms": 575,
-      "p95Ms": 625,
-      "sampleCount": 10
+      "p50Ms": 607,
+      "p95Ms": 607,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/contract-shape-census",
-      "p50Ms": 454,
-      "p95Ms": 483,
-      "sampleCount": 10
+      "p50Ms": 450,
+      "p95Ms": 450,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/core-layer-hygiene",
-      "p50Ms": 221,
-      "p95Ms": 237,
-      "sampleCount": 10
+      "p50Ms": 226,
+      "p95Ms": 226,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/crate-documentation",
-      "p50Ms": 254,
+      "p50Ms": 267,
       "p95Ms": 267,
-      "sampleCount": 10
+      "sampleCount": 1
     },
     {
       "gateId": "rust/cross-file-reachability-diagnostic",
-      "p50Ms": 1677,
-      "p95Ms": 1792,
-      "sampleCount": 10
+      "p50Ms": 1648,
+      "p95Ms": 1648,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/cst-typed-egress-closure",
-      "p50Ms": 165,
-      "p95Ms": 173,
-      "sampleCount": 10
+      "p50Ms": 168,
+      "p95Ms": 168,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/demand-sliced-monotone-fact-propagation-relocation-gate",
-      "p50Ms": 77556,
-      "p95Ms": 83678,
-      "sampleCount": 10
+      "p50Ms": 59413,
+      "p95Ms": 59413,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/demand-sliced-monotone-fact-propagation-relocation-gate-bound",
-      "p50Ms": 307965,
-      "p95Ms": 375970,
-      "sampleCount": 10
+      "p50Ms": 236843,
+      "p95Ms": 236843,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/demand-sliced-monotone-fact-propagation-settle-soak",
-      "p50Ms": 2388,
-      "p95Ms": 2721,
-      "sampleCount": 10
+      "p50Ms": 2612,
+      "p95Ms": 2612,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/demand-sliced-monotone-fact-propagation-solver-hygiene",
-      "p50Ms": 163,
-      "p95Ms": 173,
-      "sampleCount": 10
+      "p50Ms": 160,
+      "p95Ms": 160,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/discharge-ledger",
-      "p50Ms": 2516,
-      "p95Ms": 5210,
-      "sampleCount": 10
+      "p50Ms": 2422,
+      "p95Ms": 2422,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/domain-claim-census",
-      "p50Ms": 1407,
-      "p95Ms": 1486,
-      "sampleCount": 10
+      "p50Ms": 1406,
+      "p95Ms": 1406,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/evidence-graph-single-authority",
-      "p50Ms": 461,
-      "p95Ms": 496,
-      "sampleCount": 10
+      "p50Ms": 453,
+      "p95Ms": 453,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/feature-resolved-product-reachability",
-      "p50Ms": 1019,
-      "p95Ms": 1092,
-      "sampleCount": 10
+      "p50Ms": 995,
+      "p95Ms": 995,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/guarded-cascade-winner-closure",
-      "p50Ms": 2868,
-      "p95Ms": 3177,
-      "sampleCount": 10
+      "p50Ms": 2854,
+      "p95Ms": 2854,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/inter-crate-pin",
       "p50Ms": 224,
-      "p95Ms": 238,
-      "sampleCount": 10
+      "p95Ms": 224,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/layer-dependency-exceptions",
-      "p50Ms": 225,
-      "p95Ms": 232,
-      "sampleCount": 10
+      "p50Ms": 220,
+      "p95Ms": 220,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/lint-finding-census",
-      "p50Ms": 152528,
-      "p95Ms": 182276,
-      "sampleCount": 10
+      "p50Ms": 134641,
+      "p95Ms": 134641,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/naming-consistency",
-      "p50Ms": 222,
-      "p95Ms": 227,
-      "sampleCount": 10
+      "p50Ms": 221,
+      "p95Ms": 221,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/no-split-repo-residue",
-      "p50Ms": 201,
-      "p95Ms": 211,
-      "sampleCount": 10
+      "p50Ms": 198,
+      "p95Ms": 198,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/obligation-family-closure",
       "p50Ms": 177,
-      "p95Ms": 185,
-      "sampleCount": 10
+      "p95Ms": 177,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-alias-resolution-surfaces",
-      "p50Ms": 34094,
-      "p95Ms": 50498,
-      "sampleCount": 10
+      "p50Ms": 42072,
+      "p95Ms": 42072,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-bundler/adapter-pass-authority",
-      "p50Ms": 66832,
-      "p95Ms": 120559,
-      "sampleCount": 10
+      "p50Ms": 24723,
+      "p95Ms": 24723,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-bundler/closed-world-authority",
-      "p50Ms": 126308,
-      "p95Ms": 152652,
-      "sampleCount": 10
+      "p50Ms": 92732,
+      "p95Ms": 92732,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-bundler/emission-item-contract",
-      "p50Ms": 529,
-      "p95Ms": 562,
-      "sampleCount": 10
+      "p50Ms": 434,
+      "p95Ms": 434,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-bundler/emission-order-contract",
-      "p50Ms": 346,
-      "p95Ms": 372,
-      "sampleCount": 10
+      "p50Ms": 283,
+      "p95Ms": 283,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-bundler/linked-emission-byte-differential",
-      "p50Ms": 8541,
-      "p95Ms": 8926,
-      "sampleCount": 10
+      "p50Ms": 8588,
+      "p95Ms": 8588,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-bundler/linked-emission-default-precondition",
-      "p50Ms": 22977,
-      "p95Ms": 41335,
-      "sampleCount": 10
+      "p50Ms": 10235,
+      "p95Ms": 10235,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-bundler/linked-emission-falsifier-disclosure",
-      "p50Ms": 196854,
-      "p95Ms": 242554,
-      "sampleCount": 10
+      "p50Ms": 216196,
+      "p95Ms": 216196,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-bundler/public-surface",
-      "p50Ms": 68758,
-      "p95Ms": 85027,
-      "sampleCount": 10
+      "p50Ms": 52716,
+      "p95Ms": 52716,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-cascade/boundary",
-      "p50Ms": 1151843,
-      "p95Ms": 1319121,
-      "sampleCount": 10
+      "p50Ms": 1149580,
+      "p95Ms": 1149580,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-cascade/layer-rank-construction",
-      "p50Ms": 201,
-      "p95Ms": 214,
-      "sampleCount": 10
+      "p50Ms": 204,
+      "p95Ms": 204,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-cascade/property-metadata",
-      "p50Ms": 17394,
-      "p95Ms": 18421,
-      "sampleCount": 10
+      "p50Ms": 18178,
+      "p95Ms": 18178,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-cli-json-output-census",
-      "p50Ms": 177,
-      "p95Ms": 186,
-      "sampleCount": 10
+      "p50Ms": 181,
+      "p95Ms": 181,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-cli-migration",
-      "p50Ms": 5495,
-      "p95Ms": 5919,
-      "sampleCount": 10
+      "p50Ms": 5468,
+      "p95Ms": 5468,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-cli-minify-backend",
-      "p50Ms": 37604,
-      "p95Ms": 64858,
-      "sampleCount": 10
+      "p50Ms": 40086,
+      "p95Ms": 40086,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-cli-persona-presets",
-      "p50Ms": 14756,
-      "p95Ms": 36064,
-      "sampleCount": 10
+      "p50Ms": 13197,
+      "p95Ms": 13197,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-cli-postcss-compat",
-      "p50Ms": 48769,
-      "p95Ms": 71853,
-      "sampleCount": 10
+      "p50Ms": 48213,
+      "p95Ms": 48213,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-cli-verb-census",
-      "p50Ms": 174,
-      "p95Ms": 186,
-      "sampleCount": 10
+      "p50Ms": 180,
+      "p95Ms": 180,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-config-schema-census",
-      "p50Ms": 461,
-      "p95Ms": 493,
-      "sampleCount": 10
+      "p50Ms": 459,
+      "p95Ms": 459,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-coverage-gap-report",
-      "p50Ms": 340,
-      "p95Ms": 573,
-      "sampleCount": 10
+      "p50Ms": 481,
+      "p95Ms": 481,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-cross-surface-parity",
-      "p50Ms": 501,
-      "p95Ms": 523,
-      "sampleCount": 10
+      "p50Ms": 499,
+      "p95Ms": 499,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-css/spec-boundary",
-      "p50Ms": 247,
-      "p95Ms": 350,
-      "sampleCount": 10
+      "p50Ms": 239,
+      "p95Ms": 239,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-debt-clock",
-      "p50Ms": 919,
-      "p95Ms": 955,
-      "sampleCount": 10
+      "p50Ms": 945,
+      "p95Ms": 945,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-diff-test-core",
-      "p50Ms": 298988,
-      "p95Ms": 463936,
-      "sampleCount": 10
+      "p50Ms": 311633,
+      "p95Ms": 311633,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-diff-test-extended",
-      "p50Ms": 87272,
-      "p95Ms": 102452,
-      "sampleCount": 10
+      "p50Ms": 96070,
+      "p95Ms": 96070,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-diff-test-sass-spec",
-      "p50Ms": 152538,
-      "p95Ms": 188837,
-      "sampleCount": 10
+      "p50Ms": 114417,
+      "p95Ms": 114417,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-diff-test-wpt",
-      "p50Ms": 312585,
-      "p95Ms": 366338,
-      "sampleCount": 10
+      "p50Ms": 134099,
+      "p95Ms": 134099,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-fact-precision-census",
-      "p50Ms": 1899,
-      "p95Ms": 1989,
-      "sampleCount": 10
+      "p50Ms": 1925,
+      "p95Ms": 1925,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-ffi-boundary-typing-census",
-      "p50Ms": 183,
-      "p95Ms": 193,
-      "sampleCount": 10
+      "p50Ms": 199,
+      "p95Ms": 199,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-identifier-authority-matrix",
-      "p50Ms": 2595,
-      "p95Ms": 2595,
+      "p50Ms": 12630,
+      "p95Ms": 12630,
       "sampleCount": 1
     },
     {
       "gateId": "rust/omena-identifier-authority-mutations",
-      "p50Ms": 1663520,
-      "p95Ms": 1663520,
-      "sampleCount": 1
+      "p50Ms": 1767130,
+      "p95Ms": 1858296,
+      "sampleCount": 2
     },
     {
       "gateId": "rust/omena-js-bundler-host-no-regex-classmap",
-      "p50Ms": 8583,
-      "p95Ms": 10002,
-      "sampleCount": 10
+      "p50Ms": 9803,
+      "p95Ms": 9803,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-js-bundler-host-parity",
-      "p50Ms": 12777,
-      "p95Ms": 14736,
-      "sampleCount": 10
+      "p50Ms": 13881,
+      "p95Ms": 13881,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-js-bundler-host-plugin-kind",
-      "p50Ms": 185,
-      "p95Ms": 193,
-      "sampleCount": 10
+      "p50Ms": 192,
+      "p95Ms": 192,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-keyword-case-authority-census",
-      "p50Ms": 1605,
-      "p95Ms": 1689,
-      "sampleCount": 10
+      "p50Ms": 1644,
+      "p95Ms": 1644,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-lint-parity",
-      "p50Ms": 3955,
-      "p95Ms": 4448,
-      "sampleCount": 10
+      "p50Ms": 3926,
+      "p95Ms": 3926,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-lint-tier-census",
-      "p50Ms": 2154,
-      "p95Ms": 2815,
-      "sampleCount": 10
+      "p50Ms": 1932,
+      "p95Ms": 1932,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-literal-evidence-census",
-      "p50Ms": 5886,
-      "p95Ms": 6133,
-      "sampleCount": 10
+      "p50Ms": 6037,
+      "p95Ms": 6037,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-lsp-server/boundary",
-      "p50Ms": 104241,
-      "p95Ms": 153128,
-      "sampleCount": 10
+      "p50Ms": 48563,
+      "p95Ms": 48563,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-lsp-server/reactive-shadow-parity",
-      "p50Ms": 93455,
-      "p95Ms": 129709,
-      "sampleCount": 10
+      "p50Ms": 42613,
+      "p95Ms": 42613,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-lsp-server/tide-sole-authority",
-      "p50Ms": 40662,
-      "p95Ms": 123270,
-      "sampleCount": 10
+      "p50Ms": 24785,
+      "p95Ms": 24785,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-modules-surface",
-      "p50Ms": 736,
-      "p95Ms": 782,
-      "sampleCount": 10
+      "p50Ms": 767,
+      "p95Ms": 767,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-plugin-abi-stability",
-      "p50Ms": 288,
-      "p95Ms": 302,
-      "sampleCount": 10
+      "p50Ms": 285,
+      "p95Ms": 285,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-plugin-consumption-law",
       "p50Ms": 176,
-      "p95Ms": 181,
-      "sampleCount": 10
+      "p95Ms": 176,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-precision-witness-census",
-      "p50Ms": 206,
-      "p95Ms": 217,
-      "sampleCount": 10
+      "p50Ms": 209,
+      "p95Ms": 209,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-query/bundle-execution-scope",
-      "p50Ms": 32812,
-      "p95Ms": 66866,
-      "sampleCount": 10
+      "p50Ms": 59498,
+      "p95Ms": 59498,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-query/cascade-input-authority",
-      "p50Ms": 438,
-      "p95Ms": 487,
-      "sampleCount": 10
+      "p50Ms": 470,
+      "p95Ms": 470,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-query/core-contract",
-      "p50Ms": 642513,
-      "p95Ms": 795379,
-      "sampleCount": 10
+      "p50Ms": 478931,
+      "p95Ms": 478931,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-query/css-module-token-integrity",
-      "p50Ms": 1340,
-      "p95Ms": 1376,
-      "sampleCount": 10
+      "p50Ms": 1078,
+      "p95Ms": 1078,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-query/linked-source-map-boundary",
-      "p50Ms": 907,
-      "p95Ms": 939,
-      "sampleCount": 10
+      "p50Ms": 734,
+      "p95Ms": 734,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-query/linker-input-walk-authority",
-      "p50Ms": 41995,
-      "p95Ms": 59158,
-      "sampleCount": 10
+      "p50Ms": 35920,
+      "p95Ms": 35920,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-query/module-qualified-product-path",
-      "p50Ms": 2845,
-      "p95Ms": 5240,
-      "sampleCount": 10
+      "p50Ms": 2900,
+      "p95Ms": 2900,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-query/module-reachability-hoist",
-      "p50Ms": 18368,
-      "p95Ms": 29053,
-      "sampleCount": 10
+      "p50Ms": 18130,
+      "p95Ms": 18130,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-query/runtime-contract",
-      "p50Ms": 189,
-      "p95Ms": 240,
-      "sampleCount": 10
+      "p50Ms": 190,
+      "p95Ms": 190,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-query/transform-contract",
-      "p50Ms": 183208,
-      "p95Ms": 249183,
-      "sampleCount": 10
+      "p50Ms": 80552,
+      "p95Ms": 80552,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-query/transform-differential",
-      "p50Ms": 13820,
-      "p95Ms": 30236,
-      "sampleCount": 10
+      "p50Ms": 12366,
+      "p95Ms": 12366,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-reactive/contract",
-      "p50Ms": 5366,
-      "p95Ms": 12544,
-      "sampleCount": 10
+      "p50Ms": 2134,
+      "p95Ms": 2134,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-reactive/performance",
-      "p50Ms": 2283,
-      "p95Ms": 3612,
-      "sampleCount": 10
+      "p50Ms": 2142,
+      "p95Ms": 2142,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-reactive/public-surface",
-      "p50Ms": 320470,
-      "p95Ms": 378652,
-      "sampleCount": 10
+      "p50Ms": 272786,
+      "p95Ms": 272786,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-reactive/public-surface-clean",
-      "p50Ms": 1187,
-      "p95Ms": 1345,
-      "sampleCount": 10
+      "p50Ms": 988,
+      "p95Ms": 988,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-response-surface-split-census",
-      "p50Ms": 582,
-      "p95Ms": 616,
-      "sampleCount": 10
+      "p50Ms": 581,
+      "p95Ms": 581,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-sass-intelligence",
-      "p50Ms": 173,
-      "p95Ms": 185,
-      "sampleCount": 10
+      "p50Ms": 177,
+      "p95Ms": 177,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-sdk-error-mapping-census",
-      "p50Ms": 175,
-      "p95Ms": 188,
-      "sampleCount": 10
+      "p50Ms": 180,
+      "p95Ms": 180,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-source-type-fact-shape-census",
-      "p50Ms": 8021,
-      "p95Ms": 31178,
-      "sampleCount": 10
+      "p50Ms": 7454,
+      "p95Ms": 7454,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-spec-audit-webref-drift",
-      "p50Ms": 239,
-      "p95Ms": 257,
-      "sampleCount": 10
+      "p50Ms": 223,
+      "p95Ms": 223,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-spec-audit-webref-grammar",
-      "p50Ms": 284,
-      "p95Ms": 924,
-      "sampleCount": 10
+      "p50Ms": 851,
+      "p95Ms": 851,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-style-resolution-authority",
-      "p50Ms": 357,
-      "p95Ms": 385,
-      "sampleCount": 10
+      "p50Ms": 362,
+      "p95Ms": 362,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-stylelint-compat",
-      "p50Ms": 439,
-      "p95Ms": 472,
-      "sampleCount": 10
+      "p50Ms": 442,
+      "p95Ms": 442,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-syntax-authority-raw-scan-census",
-      "p50Ms": 903487,
-      "p95Ms": 949651,
-      "sampleCount": 10
+      "p50Ms": 133458,
+      "p95Ms": 133458,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-top-provenance-census",
-      "p50Ms": 261,
-      "p95Ms": 269,
-      "sampleCount": 10
+      "p50Ms": 246,
+      "p95Ms": 246,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-transform-cst/minify-profile-manifest",
-      "p50Ms": 11825,
-      "p95Ms": 13297,
-      "sampleCount": 10
+      "p50Ms": 6886,
+      "p95Ms": 6886,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-transform-cst/observation-census",
-      "p50Ms": 169,
-      "p95Ms": 173,
-      "sampleCount": 10
+      "p50Ms": 179,
+      "p95Ms": 179,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-transform-passes/lex-splice-equivalence",
-      "p50Ms": 338,
-      "p95Ms": 519,
-      "sampleCount": 10
+      "p50Ms": 304,
+      "p95Ms": 304,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-transform-passes/structural-ir-shadow",
-      "p50Ms": 115132,
-      "p95Ms": 195618,
-      "sampleCount": 10
+      "p50Ms": 74632,
+      "p95Ms": 74632,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-transform-target/boundary",
-      "p50Ms": 15932,
-      "p95Ms": 33677,
-      "sampleCount": 10
+      "p50Ms": 10107,
+      "p95Ms": 10107,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-tsgo-type-flags-abi",
-      "p50Ms": 784,
-      "p95Ms": 866,
-      "sampleCount": 10
+      "p50Ms": 770,
+      "p95Ms": 770,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-value-grammar-differential",
-      "p50Ms": 5799,
-      "p95Ms": 6226,
-      "sampleCount": 10
+      "p50Ms": 6151,
+      "p95Ms": 6151,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-value-grammar-evidence",
-      "p50Ms": 816,
-      "p95Ms": 1304,
-      "sampleCount": 10
+      "p50Ms": 814,
+      "p95Ms": 814,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-verification-targets",
-      "p50Ms": 180,
-      "p95Ms": 364,
-      "sampleCount": 10
+      "p50Ms": 179,
+      "p95Ms": 179,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-workspace-session-routing",
-      "p50Ms": 161,
-      "p95Ms": 175,
-      "sampleCount": 10
+      "p50Ms": 162,
+      "p95Ms": 162,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omena-write-safety",
-      "p50Ms": 1675,
-      "p95Ms": 1849,
-      "sampleCount": 10
+      "p50Ms": 1793,
+      "p95Ms": 1793,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omenad-protocol",
-      "p50Ms": 1441,
-      "p95Ms": 1473,
-      "sampleCount": 10
+      "p50Ms": 1438,
+      "p95Ms": 1438,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/omenad-substrate-inventory",
-      "p50Ms": 179,
-      "p95Ms": 226,
-      "sampleCount": 10
+      "p50Ms": 178,
+      "p95Ms": 178,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/oss-corpus-farm-determinism",
-      "p50Ms": 1248,
-      "p95Ms": 1464,
-      "sampleCount": 10
+      "p50Ms": 1334,
+      "p95Ms": 1334,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/oss-corpus-farm-regressions",
-      "p50Ms": 5823,
-      "p95Ms": 7942,
-      "sampleCount": 10
+      "p50Ms": 5959,
+      "p95Ms": 5959,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/precision-floor",
-      "p50Ms": 283,
-      "p95Ms": 293,
-      "sampleCount": 10
+      "p50Ms": 251,
+      "p95Ms": 251,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/product-facing-capability",
-      "p50Ms": 227890,
-      "p95Ms": 369154,
-      "sampleCount": 10
+      "p50Ms": 87952,
+      "p95Ms": 87952,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/product-lab-severance",
-      "p50Ms": 4517,
-      "p95Ms": 4706,
-      "sampleCount": 10
+      "p50Ms": 4465,
+      "p95Ms": 4465,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/product-path-matrix",
-      "p50Ms": 225,
-      "p95Ms": 234,
-      "sampleCount": 10
+      "p50Ms": 226,
+      "p95Ms": 226,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/product-surface-boundary-reviews",
-      "p50Ms": 353,
-      "p95Ms": 505,
-      "sampleCount": 10
+      "p50Ms": 357,
+      "p95Ms": 357,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/product-test-coverage-classguard",
-      "p50Ms": 304,
-      "p95Ms": 334,
-      "sampleCount": 30
+      "p50Ms": 311,
+      "p95Ms": 331,
+      "sampleCount": 3
     },
     {
       "gateId": "rust/product-test-execution",
-      "p50Ms": 202488,
-      "p95Ms": 314312,
-      "sampleCount": 30
+      "p50Ms": 156945,
+      "p95Ms": 228215,
+      "sampleCount": 3
     },
     {
       "gateId": "rust/proof-kernel",
-      "p50Ms": 70377,
-      "p95Ms": 98555,
-      "sampleCount": 10
+      "p50Ms": 46855,
+      "p95Ms": 46855,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/proof-kernel-self-produced-census",
-      "p50Ms": 666,
-      "p95Ms": 771,
-      "sampleCount": 10
+      "p50Ms": 687,
+      "p95Ms": 687,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/publish-flags",
-      "p50Ms": 214,
-      "p95Ms": 222,
-      "sampleCount": 10
+      "p50Ms": 213,
+      "p95Ms": 213,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/publish-train-closure",
-      "p50Ms": 226,
-      "p95Ms": 244,
-      "sampleCount": 10
+      "p50Ms": 225,
+      "p95Ms": 225,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/published-crate-surface-register",
-      "p50Ms": 79107,
-      "p95Ms": 101416,
-      "sampleCount": 10
+      "p50Ms": 76249,
+      "p95Ms": 76249,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/ranked-set-loss-census",
-      "p50Ms": 18489,
-      "p95Ms": 24499,
-      "sampleCount": 10
+      "p50Ms": 17509,
+      "p95Ms": 17509,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/release-semver-intent-contract",
-      "p50Ms": 193,
-      "p95Ms": 226,
-      "sampleCount": 10
+      "p50Ms": 231,
+      "p95Ms": 231,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/role-boundaries",
-      "p50Ms": 224,
-      "p95Ms": 243,
-      "sampleCount": 10
+      "p50Ms": 218,
+      "p95Ms": 218,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/runtime-query-api-hardening",
-      "p50Ms": 245402,
-      "p95Ms": 411202,
-      "sampleCount": 10
+      "p50Ms": 107705,
+      "p95Ms": 107705,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/semantic/preservation-model-conformance",
-      "p50Ms": 306,
-      "p95Ms": 368,
-      "sampleCount": 10
+      "p50Ms": 329,
+      "p95Ms": 329,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/source-frontend/cross-language",
-      "p50Ms": 1119,
-      "p95Ms": 1163,
-      "sampleCount": 10
+      "p50Ms": 1131,
+      "p95Ms": 1131,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/source-frontend/parity-ledger",
-      "p50Ms": 1714,
-      "p95Ms": 1830,
-      "sampleCount": 10
+      "p50Ms": 1775,
+      "p95Ms": 1775,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/source-precision-ratchet",
-      "p50Ms": 1324,
-      "p95Ms": 1503,
-      "sampleCount": 10
+      "p50Ms": 1291,
+      "p95Ms": 1291,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/theory-generalization",
-      "p50Ms": 85549,
-      "p95Ms": 113198,
-      "sampleCount": 10
+      "p50Ms": 61542,
+      "p95Ms": 61542,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/transform-decision-census",
-      "p50Ms": 11807,
-      "p95Ms": 19257,
-      "sampleCount": 10
+      "p50Ms": 9239,
+      "p95Ms": 9239,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/transform-rollback",
-      "p50Ms": 602,
-      "p95Ms": 634,
-      "sampleCount": 10
+      "p50Ms": 618,
+      "p95Ms": 618,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/transform-source-map-integrity",
-      "p50Ms": 1821,
-      "p95Ms": 7783,
-      "sampleCount": 10
+      "p50Ms": 1349,
+      "p95Ms": 1349,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/transform-winner-equality-audit",
-      "p50Ms": 28743,
-      "p95Ms": 59872,
-      "sampleCount": 10
+      "p50Ms": 51251,
+      "p95Ms": 51251,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/translation-validation-kill-rate",
-      "p50Ms": 751,
-      "p95Ms": 887,
-      "sampleCount": 10
+      "p50Ms": 798,
+      "p95Ms": 798,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/two-tier-identity-contract",
-      "p50Ms": 199,
-      "p95Ms": 204,
-      "sampleCount": 10
+      "p50Ms": 201,
+      "p95Ms": 201,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/verification-plane-closure",
-      "p50Ms": 3668,
-      "p95Ms": 4180,
-      "sampleCount": 10
+      "p50Ms": 3770,
+      "p95Ms": 3770,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/workspace",
-      "p50Ms": 176391,
-      "p95Ms": 222328,
-      "sampleCount": 10
+      "p50Ms": 103596,
+      "p95Ms": 103596,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/z5-parser-product-cutover",
-      "p50Ms": 123193,
-      "p95Ms": 228355,
-      "sampleCount": 10
+      "p50Ms": 130257,
+      "p95Ms": 130257,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/z5-perf-baseline",
-      "p50Ms": 98485,
-      "p95Ms": 264196,
-      "sampleCount": 10
+      "p50Ms": 60238,
+      "p95Ms": 60238,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/z5-perf-complexity-slope",
-      "p50Ms": 257807,
-      "p95Ms": 313890,
-      "sampleCount": 10
+      "p50Ms": 265053,
+      "p95Ms": 265053,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/z5-perf-no-regression",
-      "p50Ms": 104023,
-      "p95Ms": 130660,
-      "sampleCount": 10
+      "p50Ms": 99146,
+      "p95Ms": 99146,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/z5-perf-per-file-invariant",
-      "p50Ms": 51917,
-      "p95Ms": 79868,
-      "sampleCount": 10
+      "p50Ms": 41963,
+      "p95Ms": 41963,
+      "sampleCount": 1
     },
     {
       "gateId": "rust/z5-perf-warmup-wave-count",
-      "p50Ms": 56608,
-      "p95Ms": 121839,
-      "sampleCount": 10
+      "p50Ms": 17070,
+      "p95Ms": 17070,
+      "sampleCount": 1
     },
     {
       "gateId": "test/extension-host",
-      "p50Ms": 16850,
-      "p95Ms": 21200,
-      "sampleCount": 10
+      "p50Ms": 20170,
+      "p95Ms": 20170,
+      "sampleCount": 1
     },
     {
       "gateId": "test/protocol",
-      "p50Ms": 34069,
-      "p95Ms": 39780,
-      "sampleCount": 10
+      "p50Ms": 40900,
+      "p95Ms": 40900,
+      "sampleCount": 1
     },
     {
       "gateId": "test/test",
-      "p50Ms": 118780,
-      "p95Ms": 136867,
-      "sampleCount": 10
+      "p50Ms": 73535,
+      "p95Ms": 73535,
+      "sampleCount": 1
     },
     {
       "gateId": "tooling/ci-cost-ledger",
-      "p50Ms": 534,
-      "p95Ms": 634,
-      "sampleCount": 10
+      "p50Ms": 692,
+      "p95Ms": 692,
+      "sampleCount": 1
     },
     {
       "gateId": "tooling/ci-workflow",
-      "p50Ms": 551,
-      "p95Ms": 627,
-      "sampleCount": 10
+      "p50Ms": 603,
+      "p95Ms": 603,
+      "sampleCount": 1
     },
     {
       "gateId": "tooling/orchestrator-inventory",
-      "p50Ms": 1236,
-      "p95Ms": 1347,
-      "sampleCount": 10
+      "p50Ms": 1259,
+      "p95Ms": 1259,
+      "sampleCount": 1
     },
     {
       "gateId": "workspace/backend-typecheck-smoke",
-      "p50Ms": 2144,
-      "p95Ms": 2264,
-      "sampleCount": 10
+      "p50Ms": 2218,
+      "p95Ms": 2218,
+      "sampleCount": 1
     }
   ],
   "jobs": [
     {
       "jobName": "benchmark-complexity",
-      "wallP50Ms": 607000,
-      "wallP95Ms": 718000,
-      "queueP50Ms": 2000,
-      "queueP95Ms": 248000,
-      "sampleCount": 10
+      "wallP50Ms": 571000,
+      "wallP95Ms": 571000,
+      "queueP50Ms": 3000,
+      "queueP95Ms": 3000,
+      "sampleCount": 1
     },
     {
       "jobName": "benchmark-contracts",
-      "wallP50Ms": 337000,
-      "wallP95Ms": 503000,
+      "wallP50Ms": 276000,
+      "wallP95Ms": 276000,
       "queueP50Ms": 3000,
-      "queueP95Ms": 280000,
-      "sampleCount": 10
+      "queueP95Ms": 3000,
+      "sampleCount": 1
     },
     {
       "jobName": "benchmark-instructions",
-      "wallP50Ms": 350000,
-      "wallP95Ms": 555000,
-      "queueP50Ms": 3000,
-      "queueP95Ms": 366000,
-      "sampleCount": 10
+      "wallP50Ms": 233000,
+      "wallP95Ms": 233000,
+      "queueP50Ms": 285000,
+      "queueP95Ms": 285000,
+      "sampleCount": 1
     },
     {
       "jobName": "build-output",
-      "wallP50Ms": 260000,
-      "wallP95Ms": 394000,
-      "queueP50Ms": 2000,
+      "wallP50Ms": 297000,
+      "wallP95Ms": 297000,
+      "queueP50Ms": 3000,
       "queueP95Ms": 3000,
-      "sampleCount": 10
+      "sampleCount": 1
     },
     {
       "jobName": "ci-required",
-      "wallP50Ms": 8000,
-      "wallP95Ms": 12000,
+      "wallP50Ms": 9000,
+      "wallP95Ms": 9000,
       "queueP50Ms": 2000,
-      "queueP95Ms": 4000,
-      "sampleCount": 10
+      "queueP95Ms": 2000,
+      "sampleCount": 1
     },
     {
       "jobName": "closure-fast-shards",
-      "wallP50Ms": 544000,
-      "wallP95Ms": 1495000,
-      "queueP50Ms": 4000,
-      "queueP95Ms": 372000,
-      "sampleCount": 90
+      "wallP50Ms": 466000,
+      "wallP95Ms": 1247000,
+      "queueP50Ms": 190000,
+      "queueP95Ms": 281000,
+      "sampleCount": 9
     },
     {
       "jobName": "extension-host-smoke",
-      "wallP50Ms": 45000,
-      "wallP95Ms": 63000,
+      "wallP50Ms": 51000,
+      "wallP95Ms": 51000,
       "queueP50Ms": 3000,
-      "queueP95Ms": 47000,
-      "sampleCount": 10
+      "queueP95Ms": 3000,
+      "sampleCount": 1
     },
     {
       "jobName": "native-runner-matrix / build",
-      "wallP50Ms": 432000,
-      "wallP95Ms": 832000,
-      "queueP50Ms": 97000,
-      "queueP95Ms": 272000,
-      "sampleCount": 30
+      "wallP50Ms": 554000,
+      "wallP95Ms": 585000,
+      "queueP50Ms": 125000,
+      "queueP95Ms": 146000,
+      "sampleCount": 3
     },
     {
       "jobName": "package",
-      "wallP50Ms": 55000,
-      "wallP95Ms": 71000,
+      "wallP50Ms": 54000,
+      "wallP95Ms": 54000,
       "queueP50Ms": 2000,
-      "queueP95Ms": 3000,
-      "sampleCount": 10
+      "queueP95Ms": 2000,
+      "sampleCount": 1
     },
     {
       "jobName": "plugin-consumers",
-      "wallP50Ms": 356000,
-      "wallP95Ms": 497000,
-      "queueP50Ms": 36000,
-      "queueP95Ms": 396000,
-      "sampleCount": 10
+      "wallP50Ms": 293000,
+      "wallP95Ms": 293000,
+      "queueP50Ms": 3000,
+      "queueP95Ms": 3000,
+      "sampleCount": 1
     },
     {
       "jobName": "preflight",
-      "wallP50Ms": 28000,
-      "wallP95Ms": 35000,
-      "queueP50Ms": 2000,
+      "wallP50Ms": 37000,
+      "wallP95Ms": 37000,
+      "queueP50Ms": 3000,
       "queueP95Ms": 3000,
-      "sampleCount": 10
+      "sampleCount": 1
     },
     {
       "jobName": "protocol-matrix",
-      "wallP50Ms": 425000,
-      "wallP95Ms": 533000,
+      "wallP50Ms": 240000,
+      "wallP95Ms": 240000,
       "queueP50Ms": 3000,
-      "queueP95Ms": 4000,
-      "sampleCount": 10
+      "queueP95Ms": 3000,
+      "sampleCount": 1
     },
     {
       "jobName": "resolver-path-identity-advisory",
-      "wallP50Ms": 172000,
-      "wallP95Ms": 223000,
-      "queueP50Ms": 3000,
-      "queueP95Ms": 221000,
-      "sampleCount": 10
+      "wallP50Ms": 215000,
+      "wallP95Ms": 215000,
+      "queueP50Ms": 270000,
+      "queueP95Ms": 270000,
+      "sampleCount": 1
     },
     {
       "jobName": "rust-contracts",
-      "wallP50Ms": 352000,
-      "wallP95Ms": 467000,
-      "queueP50Ms": 3000,
-      "queueP95Ms": 374000,
-      "sampleCount": 20
-    },
-    {
-      "jobName": "rust-identifier-authority-matrix",
-      "wallP50Ms": 25000,
-      "wallP95Ms": 31000,
-      "queueP50Ms": 3000,
-      "queueP95Ms": 4000,
+      "wallP50Ms": 279000,
+      "wallP95Ms": 342000,
+      "queueP50Ms": 4000,
+      "queueP95Ms": 135000,
       "sampleCount": 2
     },
     {
+      "jobName": "rust-identifier-authority-matrix",
+      "wallP50Ms": 33000,
+      "wallP95Ms": 33000,
+      "queueP50Ms": 3000,
+      "queueP95Ms": 3000,
+      "sampleCount": 1
+    },
+    {
       "jobName": "rust-identifier-authority-mutations",
-      "wallP50Ms": 1685000,
-      "wallP95Ms": 1725000,
-      "queueP50Ms": 2000,
-      "queueP95Ms": 4000,
+      "wallP50Ms": 1793000,
+      "wallP95Ms": 1884000,
+      "queueP50Ms": 3000,
+      "queueP95Ms": 39000,
       "sampleCount": 2
     },
     {
       "jobName": "rust-product-test-contracts",
-      "wallP50Ms": 223000,
-      "wallP95Ms": 460000,
+      "wallP50Ms": 181000,
+      "wallP95Ms": 295000,
       "queueP50Ms": 3000,
-      "queueP95Ms": 286000,
-      "sampleCount": 30
+      "queueP95Ms": 4000,
+      "sampleCount": 3
     },
     {
       "jobName": "rust-product-test-crates",
-      "wallP50Ms": 250000,
-      "wallP95Ms": 367000,
+      "wallP50Ms": 201000,
+      "wallP95Ms": 265000,
       "queueP50Ms": 3000,
-      "queueP95Ms": 403000,
-      "sampleCount": 30
+      "queueP95Ms": 3000,
+      "sampleCount": 3
     },
     {
       "jobName": "rust-static",
-      "wallP50Ms": 216000,
-      "wallP95Ms": 268000,
-      "queueP50Ms": 2000,
-      "queueP95Ms": 357000,
-      "sampleCount": 10
+      "wallP50Ms": 139000,
+      "wallP95Ms": 139000,
+      "queueP50Ms": 5000,
+      "queueP95Ms": 5000,
+      "sampleCount": 1
     },
     {
       "jobName": "verify-core",
-      "wallP50Ms": 243000,
-      "wallP95Ms": 269000,
+      "wallP50Ms": 185000,
+      "wallP95Ms": 185000,
       "queueP50Ms": 3000,
-      "queueP95Ms": 320000,
-      "sampleCount": 10
+      "queueP95Ms": 3000,
+      "sampleCount": 1
     },
     {
       "jobName": "verify-native-linux",
-      "wallP50Ms": 362000,
-      "wallP95Ms": 460000,
+      "wallP50Ms": 271000,
+      "wallP95Ms": 271000,
       "queueP50Ms": 3000,
-      "queueP95Ms": 210000,
-      "sampleCount": 10
+      "queueP95Ms": 3000,
+      "sampleCount": 1
     }
   ],
-  "recordsDigest": "0cc1edc3fc1d0dcbbe6f6cd7d163da4701f8697b46395933735cd63f08f67f84"
+  "recordsDigest": "71cdbaa81fc6f032d7377e1c9069bd7a496c339b781eb0abf3065f99873d04be"
 }
