@@ -31,8 +31,10 @@ impl core::cmp::Eq for omena_query::OmenaQueryRegisteredCustomPropertyComputedVa
 impl core::cmp::Eq for omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0
 impl core::cmp::Eq for omena_query::OmenaQueryStyleDocumentSummaryV0
 impl core::cmp::Eq for omena_query::OmenaQueryStyleHoverCandidateV0
+impl core::cmp::Eq for omena_query::OmenaWorkspaceOccurrenceV0
 impl core::cmp::Ord for omena_query::OmenaQueryCustomPropertyOccurrenceV0
 impl core::cmp::Ord for omena_query::OmenaQueryStyleHoverCandidateV0
+impl core::cmp::Ord for omena_query::OmenaWorkspaceOccurrenceV0
 impl core::cmp::PartialEq for omena_query::OmenaQueryCascadeAtPositionV0
 impl core::cmp::PartialEq for omena_query::OmenaQueryCascadeInsightV0
 impl core::cmp::PartialEq for omena_query::OmenaQueryCascadeNarrowingEvidenceV0
@@ -47,8 +49,10 @@ impl core::cmp::PartialEq for omena_query::OmenaQueryRegisteredCustomPropertyCom
 impl core::cmp::PartialEq for omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0
 impl core::cmp::PartialEq for omena_query::OmenaQueryStyleDocumentSummaryV0
 impl core::cmp::PartialEq for omena_query::OmenaQueryStyleHoverCandidateV0
+impl core::cmp::PartialEq for omena_query::OmenaWorkspaceOccurrenceV0
 impl core::cmp::PartialOrd for omena_query::OmenaQueryCustomPropertyOccurrenceV0
 impl core::cmp::PartialOrd for omena_query::OmenaQueryStyleHoverCandidateV0
+impl core::cmp::PartialOrd for omena_query::OmenaWorkspaceOccurrenceV0
 impl core::error::Error for omena_query::OmenaErrorEvidenceBindingErrorV0
 impl core::error::Error for omena_query::OmenaErrorV0
 impl core::fmt::Display for omena_query::OmenaErrorEvidenceBindingErrorV0
@@ -227,6 +231,9 @@ pub fn omena_query::OmenaWorkspaceOccurrenceFamilyV0::as_str(self) -> &'static s
 pub fn omena_query::OmenaWorkspaceOccurrenceKindV0::as_str(self) -> &'static str
 pub fn omena_query::OmenaWorkspaceOccurrenceRoleV0::as_str(self) -> &'static str
 pub fn omena_query::OmenaWorkspaceOccurrenceSurfaceV0::as_str(self) -> &'static str
+pub fn omena_query::OmenaWorkspaceOccurrenceV0::cmp(&self, &Self) -> core::cmp::Ordering
+pub fn omena_query::OmenaWorkspaceOccurrenceV0::eq(&self, &Self) -> bool
+pub fn omena_query::OmenaWorkspaceOccurrenceV0::partial_cmp(&self, &Self) -> core::option::Option<core::cmp::Ordering>
 pub fn omena_query::attach_omena_query_consumer_build_bundle_summary(&mut omena_query::OmenaQueryConsumerBuildSummaryV0, &str)
 pub fn omena_query::attach_omena_query_consumer_build_source_map_v3(&mut omena_query::OmenaQueryConsumerBuildSummaryV0, &str)
 pub fn omena_query::attach_omena_query_consumer_build_source_map_v3_with_sources(&mut omena_query::OmenaQueryConsumerBuildSummaryV0, &[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryStylePackageManifestV0])
