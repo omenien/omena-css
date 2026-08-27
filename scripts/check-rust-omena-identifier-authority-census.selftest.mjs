@@ -930,70 +930,67 @@ writeFileSync(exactLaunderingCensusPath, readFileSync(committedLaunderingCensusP
 const originalLaunderingCensus = readFileSync(exactLaunderingCensusPath);
 const baselineAuthorityCount = JSON.parse(originalLaunderingCensus.toString("utf8"))
   .propertyIdentity.authoritySiteCount;
-let exactLaunderingPassed = false;
-let exactLaunderingWriteCount = 0;
-let exactLaunderingRecheckCount = 0;
-let exactLaunderingWriteAuthorityCount = 0;
-let exactLaunderingRecheckAuthorityCount = 0;
+const exactLaunderingPromise = (async () => {
+  let passed = false;
+  let writeCount = 0;
+  let recheckCount = 0;
+  let writeAuthorityCount = 0;
+  let recheckAuthorityCount = 0;
+  try {
+    const writeAttempt = await spawnCaptured(
+      "node",
+      ["--import", "tsx", identifierChecker, "--write"],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_AUTHORITY_DECREASE_LAUNDERING: "1",
+          OMENA_IDENTIFIER_AUTHORITY_CENSUS_PATH: exactLaunderingCensusPath,
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    const writeOutput = `${writeAttempt.stdout ?? ""}\n${writeAttempt.stderr ?? ""}`;
+    writeCount = Number(writeOutput.match(/rawPropertyIdentitySiteCount=(\d+)/u)?.[1] ?? "0");
+    writeAuthorityCount = Number(
+      writeOutput.match(/propertyAuthoritySiteCount=(\d+)/u)?.[1] ?? "0",
+    );
+    const censusUnchangedAfterWrite =
+      readFileSync(exactLaunderingCensusPath).equals(originalLaunderingCensus);
 
-try {
-  const writeAttempt = spawnSync("node", ["--import", "tsx", identifierChecker, "--write"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_AUTHORITY_DECREASE_LAUNDERING: "1",
-      OMENA_IDENTIFIER_AUTHORITY_CENSUS_PATH: exactLaunderingCensusPath,
-    },
-  });
-  const writeOutput = `${writeAttempt.stdout ?? ""}\n${writeAttempt.stderr ?? ""}`;
-  exactLaunderingWriteCount = Number(
-    writeOutput.match(/rawPropertyIdentitySiteCount=(\d+)/u)?.[1] ?? "0",
-  );
-  exactLaunderingWriteAuthorityCount = Number(
-    writeOutput.match(/propertyAuthoritySiteCount=(\d+)/u)?.[1] ?? "0",
-  );
-  const censusUnchangedAfterWrite =
-    readFileSync(exactLaunderingCensusPath).equals(originalLaunderingCensus);
+    const recheck = await spawnCaptured("node", ["--import", "tsx", identifierChecker], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_AUTHORITY_DECREASE_LAUNDERING: "1",
+        OMENA_IDENTIFIER_AUTHORITY_CENSUS_PATH: exactLaunderingCensusPath,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const recheckOutput = `${recheck.stdout ?? ""}\n${recheck.stderr ?? ""}`;
+    recheckCount = Number(recheckOutput.match(/rawPropertyIdentitySiteCount=(\d+)/u)?.[1] ?? "0");
+    recheckAuthorityCount = Number(
+      recheckOutput.match(/propertyAuthoritySiteCount=(\d+)/u)?.[1] ?? "0",
+    );
+    const censusUnchangedAfterRecheck =
+      readFileSync(exactLaunderingCensusPath).equals(originalLaunderingCensus);
 
-  const recheck = spawnSync("node", ["--import", "tsx", identifierChecker], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PROPERTY_AUTHORITY_DECREASE_LAUNDERING: "1",
-      OMENA_IDENTIFIER_AUTHORITY_CENSUS_PATH: exactLaunderingCensusPath,
-    },
-  });
-  const recheckOutput = `${recheck.stdout ?? ""}\n${recheck.stderr ?? ""}`;
-  exactLaunderingRecheckCount = Number(
-    recheckOutput.match(/rawPropertyIdentitySiteCount=(\d+)/u)?.[1] ?? "0",
-  );
-  exactLaunderingRecheckAuthorityCount = Number(
-    recheckOutput.match(/propertyAuthoritySiteCount=(\d+)/u)?.[1] ?? "0",
-  );
-  const censusUnchangedAfterRecheck =
-    readFileSync(exactLaunderingCensusPath).equals(originalLaunderingCensus);
-
-  exactLaunderingPassed =
-    writeAttempt.status !== 0 &&
-    exactLaunderingWriteCount > 0 &&
-    exactLaunderingWriteAuthorityCount === baselineAuthorityCount - 1 &&
-    recheck.status !== 0 &&
-    exactLaunderingRecheckCount > 0 &&
-    exactLaunderingRecheckAuthorityCount === baselineAuthorityCount - 1 &&
-    censusUnchangedAfterWrite &&
-    censusUnchangedAfterRecheck;
-} catch (error) {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-} finally {
-  rmSync(exactLaunderingTempRoot, { recursive: true, force: true });
-}
-
-if (!exactLaunderingPassed) failures += 1;
-process.stdout.write(
-  `${exactLaunderingPassed ? "ok  " : "FAIL"} exact laundering: eq_ignore_ascii_case; authority ${baselineAuthorityCount}->${exactLaunderingWriteAuthorityCount}; --write ${exactLaunderingWriteCount > 0 ? "RED" : "MISS"} raw=${exactLaunderingWriteCount}; recheck ${exactLaunderingRecheckCount > 0 ? "RED" : "MISS"} raw=${exactLaunderingRecheckCount}; census unchanged; in-memory mutation\n`,
-);
+    passed =
+      writeAttempt.status !== 0 &&
+      writeCount > 0 &&
+      writeAuthorityCount === baselineAuthorityCount - 1 &&
+      recheck.status !== 0 &&
+      recheckCount > 0 &&
+      recheckAuthorityCount === baselineAuthorityCount - 1 &&
+      censusUnchangedAfterWrite &&
+      censusUnchangedAfterRecheck;
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+  } finally {
+    rmSync(exactLaunderingTempRoot, { recursive: true, force: true });
+  }
+  return { passed, writeCount, recheckCount, writeAuthorityCount, recheckAuthorityCount };
+})();
 
 const escapeLaunderingVariables = [
   "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_INLINE_ESCAPE_IDENTITIES",
@@ -1006,7 +1003,7 @@ const escapeLaunderingCases = escapeLaunderingVariables.map((variable, index) =>
   writeFileSync(censusPath, originalLaunderingCensus);
   return { variable, censusPath };
 });
-const escapeLaunderingResults = await mapWithConcurrency(escapeLaunderingCases, 3, (testCase) =>
+const escapeLaunderingPromise = mapWithConcurrency(escapeLaunderingCases, 3, (testCase) =>
   spawnCaptured(
     "node",
     ["--import", "tsx", identifierChecker, "--write", "--accept-inventory-change"],
@@ -1020,6 +1017,15 @@ const escapeLaunderingResults = await mapWithConcurrency(escapeLaunderingCases, 
       stdio: ["ignore", "pipe", "pipe"],
     },
   ),
+);
+const [exactLaundering, escapeLaunderingResults] = await Promise.all([
+  exactLaunderingPromise,
+  escapeLaunderingPromise,
+]);
+const exactLaunderingPassed = exactLaundering.passed;
+if (!exactLaunderingPassed) failures += 1;
+process.stdout.write(
+  `${exactLaunderingPassed ? "ok  " : "FAIL"} exact laundering: eq_ignore_ascii_case; authority ${baselineAuthorityCount}->${exactLaundering.writeAuthorityCount}; --write ${exactLaundering.writeCount > 0 ? "RED" : "MISS"} raw=${exactLaundering.writeCount}; recheck ${exactLaundering.recheckCount > 0 ? "RED" : "MISS"} raw=${exactLaundering.recheckCount}; census unchanged; in-memory mutation\n`,
 );
 let escapeLaunderingPassedCount = 0;
 for (const [index, result] of escapeLaunderingResults.entries()) {
