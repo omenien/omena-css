@@ -50,7 +50,7 @@ interface RuntimeHonestySurface {
 }
 
 interface AuthoredTextEgressHonestyTable {
-  readonly derivation: "final-head-byte-differential";
+  readonly basis: "registered-zero-branch-evidence-gates";
   readonly orderBranchSurfaces: readonly RuntimeHonestySurface[];
   readonly valueBranchSurfaces: readonly RuntimeHonestySurface[];
   readonly zeroBranchSurfaces: readonly {
@@ -272,7 +272,7 @@ function runRuntimeHonestyTableSelftest(): void {
     expectedRuntimeValueChanges: [runtimeChange],
   });
   const table: AuthoredTextEgressHonestyTable = {
-    derivation: "final-head-byte-differential",
+    basis: "registered-zero-branch-evidence-gates",
     orderBranchSurfaces: [orderSurface],
     valueBranchSurfaces: [valueSurface],
     zeroBranchSurfaces: [],
@@ -576,9 +576,9 @@ function readAuthoredTextEgressHonestyTable(repoRoot: string): AuthoredTextEgres
     "identifier-authority census must record the authored-text egress honesty table",
   );
   assert.equal(
-    table.derivation,
-    "final-head-byte-differential",
-    "authored-text egress honesty table derivation",
+    table.basis,
+    "registered-zero-branch-evidence-gates",
+    "authored-text egress honesty table basis",
   );
   assert.ok(Array.isArray(table.orderBranchSurfaces), "honesty order-branch surfaces");
   assert.ok(Array.isArray(table.valueBranchSurfaces), "honesty value-branch surfaces");

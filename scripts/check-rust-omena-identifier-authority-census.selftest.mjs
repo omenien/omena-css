@@ -690,7 +690,9 @@ const redCases = [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CONTAINER_MUTATION_ESCAPE_IDENTITIES",
     [],
   ],
+  [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNSUPPORTED_RECEIVER_MUTATION", []],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_FIELD_IDENTITY_CONSUMER", []],
+  [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_FIELD_FLOW_IDENTITIES", []],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_OUT_PARAMETER_ESCAPE_IDENTITY", []],
   [
     identifierChecker,
@@ -704,6 +706,7 @@ const redCases = [
   ],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNREGISTERED_SERDE_FRONTEND", []],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_ZERO_BRANCH_GATE_REGISTRY_ENTRY", []],
+  [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_INVENTORY_BUILD_CFG_MASK", []],
 ];
 
 const requiredMutationReceipts = new Map([
@@ -818,15 +821,23 @@ const requiredMutationReceipts = new Map([
   ],
   [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CONTAINER_MUTATION_ESCAPE_IDENTITIES\0",
-    ["authoredEscapeIdentityViolationCount=2", "authored-bearing escape result reached"],
+    ["authoredEscapeIdentityViolationCount=16", "authored-bearing escape result reached"],
+  ],
+  [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNSUPPORTED_RECEIVER_MUTATION\0",
+    ["authored-bearing escape reached a mutation outside the closed std receiver table"],
   ],
   [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_FIELD_IDENTITY_CONSUMER\0",
     ["rawPropertyIdentitySiteCount=2", "property identity census found raw-string identity sites"],
   ],
   [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_FIELD_FLOW_IDENTITIES\0",
+    ["authoredEscapeIdentityViolationCount=5", "authored-bearing escape result reached"],
+  ],
+  [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_OUT_PARAMETER_ESCAPE_IDENTITY\0",
-    ["authoredEscapeIdentityViolationCount=1", "authored-bearing escape result reached"],
+    ["authoredEscapeIdentityViolationCount=3", "authored-bearing escape result reached"],
   ],
   [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_ARGUMENT_PARAMETER_ESCAPE_IDENTITY\0",
@@ -843,6 +854,10 @@ const requiredMutationReceipts = new Map([
   [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_ZERO_BRANCH_GATE_REGISTRY_ENTRY\0",
     ["zero-branch evidence gate is absent from the generated check registry"],
+  ],
+  [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_INVENTORY_BUILD_CFG_MASK\0",
+    ["inventory retained rows on #[cfg(test)]-masked lines"],
   ],
 ]);
 
