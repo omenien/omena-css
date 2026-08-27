@@ -21,13 +21,13 @@ const mutationShardCount = Number.parseInt(mutationShardCountText ?? "1", 10);
 const mutationShardIndex = Number.parseInt(mutationShardIndexText ?? "0", 10);
 if (
   !Number.isSafeInteger(mutationShardCount) ||
-  ![1, 2].includes(mutationShardCount) ||
+  ![1, 2, 3].includes(mutationShardCount) ||
   !Number.isSafeInteger(mutationShardIndex) ||
   mutationShardIndex < 0 ||
   mutationShardIndex >= mutationShardCount
 ) {
   throw new Error(
-    `invalid authority mutation shard ${mutationShardIndex}/${mutationShardCount}; supported counts are 1 and 2`,
+    `invalid authority mutation shard ${mutationShardIndex}/${mutationShardCount}; supported counts are 1, 2, and 3`,
   );
 }
 
@@ -39,8 +39,8 @@ const mutationWorkflowJob = ciWorkflowRegistry.jobs?.find(
 );
 const mutationWorkflowBlock = mutationWorkflowJob?.block?.join("\n") ?? "";
 const requiredMutationShardWiring = [
-  "      matrix:\n        shard: [0, 1]",
-  `      ${mutationShardCountVariable}: 2`,
+  "      matrix:\n        shard: [0, 1, 2]",
+  `      ${mutationShardCountVariable}: 3`,
   `      ${mutationShardIndexVariable}: \${{ matrix.shard }}`,
   "          name: rust-identifier-authority-mutations-summary-${{ matrix.shard }}",
 ];
@@ -70,8 +70,8 @@ if (!generatedMatrixOnly) {
         env: {
           ...process.env,
           OMENA_CHECK_SUMMARY_JSON: summaryPath,
-          [mutationShardCountVariable]: "2",
-          [mutationShardIndexVariable]: "1",
+          [mutationShardCountVariable]: "3",
+          [mutationShardIndexVariable]: "2",
         },
       },
     );
@@ -84,8 +84,8 @@ if (!generatedMatrixOnly) {
     const actualPartition = JSON.stringify(summary.runnerPartition);
     const expectedPartition = JSON.stringify({
       kind: "identifier-authority-mutation",
-      index: 1,
-      count: 2,
+      index: 2,
+      count: 3,
     });
     if (actualPartition !== expectedPartition) {
       throw new Error(
@@ -1056,6 +1056,23 @@ if (!generatedMatrixOnly) {
       .map((testCase) => testCase.index),
   );
   assignedRedCaseCount = assignedRedCaseIndexes.size;
+  const expectedAssignedRedCaseCount = redCases.filter(
+    (_redCase, index) => index % mutationShardCount === mutationShardIndex,
+  ).length;
+  const redCaseCountsByShard = Array.from(
+    { length: mutationShardCount },
+    (_unused, shardIndex) =>
+      redCases.filter((_redCase, index) => index % mutationShardCount === shardIndex).length,
+  );
+  if (
+    assignedRedCaseCount !== expectedAssignedRedCaseCount ||
+    redCaseCountsByShard.some((count) => count === 0) ||
+    redCaseCountsByShard.reduce((sum, count) => sum + count, 0) !== redCases.length
+  ) {
+    throw new Error(
+      `authority mutation shard partition is incomplete: assigned=${assignedRedCaseCount}, expected=${expectedAssignedRedCaseCount}, topology=${redCaseCountsByShard.join(",")}`,
+    );
+  }
   exactLaunderingAssigned = assignedExecutionCases.some((testCase) => testCase.kind === "exact");
   assignedEscapeLaunderingCount = assignedExecutionCases.filter(
     (testCase) => testCase.kind === "escape",
