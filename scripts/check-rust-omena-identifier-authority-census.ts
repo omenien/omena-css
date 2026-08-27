@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { maskRustCfgTestItems } from "./lib/rust-cfg-test-mask";
+import { maskRustCfgTestItems } from "./lib/rust-cfg-test-mask.ts";
 
 const cfgTestMaskProbe = maskRustCfgTestItems(
   `#[cfg(any(test, feature = "test-support"))]\nfn compound_test_item() { let _ = ("}", b'{'); }\nfn production_after_cfg() {}`,

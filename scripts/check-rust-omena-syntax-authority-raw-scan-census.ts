@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { maskRustCfgTestItems } from "./lib/rust-cfg-test-mask";
+import { maskRustCfgTestItems } from "./lib/rust-cfg-test-mask.ts";
 
 type SiteDisposition = "migration-target" | "named-exempt";
 
