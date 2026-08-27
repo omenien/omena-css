@@ -536,6 +536,12 @@
             {
               "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
               "needles": ["fn element_computed_value_identity_uses_sealed_property_keys()"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/types.rs",
+              "needles": [
+                "fn workspace_occurrence_identity_uses_custom_property_keys_without_changing_wire_name()"
+              ]
             }
           ]
         },

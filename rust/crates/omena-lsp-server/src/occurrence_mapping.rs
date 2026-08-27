@@ -152,3 +152,55 @@ fn workspace_occurrence_family_from_style_symbol_family(
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use omena_query::{ParserPositionV0, ParserRangeV0};
+    use omena_syntax::ident::{AuthoredPropertyTextV0, PropertyNameV0};
+
+    use super::style_symbol_occurrence_for_candidate;
+    use crate::state::{LspStyleHoverCandidate, LspStyleSymbolOccurrenceV0};
+
+    fn custom_property_style_occurrence(name: &str) -> LspStyleSymbolOccurrenceV0 {
+        let candidate = LspStyleHoverCandidate {
+            kind: "customPropertyDeclaration",
+            name: AuthoredPropertyTextV0::new(name),
+            selector_key: None,
+            property_key: Some(PropertyNameV0::canonical_custom_key(name)),
+            range: ParserRangeV0 {
+                start: ParserPositionV0 {
+                    line: 0,
+                    character: 0,
+                },
+                end: ParserPositionV0 {
+                    line: 0,
+                    character: 7,
+                },
+            },
+            source: "fixture",
+            target_style_uri: None,
+            namespace: None,
+        };
+        style_symbol_occurrence_for_candidate(
+            "custom-property:file:///workspace/app.css#--token".to_string(),
+            "file:///workspace/app.css",
+            &candidate,
+            "customProperty",
+            "definition",
+        )
+    }
+
+    #[test]
+    fn style_symbol_occurrence_identity_uses_custom_property_keys_without_changing_wire_name() {
+        let escaped = custom_property_style_occurrence(r"--to\6b en");
+        let plain = custom_property_style_occurrence("--token");
+
+        assert_eq!(escaped, plain);
+        let mut occurrences = vec![escaped.clone(), plain];
+        occurrences.sort();
+        occurrences.dedup();
+        assert_eq!(occurrences.len(), 1);
+        let serialized = serde_json::to_value(&escaped).unwrap_or_default();
+        assert_eq!(serialized["name"], r"--to\6b en");
+    }
+}

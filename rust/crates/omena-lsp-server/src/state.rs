@@ -21,7 +21,7 @@ use omena_query::{
     OmenaResolverStyleModuleDiskCandidateIdentityV0,
 };
 use omena_syntax::ident::{
-    AuthoredPropertyTextV0, CanonicalClassKeyV0, CanonicalCustomPropertyNameV0,
+    AuthoredPropertyTextV0, CanonicalClassKeyV0, CanonicalCustomPropertyNameV0, PropertyNameV0,
 };
 use omena_tsgo_client::{TsgoTypeFactResultEntryV0, TsgoWorkspaceProcessPoolV0};
 use serde::Serialize;
@@ -679,7 +679,7 @@ pub(crate) struct LspReverseDependencyIndexMemo {
     pub(crate) file_id_rev: BTreeMap<LspFileId, BTreeSet<LspFileId>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LspStyleSymbolOccurrenceV0 {
     pub(crate) moniker: String,
@@ -691,6 +691,47 @@ pub(crate) struct LspStyleSymbolOccurrenceV0 {
     pub(crate) role: OmenaWorkspaceOccurrenceRoleV0,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) namespace: Option<String>,
+}
+
+impl PartialEq for LspStyleSymbolOccurrenceV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == CmpOrdering::Equal
+    }
+}
+
+impl Eq for LspStyleSymbolOccurrenceV0 {}
+
+impl Ord for LspStyleSymbolOccurrenceV0 {
+    fn cmp(&self, other: &Self) -> CmpOrdering {
+        self.moniker
+            .cmp(&other.moniker)
+            .then_with(|| self.uri.cmp(&other.uri))
+            .then_with(|| self.kind.cmp(&other.kind))
+            .then_with(|| self.family.cmp(&other.family))
+            .then_with(|| style_symbol_occurrence_name_cmp(self, other))
+            .then_with(|| self.range.cmp(&other.range))
+            .then_with(|| self.role.cmp(&other.role))
+            .then_with(|| self.namespace.cmp(&other.namespace))
+    }
+}
+
+impl PartialOrd for LspStyleSymbolOccurrenceV0 {
+    fn partial_cmp(&self, other: &Self) -> Option<CmpOrdering> {
+        Some(self.cmp(other))
+    }
+}
+
+fn style_symbol_occurrence_name_cmp(
+    left: &LspStyleSymbolOccurrenceV0,
+    right: &LspStyleSymbolOccurrenceV0,
+) -> CmpOrdering {
+    if left.family == OmenaWorkspaceOccurrenceFamilyV0::CustomProperty
+        && right.family == OmenaWorkspaceOccurrenceFamilyV0::CustomProperty
+    {
+        return PropertyNameV0::canonical_custom_key(left.name.clone())
+            .cmp(&PropertyNameV0::canonical_custom_key(right.name.clone()));
+    }
+    left.name.cmp(&right.name)
 }
 
 /// Read-only state surface available to off-loop query work.

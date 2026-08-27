@@ -7,7 +7,7 @@ use omena_query_transform_runner::normalize_omena_transform_bundle_path;
 use omena_sif::OmenaSifV1;
 use omena_syntax::ident::{
     AuthoredPropertyTextV0, CanonicalClassKeyV0, CanonicalCustomPropertyNameV0,
-    CanonicalPropertyKeyV0, CanonicalStandardPropertyNameV0,
+    CanonicalPropertyKeyV0, CanonicalStandardPropertyNameV0, PropertyNameV0,
 };
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
@@ -3135,7 +3135,7 @@ pub struct OmenaWorkspaceOccurrenceIndexV0 {
     pub ready_surfaces: Vec<&'static str>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaWorkspaceOccurrenceV0 {
     pub moniker: String,
@@ -3154,6 +3154,54 @@ pub struct OmenaWorkspaceOccurrenceV0 {
     pub rename_target: bool,
 }
 
+impl PartialEq for OmenaWorkspaceOccurrenceV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl Eq for OmenaWorkspaceOccurrenceV0 {}
+
+impl Ord for OmenaWorkspaceOccurrenceV0 {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.moniker
+            .cmp(&other.moniker)
+            .then_with(|| self.uri.cmp(&other.uri))
+            .then_with(|| workspace_occurrence_name_cmp(self, other))
+            .then_with(|| self.range.cmp(&other.range))
+            .then_with(|| self.kind.cmp(&other.kind))
+            .then_with(|| self.role.cmp(&other.role))
+            .then_with(|| self.surface.cmp(&other.surface))
+            .then_with(|| self.family.cmp(&other.family))
+            .then_with(|| self.namespace.cmp(&other.namespace))
+            .then_with(|| self.target_style_uri.cmp(&other.target_style_uri))
+            .then_with(|| self.rename_target.cmp(&other.rename_target))
+    }
+}
+
+impl PartialOrd for OmenaWorkspaceOccurrenceV0 {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+fn workspace_occurrence_name_cmp(
+    left: &OmenaWorkspaceOccurrenceV0,
+    right: &OmenaWorkspaceOccurrenceV0,
+) -> Ordering {
+    let left_is_custom_property = left.kind.is_custom_property();
+    let right_is_custom_property = right.kind.is_custom_property();
+    let identity_domain_order = left_is_custom_property.cmp(&right_is_custom_property);
+    if identity_domain_order != Ordering::Equal {
+        return identity_domain_order;
+    }
+    if left_is_custom_property {
+        return PropertyNameV0::canonical_custom_key(left.name.clone())
+            .cmp(&PropertyNameV0::canonical_custom_key(right.name.clone()));
+    }
+    left.name.cmp(&right.name)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum OmenaWorkspaceOccurrenceKindV0 {
@@ -3170,6 +3218,13 @@ pub enum OmenaWorkspaceOccurrenceKindV0 {
 }
 
 impl OmenaWorkspaceOccurrenceKindV0 {
+    fn is_custom_property(self) -> bool {
+        matches!(
+            self,
+            Self::CustomPropertyDeclaration | Self::CustomPropertyReference
+        )
+    }
+
     pub fn as_str(self) -> &'static str {
         match self {
             Self::SourceSelectorReference => "sourceSelectorReference",
@@ -3277,6 +3332,50 @@ pub struct OmenaQueryStylePackageManifestV0 {
 #[cfg(test)]
 mod evidence_graph_projection_tests {
     use super::*;
+
+    fn custom_property_workspace_occurrence(name: &str) -> OmenaWorkspaceOccurrenceV0 {
+        OmenaWorkspaceOccurrenceV0 {
+            moniker: "custom-property:file:///workspace/app.css#--token".to_string(),
+            uri: "file:///workspace/app.css".to_string(),
+            name: name.to_string(),
+            range: ParserRangeV0 {
+                start: ParserPositionV0 {
+                    line: 0,
+                    character: 0,
+                },
+                end: ParserPositionV0 {
+                    line: 0,
+                    character: 7,
+                },
+            },
+            kind: OmenaWorkspaceOccurrenceKindV0::CustomPropertyDeclaration,
+            role: OmenaWorkspaceOccurrenceRoleV0::Definition,
+            surface: OmenaWorkspaceOccurrenceSurfaceV0::OmenaLspStyleIndex,
+            family: Some(OmenaWorkspaceOccurrenceFamilyV0::CustomProperty),
+            namespace: None,
+            target_style_uri: None,
+            rename_target: true,
+        }
+    }
+
+    #[test]
+    fn workspace_occurrence_identity_uses_custom_property_keys_without_changing_wire_name() {
+        let escaped = custom_property_workspace_occurrence(r"--to\6b en");
+        let plain = custom_property_workspace_occurrence("--token");
+
+        assert_eq!(escaped, plain);
+        let mut non_custom = plain.clone();
+        non_custom.kind = OmenaWorkspaceOccurrenceKindV0::SourceSelectorReference;
+        non_custom.family = Some(OmenaWorkspaceOccurrenceFamilyV0::CssModuleSelector);
+        assert_eq!(escaped.cmp(&non_custom), plain.cmp(&non_custom));
+
+        let mut occurrences = vec![escaped.clone(), plain];
+        occurrences.sort();
+        occurrences.dedup();
+        assert_eq!(occurrences.len(), 1);
+        let serialized = serde_json::to_value(&escaped).unwrap_or_default();
+        assert_eq!(serialized["name"], r"--to\6b en");
+    }
 
     #[test]
     fn diagnostic_provenance_projection_preserves_legacy_labels() {
