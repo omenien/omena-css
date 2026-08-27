@@ -553,6 +553,7 @@ function writeSummaryArtifact(
     schemaVersion: "2",
     bundle: bundleId,
     shard,
+    runnerPartition: summaryRunnerPartition(),
     generatedAt: new Date().toISOString(),
     gitSha: process.env.GITHUB_SHA ?? null,
     runId: process.env.GITHUB_RUN_ID ?? null,
@@ -573,6 +574,35 @@ function writeSummaryArtifact(
     ),
   };
   writeFileSync(artifactPath, `${JSON.stringify(payload, null, 2)}\n`);
+}
+
+function summaryRunnerPartition(): {
+  readonly kind: "identifier-authority-mutation";
+  readonly index: number;
+  readonly count: number;
+} | null {
+  const countVariable = "OMENA_IDENTIFIER_AUTHORITY_MUTATION_SHARD_COUNT";
+  const indexVariable = "OMENA_IDENTIFIER_AUTHORITY_MUTATION_SHARD_INDEX";
+  const countText = process.env[countVariable];
+  const indexText = process.env[indexVariable];
+  if (countText === undefined && indexText === undefined) return null;
+  if (countText === undefined || indexText === undefined) {
+    throw new Error(`${countVariable} and ${indexVariable} must be paired`);
+  }
+  const count = Number.parseInt(countText, 10);
+  const index = Number.parseInt(indexText, 10);
+  if (
+    !Number.isSafeInteger(count) ||
+    count < 1 ||
+    !Number.isSafeInteger(index) ||
+    index < 0 ||
+    index >= count
+  ) {
+    throw new Error(
+      `invalid identifier-authority mutation runner partition ${indexText}/${countText}`,
+    );
+  }
+  return { kind: "identifier-authority-mutation", index, count };
 }
 
 function appendGitHubStepSummary(
