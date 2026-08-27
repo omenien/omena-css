@@ -10,6 +10,45 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const rawScanChecker = "scripts/check-rust-omena-syntax-authority-raw-scan-census.ts";
 const identifierChecker = "scripts/check-rust-omena-identifier-authority-census.ts";
 const generatedMatrixOnly = process.argv.includes("--generated-matrix-only");
+const mutationShardCountVariable = "OMENA_IDENTIFIER_AUTHORITY_MUTATION_SHARD_COUNT";
+const mutationShardIndexVariable = "OMENA_IDENTIFIER_AUTHORITY_MUTATION_SHARD_INDEX";
+const mutationShardCountText = process.env[mutationShardCountVariable];
+const mutationShardIndexText = process.env[mutationShardIndexVariable];
+if ((mutationShardCountText === undefined) !== (mutationShardIndexText === undefined)) {
+  throw new Error(`${mutationShardCountVariable} and ${mutationShardIndexVariable} must be paired`);
+}
+const mutationShardCount = Number.parseInt(mutationShardCountText ?? "1", 10);
+const mutationShardIndex = Number.parseInt(mutationShardIndexText ?? "0", 10);
+if (
+  !Number.isSafeInteger(mutationShardCount) ||
+  ![1, 2].includes(mutationShardCount) ||
+  !Number.isSafeInteger(mutationShardIndex) ||
+  mutationShardIndex < 0 ||
+  mutationShardIndex >= mutationShardCount
+) {
+  throw new Error(
+    `invalid authority mutation shard ${mutationShardIndex}/${mutationShardCount}; supported counts are 1 and 2`,
+  );
+}
+
+const ciWorkflowRegistry = JSON.parse(
+  readFileSync(path.join(repoRoot, "packages/check-orchestrator/ci-workflow.json"), "utf8"),
+);
+const mutationWorkflowJob = ciWorkflowRegistry.jobs?.find(
+  (job) => job.name === "rust-identifier-authority-mutations",
+);
+const mutationWorkflowBlock = mutationWorkflowJob?.block?.join("\n") ?? "";
+const requiredMutationShardWiring = [
+  "      matrix:\n        shard: [0, 1]",
+  `      ${mutationShardCountVariable}: 2`,
+  `      ${mutationShardIndexVariable}: \${{ matrix.shard }}`,
+  "          name: rust-identifier-authority-mutations-summary-${{ matrix.shard }}",
+];
+for (const wiring of requiredMutationShardWiring) {
+  if (!mutationWorkflowBlock.includes(wiring)) {
+    throw new Error(`authority mutation workflow shard wiring is absent: ${wiring}`);
+  }
+}
 
 const generatedOrigins = [
   "field-access",
@@ -849,6 +888,10 @@ let exactLaunderingResult = null;
 let escapeLaunderingTempRoot = null;
 let escapeLaunderingCases = [];
 let escapeLaunderingResults = [];
+let assignedRedCaseCount = redCases.length;
+let exactLaunderingAssigned = true;
+let assignedEscapeLaunderingCount = escapeLaunderingVariables.length;
+let disclosedControlAssigned = true;
 if (!generatedMatrixOnly) {
   escapeLaunderingTempRoot = mkdtempSync(path.join(tmpdir(), "omena-escape-laundering-"));
   escapeLaunderingCases = escapeLaunderingVariables.map((variable, index) => {
@@ -856,19 +899,28 @@ if (!generatedMatrixOnly) {
     writeFileSync(censusPath, originalLaunderingCensus);
     return { variable, censusPath };
   });
-  const executionCases = [{ kind: "exact" }];
+  const executionCases = [{ kind: "exact", assignedShard: 0 }];
   const escapeInsertionPoints = new Map([
     [20, 0],
     [40, 1],
     [55, 2],
   ]);
   for (const [index, [checker, variable, args]] of redCases.entries()) {
-    executionCases.push({ kind: "red", index, checker, variable, args });
+    executionCases.push({
+      kind: "red",
+      index,
+      checker,
+      variable,
+      args,
+      assignedShard: index % mutationShardCount,
+    });
     const escapeIndex = escapeInsertionPoints.get(index);
     if (escapeIndex !== undefined) {
       executionCases.push({
         kind: "escape",
         index: escapeIndex,
+        assignedShard:
+          mutationShardCount === 1 ? 0 : escapeIndex === 0 ? 0 : mutationShardCount - 1,
         ...escapeLaunderingCases[escapeIndex],
       });
     }
@@ -878,8 +930,23 @@ if (!generatedMatrixOnly) {
     checker: identifierChecker,
     variable: "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNLABELLED_COMPARISON",
     args: [],
+    assignedShard: mutationShardCount - 1,
   });
-  const executionResults = await mapWithConcurrency(executionCases, 4, async (testCase) => {
+  const assignedExecutionCases = executionCases.filter(
+    (testCase) => testCase.assignedShard === mutationShardIndex,
+  );
+  const assignedRedCaseIndexes = new Set(
+    assignedExecutionCases
+      .filter((testCase) => testCase.kind === "red")
+      .map((testCase) => testCase.index),
+  );
+  assignedRedCaseCount = assignedRedCaseIndexes.size;
+  exactLaunderingAssigned = assignedExecutionCases.some((testCase) => testCase.kind === "exact");
+  assignedEscapeLaunderingCount = assignedExecutionCases.filter(
+    (testCase) => testCase.kind === "escape",
+  ).length;
+  disclosedControlAssigned = assignedExecutionCases.some((testCase) => testCase.kind === "control");
+  const executionResults = await mapWithConcurrency(assignedExecutionCases, 4, async (testCase) => {
     if (testCase.kind === "exact") {
       return { ...testCase, result: await runExactLaundering() };
     }
@@ -909,10 +976,9 @@ if (!generatedMatrixOnly) {
     }
     if (testResult.kind === "control") unlabelledControlResult = testResult.result;
   }
-  for (const [[, variable, args], result] of redCases.map((redCase, index) => [
-    redCase,
-    redCaseResults[index],
-  ])) {
+  for (const [index, [, variable, args]] of redCases.entries()) {
+    if (!assignedRedCaseIndexes.has(index)) continue;
+    const result = redCaseResults[index];
     const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
     const rawPropertySiteCount = Number(
       output.match(/rawPropertyIdentitySiteCount=(\d+)/u)?.[1] ?? "0",
@@ -1053,13 +1119,16 @@ if (generatedMatrixOnly) {
   process.exit(generatedPassed && generatedMutationFailures === 0 ? 0 : 1);
 }
 
-const exactLaunderingPassed = exactLaunderingResult?.passed === true;
+const exactLaunderingPassed = !exactLaunderingAssigned || exactLaunderingResult?.passed === true;
 if (!exactLaunderingPassed) failures += 1;
-process.stdout.write(
-  `${exactLaunderingPassed ? "ok  " : "FAIL"} exact laundering: eq_ignore_ascii_case; authority ${baselineAuthorityCount}->${exactLaunderingResult?.writeAuthorityCount ?? 0}; --write ${(exactLaunderingResult?.writeCount ?? 0) > 0 ? "RED" : "MISS"} raw=${exactLaunderingResult?.writeCount ?? 0}; recheck ${(exactLaunderingResult?.recheckCount ?? 0) > 0 ? "RED" : "MISS"} raw=${exactLaunderingResult?.recheckCount ?? 0}; census unchanged; in-memory mutation\n`,
-);
+if (exactLaunderingAssigned) {
+  process.stdout.write(
+    `${exactLaunderingPassed ? "ok  " : "FAIL"} exact laundering: eq_ignore_ascii_case; authority ${baselineAuthorityCount}->${exactLaunderingResult?.writeAuthorityCount ?? 0}; --write ${(exactLaunderingResult?.writeCount ?? 0) > 0 ? "RED" : "MISS"} raw=${exactLaunderingResult?.writeCount ?? 0}; recheck ${(exactLaunderingResult?.recheckCount ?? 0) > 0 ? "RED" : "MISS"} raw=${exactLaunderingResult?.recheckCount ?? 0}; census unchanged; in-memory mutation\n`,
+  );
+}
 let escapeLaunderingPassedCount = 0;
 for (const [index, result] of escapeLaunderingResults.entries()) {
+  if (result === undefined) continue;
   const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
   const violationCount = Number(
     output.match(/authoredEscapeIdentityViolationCount=(\d+)/u)?.[1] ?? "0",
@@ -1071,25 +1140,30 @@ for (const [index, result] of escapeLaunderingResults.entries()) {
   if (passed) escapeLaunderingPassedCount += 1;
   else process.stderr.write(`${escapeLaunderingCases[index].variable}\n${output}`);
 }
-const escapeLaunderingCensusUnchanged = escapeLaunderingCases.every((testCase) =>
-  readFileSync(testCase.censusPath).equals(originalLaunderingCensus),
+const escapeLaunderingCensusUnchanged = escapeLaunderingCases.every(
+  (testCase, index) =>
+    escapeLaunderingResults[index] === undefined ||
+    readFileSync(testCase.censusPath).equals(originalLaunderingCensus),
 );
 const escapeLaunderingPassed =
-  escapeLaunderingPassedCount === escapeLaunderingVariables.length &&
-  escapeLaunderingCensusUnchanged;
+  escapeLaunderingPassedCount === assignedEscapeLaunderingCount && escapeLaunderingCensusUnchanged;
 if (!escapeLaunderingPassed) failures += 1;
 process.stdout.write(
-  `${escapeLaunderingPassed ? "ok  " : "FAIL"} authored escape laundering: ${escapeLaunderingPassedCount}/${escapeLaunderingVariables.length} --write --accept-inventory-change attempts RED; census unchanged\n`,
+  `${escapeLaunderingPassed ? "ok  " : "FAIL"} authored escape laundering: ${escapeLaunderingPassedCount}/${assignedEscapeLaunderingCount} assigned --write --accept-inventory-change attempts RED; census unchanged\n`,
 );
 rmSync(escapeLaunderingTempRoot, { recursive: true, force: true });
 
-const blindSpotDisclosed = unlabelledControlResult?.status === 0;
+const blindSpotDisclosed = !disclosedControlAssigned || unlabelledControlResult?.status === 0;
 if (!blindSpotDisclosed) failures += 1;
-process.stdout.write(
-  `${blindSpotDisclosed ? "ok  " : "FAIL"} disclosed GREEN control: unlabelled class binding remains outside the idiom arm\n`,
-);
+if (disclosedControlAssigned) {
+  process.stdout.write(
+    `${blindSpotDisclosed ? "ok  " : "FAIL"} disclosed GREEN control: unlabelled class binding remains outside the idiom arm\n`,
+  );
+}
 
+const shardPrefix =
+  mutationShardCount === 1 ? "" : `shard ${mutationShardIndex + 1}/${mutationShardCount}: `;
 process.stdout.write(
-  `\n${redCases.length - redFailures}/${redCases.length} injected RED mutation arms; ${generatedPassed ? `${generatedFullProductCount + generatedEscapeCoveringCount}/${generatedManifest.fullProductCells.length + generatedManifest.escapeCoveringCells.length}` : `0/${generatedManifest.fullProductCells.length + generatedManifest.escapeCoveringCells.length}`} generated matrix cells with 6/6 pair families; ${exactLaunderingPassed ? "1/1" : "0/1"} exact laundering arm; ${escapeLaunderingPassed ? "3/3" : `${escapeLaunderingPassedCount}/3`} escape laundering arms; ${blindSpotDisclosed ? "1/1" : "0/1"} disclosed GREEN control arm\n`,
+  `\n${shardPrefix}${assignedRedCaseCount - redFailures}/${assignedRedCaseCount} assigned injected RED mutation arms (${redCases.length} total); ${generatedPassed ? `${generatedFullProductCount + generatedEscapeCoveringCount}/${generatedManifest.fullProductCells.length + generatedManifest.escapeCoveringCells.length}` : `0/${generatedManifest.fullProductCells.length + generatedManifest.escapeCoveringCells.length}`} generated matrix cells with 6/6 pair families; exact laundering ${exactLaunderingAssigned ? (exactLaunderingPassed ? "1/1" : "0/1") : "delegated"}; escape laundering ${escapeLaunderingPassedCount}/${assignedEscapeLaunderingCount} assigned; disclosed GREEN control ${disclosedControlAssigned ? (blindSpotDisclosed ? "1/1" : "0/1") : "delegated"}\n`,
 );
 process.exit(failures === 0 ? 0 : 1);
