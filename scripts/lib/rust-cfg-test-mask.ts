@@ -9,7 +9,7 @@ export function maskRustCfgTestItems(source: string): string {
     while (/\s/u.test(structure[attributeEnd] ?? "")) attributeEnd += 1;
     if (structure[attributeEnd] !== "]") continue;
     attributeEnd += 1;
-    if (!/\btest\b/u.test(structure.slice(openParenthesis + 1, closeParenthesis))) continue;
+    if (!cfgContainsPositiveTest(structure.slice(openParenthesis + 1, closeParenthesis))) continue;
     const end = cfgTestItemEnd(structure, attributeEnd);
     if (end !== undefined) spans.push({ start: match.index, end });
   }
@@ -22,6 +22,62 @@ export function maskRustCfgTestItems(source: string): string {
     }
   }
   return chars.join("");
+}
+
+function cfgContainsPositiveTest(expression: string): boolean {
+  const callStack: boolean[] = [];
+  let negationDepth = 0;
+  let pendingIdentifier: string | undefined;
+  for (let index = 0; index < expression.length;) {
+    const current = expression[index] ?? "";
+    if (/\s/u.test(current)) {
+      index += 1;
+      continue;
+    }
+    const identifier = expression.slice(index).match(/^[A-Za-z_][A-Za-z0-9_]*/u)?.[0];
+    if (identifier) {
+      if (identifier === "test" && negationDepth % 2 === 0) return true;
+      pendingIdentifier = identifier;
+      index += identifier.length;
+      continue;
+    }
+    if (current === "(") {
+      const isNegation = pendingIdentifier === "not";
+      callStack.push(isNegation);
+      if (isNegation) negationDepth += 1;
+    } else if (current === ")") {
+      if (callStack.pop()) negationDepth -= 1;
+    }
+    pendingIdentifier = undefined;
+    index += 1;
+  }
+  return false;
+}
+
+export function assertRustCfgTestMaskContract(): void {
+  const source = [
+    "#[cfg(test)]\nfn direct_test_item() {}",
+    '#[cfg(any(test, feature = "test-support"))]\nfn compound_test_item() {}',
+    "#[cfg(not(test))]\nfn production_not_test_item() {}",
+    '#[cfg(all(feature = "release", not(test)))]\nfn production_compound_not_test_item() {}',
+    '#[cfg(not(any(test, feature = "test-support")))]\nfn production_outer_not_test_item() {}',
+    "#[cfg(not(not(test)))]\nfn double_negated_test_item() {}",
+    "fn adjacent_production_item() {}",
+  ].join("\n");
+  const masked = maskRustCfgTestItems(source);
+  const mustBeMasked = ["direct_test_item", "compound_test_item", "double_negated_test_item"];
+  const mustRemain = [
+    "production_not_test_item",
+    "production_compound_not_test_item",
+    "production_outer_not_test_item",
+    "adjacent_production_item",
+  ];
+  for (const name of mustBeMasked) {
+    if (masked.includes(name)) throw new Error(`cfg(test) masker retained test-only item ${name}`);
+  }
+  for (const name of mustRemain) {
+    if (!masked.includes(name)) throw new Error(`cfg(test) masker removed production item ${name}`);
+  }
 }
 
 function matchingDelimiter(

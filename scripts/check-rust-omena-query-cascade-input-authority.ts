@@ -3,7 +3,9 @@ import { strict as assert } from "node:assert";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
-import { maskRustCfgTestItems } from "./lib/rust-cfg-test-mask";
+import { assertRustCfgTestMaskContract, maskRustCfgTestItems } from "./lib/rust-cfg-test-mask";
+
+assertRustCfgTestMaskContract();
 
 const querySourceRoot = "rust/crates/omena-query/src";
 const cascadeModulePath = `${querySourceRoot}/style/cascade_checker.rs`;

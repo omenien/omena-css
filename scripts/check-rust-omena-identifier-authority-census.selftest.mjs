@@ -50,6 +50,53 @@ for (const wiring of requiredMutationShardWiring) {
   }
 }
 
+if (!generatedMatrixOnly) {
+  const summaryTempRoot = mkdtempSync(path.join(tmpdir(), "omena-authority-summary-"));
+  const summaryPath = path.join(summaryTempRoot, "summary.json");
+  try {
+    const summaryRun = spawnSync(
+      process.execPath,
+      [
+        "--import",
+        "tsx",
+        "packages/check-orchestrator/src/cli/main.ts",
+        "run",
+        "docs/version-strings",
+        "--summary",
+      ],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          OMENA_CHECK_SUMMARY_JSON: summaryPath,
+          [mutationShardCountVariable]: "2",
+          [mutationShardIndexVariable]: "1",
+        },
+      },
+    );
+    if (summaryRun.status !== 0) {
+      throw new Error(
+        `summary partition fixture failed (${summaryRun.status}):\n${summaryRun.stdout}${summaryRun.stderr}`,
+      );
+    }
+    const summary = JSON.parse(readFileSync(summaryPath, "utf8"));
+    const actualPartition = JSON.stringify(summary.runnerPartition);
+    const expectedPartition = JSON.stringify({
+      kind: "identifier-authority-mutation",
+      index: 1,
+      count: 2,
+    });
+    if (actualPartition !== expectedPartition) {
+      throw new Error(
+        `summary artifact lost mutation shard identity: expected ${expectedPartition}, got ${actualPartition}`,
+      );
+    }
+  } finally {
+    rmSync(summaryTempRoot, { recursive: true, force: true });
+  }
+}
+
 const generatedOrigins = [
   "field-access",
   "tuple-field-access",
@@ -159,6 +206,8 @@ const generatedEscapeGrammars = [
   "debug-fmt-ufcs",
   "dbg-macro",
   "format-args-debug",
+  "write-debug",
+  "writeln-debug",
   "tracing-debug-sigil",
   "aliased-escape-path",
   "serde-json-serializer",
@@ -421,6 +470,10 @@ function escapeBody(escape) {
       return 'let value = format!("{:?}", dbg!(authored));';
     case "format-args-debug":
       return 'let value = std::fmt::format(format_args!("{authored:?}"));';
+    case "write-debug":
+      return 'let mut value = String::new(); let _ = write!(&mut value, "{authored:?}");';
+    case "writeln-debug":
+      return 'let mut value = String::new(); let _ = writeln!(&mut value, "{authored:#?}");';
     case "tracing-debug-sigil":
       return "let value = tracing_debug_value(debug = ?authored);";
     case "aliased-escape-path":
@@ -631,6 +684,24 @@ const redCases = [
     [],
   ],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNRESOLVED_WRITE_INTO_SINK", []],
+  [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CFG_NOT_TEST_ESCAPE_IDENTITY", []],
+  [
+    identifierChecker,
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CONTAINER_MUTATION_ESCAPE_IDENTITIES",
+    [],
+  ],
+  [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_FIELD_IDENTITY_CONSUMER", []],
+  [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_OUT_PARAMETER_ESCAPE_IDENTITY", []],
+  [
+    identifierChecker,
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_ARGUMENT_PARAMETER_ESCAPE_IDENTITY",
+    [],
+  ],
+  [
+    identifierChecker,
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_WRITE_MACRO_DEBUG_ESCAPE_IDENTITIES",
+    [],
+  ],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNREGISTERED_SERDE_FRONTEND", []],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_ZERO_BRANCH_GATE_REGISTRY_ENTRY", []],
 ];
@@ -707,7 +778,11 @@ const requiredMutationReceipts = new Map([
   ],
   [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_RAW_SELECTOR_DEFINITION_SORT\0",
-    ["authoredEscapeIdentityViolationCount=1", "authored-bearing escape result reached"],
+    [
+      "unresolvedWriteIntoSiteCount=1",
+      "summarize_omena_query_style_selector_definitions",
+      "write_into escape reached an unresolved sink",
+    ],
   ],
   [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_RAW_TRANSFORM_NODE_SORT\0",
@@ -738,6 +813,30 @@ const requiredMutationReceipts = new Map([
     ["unresolvedWriteIntoSiteCount=1", "write_into escape reached an unresolved sink"],
   ],
   [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CFG_NOT_TEST_ESCAPE_IDENTITY\0",
+    ["authoredEscapeIdentityViolationCount=1", "authored-bearing escape result reached"],
+  ],
+  [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CONTAINER_MUTATION_ESCAPE_IDENTITIES\0",
+    ["authoredEscapeIdentityViolationCount=2", "authored-bearing escape result reached"],
+  ],
+  [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_FIELD_IDENTITY_CONSUMER\0",
+    ["rawPropertyIdentitySiteCount=2", "property identity census found raw-string identity sites"],
+  ],
+  [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_OUT_PARAMETER_ESCAPE_IDENTITY\0",
+    ["authoredEscapeIdentityViolationCount=1", "authored-bearing escape result reached"],
+  ],
+  [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_ARGUMENT_PARAMETER_ESCAPE_IDENTITY\0",
+    ["authoredEscapeIdentityViolationCount=1", "authored-bearing escape result reached"],
+  ],
+  [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_WRITE_MACRO_DEBUG_ESCAPE_IDENTITIES\0",
+    ["authoredEscapeIdentityViolationCount=2", "authored-bearing escape result reached"],
+  ],
+  [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNREGISTERED_SERDE_FRONTEND\0",
     ["serde front-end dependency is not registered"],
   ],
@@ -763,6 +862,7 @@ const rawPropertyMutationVariables = new Set([
   "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_AUTHORED_TRIM_MATCHES_TRANSFORM",
   "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_AUTHORED_STRIP_PREFIX_TRANSFORM",
   "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_RESIDUAL_KEYED_CARRIER_WITH_JOIN",
+  "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_FIELD_IDENTITY_CONSUMER",
 ]);
 const residualConsumerMutationVariables = new Set([
   "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_RESIDUAL_IDENTITY_CONSUMER",
