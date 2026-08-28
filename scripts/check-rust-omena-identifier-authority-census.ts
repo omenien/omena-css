@@ -74,6 +74,24 @@ interface CensusSite {
   readonly residualClass?: ResidualPropertyClass;
 }
 
+type CountedCannotSeeId =
+  | "collection-callback-comparison-grammar"
+  | "carrier-field-read-spelling-grammar"
+  | "carrier-type-qualification-gate"
+  | "place-expression-mutation-grammar"
+  | "assignment-form-container-write"
+  | "non-string-container-scalar-egress";
+
+interface CountedCannotSeeBoundary {
+  readonly id: CountedCannotSeeId;
+  readonly direction: "decrease-only";
+  readonly operations: readonly string[];
+  readonly siteCount: number;
+  readonly sites: readonly CensusSite[];
+  readonly siteDigest: string;
+  readonly reason: string;
+}
+
 interface DiscoveredSite {
   readonly path: string;
   readonly line: number;
@@ -133,6 +151,7 @@ interface AuthoredEscapeIdentityFlow {
   readonly evidence: string;
   readonly operandDerivation: string;
   readonly sanctioned: boolean;
+  readonly sanctionReason?: string;
 }
 
 interface WriteIntoSinkSite {
@@ -411,15 +430,7 @@ interface IdentifierAuthorityCensus {
       readonly carrierAudit: readonly AuthoredIdentityCarrierAudit[];
       readonly carrierAuditDigest: string;
       readonly identityDeriveViolationCount: 0;
-      readonly countedCannotSee: readonly {
-        readonly id: "collection-callback-comparison-grammar";
-        readonly direction: "decrease-only";
-        readonly operations: readonly string[];
-        readonly siteCount: number;
-        readonly sites: readonly CensusSite[];
-        readonly siteDigest: string;
-        readonly reason: string;
-      }[];
+      readonly countedCannotSee: readonly CountedCannotSeeBoundary[];
       readonly cannotSee: readonly string[];
     };
   };
@@ -545,6 +556,10 @@ const injectCarrierFieldIdentityConsumer =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_FIELD_IDENTITY_CONSUMER === "1";
 const injectCarrierFieldFlowIdentities =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_FIELD_FLOW_IDENTITIES === "1";
+const injectCarrierDelegationGuardLaundering =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_DELEGATION_GUARD_LAUNDERING === "1";
+const injectUnqualifiedCarrierEscapeIdentity =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNQUALIFIED_CARRIER_ESCAPE_IDENTITY === "1";
 const injectOutParameterEscapeIdentity =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_OUT_PARAMETER_ESCAPE_IDENTITY === "1";
 const injectArgumentParameterEscapeIdentity =
@@ -1301,6 +1316,14 @@ const productionInventorySources: readonly MutableRustSource[] = productionSourc
       : maskRustCfgTestItems(readFileSync(path.join(repoRoot, relativePath), "utf8")),
   }),
 );
+const authoredEscapeFixtureCrates = new Set([
+  "omena-diff-test",
+  "engine-style-parser",
+  "omena-benchmarks",
+]);
+const authoredEscapeProductionSources = productionInventorySources.filter(
+  (source) => !authoredEscapeFixtureCrates.has(source.relativePath.split("/")[2] ?? ""),
+);
 const scannedCrates = [
   ...new Set(productionSources.map((sourcePath) => sourcePath.split("/")[2])),
 ].toSorted();
@@ -1336,6 +1359,7 @@ const unresolvedTaintedReceiverMutations = authoredEscapeClosureAudit.unresolved
   (site) => site.operation === "unresolved-tainted-receiver-mutation",
 );
 assertReferenceSanctionedEscapeSites(authoredEscapeClosureAudit.escapeSites);
+assertSerializedWholeValueEquivalenceSanctions(authoredEscapeClosureAudit.identityFlows);
 assertInjectedEscapeProbeOutcomes(authoredEscapeClosureAudit);
 process.stderr.write(`authoredEscapeSiteCount=${authoredEscapeClosureAudit.escapeSites.length}\n`);
 process.stderr.write(
@@ -1419,15 +1443,46 @@ for (const row of residualCarrierConsumerRows.filter(
   );
 }
 const residualCarrierConsumerSites = residualCarrierConsumerRows.flatMap((row) => row.consumers);
-const collectionCallbackComparisonGrammarSites = discoverCollectionCallbackComparisonGrammarSites();
+const injectedAuthorityMutationActive =
+  !deleteInventoryBuildCfgMask &&
+  Object.entries(process.env).some(
+    ([name, value]) => name.startsWith("OMENA_IDENTIFIER_AUTHORITY_TEST_") && value === "1",
+  );
+const existingCountedCannotSeeBoundaries =
+  existing?.propertyIdentity.authoredEscapeClosure.countedCannotSee ?? [];
+const countedCannotSeeBoundaries = injectedAuthorityMutationActive
+  ? existingCountedCannotSeeBoundaries
+  : discoverCountedCannotSeeBoundaries(authoredEscapeProductionSources);
 process.stderr.write(`residualCarrierConsumerSiteCount=${residualCarrierConsumerSites.length}\n`);
-process.stderr.write(
-  `collectionCallbackComparisonGrammarSiteCount=${collectionCallbackComparisonGrammarSites.length}\n`,
-);
+for (const boundary of countedCannotSeeBoundaries) {
+  process.stderr.write(`countedCannotSee.${boundary.id}=${boundary.siteCount}\n`);
+}
 assertInventoryRowsOutsideCfgTestItems(propertyIdentitySites, "property authority");
+assertInventoryRowsOutsideCfgTestItems(classifiedEgressSites, "egress");
+assertInventoryRowsOutsideCfgTestItems(classifiedIdiomSites, "idiom");
+assertInventoryRowsOutsideCfgTestItems(classifiedPredicateSites, "predicate copy");
+assertInventoryRowsOutsideCfgTestItems(
+  classifiedResidualRawPropertyCarrierSites,
+  "residual raw property carrier",
+);
 assertInventoryRowsOutsideCfgTestItems(authoredEscapeClosureAudit.escapeSites, "authored escape");
+assertInventoryRowsOutsideCfgTestItems(
+  authoredEscapeClosureAudit.identityFlows,
+  "authored escape identity flow",
+);
 assertInventoryRowsOutsideCfgTestItems(authoredEscapeClosureAudit.writeIntoSites, "write_into");
+assertInventoryRowsOutsideCfgTestItems(
+  authoredEscapeClosureAudit.unresolvedCallEdges,
+  "unresolved escape call",
+);
+assertInventoryRowsOutsideCfgTestItems(
+  authoredEscapeClosureAudit.unresolvedBindingEdges,
+  "unresolved escape binding",
+);
 assertInventoryRowsOutsideCfgTestItems(residualCarrierConsumerSites, "residual consumer");
+for (const boundary of countedCannotSeeBoundaries) {
+  assertInventoryRowsOutsideCfgTestItems(boundary.sites, `counted boundary ${boundary.id}`);
+}
 const egressZeroBranchSurfaces = [
   { surface: "omena facts --json", evidenceGate: "rust/omena-cli-json-output-census" },
   {
@@ -1449,16 +1504,10 @@ const residualIdentityShapedConsumerCount = residualCarrierConsumerRows
   )
   .flatMap((row) => row.consumers)
   .filter((site) => site.classification === "identity-shaped").length;
-const existingCollectionCallbackBoundary =
-  existing?.propertyIdentity.authoredEscapeClosure.countedCannotSee?.find(
-    (row) => row.id === "collection-callback-comparison-grammar",
-  );
-if (existingCollectionCallbackBoundary) {
-  assert.ok(
-    collectionCallbackComparisonGrammarSites.length <= existingCollectionCallbackBoundary.siteCount,
-    `collection callback comparison grammar count increased: baseline=${existingCollectionCallbackBoundary.siteCount} current=${collectionCallbackComparisonGrammarSites.length}`,
-  );
-}
+assertCountedCannotSeeBoundariesDecreaseOnly(
+  countedCannotSeeBoundaries,
+  existing?.propertyIdentity.authoredEscapeClosure.countedCannotSee ?? [],
+);
 if (acceptInventoryChange) {
   assert.equal(
     rawPropertyIdentitySites.length,
@@ -1909,28 +1958,7 @@ const census: IdentifierAuthorityCensus = {
       carrierAudit: authoredEscapeClosureAudit.carrierAudit,
       carrierAuditDigest: digest(authoredEscapeClosureAudit.carrierAudit),
       identityDeriveViolationCount: 0,
-      countedCannotSee: [
-        {
-          id: "collection-callback-comparison-grammar",
-          direction: "decrease-only",
-          operations: [
-            "binary_search_by",
-            "binary_search_by_key",
-            "retain",
-            "max_by",
-            "max_by_key",
-            "min_by",
-            "min_by_key",
-            "chunk_by",
-            "iter().any",
-          ],
-          siteCount: collectionCallbackComparisonGrammarSites.length,
-          sites: collectionCallbackComparisonGrammarSites,
-          siteDigest: digest(collectionCallbackComparisonGrammarSites),
-          reason:
-            "The flow engine scans tainted field reads and comparisons inside these callbacks, but it does not type-resolve each collection callback binder as a distinct container-identity edge. This syntax inventory is an upper-bound boundary and may only decrease without a reviewed schema change.",
-        },
-      ],
+      countedCannotSee: countedCannotSeeBoundaries,
       cannotSee: authoredEscapeCannotSee(
         authoredEscapeClosureAudit.unresolvedCallEdges.length,
         authoredEscapeClosureAudit.unresolvedBindingEdges.length,
@@ -1985,6 +2013,8 @@ if (writeMode) {
       !injectRawTransformNodeSort &&
       !injectUnsupportedReceiverMutation &&
       !injectCarrierFieldFlowIdentities &&
+      !injectCarrierDelegationGuardLaundering &&
+      !injectUnqualifiedCarrierEscapeIdentity &&
       !deleteInventoryBuildCfgMask &&
       !generatedFixtureManifest,
     "test injection cannot be combined with --write",
@@ -2395,6 +2425,31 @@ function discoverPropertyIdentitySites(): PropertyIdentitySite[] {
     }
   }
   return uniqueSites(sites);
+}
+
+function coalesceCountedCannotSeeSitesByScopeOperation(sites: readonly CensusSite[]): CensusSite[] {
+  const byScopeOperation = new Map<string, CensusSite[]>();
+  for (const site of sites) {
+    const key = `${site.path}\u0000${site.function}\u0000${site.operation}`;
+    const group = byScopeOperation.get(key) ?? [];
+    group.push(site);
+    byScopeOperation.set(key, group);
+  }
+  return [...byScopeOperation.values()]
+    .map((group) => {
+      const first = group.toSorted((left, right) => left.line - right.line)[0];
+      assert.ok(first, "counted cannotSee coalescing group must be non-empty");
+      return {
+        ...first,
+        evidence: [...new Set(group.map((site) => site.evidence))].join(" || "),
+      };
+    })
+    .toSorted(
+      (left, right) =>
+        left.path.localeCompare(right.path) ||
+        left.line - right.line ||
+        left.operation.localeCompare(right.operation),
+    );
 }
 
 function discoverRawPropertyIdentitySites(): DiscoveredSite[] {
@@ -4997,12 +5052,13 @@ interface ResolvedEscapeCall {
 }
 
 function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult {
-  const fixtureCrates = new Set(["omena-diff-test", "engine-style-parser", "omena-benchmarks"]);
-  const sources: MutableRustSource[] = productionInventorySources
-    .filter((source) => !fixtureCrates.has(source.relativePath.split("/")[2] ?? ""))
-    .map((source) => ({ ...source }));
+  const sources: MutableRustSource[] = authoredEscapeProductionSources.map((source) => ({
+    ...source,
+  }));
   applyAuthoredEscapeProbeMutations(sources);
   applyCarrierFieldConsumerProbeMutation(sources);
+  applyCarrierDelegationGuardProbeMutation(sources);
+  assertMechanicalCarrierComparatorDelegations(sources);
   const aliasesByPath = rustTypeAliasesByPath(sources);
   const structFields = rustStructFieldTypes(sources, aliasesByPath);
   const functionReturnTypes = uniqueRustFunctionReturnTypes(sources, aliasesByPath);
@@ -5041,6 +5097,7 @@ function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult 
         bindings,
         structFields,
         useAliases,
+        escapePopulatedCarrierTypes,
         taintSourceDrafts.length,
       );
       const carrierFieldReads = carrierFieldReadSourcesInFunction(
@@ -5269,12 +5326,19 @@ function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult 
         )
       )
         continue;
-      const sanctioned = sourceSites.every(
-        (site) =>
-          !site.operandClasses.includes("authored-bearing") ||
-          (!site.definiteAuthoredOperand &&
-            (site.path !== record.path || site.functionName !== record.functionName)),
+      const serializedValueEquivalenceSanction = serializedWholeValueEquivalenceSanction(
+        comparisonId,
+        statement.text,
+        sourceSites,
       );
+      const sanctioned =
+        serializedValueEquivalenceSanction !== undefined ||
+        sourceSites.every(
+          (site) =>
+            !site.operandClasses.includes("authored-bearing") ||
+            (!site.definiteAuthoredOperand &&
+              (site.path !== record.path || site.functionName !== record.functionName)),
+        );
       for (const index of sourceIndexes) flowSourceIndexes.add(index);
       flows.push({
         path: record.path,
@@ -5291,6 +5355,9 @@ function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult 
           .map((site) => `${site.path}:${site.line}:${site.operandDerivation}`)
           .join("; "),
         sanctioned,
+        ...(serializedValueEquivalenceSanction
+          ? { sanctionReason: serializedValueEquivalenceSanction }
+          : {}),
       });
     }
   }
@@ -5375,6 +5442,27 @@ function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult 
   };
 }
 
+function serializedWholeValueEquivalenceSanction(
+  comparisonId: AuthoredComparisonId,
+  statement: string,
+  sourceSites: readonly AuthoredTaintSourceDraft[],
+): string | undefined {
+  if (comparisonId !== "binary-eq" || sourceSites.length < 2) return undefined;
+  if (
+    !sourceSites.every(
+      (site) => site.sourceKind === "escape" && site.escapeId === "serde-json-to-vec",
+    )
+  )
+    return undefined;
+  if (
+    !/\bcached_bytes\s*\.\s*is_ok\s*\(\s*\)/u.test(statement) ||
+    !/\bfresh_bytes\s*\.\s*is_ok\s*\(\s*\)/u.test(statement) ||
+    !/\bcached_bytes\s*==\s*fresh_bytes\b/u.test(statement)
+  )
+    return undefined;
+  return "The cache shadow oracle compares complete successful serialized values byte-for-byte; its authored-bearing operands remain explicit and the equality is sanctioned as whole-value equivalence, not asserted non-property data.";
+}
+
 function assertReferenceSanctionedEscapeSites(sites: readonly AuthoredEscapeSite[]): void {
   const pairIdentity = sites.find(
     (site) =>
@@ -5415,6 +5503,30 @@ function assertReferenceSanctionedEscapeSites(sites: readonly AuthoredEscapeSite
     "sanctioned-identity",
     "element_signature must remain a sanctioned identity escape",
   );
+}
+
+function assertSerializedWholeValueEquivalenceSanctions(
+  flows: readonly AuthoredEscapeIdentityFlow[],
+): void {
+  const sanctioned = flows.filter((flow) => flow.sanctionReason !== undefined);
+  assert.equal(
+    sanctioned.length,
+    3,
+    "the production cache-shadow whole-value equivalence sanction must remain exactly three sites",
+  );
+  for (const flow of sanctioned) {
+    assert.equal(flow.comparisonId, "binary-eq", "whole-value sanction comparison");
+    assert.match(
+      flow.operandDerivation,
+      /=>authored-bearing/u,
+      "whole-value sanctions must retain authored-bearing operand provenance",
+    );
+    assert.doesNotMatch(
+      flow.operandDerivation,
+      /=>non-property/u,
+      "whole-value sanctions must not relabel unqualified carriers as non-property",
+    );
+  }
 }
 
 function applyAuthoredEscapeProbeMutations(sources: MutableRustSource[]): void {
@@ -5569,6 +5681,7 @@ function applyAuthoredEscapeProbeMutations(sources: MutableRustSource[]): void {
         "fn injected_vec_append_escape_identity(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { let escaped = serde_json::to_string(property).unwrap(); let mut incoming = Vec::new(); incoming.push(escaped); let mut values = Vec::new(); values.append(&mut incoming); values.binary_search(&String::new()).is_ok() }",
         "fn injected_vec_extend_from_slice_escape_identity(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { let escaped = serde_json::to_string(property).unwrap(); let incoming = [escaped]; let mut values = Vec::new(); values.extend_from_slice(&incoming); values.sort_unstable(); true }",
         "fn injected_vec_resize_escape_identity(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { let escaped = serde_json::to_string(property).unwrap(); let mut values = Vec::new(); values.resize(2, escaped); values.dedup(); true }",
+        "fn injected_annotated_vec_fill_escape_identity(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { let escaped = serde_json::to_string(property).unwrap(); let mut values: Vec<String> = Vec::new(); values.resize(1, String::new()); values.fill(escaped); values.contains(&String::new()) }",
         "fn injected_vecdeque_push_back_escape_identity(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { let escaped = serde_json::to_string(property).unwrap(); let mut values = std::collections::VecDeque::new(); values.push_back(escaped); values.contains(&String::new()) }",
         "fn injected_vecdeque_insert_escape_identity(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { let escaped = serde_json::to_string(property).unwrap(); let mut values = std::collections::VecDeque::new(); values.insert(0, escaped); values.contains(&String::new()) }",
         "fn injected_string_push_str_escape_identity(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { let escaped = serde_json::to_string(property).unwrap(); let mut out = String::new(); out.push_str(&escaped); out == String::new() }",
@@ -5627,6 +5740,18 @@ function applyAuthoredEscapeProbeMutations(sources: MutableRustSource[]): void {
       targetPath,
     );
   }
+  if (injectUnqualifiedCarrierEscapeIdentity) {
+    appendTrackedSourceMutation(
+      sources,
+      [
+        "#[derive(serde::Serialize)]",
+        "struct InjectedUnqualifiedEscapeCarrier { name: String }",
+        "fn injected_unqualified_escape_carrier(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> InjectedUnqualifiedEscapeCarrier { let mut name = String::new(); property.write_into(&mut name).unwrap(); InjectedUnqualifiedEscapeCarrier { name } }",
+        'fn injected_unqualified_carrier_escape_identity(property: &omena_syntax::ident::AuthoredPropertyTextV0) -> bool { let carrier = injected_unqualified_escape_carrier(property); let escaped = serde_json::to_string(&carrier).unwrap(); escaped == "--probe" }',
+      ].join("\n"),
+      targetPath,
+    );
+  }
   if (injectArgumentParameterEscapeIdentity) {
     appendTrackedSourceMutation(
       sources,
@@ -5658,6 +5783,59 @@ function applyCarrierFieldConsumerProbeMutation(sources: MutableRustSource[]): v
     "style_occurrences.sort_by(|left, right| left.name.cmp(&right.name));\n    style_occurrences.dedup_by(|left, right| left.name == right.name);",
     "escape-populated carrier field consumer mutation target",
   );
+}
+
+function applyCarrierDelegationGuardProbeMutation(sources: MutableRustSource[]): void {
+  if (!injectCarrierDelegationGuardLaundering) return;
+  replaceTrackedSourceMutation(
+    sources,
+    "rust/crates/omena-query/src/types.rs",
+    "    if left_is_custom_property {",
+    "    if left.name.len() == right.name.len() {",
+    "carrier delegation family-guard laundering target",
+  );
+}
+
+function assertMechanicalCarrierComparatorDelegations(sources: readonly MutableRustSource[]): void {
+  const comparators = [
+    {
+      path: "rust/crates/omena-lsp-server/src/state.rs",
+      functionName: "style_symbol_occurrence_name_cmp",
+    },
+    {
+      path: "rust/crates/omena-query/src/types.rs",
+      functionName: "workspace_occurrence_name_cmp",
+    },
+  ] as const;
+  for (const comparator of comparators) {
+    const source = sources.find((candidate) => candidate.relativePath === comparator.path)?.source;
+    assert.ok(source, `carrier comparator is outside escape-flow scope: ${comparator.path}`);
+    const structural = maskCommentsStringsAndTestItems(source, false);
+    const functionSlice = rustFunctionSlices(structural).find(
+      (candidate) => candidate.name === comparator.functionName,
+    );
+    assert.ok(
+      functionSlice,
+      `carrier comparator is absent: ${comparator.path}:${comparator.functionName}`,
+    );
+    const body = source.slice(functionSlice.bodyStart, functionSlice.bodyEnd);
+    const rawComparison = rustStatementSlices(body).find((statement) =>
+      /\bleft\s*\.\s*name\s*\.\s*cmp\s*\(\s*&\s*right\s*\.\s*name\s*\)/u.test(statement.text),
+    );
+    assert.ok(
+      rawComparison,
+      `carrier comparator raw fallback is absent: ${comparator.path}:${comparator.functionName}`,
+    );
+    assert.ok(
+      mechanicalCarrierNameDelegation(
+        body,
+        rawComparison.text,
+        rawComparison.start,
+        new Set(["left", "right"]),
+      ),
+      `carrier comparator delegation guard does not prove custom-property family selection: ${comparator.path}:${comparator.functionName}`,
+    );
+  }
 }
 
 function assertInjectedEscapeProbeOutcomes(audit: AuthoredEscapeClosureAuditResult): void {
@@ -5745,6 +5923,7 @@ function assertInjectedEscapeProbeOutcomes(audit: AuthoredEscapeClosureAuditResu
       "injected_vec_append_escape_identity",
       "injected_vec_extend_from_slice_escape_identity",
       "injected_vec_resize_escape_identity",
+      "injected_annotated_vec_fill_escape_identity",
       "injected_vecdeque_push_back_escape_identity",
       "injected_vecdeque_insert_escape_identity",
       "injected_string_push_str_escape_identity",
@@ -5776,6 +5955,11 @@ function assertInjectedEscapeProbeOutcomes(audit: AuthoredEscapeClosureAuditResu
       "injected_carrier_decoy_comparator",
     ],
     "carrier field flow",
+  );
+  requireViolatingFunctions(
+    injectUnqualifiedCarrierEscapeIdentity,
+    ["injected_unqualified_carrier_escape_identity"],
+    "unqualified carrier escape",
   );
   requireViolatingFunctions(
     injectArgumentParameterEscapeIdentity,
@@ -6201,6 +6385,7 @@ function escapeOccurrencesInFunction(
   bindings: ReadonlyMap<string, string>,
   structFields: ReadonlyMap<string, ReadonlyMap<string, string>>,
   useAliases: ReadonlyMap<string, AuthoredEscapeId>,
+  escapePopulatedCarrierTypes: ReadonlySet<string>,
   firstSiteIndex: number,
 ): EscapeOccurrenceDraft[] {
   const candidates = escapeCandidatesInBody(body, useAliases, functionSlice);
@@ -6218,12 +6403,22 @@ function escapeOccurrencesInFunction(
     const operandClasses = candidate.operands.map((operand) =>
       selectorGuardedAuthoredOperand(`${operandContext}\n${statement.text}`, operand)
         ? "non-property"
-        : classifyAuthoredEscapeOperand(operand, bindings, structFields),
+        : classifyAuthoredEscapeOperand(
+            operand,
+            bindings,
+            structFields,
+            escapePopulatedCarrierTypes,
+          ),
     );
     const definiteAuthoredOperand = candidate.operands.some(
       (operand) =>
         !selectorGuardedAuthoredOperand(`${operandContext}\n${statement.text}`, operand) &&
-        isDefinitelyAuthoredEscapeOperand(operand, bindings, structFields),
+        isDefinitelyAuthoredEscapeOperand(
+          operand,
+          bindings,
+          structFields,
+          escapePopulatedCarrierTypes,
+        ),
     );
     const absoluteOffset = functionSlice.bodyStart + candidate.offset;
     return {
@@ -6678,7 +6873,7 @@ function stdReceiverClasses(
     classes.set(vector[1], "Vec");
   }
   for (const [binding, rustType] of record.bindings) {
-    if (rustType === "String") classes.set(binding, "String");
+    if (rustType === "String" && !classes.has(binding)) classes.set(binding, "String");
   }
   for (const [alias, target] of aliases) {
     const targetClass = classes.get(mutableBindingRoot(target, aliases));
@@ -8126,11 +8321,6 @@ function mechanicalCarrierNameDelegation(
     const keyMatches = [...prefix.matchAll(keyPattern)];
     if (keyMatches.length === 0) return false;
     canonicalKeyOffsets.push(keyMatches.at(-1)?.index ?? -1);
-    const familyPattern = new RegExp(
-      `\\b${escapeRegExp(binding)}\\s*\\.\\s*kind\\s*\\.\\s*family\\s*\\(\\s*\\)\\s*==\\s*OmenaWorkspaceOccurrenceFamilyV0\\s*::\\s*CustomProperty\\b`,
-      "u",
-    );
-    if (!familyPattern.test(prefix)) return false;
   }
   const canonicalStart = Math.min(...canonicalKeyOffsets);
   if (canonicalStart < 0) return false;
@@ -8138,12 +8328,86 @@ function mechanicalCarrierNameDelegation(
   if (!/\.\s*cmp\s*\(/u.test(canonicalTail)) return false;
   const returnOffset = prefix.lastIndexOf("return", canonicalStart);
   if (returnOffset < 0 || canonicalStart - returnOffset > 120) return false;
-  const guardOffset = prefix.lastIndexOf("if", returnOffset);
+  const guardOffset = [...prefix.slice(0, returnOffset).matchAll(/\bif\b/gu)].at(-1)?.index ?? -1;
   if (guardOffset < 0) return false;
   const guardOpen = prefix.indexOf("{", guardOffset);
   if (guardOpen < 0 || guardOpen > returnOffset) return false;
   const guardClose = matchingBrace(maskCommentsStringsAndTestItems(prefix, false), guardOpen);
-  return guardClose !== undefined && guardClose >= canonicalStart;
+  if (guardClose === undefined || guardClose < canonicalStart) return false;
+  const guardCondition = prefix.slice(guardOffset + 2, guardOpen);
+  return customPropertyFamilyGuardSelectsBindings(
+    prefix.slice(0, guardOffset),
+    guardCondition,
+    rawBindings,
+  );
+}
+
+function customPropertyFamilyGuardSelectsBindings(
+  beforeGuard: string,
+  guardCondition: string,
+  rawBindings: ReadonlySet<string>,
+): boolean {
+  const familyExpression = (binding: string): string =>
+    `\\b${escapeRegExp(binding)}\\s*\\.\\s*kind\\s*\\.\\s*family\\s*\\(\\s*\\)\\s*==\\s*OmenaWorkspaceOccurrenceFamilyV0\\s*::\\s*CustomProperty\\b`;
+  const bindings = [...rawBindings];
+  if (bindings.length === 2) {
+    const [leftBinding, rightBinding] = bindings;
+    const leftFamily = familyExpression(leftBinding);
+    const rightFamily = familyExpression(rightBinding);
+    if (
+      new RegExp(
+        `(?:${leftFamily})\\s*&&\\s*(?:${rightFamily})|(?:${rightFamily})\\s*&&\\s*(?:${leftFamily})`,
+        "u",
+      ).test(guardCondition)
+    ) {
+      return true;
+    }
+  }
+
+  const familyFlags = new Map<string, string>();
+  for (const binding of rawBindings) {
+    const declarations = [
+      ...beforeGuard.matchAll(
+        new RegExp(
+          `\\blet\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*${familyExpression(binding)}\\s*;`,
+          "gu",
+        ),
+      ),
+    ];
+    const flag = declarations.at(-1)?.[1];
+    if (!flag) return false;
+    familyFlags.set(binding, flag);
+  }
+  const flags = [...familyFlags.values()];
+  if (flags.length !== 2) return false;
+  const [leftFlag, rightFlag] = flags.map(escapeRegExp);
+  if (
+    new RegExp(
+      `(?:\\b${leftFlag}\\b)\\s*&&\\s*(?:\\b${rightFlag}\\b)|(?:\\b${rightFlag}\\b)\\s*&&\\s*(?:\\b${leftFlag}\\b)`,
+      "u",
+    ).test(guardCondition)
+  ) {
+    return true;
+  }
+  const selectedFlags = flags.filter((flag) =>
+    new RegExp(`\\b${escapeRegExp(flag)}\\b`, "u").test(guardCondition),
+  );
+  if (selectedFlags.length !== 1) return false;
+
+  const relationDeclarations = [
+    ...beforeGuard.matchAll(
+      new RegExp(
+        `\\blet\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*(?:${escapeRegExp(flags[0])}\\s*\\.\\s*cmp\\s*\\(\\s*&\\s*${escapeRegExp(flags[1])}|${escapeRegExp(flags[1])}\\s*\\.\\s*cmp\\s*\\(\\s*&\\s*${escapeRegExp(flags[0])})\\s*\\)\\s*;`,
+        "gu",
+      ),
+    ),
+  ];
+  const relation = relationDeclarations.at(-1)?.[1];
+  if (!relation) return false;
+  return new RegExp(
+    `\\bif\\s+${escapeRegExp(relation)}\\s*!=\\s*(?:[A-Za-z_][A-Za-z0-9_]*\\s*::\\s*)?Equal\\s*\\{[\\s\\S]*?\\breturn\\s+${escapeRegExp(relation)}\\s*;[\\s\\S]*?\\}`,
+    "u",
+  ).test(beforeGuard);
 }
 
 function rustStructLiterals(body: string): readonly { typeName: string; fields: string }[] {
@@ -9214,7 +9478,119 @@ function assertInventoryRowsOutsideCfgTestItems(
   );
 }
 
-function discoverCollectionCallbackComparisonGrammarSites(): CensusSite[] {
+function discoverCountedCannotSeeBoundaries(
+  sources: readonly MutableRustSource[],
+): readonly CountedCannotSeeBoundary[] {
+  const aliasesByPath = rustTypeAliasesByPath(sources);
+  const structFields = rustStructFieldTypes(sources, aliasesByPath);
+  const functionReturnTypes = uniqueRustFunctionReturnTypes(sources, aliasesByPath);
+  const escapePopulatedCarrierTypes = escapePopulatedStringCarrierTypes(
+    sources,
+    structFields,
+    aliasesByPath,
+    functionReturnTypes,
+  );
+  const qualifiedCarrierTypes = manuallyIdentifiedEscapeCarrierTypes(
+    sources,
+    escapePopulatedCarrierTypes,
+  );
+  const records = boundaryEscapeFunctionRecords(
+    sources,
+    aliasesByPath,
+    structFields,
+    functionReturnTypes,
+  );
+  return [
+    countedCannotSeeBoundary(
+      "collection-callback-comparison-grammar",
+      [
+        "binary_search_by",
+        "binary_search_by_key",
+        "retain",
+        "max_by",
+        "max_by_key",
+        "min_by",
+        "min_by_key",
+        "chunk_by",
+        "iter().any",
+      ],
+      discoverCollectionCallbackComparisonGrammarSites(sources),
+      "The flow engine scans tainted field reads and comparisons inside these callbacks, but it does not type-resolve each collection callback binder as a distinct container-identity edge. The inventory is restricted to the product escape-flow closure.",
+    ),
+    countedCannotSeeBoundary(
+      "carrier-field-read-spelling-grammar",
+      ["field-name-not-name", "match-pattern", "closure-binder", "deref-field"],
+      discoverCarrierFieldReadSpellingGrammarSites(sources),
+      "Carrier-source discovery is bound to a literal String field named `name` and direct `.name` or `Type { name }` reads. Property-shaped alternative fields plus match-arm, closure-binder, and explicit Deref field reads are counted lexical upper bounds, not affirmed non-property flows.",
+    ),
+    countedCannotSeeBoundary(
+      "carrier-type-qualification-gate",
+      ["canonical-custom-key-text-qualification"],
+      discoverCarrierTypeQualificationGateSites(
+        sources,
+        escapePopulatedCarrierTypes,
+        qualifiedCarrierTypes,
+      ),
+      "The carrier-field source plane currently admits an escape-populated carrier only when a function associated with that type contains a canonical custom-property key call. Excluded carrier types remain authored-bearing in operand classification and are never affirmed non-property.",
+    ),
+    countedCannotSeeBoundary(
+      "place-expression-mutation-grammar",
+      ["complex-method-receiver", "complex-mutable-argument"],
+      discoverPlaceExpressionMutationGrammarSites(sources),
+      "The mutable-flow resolver follows bare bindings and named aliases. Index, field, call-chain, dereference, and other place-expression receivers or mutable arguments are counted as a conservative product-closure upper bound.",
+    ),
+    countedCannotSeeBoundary(
+      "assignment-form-container-write",
+      ["non-string-container-assignment"],
+      discoverAssignmentFormContainerWriteSites(records),
+      "The container mutation table models method and selected macro/add-assign writes, not reassignment or indexed/place assignment into a known non-String container.",
+    ),
+    countedCannotSeeBoundary(
+      "non-string-container-scalar-egress",
+      [
+        "first",
+        "last",
+        "get",
+        "get_mut",
+        "pop",
+        "pop_front",
+        "pop_back",
+        "remove",
+        "swap_remove",
+        "drain",
+        "iter",
+        "iter_mut",
+        "into_iter",
+        "keys",
+        "values",
+        "values_mut",
+      ],
+      discoverNonStringContainerScalarEgressSites(records),
+      "The flow engine tracks authored sources into known non-String containers but does not generally transfer a container source back into scalars returned by these egress methods.",
+    ),
+  ];
+}
+
+function countedCannotSeeBoundary(
+  id: CountedCannotSeeId,
+  operations: readonly string[],
+  sites: readonly CensusSite[],
+  reason: string,
+): CountedCannotSeeBoundary {
+  return {
+    id,
+    direction: "decrease-only",
+    operations,
+    siteCount: sites.length,
+    sites,
+    siteDigest: digest(sites),
+    reason,
+  };
+}
+
+function discoverCollectionCallbackComparisonGrammarSites(
+  sources: readonly MutableRustSource[],
+): CensusSite[] {
   const patterns = [
     ["binary_search_by_key", /\.\s*binary_search_by_key\s*\(/gu],
     ["binary_search_by", /\.\s*binary_search_by\s*\(/gu],
@@ -9227,7 +9603,7 @@ function discoverCollectionCallbackComparisonGrammarSites(): CensusSite[] {
     ["iter().any", /\.\s*iter\s*\(\s*\)\s*\.\s*any\s*\(/gu],
   ] as const;
   const sites: CensusSite[] = [];
-  for (const { relativePath, source } of productionInventorySources) {
+  for (const { relativePath, source } of sources) {
     const scannable = maskCommentsStringsAndTestItems(source, false);
     for (const [operation, pattern] of patterns) {
       for (const match of scannable.matchAll(pattern)) {
@@ -9237,14 +9613,20 @@ function discoverCollectionCallbackComparisonGrammarSites(): CensusSite[] {
         const callback = source.slice(openParenthesis + 1, closeParenthesis);
         if (!/\.\s*(?:name|property|property_name|key|identity)\b/u.test(callback)) continue;
         if (!/(?:==|!=|\.\s*(?:cmp|partial_cmp|eq|ne|contains)\s*\()/u.test(callback)) continue;
+        const site = siteAt(
+          relativePath,
+          source,
+          scannable,
+          match.index,
+          `collection-callback-comparison:${operation}`,
+        );
         sites.push({
-          ...siteAt(
-            relativePath,
-            source,
-            scannable,
-            match.index,
-            `collection-callback-comparison:${operation}`,
-          ),
+          ...site,
+          evidence: source
+            .slice(match.index, closeParenthesis + 1)
+            .trim()
+            .replace(/\s+/gu, " ")
+            .slice(0, 240),
           disposition: "named-exempt",
           reason:
             "Counted upper bound for collection callback syntax whose closure binder is not type-resolved as a distinct container-identity edge.",
@@ -9252,7 +9634,345 @@ function discoverCollectionCallbackComparisonGrammarSites(): CensusSite[] {
       }
     }
   }
+  return coalesceCountedCannotSeeSitesByScopeOperation(sites);
+}
+
+function discoverCarrierFieldReadSpellingGrammarSites(
+  sources: readonly MutableRustSource[],
+): CensusSite[] {
+  const sites: CensusSite[] = [];
+  const propertyField = /(?:property|custom|declaration|reference|identity|selector|class|key)/u;
+  for (const { relativePath, source } of sources) {
+    const scannable = maskCommentsStringsAndTestItems(source, false);
+    for (const structure of scannable.matchAll(/\bstruct\s+[A-Za-z_][A-Za-z0-9_]*[^;{]*\{/gu)) {
+      const openBrace = structure.index + structure[0].lastIndexOf("{");
+      const closeBrace = matchingBrace(scannable, openBrace);
+      if (closeBrace === undefined) continue;
+      const body = scannable.slice(openBrace + 1, closeBrace);
+      for (const field of body.matchAll(
+        /\b(?:pub(?:\([^)]*\))?\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(?:std\s*::\s*string\s*::\s*)?String\b/gu,
+      )) {
+        if (field[1] === "name" || !propertyField.test(field[1])) continue;
+        sites.push(
+          countedCannotSeeSite(
+            relativePath,
+            source,
+            scannable,
+            openBrace + 1 + field.index,
+            "carrier-field-spelling:field-name-not-name",
+            "A property-shaped String field with a spelling other than `name` is outside the carrier-source recognizer's field-name bound.",
+          ),
+        );
+      }
+    }
+    for (const matchPattern of scannable.matchAll(
+      /\bmatch\b[\s\S]{0,240}?\b[A-Z][A-Za-z0-9_]*\s*\{[^{}]*(?:name|property|property_name)[^{}]*\}\s*=>/gu,
+    )) {
+      sites.push(
+        countedCannotSeeSite(
+          relativePath,
+          source,
+          scannable,
+          matchPattern.index,
+          "carrier-field-spelling:match-pattern",
+          "A field read introduced by a match-arm pattern is not resolved as a carrier-source binding.",
+        ),
+      );
+    }
+    for (const closure of scannable.matchAll(/\|([^|\n]+)\|/gu)) {
+      const binders = rustPatternBindings(closure[1]);
+      if (binders.length === 0) continue;
+      const tail = scannable.slice(closure.index + closure[0].length, closure.index + 600);
+      if (
+        !binders.some((binding) =>
+          new RegExp(
+            `\\b${escapeRegExp(binding)}\\s*\\.\\s*(?:name|property|property_name)\\b`,
+            "u",
+          ).test(tail),
+        )
+      )
+        continue;
+      sites.push(
+        countedCannotSeeSite(
+          relativePath,
+          source,
+          scannable,
+          closure.index,
+          "carrier-field-spelling:closure-binder",
+          "A closure binder's carrier type is not independently resolved before a property-shaped field read.",
+        ),
+      );
+    }
+    for (const deref of scannable.matchAll(
+      /(?:\(\s*\*\s*[A-Za-z_][A-Za-z0-9_]*\s*\)|(?:std\s*::\s*ops\s*::\s*)?Deref\s*::\s*deref\s*\([^)]*\))\s*\.\s*(?:name|property|property_name)\b/gu,
+    )) {
+      sites.push(
+        countedCannotSeeSite(
+          relativePath,
+          source,
+          scannable,
+          deref.index,
+          "carrier-field-spelling:deref-field",
+          "An explicit Deref place before a property-shaped field is outside the direct `.name` access grammar.",
+        ),
+      );
+    }
+  }
   return uniqueSites(sites);
+}
+
+function discoverCarrierTypeQualificationGateSites(
+  sources: readonly MutableRustSource[],
+  escapePopulatedCarrierTypes: ReadonlySet<string>,
+  qualifiedCarrierTypes: ReadonlySet<string>,
+): CensusSite[] {
+  const sites: CensusSite[] = [];
+  for (const carrierType of [...escapePopulatedCarrierTypes].toSorted()) {
+    if (qualifiedCarrierTypes.has(carrierType)) continue;
+    for (const { relativePath, source } of sources) {
+      const scannable = maskCommentsStringsAndTestItems(source, false);
+      const declaration = new RegExp(`\\bstruct\\s+${escapeRegExp(carrierType)}\\b`, "u").exec(
+        scannable,
+      );
+      if (!declaration) continue;
+      sites.push(
+        countedCannotSeeSite(
+          relativePath,
+          source,
+          scannable,
+          declaration.index,
+          `carrier-type-qualification:${carrierType}`,
+          "This escape-populated carrier is not a carrier-field taint source because no associated function satisfies the canonical-custom-key text qualification gate.",
+        ),
+      );
+      break;
+    }
+  }
+  return uniqueSites(sites);
+}
+
+function discoverPlaceExpressionMutationGrammarSites(
+  sources: readonly MutableRustSource[],
+): CensusSite[] {
+  const sites: CensusSite[] = [];
+  const mutationMethods = new Set(
+    Object.values(stdReceiverMutationTable()).flatMap((methods) => Object.keys(methods)),
+  );
+  for (const { relativePath, source } of sources) {
+    const scannable = maskCommentsStringsAndTestItems(source, false);
+    const tokens = rustSemanticTokens(scannable);
+    for (let index = 1; index + 2 < tokens.length; index += 1) {
+      if (tokens[index].text !== ".") continue;
+      const method = tokens[index + 1];
+      if (!mutationMethods.has(method.text) || tokens[index + 2].text !== "(") continue;
+      const receiverTail = tokens[index - 1];
+      const receiverIsBare =
+        /^[A-Za-z_][A-Za-z0-9_]*$/u.test(receiverTail.text) && tokens[index - 2]?.text !== ".";
+      if (receiverIsBare) continue;
+      sites.push(
+        countedCannotSeeSite(
+          relativePath,
+          source,
+          scannable,
+          receiverTail.start,
+          `place-expression-receiver:${method.text}`,
+          "A known mutation method is invoked through a non-bare place expression that the receiver resolver cannot bind.",
+        ),
+      );
+    }
+    for (let index = 0; index + 3 < tokens.length; index += 1) {
+      if (tokens[index].text !== "&" || tokens[index + 1].text !== "mut") continue;
+      const first = tokens[index + 2];
+      const next = tokens[index + 3];
+      const bare =
+        /^[A-Za-z_][A-Za-z0-9_]*$/u.test(first.text) && [",", ")", ";"].includes(next.text);
+      if (bare) continue;
+      sites.push(
+        countedCannotSeeSite(
+          relativePath,
+          source,
+          scannable,
+          tokens[index].start,
+          "place-expression-argument:&mut",
+          "A mutable argument is a field, index, dereference, or call-chain place rather than a bare binding or named alias.",
+        ),
+      );
+    }
+  }
+  return uniqueSites(sites);
+}
+
+function boundaryEscapeFunctionRecords(
+  sources: readonly MutableRustSource[],
+  aliasesByPath: ReadonlyMap<string, ReadonlyMap<string, string>>,
+  structFields: ReadonlyMap<string, ReadonlyMap<string, string>>,
+  functionReturnTypes: ReadonlyMap<string, string>,
+): readonly EscapeFunctionRecord[] {
+  const records: EscapeFunctionRecord[] = [];
+  for (const { relativePath, source } of sources) {
+    const structural = maskCommentsStringsAndTestItems(source, false);
+    const aliases = aliasesByPath.get(relativePath) ?? new Map<string, string>();
+    for (const slice of rustFunctionSlices(structural)) {
+      const body = source.slice(slice.bodyStart, slice.bodyEnd);
+      records.push({
+        crateName: relativePath.split("/")[2] ?? "<unknown-crate>",
+        implType: enclosingImplType(structural, slice.bodyStart, aliases),
+        path: relativePath,
+        source,
+        functionName: slice.name,
+        signature: slice.signature,
+        body,
+        scannable: slice.scannable,
+        bodyStart: slice.bodyStart,
+        bindings: inferredEscapeBindings(
+          slice,
+          source,
+          aliases,
+          structFields,
+          relativePath.split("/")[2] ?? "<unknown-crate>",
+          functionReturnTypes,
+        ),
+        occurrences: [],
+      });
+    }
+  }
+  return records;
+}
+
+function discoverAssignmentFormContainerWriteSites(
+  records: readonly EscapeFunctionRecord[],
+): CensusSite[] {
+  const sites: CensusSite[] = [];
+  for (const record of records) {
+    const aliases = rustMutableBindingAliases(record.body);
+    const classes = stdReceiverClasses(record, aliases);
+    const tokens = rustSemanticTokens(maskCommentsStringsAndTestItems(record.body, false));
+    for (let index = 0; index < tokens.length; index += 1) {
+      if (tokens[index].text !== "=") continue;
+      let start = index - 1;
+      while (start >= 0 && ![";", "{", "}", "=>"].includes(tokens[start].text)) start -= 1;
+      const left = tokens.slice(start + 1, index);
+      if (left.some((token) => ["let", "if", "while", "const", "static"].includes(token.text)))
+        continue;
+      const root = left.find((token) => /^[A-Za-z_][A-Za-z0-9_]*$/u.test(token.text))?.text;
+      if (!root) continue;
+      const receiver = mutableBindingRoot(root, aliases);
+      const receiverClass = classes.get(root) ?? classes.get(receiver);
+      if (!receiverClass || receiverClass === "String") continue;
+      sites.push(
+        countedCannotSeeSite(
+          record.path,
+          record.source,
+          maskCommentsStringsAndTestItems(record.source, false),
+          record.bodyStart + tokens[index].start,
+          `assignment-form-container-write:${receiverClass}`,
+          "A known non-String container is written through assignment syntax, which is outside the method/macro mutation table.",
+        ),
+      );
+    }
+  }
+  return uniqueSites(sites);
+}
+
+function discoverNonStringContainerScalarEgressSites(
+  records: readonly EscapeFunctionRecord[],
+): CensusSite[] {
+  const egressMethods = new Set([
+    "first",
+    "last",
+    "get",
+    "get_mut",
+    "pop",
+    "pop_front",
+    "pop_back",
+    "remove",
+    "swap_remove",
+    "drain",
+    "iter",
+    "iter_mut",
+    "into_iter",
+    "keys",
+    "values",
+    "values_mut",
+  ]);
+  const sites: CensusSite[] = [];
+  for (const record of records) {
+    const aliases = rustMutableBindingAliases(record.body);
+    const classes = stdReceiverClasses(record, aliases);
+    const structural = maskCommentsStringsAndTestItems(record.body, false);
+    for (const call of structural.matchAll(
+      /\b([A-Za-z_][A-Za-z0-9_]*)\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/gu,
+    )) {
+      if (!egressMethods.has(call[2])) continue;
+      const receiver = mutableBindingRoot(call[1], aliases);
+      const receiverClass = classes.get(call[1]) ?? classes.get(receiver);
+      if (!receiverClass || receiverClass === "String") continue;
+      sites.push(
+        countedCannotSeeSite(
+          record.path,
+          record.source,
+          maskCommentsStringsAndTestItems(record.source, false),
+          record.bodyStart + call.index,
+          `non-string-container-egress:${receiverClass}.${call[2]}`,
+          "A known non-String container method can return an element or iterator, but container taint is not generally transferred to that scalar result.",
+        ),
+      );
+    }
+  }
+  return uniqueSites(sites);
+}
+
+function countedCannotSeeSite(
+  relativePath: string,
+  source: string,
+  scannable: string,
+  offset: number,
+  operation: string,
+  reason: string,
+): CensusSite {
+  return {
+    ...siteAt(relativePath, source, scannable, offset, operation),
+    disposition: "named-exempt",
+    reason,
+  };
+}
+
+function assertCountedCannotSeeBoundariesDecreaseOnly(
+  current: readonly CountedCannotSeeBoundary[],
+  previous: readonly CountedCannotSeeBoundary[],
+): void {
+  const currentById = new Map(current.map((boundary) => [boundary.id, boundary]));
+  for (const boundary of current) {
+    assert.equal(boundary.siteCount, boundary.sites.length, `${boundary.id} site count`);
+    assert.equal(boundary.siteDigest, digest(boundary.sites), `${boundary.id} site digest`);
+  }
+  for (const baseline of previous) {
+    const boundary = currentById.get(baseline.id);
+    assert.ok(boundary, `counted cannotSee boundary was removed: ${baseline.id}`);
+    assert.ok(
+      boundary.siteCount <= baseline.siteCount,
+      `counted cannotSee boundary increased: ${baseline.id} baseline=${baseline.siteCount} current=${boundary.siteCount}`,
+    );
+    const baselineMultiplicity = countedCannotSeeSiteMultiplicity(baseline.sites);
+    const currentMultiplicity = countedCannotSeeSiteMultiplicity(boundary.sites);
+    for (const [key, count] of currentMultiplicity) {
+      assert.ok(
+        count <= (baselineMultiplicity.get(key) ?? 0),
+        `counted cannotSee boundary gained a new site: ${baseline.id}:${key}`,
+      );
+    }
+  }
+}
+
+function countedCannotSeeSiteMultiplicity(
+  sites: readonly CensusSite[],
+): ReadonlyMap<string, number> {
+  const multiplicity = new Map<string, number>();
+  for (const site of sites) {
+    const key = `${site.path}\u0000${site.function}\u0000${site.operation}`;
+    multiplicity.set(key, (multiplicity.get(key) ?? 0) + 1);
+  }
+  return multiplicity;
 }
 
 function assertZeroBranchEvidenceGatesRegistered(

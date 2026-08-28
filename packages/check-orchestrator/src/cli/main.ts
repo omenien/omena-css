@@ -581,8 +581,8 @@ function summaryRunnerPartition(): {
   readonly index: number;
   readonly count: number;
 } | null {
-  const countVariable = "OMENA_IDENTIFIER_AUTHORITY_MUTATION_SHARD_COUNT";
-  const indexVariable = "OMENA_IDENTIFIER_AUTHORITY_MUTATION_SHARD_INDEX";
+  const countVariable = "OMENA_IDENTIFIER_AUTHORITY_MUTATION_PARTITION_COUNT";
+  const indexVariable = "OMENA_IDENTIFIER_AUTHORITY_MUTATION_PARTITION_INDEX";
   const countText = process.env[countVariable];
   const indexText = process.env[indexVariable];
   if (countText === undefined && indexText === undefined) return null;

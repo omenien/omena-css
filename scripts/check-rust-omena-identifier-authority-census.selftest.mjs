@@ -10,24 +10,26 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const rawScanChecker = "scripts/check-rust-omena-syntax-authority-raw-scan-census.ts";
 const identifierChecker = "scripts/check-rust-omena-identifier-authority-census.ts";
 const generatedMatrixOnly = process.argv.includes("--generated-matrix-only");
-const mutationShardCountVariable = "OMENA_IDENTIFIER_AUTHORITY_MUTATION_SHARD_COUNT";
-const mutationShardIndexVariable = "OMENA_IDENTIFIER_AUTHORITY_MUTATION_SHARD_INDEX";
-const mutationShardCountText = process.env[mutationShardCountVariable];
-const mutationShardIndexText = process.env[mutationShardIndexVariable];
-if ((mutationShardCountText === undefined) !== (mutationShardIndexText === undefined)) {
-  throw new Error(`${mutationShardCountVariable} and ${mutationShardIndexVariable} must be paired`);
+const mutationPartitionCountVariable = "OMENA_IDENTIFIER_AUTHORITY_MUTATION_PARTITION_COUNT";
+const mutationPartitionIndexVariable = "OMENA_IDENTIFIER_AUTHORITY_MUTATION_PARTITION_INDEX";
+const mutationPartitionCountText = process.env[mutationPartitionCountVariable];
+const mutationPartitionIndexText = process.env[mutationPartitionIndexVariable];
+if ((mutationPartitionCountText === undefined) !== (mutationPartitionIndexText === undefined)) {
+  throw new Error(
+    `${mutationPartitionCountVariable} and ${mutationPartitionIndexVariable} must be paired`,
+  );
 }
-const mutationShardCount = Number.parseInt(mutationShardCountText ?? "1", 10);
-const mutationShardIndex = Number.parseInt(mutationShardIndexText ?? "0", 10);
+const mutationPartitionCount = Number.parseInt(mutationPartitionCountText ?? "1", 10);
+const mutationPartitionIndex = Number.parseInt(mutationPartitionIndexText ?? "0", 10);
 if (
-  !Number.isSafeInteger(mutationShardCount) ||
-  ![1, 2, 3].includes(mutationShardCount) ||
-  !Number.isSafeInteger(mutationShardIndex) ||
-  mutationShardIndex < 0 ||
-  mutationShardIndex >= mutationShardCount
+  !Number.isSafeInteger(mutationPartitionCount) ||
+  ![1, 2, 3].includes(mutationPartitionCount) ||
+  !Number.isSafeInteger(mutationPartitionIndex) ||
+  mutationPartitionIndex < 0 ||
+  mutationPartitionIndex >= mutationPartitionCount
 ) {
   throw new Error(
-    `invalid authority mutation shard ${mutationShardIndex}/${mutationShardCount}; supported counts are 1, 2, and 3`,
+    `invalid authority mutation partition ${mutationPartitionIndex}/${mutationPartitionCount}; supported counts are 1, 2, and 3`,
   );
 }
 
@@ -38,15 +40,15 @@ const mutationWorkflowJob = ciWorkflowRegistry.jobs?.find(
   (job) => job.name === "rust-identifier-authority-mutations",
 );
 const mutationWorkflowBlock = mutationWorkflowJob?.block?.join("\n") ?? "";
-const requiredMutationShardWiring = [
-  "      matrix:\n        shard: [0, 1, 2]",
-  `      ${mutationShardCountVariable}: 3`,
-  `      ${mutationShardIndexVariable}: \${{ matrix.shard }}`,
-  "          name: rust-identifier-authority-mutations-summary-${{ matrix.shard }}",
+const requiredMutationPartitionWiring = [
+  "      matrix:\n        partition: [0, 1, 2]",
+  `      ${mutationPartitionCountVariable}: 3`,
+  `      ${mutationPartitionIndexVariable}: \${{ matrix.partition }}`,
+  "          name: rust-identifier-authority-mutations-summary-${{ matrix.partition }}",
 ];
-for (const wiring of requiredMutationShardWiring) {
+for (const wiring of requiredMutationPartitionWiring) {
   if (!mutationWorkflowBlock.includes(wiring)) {
-    throw new Error(`authority mutation workflow shard wiring is absent: ${wiring}`);
+    throw new Error(`authority mutation workflow partition wiring is absent: ${wiring}`);
   }
 }
 
@@ -70,8 +72,8 @@ if (!generatedMatrixOnly) {
         env: {
           ...process.env,
           OMENA_CHECK_SUMMARY_JSON: summaryPath,
-          [mutationShardCountVariable]: "3",
-          [mutationShardIndexVariable]: "2",
+          [mutationPartitionCountVariable]: "3",
+          [mutationPartitionIndexVariable]: "2",
         },
       },
     );
@@ -89,7 +91,7 @@ if (!generatedMatrixOnly) {
     });
     if (actualPartition !== expectedPartition) {
       throw new Error(
-        `summary artifact lost mutation shard identity: expected ${expectedPartition}, got ${actualPartition}`,
+        `summary artifact lost mutation partition identity: expected ${expectedPartition}, got ${actualPartition}`,
       );
     }
   } finally {
@@ -693,6 +695,16 @@ const redCases = [
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNSUPPORTED_RECEIVER_MUTATION", []],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_FIELD_IDENTITY_CONSUMER", []],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_FIELD_FLOW_IDENTITIES", []],
+  [
+    identifierChecker,
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_DELEGATION_GUARD_LAUNDERING",
+    [],
+  ],
+  [
+    identifierChecker,
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNQUALIFIED_CARRIER_ESCAPE_IDENTITY",
+    [],
+  ],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_OUT_PARAMETER_ESCAPE_IDENTITY", []],
   [
     identifierChecker,
@@ -821,7 +833,7 @@ const requiredMutationReceipts = new Map([
   ],
   [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CONTAINER_MUTATION_ESCAPE_IDENTITIES\0",
-    ["authoredEscapeIdentityViolationCount=16", "authored-bearing escape result reached"],
+    ["authoredEscapeIdentityViolationCount=17", "authored-bearing escape result reached"],
   ],
   [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNSUPPORTED_RECEIVER_MUTATION\0",
@@ -834,6 +846,14 @@ const requiredMutationReceipts = new Map([
   [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_FIELD_FLOW_IDENTITIES\0",
     ["authoredEscapeIdentityViolationCount=5", "authored-bearing escape result reached"],
+  ],
+  [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_DELEGATION_GUARD_LAUNDERING\0",
+    ["carrier comparator delegation guard does not prove custom-property family selection"],
+  ],
+  [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNQUALIFIED_CARRIER_ESCAPE_IDENTITY\0",
+    ["authoredEscapeIdentityViolationCount=1", "authored-bearing escape result reached"],
   ],
   [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_OUT_PARAMETER_ESCAPE_IDENTITY\0",
@@ -1014,7 +1034,7 @@ if (!generatedMatrixOnly) {
     writeFileSync(censusPath, originalLaunderingCensus);
     return { variable, censusPath };
   });
-  const executionCases = [{ kind: "exact", assignedShard: 0 }];
+  const executionCases = [{ kind: "exact", assignedPartition: 0 }];
   const escapeInsertionPoints = new Map([
     [20, 0],
     [40, 1],
@@ -1027,15 +1047,15 @@ if (!generatedMatrixOnly) {
       checker,
       variable,
       args,
-      assignedShard: index % mutationShardCount,
+      assignedPartition: index % mutationPartitionCount,
     });
     const escapeIndex = escapeInsertionPoints.get(index);
     if (escapeIndex !== undefined) {
       executionCases.push({
         kind: "escape",
         index: escapeIndex,
-        assignedShard:
-          mutationShardCount === 1 ? 0 : escapeIndex === 0 ? 0 : mutationShardCount - 1,
+        assignedPartition:
+          mutationPartitionCount === 1 ? 0 : escapeIndex === 0 ? 0 : mutationPartitionCount - 1,
         ...escapeLaunderingCases[escapeIndex],
       });
     }
@@ -1045,10 +1065,10 @@ if (!generatedMatrixOnly) {
     checker: identifierChecker,
     variable: "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNLABELLED_COMPARISON",
     args: [],
-    assignedShard: mutationShardCount - 1,
+    assignedPartition: mutationPartitionCount - 1,
   });
   const assignedExecutionCases = executionCases.filter(
-    (testCase) => testCase.assignedShard === mutationShardIndex,
+    (testCase) => testCase.assignedPartition === mutationPartitionIndex,
   );
   const assignedRedCaseIndexes = new Set(
     assignedExecutionCases
@@ -1057,20 +1077,21 @@ if (!generatedMatrixOnly) {
   );
   assignedRedCaseCount = assignedRedCaseIndexes.size;
   const expectedAssignedRedCaseCount = redCases.filter(
-    (_redCase, index) => index % mutationShardCount === mutationShardIndex,
+    (_redCase, index) => index % mutationPartitionCount === mutationPartitionIndex,
   ).length;
-  const redCaseCountsByShard = Array.from(
-    { length: mutationShardCount },
-    (_unused, shardIndex) =>
-      redCases.filter((_redCase, index) => index % mutationShardCount === shardIndex).length,
+  const redCaseCountsByPartition = Array.from(
+    { length: mutationPartitionCount },
+    (_unused, partitionIndex) =>
+      redCases.filter((_redCase, index) => index % mutationPartitionCount === partitionIndex)
+        .length,
   );
   if (
     assignedRedCaseCount !== expectedAssignedRedCaseCount ||
-    redCaseCountsByShard.some((count) => count === 0) ||
-    redCaseCountsByShard.reduce((sum, count) => sum + count, 0) !== redCases.length
+    redCaseCountsByPartition.some((count) => count === 0) ||
+    redCaseCountsByPartition.reduce((sum, count) => sum + count, 0) !== redCases.length
   ) {
     throw new Error(
-      `authority mutation shard partition is incomplete: assigned=${assignedRedCaseCount}, expected=${expectedAssignedRedCaseCount}, topology=${redCaseCountsByShard.join(",")}`,
+      `authority mutation partition is incomplete: assigned=${assignedRedCaseCount}, expected=${expectedAssignedRedCaseCount}, topology=${redCaseCountsByPartition.join(",")}`,
     );
   }
   exactLaunderingAssigned = assignedExecutionCases.some((testCase) => testCase.kind === "exact");
@@ -1293,9 +1314,11 @@ if (disclosedControlAssigned) {
   );
 }
 
-const shardPrefix =
-  mutationShardCount === 1 ? "" : `shard ${mutationShardIndex + 1}/${mutationShardCount}: `;
+const partitionPrefix =
+  mutationPartitionCount === 1
+    ? ""
+    : `partition ${mutationPartitionIndex + 1}/${mutationPartitionCount}: `;
 process.stdout.write(
-  `\n${shardPrefix}${assignedRedCaseCount - redFailures}/${assignedRedCaseCount} assigned injected RED mutation arms (${redCases.length} total); ${generatedPassed ? `${generatedFullProductCount + generatedEscapeCoveringCount}/${generatedManifest.fullProductCells.length + generatedManifest.escapeCoveringCells.length}` : `0/${generatedManifest.fullProductCells.length + generatedManifest.escapeCoveringCells.length}`} generated matrix cells with 6/6 pair families; exact laundering ${exactLaunderingAssigned ? (exactLaunderingPassed ? "1/1" : "0/1") : "delegated"}; escape laundering ${escapeLaunderingPassedCount}/${assignedEscapeLaunderingCount} assigned; disclosed GREEN control ${disclosedControlAssigned ? (blindSpotDisclosed ? "1/1" : "0/1") : "delegated"}\n`,
+  `\n${partitionPrefix}${assignedRedCaseCount - redFailures}/${assignedRedCaseCount} assigned injected RED mutation arms (${redCases.length} total); ${generatedPassed ? `${generatedFullProductCount + generatedEscapeCoveringCount}/${generatedManifest.fullProductCells.length + generatedManifest.escapeCoveringCells.length}` : `0/${generatedManifest.fullProductCells.length + generatedManifest.escapeCoveringCells.length}`} generated matrix cells with 6/6 pair families; exact laundering ${exactLaunderingAssigned ? (exactLaunderingPassed ? "1/1" : "0/1") : "delegated"}; escape laundering ${escapeLaunderingPassedCount}/${assignedEscapeLaunderingCount} assigned; disclosed GREEN control ${disclosedControlAssigned ? (blindSpotDisclosed ? "1/1" : "0/1") : "delegated"}\n`,
 );
 process.exit(failures === 0 ? 0 : 1);
