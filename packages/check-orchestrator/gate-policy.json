@@ -313,6 +313,13 @@
       "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
+      "gateId": "rust/omena-bundler/linked-emission-default-surfaces",
+      "stage": "blocking",
+      "reviewedAt": "2026-08-28",
+      "reviewAfter": "2026-11-26",
+      "evidence": "Seven product surfaces, every explicit legacy constructor, and the pre-1.0 removal ledger are checked together; three source mutations independently prove failure sensitivity."
+    },
+    {
       "gateId": "rust/omena-bundler/linked-emission-falsifier-disclosure",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",

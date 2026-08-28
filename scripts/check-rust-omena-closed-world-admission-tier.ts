@@ -469,7 +469,7 @@ function runProductArm(
 ) {
   const outputPath = join(fixtureRoot, `${label}.css`);
   const args = ["build", targetPath];
-  if (bundle) args.push("--bundle", "--linked-emission");
+  if (bundle) args.push("--bundle");
   args.push("--tree-shake", "--strict-verification");
   if (enginePath) args.push("--engine-input-json", enginePath);
   args.push("--source", sourcePath, "--output", outputPath, "--json");

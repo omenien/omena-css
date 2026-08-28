@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "0",
+  "product": "omena.linked-emission-default-surfaces",
+  "defaultEmissionOrdering": "importOrderPreserving",
+  "defaultDependencyAuthority": "resolvedDependencies",
+  "targetReleaseVersion": "0.5.0",
+  "legacyRemovalLedgerPath": "rust/omena-linked-emission-legacy-removal-ledger.json",
+  "surfaces": [
+    {
+      "id": "rust-bundle-options",
+      "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
+      "defaultNeedles": [
+        "pub enum BundleResolutionAuthorityV0",
+        "pub struct TransformBundleLinkOptionsV0",
+        "pub const fn legacy_compatibility() -> Self"
+      ],
+      "legacyOptIn": "TransformBundleLinkOptionsV0::legacy_compatibility"
+    },
+    {
+      "id": "rust-query-options",
+      "sourcePath": "rust/crates/omena-query/src/types.rs",
+      "defaultNeedles": [
+        "pub enum OmenaQueryBundleEmissionPathV0",
+        "pub const fn legacy_compatibility() -> Self",
+        "Self::ImportInlineLegacy"
+      ],
+      "legacyOptIn": "OmenaQueryBundleEmissionPathV0::legacy_compatibility"
+    },
+    {
+      "id": "command-line",
+      "sourcePath": "rust/crates/omena-cli/src/build.rs",
+      "defaultNeedles": [
+        "legacy_emission = build.legacy_emission.unwrap_or(false);",
+        "OmenaQueryBundleEmissionPathV0::default()"
+      ],
+      "legacyOptIn": "--legacy-emission / build.legacyEmission"
+    },
+    {
+      "id": "node-api",
+      "sourcePath": "rust/crates/omena-napi/src/lib.rs",
+      "defaultNeedles": [
+        "bundleStyleSourcesWithContextJson",
+        "bundle_style_sources_with_context_execution_scope",
+        "OmenaQueryConsumerBuildOptionsV0::default()"
+      ],
+      "legacyOptIn": "bundleStyleSourcesLegacyWithContextJson"
+    },
+    {
+      "id": "webassembly",
+      "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+      "defaultNeedles": [
+        "bundleStyleSourcesWithContext",
+        "bundle_style_sources_with_context_execution_scope",
+        "OmenaQueryConsumerBuildOptionsV0::default()"
+      ],
+      "legacyOptIn": "bundleStyleSourcesLegacyWithContext"
+    },
+    {
+      "id": "javascript-adapter",
+      "sourcePath": "packages/css-build-adapter/index.cjs",
+      "defaultNeedles": [
+        "const buildBundleSources = options.legacyEmission",
+        ": engine.buildBundleSources;",
+        "async buildBundleSources(input)"
+      ],
+      "legacyOptIn": "OmenaBuildAdapterOptions.legacyEmission"
+    },
+    {
+      "id": "vite-plugin",
+      "sourcePath": "packages/vite-plugin/index.cjs",
+      "defaultNeedles": [
+        "const output = await rebuildAndCache(fileId, code, effectiveOptions, state);"
+      ],
+      "legacyOptIn": "OmenaVitePluginOptions.legacyEmission"
+    }
+  ],
+  "legacyConstructorCallSites": [
+    {
+      "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
+      "constructor": "TransformBundleLinkOptionsV0::legacy_compatibility()",
+      "occurrenceCount": 3
+    },
+    {
+      "sourcePath": "rust/crates/omena-cli/src/build.rs",
+      "constructor": "OmenaQueryBundleEmissionPathV0::legacy_compatibility()",
+      "occurrenceCount": 1
+    },
+    {
+      "sourcePath": "rust/crates/omena-diff-test/src/linked_emission.rs",
+      "constructor": "OmenaQueryBundleEmissionPathV0::legacy_compatibility()",
+      "occurrenceCount": 1
+    },
+    {
+      "sourcePath": "rust/crates/omena-napi/src/lib.rs",
+      "constructor": "OmenaQueryBundleEmissionPathV0::legacy_compatibility()",
+      "occurrenceCount": 1
+    },
+    {
+      "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+      "constructor": "OmenaQueryBundleEmissionPathV0::legacy_compatibility()",
+      "occurrenceCount": 1
+    }
+  ]
+}

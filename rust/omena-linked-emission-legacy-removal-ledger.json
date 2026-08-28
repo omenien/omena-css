@@ -1,6 +1,6 @@
 {
   "schemaVersion": "0",
-  "product": "omena-bundler.linked-emission-legacy-removal-ledger",
+  "product": "omena.linked-emission-legacy-removal-ledger",
   "entries": [
     {
       "id": "rust-link-options-legacy-compatibility",
@@ -10,6 +10,60 @@
       "removalHorizon": "before-1.0",
       "successor": "TransformBundleLinkOptionsV0::default",
       "reason": "Legacy module-id ordering and importer-relative path inference remain available only as an explicit migration opt-in while all implicit construction uses import order and resolved dependency authority."
+    },
+    {
+      "id": "rust-query-emission-path-legacy-compatibility",
+      "surface": "OmenaQueryBundleEmissionPathV0::legacy_compatibility",
+      "status": "deprecated",
+      "introducedVersion": "0.5.0",
+      "removalHorizon": "before-1.0",
+      "successor": "OmenaQueryBundleEmissionPathV0::default",
+      "reason": "The query facade defaults to linked order; import-inline execution remains available only through the explicitly named compatibility constructor."
+    },
+    {
+      "id": "cli-legacy-emission",
+      "surface": "omena build --legacy-emission and build.legacyEmission",
+      "status": "deprecated",
+      "introducedVersion": "0.5.0",
+      "removalHorizon": "before-1.0",
+      "successor": "omena build --bundle",
+      "reason": "CLI bundle construction now selects linked emission unless the deprecated legacy flag or matching configuration key is explicitly present."
+    },
+    {
+      "id": "napi-legacy-bundle-export",
+      "surface": "bundleStyleSourcesLegacyWithContextJson",
+      "status": "deprecated",
+      "introducedVersion": "0.5.0",
+      "removalHorizon": "before-1.0",
+      "successor": "bundleStyleSourcesWithContextJson",
+      "reason": "Node callers use linked emission through the established bundle export; the old path is isolated behind a named legacy export with generated deprecation documentation."
+    },
+    {
+      "id": "wasm-legacy-bundle-export",
+      "surface": "bundleStyleSourcesLegacyWithContext",
+      "status": "deprecated",
+      "introducedVersion": "0.5.0",
+      "removalHorizon": "before-1.0",
+      "successor": "bundleStyleSourcesWithContext",
+      "reason": "Browser callers use linked emission through the established bundle export; the old path is isolated behind a named deprecated legacy export."
+    },
+    {
+      "id": "js-adapter-legacy-emission-option",
+      "surface": "OmenaBuildAdapterOptions.legacyEmission",
+      "status": "deprecated",
+      "introducedVersion": "0.5.0",
+      "removalHorizon": "before-1.0",
+      "successor": "OmenaBuildAdapterOptions bundle default",
+      "reason": "The JS adapter rebinds buildBundleSources to linked emission and exposes import-inline behavior only through the deprecated legacyEmission option."
+    },
+    {
+      "id": "vite-legacy-emission-option",
+      "surface": "OmenaVitePluginOptions.legacyEmission",
+      "status": "deprecated",
+      "introducedVersion": "0.5.0",
+      "removalHorizon": "before-1.0",
+      "successor": "Omena Vite plugin bundle default",
+      "reason": "Vite inherits the linked JS-adapter default and can request import-inline behavior only through the deprecated legacyEmission option."
     }
   ]
 }

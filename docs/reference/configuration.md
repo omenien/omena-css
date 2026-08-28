@@ -29,7 +29,7 @@ Canonical `omena.toml` keys use camelCase. Nested override entries are shown wit
 | `build.enableSupportsStaticEval`                   | `OmenaBuildConfig`            |
 | `build.engineInputJson`                            | `OmenaBuildConfig`            |
 | `build.inputSourceMaps`                            | `OmenaBuildConfig`            |
-| `build.linkedEmission`                             | `OmenaBuildConfig`            |
+| `build.legacyEmission`                             | `OmenaBuildConfig`            |
 | `build.minify`                                     | `OmenaBuildConfig`            |
 | `build.output`                                     | `OmenaBuildConfig`            |
 | `build.packageManifests`                           | `OmenaBuildConfig`            |
@@ -71,7 +71,7 @@ Canonical `omena.toml` keys use camelCase. Nested override entries are shown wit
 | `overrides[].build.enableSupportsStaticEval`       | `OmenaBuildConfig`            |
 | `overrides[].build.engineInputJson`                | `OmenaBuildConfig`            |
 | `overrides[].build.inputSourceMaps`                | `OmenaBuildConfig`            |
-| `overrides[].build.linkedEmission`                 | `OmenaBuildConfig`            |
+| `overrides[].build.legacyEmission`                 | `OmenaBuildConfig`            |
 | `overrides[].build.minify`                         | `OmenaBuildConfig`            |
 | `overrides[].build.output`                         | `OmenaBuildConfig`            |
 | `overrides[].build.packageManifests`               | `OmenaBuildConfig`            |

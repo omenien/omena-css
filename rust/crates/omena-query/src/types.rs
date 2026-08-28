@@ -731,12 +731,20 @@ pub enum OmenaQueryBuildVerificationProfileV0 {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum OmenaQueryBundleEmissionPathV0 {
-    #[default]
     ImportInlineLegacy,
+    #[default]
     LinkedOrder,
 }
 
 impl OmenaQueryBundleEmissionPathV0 {
+    #[deprecated(
+        since = "0.5.0",
+        note = "legacy import-inline bundle emission is scheduled for removal before 1.0"
+    )]
+    pub const fn legacy_compatibility() -> Self {
+        Self::ImportInlineLegacy
+    }
+
     pub const fn as_wire_label(self) -> &'static str {
         match self {
             Self::ImportInlineLegacy => "importInlineLegacy",

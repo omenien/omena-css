@@ -252,20 +252,23 @@ pub fn bundle_style_sources_with_context(
         &context,
         &package_manifests,
         &bundle_entry_style_paths,
-        false,
     )?;
     to_js_value(&artifact)
 }
 
-#[wasm_bindgen(js_name = bundleStyleSourcesWithContextExecutionScope)]
-pub fn bundle_style_sources_with_context_execution_scope_js(
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.5.0",
+    note = "legacy import-inline bundle emission is scheduled for removal before 1.0"
+)]
+#[wasm_bindgen(js_name = bundleStyleSourcesLegacyWithContext)]
+pub fn bundle_style_sources_legacy_with_context(
     target_path: &str,
     sources: JsValue,
     pass_ids: JsValue,
     context: JsValue,
     package_manifests: JsValue,
     bundle_entry_style_paths: JsValue,
-    linked_emission: bool,
 ) -> Result<JsValue, JsValue> {
     let sources = parse_style_sources_value(sources)?;
     let pass_ids = parse_pass_ids_value(pass_ids)?;
@@ -273,14 +276,13 @@ pub fn bundle_style_sources_with_context_execution_scope_js(
     let package_manifests = parse_package_manifests_value(package_manifests)?;
     let bundle_entry_style_paths =
         parse_string_array_value(bundle_entry_style_paths, "bundleEntryStylePaths")?;
-    let artifact = bundle_style_sources_with_context_execution_scope(
+    let artifact = bundle_style_sources_legacy_with_context_execution_scope(
         target_path,
         &sources,
         &pass_ids,
         &context,
         &package_manifests,
         &bundle_entry_style_paths,
-        linked_emission,
     )?;
     to_js_value(&artifact)
 }
@@ -863,12 +865,55 @@ pub fn bundle_style_sources_with_context_execution_scope(
     context: &OmenaWasmTransformExecutionContextV0,
     package_manifests: &[OmenaWasmStylePackageManifestV0],
     bundle_entry_style_paths: &[String],
-    linked_emission: bool,
 ) -> Result<OmenaWasmBundleExecutionScopeResultV0, JsValue> {
-    let mut options = OmenaQueryConsumerBuildOptionsV0::default();
-    if linked_emission {
-        options.bundle_emission_path = OmenaQueryBundleEmissionPathV0::LinkedOrder;
-    }
+    bundle_style_sources_with_context_execution_scope_and_options(
+        target_path,
+        sources,
+        pass_ids,
+        context,
+        package_manifests,
+        bundle_entry_style_paths,
+        &OmenaQueryConsumerBuildOptionsV0::default(),
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.5.0",
+    note = "legacy import-inline bundle emission is scheduled for removal before 1.0"
+)]
+pub fn bundle_style_sources_legacy_with_context_execution_scope(
+    target_path: &str,
+    sources: &[OmenaWasmStyleSourceInputV0],
+    pass_ids: &[String],
+    context: &OmenaWasmTransformExecutionContextV0,
+    package_manifests: &[OmenaWasmStylePackageManifestV0],
+    bundle_entry_style_paths: &[String],
+) -> Result<OmenaWasmBundleExecutionScopeResultV0, JsValue> {
+    let options = OmenaQueryConsumerBuildOptionsV0 {
+        bundle_emission_path: OmenaQueryBundleEmissionPathV0::legacy_compatibility(),
+        ..OmenaQueryConsumerBuildOptionsV0::default()
+    };
+    bundle_style_sources_with_context_execution_scope_and_options(
+        target_path,
+        sources,
+        pass_ids,
+        context,
+        package_manifests,
+        bundle_entry_style_paths,
+        &options,
+    )
+}
+
+fn bundle_style_sources_with_context_execution_scope_and_options(
+    target_path: &str,
+    sources: &[OmenaWasmStyleSourceInputV0],
+    pass_ids: &[String],
+    context: &OmenaWasmTransformExecutionContextV0,
+    package_manifests: &[OmenaWasmStylePackageManifestV0],
+    bundle_entry_style_paths: &[String],
+    options: &OmenaQueryConsumerBuildOptionsV0,
+) -> Result<OmenaWasmBundleExecutionScopeResultV0, JsValue> {
     let result =
         run_omena_query_bundle_with_execution_scope_for_style_sources_with_context_and_options(
             target_path,
@@ -877,7 +922,7 @@ pub fn bundle_style_sources_with_context_execution_scope(
             context,
             package_manifests,
             bundle_entry_style_paths,
-            &options,
+            options,
         )
         .map_err(|error| JsValue::from_str(&error))?;
     let evidence = summarize_omena_query_bundle_evidence(&result.bundle_result);
@@ -2118,6 +2163,10 @@ export const app = <div className={styles.card} />;"#,
             return;
         };
         assert_eq!(artifact.product, "omena-query.bundle-artifact");
+        assert_eq!(
+            artifact.emission_path,
+            OmenaQueryBundleEmissionPathV0::LinkedOrder
+        );
         assert!(artifact.ready_surfaces.contains(&"bundleOperationFacade"));
         assert!(artifact.source_map_v3.sources.len() >= 2);
         assert_eq!(artifact.per_pass_provenance, artifact.execution.outcomes);
@@ -2153,12 +2202,32 @@ export const app = <div className={styles.card} />;"#,
             &OmenaWasmTransformExecutionContextV0::default(),
             &[],
             &["Button.module.css".to_string()],
-            true,
         );
         assert!(scoped_result.is_ok());
         let Ok(scoped_result) = scoped_result else {
             return;
         };
+        assert_eq!(
+            scoped_result.bundle.artifact.emission_path,
+            OmenaQueryBundleEmissionPathV0::LinkedOrder
+        );
+        #[allow(deprecated)]
+        let legacy_result = bundle_style_sources_legacy_with_context_execution_scope(
+            "Button.module.css",
+            &sources,
+            &pass_ids,
+            &OmenaWasmTransformExecutionContextV0::default(),
+            &[],
+            &["Button.module.css".to_string()],
+        );
+        assert!(legacy_result.is_ok());
+        let Ok(legacy_result) = legacy_result else {
+            return;
+        };
+        assert_eq!(
+            legacy_result.bundle.artifact.emission_path,
+            OmenaQueryBundleEmissionPathV0::ImportInlineLegacy
+        );
         assert!(scoped_result.execution_scope.is_some());
         let Some(execution_scope) = scoped_result.execution_scope else {
             return;

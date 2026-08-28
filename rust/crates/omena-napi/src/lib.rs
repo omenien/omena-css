@@ -532,31 +532,30 @@ pub fn bundle_style_sources_with_context_json(
         &context,
         &package_manifests,
         &bundle_entry_style_paths,
-        false,
     )?)
 }
 
-#[napi(js_name = "bundleStyleSourcesWithContextExecutionScopeJson")]
-pub fn bundle_style_sources_with_context_execution_scope_json(
+/// @deprecated Legacy import-inline bundle emission is scheduled for removal before 1.0.
+#[napi(js_name = "bundleStyleSourcesLegacyWithContextJson")]
+#[allow(deprecated)]
+pub fn bundle_style_sources_legacy_with_context_json(
     target_path: String,
     sources_json: String,
     pass_ids: Vec<String>,
     context_json: String,
     package_manifests_json: String,
     bundle_entry_style_paths: Vec<String>,
-    linked_emission: bool,
 ) -> napi::Result<String> {
     let sources = parse_style_sources_json(&sources_json)?;
     let context = parse_context_json(&context_json)?;
     let package_manifests = parse_package_manifests_json(&package_manifests_json)?;
-    to_json_string(&bundle_style_sources_with_context_execution_scope(
+    to_json_string(&bundle_style_sources_legacy_with_context_execution_scope(
         &target_path,
         &sources,
         &pass_ids,
         &context,
         &package_manifests,
         &bundle_entry_style_paths,
-        linked_emission,
     )?)
 }
 
@@ -1081,12 +1080,55 @@ pub fn bundle_style_sources_with_context_execution_scope(
     context: &OmenaNapiTransformExecutionContextV0,
     package_manifests: &[OmenaNapiStylePackageManifestV0],
     bundle_entry_style_paths: &[String],
-    linked_emission: bool,
 ) -> napi::Result<OmenaNapiBundleExecutionScopeResultV0> {
-    let mut options = OmenaQueryConsumerBuildOptionsV0::default();
-    if linked_emission {
-        options.bundle_emission_path = OmenaQueryBundleEmissionPathV0::LinkedOrder;
-    }
+    bundle_style_sources_with_context_execution_scope_and_options(
+        target_path,
+        sources,
+        pass_ids,
+        context,
+        package_manifests,
+        bundle_entry_style_paths,
+        &OmenaQueryConsumerBuildOptionsV0::default(),
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.5.0",
+    note = "legacy import-inline bundle emission is scheduled for removal before 1.0"
+)]
+pub fn bundle_style_sources_legacy_with_context_execution_scope(
+    target_path: &str,
+    sources: &[OmenaNapiStyleSourceInputV0],
+    pass_ids: &[String],
+    context: &OmenaNapiTransformExecutionContextV0,
+    package_manifests: &[OmenaNapiStylePackageManifestV0],
+    bundle_entry_style_paths: &[String],
+) -> napi::Result<OmenaNapiBundleExecutionScopeResultV0> {
+    let options = OmenaQueryConsumerBuildOptionsV0 {
+        bundle_emission_path: OmenaQueryBundleEmissionPathV0::legacy_compatibility(),
+        ..OmenaQueryConsumerBuildOptionsV0::default()
+    };
+    bundle_style_sources_with_context_execution_scope_and_options(
+        target_path,
+        sources,
+        pass_ids,
+        context,
+        package_manifests,
+        bundle_entry_style_paths,
+        &options,
+    )
+}
+
+fn bundle_style_sources_with_context_execution_scope_and_options(
+    target_path: &str,
+    sources: &[OmenaNapiStyleSourceInputV0],
+    pass_ids: &[String],
+    context: &OmenaNapiTransformExecutionContextV0,
+    package_manifests: &[OmenaNapiStylePackageManifestV0],
+    bundle_entry_style_paths: &[String],
+    options: &OmenaQueryConsumerBuildOptionsV0,
+) -> napi::Result<OmenaNapiBundleExecutionScopeResultV0> {
     let result =
         run_omena_query_bundle_with_execution_scope_for_style_sources_with_context_and_options(
             target_path,
@@ -1095,7 +1137,7 @@ pub fn bundle_style_sources_with_context_execution_scope(
             context,
             package_manifests,
             bundle_entry_style_paths,
-            &options,
+            options,
         )
         .map_err(napi::Error::from_reason)?;
     let evidence = summarize_omena_query_bundle_evidence(&result.bundle_result);
@@ -2559,6 +2601,10 @@ export function Card({ active }: { active: boolean }) {
             return;
         };
         assert_eq!(artifact.product, "omena-query.bundle-artifact");
+        assert_eq!(
+            artifact.emission_path,
+            OmenaQueryBundleEmissionPathV0::LinkedOrder
+        );
         assert!(artifact.ready_surfaces.contains(&"bundleOperationFacade"));
         assert!(artifact.source_map_v3.sources.len() >= 2);
         assert_eq!(artifact.per_pass_provenance, artifact.execution.outcomes);
@@ -2594,12 +2640,32 @@ export function Card({ active }: { active: boolean }) {
             &OmenaNapiTransformExecutionContextV0::default(),
             &[],
             &["Button.module.css".to_string()],
-            true,
         );
         assert!(scoped_result.is_ok());
         let Ok(scoped_result) = scoped_result else {
             return;
         };
+        assert_eq!(
+            scoped_result.bundle.artifact.emission_path,
+            OmenaQueryBundleEmissionPathV0::LinkedOrder
+        );
+        #[allow(deprecated)]
+        let legacy_result = bundle_style_sources_legacy_with_context_execution_scope(
+            "Button.module.css",
+            &sources,
+            &pass_ids,
+            &OmenaNapiTransformExecutionContextV0::default(),
+            &[],
+            &["Button.module.css".to_string()],
+        );
+        assert!(legacy_result.is_ok());
+        let Ok(legacy_result) = legacy_result else {
+            return;
+        };
+        assert_eq!(
+            legacy_result.bundle.artifact.emission_path,
+            OmenaQueryBundleEmissionPathV0::ImportInlineLegacy
+        );
         assert!(scoped_result.execution_scope.is_some());
         let Some(execution_scope) = scoped_result.execution_scope else {
             return;

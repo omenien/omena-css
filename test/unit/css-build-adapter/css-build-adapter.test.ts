@@ -301,6 +301,61 @@ describe("@omena/css-build-adapter", () => {
     expect(bundleCalls[0]?.[5]).toEqual([stylePath]);
   });
 
+  it("binds bundle defaults to linked emission and exposes legacy only by name", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-build-adapter-emission-default-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "Button.module.css");
+    const source = ".button { color: red; }";
+    const calls: Array<{ readonly surface: string; readonly argumentCount?: number }> = [];
+    const artifact = (emissionPath: "linkedOrder" | "importInlineLegacy") =>
+      JSON.stringify({
+        schemaVersion: "0",
+        product: "omena-query.bundle-artifact",
+        stylePath,
+        emissionPath,
+        outputCss: ".button{color:red}",
+        bundle: { product: "omena-transform-bundle.source", plannedPassIds: [] },
+        sourceMapV3: { version: 3, sources: [stylePath], names: [], mappings: "AAAA" },
+        codeSplitOutputs: [],
+        assetRewrites: [],
+        perPassProvenance: [],
+        execution: { outputCss: ".button{color:red}", executedPassIds: [], outcomes: [] },
+        readySurfaces: ["bundleOperationFacade"],
+        ...closedWorldEvidence(stylePath),
+      });
+    const engine = {
+      ...bundlerHostMock({ button: "_button_0" }),
+      summarizeTransformBundleFromSourceJson: () => JSON.stringify({ plannedPassIds: [] }),
+      buildStyleSourcesWithContextJson: () =>
+        JSON.stringify({ execution: { outputCss: source, executedPassIds: [] } }),
+      bundleStyleSourcesWithContextJson: (...args: unknown[]) => {
+        calls.push({ surface: "default", argumentCount: args.length });
+        return artifact("linkedOrder");
+      },
+      bundleStyleSourcesLegacyWithContextJson: () => {
+        calls.push({ surface: "legacy" });
+        return artifact("importInlineLegacy");
+      },
+    };
+
+    const defaultOutput = await rebuildAndCache(
+      stylePath,
+      source,
+      { cwd: root, configFile: false, engine, bundle: true },
+      createOmenaBuildState({ cwd: root }),
+    );
+    const legacyOutput = await rebuildAndCache(
+      stylePath,
+      source,
+      { cwd: root, configFile: false, engine, bundle: true, legacyEmission: true },
+      createOmenaBuildState({ cwd: root }),
+    );
+
+    expect(defaultOutput.summary).toMatchObject({ emissionPath: "linkedOrder" });
+    expect(legacyOutput.summary).toMatchObject({ emissionPath: "importInlineLegacy" });
+    expect(calls).toEqual([{ surface: "default", argumentCount: 6 }, { surface: "legacy" }]);
+  });
+
   it("builds CSS bytes with the selected module-interface token", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-build-adapter-interface-token-"));
     tempRoots.push(root);

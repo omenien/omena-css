@@ -22,6 +22,14 @@ use crate::{
 };
 use omena_parser::{ModuleIdV0, ModuleInstanceKeyV0};
 
+#[allow(deprecated)]
+fn legacy_bundle_options() -> OmenaQueryConsumerBuildOptionsV0 {
+    OmenaQueryConsumerBuildOptionsV0 {
+        bundle_emission_path: OmenaQueryBundleEmissionPathV0::legacy_compatibility(),
+        ..OmenaQueryConsumerBuildOptionsV0::default()
+    }
+}
+
 #[test]
 fn consumer_build_inlines_transitive_workspace_imports() -> Result<(), Box<dyn std::error::Error>> {
     let sources = vec![
@@ -812,7 +820,7 @@ fn workspace_reachability_does_not_hide_missing_dependency_blocker() -> Result<(
             bundle_entry_style_paths: &[],
         },
         &[],
-        &OmenaQueryConsumerBuildOptionsV0::default(),
+        &legacy_bundle_options(),
         &reachability,
     )?;
 

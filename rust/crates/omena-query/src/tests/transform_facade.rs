@@ -26,6 +26,14 @@ use omena_sif::{
     OmenaSifExportsV1, OmenaSifGeneratorV1, OmenaSifSourceSyntaxV1, OmenaSifSourceV1, OmenaSifV1,
 };
 
+#[allow(deprecated)]
+fn legacy_bundle_options() -> OmenaQueryConsumerBuildOptionsV0 {
+    OmenaQueryConsumerBuildOptionsV0 {
+        bundle_emission_path: OmenaQueryBundleEmissionPathV0::legacy_compatibility(),
+        ..OmenaQueryConsumerBuildOptionsV0::default()
+    }
+}
+
 #[test]
 fn exposes_transform_plan_facade_from_source() {
     let source = r#"
@@ -329,12 +337,13 @@ fn consumer_build_source_map_v3_preserves_bundle_import_origins() -> Result<(), 
 }
 
 #[test]
-fn bundle_outcome_preserves_missing_dependency_as_a_typed_blocker() -> Result<(), String> {
+fn explicit_legacy_bundle_outcome_preserves_missing_dependency_as_a_typed_blocker()
+-> Result<(), String> {
     let sources = vec![OmenaQueryStyleSourceInputV0 {
         style_path: "src/app.css".to_string(),
         style_source: "@import \"./missing.css\"; .app { color: green; }".to_string(),
     }];
-    let result = run_omena_query_bundle_with_semantic_inputs(
+    let result = run_omena_query_bundle_with_semantic_inputs_and_options(
         OmenaQueryBundlePlanInputV0 {
             target_style_path: "src/app.css",
             style_sources: &sources,
@@ -346,6 +355,7 @@ fn bundle_outcome_preserves_missing_dependency_as_a_typed_blocker() -> Result<()
             bundle_entry_style_paths: &[],
         },
         &[],
+        &legacy_bundle_options(),
     )?;
 
     assert!(matches!(
@@ -661,7 +671,8 @@ fn bundle_code_split_workspace_plan_traverses_module_dependencies_without_repars
 }
 
 #[test]
-fn bundle_operation_facade_matches_consumer_build_source_map() -> Result<(), String> {
+fn linked_bundle_and_consumer_build_share_source_identity_but_not_emission_segments()
+-> Result<(), String> {
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {
             style_path: "src/app.css".to_string(),
@@ -703,11 +714,24 @@ fn bundle_operation_facade_matches_consumer_build_source_map() -> Result<(), Str
     );
 
     assert_eq!(artifact.product, "omena-query.bundle-artifact");
-    assert_eq!(artifact.output_css, summary.execution.output_css);
+    assert_ne!(artifact.output_css, summary.execution.output_css);
     let summary_source_map = summary
         .source_map_v3
         .ok_or_else(|| "consumer summary should carry a source map".to_string())?;
-    assert_eq!(artifact.source_map_v3, summary_source_map);
+    assert_eq!(artifact.source_map_v3.sources, summary_source_map.sources);
+    assert_eq!(
+        artifact.source_map_v3.sources_content,
+        summary_source_map.sources_content
+    );
+    assert_ne!(artifact.source_map_v3.mappings, summary_source_map.mappings);
+    assert_eq!(
+        artifact.source_map_v3.x_omena_pass_ids,
+        ["linked-order-emission".to_string()]
+    );
+    assert_eq!(
+        summary_source_map.x_omena_pass_ids,
+        ["import-inline".to_string(), "print-css".to_string()]
+    );
     assert_eq!(artifact.per_pass_provenance, artifact.execution.outcomes);
     let scoped = run_omena_query_bundle_with_execution_scope_evidence_and_options(
         OmenaQueryBundlePlanInputV0 {
@@ -826,7 +850,7 @@ fn bundle_operation_uses_the_consumer_effective_default_plan() -> Result<(), Str
 }
 
 #[test]
-fn bundle_emission_path_selects_linked_order_without_changing_the_default() -> Result<(), String> {
+fn bundle_emission_path_defaults_to_linked_and_keeps_legacy_explicit() -> Result<(), String> {
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {
             style_path: "src/app.css".to_string(),
@@ -857,11 +881,8 @@ fn bundle_emission_path_selects_linked_order_without_changing_the_default() -> R
         )
     };
 
-    let legacy = run(&OmenaQueryConsumerBuildOptionsV0::default())?;
-    let linked = run(&OmenaQueryConsumerBuildOptionsV0 {
-        bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
-        ..OmenaQueryConsumerBuildOptionsV0::default()
-    })?;
+    let linked = run(&OmenaQueryConsumerBuildOptionsV0::default())?;
+    let legacy = run(&legacy_bundle_options())?;
 
     assert_eq!(
         legacy.artifact.emission_path,
@@ -1756,31 +1777,17 @@ fn bundle_paths_consume_package_export_resolution() -> Result<(), String> {
         )
     };
 
-    let default_result = run(&OmenaQueryConsumerBuildOptionsV0::default(), &sources)?;
-    let linked_result = run(
-        &OmenaQueryConsumerBuildOptionsV0 {
-            bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
-            ..OmenaQueryConsumerBuildOptionsV0::default()
-        },
-        &sources,
-    )?;
+    let linked_result = run(&OmenaQueryConsumerBuildOptionsV0::default(), &sources)?;
+    let legacy_result = run(&legacy_bundle_options(), &sources)?;
 
-    assert!(
-        default_result
-            .artifact
-            .output_css
-            .contains(".package-token")
-    );
+    assert!(legacy_result.artifact.output_css.contains(".package-token"));
     assert!(linked_result.artifact.output_css.contains(".package-token"));
 
     let mut missing_sources = sources;
     missing_sources[0].style_source =
         include_str!("../../tests/fixtures/bundle-package-exports/src/missing.css").to_string();
-    let missing_result = run(
-        &OmenaQueryConsumerBuildOptionsV0::default(),
-        &missing_sources,
-    )
-    .map_err(|error| format!("typed open outcome should remain observable: {error}"))?;
+    let missing_result = run(&legacy_bundle_options(), &missing_sources)
+        .map_err(|error| format!("typed open outcome should remain observable: {error}"))?;
     assert!(matches!(
         missing_result.closed_world_outcome,
         OmenaQueryClosedWorldOutcomeV0::Open { ref blockers }

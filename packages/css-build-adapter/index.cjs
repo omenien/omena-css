@@ -112,10 +112,13 @@ async function executePreparedOmenaBuild(prepared, options, state) {
       packageManifests,
     });
   } else if (options.bundle) {
-    if (typeof engine.buildBundleSources !== "function") {
+    const buildBundleSources = options.legacyEmission
+      ? engine.buildBundleSourcesLegacy
+      : engine.buildBundleSources;
+    if (typeof buildBundleSources !== "function") {
       throw new Error("[omena-css] loaded engine is missing typed bundle support.");
     }
-    summary = await engine.buildBundleSources({
+    summary = await buildBundleSources({
       targetPath: filePath,
       sources,
       passIds,
@@ -676,6 +679,22 @@ function normalizeEngine(binding, kind) {
             },
           }
         : {}),
+      ...(typeof binding.bundleStyleSourcesLegacyWithContextJson === "function"
+        ? {
+            async buildBundleSourcesLegacy(input) {
+              return JSON.parse(
+                await binding.bundleStyleSourcesLegacyWithContextJson(
+                  input.targetPath,
+                  JSON.stringify(input.sources),
+                  input.passIds,
+                  stringifyOptionalJson(input.context),
+                  stringifyOptionalJson(input.packageManifests),
+                  input.bundleEntryStylePaths ?? [],
+                ),
+              );
+            },
+          }
+        : {}),
       async buildSourcesForTargetQuery(input) {
         return JSON.parse(
           await binding.buildStyleSourcesForTargetQueryWithContextJson(
@@ -739,6 +758,20 @@ function normalizeEngine(binding, kind) {
         ? {
             async buildBundleSources(input) {
               return binding.bundleStyleSourcesWithContext(
+                input.targetPath,
+                input.sources,
+                input.passIds,
+                input.context,
+                input.packageManifests,
+                input.bundleEntryStylePaths ?? [],
+              );
+            },
+          }
+        : {}),
+      ...(typeof binding.bundleStyleSourcesLegacyWithContext === "function"
+        ? {
+            async buildBundleSourcesLegacy(input) {
+              return binding.bundleStyleSourcesLegacyWithContext(
                 input.targetPath,
                 input.sources,
                 input.passIds,

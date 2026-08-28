@@ -269,6 +269,7 @@ describe("@omena/vite-plugin", () => {
       { packageJsonPath: manifestPath, packageJsonSource: "{}" },
     ]);
     expect(bundleEntryStylePaths).toEqual([stylePath]);
+    expect(calls[0]).toHaveLength(6);
   });
 
   it("loads omena.config.json defaults while explicit options override them", async () => {

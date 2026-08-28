@@ -231,7 +231,6 @@ fn linked_emission_routes_reachability_by_owning_module() -> Result<(), String> 
         .arg("build")
         .arg(&entry_path)
         .arg("--bundle")
-        .arg("--linked-emission")
         .arg("--tree-shake")
         .arg("--strict-verification")
         .arg("--engine-input-json")
@@ -414,8 +413,8 @@ fn workspace_reachability_outside_build_sources_does_not_block_cli_bundle() -> R
     )
     .map_err(|error| format!("failed to write {}: {error}", engine_input_path.display()))?;
 
-    for linked in [false, true] {
-        let label = if linked { "linked" } else { "default" };
+    for legacy in [false, true] {
+        let label = if legacy { "legacy" } else { "default" };
         let output_path = fixture.path().join(format!("{label}.css"));
         let mut command = Command::new(env!("CARGO_BIN_EXE_omena"));
         command
@@ -429,8 +428,8 @@ fn workspace_reachability_outside_build_sources_does_not_block_cli_bundle() -> R
             .arg(&engine_input_path)
             .arg("--output")
             .arg(&output_path);
-        if linked {
-            command.arg("--linked-emission");
+        if legacy {
+            command.arg("--legacy-emission");
         }
         let output = command
             .output()
@@ -566,7 +565,7 @@ fn linked_emission_preserves_composes_target_from_dependency() -> Result<(), Str
     )
     .map_err(|error| format!("failed to write {}: {error}", engine_input_path.display()))?;
 
-    let run = |label: &str, linked: bool| -> Result<String, String> {
+    let run = |label: &str, legacy: bool| -> Result<String, String> {
         let output_path = fixture.path().join(format!("{label}.css"));
         let mut command = Command::new(env!("CARGO_BIN_EXE_omena"));
         command
@@ -582,8 +581,8 @@ fn linked_emission_preserves_composes_target_from_dependency() -> Result<(), Str
             .arg(&base_path)
             .arg("--output")
             .arg(&output_path);
-        if linked {
-            command.arg("--linked-emission");
+        if legacy {
+            command.arg("--legacy-emission");
         }
         let output = command
             .output()
@@ -600,17 +599,17 @@ fn linked_emission_preserves_composes_target_from_dependency() -> Result<(), Str
             .map_err(|error| format!("failed to read {}: {error}", output_path.display()))
     };
 
-    let default_css = run("default", false)?;
-    let linked_css = run("linked", true)?;
+    let linked_css = run("default", false)?;
+    let legacy_css = run("legacy", true)?;
     // FALSIFIER: id=linked-emission-cli-014 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
     assert!(
-        default_css.contains("padding: 2px"),
-        "the default path must retain the composed dependency declaration: {default_css:?}"
+        linked_css.contains("padding: 2px"),
+        "the default linked path must retain the composed dependency declaration: {linked_css:?}"
     );
     // FALSIFIER: id=linked-emission-cli-015 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
     assert!(
-        linked_css.contains("padding: 2px"),
-        "linked emission must retain the composed dependency declaration preserved by the default path: {linked_css:?}"
+        legacy_css.contains("padding: 2px"),
+        "explicit legacy emission must retain the composed dependency declaration preserved by the default path: {legacy_css:?}"
     );
     // FALSIFIER: id=linked-emission-cli-016 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
     assert!(
@@ -645,7 +644,6 @@ fn run_linked_build(
         .arg("build")
         .arg(entrypoint)
         .arg("--bundle")
-        .arg("--linked-emission")
         .arg("--output")
         .arg(&output_path);
     for (relative_path, _) in sources {

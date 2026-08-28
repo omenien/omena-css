@@ -187,7 +187,10 @@ fn bundle_command_emits_css_and_deterministic_evidence() -> Result<(), String> {
         manifest["reachability"]["guarantee"],
         "notClaimedExactTraversal"
     );
-    assert!(manifest["executionScope"].is_null());
+    assert_eq!(
+        manifest["executionScope"]["product"],
+        "omena-query.bundle-execution-scope"
+    );
     assert!(css_out.is_file());
     assert!(
         fs::read_to_string(&css_out)
@@ -279,7 +282,7 @@ fn bundle_command_loads_configured_workspace_sources_without_flags() -> Result<(
 }
 
 #[test]
-fn bundle_command_records_open_world_blockers_without_emitting_css() -> Result<(), String> {
+fn bundle_command_refuses_missing_dependency_without_legacy_fallback() -> Result<(), String> {
     let root = temp_dir("bundle-command-open-world");
     fs::create_dir_all(&root).map_err(|error| error.to_string())?;
     let entry = root.join("app.css");
@@ -304,14 +307,11 @@ fn bundle_command_records_open_world_blockers_without_emitting_css() -> Result<(
         }
         Err(error) => error,
     };
-    let manifest: serde_json::Value =
-        serde_json::from_slice(&fs::read(&evidence).map_err(|read_error| read_error.to_string())?)
-            .map_err(|parse_error| parse_error.to_string())?;
-
-    assert!(error.contains("closed-world bundle admission failed with typed blockers"));
-    assert_eq!(manifest["outcomeStatus"], "open");
-    assert_eq!(manifest["blockers"][0]["kind"], "missingDependency");
-    assert_eq!(manifest["gates"][0]["passed"], false);
+    assert!(
+        error.contains("linked bundle emission failed: MissingDependency"),
+        "{error}"
+    );
+    assert!(!evidence.exists());
     assert!(!css_out.exists());
     cleanup_dir(&root);
     Ok(())
@@ -1139,19 +1139,19 @@ fn build_command_exposes_source_map_flag() {
     assert!(build_argument_names.contains(&"strict-verification"));
     assert!(build_argument_names.contains(&"tree-shake"));
     assert!(build_argument_names.contains(&"bundle"));
-    assert!(build_argument_names.contains(&"linked-emission"));
+    assert!(build_argument_names.contains(&"legacy-emission"));
     assert!(build_argument_names.contains(&"bundle-entry"));
 }
 
 #[test]
-fn linked_emission_requires_bundle_mode() -> Result<(), String> {
-    let path = temp_path("linked-emission-requires-bundle.css");
+fn legacy_emission_requires_bundle_mode() -> Result<(), String> {
+    let path = temp_path("legacy-emission-requires-bundle.css");
     fs::write(&path, ".app { color: red; }").map_err(|error| error.to_string())?;
     let command = Cli::try_parse_from([
         "omena",
         "build",
         path.to_string_lossy().as_ref(),
-        "--linked-emission",
+        "--legacy-emission",
         "--json",
     ])
     .map_err(|error| error.to_string())?;
@@ -1161,7 +1161,7 @@ fn linked_emission_requires_bundle_mode() -> Result<(), String> {
     assert!(result.as_ref().is_err_and(|error| {
         error
             .to_string()
-            .contains("--linked-emission requires --bundle")
+            .contains("--legacy-emission requires --bundle")
     }));
     cleanup(&path);
     Ok(())
@@ -1803,7 +1803,7 @@ fn build_command_writes_query_owned_transform_output() -> Result<(), String> {
             closed_style_world: false,
             tree_shake: false,
             bundle: false,
-            linked_emission: false,
+            legacy_emission: false,
             split_out_dir: None,
             bundle_entry_paths: Vec::new(),
             source_paths: Vec::new(),
@@ -1939,7 +1939,7 @@ output = "dist.css"
             closed_style_world: false,
             tree_shake: false,
             bundle: false,
-            linked_emission: false,
+            legacy_emission: false,
             split_out_dir: None,
             bundle_entry_paths: Vec::new(),
             source_paths: Vec::new(),
@@ -1990,7 +1990,7 @@ fn build_command_reports_malformed_toml_config() -> Result<(), String> {
             closed_style_world: false,
             tree_shake: false,
             bundle: false,
-            linked_emission: false,
+            legacy_emission: false,
             split_out_dir: None,
             bundle_entry_paths: Vec::new(),
             source_paths: Vec::new(),
@@ -2037,7 +2037,7 @@ fn build_source_map_requires_json_output() -> Result<(), String> {
             closed_style_world: false,
             tree_shake: false,
             bundle: false,
-            linked_emission: false,
+            legacy_emission: false,
             split_out_dir: None,
             bundle_entry_paths: Vec::new(),
             source_paths: Vec::new(),
@@ -2083,7 +2083,7 @@ fn build_minify_preset_is_structural_not_only_trivia() -> Result<(), String> {
             closed_style_world: false,
             tree_shake: false,
             bundle: false,
-            linked_emission: false,
+            legacy_emission: false,
             split_out_dir: None,
             bundle_entry_paths: Vec::new(),
             source_paths: Vec::new(),
@@ -2114,7 +2114,7 @@ fn build_minify_preset_is_structural_not_only_trivia() -> Result<(), String> {
             closed_style_world: false,
             tree_shake: false,
             bundle: false,
-            linked_emission: false,
+            legacy_emission: false,
             split_out_dir: None,
             bundle_entry_paths: Vec::new(),
             source_paths: Vec::new(),
@@ -2165,7 +2165,7 @@ fn build_tree_shake_mode_rejects_target_query() -> Result<(), String> {
             closed_style_world: false,
             tree_shake: true,
             bundle: false,
-            linked_emission: false,
+            legacy_emission: false,
             split_out_dir: None,
             bundle_entry_paths: Vec::new(),
             source_paths: Vec::new(),
@@ -2221,7 +2221,7 @@ fn build_tree_shake_mode_removes_unreachable_css_module_selectors() -> Result<()
             closed_style_world: false,
             tree_shake: true,
             bundle: false,
-            linked_emission: false,
+            legacy_emission: false,
             split_out_dir: None,
             bundle_entry_paths: Vec::new(),
             source_paths: Vec::new(),
@@ -2275,7 +2275,7 @@ fn build_bundle_mode_inlines_transitive_workspace_imports() -> Result<(), String
     )
     .map_err(|error| format!("fixture target source should be writable: {error}"))?;
 
-    let run_bundle = |output: PathBuf, linked_emission: bool| {
+    let run_bundle = |output: PathBuf, legacy_emission: bool| {
         run(Cli {
             command: Command::Build {
                 path: target_path.clone(),
@@ -2295,7 +2295,7 @@ fn build_bundle_mode_inlines_transitive_workspace_imports() -> Result<(), String
                 closed_style_world: false,
                 tree_shake: false,
                 bundle: true,
-                linked_emission,
+                legacy_emission,
                 split_out_dir: None,
                 bundle_entry_paths: Vec::new(),
                 source_paths: vec![tokens_path.clone(), base_path.clone()],
@@ -2306,7 +2306,7 @@ fn build_bundle_mode_inlines_transitive_workspace_imports() -> Result<(), String
             },
         })
     };
-    let result = run_bundle(output_path.clone(), false);
+    let result = run_bundle(output_path.clone(), true);
 
     assert!(result.is_ok(), "{result:?}");
     let output = fs::read_to_string(&output_path)
@@ -2327,7 +2327,7 @@ fn build_bundle_mode_inlines_transitive_workspace_imports() -> Result<(), String
         .ok_or_else(|| "after rule should exist".to_string())?;
     assert!(legacy_before < legacy_token && legacy_token < legacy_after);
 
-    let linked_result = run_bundle(linked_output_path.clone(), true);
+    let linked_result = run_bundle(linked_output_path.clone(), false);
     assert!(linked_result.is_ok(), "{linked_result:?}");
     let linked_output = fs::read_to_string(&linked_output_path)
         .map_err(|error| format!("linked bundle output should be written: {error}"))?;
@@ -2415,7 +2415,7 @@ fn build_bundle_mode_emits_code_split_outputs() -> Result<(), String> {
             closed_style_world: false,
             tree_shake: false,
             bundle: true,
-            linked_emission: false,
+            legacy_emission: false,
             split_out_dir: Some(split_dir.clone()),
             bundle_entry_paths: Vec::new(),
             source_paths: vec![tokens_path.clone(), base_path.clone()],
@@ -2577,7 +2577,7 @@ fn build_bundle_mode_emits_sass_dependency_without_rewriting_module_directive() 
             closed_style_world: false,
             tree_shake: false,
             bundle: true,
-            linked_emission: false,
+            legacy_emission: false,
             split_out_dir: Some(split_dir.clone()),
             bundle_entry_paths: Vec::new(),
             source_paths: vec![tokens_path.clone()],
@@ -2683,7 +2683,7 @@ fn build_bundle_mode_tree_shakes_code_split_outputs() -> Result<(), String> {
             closed_style_world: false,
             tree_shake: true,
             bundle: true,
-            linked_emission: false,
+            legacy_emission: false,
             split_out_dir: Some(split_dir.clone()),
             bundle_entry_paths: Vec::new(),
             source_paths: vec![tokens_path.clone()],
@@ -2703,7 +2703,7 @@ fn build_bundle_mode_tree_shakes_code_split_outputs() -> Result<(), String> {
         .map_err(|error| format!("tokens split output should be readable: {error}"))?;
 
     assert!(main_output.contains("_used"), "{main_output}");
-    assert!(main_output.contains(".token"), "{main_output}");
+    assert!(main_output.contains("_token"), "{main_output}");
     assert!(!main_output.contains("dead"), "{main_output}");
     assert!(target_output.contains(".used"), "{target_output}");
     assert!(!target_output.contains(".dead"), "{target_output}");
@@ -2758,7 +2758,7 @@ fn build_scss_module_mode_shares_preconfigured_transitive_module_instance() -> R
             closed_style_world: false,
             tree_shake: false,
             bundle: false,
-            linked_emission: false,
+            legacy_emission: false,
             split_out_dir: None,
             bundle_entry_paths: Vec::new(),
             source_paths: vec![tokens_path.clone(), theme_path.clone()],
@@ -2828,7 +2828,7 @@ fn build_scss_module_mode_shares_relative_and_load_path_module_identity() -> Res
             closed_style_world: false,
             tree_shake: false,
             bundle: false,
-            linked_emission: false,
+            legacy_emission: false,
             split_out_dir: None,
             bundle_entry_paths: Vec::new(),
             source_paths: vec![tokens_path.clone()],
@@ -2905,7 +2905,7 @@ $brand: tokens.$brand;
             closed_style_world: false,
             tree_shake: false,
             bundle: false,
-            linked_emission: false,
+            legacy_emission: false,
             split_out_dir: None,
             bundle_entry_paths: Vec::new(),
             source_paths: vec![tokens_path.clone(), api_path.clone()],
@@ -2971,7 +2971,7 @@ fn build_scss_module_mode_configures_forwarded_module_instance() -> Result<(), S
             closed_style_world: false,
             tree_shake: false,
             bundle: false,
-            linked_emission: false,
+            legacy_emission: false,
             split_out_dir: None,
             bundle_entry_paths: Vec::new(),
             source_paths: vec![tokens_path.clone(), theme_path.clone()],
@@ -3034,7 +3034,7 @@ fn build_scss_module_mode_preserves_repeated_source_configuration_conflict() -> 
             closed_style_world: false,
             tree_shake: false,
             bundle: false,
-            linked_emission: false,
+            legacy_emission: false,
             split_out_dir: None,
             bundle_entry_paths: Vec::new(),
             source_paths: vec![tokens_path.clone()],
@@ -3110,7 +3110,7 @@ fn build_bundle_mode_rewrites_asset_urls_by_source_path() -> Result<(), String> 
             closed_style_world: false,
             tree_shake: false,
             bundle: true,
-            linked_emission: false,
+            legacy_emission: false,
             split_out_dir: None,
             bundle_entry_paths: Vec::new(),
             source_paths: vec![tokens_path.clone()],
@@ -3175,7 +3175,7 @@ fn build_bundle_mode_combines_json_source_map_origin_chain() -> Result<(), Strin
             closed_style_world: false,
             tree_shake: false,
             bundle: true,
-            linked_emission: false,
+            legacy_emission: false,
             split_out_dir: None,
             bundle_entry_paths: Vec::new(),
             source_paths: vec![tokens_path.clone()],

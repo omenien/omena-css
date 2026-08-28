@@ -8,6 +8,8 @@ export interface OmenaVitePluginOptions {
   readonly minify?: boolean;
   readonly treeShake?: boolean;
   readonly bundle?: boolean;
+  /** @deprecated Legacy import-inline emission is scheduled for removal before 1.0. */
+  readonly legacyEmission?: boolean;
   readonly closedStyleWorld?: boolean;
   readonly sourceMap?: boolean;
   readonly requireDiskSource?: boolean;

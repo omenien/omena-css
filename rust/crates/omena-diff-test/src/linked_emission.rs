@@ -1642,8 +1642,9 @@ fn analyze_linked_emission_fixture_v0(
             run_omena_query_bundle_with_execution_scope_evidence_and_options(input, &[], &options)
         }
     };
+    #[allow(deprecated)]
     let legacy = run(
-        OmenaQueryBundleEmissionPathV0::ImportInlineLegacy,
+        OmenaQueryBundleEmissionPathV0::legacy_compatibility(),
         &resolution_inputs,
     )?;
     let linked = run(

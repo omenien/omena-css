@@ -221,13 +221,13 @@
     {
       "crate": "omena-napi",
       "ordinal": 15,
-      "jsName": "bundleStyleSourcesWithContextExecutionScopeJson",
-      "rustName": "bundle_style_sources_with_context_execution_scope_json",
+      "jsName": "bundleStyleSourcesLegacyWithContextJson",
+      "rustName": "bundle_style_sources_legacy_with_context_json",
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
       "line": 539,
-      "signature": "pub fn bundle_style_sources_with_context_execution_scope_json( target_path: String, sources_json: String, pass_ids: Vec<String>, context_json: String, package_manifests_json: String, bundle_entry_style_paths: Vec<String>, linked_emission: bool, ) -> napi::Result<String>"
+      "signature": "pub fn bundle_style_sources_legacy_with_context_json( target_path: String, sources_json: String, pass_ids: Vec<String>, context_json: String, package_manifests_json: String, bundle_entry_style_paths: Vec<String>, ) -> napi::Result<String>"
     },
     {
       "crate": "omena-napi",
@@ -237,7 +237,7 @@
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 563,
+      "line": 562,
       "signature": "pub fn build_style_sources_minified_with_context_json( target_path: String, sources_json: String, context_json: String, package_manifests_json: String, ) -> napi::Result<String>"
     },
     {
@@ -248,7 +248,7 @@
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 582,
+      "line": 581,
       "signature": "pub fn build_style_sources_for_target_query_with_context_json( target_path: String, sources_json: String, target_query: String, target_options_json: String, context_json: String, package_manifests_json: String, ) -> napi::Result<String>"
     },
     {
@@ -259,7 +259,7 @@
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 605,
+      "line": 604,
       "signature": "pub fn list_transform_passes_json() -> napi::Result<String>"
     },
     {
@@ -270,7 +270,7 @@
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 610,
+      "line": 609,
       "signature": "pub fn summarize_transform_bundle_from_source_json( source: String, path: String, ) -> napi::Result<String>"
     },
     {
@@ -281,7 +281,7 @@
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 628,
+      "line": 627,
       "signature": "pub fn expression_domain_selector_projection_json(input_json: String) -> napi::Result<String>"
     },
     {
@@ -292,7 +292,7 @@
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 634,
+      "line": 633,
       "signature": "pub fn expression_domain_incremental_flow_json(input_json: String) -> napi::Result<String>"
     },
     {
@@ -303,7 +303,7 @@
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 644,
+      "line": 643,
       "signature": "pub fn transform_context_from_engine_input_json( input_json: String, target_path: String, closed_style_world: bool, ) -> napi::Result<String>"
     },
     {
@@ -314,7 +314,7 @@
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 658,
+      "line": 657,
       "signature": "pub fn read_cascade_at_position_json( source: String, path: String, line: u32, character: u32, input_json: String, ) -> napi::Result<String>"
     },
     {
@@ -325,7 +325,7 @@
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 676,
+      "line": 675,
       "signature": "pub fn read_style_context_index_json( source: String, path: String, input_json: String, ) -> napi::Result<String>"
     },
     {
@@ -336,7 +336,7 @@
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 686,
+      "line": 685,
       "signature": "pub fn read_style_diagnostics_json(source: String, path: String) -> napi::Result<String>"
     },
     {
@@ -347,7 +347,7 @@
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 691,
+      "line": 690,
       "signature": "pub fn read_workspace_style_diagnostics_json( target_path: String, sources_json: String, source_documents_json: String, package_manifests_json: String, external_sifs_json: Option<String>, external_mode: Option<String>, ) -> napi::Result<String>"
     },
     {
@@ -358,7 +358,7 @@
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 714,
+      "line": 713,
       "signature": "pub fn read_workspace_style_diagnostics_with_resolution_inputs_json( target_path: String, sources_json: String, source_documents_json: String, package_manifests_json: String, resolution_inputs_json: String, external_sifs_json: Option<String>, external_mode: Option<String>, ) -> napi::Result<String>"
     },
     {
@@ -369,7 +369,7 @@
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 742,
+      "line": 741,
       "signature": "pub fn read_style_hover_candidates_json(source: String, path: String) -> napi::Result<String>"
     },
     {
@@ -380,7 +380,7 @@
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 747,
+      "line": 746,
       "signature": "pub fn read_style_completion_at_position_json( source: String, path: String, line: u32, character: u32, ) -> napi::Result<String>"
     },
     {
@@ -391,7 +391,7 @@
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 762,
+      "line": 761,
       "signature": "pub fn read_source_diagnostics_json( source_uri: String, candidates_json: String, ) -> napi::Result<String>"
     },
     {
@@ -402,7 +402,7 @@
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 774,
+      "line": 773,
       "signature": "pub fn read_workspace_source_diagnostics_json( source_uri: String, source: String, sources_json: String, package_manifests_json: String, ) -> napi::Result<String>"
     },
     {
@@ -413,7 +413,7 @@
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 791,
+      "line": 790,
       "signature": "pub fn read_workspace_source_diagnostics_with_resolution_inputs_json( source_uri: String, source: String, sources_json: String, package_manifests_json: String, resolution_inputs_json: String, ) -> napi::Result<String>"
     },
     {
@@ -424,7 +424,7 @@
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 813,
+      "line": 812,
       "signature": "pub fn read_source_syntax_index_json( source_path: String, source: String, source_language: Option<String>, style_import_resolutions_json: String, ) -> napi::Result<String>"
     },
     {
@@ -435,7 +435,7 @@
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 830,
+      "line": 829,
       "signature": "pub fn read_source_binding_index_json( source_path: String, source: String, source_language: Option<String>, style_import_resolutions_json: String, ) -> napi::Result<String>"
     },
     {
@@ -446,7 +446,7 @@
       "exportKind": "function",
       "boundaryClass": "typed",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 847,
+      "line": 846,
       "signature": "pub fn read_source_import_declarations( source_path: String, source: String, source_language: Option<String>, ) -> napi::Result<OmenaNapiSourceImportDeclarationsV0>"
     },
     {
@@ -457,7 +457,7 @@
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 860,
+      "line": 859,
       "signature": "pub fn read_source_type_fact_control_flow_graph_json( source_path: String, source: String, source_language: Option<String>, variable_name: String, reference_byte_offset: u32, ) -> napi::Result<String>"
     },
     {
@@ -468,7 +468,7 @@
       "exportKind": "constructor",
       "boundaryClass": "typed",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 890,
+      "line": 889,
       "signature": "pub fn new() -> Self"
     },
     {
@@ -479,7 +479,7 @@
       "exportKind": "method",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 897,
+      "line": 896,
       "signature": "pub fn analyze_json(&mut self, input_json: String) -> napi::Result<String>"
     },
     {
@@ -793,13 +793,13 @@
     {
       "crate": "omena-wasm",
       "ordinal": 14,
-      "jsName": "bundleStyleSourcesWithContextExecutionScope",
-      "rustName": "bundle_style_sources_with_context_execution_scope_js",
+      "jsName": "bundleStyleSourcesLegacyWithContext",
+      "rustName": "bundle_style_sources_legacy_with_context",
       "exportKind": "function",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 260,
-      "signature": "pub fn bundle_style_sources_with_context_execution_scope_js( target_path: &str, sources: JsValue, pass_ids: JsValue, context: JsValue, package_manifests: JsValue, bundle_entry_style_paths: JsValue, linked_emission: bool, ) -> Result<JsValue, JsValue>"
+      "line": 264,
+      "signature": "pub fn bundle_style_sources_legacy_with_context( target_path: &str, sources: JsValue, pass_ids: JsValue, context: JsValue, package_manifests: JsValue, bundle_entry_style_paths: JsValue, ) -> Result<JsValue, JsValue>"
     },
     {
       "crate": "omena-wasm",
@@ -809,7 +809,7 @@
       "exportKind": "function",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 288,
+      "line": 290,
       "signature": "pub fn build_style_sources_minified_with_context( target_path: &str, sources: JsValue, context: JsValue, package_manifests: JsValue, ) -> Result<JsValue, JsValue>"
     },
     {
@@ -820,7 +820,7 @@
       "exportKind": "function",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 308,
+      "line": 310,
       "signature": "pub fn build_style_sources_for_target_query_with_context( target_path: &str, sources: JsValue, target_query: &str, target_options: JsValue, context: JsValue, package_manifests: JsValue, ) -> Result<JsValue, JsValue>"
     },
     {
@@ -831,7 +831,7 @@
       "exportKind": "function",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 332,
+      "line": 334,
       "signature": "pub fn list_transform_passes() -> Result<JsValue, JsValue>"
     },
     {
@@ -842,7 +842,7 @@
       "exportKind": "function",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 337,
+      "line": 339,
       "signature": "pub fn summarize_transform_bundle_from_source( source: &str, path: &str, ) -> Result<JsValue, JsValue>"
     },
     {
@@ -853,7 +853,7 @@
       "exportKind": "function",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 355,
+      "line": 357,
       "signature": "pub fn expression_domain_selector_projection(input: JsValue) -> Result<JsValue, JsValue>"
     },
     {
@@ -864,7 +864,7 @@
       "exportKind": "function",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 361,
+      "line": 363,
       "signature": "pub fn expression_domain_incremental_flow(input: JsValue) -> Result<JsValue, JsValue>"
     },
     {
@@ -875,7 +875,7 @@
       "exportKind": "function",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 371,
+      "line": 373,
       "signature": "pub fn transform_context_from_engine_input( input: JsValue, target_path: &str, closed_style_world: bool, ) -> Result<JsValue, JsValue>"
     },
     {
@@ -886,7 +886,7 @@
       "exportKind": "function",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 385,
+      "line": 387,
       "signature": "pub fn read_cascade_at_position( source: &str, path: &str, line: u32, character: u32, input: JsValue, ) -> Result<JsValue, JsValue>"
     },
     {
@@ -897,7 +897,7 @@
       "exportKind": "function",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 403,
+      "line": 405,
       "signature": "pub fn read_style_context_index( source: &str, path: &str, input: JsValue, ) -> Result<JsValue, JsValue>"
     },
     {
@@ -908,7 +908,7 @@
       "exportKind": "function",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 413,
+      "line": 415,
       "signature": "pub fn read_style_diagnostics(source: &str, path: &str) -> Result<JsValue, JsValue>"
     },
     {
@@ -919,7 +919,7 @@
       "exportKind": "function",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 418,
+      "line": 420,
       "signature": "pub fn read_workspace_style_diagnostics( target_path: &str, sources: JsValue, source_documents: JsValue, package_manifests: JsValue, external_sifs: JsValue, external_mode: Option<String>, ) -> Result<JsValue, JsValue>"
     },
     {
@@ -930,7 +930,7 @@
       "exportKind": "function",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 441,
+      "line": 443,
       "signature": "pub fn read_workspace_style_diagnostics_with_resolution_inputs( target_path: &str, style_sources: JsValue, source_documents: JsValue, package_manifests: JsValue, resolution_inputs: JsValue, external_sifs: JsValue, external_mode: Option<String>, ) -> Result<JsValue, JsValue>"
     },
     {
@@ -941,7 +941,7 @@
       "exportKind": "function",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 469,
+      "line": 471,
       "signature": "pub fn read_style_hover_candidates(source: &str, path: &str) -> Result<JsValue, JsValue>"
     },
     {
@@ -952,7 +952,7 @@
       "exportKind": "function",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 474,
+      "line": 476,
       "signature": "pub fn read_style_completion_at_position( source: &str, path: &str, line: u32, character: u32, ) -> Result<JsValue, JsValue>"
     },
     {
@@ -963,7 +963,7 @@
       "exportKind": "function",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 489,
+      "line": 491,
       "signature": "pub fn read_source_diagnostics(source_uri: &str, candidates: JsValue) -> Result<JsValue, JsValue>"
     },
     {
@@ -974,7 +974,7 @@
       "exportKind": "function",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 498,
+      "line": 500,
       "signature": "pub fn read_workspace_source_diagnostics( source_uri: &str, source: &str, style_sources: JsValue, package_manifests: JsValue, ) -> Result<JsValue, JsValue>"
     },
     {
@@ -985,7 +985,7 @@
       "exportKind": "function",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 517,
+      "line": 519,
       "signature": "pub fn read_workspace_source_diagnostics_with_resolution_inputs( source_uri: &str, source: &str, style_sources: JsValue, package_manifests: JsValue, resolution_inputs: JsValue, ) -> Result<JsValue, JsValue>"
     },
     {
@@ -996,7 +996,7 @@
       "exportKind": "method",
       "boundaryClass": "typed",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 548,
+      "line": 550,
       "signature": "pub fn import_count(&self) -> usize"
     },
     {
@@ -1007,7 +1007,7 @@
       "exportKind": "method",
       "boundaryClass": "typed",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 553,
+      "line": 555,
       "signature": "pub fn declaration_id_at(&self, index: usize) -> Option<String>"
     },
     {
@@ -1018,7 +1018,7 @@
       "exportKind": "method",
       "boundaryClass": "typed",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 560,
+      "line": 562,
       "signature": "pub fn binding_at(&self, index: usize) -> Option<String>"
     },
     {
@@ -1029,7 +1029,7 @@
       "exportKind": "method",
       "boundaryClass": "typed",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 567,
+      "line": 569,
       "signature": "pub fn specifier_at(&self, index: usize) -> Option<String>"
     },
     {
@@ -1040,7 +1040,7 @@
       "exportKind": "method",
       "boundaryClass": "typed",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 574,
+      "line": 576,
       "signature": "pub fn specifier_byte_start_at(&self, index: usize) -> Option<usize>"
     },
     {
@@ -1051,7 +1051,7 @@
       "exportKind": "method",
       "boundaryClass": "typed",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 581,
+      "line": 583,
       "signature": "pub fn specifier_byte_end_at(&self, index: usize) -> Option<usize>"
     },
     {
@@ -1062,7 +1062,7 @@
       "exportKind": "function",
       "boundaryClass": "typed",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 589,
+      "line": 591,
       "signature": "pub fn read_source_import_declarations( source_path: &str, source: &str, source_language: Option<String>, ) -> OmenaWasmSourceImportDeclarationsV0"
     },
     {
@@ -1073,7 +1073,7 @@
       "exportKind": "function",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 602,
+      "line": 604,
       "signature": "pub fn read_source_syntax_index( source_path: &str, source: &str, source_language: Option<String>, style_import_resolutions: JsValue, ) -> Result<JsValue, JsValue>"
     },
     {
@@ -1084,7 +1084,7 @@
       "exportKind": "function",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 619,
+      "line": 621,
       "signature": "pub fn read_source_binding_index( source_path: &str, source: &str, source_language: Option<String>, style_import_resolutions: JsValue, ) -> Result<JsValue, JsValue>"
     },
     {
@@ -1095,7 +1095,7 @@
       "exportKind": "function",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 636,
+      "line": 638,
       "signature": "pub fn read_source_type_fact_control_flow_graph( source_path: &str, source: &str, source_language: Option<String>, variable_name: &str, reference_byte_offset: u32, ) -> Result<JsValue, JsValue>"
     },
     {
@@ -1106,7 +1106,7 @@
       "exportKind": "constructor",
       "boundaryClass": "typed",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 666,
+      "line": 668,
       "signature": "pub fn new() -> Self"
     },
     {
@@ -1117,7 +1117,7 @@
       "exportKind": "method",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 673,
+      "line": 675,
       "signature": "pub fn analyze(&mut self, input: JsValue) -> Result<JsValue, JsValue>"
     },
     {
