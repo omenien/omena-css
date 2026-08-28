@@ -9,11 +9,7 @@ interface ChangesetConfig {
 }
 
 interface LinkedEmissionContract {
-  readonly conditions: {
-    readonly majorVersionBoundary: {
-      readonly minimumMajorVersion: number;
-    };
-  };
+  readonly targetReleaseVersion: string;
 }
 
 interface PackageManifest {
@@ -35,7 +31,7 @@ const rootPackage = readJson<PackageManifest>("package.json");
 const workspaceVersion = readWorkspaceVersion();
 const changesetConfig = readJson<ChangesetConfig>(".changeset/config.json");
 const linkedEmission = readJson<LinkedEmissionContract>(
-  "rust/omena-linked-emission-default-precondition.json",
+  "rust/omena-linked-emission-default-surfaces.json",
 );
 const tagGrammar = readTagGrammarReport();
 const ignoredPackages = [...changesetConfig.ignore];
@@ -52,10 +48,7 @@ const expectedRows = new Map<string, string>([
   ["crateTrainVersionLine", `${semverMajor(workspaceVersion)}.x`],
   ["crateTrainTagPrefix", tagGrammar.crateTrainTagPrefix],
   ["extensionTagPrefix", tagGrammar.vsixTagPrefix],
-  [
-    "linkedEmissionReservedMajor",
-    String(linkedEmission.conditions.majorVersionBoundary.minimumMajorVersion),
-  ],
+  ["linkedEmissionTargetRelease", linkedEmission.targetReleaseVersion],
   ["changesetIgnoredPackages", ignoredPackages.join(", ")],
   ["separateFirstPublishPackages", separateFirstPublishPackages.join(", ")],
   ["releaseManagedNpmBindings", releaseManagedNpmBindings.join(", ")],
@@ -84,7 +77,7 @@ for (const apiSnapshot of [
 }
 assert.ok(
   governance.includes("full-corpus differential coverage") &&
-    governance.includes("zero unexpected-\ndivergence census"),
+    governance.includes("zero unexpected-divergence census"),
   `${governancePath} must retain every linked-emission admission condition`,
 );
 assert.ok(
@@ -99,8 +92,7 @@ process.stdout.write(
       product: "docs.version-governance",
       extensionVersion: rootPackage.version,
       crateTrainVersion: workspaceVersion,
-      linkedEmissionReservedMajor:
-        linkedEmission.conditions.majorVersionBoundary.minimumMajorVersion,
+      linkedEmissionTargetRelease: linkedEmission.targetReleaseVersion,
       crateTrainTagPrefix: tagGrammar.crateTrainTagPrefix,
       extensionTagPrefix: tagGrammar.vsixTagPrefix,
       changesetIgnoredPackageCount: ignoredPackages.length,

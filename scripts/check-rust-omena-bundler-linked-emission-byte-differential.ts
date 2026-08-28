@@ -279,11 +279,8 @@ const gateSources = [
     source: readFileSync(fileURLToPath(import.meta.url), "utf8"),
   },
   {
-    path: "scripts/check-rust-omena-bundler-linked-emission-default-precondition.ts",
-    source: readFileSync(
-      "scripts/check-rust-omena-bundler-linked-emission-default-precondition.ts",
-      "utf8",
-    ),
+    path: "scripts/check-linked-emission-default-surfaces.ts",
+    source: readFileSync("scripts/check-linked-emission-default-surfaces.ts", "utf8"),
   },
 ];
 const workspaceWalkApis = [
@@ -335,8 +332,8 @@ assert.equal(
 // FALSIFIER: id=linked-emission-gate-005 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
 assert.deepEqual(
   Object.values(hoistCensus.cargoSpawnCounts),
-  [1, 1],
-  "each linked-emission gate must consume one shared differential cargo run",
+  [1, 0],
+  "the differential gate owns one shared cargo run while the successor surface gate stays static",
 );
 assert.equal(
   hoistCensus.workspaceWalkApiCount,

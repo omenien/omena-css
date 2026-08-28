@@ -1146,7 +1146,6 @@ export const DECLARED_CHECK_GATES = [
       "rust/omena-bundler/closed-world-authority",
       "rust/omena-bundler/emission-order-contract",
       "rust/omena-bundler/emission-item-contract",
-      "rust/omena-bundler/linked-emission-default-precondition",
       "rust/omena-bundler/linked-emission-default-surfaces",
       "rust/omena-query/linker-input-walk-authority",
       "rust/omena-query/linked-source-map-boundary",
@@ -1443,15 +1442,6 @@ export const DECLARED_CHECK_GATES = [
     tags: ["closure-fast", "diff-test", "omena-bundler", "governance"],
     ciTier: "closure-fast",
     ciGroup: "closure-fast",
-  },
-  {
-    id: "rust/omena-bundler/linked-emission-default-precondition",
-    kind: "gate",
-    scope: "rust",
-    packageTarget: "rust/omena-bundler/linked-emission-default-precondition",
-    tags: ["rust-workspace", "omena-bundler", "emission-order", "release-policy"],
-    ciTier: "rust-workspace",
-    ciGroup: "rust-workspace",
   },
   {
     id: "rust/omena-bundler/linked-emission-default-surfaces",

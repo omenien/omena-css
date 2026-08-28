@@ -24,7 +24,7 @@ authoritative manifests and release gates.
 | `crateTrainVersionLine`        | `0.x`                                                                                                                                                                | Rust workspace major                                        |
 | `crateTrainTagPrefix`          | `release-v`                                                                                                                                                          | release tag grammar gate                                    |
 | `extensionTagPrefix`           | `vscode-v`                                                                                                                                                           | release tag grammar gate                                    |
-| `linkedEmissionReservedMajor`  | `6`                                                                                                                                                                  | linked-emission default-precondition contract               |
+| `linkedEmissionTargetRelease`  | `0.5.0`                                                                                                                                                              | linked-emission default-surfaces contract                   |
 | `changesetIgnoredPackages`     | `@omena/check-orchestrator, @omena/checker, @omena/eslint-plugin, @omena/oxlint-plugin, @omena/stylelint-plugin, @omena/vite-plugin, @omena/vitest, @omena/examples` | `.changeset/config.json`                                    |
 | `separateFirstPublishPackages` | `@omena/css-build-adapter, @omena/postcss-plugin`                                                                                                                    | private package manifests outside the Changesets ignore set |
 | `releaseManagedNpmBindings`    | `@omena/napi, @omena/napi-*, @omena/wasm`                                                                                                                            | npm publish workflow                                        |
@@ -39,12 +39,11 @@ to the other unless a coordinated release explicitly moves both.
 
 ## Reserved majors
 
-Extension `6.0.0` is reserved for a reviewed default switch from the legacy
-import-inline byte producer to linked-order emission. Reaching major 6 is only
-one condition: full-corpus differential coverage and a zero unexpected-
-divergence census must also be satisfied. A release must not consume that major
-for unrelated product changes because doing so would weaken the three-condition
-admission contract.
+Linked-order emission is the admitted default for the `0.5.0` Rust train after
+full-corpus differential coverage and a zero unexpected-divergence census were
+established. The successor surface contract keeps Rust options, CLI, N-API,
+WASM, the JavaScript adapter, and Vite on that default. The `release-v0.5.0`
+train must not publish before the linked-emission closure pin exists.
 
 Rust crate `1.0.0` remains reserved until a release proposal cites a train-wide
 public API freeze artifact.
