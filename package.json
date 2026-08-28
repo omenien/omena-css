@@ -312,6 +312,7 @@
     "check:rust-omena-bundler-linked-emission-byte-differential": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
     "check:rust-omena-bundler-linked-emission-falsifier-disclosure": "node --import tsx ./scripts/check-gate-falsifier-disclosure.ts && node --import tsx ./scripts/check-rust-omena-bundler-resolution-authority-honesty.ts",
     "update:rust-omena-linked-emission-coverage-census": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --update-census",
+    "update:rust-omena-bundler-linked-stylesheet-byte-identity": "OMENA_UPDATE_LINKED_STYLESHEET_BYTE_IDENTITY=1 cargo test --manifest-path rust/Cargo.toml -p omena-bundler --test linked_stylesheet_byte_identity linked_stylesheet_output_matches_committed_contract -- --exact --nocapture",
     "check:rust-omena-bundler-linked-emission-default-surfaces": "node --import tsx ./scripts/check-linked-emission-default-surfaces.ts",
     "check:rust-omena-query-runner-boundary": "node --import tsx ./scripts/check-rust-omena-query-runner-boundary.ts",
     "check:rust-omena-query-public-surface": "node --import tsx ./scripts/check-rust-omena-query-public-surface.ts",

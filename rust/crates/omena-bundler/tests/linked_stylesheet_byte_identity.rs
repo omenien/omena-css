@@ -48,6 +48,34 @@ fn linked_stylesheet_output_matches_committed_contract() -> Result<(), String> {
         .ok_or_else(|| "committed byte contract has no numeric fixtureCount".to_string())?
         as usize;
 
+    if std::env::var_os("OMENA_UPDATE_LINKED_STYLESHEET_BYTE_IDENTITY").is_some() {
+        let mut updated = committed.clone();
+        let updated_entries = updated
+            .get_mut("linkedStylesheets")
+            .and_then(Value::as_array_mut)
+            .ok_or_else(|| {
+                "committed byte contract has no mutable linkedStylesheets array".to_string()
+            })?;
+        for entry in updated_entries {
+            let key = linked_stylesheet_entry_key(entry)?;
+            *entry = current_by_key.get(key.as_str()).cloned().ok_or_else(|| {
+                format!("current linked stylesheet is missing baseline key {key}")
+            })?;
+        }
+        let output = serde_json::to_string_pretty(&updated)
+            .map_err(|error| format!("failed to serialize linked stylesheet baseline: {error}"))?;
+        std::fs::write(
+            concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/snapshots/linked-stylesheet-byte-identity.json"
+            ),
+            format!("{output}\n"),
+        )
+        .map_err(|error| format!("failed to write linked stylesheet baseline: {error}"))?;
+        println!("updated linked stylesheet byte-identity baseline");
+        return Ok(());
+    }
+
     // F16-a: this assertion owns the legacy LinkedStylesheetV0 bytes. Fixture-count growth is
     // additive; every entry that existed before the new fallback fixtures remains byte-identical.
     // FALSIFIER: id=linked-stylesheet-legacy-fixture-count class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-stylesheet-byte-contract entry=committed-entry-count-is-keyed
