@@ -9,8 +9,8 @@
   "escapeHatch": {
     "maxGateCount": 158,
     "owner": "check-orchestrator maintainers",
-    "reviewedAt": "2026-08-20",
-    "reviewAfter": "2026-11-18"
+    "reviewedAt": "2026-08-29",
+    "reviewAfter": "2026-11-27"
   },
   "lanes": {
     "bundles": ["rust/closure-fast", "rust/contracts", "rust/product-test-contracts"],
@@ -308,9 +308,9 @@
     {
       "gateId": "rust/omena-bundler/linked-emission-default-surfaces",
       "stage": "blocking",
-      "reviewedAt": "2026-08-28",
-      "reviewAfter": "2026-11-26",
-      "evidence": "Seven product surfaces, every explicit legacy constructor, and the pre-1.0 removal ledger are checked together; three source mutations independently prove failure sensitivity."
+      "reviewedAt": "2026-08-29",
+      "reviewAfter": "2026-11-27",
+      "evidence": "Eight construction surfaces, every explicit legacy constructor, and the pre-1.0 removal ledger are checked together; four source mutations independently prove failure sensitivity."
     },
     {
       "gateId": "rust/omena-bundler/linked-emission-falsifier-disclosure",
