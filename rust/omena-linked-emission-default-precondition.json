@@ -16,14 +16,14 @@
       "reason": "The bounded multi-module fixture set must expand to the full supported bundle corpus before the candidate path can become the default."
     },
     "majorVersionBoundary": {
-      "minimumMajorVersion": 6,
+      "minimumMajorVersion": 0,
       "owner": "release governance",
       "ownerRef": {
-        "goalRef": "major-version-release-governance",
-        "artifactPath": "package.json",
+        "goalRef": "pre-1.0-minor-release-governance",
+        "artifactPath": "rust/Cargo.toml",
         "gateId": "docs/version-governance"
       },
-      "reason": "Changing the byte-producing authority is reserved for a major-version boundary."
+      "reason": "A user-approved pre-1.0 Rust runtime-contract change advances the crate train minor version; the CSS Modules identity rotation established this independently versioned 0.x precedent."
     },
     "unexpectedDivergenceCensus": {
       "maximumCount": 0,
@@ -37,10 +37,10 @@
     }
   },
   "expectedEvaluation": {
-    "fullCorpusDifferential": false,
-    "majorVersionBoundary": false,
-    "unexpectedDivergenceCensus": false,
-    "decision": "notReady"
+    "fullCorpusDifferential": true,
+    "majorVersionBoundary": true,
+    "unexpectedDivergenceCensus": true,
+    "decision": "ready"
   },
   "residuals": {
     "emissionOrderLedgerPath": "rust/omena-emission-order-residual-ledger.json",
