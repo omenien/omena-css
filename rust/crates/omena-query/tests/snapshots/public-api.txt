@@ -86,6 +86,7 @@ impl serde_core::ser::Serialize for omena_query::OmenaQueryRuntimeStateScenarioE
 impl serde_core::ser::Serialize for omena_query::OmenaQueryRuntimeStateScenarioV0
 pub const fn omena_query::OmenaQueryBuildAdmissionRequirementsV0::strict() -> Self
 pub const fn omena_query::OmenaQueryBundleEmissionPathV0::as_wire_label(self) -> &'static str
+pub const fn omena_query::OmenaQueryBundleEmissionPathV0::legacy_compatibility() -> Self
 pub const fn omena_query::OmenaQueryDiagnosticSuppressionModeV0::as_str(self) -> &'static str
 pub const fn omena_query::OmenaQueryDiagnosticSuppressionModeV0::suppresses_diagnostics(self) -> bool
 pub const fn omena_query::OmenaQueryExplainResponseV0::availability(&self) -> omena_query::OmenaQueryExplainAvailabilityV0
