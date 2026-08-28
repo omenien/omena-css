@@ -96,10 +96,12 @@ materializeCliWorkspace(fixtures);
 const cliBinary = buildCli();
 const cliOutputs = runCliFixtures(cliBinary, fixtures);
 const outputBySurface: Partial<Record<Surface, readonly unknown[]>> = { cli: cliOutputs };
+let fullModulePaths: { readonly napi: string; readonly wasm: string } | null = null;
 
 if (fullMode) {
   const napiModule = buildNapiModule();
   const wasmModule = buildWasmModule();
+  fullModulePaths = { napi: napiModule, wasm: wasmModule };
   outputBySurface.napi = runNodeSurface("napi", napiModule, fixtures);
   outputBySurface.wasm = runNodeSurface("wasm", wasmModule, fixtures);
 }
@@ -186,6 +188,8 @@ if (fullMode) {
       `WASM parity failed for ${fixtures[index].id}`,
     );
   }
+  assert.ok(fullModulePaths, "full parity requires built NAPI and WASM modules");
+  assertLinkedEmissionSurfaceEquivalence(cliBinary, fullModulePaths);
 }
 
 process.stdout.write(
@@ -312,6 +316,217 @@ function runNodeSurface(
       maxBuffer: 16 * 1024 * 1024,
     }),
   ) as readonly unknown[];
+}
+
+interface LinkedEmissionSurfaceOutput {
+  readonly emissionPath: string;
+  readonly outputCss: string;
+}
+
+interface LinkedEmissionSurfaceFixture {
+  readonly id: string;
+  readonly entryFileName: string;
+  readonly modules: Readonly<Record<string, string>>;
+}
+
+function assertLinkedEmissionSurfaceEquivalence(
+  cliBinary: string,
+  modulePaths: { readonly napi: string; readonly wasm: string },
+): void {
+  const fixtures: readonly LinkedEmissionSurfaceFixture[] = [
+    {
+      id: "entry-interleave",
+      entryFileName: "app.css",
+      modules: {
+        "app.css":
+          '.entry-before { color: black; } @import "./dep.css"; .entry-after { color: white; }\n',
+        "dep.css": ".dep { color: red; }\n",
+      },
+    },
+    {
+      id: "transitive-import-order",
+      entryFileName: "app.css",
+      modules: {
+        "app.css": '@import "./middle.css"; .app { order: 3; }\n',
+        "middle.css": '@import "./base.css"; .middle { order: 2; }\n',
+        "base.css": ".base { order: 1; }\n",
+      },
+    },
+    {
+      id: "shared-import-single-emission",
+      entryFileName: "app.css",
+      modules: {
+        "app.css": '@import "./left.css"; @import "./right.css"; .app { order: 4; }\n',
+        "left.css": '@import "./shared.css"; .left { order: 2; }\n',
+        "right.css": '@import "./shared.css"; .right { order: 3; }\n',
+        "shared.css": ".shared { order: 1; }\n",
+      },
+    },
+  ];
+  const legacySurface = injectedLegacySurface();
+  const outputsBySurface: Record<string, string[]> = {
+    cli: [],
+    napi: [],
+    wasm: [],
+    adapter: [],
+  };
+  const cases = fixtures.map((fixture) => {
+    const fixtureDir = path.join(workDir, "linked-emission-surface-equivalence", fixture.id);
+    fs.mkdirSync(fixtureDir, { recursive: true });
+    const sources = Object.entries(fixture.modules).map(([fileName, styleSource]) => {
+      const stylePath = path.join(fixtureDir, fileName);
+      fs.writeFileSync(stylePath, styleSource);
+      return { stylePath, styleSource };
+    });
+    const entryPath = path.join(fixtureDir, fixture.entryFileName);
+    const dependencyPaths = sources
+      .map((source) => source.stylePath)
+      .filter((stylePath) => stylePath !== entryPath);
+    const inputPath = path.join(fixtureDir, "input.json");
+    fs.writeFileSync(inputPath, JSON.stringify({ entryPath, dependencyPaths, sources }));
+    const outputs = {
+      cli: runLinkedCliSurface(cliBinary, entryPath, dependencyPaths, legacySurface === "cli"),
+      napi: runLinkedNodeBundleSurface(
+        "napi",
+        modulePaths.napi,
+        inputPath,
+        legacySurface === "napi",
+      ),
+      wasm: runLinkedNodeBundleSurface(
+        "wasm",
+        modulePaths.wasm,
+        inputPath,
+        legacySurface === "wasm",
+      ),
+      adapter: runLinkedAdapterSurface(modulePaths.napi, inputPath, legacySurface === "adapter"),
+    } as const;
+
+    for (const [surface, result] of Object.entries(outputs)) {
+      assert.equal(
+        result.emissionPath,
+        "linkedOrder",
+        `${fixture.id}: ${surface} default bundle path must remain linkedOrder`,
+      );
+      outputsBySurface[surface].push(result.outputCss);
+    }
+    const expectedBytes = Buffer.from(outputs.cli.outputCss);
+    for (const [surface, result] of Object.entries(outputs)) {
+      assert.deepEqual(
+        Buffer.from(result.outputCss),
+        expectedBytes,
+        `${fixture.id}: ${surface} linked bundle bytes diverged from CLI`,
+      );
+    }
+    return {
+      fixtureId: fixture.id,
+      moduleCount: sources.length,
+      outputByteLen: expectedBytes.length,
+      outputSha256: createHash("sha256").update(expectedBytes).digest("hex"),
+    };
+  });
+
+  process.stdout.write(
+    `${JSON.stringify({
+      product: "omena-bundler.linked-emission-surface-equivalence",
+      fixtureCount: fixtures.length,
+      surfaceCount: Object.keys(outputsBySurface).length,
+      cases,
+      surfaces: Object.fromEntries(
+        Object.entries(outputsBySurface).map(([surface, outputs]) => [
+          surface,
+          {
+            emissionPath: "linkedOrder",
+            corpusSha256: createHash("sha256").update(outputs.join("\0")).digest("hex"),
+          },
+        ]),
+      ),
+    })}\n`,
+  );
+}
+
+function injectedLegacySurface(): "cli" | "napi" | "wasm" | "adapter" | null {
+  const injections = ["cli", "napi", "wasm", "adapter"].filter((surface) =>
+    process.argv.includes(`--inject-${surface}-legacy-surface`),
+  ) as ("cli" | "napi" | "wasm" | "adapter")[];
+  assert.ok(injections.length <= 1, "inject at most one legacy surface per falsifier run");
+  return injections[0] ?? null;
+}
+
+function runLinkedCliSurface(
+  binary: string,
+  entryPath: string,
+  dependencyPaths: readonly string[],
+  legacy: boolean,
+): LinkedEmissionSurfaceOutput {
+  const args = ["build", entryPath];
+  for (const dependencyPath of dependencyPaths) args.push("--source", dependencyPath);
+  args.push("--pass", "import-inline", "--bundle", "--json");
+  if (legacy) args.splice(-1, 0, "--legacy-emission");
+  const envelope = JSON.parse(
+    execFileSync(binary, args, {
+      cwd: repoRoot,
+      encoding: "utf8",
+      maxBuffer: 16 * 1024 * 1024,
+    }),
+  ) as {
+    readonly payload?: {
+      readonly bundleEmissionPath?: string;
+      readonly execution?: { readonly outputCss?: string };
+    };
+  };
+  assert.equal(typeof envelope.payload?.execution?.outputCss, "string");
+  assert.equal(typeof envelope.payload?.bundleEmissionPath, "string");
+  return {
+    emissionPath: envelope.payload.bundleEmissionPath,
+    outputCss: envelope.payload.execution.outputCss,
+  };
+}
+
+function runLinkedNodeBundleSurface(
+  surface: "napi" | "wasm",
+  modulePath: string,
+  inputPath: string,
+  legacy: boolean,
+): LinkedEmissionSurfaceOutput {
+  const script =
+    surface === "napi"
+      ? `const fs=require("fs");const m=require(process.argv[1]);const i=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));const f=process.argv[3]==="legacy"?m.bundleStyleSourcesLegacyWithContextJson:m.bundleStyleSourcesWithContextJson;const o=JSON.parse(f(i.entryPath,JSON.stringify(i.sources),["import-inline"],"","",[i.entryPath]));process.stdout.write(JSON.stringify({emissionPath:o.emissionPath,outputCss:o.outputCss}));`
+      : `const fs=require("fs");const m=require(process.argv[1]);const i=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));const f=process.argv[3]==="legacy"?m.bundleStyleSourcesLegacyWithContext:m.bundleStyleSourcesWithContext;const o=f(i.entryPath,i.sources,["import-inline"],undefined,undefined,[i.entryPath]);if(o instanceof Map)throw new Error("WASM bundle result must be a plain JavaScript object");process.stdout.write(JSON.stringify({emissionPath:o.emissionPath,outputCss:o.outputCss}));`;
+  return JSON.parse(
+    execFileSync(
+      process.execPath,
+      ["-e", script, modulePath, inputPath, legacy ? "legacy" : "default"],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        maxBuffer: 16 * 1024 * 1024,
+      },
+    ),
+  ) as LinkedEmissionSurfaceOutput;
+}
+
+function runLinkedAdapterSurface(
+  napiModulePath: string,
+  inputPath: string,
+  legacy: boolean,
+): LinkedEmissionSurfaceOutput {
+  const adapterPath = path.join(repoRoot, "packages/css-build-adapter/index.cjs");
+  const script = `const fs=require("fs");const a=require(process.argv[1]);const binding=require(process.argv[2]);const i=JSON.parse(fs.readFileSync(process.argv[3],"utf8"));(async()=>{const state=a.createOmenaBuildState({cwd:${JSON.stringify(
+    repoRoot,
+  )}});const o=await a.runOmenaBuild(i.entryPath,i.sources[0].styleSource,{cwd:${JSON.stringify(
+    repoRoot,
+  )},configFile:false,engine:binding,bundle:true,sources:i.dependencyPaths,passes:["import-inline"],sourceMap:false,moduleInterface:false,legacyEmission:process.argv[4]==="legacy"},state);process.stdout.write(JSON.stringify({emissionPath:o.summary.emissionPath,outputCss:o.code}));})().catch(e=>{console.error(e);process.exitCode=1;});`;
+  return JSON.parse(
+    execFileSync(
+      process.execPath,
+      ["-e", script, adapterPath, napiModulePath, inputPath, legacy ? "legacy" : "default"],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        maxBuffer: 16 * 1024 * 1024,
+      },
+    ),
+  ) as LinkedEmissionSurfaceOutput;
 }
 
 function buildBaseline(outputs: Record<Surface, readonly unknown[]>): ParityBaseline {

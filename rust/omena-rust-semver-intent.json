@@ -238,7 +238,7 @@
     {
       "crate": "omena-bundler",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor distinguishes analyzed-empty reachability from unavailable analysis, binds source dialect to emission-cycle admission, and compares authored custom-property reachability collections through sealed custom-property identity.",
+      "reason": "The next pre-1.0 minor distinguishes analyzed-empty reachability from unavailable analysis, binds source dialect to emission-cycle admission, compares authored custom-property reachability collections through sealed custom-property identity, and makes import-order-preserving linked emission the default while retaining deprecated legacy_compatibility() as an explicit opt-in.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -262,6 +262,30 @@
         }
       ],
       "expectedRuntimeValueChanges": [
+        {
+          "id": "linked-emission-default-policy",
+          "kind": "selection-outcome-changing",
+          "surface": "TransformBundleLinkOptionsV0::default() emission ordering and dependency-resolution authority",
+          "reason": "Default construction now selects import-order-preserving emission with resolved dependency authority; the prior module-id and inferred-path behavior remains available only through the deprecated legacy_compatibility() constructor until its pre-1.0 removal.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
+              "needles": [
+                "pub struct TransformBundleLinkOptionsV0",
+                "pub const fn legacy_compatibility() -> Self",
+                "emission_ordering_policy: EmissionOrderingPolicyV0::ModuleIdLegacy",
+                "dependency_resolution_authority: BundleResolutionAuthorityV0::LegacyPathInferred"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-bundler/src/emission_order.rs",
+              "needles": [
+                "pub enum EmissionOrderingPolicyV0",
+                "#[default]\n    ImportOrderPreserving"
+              ]
+            }
+          ]
+        },
         {
           "id": "bundle-reachability-custom-property-identity",
           "kind": "selection-outcome-changing",
@@ -406,9 +430,29 @@
     {
       "crate": "omena-cli",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor makes PostCSS compatibility output strict-by-default: only parse-clean candidates whose complete non-whitespace CST differs by independently classified vendor-prefix declaration insertions can replace native build bytes, and build output exposes the typed adoption verdict.",
+      "reason": "The next pre-1.0 minor makes PostCSS compatibility output strict-by-default: only parse-clean candidates whose complete non-whitespace CST differs by independently classified vendor-prefix declaration insertions can replace native build bytes, and build output exposes the typed adoption verdict. It also makes linked bundle emission the CLI default; the former import-inline model requires the deprecated --legacy-emission opt-in.",
       "expectedFailures": [],
       "expectedRuntimeValueChanges": [
+        {
+          "id": "cli-linked-emission-default",
+          "kind": "selection-outcome-changing",
+          "surface": "omena build --bundle emitted CSS order and bundleEmissionPath",
+          "reason": "Bundle builds now select linkedOrder unless --legacy-emission or its explicit configuration equivalent is supplied, so import-sensitive inputs may emit dependency rules in a different disclosed order.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-cli/src/build.rs",
+              "needles": [
+                "let bundle_emission_path = if legacy_emission",
+                "OmenaQueryBundleEmissionPathV0::legacy_compatibility()",
+                "OmenaQueryBundleEmissionPathV0::default()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cli/src/commands.rs",
+              "needles": ["#[arg(long = \"legacy-emission\")]"]
+            }
+          ]
+        },
         {
           "id": "postcss-compat-strict-adoption",
           "kind": "selection-outcome-changing",
@@ -439,7 +483,7 @@
     {
       "crate": "omena-query",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints, requires exact Rust-authored declaration identities for style resolution, preserves analyzed-empty reachability as a closed-world result, and projects typed dialect-cycle evidence instead of a generic pass-unavailable blocker. It also moves custom-property diagnostics and module-interface joins onto the shared decoded, case-preserving property identity, revalidates deferred standard-property values after Salsa-fed var() substitution, replaces the merged bundler-host export map with typed class and ICSS-value namespaces plus source-anchored collision diagnostics, adds a native build-snapshot digest that binds adapter cache decisions to content and engine-owned identities, and exposes an additive source-diagnostics entry point for reusing a caller-owned resolver identity index.",
+      "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints, requires exact Rust-authored declaration identities for style resolution, preserves analyzed-empty reachability as a closed-world result, and projects typed dialect-cycle evidence instead of a generic pass-unavailable blocker. It also moves custom-property diagnostics and module-interface joins onto the shared decoded, case-preserving property identity, revalidates deferred standard-property values after Salsa-fed var() substitution, replaces the merged bundler-host export map with typed class and ICSS-value namespaces plus source-anchored collision diagnostics, adds a native build-snapshot digest that binds adapter cache decisions to content and engine-owned identities, exposes an additive source-diagnostics entry point for reusing a caller-owned resolver identity index, and makes linkedOrder the default bundle-emission path while retaining a deprecated explicit legacy constructor.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -498,6 +542,30 @@
         }
       ],
       "expectedRuntimeValueChanges": [
+        {
+          "id": "query-linked-emission-default",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaQueryBundleEmissionPathV0::default() and OmenaQueryConsumerBuildOptionsV0::default() bundle output",
+          "reason": "Default query bundle construction now selects linkedOrder; importInlineLegacy remains reachable only through the deprecated legacy_compatibility() constructor, and explicit relative imports are resolved before linked emission.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/types.rs",
+              "needles": [
+                "pub enum OmenaQueryBundleEmissionPathV0",
+                "#[default]\n    LinkedOrder",
+                "pub const fn legacy_compatibility() -> Self"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/tests/transform_facade.rs",
+              "needles": ["fn bundle_emission_path_defaults_to_linked_and_keeps_legacy_explicit()"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
+              "needles": ["fn linked_default_resolves_explicit_relative_extension_in_memory()"]
+            }
+          ]
+        },
         {
           "id": "query-authored-property-carrier-identity",
           "kind": "selection-outcome-changing",
@@ -1029,7 +1097,7 @@
     {
       "crate": "omena-wasm",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor replaces caller-supplied lexical import hints with exact Rust declaration-ID resolutions, adds a typed browser declaration-enumeration surface, and forwards typed class and ICSS-value export namespaces through the bundler-host boundary.",
+      "reason": "The next pre-1.0 minor replaces caller-supplied lexical import hints with exact Rust declaration-ID resolutions, adds a typed browser declaration-enumeration surface, forwards typed class and ICSS-value export namespaces through the bundler-host boundary, and makes the browser bundle default linked while returning bundle summaries as plain JavaScript objects.",
       "expectedFailures": [
         {
           "lint": "function_parameter_count_changed",
@@ -1042,6 +1110,22 @@
         }
       ],
       "expectedRuntimeValueChanges": [
+        {
+          "id": "wasm-linked-emission-default-object",
+          "kind": "selection-outcome-changing",
+          "surface": "bundleStyleSourcesWithContext emitted order and JavaScript result shape",
+          "reason": "The default WASM bundle export selects linkedOrder, the deprecated named legacy export is the only compatibility path, and both exports return JSON-compatible plain objects so the JavaScript adapter can consume outputCss and emissionPath without a silent legacy fallback.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+              "needles": [
+                "#[wasm_bindgen(js_name = bundleStyleSourcesWithContext)]",
+                "#[wasm_bindgen(js_name = bundleStyleSourcesLegacyWithContext)]",
+                "to_json_compatible_js_value(&artifact)"
+              ]
+            }
+          ]
+        },
         {
           "id": "wasm-bundler-host-typed-export-namespaces",
           "kind": "wire-value-order-preserving",

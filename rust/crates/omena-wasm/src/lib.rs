@@ -253,7 +253,7 @@ pub fn bundle_style_sources_with_context(
         &package_manifests,
         &bundle_entry_style_paths,
     )?;
-    to_js_value(&artifact)
+    to_json_compatible_js_value(&artifact)
 }
 
 #[allow(deprecated)]
@@ -284,7 +284,7 @@ pub fn bundle_style_sources_legacy_with_context(
         &package_manifests,
         &bundle_entry_style_paths,
     )?;
-    to_js_value(&artifact)
+    to_json_compatible_js_value(&artifact)
 }
 
 #[wasm_bindgen(js_name = buildStyleSourcesMinifiedWithContext)]
