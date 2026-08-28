@@ -706,9 +706,9 @@ impl TransformBundleResolvedDependencyV0 {
 #[serde(rename_all = "camelCase")]
 pub enum BundleResolutionAuthorityV0 {
     /// Every dependency edge must have a supplied resolved record.
+    #[default]
     Resolved,
     /// Unmatched edges fall back to importer-relative path candidates.
-    #[default]
     LegacyPathInferred,
 }
 
@@ -731,6 +731,17 @@ pub struct TransformBundleLinkOptionsV0 {
 }
 
 impl TransformBundleLinkOptionsV0 {
+    #[deprecated(
+        since = "0.5.0",
+        note = "legacy module-id ordering and path inference are scheduled for removal before 1.0"
+    )]
+    pub const fn legacy_compatibility() -> Self {
+        Self {
+            emission_ordering_policy: EmissionOrderingPolicyV0::ModuleIdLegacy,
+            dependency_resolution_authority: BundleResolutionAuthorityV0::LegacyPathInferred,
+        }
+    }
+
     pub const fn with_emission_ordering_policy(
         mut self,
         emission_ordering_policy: EmissionOrderingPolicyV0,
@@ -1088,10 +1099,14 @@ pub fn link_omena_transform_bundle_modules_with_options<P: AsRef<str>>(
     options: TransformBundleLinkOptionsV0,
 ) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
     let projection = project_omena_transform_bundle_linker_inputs(modules, reachability_inputs);
+    let resolved_dependencies = derive_facade_resolved_dependencies(
+        projection.inputs(),
+        options.dependency_resolution_authority,
+    )?;
     link_omena_transform_bundle_projection_with_resolved_dependencies_and_options(
         entrypoint_paths,
         &projection,
-        &[],
+        resolved_dependencies.as_slice(),
         module_metadata,
         options,
     )
@@ -1256,6 +1271,27 @@ pub fn link_omena_transform_bundle_projection_with_resolved_dependencies_and_opt
     )
 }
 
+pub fn link_omena_transform_bundle_projection_with_emission_items<P: AsRef<str>>(
+    entrypoint_paths: &[P],
+    linker_projection: &TransformBundleLinkerProjectionV0,
+    emission_item_projection: &TransformBundleEmissionItemProjectionV0,
+    module_metadata: &[ClosedWorldModuleMetadataV0],
+) -> Result<LinkedStylesheetWithEmissionItemsV0, TransformBundleLinkErrorV0> {
+    let options = TransformBundleLinkOptionsV0::default();
+    let resolved_dependencies = derive_facade_resolved_dependencies(
+        linker_projection.inputs(),
+        options.dependency_resolution_authority,
+    )?;
+    link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
+        entrypoint_paths,
+        linker_projection,
+        emission_item_projection,
+        resolved_dependencies.as_slice(),
+        module_metadata,
+        options,
+    )
+}
+
 pub fn link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options<
     P: AsRef<str>,
 >(
@@ -1313,15 +1349,16 @@ pub fn link_legacy_path_inferred_bundle<P: AsRef<str>>(
     module_metadata: &[ClosedWorldModuleMetadataV0],
     emission_ordering_policy: EmissionOrderingPolicyV0,
 ) -> Result<LinkedStylesheetWithEmissionItemsV0, TransformBundleLinkErrorV0> {
+    #[allow(deprecated)]
+    let options = TransformBundleLinkOptionsV0::legacy_compatibility()
+        .with_emission_ordering_policy(emission_ordering_policy);
     link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
         entrypoint_paths,
         linker_projection,
         emission_item_projection,
         resolved_dependencies,
         module_metadata,
-        TransformBundleLinkOptionsV0::default()
-            .with_emission_ordering_policy(emission_ordering_policy)
-            .with_dependency_resolution_authority(BundleResolutionAuthorityV0::LegacyPathInferred),
+        options,
     )
 }
 
@@ -1356,25 +1393,21 @@ pub fn compare_omena_transform_bundle_emission_policies<P: AsRef<str>>(
     entrypoint_paths: &[P],
     modules: &[TransformBundleModuleInputV0],
 ) -> Result<EmissionPolicyDifferentialReportV0, TransformBundleLinkErrorV0> {
+    #[allow(deprecated)]
+    let legacy_options = TransformBundleLinkOptionsV0::legacy_compatibility();
     let module_id_legacy = link_omena_transform_bundle_modules_with_options(
         entrypoint_paths,
         modules,
         &[],
         &[],
-        TransformBundleLinkOptionsV0 {
-            emission_ordering_policy: EmissionOrderingPolicyV0::ModuleIdLegacy,
-            ..TransformBundleLinkOptionsV0::default()
-        },
+        legacy_options,
     )?;
     let import_order = link_omena_transform_bundle_modules_with_options(
         entrypoint_paths,
         modules,
         &[],
         &[],
-        TransformBundleLinkOptionsV0 {
-            emission_ordering_policy: EmissionOrderingPolicyV0::ImportOrderPreserving,
-            ..TransformBundleLinkOptionsV0::default()
-        },
+        TransformBundleLinkOptionsV0::default(),
     )?;
     let module_id_legacy_rules = &module_id_legacy.global_rule_order.rules;
     let import_order_rules = &import_order.global_rule_order.rules;
@@ -1631,6 +1664,52 @@ fn materialize_linked_stylesheet_in_module_order(
     })
 }
 
+fn derive_facade_resolved_dependencies(
+    inputs: &[LinkerInputV0],
+    resolution_authority: BundleResolutionAuthorityV0,
+) -> Result<Vec<TransformBundleResolvedDependencyV0>, TransformBundleLinkErrorV0> {
+    if resolution_authority == BundleResolutionAuthorityV0::LegacyPathInferred {
+        return Ok(Vec::new());
+    }
+    let instances_by_path = inputs.iter().fold(
+        BTreeMap::<String, Vec<ModuleInstanceKeyV0>>::new(),
+        |mut instances_by_path, input| {
+            instances_by_path
+                .entry(input.source_path.clone())
+                .or_default()
+                .push(input.instance.clone());
+            instances_by_path
+        },
+    );
+    let mut resolved_dependencies = Vec::new();
+    for input in inputs {
+        for edge in input
+            .dependency_edges
+            .iter()
+            .filter(|edge| bundle_edge_is_module_dependency(edge.kind))
+        {
+            let target_instance = resolve_imported_module_instance(
+                input.source_path.as_str(),
+                edge.import_source.as_str(),
+                &instances_by_path,
+            )?;
+            resolved_dependencies.push(TransformBundleResolvedDependencyV0::new(
+                input.instance.clone(),
+                edge.kind,
+                edge.import_source.as_str(),
+                edge.import_ordinal,
+                TransformBundleDependencyResolutionV0::attempted(
+                    vec!["facadeModuleSet"],
+                    "facadeModuleSet",
+                    usize::from(target_instance.is_some()),
+                    target_instance,
+                ),
+            ));
+        }
+    }
+    Ok(resolved_dependencies)
+}
+
 /// Legacy LinkedStylesheetV0 entry points do not expose dependency resolution provenance.
 pub fn link_stylesheet_from_projection(
     entrypoint_paths: &[&str],
@@ -1649,10 +1728,12 @@ pub fn link_stylesheet_from_projection_with_options(
     inputs: &[LinkerInputV0],
     options: TransformBundleLinkOptionsV0,
 ) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
+    let resolved_dependencies =
+        derive_facade_resolved_dependencies(inputs, options.dependency_resolution_authority)?;
     link_stylesheet_from_projection_with_resolved_dependencies_and_options(
         entrypoint_paths,
         inputs,
-        &[],
+        resolved_dependencies.as_slice(),
         options,
     )
 }
@@ -2546,6 +2627,16 @@ pub(crate) fn resolve_imported_module_instance_for_edge(
     instances_by_path: &BTreeMap<String, Vec<ModuleInstanceKeyV0>>,
     resolution_authority: BundleResolutionAuthorityV0,
 ) -> Result<DependencyResolutionOutcomeV0, TransformBundleLinkErrorV0> {
+    if !bundle_edge_is_module_dependency(edge.kind) {
+        return Ok(DependencyResolutionOutcomeV0 {
+            target_instance: resolve_imported_module_instance(
+                input.source_path.as_str(),
+                edge.import_source.as_str(),
+                instances_by_path,
+            )?,
+            authority: BundleResolutionAuthorityV0::Resolved,
+        });
+    }
     let mut matches = resolved_dependencies.iter().filter(|dependency| {
         dependency.source_instance == input.instance
             && dependency.edge_kind == edge.kind
@@ -3700,7 +3791,7 @@ mod tests {
     }
 
     #[test]
-    fn parser_import_order_is_recorded_without_changing_default_output() -> Result<(), String> {
+    fn parser_import_order_controls_default_output() -> Result<(), String> {
         fn link(imports: &str) -> Result<super::LinkedStylesheetV0, String> {
             link_omena_transform_bundle_modules(
                 &["src/app.css"],
@@ -3738,7 +3829,7 @@ mod tests {
 
         assert_eq!(targets(&a_then_z), vec!["src/a.css", "src/z.css"]);
         assert_eq!(targets(&z_then_a), vec!["src/z.css", "src/a.css"]);
-        assert_eq!(
+        assert_ne!(
             serde_json::to_vec(&a_then_z).map_err(|error| format!("{error:?}"))?,
             serde_json::to_vec(&z_then_a).map_err(|error| format!("{error:?}"))?
         );
@@ -3746,7 +3837,7 @@ mod tests {
     }
 
     #[test]
-    fn default_emission_policy_is_pinned_to_legacy_module_id_order() -> Result<(), String> {
+    fn default_link_options_are_import_ordered_and_resolved() -> Result<(), String> {
         let modules = [
             TransformBundleModuleInputV0::new(
                 "src/app.css",
@@ -3761,25 +3852,37 @@ mod tests {
         ];
         let implicit = link_omena_transform_bundle_modules(&["src/app.css"], &modules)
             .map_err(|error| format!("{error:?}"))?;
+        let default_options = TransformBundleLinkOptionsV0::default();
         let explicit = link_omena_transform_bundle_modules_with_options(
             &["src/app.css"],
             &modules,
             &[],
             &[],
-            TransformBundleLinkOptionsV0 {
-                emission_ordering_policy: super::EmissionOrderingPolicyV0::ModuleIdLegacy,
-                ..TransformBundleLinkOptionsV0::default()
-            },
+            default_options,
         )
         .map_err(|error| format!("{error:?}"))?;
 
         assert_eq!(
             implicit.emission_plan.policy,
-            super::EmissionOrderingPolicyV0::ModuleIdLegacy
+            super::EmissionOrderingPolicyV0::ImportOrderPreserving
+        );
+        assert_eq!(
+            default_options.dependency_resolution_authority,
+            super::BundleResolutionAuthorityV0::Resolved
         );
         assert_eq!(
             serde_json::to_vec(&implicit).map_err(|error| format!("{error:?}"))?,
             serde_json::to_vec(&explicit).map_err(|error| format!("{error:?}"))?
+        );
+        #[allow(deprecated)]
+        let legacy_options = TransformBundleLinkOptionsV0::legacy_compatibility();
+        assert_eq!(
+            legacy_options.emission_ordering_policy,
+            super::EmissionOrderingPolicyV0::ModuleIdLegacy
+        );
+        assert_eq!(
+            legacy_options.dependency_resolution_authority,
+            super::BundleResolutionAuthorityV0::LegacyPathInferred
         );
         Ok(())
     }
@@ -5001,7 +5104,7 @@ mod tests {
                 .iter()
                 .map(|rule| rule.selector_name.as_str())
                 .collect::<Vec<_>>(),
-            vec!["app", "theme"]
+            vec!["theme", "app"]
         );
         assert!(
             linked
@@ -5196,16 +5299,13 @@ mod tests {
             .map_err(|error| format!("legacy link failed: {error:?}"))?;
         let projections =
             super::project_omena_transform_bundle_linker_and_emission_items(&modules, &[]);
-        let widened =
-            super::link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
-                &["src/theme.css"],
-                projections.linker_projection(),
-                projections.emission_item_projection(),
-                &[],
-                &[],
-                TransformBundleLinkOptionsV0::default(),
-            )
-            .map_err(|error| format!("emission-item link failed: {error:?}"))?;
+        let widened = super::link_omena_transform_bundle_projection_with_emission_items(
+            &["src/theme.css"],
+            projections.linker_projection(),
+            projections.emission_item_projection(),
+            &[],
+        )
+        .map_err(|error| format!("emission-item link failed: {error:?}"))?;
 
         assert_eq!(widened.linked_stylesheet, legacy);
         assert_eq!(
@@ -5311,20 +5411,17 @@ mod tests {
                 StyleDialect::Css,
             ),
         ];
-        let (linked, parser_snapshot) = omena_parser::with_omena_parser_parse_instrumentation(
-            || {
+        let (linked, parser_snapshot) =
+            omena_parser::with_omena_parser_parse_instrumentation(|| {
                 let projections =
                     super::project_omena_transform_bundle_linker_and_emission_items(&modules, &[]);
-                super::link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
+                super::link_omena_transform_bundle_projection_with_emission_items(
                     &["src/reset.css", "src/theme.css", "src/app.css"],
                     projections.linker_projection(),
                     projections.emission_item_projection(),
                     &[],
-                    &[],
-                    TransformBundleLinkOptionsV0::default(),
                 )
-            },
-        );
+            });
         let linked = linked.map_err(|error| format!("emission-item link failed: {error:?}"))?;
 
         assert_eq!(parser_snapshot.parse_invocation_count, 3);
@@ -5345,20 +5442,13 @@ mod tests {
     > {
         let projections =
             super::project_omena_transform_bundle_linker_and_emission_items(modules, &[]);
-        let linked =
-            super::link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
-                &[entrypoint],
-                projections.linker_projection(),
-                projections.emission_item_projection(),
-                &[],
-                &[],
-                TransformBundleLinkOptionsV0 {
-                    emission_ordering_policy:
-                        super::EmissionOrderingPolicyV0::ImportOrderPreserving,
-                    ..TransformBundleLinkOptionsV0::default()
-                },
-            )
-            .map_err(|error| format!("emission-item link failed: {error:?}"))?;
+        let linked = super::link_omena_transform_bundle_projection_with_emission_items(
+            &[entrypoint],
+            projections.linker_projection(),
+            projections.emission_item_projection(),
+            &[],
+        )
+        .map_err(|error| format!("emission-item link failed: {error:?}"))?;
         let transformed_modules = transformed_css
             .iter()
             .map(|(source_path, css)| {
@@ -5551,20 +5641,13 @@ mod tests {
         ];
         let projections =
             super::project_omena_transform_bundle_linker_and_emission_items(&modules, &[]);
-        let linked =
-            super::link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
-                &["src/app.css"],
-                projections.linker_projection(),
-                projections.emission_item_projection(),
-                &[],
-                &[],
-                TransformBundleLinkOptionsV0 {
-                    emission_ordering_policy:
-                        super::EmissionOrderingPolicyV0::ImportOrderPreserving,
-                    ..TransformBundleLinkOptionsV0::default()
-                },
-            )
-            .map_err(|error| format!("emission-item link failed: {error:?}"))?;
+        let linked = super::link_omena_transform_bundle_projection_with_emission_items(
+            &["src/app.css"],
+            projections.linker_projection(),
+            projections.emission_item_projection(),
+            &[],
+        )
+        .map_err(|error| format!("emission-item link failed: {error:?}"))?;
         let transformed = modules
             .iter()
             .map(|module| {
@@ -5615,20 +5698,13 @@ mod tests {
         ];
         let projections =
             super::project_omena_transform_bundle_linker_and_emission_items(&modules, &[]);
-        let mut linked =
-            super::link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
-                &["src/app.css"],
-                projections.linker_projection(),
-                projections.emission_item_projection(),
-                &[],
-                &[],
-                TransformBundleLinkOptionsV0 {
-                    emission_ordering_policy:
-                        super::EmissionOrderingPolicyV0::ImportOrderPreserving,
-                    ..TransformBundleLinkOptionsV0::default()
-                },
-            )
-            .map_err(|error| format!("emission-item link failed: {error:?}"))?;
+        let mut linked = super::link_omena_transform_bundle_projection_with_emission_items(
+            &["src/app.css"],
+            projections.linker_projection(),
+            projections.emission_item_projection(),
+            &[],
+        )
+        .map_err(|error| format!("emission-item link failed: {error:?}"))?;
         let missing_module = modules[1].module_instance_key();
         linked
             .emission_item_order

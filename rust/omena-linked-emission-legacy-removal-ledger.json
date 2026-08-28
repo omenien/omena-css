@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-bundler.linked-emission-legacy-removal-ledger",
+  "entries": [
+    {
+      "id": "rust-link-options-legacy-compatibility",
+      "surface": "TransformBundleLinkOptionsV0::legacy_compatibility",
+      "status": "deprecated",
+      "introducedVersion": "0.5.0",
+      "removalHorizon": "before-1.0",
+      "successor": "TransformBundleLinkOptionsV0::default",
+      "reason": "Legacy module-id ordering and importer-relative path inference remain available only as an explicit migration opt-in while all implicit construction uses import order and resolved dependency authority."
+    }
+  ]
+}

@@ -72,8 +72,8 @@ pub enum EmissionCyclePolicyV0 {
 #[serde(rename_all = "camelCase")]
 /// Selects how linked modules are ordered before their rules are emitted.
 pub enum EmissionOrderingPolicyV0 {
-    #[default]
     ModuleIdLegacy,
+    #[default]
     ImportOrderPreserving,
 }
 

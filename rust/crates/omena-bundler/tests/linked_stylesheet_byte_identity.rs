@@ -11,8 +11,8 @@ use omena_bundler::{
     link_omena_transform_bundle_modules, link_omena_transform_bundle_modules_with_options,
     link_omena_transform_bundle_modules_with_semantic_reachability,
     link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata,
-    link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options,
-    link_resolved_bundle, project_omena_transform_bundle_linker_and_emission_items,
+    link_omena_transform_bundle_projection_with_emission_items, link_resolved_bundle,
+    project_omena_transform_bundle_linker_and_emission_items,
 };
 use omena_parser::StyleDialect;
 use omena_syntax::ident::AuthoredPropertyTextV0;
@@ -313,17 +313,13 @@ fn emission_item_order_covers_non_class_rules_without_widening_legacy_order() ->
     let (modules, reachability) = linked_stylesheet_inputs();
     let projections =
         project_omena_transform_bundle_linker_and_emission_items(&modules, &reachability);
-    let linked =
-        link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
-            &["src/app.module.css"],
-            projections.linker_projection(),
-            projections.emission_item_projection(),
-            &[],
-            &[],
-            TransformBundleLinkOptionsV0::default()
-                .with_emission_ordering_policy(EmissionOrderingPolicyV0::ImportOrderPreserving),
-        )
-        .map_err(|error| format!("{error:?}"))?;
+    let linked = link_omena_transform_bundle_projection_with_emission_items(
+        &["src/app.module.css"],
+        projections.linker_projection(),
+        projections.emission_item_projection(),
+        &[],
+    )
+    .map_err(|error| format!("{error:?}"))?;
 
     // FALSIFIER: id=linked-stylesheet-legacy-rule-count class=placement via=--inject-linked-rule-misattribution producer=can-fail owner=linked-stylesheet-byte-contract entry=legacy-rule-order-complete
     assert_eq!(linked.linked_stylesheet.global_rule_order.rules.len(), 5);
