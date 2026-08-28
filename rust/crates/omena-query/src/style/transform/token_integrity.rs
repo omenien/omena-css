@@ -1,5 +1,3 @@
-#![allow(deprecated)]
-
 use super::{LinkedModuleExecutionV0, css_identifier_names_match};
 use crate::style::{
     OmenaQueryStyleFactEntry, collect_omena_query_style_fact_entry,
@@ -28,6 +26,7 @@ struct CssModuleTokenPreimageV0 {
 }
 
 #[allow(clippy::too_many_arguments)]
+#[allow(deprecated)]
 pub(super) fn summarize_css_module_token_ownership(
     target_style_path: &str,
     style_fact_entries: &[OmenaQueryStyleFactEntry],
@@ -100,6 +99,7 @@ pub(super) fn summarize_css_module_token_ownership(
     ))
 }
 
+#[allow(deprecated)]
 fn interface_mismatches_for_emitted_names(
     preimages: &[CssModuleTokenPreimageV0],
     emission_path: OmenaQueryBundleEmissionPathV0,
@@ -321,6 +321,7 @@ fn collision_signature(
         .collect()
 }
 
+#[allow(deprecated)]
 fn collision_path_observation(
     token: &str,
     collision: &[&CssModuleTokenPreimageV0],
@@ -425,6 +426,8 @@ fn scanner_can_rewrite(raw_name: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #![allow(deprecated)]
+
     use super::*;
 
     fn collision_preimage(
