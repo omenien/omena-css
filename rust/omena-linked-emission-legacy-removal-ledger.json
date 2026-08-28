@@ -64,6 +64,15 @@
       "removalHorizon": "before-1.0",
       "successor": "Omena Vite plugin bundle default",
       "reason": "Vite inherits the linked JS-adapter default and can request import-inline behavior only through the deprecated legacyEmission option."
+    },
+    {
+      "id": "postcss-legacy-emission-option",
+      "surface": "OmenaPostcssPluginOptions.legacyEmission",
+      "status": "deprecated",
+      "introducedVersion": "0.5.0",
+      "removalHorizon": "before-1.0",
+      "successor": "Omena PostCSS plugin bundle default",
+      "reason": "The PostCSS plugin delegates to the linked JS-adapter default and can request import-inline behavior only through the deprecated legacyEmission option."
     }
   ]
 }

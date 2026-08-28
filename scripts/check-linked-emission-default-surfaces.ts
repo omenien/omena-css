@@ -74,6 +74,7 @@ assert.deepEqual(
     "webassembly",
     "javascript-adapter",
     "vite-plugin",
+    "postcss-plugin",
   ],
 );
 
@@ -97,6 +98,7 @@ assert.deepEqual(
     "wasm-legacy-bundle-export",
     "js-adapter-legacy-emission-option",
     "vite-legacy-emission-option",
+    "postcss-legacy-emission-option",
   ],
 );
 for (const entry of ledger.entries) {
@@ -119,6 +121,8 @@ const adapter = readSource("packages/css-build-adapter/index.cjs");
 const adapterTypes = readSource("packages/css-build-adapter/index.d.ts");
 const vite = readSource("packages/vite-plugin/index.cjs");
 const viteTypes = readSource("packages/vite-plugin/index.d.ts");
+const postcss = readSource("packages/postcss-plugin/index.cjs");
+const postcssTypes = readSource("packages/postcss-plugin/index.d.ts");
 
 assert.match(
   emissionOrder,
@@ -183,6 +187,12 @@ assert.match(
   "Vite transform must delegate the resolved emission option to the shared adapter build",
 );
 assert.match(viteTypes, /@deprecated Legacy import-inline (?:bundle )?emission/u);
+assert.match(
+  postcss,
+  /const effectiveOptions = \{[\s\S]*?\.\.\.\(await resolveEffectiveOptions\(options, state\)\)[\s\S]*?const output = await rebuildAndCache\(filePath, source, effectiveOptions, state\);/u,
+  "PostCSS must delegate the resolved emission option to the shared adapter build",
+);
+assert.match(postcssTypes, /@deprecated Legacy import-inline (?:bundle )?emission/u);
 
 const productionRustFiles = gitFiles("rust/crates/**/*.rs").filter(
   (sourcePath) => !sourcePath.includes("/tests/"),

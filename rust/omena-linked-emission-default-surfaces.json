@@ -82,6 +82,16 @@
         "const output = await rebuildAndCache(fileId, code, effectiveOptions, state);"
       ],
       "legacyOptIn": "OmenaVitePluginOptions.legacyEmission"
+    },
+    {
+      "id": "postcss-plugin",
+      "sourcePath": "packages/postcss-plugin/index.cjs",
+      "defaultNeedles": [
+        "const effectiveOptions = {",
+        "...(await resolveEffectiveOptions(options, state)),",
+        "const output = await rebuildAndCache(filePath, source, effectiveOptions, state);"
+      ],
+      "legacyOptIn": "OmenaPostcssPluginOptions.legacyEmission"
     }
   ],
   "legacyConstructorCallSites": [
