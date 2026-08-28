@@ -179,6 +179,7 @@ interface LinkedEmissionExpectedDivergenceLedgerV0 {
     readonly derivedReasons: readonly string[];
     readonly witnessDigest: string;
     readonly justification: string;
+    readonly defaultFlipExplanation: string;
   }>;
 }
 
@@ -881,6 +882,20 @@ for (const entry of expectedDivergenceLedger.entries) {
   assert.ok(
     entry.justification.trim().length > 0,
     `${entry.fixtureId} has no expected-difference justification`,
+  );
+  assert.ok(
+    entry.defaultFlipExplanation.trim().length > 0,
+    `${entry.fixtureId} has no default-flip disclosure`,
+  );
+  assert.match(
+    entry.defaultFlipExplanation,
+    /legacy|import-inline/u,
+    `${entry.fixtureId} disclosure must explain the legacy side`,
+  );
+  assert.match(
+    entry.defaultFlipExplanation,
+    /linked|import graph/u,
+    `${entry.fixtureId} disclosure must explain the linked side`,
   );
 }
 

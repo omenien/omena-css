@@ -7,21 +7,24 @@
       "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["globalModuleOrder", "entryInterleaveCollapse", "perModuleGrouping"],
       "witnessDigest": "8b865a6bcf57182d3fc6ae05d61d759f249adcbd9b774778784d3d37fd63ac3a",
-      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference.",
+      "defaultFlipExplanation": "The legacy import-inline path keeps the entry's pre-import rule before the imported z.css and a.css rules; linked emission follows the import graph and emits z.css, then a.css, then the entry module as one group."
     },
     {
       "fixtureId": "dialect-scss-import-order",
       "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["globalModuleOrder", "entryInterleaveCollapse", "perModuleGrouping"],
       "witnessDigest": "df3f166fce73577cc606548b2509b01565945f4d6286cae23303480daba126c7",
-      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference.",
+      "defaultFlipExplanation": "The legacy import-inline path keeps the entry's pre-import rule before the imported z.scss and a.scss rules; linked emission follows the import graph and emits z.scss, then a.scss, then the entry module as one group."
     },
     {
       "fixtureId": "dialect-less-import-order",
       "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["globalModuleOrder", "entryInterleaveCollapse", "perModuleGrouping"],
       "witnessDigest": "e6f27d588eccdcd20cc2be5d644d7eabc82554f4ed71cb0a32278accb6a0ba3a",
-      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference.",
+      "defaultFlipExplanation": "The legacy import-inline path keeps the entry's pre-import rule before the imported z.less and a.less rules; linked emission follows the import graph and emits z.less, then a.less, then the entry module as one group."
     },
     {
       "fixtureId": "shared-import-diamond",
@@ -33,35 +36,40 @@
         "sharedImportSingleEmission"
       ],
       "witnessDigest": "f8e606334531e6a22cb2a1043438d0e9d0f1bff9fed8ca9d0a314a37dfa978d5",
-      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference.",
+      "defaultFlipExplanation": "The legacy import-inline path interleaves the entry with its left and right imports and emits the shared token twice; linked emission follows the diamond import graph, emits the shared dependency once, then left, right, and entry."
     },
     {
       "fixtureId": "element-only-reset-module",
       "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["importGraphModulePlacement", "formattingNormalization"],
       "witnessDigest": "e5450284c568c672ad89ce75d4377b881e1b2dc4a2db7f0c1a851b3090c16b8f",
-      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference.",
+      "defaultFlipExplanation": "The legacy import-inline bytes absorb the selectorless reset module at the import site; linked emission preserves the import-graph module boundary and places reset.css before app.css, adding the deterministic boundary newline."
     },
     {
       "fixtureId": "bare-layer-statement-module",
       "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["importGraphModulePlacement", "formattingNormalization"],
       "witnessDigest": "2eb69b3c6a6885a0725145b4e517e8dd9814123cf960bda731bf60900d8f8c3e",
-      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference.",
+      "defaultFlipExplanation": "The legacy import-inline bytes absorb the bare layer-order statement at the import site; linked emission preserves its import-graph module placement before the entry's layer blocks and adds the deterministic boundary newline."
     },
     {
       "fixtureId": "configured-sass-module-instances",
       "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["importGraphModulePlacement", "formattingNormalization"],
       "witnessDigest": "af5c4d90b4c98ac5d0c267c731bab50ba8266ada68f3d1d4e9c7209c135883d4",
-      "justification": "Both configured instances are resolved and executed with distinct configuration identities; the remaining byte delta consists of retained module-boundary syntax and formatting while parsed CSS semantics agree."
+      "justification": "Both configured instances are resolved and executed with distinct configuration identities; the remaining byte delta consists of retained module-boundary syntax and formatting while parsed CSS semantics agree.",
+      "defaultFlipExplanation": "The legacy import-inline bytes expand each configured Sass instance at its import site; linked emission follows the resolved instance graph, keeps the blue and red configurations distinct in graph order, and retains deterministic module boundaries."
     },
     {
       "fixtureId": "comment-only-module-boundary",
       "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["importGraphModulePlacement", "formattingNormalization"],
       "witnessDigest": "8636e18c2f777a8608ae58708dbfdac09b25d2919cbd868f9c7004083f0baaee",
-      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference.",
+      "defaultFlipExplanation": "The legacy import-inline bytes absorb the comment-only dependency at its import site; linked emission retains the dependency before the entry in import-graph order and adds the deterministic module-boundary newline."
     }
   ]
 }
