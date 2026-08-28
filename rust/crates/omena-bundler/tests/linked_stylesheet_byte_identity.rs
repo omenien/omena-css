@@ -35,6 +35,16 @@ fn linked_stylesheet_output_matches_committed_contract() -> Result<(), String> {
         serde_json::to_value(&extensionless).map_err(|error| format!("{error:?}"))?,
         serde_json::to_value(&two_candidate).map_err(|error| format!("{error:?}"))?,
     ])?;
+    let explicit_legacy = legacy_linked_stylesheet_with_emission_items(
+        &["src/app.module.css"],
+        &modules,
+        &reachability,
+        &[],
+        EmissionOrderingPolicyV0::ModuleIdLegacy,
+    )?;
+    let current_legacy_by_key =
+        keyed_stylesheets([serde_json::to_value(&explicit_legacy.linked_stylesheet)
+            .map_err(|error| format!("{error:?}"))?])?;
     let committed = serde_json::from_str::<Value>(LINKED_STYLESHEET_BYTE_IDENTITY_SNAPSHOT)
         .map_err(|error| format!("{error:?}"))?;
     let committed_entries = committed
@@ -62,6 +72,25 @@ fn linked_stylesheet_output_matches_committed_contract() -> Result<(), String> {
                 format!("current linked stylesheet is missing baseline key {key}")
             })?;
         }
+        let legacy_entries = committed_entries
+            .iter()
+            .map(|entry| {
+                let key = linked_stylesheet_entry_key(entry)?;
+                current_legacy_by_key
+                    .get(key.as_str())
+                    .cloned()
+                    .ok_or_else(|| {
+                        format!("current legacy stylesheet is missing baseline key {key}")
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        updated
+            .as_object_mut()
+            .ok_or_else(|| "committed byte contract must be a JSON object".to_string())?
+            .insert(
+                "legacyLinkedStylesheets".to_string(),
+                Value::Array(legacy_entries),
+            );
         let output = serde_json::to_string_pretty(&updated)
             .map_err(|error| format!("failed to serialize linked stylesheet baseline: {error}"))?;
         std::fs::write(
@@ -76,45 +105,44 @@ fn linked_stylesheet_output_matches_committed_contract() -> Result<(), String> {
         return Ok(());
     }
 
-    // F16-a: this assertion owns the legacy LinkedStylesheetV0 bytes. Fixture-count growth is
-    // additive; every entry that existed before the new fallback fixtures remains byte-identical.
-    // FALSIFIER: id=linked-stylesheet-legacy-fixture-count class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-stylesheet-byte-contract entry=committed-entry-count-is-keyed
+    let committed_legacy_entries = committed
+        .get("legacyLinkedStylesheets")
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            "committed byte contract has no legacyLinkedStylesheets array".to_string()
+        })?;
+    let committed_legacy_by_key = keyed_stylesheets(committed_legacy_entries.iter().cloned())?;
+    assert_eq!(committed_count, committed_legacy_by_key.len());
+
+    // The default and explicit-legacy byte contracts share the same fixed baseline key set.
+    // FALSIFIER: id=linked-stylesheet-default-fixture-count class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-stylesheet-byte-contract entry=committed-default-entry-count-is-keyed
     assert_eq!(committed_count, committed_by_key.len());
     // FALSIFIER: id=linked-stylesheet-additive-fixture-growth class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-stylesheet-byte-contract entry=new-fixtures-do-not-remove-baseline
     assert!(current_by_key.len() >= committed_count);
     for (key, expected) in &committed_by_key {
-        // FALSIFIER: id=linked-stylesheet-legacy-byte-contract class=placement via=--inject-unexpected-divergence producer=can-fail owner=linked-stylesheet-byte-contract entry=committed-legacy-entry-bytes
+        // FALSIFIER: id=linked-stylesheet-default-byte-contract class=placement via=--inject-unexpected-divergence producer=can-fail owner=linked-stylesheet-byte-contract entry=committed-default-entry-bytes
         assert_eq!(
             current_by_key.get(key),
             Some(expected),
-            "legacy LinkedStylesheetV0 entry changed at {key}"
+            "default LinkedStylesheetV0 entry changed at {key}"
         );
     }
 
-    let existing_with_disclosures = legacy_linked_stylesheet_with_emission_items(
-        &["src/app.module.css"],
-        &modules,
-        &reachability,
-        &[],
-        EmissionOrderingPolicyV0::ModuleIdLegacy,
-    )?;
     let existing_key = linked_stylesheet_entry_key(
-        &serde_json::to_value(&existing_with_disclosures.linked_stylesheet)
+        &serde_json::to_value(&explicit_legacy.linked_stylesheet)
             .map_err(|error| format!("{error:?}"))?,
     )?;
-    // F16-a and F16-c have disjoint jurisdictions: the old serialized entry stays exact while
-    // the sibling product artifact reports the two fallback-resolved dependency edges.
+    // The explicitly selected legacy entry stays exact while its sibling product artifact reports
+    // the two fallback-resolved dependency edges.
     // FALSIFIER: id=linked-stylesheet-bytes-with-disclosures class=placement via=--inject-unexpected-divergence producer=can-fail owner=linked-stylesheet-byte-contract entry=legacy-bytes-stable-with-nonempty-provenance
     assert_eq!(
         (
-            serde_json::to_value(&existing_with_disclosures.linked_stylesheet)
+            serde_json::to_value(&explicit_legacy.linked_stylesheet)
                 .map_err(|error| format!("{error:?}"))?,
-            existing_with_disclosures
-                .dependency_resolution_disclosures
-                .len(),
+            explicit_legacy.dependency_resolution_disclosures.len(),
         ),
         (
-            committed_by_key
+            committed_legacy_by_key
                 .get(existing_key.as_str())
                 .cloned()
                 .ok_or_else(|| format!("missing committed entry {existing_key}"))?,

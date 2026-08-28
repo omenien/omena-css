@@ -473,7 +473,11 @@ assert.doesNotMatch(
 );
 
 for (const [path, source, testName] of [
-  [queryTestPath, queryTestSource, "bundle_operation_facade_matches_consumer_build_source_map"],
+  [
+    queryTestPath,
+    queryTestSource,
+    "linked_bundle_and_consumer_build_share_source_identity_but_not_emission_segments",
+  ],
   [napiPath, napiSource, "bundles_workspace_sources_for_node_clients"],
   [wasmPath, wasmSource, "bundles_workspace_sources_for_browser_clients"],
 ] as const) {
@@ -711,7 +715,10 @@ runCargoTest(
 runCargoTest("omena-query", "linked_bundle_retains_each_module_execution_before_bundle_projection");
 runCargoTest("omena-query", "bundle_execution_scope_wire_matches_typescript_fixture");
 runCargoTest("omena-query", "linked_bundle_source_map_");
-runCargoTest("omena-query", "bundle_operation_facade_matches_consumer_build_source_map");
+runCargoTest(
+  "omena-query",
+  "linked_bundle_and_consumer_build_share_source_identity_but_not_emission_segments",
+);
 runCargoTest("omena-napi", "bundles_workspace_sources_for_node_clients");
 runCargoTest("omena-wasm", "bundles_workspace_sources_for_browser_clients");
 runCargoTest("omena-cli", "bundle_command_loads_configured_workspace_sources_without_flags");

@@ -19,6 +19,13 @@
   ],
   "excludedAssertionForms": [
     {
+      "file": "rust/crates/omena-bundler/tests/linked_stylesheet_byte_identity.rs",
+      "syntax": "assert_eq!",
+      "expectedCount": 1,
+      "owner": "linked stylesheet dual-policy snapshot schema",
+      "reentry": "the explicit-legacy snapshot key count assertion is added, removed, or converted into a behavior claim"
+    },
+    {
       "file": "rust/crates/omena-diff-test/src/linked_emission.rs",
       "syntax": "assert_ne!",
       "expectedCount": 2,
@@ -31,6 +38,20 @@
       "expectedCount": 64,
       "owner": "linked-emission byte differential",
       "reentry": "an equality assertion is added or removed without a falsifier disclosure"
+    },
+    {
+      "file": "scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
+      "syntax": "assert.match",
+      "expectedCount": 2,
+      "owner": "linked-emission default-flip disclosure prose",
+      "reentry": "a legacy-side or linked-side disclosure wording assertion is added or removed"
+    },
+    {
+      "file": "scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
+      "syntax": "assert.ok",
+      "expectedCount": 1,
+      "owner": "linked-emission default-flip disclosure prose",
+      "reentry": "the non-empty default-flip explanation assertion is added or removed"
     },
     {
       "file": "scripts/check-rust-omena-module-qualified-product-path.ts",

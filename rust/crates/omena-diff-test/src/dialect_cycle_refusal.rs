@@ -1,7 +1,8 @@
 use omena_benchmarks::bundler_productization_corpus;
 use omena_bundler::{
-    EmissionOrderingPolicyV0, TransformBundleLinkErrorV0, TransformBundleLinkOptionsV0,
-    TransformBundleModuleInputV0,
+    EmissionOrderingPolicyV0, TransformBundleDependencyResolutionV0, TransformBundleLinkErrorV0,
+    TransformBundleLinkOptionsV0, TransformBundleModuleInputV0,
+    TransformBundleResolvedDependencyV0,
     link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options,
     project_omena_transform_bundle_linker_and_emission_items,
 };
@@ -109,11 +110,49 @@ fn summarize_dialect_cycle_corpus_refusal_measurement_v1()
             .sum::<usize>();
         dependency_edge_count += input_dependency_edge_count;
         edge_bearing_input_count += usize::from(input_dependency_edge_count > 0);
+        let mut resolved_dependencies = Vec::new();
+        for source in projections.linker_projection().inputs() {
+            for edge in &source.dependency_edges {
+                let relative_target = edge
+                    .import_source
+                    .strip_prefix("./")
+                    .unwrap_or(edge.import_source.as_str());
+                let target_path = std::path::Path::new(source.source_path.as_str())
+                    .parent()
+                    .unwrap_or_else(|| std::path::Path::new(""))
+                    .join(relative_target)
+                    .to_string_lossy()
+                    .into_owned();
+                let target = projections
+                    .linker_projection()
+                    .inputs()
+                    .iter()
+                    .find(|candidate| candidate.source_path == target_path)
+                    .ok_or_else(|| {
+                        format!(
+                            "dialect-cycle corpus fixture {} lacks resolved target {} for {}",
+                            input.id, target_path, edge.import_source
+                        )
+                    })?;
+                resolved_dependencies.push(TransformBundleResolvedDependencyV0::new(
+                    source.instance.clone(),
+                    edge.kind,
+                    edge.import_source.clone(),
+                    edge.import_ordinal,
+                    TransformBundleDependencyResolutionV0::attempted(
+                        vec!["dialectCycleCorpusImportGraph"],
+                        "dialectCycleCorpusImportGraph",
+                        1,
+                        Some(target.instance.clone()),
+                    ),
+                ));
+            }
+        }
         match link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
             &input.entrypoint_paths,
             projections.linker_projection(),
             projections.emission_item_projection(),
-            &[],
+            &resolved_dependencies,
             &[],
             TransformBundleLinkOptionsV0::default()
                 .with_emission_ordering_policy(EmissionOrderingPolicyV0::ImportOrderPreserving),
