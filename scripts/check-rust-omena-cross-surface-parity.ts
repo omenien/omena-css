@@ -190,6 +190,7 @@ if (fullMode) {
   }
   assert.ok(fullModulePaths, "full parity requires built NAPI and WASM modules");
   assertLinkedEmissionSurfaceEquivalence(cliBinary, fullModulePaths);
+  assertAdapterRealDigestModeSeam(fullModulePaths.napi);
 }
 
 process.stdout.write(
@@ -527,6 +528,85 @@ function runLinkedAdapterSurface(
       },
     ),
   ) as LinkedEmissionSurfaceOutput;
+}
+
+function assertAdapterRealDigestModeSeam(napiModulePath: string): void {
+  const fixtureDir = path.join(workDir, "adapter-real-digest-mode-seam");
+  const entryPath = path.join(fixtureDir, "app.css");
+  const dependencyPath = path.join(fixtureDir, "dep.css");
+  const entrySource = '.before { order: 1; } @import "./dep.css"; .after { order: 3; }\n';
+  fs.mkdirSync(fixtureDir, { recursive: true });
+  fs.writeFileSync(entryPath, entrySource);
+  fs.writeFileSync(dependencyPath, ".dep { order: 2; }\n");
+  const inputPath = path.join(fixtureDir, "input.json");
+  fs.writeFileSync(inputPath, JSON.stringify({ entryPath, dependencyPath, entrySource }));
+  const script = `
+const fs = require("fs");
+const adapter = require(process.argv[1]);
+const binding = require(process.argv[2]);
+const input = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
+(async () => {
+  const observations = [];
+  const engine = Object.create(binding);
+  engine.buildSnapshotIdentity = async (request) => {
+    const identity = await Reflect.apply(binding.buildSnapshotIdentity, binding, [request]);
+    observations.push({ legacyEmission: request.adapterEnvironment.legacyEmission, digest: identity.digest });
+    return identity;
+  };
+  const options = { cwd: process.cwd(), configFile: false, engine, bundle: true, moduleInterface: false, sourceMap: false, sources: [input.dependencyPath], passes: ["import-inline"] };
+  const state = adapter.createOmenaBuildState({ cwd: process.cwd() });
+  const firstLegacy = await adapter.rebuildAndCache(input.entryPath, input.entrySource, { ...options, legacyEmission: true }, state);
+  const linked = await adapter.rebuildAndCache(input.entryPath, input.entrySource, options, state);
+  const secondLegacy = await adapter.rebuildAndCache(input.entryPath, input.entrySource, { ...options, legacyEmission: true }, state);
+  process.stdout.write(JSON.stringify({ observations, emissionPaths: [firstLegacy.summary.emissionPath, linked.summary.emissionPath, secondLegacy.summary.emissionPath], outputCss: [firstLegacy.code, linked.code, secondLegacy.code], cacheMetrics: { hits: state.cacheMetrics.hits, misses: state.cacheMetrics.misses, bypasses: state.cacheMetrics.bypasses, digestComputations: state.cacheMetrics.digestComputations, builds: state.cacheMetrics.builds } }));
+})().catch((error) => { console.error(error); process.exitCode = 1; });
+`;
+  const observed = JSON.parse(
+    execFileSync(
+      process.execPath,
+      [
+        "-e",
+        script,
+        path.join(repoRoot, "packages/css-build-adapter/index.cjs"),
+        napiModulePath,
+        inputPath,
+      ],
+      { cwd: fixtureDir, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
+    ),
+  ) as {
+    readonly observations: readonly { readonly legacyEmission: boolean; readonly digest: string }[];
+    readonly emissionPaths: readonly string[];
+    readonly outputCss: readonly string[];
+    readonly cacheMetrics: Readonly<Record<string, number>>;
+  };
+  assert.deepEqual(
+    observed.observations.map(({ legacyEmission }) => legacyEmission),
+    [true, false, true],
+  );
+  assert.equal(observed.observations[0]?.digest, observed.observations[2]?.digest);
+  assert.notEqual(observed.observations[0]?.digest, observed.observations[1]?.digest);
+  assert.deepEqual(observed.emissionPaths, [
+    "importInlineLegacy",
+    "linkedOrder",
+    "importInlineLegacy",
+  ]);
+  assert.equal(observed.outputCss[0], observed.outputCss[2]);
+  assert.notEqual(observed.outputCss[0], observed.outputCss[1]);
+  assert.deepEqual(observed.cacheMetrics, {
+    hits: 0,
+    misses: 3,
+    bypasses: 0,
+    digestComputations: 3,
+    builds: 3,
+  });
+  process.stdout.write(
+    `${JSON.stringify({
+      product: "omena-css-build-adapter.real-digest-mode-seam",
+      environmentModes: observed.observations.map(({ legacyEmission }) => legacyEmission),
+      distinctDigestCount: new Set(observed.observations.map(({ digest }) => digest)).size,
+      cacheMissCount: observed.cacheMetrics.misses,
+    })}\n`,
+  );
 }
 
 function buildBaseline(outputs: Record<Surface, readonly unknown[]>): ParityBaseline {
