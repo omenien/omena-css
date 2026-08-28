@@ -1626,6 +1626,8 @@ fn infer_style_dialect(path: &str) -> OmenaParserStyleDialect {
 
 #[cfg(test)]
 mod tests {
+    #![allow(deprecated)]
+
     use super::*;
 
     #[test]

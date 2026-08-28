@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use super::*;
 use crate::style::LINKED_FALLBACK_EXACT_TOKEN_REASON;
 use crate::{

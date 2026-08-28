@@ -72,11 +72,16 @@ pub enum EmissionCyclePolicyV0 {
 #[serde(rename_all = "camelCase")]
 /// Selects how linked modules are ordered before their rules are emitted.
 pub enum EmissionOrderingPolicyV0 {
+    #[deprecated(
+        since = "0.5.0",
+        note = "legacy module-id emission ordering is scheduled for removal before 1.0"
+    )]
     ModuleIdLegacy,
     #[default]
     ImportOrderPreserving,
 }
 
+#[allow(deprecated)]
 impl EmissionOrderingPolicyV0 {
     /// Returns the stable label serialized by command and adapter surfaces.
     pub const fn as_wire_label(self) -> &'static str {
@@ -134,6 +139,7 @@ pub(crate) fn build_emission_plan(
     build_emission_plan_from_module_plan(inputs, &module_plan)
 }
 
+#[allow(deprecated)]
 pub(crate) fn build_emission_module_plan(
     inputs: &[LinkerInputV0],
     linked_modules: &[ModuleInstanceKeyV0],

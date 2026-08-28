@@ -709,6 +709,10 @@ pub enum BundleResolutionAuthorityV0 {
     #[default]
     Resolved,
     /// Unmatched edges fall back to importer-relative path candidates.
+    #[deprecated(
+        since = "0.5.0",
+        note = "legacy path-inferred dependency authority is scheduled for removal before 1.0"
+    )]
     LegacyPathInferred,
 }
 
@@ -730,6 +734,7 @@ pub struct TransformBundleLinkOptionsV0 {
     pub dependency_resolution_authority: BundleResolutionAuthorityV0,
 }
 
+#[allow(deprecated)]
 impl TransformBundleLinkOptionsV0 {
     #[deprecated(
         since = "0.5.0",
@@ -1664,6 +1669,7 @@ fn materialize_linked_stylesheet_in_module_order(
     })
 }
 
+#[allow(deprecated)]
 fn derive_facade_resolved_dependencies(
     inputs: &[LinkerInputV0],
     resolution_authority: BundleResolutionAuthorityV0,
@@ -2620,6 +2626,7 @@ pub(crate) struct DependencyResolutionOutcomeV0 {
     pub(crate) authority: BundleResolutionAuthorityV0,
 }
 
+#[allow(deprecated)]
 pub(crate) fn resolve_imported_module_instance_for_edge(
     input: &LinkerInputV0,
     edge: &LinkerDependencyEdgeV0,

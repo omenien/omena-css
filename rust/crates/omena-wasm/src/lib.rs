@@ -1408,6 +1408,8 @@ fn resolve_css_module_for_bundler_host_response(
 
 #[cfg(test)]
 mod tests {
+    #![allow(deprecated)]
+
     use super::*;
 
     #[test]

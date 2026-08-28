@@ -505,6 +505,7 @@ struct OmenaQueryBundleExecutionRunV0 {
     css_module_token_ownership_census: CssModuleTokenOwnershipCensusV0,
 }
 
+#[allow(deprecated)]
 fn run_omena_query_bundle_with_optional_module_reachability(
     input: OmenaQueryBundlePlanInputV0<'_>,
     external_sifs: &[OmenaQueryExternalSifInputV0],

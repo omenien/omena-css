@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use super::{LinkedModuleExecutionV0, css_identifier_names_match};
 use crate::style::{
     OmenaQueryStyleFactEntry, collect_omena_query_style_fact_entry,

@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_benchmarks::bundler_productization_corpus;
