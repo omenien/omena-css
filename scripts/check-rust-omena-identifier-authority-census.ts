@@ -558,6 +558,8 @@ const injectCarrierFieldFlowIdentities =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_FIELD_FLOW_IDENTITIES === "1";
 const injectCarrierDelegationGuardLaundering =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_DELEGATION_GUARD_LAUNDERING === "1";
+const injectCarrierDelegationGuardShadowing =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_DELEGATION_GUARD_SHADOWING === "1";
 const injectUnqualifiedCarrierEscapeIdentity =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNQUALIFIED_CARRIER_ESCAPE_IDENTITY === "1";
 const injectOutParameterEscapeIdentity =
@@ -581,6 +583,8 @@ const injectZeroBranchGateRegistryDeletion =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_ZERO_BRANCH_GATE_REGISTRY_ENTRY === "1";
 const deleteInventoryBuildCfgMask =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_INVENTORY_BUILD_CFG_MASK === "1";
+const injectCountedBoundaryGrowth =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_COUNTED_BOUNDARY_GROWTH === "1";
 
 const authoredOriginAxis = [
   "field-access",
@@ -1360,6 +1364,7 @@ const unresolvedTaintedReceiverMutations = authoredEscapeClosureAudit.unresolved
 );
 assertReferenceSanctionedEscapeSites(authoredEscapeClosureAudit.escapeSites);
 assertSerializedWholeValueEquivalenceSanctions(authoredEscapeClosureAudit.identityFlows);
+assertSanctionedEscapeReasons(authoredEscapeClosureAudit.identityFlows);
 assertInjectedEscapeProbeOutcomes(authoredEscapeClosureAudit);
 process.stderr.write(`authoredEscapeSiteCount=${authoredEscapeClosureAudit.escapeSites.length}\n`);
 process.stderr.write(
@@ -1445,6 +1450,7 @@ for (const row of residualCarrierConsumerRows.filter(
 const residualCarrierConsumerSites = residualCarrierConsumerRows.flatMap((row) => row.consumers);
 const injectedAuthorityMutationActive =
   !deleteInventoryBuildCfgMask &&
+  !injectCountedBoundaryGrowth &&
   Object.entries(process.env).some(
     ([name, value]) => name.startsWith("OMENA_IDENTIFIER_AUTHORITY_TEST_") && value === "1",
   );
@@ -5331,14 +5337,9 @@ function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult 
         statement.text,
         sourceSites,
       );
-      const sanctioned =
-        serializedValueEquivalenceSanction !== undefined ||
-        sourceSites.every(
-          (site) =>
-            !site.operandClasses.includes("authored-bearing") ||
-            (!site.definiteAuthoredOperand &&
-              (site.path !== record.path || site.functionName !== record.functionName)),
-        );
+      const sanctionReason =
+        serializedValueEquivalenceSanction ?? operandClassSanctionReason(sourceSites, record);
+      const sanctioned = sanctionReason !== undefined;
       for (const index of sourceIndexes) flowSourceIndexes.add(index);
       flows.push({
         path: record.path,
@@ -5355,9 +5356,7 @@ function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult 
           .map((site) => `${site.path}:${site.line}:${site.operandDerivation}`)
           .join("; "),
         sanctioned,
-        ...(serializedValueEquivalenceSanction
-          ? { sanctionReason: serializedValueEquivalenceSanction }
-          : {}),
+        ...(sanctionReason ? { sanctionReason } : {}),
       });
     }
   }
@@ -5442,6 +5441,38 @@ function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult 
   };
 }
 
+function serializedWholeValueEquivalenceReason(): string {
+  return "The cache shadow oracle compares complete successful serialized values byte-for-byte; its authored-bearing operands remain explicit and the equality is sanctioned as whole-value equivalence, not asserted non-property data.";
+}
+
+function nonAuthoredOperandSanctionReason(): string {
+  return "Every source operand is mechanically classified as key-bearing or non-property; no authored-bearing operand contributes to this identity flow.";
+}
+
+function indefiniteCrossFunctionSanctionReason(): string {
+  return "An authored-bearing source reaches this sink only through an indefinite cross-function text edge; the row is scope-bound and sanctioned without asserting non-property provenance.";
+}
+
+function operandClassSanctionReason(
+  sourceSites: readonly AuthoredTaintSourceDraft[],
+  record: EscapeFunctionRecord,
+): string | undefined {
+  if (sourceSites.every((site) => !site.operandClasses.includes("authored-bearing"))) {
+    return nonAuthoredOperandSanctionReason();
+  }
+  if (
+    sourceSites.every(
+      (site) =>
+        !site.operandClasses.includes("authored-bearing") ||
+        (!site.definiteAuthoredOperand &&
+          (site.path !== record.path || site.functionName !== record.functionName)),
+    )
+  ) {
+    return indefiniteCrossFunctionSanctionReason();
+  }
+  return undefined;
+}
+
 function serializedWholeValueEquivalenceSanction(
   comparisonId: AuthoredComparisonId,
   statement: string,
@@ -5460,7 +5491,7 @@ function serializedWholeValueEquivalenceSanction(
     !/\bcached_bytes\s*==\s*fresh_bytes\b/u.test(statement)
   )
     return undefined;
-  return "The cache shadow oracle compares complete successful serialized values byte-for-byte; its authored-bearing operands remain explicit and the equality is sanctioned as whole-value equivalence, not asserted non-property data.";
+  return serializedWholeValueEquivalenceReason();
 }
 
 function assertReferenceSanctionedEscapeSites(sites: readonly AuthoredEscapeSite[]): void {
@@ -5508,7 +5539,9 @@ function assertReferenceSanctionedEscapeSites(sites: readonly AuthoredEscapeSite
 function assertSerializedWholeValueEquivalenceSanctions(
   flows: readonly AuthoredEscapeIdentityFlow[],
 ): void {
-  const sanctioned = flows.filter((flow) => flow.sanctionReason !== undefined);
+  const sanctioned = flows.filter(
+    (flow) => flow.sanctionReason === serializedWholeValueEquivalenceReason(),
+  );
   assert.equal(
     sanctioned.length,
     3,
@@ -5527,6 +5560,19 @@ function assertSerializedWholeValueEquivalenceSanctions(
       "whole-value sanctions must not relabel unqualified carriers as non-property",
     );
   }
+}
+
+function assertSanctionedEscapeReasons(flows: readonly AuthoredEscapeIdentityFlow[]): void {
+  assert.deepEqual(
+    flows.filter((flow) => flow.sanctioned && flow.sanctionReason === undefined),
+    [],
+    "every sanctioned escape identity flow must carry a mechanical or scope-bound reason",
+  );
+  assert.equal(
+    flows.filter((flow) => flow.sanctionReason === indefiniteCrossFunctionSanctionReason()).length,
+    4,
+    "the indefinite cross-function sanction boundary must remain exactly four explicit rows",
+  );
 }
 
 function applyAuthoredEscapeProbeMutations(sources: MutableRustSource[]): void {
@@ -5786,14 +5832,24 @@ function applyCarrierFieldConsumerProbeMutation(sources: MutableRustSource[]): v
 }
 
 function applyCarrierDelegationGuardProbeMutation(sources: MutableRustSource[]): void {
-  if (!injectCarrierDelegationGuardLaundering) return;
-  replaceTrackedSourceMutation(
-    sources,
-    "rust/crates/omena-query/src/types.rs",
-    "    if left_is_custom_property {",
-    "    if left.name.len() == right.name.len() {",
-    "carrier delegation family-guard laundering target",
-  );
+  if (injectCarrierDelegationGuardLaundering) {
+    replaceTrackedSourceMutation(
+      sources,
+      "rust/crates/omena-query/src/types.rs",
+      "    if left_is_custom_property {",
+      "    if left.name.len() == right.name.len() {",
+      "carrier delegation family-guard laundering target",
+    );
+  }
+  if (injectCarrierDelegationGuardShadowing) {
+    replaceTrackedSourceMutation(
+      sources,
+      "rust/crates/omena-query/src/types.rs",
+      "    let identity_domain_order = left_is_custom_property.cmp(&right_is_custom_property);",
+      "    let left_is_custom_property = false; let identity_domain_order = left_is_custom_property.cmp(&right_is_custom_property);",
+      "carrier delegation family-guard shadowing target",
+    );
+  }
 }
 
 function assertMechanicalCarrierComparatorDelegations(sources: readonly MutableRustSource[]): void {
@@ -6998,6 +7054,18 @@ function rustTaintBindingAssignments(body: string): readonly RustTaintBindingAss
   return assignments;
 }
 
+function shadowedRustBindings(body: string): ReadonlySet<string> {
+  const assignmentCounts = new Map<string, number>();
+  for (const assignment of rustTaintBindingAssignments(body)) {
+    for (const binding of assignment.bindings) {
+      assignmentCounts.set(binding, (assignmentCounts.get(binding) ?? 0) + 1);
+    }
+  }
+  return new Set(
+    [...assignmentCounts].filter(([, count]) => count > 1).map(([binding]) => binding),
+  );
+}
+
 function computeFunctionTaint(
   record: EscapeFunctionRecord,
   returnSummaries: ReadonlyMap<string, ReadonlySet<number>>,
@@ -7012,15 +7080,7 @@ function computeFunctionTaint(
   const mutableAliases = rustMutableBindingAliases(record.body);
   const containerMutations = rustContainerTaintMutations(record, mutableAliases);
   const composedParameterSources = new Map<number, Set<number>>();
-  const assignmentCounts = new Map<string, number>();
-  for (const assignment of assignments) {
-    for (const binding of assignment.bindings) {
-      assignmentCounts.set(binding, (assignmentCounts.get(binding) ?? 0) + 1);
-    }
-  }
-  const shadowedBindings = new Set(
-    [...assignmentCounts].filter(([, count]) => count > 1).map(([binding]) => binding),
-  );
+  const shadowedBindings = shadowedRustBindings(record.body);
   const parameters = escapeFunctionParameters(record.signature);
   for (const [parameterIndex, sources] of parameterInputs ?? []) {
     const parameter = parameters[parameterIndex];
@@ -8380,6 +8440,8 @@ function customPropertyFamilyGuardSelectsBindings(
   }
   const flags = [...familyFlags.values()];
   if (flags.length !== 2) return false;
+  const shadowedBindings = shadowedRustBindings(beforeGuard);
+  if (flags.some((flag) => shadowedBindings.has(flag))) return false;
   const [leftFlag, rightFlag] = flags.map(escapeRegExp);
   if (
     new RegExp(
@@ -9481,21 +9543,31 @@ function assertInventoryRowsOutsideCfgTestItems(
 function discoverCountedCannotSeeBoundaries(
   sources: readonly MutableRustSource[],
 ): readonly CountedCannotSeeBoundary[] {
-  const aliasesByPath = rustTypeAliasesByPath(sources);
-  const structFields = rustStructFieldTypes(sources, aliasesByPath);
-  const functionReturnTypes = uniqueRustFunctionReturnTypes(sources, aliasesByPath);
+  const boundarySources = sources.map((source) => ({ ...source }));
+  if (injectCountedBoundaryGrowth) {
+    replaceTrackedSourceMutation(
+      boundarySources,
+      "rust/crates/omena-query/src/types.rs",
+      "    left.name.cmp(&right.name)\n}",
+      '    let _ = [left].iter().any(|value| value.name == "--probe"); left.name.cmp(&right.name)\n}',
+      "counted boundary growth target",
+    );
+  }
+  const aliasesByPath = rustTypeAliasesByPath(boundarySources);
+  const structFields = rustStructFieldTypes(boundarySources, aliasesByPath);
+  const functionReturnTypes = uniqueRustFunctionReturnTypes(boundarySources, aliasesByPath);
   const escapePopulatedCarrierTypes = escapePopulatedStringCarrierTypes(
-    sources,
+    boundarySources,
     structFields,
     aliasesByPath,
     functionReturnTypes,
   );
   const qualifiedCarrierTypes = manuallyIdentifiedEscapeCarrierTypes(
-    sources,
+    boundarySources,
     escapePopulatedCarrierTypes,
   );
   const records = boundaryEscapeFunctionRecords(
-    sources,
+    boundarySources,
     aliasesByPath,
     structFields,
     functionReturnTypes,
@@ -9514,20 +9586,20 @@ function discoverCountedCannotSeeBoundaries(
         "chunk_by",
         "iter().any",
       ],
-      discoverCollectionCallbackComparisonGrammarSites(sources),
-      "The flow engine scans tainted field reads and comparisons inside these callbacks, but it does not type-resolve each collection callback binder as a distinct container-identity edge. The inventory is restricted to the product escape-flow closure.",
+      discoverCollectionCallbackComparisonGrammarSites(boundarySources),
+      "The flow engine scans tainted field reads and comparisons inside these callbacks, but it does not type-resolve each collection callback binder as a distinct container-identity edge. The product-closure inventory coalesces by path/function/operation, so same-triple multiplicity remains a named split-goal carry.",
     ),
     countedCannotSeeBoundary(
       "carrier-field-read-spelling-grammar",
       ["field-name-not-name", "match-pattern", "closure-binder", "deref-field"],
-      discoverCarrierFieldReadSpellingGrammarSites(sources),
-      "Carrier-source discovery is bound to a literal String field named `name` and direct `.name` or `Type { name }` reads. Property-shaped alternative fields plus match-arm, closure-binder, and explicit Deref field reads are counted lexical upper bounds, not affirmed non-property flows.",
+      discoverCarrierFieldReadSpellingGrammarSites(boundarySources),
+      "Carrier-source discovery is bound to a literal String field named `name` and direct `.name` or `Type { name }` reads. Alternative fields are only partially enumerated by /property|custom|declaration|reference|identity|selector|class|key/; match-arm, closure-binder, and explicit Deref field reads are counted lexical upper bounds, not affirmed non-property flows.",
     ),
     countedCannotSeeBoundary(
       "carrier-type-qualification-gate",
       ["canonical-custom-key-text-qualification"],
       discoverCarrierTypeQualificationGateSites(
-        sources,
+        boundarySources,
         escapePopulatedCarrierTypes,
         qualifiedCarrierTypes,
       ),
@@ -9536,8 +9608,8 @@ function discoverCountedCannotSeeBoundaries(
     countedCannotSeeBoundary(
       "place-expression-mutation-grammar",
       ["complex-method-receiver", "complex-mutable-argument"],
-      discoverPlaceExpressionMutationGrammarSites(sources),
-      "The mutable-flow resolver follows bare bindings and named aliases. Index, field, call-chain, dereference, and other place-expression receivers or mutable arguments are counted as a conservative product-closure upper bound.",
+      discoverPlaceExpressionMutationGrammarSites(boundarySources),
+      "The mutable-flow resolver follows bare bindings and named aliases. Index, field, call-chain, dereference, and other place-expression receivers or mutable arguments are a conservative product-closure upper bound that also includes type-annotation `&mut` fragments and pure temporaries.",
     ),
     countedCannotSeeBoundary(
       "assignment-form-container-write",

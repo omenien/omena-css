@@ -702,6 +702,11 @@ const redCases = [
   ],
   [
     identifierChecker,
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_DELEGATION_GUARD_SHADOWING",
+    [],
+  ],
+  [
+    identifierChecker,
     "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNQUALIFIED_CARRIER_ESCAPE_IDENTITY",
     [],
   ],
@@ -719,6 +724,7 @@ const redCases = [
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNREGISTERED_SERDE_FRONTEND", []],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_ZERO_BRANCH_GATE_REGISTRY_ENTRY", []],
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_INVENTORY_BUILD_CFG_MASK", []],
+  [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_COUNTED_BOUNDARY_GROWTH", []],
 ];
 
 const requiredMutationReceipts = new Map([
@@ -852,6 +858,10 @@ const requiredMutationReceipts = new Map([
     ["carrier comparator delegation guard does not prove custom-property family selection"],
   ],
   [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_DELEGATION_GUARD_SHADOWING\0",
+    ["carrier comparator delegation guard does not prove custom-property family selection"],
+  ],
+  [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNQUALIFIED_CARRIER_ESCAPE_IDENTITY\0",
     ["authoredEscapeIdentityViolationCount=1", "authored-bearing escape result reached"],
   ],
@@ -878,6 +888,10 @@ const requiredMutationReceipts = new Map([
   [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_INVENTORY_BUILD_CFG_MASK\0",
     ["inventory retained rows on #[cfg(test)]-masked lines"],
+  ],
+  [
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_COUNTED_BOUNDARY_GROWTH\0",
+    ["counted cannotSee boundary increased: collection-callback-comparison-grammar"],
   ],
 ]);
 

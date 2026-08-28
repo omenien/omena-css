@@ -18483,7 +18483,8 @@
           "escapeIds": ["serde-json-to-string"],
           "evidence": "reports.sort_by(|left, right| {",
           "operandDerivation": "rust/crates/omena-cli/src/config/resolution.rs:561:value=>non-property",
-          "sanctioned": true
+          "sanctioned": true,
+          "sanctionReason": "Every source operand is mechanically classified as key-bearing or non-property; no authored-bearing operand contributes to this identity flow."
         },
         {
           "path": "rust/crates/omena-cli/src/postcss_compat.rs",
@@ -18493,7 +18494,8 @@
           "escapeIds": ["serde-json-to-vec"],
           "evidence": "let output_css = if matches!(",
           "operandDerivation": "rust/crates/omena-cli/src/postcss_compat.rs:378:PostcssCompatNodeRequestV0 {\n        project_root=>non-property",
-          "sanctioned": true
+          "sanctioned": true,
+          "sanctionReason": "Every source operand is mechanically classified as key-bearing or non-property; no authored-bearing operand contributes to this identity flow."
         },
         {
           "path": "rust/crates/omena-lsp-server/src/source_type_facts.rs",
@@ -18503,7 +18505,8 @@
           "escapeIds": ["serde-json-to-vec"],
           "evidence": "reasons.insert(SOURCE_TYPE_FACT_CLOSURE_INDEX_BUDGET);",
           "operandDerivation": "rust/crates/omena-lsp-server/src/source_type_facts.rs:480:environment=>authored-bearing",
-          "sanctioned": true
+          "sanctioned": true,
+          "sanctionReason": "An authored-bearing source reaches this sink only through an indefinite cross-function text edge; the row is scope-bound and sanctioned without asserting non-property provenance."
         },
         {
           "path": "rust/crates/omena-lsp-server/src/source_type_facts.rs",
@@ -18513,7 +18516,8 @@
           "escapeIds": ["serde-json-to-vec"],
           "evidence": "reasons.insert(SOURCE_TYPE_FACT_CLOSURE_WATCHED_FILES);",
           "operandDerivation": "rust/crates/omena-lsp-server/src/source_type_facts.rs:480:environment=>authored-bearing",
-          "sanctioned": true
+          "sanctioned": true,
+          "sanctionReason": "An authored-bearing source reaches this sink only through an indefinite cross-function text edge; the row is scope-bound and sanctioned without asserting non-property provenance."
         },
         {
           "path": "rust/crates/omena-lsp-server/src/source_type_facts.rs",
@@ -18523,7 +18527,8 @@
           "escapeIds": ["serde-json-to-vec"],
           "evidence": "reasons.insert(SOURCE_TYPE_FACT_CLOSURE_WORKSPACE_FOLDER);",
           "operandDerivation": "rust/crates/omena-lsp-server/src/source_type_facts.rs:480:environment=>authored-bearing",
-          "sanctioned": true
+          "sanctioned": true,
+          "sanctionReason": "An authored-bearing source reaches this sink only through an indefinite cross-function text edge; the row is scope-bound and sanctioned without asserting non-property provenance."
         },
         {
           "path": "rust/crates/omena-lsp-server/src/source_type_facts.rs",
@@ -18533,7 +18538,8 @@
           "escapeIds": ["serde-json-to-vec"],
           "evidence": "reasons.insert(SOURCE_TYPE_FACT_CLOSURE_MODULE_SPECIFIER);",
           "operandDerivation": "rust/crates/omena-lsp-server/src/source_type_facts.rs:480:environment=>authored-bearing",
-          "sanctioned": true
+          "sanctioned": true,
+          "sanctionReason": "An authored-bearing source reaches this sink only through an indefinite cross-function text edge; the row is scope-bound and sanctioned without asserting non-property provenance."
         },
         {
           "path": "rust/crates/omena-lsp-server/src/style_symbol_provider/workspace_occurrence_read_set.rs",
@@ -18576,7 +18582,8 @@
           "escapeIds": ["debug-format-spec"],
           "evidence": "if source == module_execution.output_css {",
           "operandDerivation": "rust/crates/omena-query/src/style/transform.rs:2233:source_path=>non-property",
-          "sanctioned": true
+          "sanctioned": true,
+          "sanctionReason": "Every source operand is mechanically classified as key-bearing or non-property; no authored-bearing operand contributes to this identity flow."
         },
         {
           "path": "rust/crates/omena-query/src/style/transform/token_integrity.rs",
@@ -18586,7 +18593,8 @@
           "escapeIds": ["debug-format-spec"],
           "evidence": "if !emitted_names.contains_key(&canonical_name(token)) {",
           "operandDerivation": "rust/crates/omena-query/src/style/transform/token_integrity.rs:214:module_path=>non-property; rust/crates/omena-query/src/style/transform/token_integrity.rs:260:target_path=>non-property",
-          "sanctioned": true
+          "sanctioned": true,
+          "sanctionReason": "Every source operand is mechanically classified as key-bearing or non-property; no authored-bearing operand contributes to this identity flow."
         },
         {
           "path": "rust/crates/omena-query/src/style/transform/token_integrity.rs",
@@ -18596,7 +18604,8 @@
           "escapeIds": ["debug-format-spec"],
           "evidence": "if !entries_by_path.contains_key(target_path.as_str()) {",
           "operandDerivation": "rust/crates/omena-query/src/style/transform/token_integrity.rs:214:module_path=>non-property",
-          "sanctioned": true
+          "sanctioned": true,
+          "sanctionReason": "Every source operand is mechanically classified as key-bearing or non-property; no authored-bearing operand contributes to this identity flow."
         },
         {
           "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
@@ -18606,7 +18615,8 @@
           "escapeIds": ["debug-format-spec"],
           "evidence": "pairs.entry(pair_id).or_insert(pair);",
           "operandDerivation": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs:1143:property_key=>key-bearing, pair.element_signature=>non-property",
-          "sanctioned": true
+          "sanctioned": true,
+          "sanctionReason": "Every source operand is mechanically classified as key-bearing or non-property; no authored-bearing operand contributes to this identity flow."
         },
         {
           "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
@@ -18616,7 +18626,8 @@
           "escapeIds": ["debug-format-spec"],
           "evidence": "if input_alphabet != output_alphabet {",
           "operandDerivation": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs:643:pair.element_signature=>non-property",
-          "sanctioned": true
+          "sanctioned": true,
+          "sanctionReason": "Every source operand is mechanically classified as key-bearing or non-property; no authored-bearing operand contributes to this identity flow."
         },
         {
           "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
@@ -18626,7 +18637,8 @@
           "escapeIds": ["debug-format-spec"],
           "evidence": ".entry(base_identity.clone())",
           "operandDerivation": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs:840:candidate_property_key=>key-bearing, candidate.selector=>non-property, candidate.value=>non-property, candidate.important=>non-property",
-          "sanctioned": true
+          "sanctioned": true,
+          "sanctionReason": "Every source operand is mechanically classified as key-bearing or non-property; no authored-bearing operand contributes to this identity flow."
         },
         {
           "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
@@ -18636,10 +18648,11 @@
           "escapeIds": ["debug-format-spec"],
           "evidence": "reasons.sort_by_key(|reason| format!(\"{reason:?}\"));",
           "operandDerivation": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs:1190:reason=>non-property",
-          "sanctioned": true
+          "sanctioned": true,
+          "sanctionReason": "Every source operand is mechanically classified as key-bearing or non-property; no authored-bearing operand contributes to this identity flow."
         }
       ],
-      "identityFlowDigest": "sha256:11967fb778a57452c94753115aab9e79dc00a3b6f64453f80ebb6f5772c08a99",
+      "identityFlowDigest": "sha256:6856a56ee6992775bdff917c007361d8b06bcad23a34adb751c44db617113ff1",
       "identityViolationCount": 0,
       "sanctionedIdentityCount": 16,
       "writeIntoSiteCount": 69,
@@ -20264,7 +20277,7 @@
             }
           ],
           "siteDigest": "sha256:649001f6ec4ba357aeb24d8fb23b4b58101cc637cc295576840f376e882cf30e",
-          "reason": "The flow engine scans tainted field reads and comparisons inside these callbacks, but it does not type-resolve each collection callback binder as a distinct container-identity edge. The inventory is restricted to the product escape-flow closure."
+          "reason": "The flow engine scans tainted field reads and comparisons inside these callbacks, but it does not type-resolve each collection callback binder as a distinct container-identity edge. The product-closure inventory coalesces by path/function/operation, so same-triple multiplicity remains a named split-goal carry."
         },
         {
           "id": "carrier-field-read-spelling-grammar",
@@ -24864,7 +24877,7 @@
             }
           ],
           "siteDigest": "sha256:2c879492b2d578de386fb308678983bd146c074cb521e5d298659cea603aa5ad",
-          "reason": "Carrier-source discovery is bound to a literal String field named `name` and direct `.name` or `Type { name }` reads. Property-shaped alternative fields plus match-arm, closure-binder, and explicit Deref field reads are counted lexical upper bounds, not affirmed non-property flows."
+          "reason": "Carrier-source discovery is bound to a literal String field named `name` and direct `.name` or `Type { name }` reads. Alternative fields are only partially enumerated by /property|custom|declaration|reference|identity|selector|class|key/; match-arm, closure-binder, and explicit Deref field reads are counted lexical upper bounds, not affirmed non-property flows."
         },
         {
           "id": "carrier-type-qualification-gate",
@@ -35513,7 +35526,7 @@
             }
           ],
           "siteDigest": "sha256:804ef84d2eeb4f98bfd907f6bf0fc5a4392d7f865f8900a2cf3e781686da5bae",
-          "reason": "The mutable-flow resolver follows bare bindings and named aliases. Index, field, call-chain, dereference, and other place-expression receivers or mutable arguments are counted as a conservative product-closure upper bound."
+          "reason": "The mutable-flow resolver follows bare bindings and named aliases. Index, field, call-chain, dereference, and other place-expression receivers or mutable arguments are a conservative product-closure upper bound that also includes type-annotation `&mut` fragments and pure temporaries."
         },
         {
           "id": "assignment-form-container-write",
@@ -43618,25 +43631,25 @@
         }
       ],
       "cannotSee": [
-        "scripts/check-rust-omena-identifier-authority-census.ts:9310: /tests/ trees are outside the product escape-flow scan.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:9311: */tests.rs files are outside the product escape-flow scan.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:9312: *_test.rs files are outside the product escape-flow scan.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:9387: #[cfg(test)] items are masked before escape-flow analysis.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:9314: /src/bin/ files are excluded; named binaries: rust/crates/engine-style-parser/src/bin/engine-style-parser-canonical-candidate.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-canonical-producer.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-css-modules-intermediate.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-evaluator-candidates.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-index-producer.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-index-summary.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-summary.rs:1, rust/crates/omena-benchmarks/src/bin/bundler_productization_surface_snapshot.rs:1, rust/crates/omena-benchmarks/src/bin/emitted_css_golden_gate.rs:1, rust/crates/omena-benchmarks/src/bin/flow_artifact_reuse_profile.rs:1, rust/crates/omena-benchmarks/src/bin/headline_axis_fidelity_snapshot.rs:1, rust/crates/omena-benchmarks/src/bin/parser_edit_trace_slope_profile.rs:1, rust/crates/omena-benchmarks/src/bin/parser_fact_collection_profile.rs:1, rust/crates/omena-benchmarks/src/bin/transform_ir_transaction_profile.rs:1, rust/crates/omena-benchmarks/src/bin/transform_relex_baseline_gate.rs:1, rust/crates/omena-benchmarks/src/bin/z5_criterion_surface_snapshot.rs:1, rust/crates/omena-benchmarks/src/bin/z5_format_idempotence.rs:1, rust/crates/omena-benchmarks/src/bin/z5_parser_product_cutover.rs:1, rust/crates/omena-benchmarks/src/bin/z5_style_corpus_snapshot.rs:1, rust/crates/omena-bundler/src/bin/omena-emission-order-contract.rs:1, rust/crates/omena-cascade-proof/src/bin/omena-cascade-discharge-ledger.rs:1, rust/crates/omena-cli/src/bin/omenad.rs:1, rust/crates/omena-cli/src/bin/trace.rs:1, rust/crates/omena-diff-test/src/bin/cascade_key_producer_census.rs:1, rust/crates/omena-diff-test/src/bin/omena-diff-test-boundary.rs:1, rust/crates/omena-diff-test/src/bin/omena-linked-emission-byte-differential.rs:1, rust/crates/omena-diff-test/src/bin/omena-source-frontend-rust-capture.rs:1, rust/crates/omena-diff-test/src/bin/omena-source-precision-baseline.rs:1, rust/crates/omena-diff-test/src/bin/render_sass_bail_site_product_view.rs:1, rust/crates/omena-lsp-server/src/bin/omena-lsp-server-boundary.rs:1, rust/crates/omena-lsp-server/src/bin/omena-lsp-server.rs:1, rust/crates/omena-parser/src/bin/omena-parser-canonical-candidate.rs:1, rust/crates/omena-parser/src/bin/omena-parser-canonical-producer.rs:1, rust/crates/omena-parser/src/bin/omena-parser-css-modules-intermediate.rs:1, rust/crates/omena-parser/src/bin/omena-parser-evaluator-candidates.rs:1, rust/crates/omena-parser/src/bin/omena-parser-lex.rs:1, rust/crates/omena-parser/src/bin/omena-parser-style-facts.rs:1, rust/crates/omena-parser/src/bin/omena-parser-summary.rs:1, rust/crates/omena-query/src/bin/omena-query-m4-axis-c-readiness.rs:1, rust/crates/omena-semantic/src/bin/omena-semantic-boundary.rs:1, rust/crates/omena-semantic/src/bin/omena-semantic-graph.rs:1, rust/crates/omena-semantic/src/bin/omena-semantic-observation-contract.rs:1, rust/crates/omena-semantic/src/bin/omena-semantic-observation.rs:1, rust/crates/omena-semantic/src/bin/omena-semantic-source-evidence.rs:1, rust/crates/omena-spec-audit/src/bin/omena-spec-audit-boundary.rs:1, rust/crates/omena-testkit/src/bin/omena-testkit-boundary.rs:1, rust/crates/omena-testkit/src/bin/omena-testkit-parse-fixture.rs:1, rust/crates/omena-transform-print/src/bin/transform_source_map_integrity.rs:1, rust/crates/omena-tsgo-client/src/bin/omena-tsgo-client-boundary.rs:1, rust/crates/omena-tsgo-client/src/bin/omena-tsgo-span-type-fact-capture.rs:1.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:9315: *_generated.rs files are excluded.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:9309: benches/, examples/, and build.rs are outside the /src/ production-source root.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:9372: /tests/ trees are outside the product escape-flow scan.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:9373: */tests.rs files are outside the product escape-flow scan.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:9374: *_test.rs files are outside the product escape-flow scan.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:9449: #[cfg(test)] items are masked before escape-flow analysis.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:9376: /src/bin/ files are excluded; named binaries: rust/crates/engine-style-parser/src/bin/engine-style-parser-canonical-candidate.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-canonical-producer.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-css-modules-intermediate.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-evaluator-candidates.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-index-producer.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-index-summary.rs:1, rust/crates/engine-style-parser/src/bin/engine-style-parser-summary.rs:1, rust/crates/omena-benchmarks/src/bin/bundler_productization_surface_snapshot.rs:1, rust/crates/omena-benchmarks/src/bin/emitted_css_golden_gate.rs:1, rust/crates/omena-benchmarks/src/bin/flow_artifact_reuse_profile.rs:1, rust/crates/omena-benchmarks/src/bin/headline_axis_fidelity_snapshot.rs:1, rust/crates/omena-benchmarks/src/bin/parser_edit_trace_slope_profile.rs:1, rust/crates/omena-benchmarks/src/bin/parser_fact_collection_profile.rs:1, rust/crates/omena-benchmarks/src/bin/transform_ir_transaction_profile.rs:1, rust/crates/omena-benchmarks/src/bin/transform_relex_baseline_gate.rs:1, rust/crates/omena-benchmarks/src/bin/z5_criterion_surface_snapshot.rs:1, rust/crates/omena-benchmarks/src/bin/z5_format_idempotence.rs:1, rust/crates/omena-benchmarks/src/bin/z5_parser_product_cutover.rs:1, rust/crates/omena-benchmarks/src/bin/z5_style_corpus_snapshot.rs:1, rust/crates/omena-bundler/src/bin/omena-emission-order-contract.rs:1, rust/crates/omena-cascade-proof/src/bin/omena-cascade-discharge-ledger.rs:1, rust/crates/omena-cli/src/bin/omenad.rs:1, rust/crates/omena-cli/src/bin/trace.rs:1, rust/crates/omena-diff-test/src/bin/cascade_key_producer_census.rs:1, rust/crates/omena-diff-test/src/bin/omena-diff-test-boundary.rs:1, rust/crates/omena-diff-test/src/bin/omena-linked-emission-byte-differential.rs:1, rust/crates/omena-diff-test/src/bin/omena-source-frontend-rust-capture.rs:1, rust/crates/omena-diff-test/src/bin/omena-source-precision-baseline.rs:1, rust/crates/omena-diff-test/src/bin/render_sass_bail_site_product_view.rs:1, rust/crates/omena-lsp-server/src/bin/omena-lsp-server-boundary.rs:1, rust/crates/omena-lsp-server/src/bin/omena-lsp-server.rs:1, rust/crates/omena-parser/src/bin/omena-parser-canonical-candidate.rs:1, rust/crates/omena-parser/src/bin/omena-parser-canonical-producer.rs:1, rust/crates/omena-parser/src/bin/omena-parser-css-modules-intermediate.rs:1, rust/crates/omena-parser/src/bin/omena-parser-evaluator-candidates.rs:1, rust/crates/omena-parser/src/bin/omena-parser-lex.rs:1, rust/crates/omena-parser/src/bin/omena-parser-style-facts.rs:1, rust/crates/omena-parser/src/bin/omena-parser-summary.rs:1, rust/crates/omena-query/src/bin/omena-query-m4-axis-c-readiness.rs:1, rust/crates/omena-semantic/src/bin/omena-semantic-boundary.rs:1, rust/crates/omena-semantic/src/bin/omena-semantic-graph.rs:1, rust/crates/omena-semantic/src/bin/omena-semantic-observation-contract.rs:1, rust/crates/omena-semantic/src/bin/omena-semantic-observation.rs:1, rust/crates/omena-semantic/src/bin/omena-semantic-source-evidence.rs:1, rust/crates/omena-spec-audit/src/bin/omena-spec-audit-boundary.rs:1, rust/crates/omena-testkit/src/bin/omena-testkit-boundary.rs:1, rust/crates/omena-testkit/src/bin/omena-testkit-parse-fixture.rs:1, rust/crates/omena-transform-print/src/bin/transform_source_map_integrity.rs:1, rust/crates/omena-tsgo-client/src/bin/omena-tsgo-client-boundary.rs:1, rust/crates/omena-tsgo-client/src/bin/omena-tsgo-span-type-fact-capture.rs:1.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:9377: *_generated.rs files are excluded.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:9371: benches/, examples/, and build.rs are outside the /src/ production-source root.",
         "rust/crates/omena-diff-test/Cargo.toml:2: fixture crate omena-diff-test is outside product escape-flow closure.",
         "rust/crates/engine-style-parser/Cargo.toml:2: fixture crate engine-style-parser is outside product escape-flow closure.",
         "rust/crates/omena-benchmarks/Cargo.toml:2: fixture crate omena-benchmarks and repository examples are outside product escape-flow closure.",
         "rust/crates/omena-syntax/src/ident.rs:21: the ClassNameV0 raw/into_raw/decoded/same_as identity plane belongs to selector authority and is not property identity.",
         "rust/crates/omena-syntax/src/ident.rs:410: canonical_name()/sealed-key as_str() text comparisons are not escape flows; they are canonical-correct only within a kind, and standard(\"--foo\") collides textually with custom(\"--foo\").",
-        "scripts/check-rust-omena-identifier-authority-census.ts:5054: cross-crate calls, dyn dispatch, unknown method receivers, and indirect function bindings are not resolved by the intra-crate text fixpoint; module-qualified free calls and uniquely typed inherent methods are resolved.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:5130: 2 known-but-ambiguous intra-crate call edges remain separately enumerated with file:line and do not contribute return taint.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:7021: 0 identity-shaped uses reached only through reused binding spellings remain separately enumerated with file:line; the text engine declines to infer through them because it cannot prove lexical scope.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:2683: key construction whose input was normalized before the authority constructor is visible only when the residual provenance resolver recognizes that normalization; any unrecognized pre-normalization remains outside the claim.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:9319: proc-macro-generated bodies other than serde derives and unsafe transmute are outside the text scanner.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:571: generated matrix cells are scanner-only and are never compiled; their ORIGIN scores come from a paired fixture detector, not the production flow fixpoint.",
-        "scripts/check-rust-omena-identifier-authority-census.ts:9309: non-Rust consumers of Serialize egress in packages/, N-API, and WASM are outside Rust source-flow closure."
+        "scripts/check-rust-omena-identifier-authority-census.ts:5060: cross-crate calls, dyn dispatch, unknown method receivers, and indirect function bindings are not resolved by the intra-crate text fixpoint; module-qualified free calls and uniquely typed inherent methods are resolved.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:5136: 2 known-but-ambiguous intra-crate call edges remain separately enumerated with file:line and do not contribute return taint.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:10104: 0 identity-shaped uses reached only through reused binding spellings remain separately enumerated with file:line; the text engine declines to infer through them because it cannot prove lexical scope.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:2689: key construction whose input was normalized before the authority constructor is visible only when the residual provenance resolver recognizes that normalization; any unrecognized pre-normalization remains outside the claim.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:9381: proc-macro-generated bodies other than serde derives and unsafe transmute are outside the text scanner.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:573: generated matrix cells are scanner-only and are never compiled; their ORIGIN scores come from a paired fixture detector, not the production flow fixpoint.",
+        "scripts/check-rust-omena-identifier-authority-census.ts:9371: non-Rust consumers of Serialize egress in packages/, N-API, and WASM are outside Rust source-flow closure."
       ]
     }
   }

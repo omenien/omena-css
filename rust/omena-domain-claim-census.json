@@ -123,7 +123,7 @@
         "compatCount": 247,
         "identityEscalationCount": 216,
         "governanceDataCount": 79,
-        "siteSetSha256": "b4f9ea60f922d9e091343f2452284069e0553d19b2eaa523baac1096722bdd7f"
+        "siteSetSha256": "3e97ba434fdc04e4331ade95c8eaa7c7f654c243f500b7ae9cab1535f5e08850"
       },
       {
         "familyId": "f04",
@@ -132,7 +132,7 @@
         "compatCount": 264,
         "identityEscalationCount": 189,
         "governanceDataCount": 97,
-        "siteSetSha256": "efaf523c50ea2ed5e6730fd60514a0b52cd7444fd4103c13b0e8d16059d2de66"
+        "siteSetSha256": "809455e6c85b53a5a9569e9f028b453797db00d3d91454d3ae06c73a5c29f656"
       },
       {
         "familyId": "f05",
@@ -141,7 +141,7 @@
         "compatCount": 192,
         "identityEscalationCount": 0,
         "governanceDataCount": 52,
-        "siteSetSha256": "38f48d55a6b030f2170b3f664cccfe84bf51b8047ed1b14b163e5f7a508ab83c"
+        "siteSetSha256": "5ccda46084cc3ea25488ce4fe20154d989613a7862a6fb15e8a4cb9338e7dd2b"
       },
       {
         "familyId": "f06",
@@ -150,11 +150,11 @@
         "compatCount": 170,
         "identityEscalationCount": 127,
         "governanceDataCount": 58,
-        "siteSetSha256": "fe5125ee947a55b5a8a7f6a006f73f87073d6512a5f9e5d840587e89e4cef616"
+        "siteSetSha256": "c0f6443d71d4e22bb1967a4c6c899a3a5c0f835605e3950d77aaa105fe81512e"
       }
     ],
-    "siteSetSha256": "d50e1d3e5ca79620d67e1cdf49c60b28386f6690100052b286ff10fe25112267",
-    "claimSiteSetSha256": "c8c1169dc6d5b16ef1ba2a53af5297e2d10fc1b9f279cfb9f926119f4a12f380",
+    "siteSetSha256": "a4408c567a660bc7ce589bfa98a957a9be22a009937d8b271ee5a762a3642bda",
+    "claimSiteSetSha256": "241f9aaf1a64925ca155841b244a333fca315e3a8305f6c6da9ccb0afd139761",
     "compatDeclarationSetSha256": "34aae0acdcbc33f2b6d4f212665eaf41d13e823e20e2c2d7108b28244a40b21c",
     "identityCrateSetSha256": "301477ffa6f128519a55a9aa55d336d35400f48ae4fd73cd66b4d2fcc60ae772",
     "governanceRuleSetSha256": "620a686cd058896eda23ba284125f7c43826b9e572131386925e1358c257e966"
