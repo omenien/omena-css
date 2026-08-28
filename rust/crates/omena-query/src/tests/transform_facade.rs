@@ -728,7 +728,11 @@ fn linked_bundle_and_consumer_build_share_source_identity_but_not_emission_segme
     assert_ne!(artifact.source_map_v3.mappings, summary_source_map.mappings);
     assert_eq!(
         artifact.source_map_v3.x_omena_pass_ids,
-        ["linked-order-emission".to_string()]
+        [
+            "import-inline".to_string(),
+            "linked-order-emission".to_string(),
+            "print-css".to_string(),
+        ]
     );
     assert_eq!(
         summary_source_map.x_omena_pass_ids,
@@ -923,7 +927,7 @@ fn bundle_emission_path_defaults_to_linked_and_keeps_legacy_explicit() -> Result
     assert_eq!(linked.artifact.source_map_v3.x_omena_segment_count, 2);
     assert_eq!(
         linked.artifact.source_map_v3.x_omena_pass_ids,
-        vec!["linked-order-emission"]
+        vec!["import-inline", "linked-order-emission", "print-css"]
     );
     assert!(
         linked

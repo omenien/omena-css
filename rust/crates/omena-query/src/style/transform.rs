@@ -2200,16 +2200,31 @@ fn summarize_omena_query_linked_bundle_source_map_v3(
         .iter()
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<Vec<_>>();
-    Ok((
-        serialize_transform_source_map_v3_with_source_contents(
-            style_path,
-            execution.output_css.as_str(),
-            style_path,
-            source_contents.as_slice(),
-            segments.as_slice(),
-        ),
-        dispositions,
-    ))
+    let mut source_map = serialize_transform_source_map_v3_with_source_contents(
+        style_path,
+        execution.output_css.as_str(),
+        style_path,
+        source_contents.as_slice(),
+        segments.as_slice(),
+    );
+    source_map.x_omena_pass_ids = linked_bundle_source_map_pass_ids(
+        module_executions,
+        source_map.x_omena_pass_ids.as_slice(),
+    );
+    Ok((source_map, dispositions))
+}
+
+fn linked_bundle_source_map_pass_ids(
+    module_executions: &[LinkedModuleExecutionV0],
+    emission_pass_ids: &[&'static str],
+) -> Vec<&'static str> {
+    module_executions
+        .iter()
+        .flat_map(|module| module.execution.executed_pass_ids.iter().copied())
+        .chain(emission_pass_ids.iter().copied())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 fn linked_bundle_source_map_segments(
@@ -6163,6 +6178,10 @@ mod linked_source_map_tests {
             &materialization,
             &module_executions,
         )?;
+        assert_eq!(
+            source_map.x_omena_pass_ids,
+            ["linked-order-emission", "print-css"]
+        );
         assert_eq!(
             &materialization.output_css[third_rule.generated_start..third_rule.generated_end],
             "linked-map-token-c"

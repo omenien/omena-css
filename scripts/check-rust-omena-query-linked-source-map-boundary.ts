@@ -40,6 +40,7 @@ let linkedSourceMapBody = extractFunctionBody(
   "summarize_omena_query_linked_bundle_source_map_v3",
 );
 const linkedSegmentBody = extractFunctionBody(source, "linked_bundle_source_map_segments");
+const linkedPassIdBody = extractFunctionBody(source, "linked_bundle_source_map_pass_ids");
 const legacyInlineBody = extractFunctionBody(source, "import_inline_source_map_segments");
 const legacyGraphBody = extractFunctionBody(source, "collect_import_graph_source_map_segments");
 
@@ -108,6 +109,9 @@ assert.match(
   /summarize_omena_query_consumer_build_source_map_v3_with_resolution_inputs\s*\(/u,
 );
 assert.match(linkedSourceMapBody, /linked_bundle_source_map_segments\s*\(/u);
+assert.match(linkedSourceMapBody, /linked_bundle_source_map_pass_ids\s*\(/u);
+assert.match(linkedPassIdBody, /module\.execution\.executed_pass_ids\.iter\(\)\.copied\(\)/u);
+assert.match(linkedPassIdBody, /emission_pass_ids\.iter\(\)\.copied\(\)/u);
 assert.doesNotMatch(linkedSourceMapBody, /find_import_origin_generated_range\s*\(/u);
 assert.doesNotMatch(linkedSourceMapBody, /import_inline_source_map_segments\s*\(/u);
 assert.doesNotMatch(linkedSegmentBody, /find_import_origin_generated_range\s*\(/u);

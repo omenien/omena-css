@@ -18,6 +18,11 @@ interface ConsumerBuildSummary {
   readonly execution: {
     readonly outputCss: string;
   };
+  readonly executionScope: {
+    readonly bundleExecution: {
+      readonly aggregateExecutedPassIds: readonly string[];
+    };
+  };
   readonly sourceMapV3?: SourceMapV3;
   readonly readySurfaces: readonly string[];
 }
@@ -175,7 +180,16 @@ try {
   assert.ok(!summary.execution.outputCss.includes("./icons/token.svg"));
   assert.ok(sourceMap.mappings.length > 0);
   assert.ok(sourceMap.x_omenaSegmentCount >= 3);
-  assert.ok(sourceMap.x_omenaPassIds.includes("import-inline"));
+  assert.deepEqual(
+    sourceMap.x_omenaPassIds,
+    [
+      ...new Set([
+        ...summary.executionScope.bundleExecution.aggregateExecutedPassIds,
+        "linked-order-emission",
+      ]),
+    ].toSorted(),
+    "linked source-map provenance must name every executed module pass plus linked emission",
+  );
 
   assertSourceContent(sourceMap, appScssPath, appScssSource);
   assertSourceContent(sourceMap, tokensPath, tokensSource);
