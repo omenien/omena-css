@@ -41,10 +41,14 @@ interface LegacyRemovalLedgerV0 {
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const injectSilentLegacyConstruction = process.argv.includes("--inject-silent-legacy-construction");
 const injectAdapterLegacyBinding = process.argv.includes("--inject-adapter-legacy-binding");
+const injectAdapterEmissionEnvironmentDrop = process.argv.includes(
+  "--inject-adapter-emission-environment-drop",
+);
 const injectDefaultDrift = process.argv.includes("--inject-default-drift");
 const knownArguments = new Set([
   "--inject-silent-legacy-construction",
   "--inject-adapter-legacy-binding",
+  "--inject-adapter-emission-environment-drop",
   "--inject-default-drift",
 ]);
 for (const argument of process.argv.slice(2)) {
@@ -65,6 +69,7 @@ assert.deepEqual(
     "rust-bundle-options",
     "rust-query-options",
     "command-line",
+    "command-line-bundle-subcommand",
     "node-api",
     "webassembly",
     "javascript-adapter",
@@ -112,16 +117,20 @@ const napi = readSource("rust/crates/omena-napi/src/lib.rs");
 const wasm = readSource("rust/crates/omena-wasm/src/lib.rs");
 const adapter = readSource("packages/css-build-adapter/index.cjs");
 const adapterTypes = readSource("packages/css-build-adapter/index.d.ts");
+const vite = readSource("packages/vite-plugin/index.cjs");
 const viteTypes = readSource("packages/vite-plugin/index.d.ts");
 
 assert.match(
   emissionOrder,
-  /pub enum EmissionOrderingPolicyV0\s*\{[\s\S]*?#\[default\]\s*ImportOrderPreserving,/u,
+  /pub enum EmissionOrderingPolicyV0\s*\{[\s\S]*?#\[deprecated\([\s\S]*?since = "0\.5\.0"[\s\S]*?before 1\.0[\s\S]*?\)\]\s*ModuleIdLegacy,[\s\S]*?#\[default\]\s*ImportOrderPreserving,/u,
 );
-assert.match(bundler, /pub enum BundleResolutionAuthorityV0\s*\{[\s\S]*?#\[default\]\s*Resolved,/u);
+assert.match(
+  bundler,
+  /pub enum BundleResolutionAuthorityV0\s*\{[\s\S]*?#\[default\]\s*Resolved,[\s\S]*?#\[deprecated\([\s\S]*?since = "0\.5\.0"[\s\S]*?before 1\.0[\s\S]*?\)\]\s*LegacyPathInferred,/u,
+);
 assert.match(
   queryTypes,
-  /pub enum OmenaQueryBundleEmissionPathV0\s*\{\s*ImportInlineLegacy,\s*#\[default\]\s*LinkedOrder,/u,
+  /pub enum OmenaQueryBundleEmissionPathV0\s*\{\s*#\[deprecated\([\s\S]*?since = "0\.5\.0"[\s\S]*?before 1\.0[\s\S]*?\)\]\s*ImportInlineLegacy,\s*#\[default\]\s*LinkedOrder,/u,
 );
 assert.match(cliCommands, /deprecated import-inline bundle emission path/u);
 assert.match(cliCommands, /#\[arg\(long = "legacy-emission"\)\]/u);
@@ -152,6 +161,11 @@ assert.ok(
   ),
   "JS adapter no longer selects linked emission unless legacyEmission is explicit",
 );
+assert.equal(
+  countOccurrences(adapter, "legacyEmission: Boolean(options.legacyEmission),"),
+  1,
+  "JS adapter cache identity must bind the selected emission mode exactly once",
+);
 const defaultAdapterBuilders = [
   ...adapter.matchAll(/async buildBundleSources\(input\) \{([\s\S]*?)\n\s{12}\},/gu),
 ];
@@ -163,6 +177,11 @@ for (const match of defaultAdapterBuilders) {
 }
 assert.equal(countOccurrences(adapter, "async buildBundleSourcesLegacy(input)"), 2);
 assert.match(adapterTypes, /@deprecated Legacy import-inline (?:bundle )?emission/u);
+assert.match(
+  vite,
+  /async transform\(code, id\) \{[\s\S]*?const effectiveOptions = await resolveEffectiveOptions\(options, state\);[\s\S]*?const output = await rebuildAndCache\(fileId, code, effectiveOptions, state\);/u,
+  "Vite transform must delegate the resolved emission option to the shared adapter build",
+);
 assert.match(viteTypes, /@deprecated Legacy import-inline (?:bundle )?emission/u);
 
 const productionRustFiles = gitFiles("rust/crates/**/*.rs").filter(
@@ -254,11 +273,22 @@ function readSource(sourcePath: string): string {
   if (injectAdapterLegacyBinding && sourcePath === "packages/css-build-adapter/index.cjs") {
     source = source.replace(": engine.buildBundleSources;", ": engine.buildBundleSourcesLegacy;");
   }
+  if (
+    injectAdapterEmissionEnvironmentDrop &&
+    sourcePath === "packages/css-build-adapter/index.cjs"
+  ) {
+    source = source.replace("    legacyEmission: Boolean(options.legacyEmission),\n", "");
+  }
   if (injectDefaultDrift && sourcePath === "rust/crates/omena-query/src/types.rs") {
-    source = source.replace(
-      "    ImportInlineLegacy,\n    #[default]\n    LinkedOrder,",
-      "    #[default]\n    ImportInlineLegacy,\n    LinkedOrder,",
-    );
+    source = source
+      .replace(
+        "pub enum OmenaQueryBundleEmissionPathV0 {\n",
+        "pub enum OmenaQueryBundleEmissionPathV0 {\n    #[default]\n",
+      )
+      .replace(
+        "    ImportInlineLegacy,\n    #[default]\n    LinkedOrder,",
+        "    ImportInlineLegacy,\n    LinkedOrder,",
+      );
   }
   return source;
 }

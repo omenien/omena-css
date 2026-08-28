@@ -36,6 +36,15 @@
       "legacyOptIn": "--legacy-emission / build.legacyEmission"
     },
     {
+      "id": "command-line-bundle-subcommand",
+      "sourcePath": "rust/crates/omena-cli/src/bundle.rs",
+      "defaultNeedles": [
+        "pub(crate) fn plan_bundle",
+        "&OmenaQueryConsumerBuildOptionsV0::default(),"
+      ],
+      "legacyOptIn": "omena build --bundle --legacy-emission"
+    },
+    {
       "id": "node-api",
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
       "defaultNeedles": [
@@ -69,6 +78,7 @@
       "id": "vite-plugin",
       "sourcePath": "packages/vite-plugin/index.cjs",
       "defaultNeedles": [
+        "const effectiveOptions = await resolveEffectiveOptions(options, state);",
         "const output = await rebuildAndCache(fileId, code, effectiveOptions, state);"
       ],
       "legacyOptIn": "OmenaVitePluginOptions.legacyEmission"
