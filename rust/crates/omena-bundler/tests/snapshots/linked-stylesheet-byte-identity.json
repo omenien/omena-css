@@ -31,27 +31,16 @@
           {
             "globalOrderIndex": 0,
             "moduleInstance": {
-              "module": "src/app.module.css",
+              "module": "src/theme.css",
               "configuration": "with:none"
             },
-            "selectorName": "app",
+            "selectorName": "theme",
             "selectorKind": "class",
-            "rangeStart": 64,
-            "rangeEnd": 67
+            "rangeStart": 25,
+            "rangeEnd": 30
           },
           {
             "globalOrderIndex": 1,
-            "moduleInstance": {
-              "module": "src/app.module.css",
-              "configuration": "with:none"
-            },
-            "selectorName": "appAlt",
-            "selectorKind": "class",
-            "rangeStart": 94,
-            "rangeEnd": 100
-          },
-          {
-            "globalOrderIndex": 2,
             "moduleInstance": {
               "module": "src/components/card.module.css",
               "configuration": "with:none"
@@ -62,7 +51,7 @@
             "rangeEnd": 5
           },
           {
-            "globalOrderIndex": 3,
+            "globalOrderIndex": 2,
             "moduleInstance": {
               "module": "src/components/card.module.css",
               "configuration": "with:none"
@@ -73,15 +62,26 @@
             "rangeEnd": 34
           },
           {
-            "globalOrderIndex": 4,
+            "globalOrderIndex": 3,
             "moduleInstance": {
-              "module": "src/theme.css",
+              "module": "src/app.module.css",
               "configuration": "with:none"
             },
-            "selectorName": "theme",
+            "selectorName": "app",
             "selectorKind": "class",
-            "rangeStart": 25,
-            "rangeEnd": 30
+            "rangeStart": 64,
+            "rangeEnd": 67
+          },
+          {
+            "globalOrderIndex": 4,
+            "moduleInstance": {
+              "module": "src/app.module.css",
+              "configuration": "with:none"
+            },
+            "selectorName": "appAlt",
+            "selectorKind": "class",
+            "rangeStart": 94,
+            "rangeEnd": 100
           }
         ]
       },
