@@ -666,7 +666,10 @@ function scanAdapterMembers(): AdapterMember[] {
     const open = (match.index ?? 0) + match[0].lastIndexOf("{");
     const close = findMatchingDelimiter(source, open, "{", "}");
     for (const memberSource of splitTopLevel(source.slice(open + 1, close), ";")) {
-      const cleaned = memberSource.replace(/\s+/gu, " ").trim();
+      const cleaned = memberSource
+        .replace(/^\s*(?:(?:\/\*[\s\S]*?\*\/|\/\/[^\n]*(?:\n|$))\s*)+/u, "")
+        .replace(/\s+/gu, " ")
+        .trim();
       if (!cleaned) continue;
       const member =
         /^(?:readonly\s+)?(\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)(\?)?\s*:\s*([\s\S]+)$/u.exec(cleaned);
