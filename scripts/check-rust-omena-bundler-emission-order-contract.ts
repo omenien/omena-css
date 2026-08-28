@@ -41,7 +41,11 @@ const header = lines[0]?.split("\t") ?? [];
 assert.deepEqual(header.slice(0, 3), ["report", "0", "omena-bundler.emission-order-contract"]);
 assert.equal(Number(header[3]), rawVariants.length);
 assert.equal(Number(header[4]), bundleVariants.length);
-assert.equal(header[5], "moduleIdLegacy", "default emission order must stay byte-compatible");
+assert.equal(
+  header[5],
+  "importOrderPreserving",
+  "default emission order must remain import-order preserving",
+);
 
 const rawRows = lines.filter((line) => line.startsWith("raw\t")).map((line) => line.split("\t"));
 const bundleRows = lines
