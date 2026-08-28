@@ -1463,6 +1463,17 @@ export const DECLARED_CHECK_GATES = [
     ciReason: "Coverage census regeneration changes committed governance data and requires review.",
   },
   {
+    id: "rust/omena-bundler/linked-stylesheet-byte-identity:update",
+    kind: "command",
+    scope: "rust",
+    packageTarget: "rust/omena-bundler/linked-stylesheet-byte-identity:update",
+    tags: ["rust", "omena-bundler", "linked-emission", "snapshot", "update"],
+    ciTier: "manual",
+    ciGroup: "rust",
+    ciReason:
+      "Linked stylesheet byte-identity regeneration changes a committed snapshot and requires review.",
+  },
+  {
     id: "rust/omena-bundler/public-surface:update",
     kind: "command",
     scope: "rust",

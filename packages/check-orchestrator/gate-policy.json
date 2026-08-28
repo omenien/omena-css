@@ -7,7 +7,7 @@
   },
   "costSource": "static-enumeration-2026-08-18",
   "escapeHatch": {
-    "maxGateCount": 157,
+    "maxGateCount": 158,
     "owner": "check-orchestrator maintainers",
     "reviewedAt": "2026-08-20",
     "reviewAfter": "2026-11-18"
@@ -26,11 +26,11 @@
   },
   "governedLeafCriteria": {
     "compat-alias-with-retirement-window": 10,
-    "declared-none-or-manual": 31,
+    "declared-none-or-manual": 32,
     "manual-tool-with-named-consumer": 65,
     "research-evidence": 51
   },
-  "governedLeafCriteriaDigest": "6d0f1f291d60af86d385b55d3b80bb738cf10ba37e47e91246b72058de79d29f",
+  "governedLeafCriteriaDigest": "bbe7d11ab2ef104c377bf706f5c11115eeccc37496cbe9d3099bcd8d74667fe8",
   "records": [
     {
       "gateId": "contract/parity-v2-golden",
