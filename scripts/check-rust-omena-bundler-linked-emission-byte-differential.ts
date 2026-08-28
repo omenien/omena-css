@@ -190,6 +190,7 @@ interface LinkedEmissionExpectedCollisionLedgerV0 {
 
 const censusPath =
   "rust/crates/omena-diff-test/oss-corpus-farm/linked-emission-coverage-census.json";
+const baselinePath = "rust/omena-linked-emission-byte-differential-baseline.json";
 const expectedDivergenceLedger = JSON.parse(
   readFileSync(
     "rust/crates/omena-diff-test/oss-corpus-farm/linked-emission-expected-divergence-ledger.json",
@@ -208,8 +209,8 @@ const divergenceLedger = JSON.parse(
     "utf8",
   ),
 ) as LinkedEmissionOpenDivergenceLedgerV0;
-const baseline = JSON.parse(
-  readFileSync("rust/omena-linked-emission-byte-differential-baseline.json", "utf8"),
+let baseline = JSON.parse(
+  readFileSync(baselinePath, "utf8"),
 ) as LinkedEmissionByteDifferentialBaselineV0;
 assert.equal(baseline.schemaVersion, "0");
 assert.equal(baseline.product, "omena-bundler.linked-emission-byte-differential-baseline");
@@ -359,6 +360,7 @@ const forwardedArguments = process.argv
       "--inject-unattributed-reference",
       "--inject-authored-liveness-flip",
       "--inject-missing-fixture",
+      "--inject-covered-shape-fixture-loss",
       "--inject-linked-rule-misattribution",
     ].includes(argument),
   );
@@ -565,7 +567,12 @@ assert.deepEqual(
 );
 assert.equal(census.placementWitnesses.length, 4);
 const moduleBoundaryShapeClasses = new Set(["empty-module", "comment-only-module"]);
-const equivalentBlindSpotFixtureIds = new Set(["font-face-only-module"]);
+const equivalentBlindSpotFixtureIds = new Set([
+  "font-face-only-module",
+  "tsconfig-path-alias-import-resolution",
+  "package-export-import-resolution",
+  "code-split-entry-closure",
+]);
 const moduleBoundaryBlindSpots = census.blindSpots.filter((blindSpot) =>
   blindSpot.shapeClasses.some((shapeClass) => moduleBoundaryShapeClasses.has(shapeClass)),
 );
@@ -700,6 +707,68 @@ assert.equal(
   census.coverageScope,
   derivedFullCorpusCoverage ? "fullCorpus" : "boundedMultiModuleFixtures",
 );
+const completedCoverageFixtures = Object.fromEntries(
+  census.shapes
+    .filter((entry) =>
+      new Set([
+        "configured-sass-module-instance",
+        "tsconfig-path-alias-import",
+        "package-export-import",
+        "code-split-entry-closure",
+      ]).has(entry.shapeClass),
+    )
+    .map((entry) => [entry.shapeClass, entry.fixtureIds]),
+);
+// FALSIFIER: id=linked-emission-completed-coverage-shapes class=accounting via=--inject-covered-shape-fixture-loss producer=can-fail owner=linked-emission-instrument entry=four-reentry-recipes-executed
+assert.deepEqual(completedCoverageFixtures, {
+  "code-split-entry-closure": ["code-split-entry-closure"],
+  "configured-sass-module-instance": ["configured-sass-module-instances"],
+  "package-export-import": ["package-export-import-resolution"],
+  "tsconfig-path-alias-import": ["tsconfig-path-alias-import-resolution"],
+});
+// FALSIFIER: id=linked-emission-full-corpus-coverage class=accounting via=--inject-covered-shape-fixture-loss producer=can-fail owner=linked-emission-instrument entry=no-uncovered-shapes
+assert.equal(census.fullCorpusCoverage, true, "linked-emission corpus coverage is incomplete");
+// FALSIFIER: id=linked-emission-no-uncovered-shape-rows class=accounting via=--inject-covered-shape-fixture-loss producer=can-fail owner=linked-emission-instrument entry=empty-not-covered-census
+assert.deepEqual(census.notCovered, []);
+const completedCoverageCaseClasses = Object.fromEntries(
+  report.cases
+    .filter((entry) =>
+      new Set([
+        "configured-sass-module-instances",
+        "tsconfig-path-alias-import-resolution",
+        "package-export-import-resolution",
+        "code-split-entry-closure",
+      ]).has(entry.fixtureId),
+    )
+    .map((entry) => [entry.fixtureId, entry.differenceClass]),
+);
+// FALSIFIER: id=linked-emission-completed-coverage-differential class=accounting via=--inject-covered-shape-fixture-loss producer=can-fail owner=linked-emission-instrument entry=four-shapes-differentially-classified
+assert.deepEqual(completedCoverageCaseClasses, {
+  "code-split-entry-closure": "equivalent",
+  "configured-sass-module-instances": "expected",
+  "package-export-import-resolution": "equivalent",
+  "tsconfig-path-alias-import-resolution": "equivalent",
+});
+if (process.argv.includes("--update-census")) {
+  baseline = {
+    ...baseline,
+    coverageScope: census.coverageScope,
+    fullCorpusCoverage: census.fullCorpusCoverage,
+    minimumFixtureCount: census.fixtureCount,
+    expectedDivergenceCount: report.expectedDivergenceCount,
+    maximumUnexpectedDivergenceCount: report.unexpectedDivergenceCount,
+  };
+  const baselineFormat = spawnSync("pnpm", ["exec", "oxfmt", `--stdin-filepath=${baselinePath}`], {
+    encoding: "utf8",
+    input: JSON.stringify(baseline, null, 2),
+  });
+  assert.equal(
+    baselineFormat.status,
+    0,
+    `linked-emission differential baseline could not be formatted: ${baselineFormat.stderr}`,
+  );
+  writeFileSync(baselinePath, baselineFormat.stdout);
+}
 assert.equal(baseline.coverageScope, census.coverageScope);
 assert.equal(baseline.fullCorpusCoverage, census.fullCorpusCoverage);
 assert.equal(baseline.minimumFixtureCount, census.fixtureCount);

@@ -3,8 +3,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use omena_benchmarks::bundler_productization_corpus;
 use omena_bundler::{
     BundleResolutionAuthorityV0, EmissionItemKindV0, EmissionOrderingPolicyV0,
-    LinkedStylesheetWithEmissionItemsV0, LinkerInputV0, TransformBundleLinkOptionsV0,
-    TransformBundleModuleInputV0,
+    LinkedStylesheetWithEmissionItemsV0, LinkerInputV0, TransformBundleDependencyResolutionV0,
+    TransformBundleLinkOptionsV0, TransformBundleModuleInputV0,
+    TransformBundleResolvedDependencyV0,
     link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options,
     project_omena_transform_bundle_linker_and_emission_items,
 };
@@ -15,12 +16,14 @@ use omena_parser::{
 };
 use omena_query::{
     ClassExpressionInputV2, EngineInputV2, OmenaQueryBundleEmissionPathV0,
-    OmenaQueryBundlePlanInputV0, OmenaQueryConsumerBuildOptionsV0,
-    OmenaQueryEngineInputModuleReachabilityV0, OmenaQueryModuleReachabilityAttributionReportV0,
+    OmenaQueryBundleExecutionScopeResultV0, OmenaQueryBundlePlanInputV0,
+    OmenaQueryConsumerBuildOptionsV0, OmenaQueryEngineInputModuleReachabilityV0,
+    OmenaQueryModuleReachabilityAttributionReportV0, OmenaQueryStylePackageManifestV0,
     OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
-    OmenaQueryTransformExecutionContextV0, PositionV2, RangeV2, SourceAnalysisInputV2,
-    SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2, StyleSelectorV2,
-    TypeFactEntryV2, compare_omena_query_transform_css_semantics_v0,
+    OmenaQueryTransformExecutionContextV0, OmenaQueryTsconfigPathMappingV0, PositionV2, RangeV2,
+    SourceAnalysisInputV2, SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2,
+    StyleDocumentV2, StyleSelectorV2, TypeFactEntryV2,
+    compare_omena_query_transform_css_semantics_v0,
     derive_omena_query_module_reachability_from_engine_input,
     run_omena_query_bundle_with_execution_scope_evidence_and_options,
     run_omena_query_bundle_with_module_reachability_and_execution_scope_evidence_and_options,
@@ -46,6 +49,7 @@ pub enum LinkedEmissionByteDifferentialPerturbationV0 {
     AddUnattributedReachabilityReference,
     FlipAuthoredLivenessExpectation,
     DropFixture,
+    DropCoverageShapeFixture,
     MisattributeLinkedRule,
 }
 
@@ -388,6 +392,16 @@ struct LinkedEmissionPlacementWitnessDefinitionV0 {
     import_graph_winner: &'static str,
 }
 
+#[derive(Debug, Clone)]
+struct LinkedEmissionResolvedDependencyFixtureV0 {
+    source_path: String,
+    source_configuration: &'static str,
+    import_source: String,
+    target_path: String,
+    target_configuration: &'static str,
+    resolution_kind: &'static str,
+}
+
 const LINKED_EMISSION_COVERAGE_POPULATION_V0: &[LinkedEmissionCoverageShapeDefinitionV0] = &[
     LinkedEmissionCoverageShapeDefinitionV0 {
         shape_class: "css-import-order",
@@ -501,6 +515,9 @@ pub fn summarize_linked_emission_byte_differential_envelope_v0(
     let mut fixtures = linked_emission_fixtures_v0();
     if perturbation == LinkedEmissionByteDifferentialPerturbationV0::DropFixture {
         fixtures.pop();
+    } else if perturbation == LinkedEmissionByteDifferentialPerturbationV0::DropCoverageShapeFixture
+    {
+        fixtures.retain(|fixture| fixture.id != "package-export-import-resolution");
     }
     let analyses = fixtures
         .iter()
@@ -1193,11 +1210,343 @@ fn emitted_class_name_v0(
         .unwrap_or_else(|| original_name.to_string())
 }
 
+fn fixture_resolution_inputs_v0(
+    fixture: &LinkedEmissionFixtureV0,
+) -> OmenaQueryStyleResolutionInputsV0 {
+    match fixture.id.as_str() {
+        "package-export-import-resolution" => OmenaQueryStyleResolutionInputsV0 {
+            package_manifests: vec![OmenaQueryStylePackageManifestV0 {
+                package_json_path: "node_modules/@acme/theme/package.json".to_string(),
+                package_json_source:
+                    r#"{"name":"@acme/theme","exports":{"./tokens.css":"./dist/tokens.css"}}"#
+                        .to_string(),
+            }],
+            ..OmenaQueryStyleResolutionInputsV0::default()
+        },
+        "tsconfig-path-alias-import-resolution" => OmenaQueryStyleResolutionInputsV0 {
+            tsconfig_path_mappings: vec![OmenaQueryTsconfigPathMappingV0 {
+                base_path: "/workspace".to_string(),
+                pattern: "@styles/*".to_string(),
+                target_patterns: vec!["src/styles/*".to_string()],
+            }],
+            ..OmenaQueryStyleResolutionInputsV0::default()
+        },
+        _ => OmenaQueryStyleResolutionInputsV0::default(),
+    }
+}
+
+fn fixture_additional_style_sources_v0(
+    fixture: &LinkedEmissionFixtureV0,
+) -> Vec<OmenaQueryStyleSourceInputV0> {
+    if fixture.id != "code-split-entry-closure" {
+        return Vec::new();
+    }
+    vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "linked-byte/code-split/admin.css".to_string(),
+            style_source: "@import \"./shared.css\"; @import \"./admin-only.css\";".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "linked-byte/code-split/admin-only.css".to_string(),
+            style_source: ".admin-only { color: purple; }".to_string(),
+        },
+    ]
+}
+
+fn fixture_bundle_entry_style_paths_v0(fixture: &LinkedEmissionFixtureV0) -> Vec<String> {
+    if fixture.id == "code-split-entry-closure" {
+        vec!["linked-byte/code-split/admin.css".to_string()]
+    } else {
+        Vec::new()
+    }
+}
+
+fn fixture_direct_linker_modules_v0(
+    fixture: &LinkedEmissionFixtureV0,
+) -> Vec<TransformBundleModuleInputV0> {
+    if fixture.id != "configured-sass-module-instances" {
+        return fixture
+            .modules
+            .iter()
+            .map(|module| {
+                TransformBundleModuleInputV0::new(
+                    module.path.clone(),
+                    module.source.clone(),
+                    module.dialect,
+                )
+            })
+            .collect();
+    }
+
+    fixture
+        .modules
+        .iter()
+        .flat_map(|module| {
+            if module.path == "linked-byte/configured-sass/theme.scss" {
+                vec![
+                    TransformBundleModuleInputV0::new(
+                        module.path.clone(),
+                        module.source.clone(),
+                        module.dialect,
+                    )
+                    .with_configuration_hash(
+                        omena_parser::ConfigurationHashV0::new("with|5:brand=4:blue"),
+                    ),
+                    TransformBundleModuleInputV0::new(
+                        module.path.clone(),
+                        module.source.clone(),
+                        module.dialect,
+                    )
+                    .with_configuration_hash(
+                        omena_parser::ConfigurationHashV0::new("with|5:brand=3:red"),
+                    ),
+                ]
+            } else {
+                vec![TransformBundleModuleInputV0::new(
+                    module.path.clone(),
+                    module.source.clone(),
+                    module.dialect,
+                )]
+            }
+        })
+        .collect()
+}
+
+fn fixture_resolved_dependency_rows_v0(
+    fixture: &LinkedEmissionFixtureV0,
+) -> Vec<LinkedEmissionResolvedDependencyFixtureV0> {
+    let unconfigured = "with:none";
+    match fixture.id.as_str() {
+        "package-export-import-resolution" => vec![LinkedEmissionResolvedDependencyFixtureV0 {
+            source_path: "linked-byte/package-export/app.css".to_string(),
+            source_configuration: unconfigured,
+            import_source: "@acme/theme/tokens.css".to_string(),
+            target_path: "node_modules/@acme/theme/dist/tokens.css".to_string(),
+            target_configuration: unconfigured,
+            resolution_kind: "packageStyleModule",
+        }],
+        "tsconfig-path-alias-import-resolution" => {
+            vec![LinkedEmissionResolvedDependencyFixtureV0 {
+                source_path: "/workspace/src/App.css".to_string(),
+                source_configuration: unconfigured,
+                import_source: "@styles/tokens.css".to_string(),
+                target_path: "/workspace/src/styles/tokens.css".to_string(),
+                target_configuration: unconfigured,
+                resolution_kind: "tsconfigPathMapping",
+            }]
+        }
+        "configured-sass-module-instances" => vec![
+            LinkedEmissionResolvedDependencyFixtureV0 {
+                source_path: "linked-byte/configured-sass/app.scss".to_string(),
+                source_configuration: unconfigured,
+                import_source: "./blue".to_string(),
+                target_path: "linked-byte/configured-sass/blue.scss".to_string(),
+                target_configuration: unconfigured,
+                resolution_kind: "fileRelativeOrAbsolute",
+            },
+            LinkedEmissionResolvedDependencyFixtureV0 {
+                source_path: "linked-byte/configured-sass/app.scss".to_string(),
+                source_configuration: unconfigured,
+                import_source: "./red".to_string(),
+                target_path: "linked-byte/configured-sass/red.scss".to_string(),
+                target_configuration: unconfigured,
+                resolution_kind: "fileRelativeOrAbsolute",
+            },
+            LinkedEmissionResolvedDependencyFixtureV0 {
+                source_path: "linked-byte/configured-sass/blue.scss".to_string(),
+                source_configuration: unconfigured,
+                import_source: "./theme".to_string(),
+                target_path: "linked-byte/configured-sass/theme.scss".to_string(),
+                target_configuration: "with|5:brand=4:blue",
+                resolution_kind: "fileRelativeOrAbsolute",
+            },
+            LinkedEmissionResolvedDependencyFixtureV0 {
+                source_path: "linked-byte/configured-sass/red.scss".to_string(),
+                source_configuration: unconfigured,
+                import_source: "./theme".to_string(),
+                target_path: "linked-byte/configured-sass/theme.scss".to_string(),
+                target_configuration: "with|5:brand=3:red",
+                resolution_kind: "fileRelativeOrAbsolute",
+            },
+        ],
+        _ => Vec::new(),
+    }
+}
+
+fn resolved_dependencies_for_fixture_v0(
+    fixture: &LinkedEmissionFixtureV0,
+    inputs: &[LinkerInputV0],
+) -> Result<Vec<TransformBundleResolvedDependencyV0>, String> {
+    fixture_resolved_dependency_rows_v0(fixture)
+        .into_iter()
+        .map(|row| {
+            let source = inputs
+                .iter()
+                .find(|input| {
+                    input.source_path == row.source_path
+                        && input.instance.configuration().as_str() == row.source_configuration
+                })
+                .ok_or_else(|| {
+                    format!(
+                        "fixture {} lacks source instance {}@{}",
+                        fixture.id, row.source_path, row.source_configuration
+                    )
+                })?;
+            let edge = source
+                .dependency_edges
+                .iter()
+                .find(|edge| edge.import_source == row.import_source)
+                .ok_or_else(|| {
+                    format!(
+                        "fixture {} lacks dependency {:?} from {}",
+                        fixture.id, row.import_source, row.source_path
+                    )
+                })?;
+            let target = inputs
+                .iter()
+                .find(|input| {
+                    input.source_path == row.target_path
+                        && input.instance.configuration().as_str() == row.target_configuration
+                })
+                .ok_or_else(|| {
+                    format!(
+                        "fixture {} lacks target instance {}@{}",
+                        fixture.id, row.target_path, row.target_configuration
+                    )
+                })?;
+            Ok(TransformBundleResolvedDependencyV0::new(
+                source.instance.clone(),
+                edge.kind,
+                edge.import_source.clone(),
+                edge.import_ordinal,
+                TransformBundleDependencyResolutionV0::attempted(
+                    vec![row.resolution_kind],
+                    row.resolution_kind,
+                    1,
+                    Some(target.instance.clone()),
+                ),
+            ))
+        })
+        .collect()
+}
+
+fn validate_coverage_shape_execution_v0(
+    fixture: &LinkedEmissionFixtureV0,
+    linked: &OmenaQueryBundleExecutionScopeResultV0,
+) -> Result<(), String> {
+    let module_instances = linked
+        .execution_scope
+        .as_ref()
+        .map(|scope| {
+            scope
+                .bundle_execution
+                .module_executions
+                .iter()
+                .map(|module| module.module_instance.clone())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    match fixture.id.as_str() {
+        "package-export-import-resolution" => {
+            let target = "node_modules/@acme/theme/dist/tokens.css";
+            if !module_instances
+                .iter()
+                .any(|instance| instance.module().as_str() == target)
+            {
+                // FALSIFIER: id=linked-emission-package-export-execution class=accounting via=DropCoverageShapeFixture producer=can-fail owner=linked-emission-instrument entry=package-export-target-executed
+                return Err(format!(
+                    "package-export linked fixture did not execute resolved target {target}"
+                ));
+            }
+        }
+        "tsconfig-path-alias-import-resolution" => {
+            let target = "/workspace/src/styles/tokens.css";
+            if !module_instances
+                .iter()
+                .any(|instance| instance.module().as_str() == target)
+            {
+                // FALSIFIER: id=linked-emission-tsconfig-execution class=accounting via=DropCoverageShapeFixture producer=can-fail owner=linked-emission-instrument entry=tsconfig-target-executed
+                return Err(format!(
+                    "tsconfig-alias linked fixture did not execute resolved target {target}"
+                ));
+            }
+        }
+        "configured-sass-module-instances" => {
+            let configurations = module_instances
+                .iter()
+                .filter(|instance| {
+                    instance.module().as_str() == "linked-byte/configured-sass/theme.scss"
+                })
+                .map(|instance| instance.configuration().as_str())
+                .collect::<BTreeSet<_>>();
+            let expected = BTreeSet::from(["with|5:brand=3:red", "with|5:brand=4:blue"]);
+            if configurations != expected {
+                // FALSIFIER: id=linked-emission-configured-sass-execution class=accounting via=DropCoverageShapeFixture producer=can-fail owner=linked-emission-instrument entry=two-configured-instances-executed
+                return Err(format!(
+                    "configured Sass linked fixture executed {configurations:?}, expected {expected:?}"
+                ));
+            }
+        }
+        "code-split-entry-closure" => {
+            let observed = linked
+                .bundle_result
+                .artifact
+                .code_split_outputs
+                .iter()
+                .map(|output| {
+                    (
+                        output.source_path.as_str(),
+                        output.split_boundary,
+                        output
+                            .reachable_from_entries
+                            .iter()
+                            .map(String::as_str)
+                            .collect::<Vec<_>>(),
+                    )
+                })
+                .collect::<BTreeSet<_>>();
+            let expected = BTreeSet::from([
+                (
+                    "linked-byte/code-split/admin-only.css",
+                    "styleDependency",
+                    vec!["linked-byte/code-split/admin.css"],
+                ),
+                (
+                    "linked-byte/code-split/admin.css",
+                    "entryConfig",
+                    vec!["linked-byte/code-split/admin.css"],
+                ),
+                (
+                    "linked-byte/code-split/app.css",
+                    "entry",
+                    vec!["linked-byte/code-split/app.css"],
+                ),
+                (
+                    "linked-byte/code-split/shared.css",
+                    "shared",
+                    vec![
+                        "linked-byte/code-split/admin.css",
+                        "linked-byte/code-split/app.css",
+                    ],
+                ),
+            ]);
+            if observed != expected {
+                // FALSIFIER: id=linked-emission-code-split-execution class=accounting via=DropCoverageShapeFixture producer=can-fail owner=linked-emission-instrument entry=independent-entry-closures-executed
+                return Err(format!(
+                    "code-split linked fixture produced {observed:?}, expected {expected:?}"
+                ));
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
 fn analyze_linked_emission_fixture_v0(
     fixture: &LinkedEmissionFixtureV0,
     perturbation: LinkedEmissionByteDifferentialPerturbationV0,
 ) -> Result<LinkedEmissionFixtureAnalysisV0, String> {
-    let style_sources = fixture
+    let mut style_sources = fixture
         .modules
         .iter()
         .map(|module| OmenaQueryStyleSourceInputV0 {
@@ -1205,6 +1554,7 @@ fn analyze_linked_emission_fixture_v0(
             style_source: module.source.clone(),
         })
         .collect::<Vec<_>>();
+    style_sources.extend(fixture_additional_style_sources_v0(fixture));
     let mut pass_ids = vec!["import-inline".to_string(), "print-css".to_string()];
     let fixture_reachability = module_reachability_for_fixture_v0(fixture, perturbation);
     let module_reachability = fixture_reachability
@@ -1264,17 +1614,18 @@ fn analyze_linked_emission_fixture_v0(
         ));
     }
     let context = OmenaQueryTransformExecutionContextV0::default();
-    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
-    let run = |emission_path| {
+    let resolution_inputs = fixture_resolution_inputs_v0(fixture);
+    let bundle_entry_style_paths = fixture_bundle_entry_style_paths_v0(fixture);
+    let run = |emission_path, run_resolution_inputs: &OmenaQueryStyleResolutionInputsV0| {
         let input = OmenaQueryBundlePlanInputV0 {
             target_style_path: &fixture.entry_path,
             style_sources: &style_sources,
             source_map_sources: &style_sources,
             requested_pass_ids: &pass_ids,
             context: &context,
-            resolution_inputs: &resolution_inputs,
+            resolution_inputs: run_resolution_inputs,
             asset_rewrites: Vec::new(),
-            bundle_entry_style_paths: &[],
+            bundle_entry_style_paths: &bundle_entry_style_paths,
         };
         let options = OmenaQueryConsumerBuildOptionsV0 {
             bundle_emission_path: emission_path,
@@ -1291,8 +1642,30 @@ fn analyze_linked_emission_fixture_v0(
             run_omena_query_bundle_with_execution_scope_evidence_and_options(input, &[], &options)
         }
     };
-    let legacy = run(OmenaQueryBundleEmissionPathV0::ImportInlineLegacy)?;
-    let linked = run(OmenaQueryBundleEmissionPathV0::LinkedOrder)?;
+    let legacy = run(
+        OmenaQueryBundleEmissionPathV0::ImportInlineLegacy,
+        &resolution_inputs,
+    )?;
+    let linked = run(
+        OmenaQueryBundleEmissionPathV0::LinkedOrder,
+        &resolution_inputs,
+    )?;
+    validate_coverage_shape_execution_v0(fixture, &linked)?;
+    if matches!(
+        fixture.id.as_str(),
+        "package-export-import-resolution" | "tsconfig-path-alias-import-resolution"
+    ) && run(
+        OmenaQueryBundleEmissionPathV0::LinkedOrder,
+        &OmenaQueryStyleResolutionInputsV0::default(),
+    )
+    .is_ok()
+    {
+        // FALSIFIER: id=linked-emission-resolution-input-negative-control class=accounting via=DropCoverageShapeFixture producer=can-fail owner=linked-emission-instrument entry=resolver-input-required
+        return Err(format!(
+            "fixture {} linked successfully after its resolver input was removed",
+            fixture.id
+        ));
+    }
     let legacy_emission_path = legacy.bundle_result.artifact.emission_path.as_wire_label();
     let linked_emission_path = linked.bundle_result.artifact.emission_path.as_wire_label();
     let linked_attribution = linked.reachability_attribution.clone();
@@ -1366,6 +1739,7 @@ fn analyze_linked_emission_fixture_v0(
         | LinkedEmissionByteDifferentialPerturbationV0::AddUnattributedReachabilityReference
         | LinkedEmissionByteDifferentialPerturbationV0::FlipAuthoredLivenessExpectation
         | LinkedEmissionByteDifferentialPerturbationV0::DropFixture
+        | LinkedEmissionByteDifferentialPerturbationV0::DropCoverageShapeFixture
         | LinkedEmissionByteDifferentialPerturbationV0::MisattributeLinkedRule => {}
     }
     validate_live_declared_names_survive_linked_emission_v0(
@@ -1389,32 +1763,30 @@ fn analyze_linked_emission_fixture_v0(
             })
         })
         .collect::<BTreeSet<_>>();
-    let linker_modules = fixture
-        .modules
-        .iter()
-        .map(|module| {
-            TransformBundleModuleInputV0::new(
-                module.path.clone(),
-                module.source.clone(),
-                module.dialect,
-            )
-        })
-        .collect::<Vec<_>>();
+    let linker_modules = fixture_direct_linker_modules_v0(fixture);
     let projections =
         project_omena_transform_bundle_linker_and_emission_items(&linker_modules, &[]);
     let import_graph_module_order = independent_import_graph_module_order_v0(
         fixture,
         projections.linker_projection().inputs(),
     )?;
+    let resolved_dependencies =
+        resolved_dependencies_for_fixture_v0(fixture, projections.linker_projection().inputs())?;
+    let link_options = TransformBundleLinkOptionsV0::default()
+        .with_emission_ordering_policy(EmissionOrderingPolicyV0::ImportOrderPreserving);
+    let link_options = if resolved_dependencies.is_empty() {
+        link_options
+    } else {
+        link_options.with_dependency_resolution_authority(BundleResolutionAuthorityV0::Resolved)
+    };
     let linked_order =
         link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
             std::slice::from_ref(&fixture.entry_path),
             projections.linker_projection(),
             projections.emission_item_projection(),
+            resolved_dependencies.as_slice(),
             &[],
-            &[],
-            TransformBundleLinkOptionsV0::default()
-                .with_emission_ordering_policy(EmissionOrderingPolicyV0::ImportOrderPreserving),
+            link_options,
         )
         .map_err(|error| format!("fixture {} could not be linked: {error:?}", fixture.id))?;
     let emission_plan_module_order = emission_item_module_order_v0(&linked_order);
@@ -2057,6 +2429,7 @@ fn independent_import_graph_module_order_v0(
             .iter()
             .map(|edge| {
                 resolve_fixture_import_path_v0(
+                    fixture,
                     input.source_path.as_str(),
                     edge.import_source.as_str(),
                     &module_paths,
@@ -2121,10 +2494,23 @@ fn visit_import_graph_module_v0(
 }
 
 fn resolve_fixture_import_path_v0(
+    fixture: &LinkedEmissionFixtureV0,
     source_path: &str,
     import_source: &str,
     module_paths: &BTreeSet<String>,
 ) -> Result<String, String> {
+    if let Some(row) = fixture_resolved_dependency_rows_v0(fixture)
+        .into_iter()
+        .find(|row| row.source_path == source_path && row.import_source == import_source)
+    {
+        if module_paths.contains(row.target_path.as_str()) {
+            return Ok(row.target_path);
+        }
+        // FALSIFIER: id=linked-emission-resolved-target-domain class=structuralEntailment via=STRUCTURAL producer=entailed owner=linked-emission-instrument entry=resolved-target-in-fixture-domain reentry=resolved-target-row-names-an-absent-module
+        return Err(format!(
+            "linked-emission fixture resolved import {import_source:?} from {source_path} outside its module set"
+        ));
+    }
     let base = source_path.rsplit_once('/').map_or("", |(base, _)| base);
     let joined = if import_source.starts_with('/') || base.is_empty() {
         import_source.to_string()
@@ -2912,6 +3298,10 @@ fn linked_emission_fixtures_v0() -> Vec<LinkedEmissionFixtureV0> {
             "@layer reset;",
         ),
         font_face_only_fixture_v0(),
+        configured_sass_module_instances_fixture_v0(),
+        tsconfig_path_alias_import_fixture_v0(),
+        package_export_import_fixture_v0(),
+        code_split_entry_closure_fixture_v0(),
         selectorless_module_fixture_v0(
             "empty-module-boundary",
             "empty-module",
@@ -2992,6 +3382,131 @@ fn font_face_only_fixture_v0() -> LinkedEmissionFixtureV0 {
                 dialect: StyleDialect::Css,
                 marker_names: Vec::new(),
                 order_probe: "OmenaFixture".to_string(),
+            },
+        ],
+        workspace_only_modules: Vec::new(),
+        reachability_references: Vec::new(),
+        liveness_expectations: Vec::new(),
+    }
+}
+
+fn configured_sass_module_instances_fixture_v0() -> LinkedEmissionFixtureV0 {
+    let root = "linked-byte/configured-sass";
+    LinkedEmissionFixtureV0 {
+        id: "configured-sass-module-instances".to_string(),
+        entry_path: format!("{root}/app.scss"),
+        shape_classes: vec!["configured-sass-module-instance"],
+        modules: vec![
+            LinkedEmissionFixtureModuleV0 {
+                path: format!("{root}/app.scss"),
+                source: r#"@import "./blue"; @import "./red";"#.to_string(),
+                dialect: StyleDialect::Scss,
+                marker_names: Vec::new(),
+                order_probe: String::new(),
+            },
+            LinkedEmissionFixtureModuleV0 {
+                path: format!("{root}/blue.scss"),
+                source: r#"@use "./theme" with ($brand: blue); .configured-blue { color: theme.$brand; }"#
+                    .to_string(),
+                dialect: StyleDialect::Scss,
+                marker_names: vec!["configured-blue".to_string()],
+                order_probe: "configured-blue".to_string(),
+            },
+            LinkedEmissionFixtureModuleV0 {
+                path: format!("{root}/red.scss"),
+                source: r#"@use "./theme" with ($brand: red); .configured-red { color: theme.$brand; }"#
+                    .to_string(),
+                dialect: StyleDialect::Scss,
+                marker_names: vec!["configured-red".to_string()],
+                order_probe: "configured-red".to_string(),
+            },
+            LinkedEmissionFixtureModuleV0 {
+                path: format!("{root}/theme.scss"),
+                source: String::new(),
+                dialect: StyleDialect::Scss,
+                marker_names: Vec::new(),
+                order_probe: String::new(),
+            },
+        ],
+        workspace_only_modules: Vec::new(),
+        reachability_references: Vec::new(),
+        liveness_expectations: Vec::new(),
+    }
+}
+
+fn tsconfig_path_alias_import_fixture_v0() -> LinkedEmissionFixtureV0 {
+    LinkedEmissionFixtureV0 {
+        id: "tsconfig-path-alias-import-resolution".to_string(),
+        entry_path: "/workspace/src/App.css".to_string(),
+        shape_classes: vec!["tsconfig-path-alias-import"],
+        modules: vec![
+            LinkedEmissionFixtureModuleV0 {
+                path: "/workspace/src/App.css".to_string(),
+                source: r#"@import "@styles/tokens.css";"#.to_string(),
+                dialect: StyleDialect::Css,
+                marker_names: Vec::new(),
+                order_probe: String::new(),
+            },
+            LinkedEmissionFixtureModuleV0 {
+                path: "/workspace/src/styles/tokens.css".to_string(),
+                source: ".alias-token { color: blue; }".to_string(),
+                dialect: StyleDialect::Css,
+                marker_names: vec!["alias-token".to_string()],
+                order_probe: "alias-token".to_string(),
+            },
+        ],
+        workspace_only_modules: Vec::new(),
+        reachability_references: Vec::new(),
+        liveness_expectations: Vec::new(),
+    }
+}
+
+fn package_export_import_fixture_v0() -> LinkedEmissionFixtureV0 {
+    LinkedEmissionFixtureV0 {
+        id: "package-export-import-resolution".to_string(),
+        entry_path: "linked-byte/package-export/app.css".to_string(),
+        shape_classes: vec!["package-export-import"],
+        modules: vec![
+            LinkedEmissionFixtureModuleV0 {
+                path: "linked-byte/package-export/app.css".to_string(),
+                source: r#"@import "@acme/theme/tokens.css";"#.to_string(),
+                dialect: StyleDialect::Css,
+                marker_names: Vec::new(),
+                order_probe: String::new(),
+            },
+            LinkedEmissionFixtureModuleV0 {
+                path: "node_modules/@acme/theme/dist/tokens.css".to_string(),
+                source: ".package-token { color: rebeccapurple; }".to_string(),
+                dialect: StyleDialect::Css,
+                marker_names: vec!["package-token".to_string()],
+                order_probe: "package-token".to_string(),
+            },
+        ],
+        workspace_only_modules: Vec::new(),
+        reachability_references: Vec::new(),
+        liveness_expectations: Vec::new(),
+    }
+}
+
+fn code_split_entry_closure_fixture_v0() -> LinkedEmissionFixtureV0 {
+    LinkedEmissionFixtureV0 {
+        id: "code-split-entry-closure".to_string(),
+        entry_path: "linked-byte/code-split/app.css".to_string(),
+        shape_classes: vec!["code-split-entry-closure"],
+        modules: vec![
+            LinkedEmissionFixtureModuleV0 {
+                path: "linked-byte/code-split/app.css".to_string(),
+                source: r#"@import "./shared.css";"#.to_string(),
+                dialect: StyleDialect::Css,
+                marker_names: Vec::new(),
+                order_probe: String::new(),
+            },
+            LinkedEmissionFixtureModuleV0 {
+                path: "linked-byte/code-split/shared.css".to_string(),
+                source: ".shared-boundary { color: teal; }".to_string(),
+                dialect: StyleDialect::Css,
+                marker_names: vec!["shared-boundary".to_string()],
+                order_probe: "shared-boundary".to_string(),
             },
         ],
         workspace_only_modules: Vec::new(),
@@ -4155,14 +4670,29 @@ mod tests {
             census.covered_shape_count + census.not_covered_shape_count,
             census.population_count
         );
-        // FALSIFIER: id=linked-emission-rust-030 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert!(census.population_count > census.fixture_count);
-        // FALSIFIER: id=linked-emission-rust-031 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert!(!census.not_covered.is_empty());
-        // FALSIFIER: id=linked-emission-rust-032 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert!(!census.full_corpus_coverage);
-        // FALSIFIER: id=linked-emission-rust-033 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert_eq!(census.coverage_scope, "boundedMultiModuleFixtures");
+        // FALSIFIER: id=linked-emission-rust-030 class=accounting via=DropCoverageShapeFixture producer=can-fail owner=linked-emission-instrument entry=population-has-one-row-per-shape
+        assert_eq!(census.population_count, census.shapes.len());
+        // FALSIFIER: id=linked-emission-rust-031 class=accounting via=DropCoverageShapeFixture producer=can-fail owner=linked-emission-instrument entry=no-uncovered-shapes
+        assert!(census.not_covered.is_empty());
+        // FALSIFIER: id=linked-emission-rust-032 class=accounting via=DropCoverageShapeFixture producer=can-fail owner=linked-emission-instrument entry=full-corpus-coverage
+        assert!(census.full_corpus_coverage);
+        // FALSIFIER: id=linked-emission-rust-033 class=accounting via=DropCoverageShapeFixture producer=can-fail owner=linked-emission-instrument entry=full-corpus-scope
+        assert_eq!(census.coverage_scope, "fullCorpus");
+        let dropped = summarize_linked_emission_byte_differential_envelope_v0(
+            LinkedEmissionByteDifferentialPerturbationV0::DropCoverageShapeFixture,
+        )?
+        .census;
+        // FALSIFIER: id=linked-emission-covered-shape-loss-red class=accounting via=DropCoverageShapeFixture producer=can-fail owner=linked-emission-instrument entry=shape-removal-clears-full-coverage
+        assert!(!dropped.full_corpus_coverage);
+        // FALSIFIER: id=linked-emission-covered-shape-loss-name class=accounting via=DropCoverageShapeFixture producer=can-fail owner=linked-emission-instrument entry=removed-shape-is-named
+        assert_eq!(
+            dropped
+                .not_covered
+                .iter()
+                .map(|entry| entry.shape_class.as_str())
+                .collect::<Vec<_>>(),
+            vec!["package-export-import"]
+        );
         // FALSIFIER: id=linked-emission-rust-034 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(
             census.marker_observable_module_count + census.blind_spot_module_count,
@@ -4263,10 +4793,14 @@ mod tests {
         )?;
         let expected_fixture_ids = BTreeSet::from([
             "bare-layer-statement-module",
+            "code-split-entry-closure",
             "comment-only-module-boundary",
+            "configured-sass-module-instances",
             "element-only-reset-module",
             "empty-module-boundary",
             "font-face-only-module",
+            "package-export-import-resolution",
+            "tsconfig-path-alias-import-resolution",
         ]);
         let unexpected_fixture_ids = envelope
             .report
@@ -4302,20 +4836,89 @@ mod tests {
                 .iter()
                 .map(|blind_spot| {
                     (
-                        blind_spot.fixture_id.as_str(),
+                        (
+                            blind_spot.fixture_id.as_str(),
+                            blind_spot.module_path.as_str(),
+                        ),
                         blind_spot.fact_categories.as_slice(),
                     )
                 })
                 .collect::<BTreeMap<_, _>>(),
             BTreeMap::from([
-                ("bare-layer-statement-module", ["atRules"].as_slice()),
-                ("comment-only-module-boundary", [].as_slice()),
                 (
-                    "element-only-reset-module",
-                    ["emissionSelectors"].as_slice()
+                    (
+                        "bare-layer-statement-module",
+                        "linked-byte/bare-layer-statement-module/layers.css",
+                    ),
+                    ["atRules"].as_slice(),
                 ),
-                ("empty-module-boundary", [].as_slice()),
-                ("font-face-only-module", ["atRules"].as_slice()),
+                (
+                    ("code-split-entry-closure", "linked-byte/code-split/app.css",),
+                    ["sassModuleEdges", "atRules"].as_slice(),
+                ),
+                (
+                    (
+                        "comment-only-module-boundary",
+                        "linked-byte/comment-only-module-boundary/license.css",
+                    ),
+                    [].as_slice(),
+                ),
+                (
+                    (
+                        "configured-sass-module-instances",
+                        "linked-byte/configured-sass/app.scss",
+                    ),
+                    ["sassModuleEdges", "atRules"].as_slice(),
+                ),
+                (
+                    (
+                        "configured-sass-module-instances",
+                        "linked-byte/configured-sass/theme.scss",
+                    ),
+                    [].as_slice(),
+                ),
+                (
+                    (
+                        "element-only-reset-module",
+                        "linked-byte/element-only-reset-module/reset.css",
+                    ),
+                    ["emissionSelectors"].as_slice(),
+                ),
+                (
+                    (
+                        "empty-module-boundary",
+                        "linked-byte/empty-module-boundary/empty.css",
+                    ),
+                    [].as_slice(),
+                ),
+                (
+                    (
+                        "font-face-only-module",
+                        "linked-byte/font-face-only-module/app.css",
+                    ),
+                    ["sassModuleEdges", "atRules"].as_slice(),
+                ),
+                (
+                    (
+                        "font-face-only-module",
+                        "linked-byte/font-face-only-module/fonts.css",
+                    ),
+                    ["atRules"].as_slice(),
+                ),
+                (
+                    (
+                        "package-export-import-resolution",
+                        "linked-byte/package-export/app.css",
+                    ),
+                    ["sassModuleEdges", "atRules"].as_slice(),
+                ),
+                (
+                    (
+                        "tsconfig-path-alias-import-resolution",
+                        "/workspace/src/App.css",
+                    ),
+                    ["sassModuleEdges", "atRules"].as_slice(),
+                ),
             ])
         );
         // FALSIFIER: id=linked-emission-rust-051 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green

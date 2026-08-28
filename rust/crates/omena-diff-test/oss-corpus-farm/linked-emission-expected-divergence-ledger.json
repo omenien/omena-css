@@ -50,6 +50,13 @@
       "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
     },
     {
+      "fixtureId": "configured-sass-module-instances",
+      "classificationArm": "semanticPreservingKnownDifference",
+      "derivedReasons": ["importGraphModulePlacement", "formattingNormalization"],
+      "witnessDigest": "af5c4d90b4c98ac5d0c267c731bab50ba8266ada68f3d1d4e9c7209c135883d4",
+      "justification": "Both configured instances are resolved and executed with distinct configuration identities; the remaining byte delta consists of retained module-boundary syntax and formatting while parsed CSS semantics agree."
+    },
+    {
       "fixtureId": "comment-only-module-boundary",
       "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["importGraphModulePlacement", "formattingNormalization"],

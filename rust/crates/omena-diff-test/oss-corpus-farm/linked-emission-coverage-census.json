@@ -1,15 +1,15 @@
 {
   "schemaVersion": "0",
   "product": "omena-diff-test.linked-emission-coverage-census",
-  "coverageScope": "boundedMultiModuleFixtures",
-  "fullCorpusCoverage": false,
+  "coverageScope": "fullCorpus",
+  "fullCorpusCoverage": true,
   "populationCount": 23,
-  "coveredShapeCount": 19,
-  "notCoveredShapeCount": 4,
-  "fixtureCount": 20,
-  "moduleCount": 48,
-  "markerObservableModuleCount": 42,
-  "blindSpotModuleCount": 6,
+  "coveredShapeCount": 23,
+  "notCoveredShapeCount": 0,
+  "fixtureCount": 24,
+  "moduleCount": 58,
+  "markerObservableModuleCount": 47,
+  "blindSpotModuleCount": 11,
   "unknownStructuralSelectorCount": 0,
   "unknownAtRuleCount": 0,
   "moduleTokenCollisionScope": "boundedFixtureRegressionTripwire",
@@ -350,7 +350,7 @@
     },
     {
       "shapeClass": "code-split-entry-closure",
-      "fixtureIds": []
+      "fixtureIds": ["code-split-entry-closure"]
     },
     {
       "shapeClass": "combinator-companion-liveness",
@@ -362,7 +362,7 @@
     },
     {
       "shapeClass": "configured-sass-module-instance",
-      "fixtureIds": []
+      "fixtureIds": ["configured-sass-module-instances"]
     },
     {
       "shapeClass": "css-import-order",
@@ -402,7 +402,7 @@
     },
     {
       "shapeClass": "package-export-import",
-      "fixtureIds": []
+      "fixtureIds": ["package-export-import-resolution"]
     },
     {
       "shapeClass": "package-path-composes-liveness",
@@ -422,7 +422,7 @@
     },
     {
       "shapeClass": "tsconfig-path-alias-import",
-      "fixtureIds": []
+      "fixtureIds": ["tsconfig-path-alias-import-resolution"]
     },
     {
       "shapeClass": "two-hop-composes-liveness",
@@ -433,24 +433,7 @@
       "fixtureIds": ["workspace-only-referrer-liveness"]
     }
   ],
-  "notCovered": [
-    {
-      "shapeClass": "code-split-entry-closure",
-      "reentry": "add multiple bundle entries with independently measured dependency closures"
-    },
-    {
-      "shapeClass": "configured-sass-module-instance",
-      "reentry": "add two configured instances of one Sass module to the differential corpus"
-    },
-    {
-      "shapeClass": "package-export-import",
-      "reentry": "add a linked fixture resolved through package exports"
-    },
-    {
-      "shapeClass": "tsconfig-path-alias-import",
-      "reentry": "add a linked fixture resolved through a tsconfig path mapping"
-    }
-  ],
+  "notCovered": [],
   "fixtureObservability": [
     {
       "fixtureId": "dialect-css-import-order",
@@ -555,6 +538,30 @@
       "blindSpotModuleCount": 2
     },
     {
+      "fixtureId": "configured-sass-module-instances",
+      "moduleCount": 4,
+      "markerObservableModuleCount": 2,
+      "blindSpotModuleCount": 2
+    },
+    {
+      "fixtureId": "tsconfig-path-alias-import-resolution",
+      "moduleCount": 2,
+      "markerObservableModuleCount": 1,
+      "blindSpotModuleCount": 1
+    },
+    {
+      "fixtureId": "package-export-import-resolution",
+      "moduleCount": 2,
+      "markerObservableModuleCount": 1,
+      "blindSpotModuleCount": 1
+    },
+    {
+      "fixtureId": "code-split-entry-closure",
+      "moduleCount": 2,
+      "markerObservableModuleCount": 1,
+      "blindSpotModuleCount": 1
+    },
+    {
       "fixtureId": "empty-module-boundary",
       "moduleCount": 2,
       "markerObservableModuleCount": 1,
@@ -616,6 +623,66 @@
       "shapeClasses": ["font-face-only"],
       "emissionPlanEntryCount": 1,
       "factCategories": ["atRules"],
+      "outputBytesDiffer": false,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": true
+    },
+    {
+      "fixtureId": "configured-sass-module-instances",
+      "modulePath": "linked-byte/configured-sass/app.scss",
+      "shapeClasses": ["configured-sass-module-instance"],
+      "emissionPlanEntryCount": 2,
+      "factCategories": ["sassModuleEdges", "atRules"],
+      "outputBytesDiffer": true,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": true
+    },
+    {
+      "fixtureId": "configured-sass-module-instances",
+      "modulePath": "linked-byte/configured-sass/theme.scss",
+      "shapeClasses": ["configured-sass-module-instance"],
+      "emissionPlanEntryCount": 2,
+      "factCategories": [],
+      "outputBytesDiffer": true,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": true
+    },
+    {
+      "fixtureId": "tsconfig-path-alias-import-resolution",
+      "modulePath": "/workspace/src/App.css",
+      "shapeClasses": ["tsconfig-path-alias-import"],
+      "emissionPlanEntryCount": 1,
+      "factCategories": ["sassModuleEdges", "atRules"],
+      "outputBytesDiffer": false,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": true
+    },
+    {
+      "fixtureId": "package-export-import-resolution",
+      "modulePath": "linked-byte/package-export/app.css",
+      "shapeClasses": ["package-export-import"],
+      "emissionPlanEntryCount": 1,
+      "factCategories": ["sassModuleEdges", "atRules"],
+      "outputBytesDiffer": false,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": true
+    },
+    {
+      "fixtureId": "code-split-entry-closure",
+      "modulePath": "linked-byte/code-split/app.css",
+      "shapeClasses": ["code-split-entry-closure"],
+      "emissionPlanEntryCount": 1,
+      "factCategories": ["sassModuleEdges", "atRules"],
       "outputBytesDiffer": false,
       "markerOrdersAgree": true,
       "linkedMarkerOrderMatchesAuthority": true,

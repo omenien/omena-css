@@ -28,6 +28,8 @@ fn main() {
         LinkedEmissionByteDifferentialPerturbationV0::FlipAuthoredLivenessExpectation
     } else if std::env::args().any(|arg| arg == "--inject-missing-fixture") {
         LinkedEmissionByteDifferentialPerturbationV0::DropFixture
+    } else if std::env::args().any(|arg| arg == "--inject-covered-shape-fixture-loss") {
+        LinkedEmissionByteDifferentialPerturbationV0::DropCoverageShapeFixture
     } else if std::env::args().any(|arg| arg == "--inject-linked-rule-misattribution") {
         LinkedEmissionByteDifferentialPerturbationV0::MisattributeLinkedRule
     } else {
