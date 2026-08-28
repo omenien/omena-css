@@ -1674,10 +1674,10 @@ fn derive_facade_resolved_dependencies(
     let instances_by_path = inputs.iter().fold(
         BTreeMap::<String, Vec<ModuleInstanceKeyV0>>::new(),
         |mut instances_by_path, input| {
-            instances_by_path
+            let instances = instances_by_path
                 .entry(input.source_path.clone())
-                .or_default()
-                .push(input.instance.clone());
+                .or_default();
+            instances.push(input.instance.clone());
             instances_by_path
         },
     );

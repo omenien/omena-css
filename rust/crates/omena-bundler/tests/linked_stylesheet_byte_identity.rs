@@ -84,13 +84,13 @@ fn linked_stylesheet_output_matches_committed_contract() -> Result<(), String> {
                     })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        updated
+        let updated_object = updated
             .as_object_mut()
-            .ok_or_else(|| "committed byte contract must be a JSON object".to_string())?
-            .insert(
-                "legacyLinkedStylesheets".to_string(),
-                Value::Array(legacy_entries),
-            );
+            .ok_or_else(|| "committed byte contract must be a JSON object".to_string())?;
+        updated_object.insert(
+            "legacyLinkedStylesheets".to_string(),
+            Value::Array(legacy_entries),
+        );
         let output = serde_json::to_string_pretty(&updated)
             .map_err(|error| format!("failed to serialize linked stylesheet baseline: {error}"))?;
         std::fs::write(

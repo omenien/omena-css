@@ -523,9 +523,10 @@ fn run_omena_query_bundle_with_optional_module_reachability(
         requested_pass_ids,
         context,
         resolution_inputs,
-        mut asset_rewrites,
+        asset_rewrites: initial_asset_rewrites,
         bundle_entry_style_paths,
     } = input;
+    let mut asset_rewrites: Vec<TransformBundleAssetUrlRewriteSummaryV0> = initial_asset_rewrites;
     let Some(target_source) = find_target_style_source(target_style_path, style_sources) else {
         return Err(format!(
             "target style path {target_style_path:?} was not found in workspace style sources"
@@ -634,7 +635,7 @@ fn run_omena_query_bundle_with_optional_module_reachability(
                     asset_rewrites.as_slice(),
                     options,
                 )?;
-                asset_rewrites.extend(linked_execution.asset_rewrites.iter().cloned());
+                asset_rewrites.extend_from_slice(&linked_execution.asset_rewrites);
                 let execution_scope = summarize_linked_bundle_execution_scope(&linked_execution)?;
                 (
                     linked_execution.execution,
@@ -669,7 +670,7 @@ fn run_omena_query_bundle_with_optional_module_reachability(
                     asset_rewrites.as_slice(),
                     options,
                 )?;
-                asset_rewrites.extend(linked_execution.asset_rewrites.iter().cloned());
+                asset_rewrites.extend_from_slice(&linked_execution.asset_rewrites);
                 (
                     linked_execution.execution,
                     None,
