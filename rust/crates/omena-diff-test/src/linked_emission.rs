@@ -1377,57 +1377,65 @@ fn resolved_dependencies_for_fixture_v0(
     fixture: &LinkedEmissionFixtureV0,
     inputs: &[LinkerInputV0],
 ) -> Result<Vec<TransformBundleResolvedDependencyV0>, String> {
-    fixture_resolved_dependency_rows_v0(fixture)
-        .into_iter()
-        .map(|row| {
-            let source = inputs
-                .iter()
-                .find(|input| {
-                    input.source_path == row.source_path
-                        && input.instance.configuration().as_str() == row.source_configuration
-                })
-                .ok_or_else(|| {
-                    format!(
-                        "fixture {} lacks source instance {}@{}",
-                        fixture.id, row.source_path, row.source_configuration
-                    )
-                })?;
-            let edge = source
-                .dependency_edges
-                .iter()
-                .find(|edge| edge.import_source == row.import_source)
-                .ok_or_else(|| {
-                    format!(
-                        "fixture {} lacks dependency {:?} from {}",
-                        fixture.id, row.import_source, row.source_path
-                    )
-                })?;
+    let explicit_rows = fixture_resolved_dependency_rows_v0(fixture);
+    let module_paths = fixture
+        .modules
+        .iter()
+        .map(|module| module.path.clone())
+        .collect::<BTreeSet<_>>();
+    let mut resolved_dependencies = Vec::new();
+    for source in inputs {
+        for edge in &source.dependency_edges {
+            let explicit = explicit_rows.iter().find(|row| {
+                row.source_path == source.source_path
+                    && row.source_configuration == source.instance.configuration().as_str()
+                    && row.import_source == edge.import_source
+            });
+            let (target_path, target_configuration, resolution_kind) = if let Some(row) = explicit {
+                (
+                    row.target_path.clone(),
+                    row.target_configuration,
+                    row.resolution_kind,
+                )
+            } else {
+                (
+                    resolve_fixture_import_path_v0(
+                        fixture,
+                        source.source_path.as_str(),
+                        edge.import_source.as_str(),
+                        &module_paths,
+                    )?,
+                    "with:none",
+                    "independentFixtureImportGraph",
+                )
+            };
             let target = inputs
                 .iter()
                 .find(|input| {
-                    input.source_path == row.target_path
-                        && input.instance.configuration().as_str() == row.target_configuration
+                    input.source_path == target_path
+                        && input.instance.configuration().as_str() == target_configuration
                 })
                 .ok_or_else(|| {
                     format!(
                         "fixture {} lacks target instance {}@{}",
-                        fixture.id, row.target_path, row.target_configuration
+                        fixture.id, target_path, target_configuration
                     )
                 })?;
-            Ok(TransformBundleResolvedDependencyV0::new(
+            resolved_dependencies.push(TransformBundleResolvedDependencyV0::new(
                 source.instance.clone(),
                 edge.kind,
                 edge.import_source.clone(),
                 edge.import_ordinal,
                 TransformBundleDependencyResolutionV0::attempted(
-                    vec![row.resolution_kind],
-                    row.resolution_kind,
+                    vec![resolution_kind],
+                    resolution_kind,
                     1,
                     Some(target.instance.clone()),
                 ),
-            ))
-        })
-        .collect()
+            ));
+        }
+    }
+    Ok(resolved_dependencies)
 }
 
 fn validate_coverage_shape_execution_v0(
@@ -1774,12 +1782,8 @@ fn analyze_linked_emission_fixture_v0(
     let resolved_dependencies =
         resolved_dependencies_for_fixture_v0(fixture, projections.linker_projection().inputs())?;
     let link_options = TransformBundleLinkOptionsV0::default()
-        .with_emission_ordering_policy(EmissionOrderingPolicyV0::ImportOrderPreserving);
-    let link_options = if resolved_dependencies.is_empty() {
-        link_options
-    } else {
-        link_options.with_dependency_resolution_authority(BundleResolutionAuthorityV0::Resolved)
-    };
+        .with_emission_ordering_policy(EmissionOrderingPolicyV0::ImportOrderPreserving)
+        .with_dependency_resolution_authority(BundleResolutionAuthorityV0::Resolved);
     let linked_order =
         link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
             std::slice::from_ref(&fixture.entry_path),

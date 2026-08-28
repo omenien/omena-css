@@ -6550,6 +6550,51 @@ mod dependency_resolution_tests {
     }
 
     #[test]
+    fn linked_default_resolves_explicit_relative_extension_in_memory() -> Result<(), String> {
+        let sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "linked-byte/css/app.css".to_string(),
+                style_source: r#"@import "./z.css"; @import "./a.css"; .app { color: green; }"#
+                    .to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "linked-byte/css/z.css".to_string(),
+                style_source: ".token { color: rebeccapurple; }".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "linked-byte/css/a.css".to_string(),
+                style_source: ".base { color: blue; }".to_string(),
+            },
+        ];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let prepared = prepare_transform_bundle_linker_projection(
+            &["linked-byte/css/app.css"],
+            &sources,
+            &[],
+            TransformResolutionContext::from_resolution_inputs(&resolution_inputs),
+        );
+        assert_eq!(prepared.resolved_dependencies.len(), 2);
+        assert_eq!(
+            prepared
+                .resolved_dependencies
+                .iter()
+                .filter_map(|dependency| dependency.resolution.target_instance.as_ref())
+                .map(|instance| instance.module().as_str())
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from(["linked-byte/css/a.css", "linked-byte/css/z.css"])
+        );
+        link_omena_transform_bundle_projection_with_resolved_dependencies_and_options(
+            &["linked-byte/css/app.css"],
+            &prepared.projection,
+            prepared.resolved_dependencies.as_slice(),
+            &[],
+            TransformBundleLinkOptionsV0::default(),
+        )
+        .map_err(|error| format!("linked default should resolve the in-memory edge: {error:?}"))?;
+        Ok(())
+    }
+
+    #[test]
     #[allow(deprecated)]
     fn configured_sass_edges_select_distinct_instances_without_reparsing() -> Result<(), String> {
         let sources = configured_sass_sources();
