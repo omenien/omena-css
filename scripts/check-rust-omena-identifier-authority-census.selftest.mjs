@@ -9,6 +9,25 @@ import { fileURLToPath } from "node:url";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const rawScanChecker = "scripts/check-rust-omena-syntax-authority-raw-scan-census.ts";
 const identifierChecker = "scripts/check-rust-omena-identifier-authority-census.ts";
+const identifierCheckerSource = readFileSync(path.join(repoRoot, identifierChecker), "utf8");
+const retiredCarrierComparatorCertificateMarkers = [
+  ["customPropertyFamily", "GuardSelectsBindings"].join(""),
+  ["mechanicalCarrier", "NameDelegation"].join(""),
+  ["OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_DELEGATION_", "GUARD_LAUNDERING"].join(""),
+  ["OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_DELEGATION_", "GUARD_SHADOWING"].join(""),
+];
+const retainedCarrierComparatorCertificateMarkers =
+  retiredCarrierComparatorCertificateMarkers.filter((marker) =>
+    identifierCheckerSource.includes(marker),
+  );
+if (retainedCarrierComparatorCertificateMarkers.length > 0) {
+  throw new Error(
+    `retired carrier comparator lexical certificate remains: ${retainedCarrierComparatorCertificateMarkers.join(", ")}`,
+  );
+}
+process.stdout.write(
+  "ok   carrier comparator lexical certificate retired; guard laundering and shadowing targets are absent; pinned cargo product tests own semantics\n",
+);
 const generatedMatrixOnly = process.argv.includes("--generated-matrix-only");
 const mutationPartitionCountVariable = "OMENA_IDENTIFIER_AUTHORITY_MUTATION_PARTITION_COUNT";
 const mutationPartitionIndexVariable = "OMENA_IDENTIFIER_AUTHORITY_MUTATION_PARTITION_INDEX";
@@ -697,12 +716,12 @@ const redCases = [
   [identifierChecker, "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_FIELD_FLOW_IDENTITIES", []],
   [
     identifierChecker,
-    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_DELEGATION_GUARD_LAUNDERING",
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_COMPARATOR_BOUNDARY_GROWTH",
     [],
   ],
   [
     identifierChecker,
-    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_DELEGATION_GUARD_SHADOWING",
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_SOURCE_NEEDLE_SELF_REFERENCE_FILTER",
     [],
   ],
   [
@@ -854,12 +873,15 @@ const requiredMutationReceipts = new Map([
     ["authoredEscapeIdentityViolationCount=5", "authored-bearing escape result reached"],
   ],
   [
-    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_DELEGATION_GUARD_LAUNDERING\0",
-    ["carrier comparator delegation guard does not prove custom-property family selection"],
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_COMPARATOR_BOUNDARY_GROWTH\0",
+    [
+      "countedCannotSee.carrier-comparator-product-test-boundary=3",
+      "counted cannotSee boundary increased: carrier-comparator-product-test-boundary baseline=2 current=3",
+    ],
   ],
   [
-    "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_DELEGATION_GUARD_SHADOWING\0",
-    ["carrier comparator delegation guard does not prove custom-property family selection"],
+    "OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_SOURCE_NEEDLE_SELF_REFERENCE_FILTER\0",
+    ["source needle locator selected its own call instead of the mechanism"],
   ],
   [
     "OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNQUALIFIED_CARRIER_ESCAPE_IDENTITY\0",

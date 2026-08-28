@@ -80,7 +80,8 @@ type CountedCannotSeeId =
   | "carrier-type-qualification-gate"
   | "place-expression-mutation-grammar"
   | "assignment-form-container-write"
-  | "non-string-container-scalar-egress";
+  | "non-string-container-scalar-egress"
+  | "carrier-comparator-product-test-boundary";
 
 interface CountedCannotSeeBoundary {
   readonly id: CountedCannotSeeId;
@@ -91,6 +92,29 @@ interface CountedCannotSeeBoundary {
   readonly siteDigest: string;
   readonly reason: string;
 }
+
+interface CarrierComparatorProductTestPin {
+  readonly comparatorPath: string;
+  readonly functionName: string;
+  readonly testPath: string;
+  readonly testName: string;
+}
+
+const carrierComparatorProductTestPins: readonly CarrierComparatorProductTestPin[] = [
+  {
+    comparatorPath: "rust/crates/omena-query/src/types.rs",
+    functionName: "workspace_occurrence_name_cmp",
+    testPath: "rust/crates/omena-query/src/types.rs",
+    testName: "workspace_occurrence_identity_uses_custom_property_keys_without_changing_wire_name",
+  },
+  {
+    comparatorPath: "rust/crates/omena-lsp-server/src/state.rs",
+    functionName: "style_symbol_occurrence_name_cmp",
+    testPath: "rust/crates/omena-lsp-server/src/occurrence_mapping.rs",
+    testName:
+      "style_symbol_occurrence_identity_uses_custom_property_keys_without_changing_wire_name",
+  },
+] as const;
 
 interface DiscoveredSite {
   readonly path: string;
@@ -556,10 +580,6 @@ const injectCarrierFieldIdentityConsumer =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_FIELD_IDENTITY_CONSUMER === "1";
 const injectCarrierFieldFlowIdentities =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_FIELD_FLOW_IDENTITIES === "1";
-const injectCarrierDelegationGuardLaundering =
-  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_DELEGATION_GUARD_LAUNDERING === "1";
-const injectCarrierDelegationGuardShadowing =
-  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_DELEGATION_GUARD_SHADOWING === "1";
 const injectUnqualifiedCarrierEscapeIdentity =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNQUALIFIED_CARRIER_ESCAPE_IDENTITY === "1";
 const injectOutParameterEscapeIdentity =
@@ -585,6 +605,10 @@ const deleteInventoryBuildCfgMask =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_INVENTORY_BUILD_CFG_MASK === "1";
 const injectCountedBoundaryGrowth =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_COUNTED_BOUNDARY_GROWTH === "1";
+const injectCarrierComparatorBoundaryGrowth =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_CARRIER_COMPARATOR_BOUNDARY_GROWTH === "1";
+const deleteSourceNeedleSelfReferenceFilter =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_SOURCE_NEEDLE_SELF_REFERENCE_FILTER === "1";
 
 const authoredOriginAxis = [
   "field-access",
@@ -1451,6 +1475,7 @@ const residualCarrierConsumerSites = residualCarrierConsumerRows.flatMap((row) =
 const injectedAuthorityMutationActive =
   !deleteInventoryBuildCfgMask &&
   !injectCountedBoundaryGrowth &&
+  !injectCarrierComparatorBoundaryGrowth &&
   Object.entries(process.env).some(
     ([name, value]) => name.startsWith("OMENA_IDENTIFIER_AUTHORITY_TEST_") && value === "1",
   );
@@ -2019,9 +2044,10 @@ if (writeMode) {
       !injectRawTransformNodeSort &&
       !injectUnsupportedReceiverMutation &&
       !injectCarrierFieldFlowIdentities &&
-      !injectCarrierDelegationGuardLaundering &&
       !injectUnqualifiedCarrierEscapeIdentity &&
       !deleteInventoryBuildCfgMask &&
+      !injectCarrierComparatorBoundaryGrowth &&
+      !deleteSourceNeedleSelfReferenceFilter &&
       !generatedFixtureManifest,
     "test injection cannot be combined with --write",
   );
@@ -2436,7 +2462,7 @@ function discoverPropertyIdentitySites(): PropertyIdentitySite[] {
 function coalesceCountedCannotSeeSitesByScopeOperation(sites: readonly CensusSite[]): CensusSite[] {
   const byScopeOperation = new Map<string, CensusSite[]>();
   for (const site of sites) {
-    const key = `${site.path}\u0000${site.function}\u0000${site.operation}`;
+    const key = countedCannotSeeScopeOperationKey(site);
     const group = byScopeOperation.get(key) ?? [];
     group.push(site);
     byScopeOperation.set(key, group);
@@ -2456,6 +2482,12 @@ function coalesceCountedCannotSeeSitesByScopeOperation(sites: readonly CensusSit
         left.line - right.line ||
         left.operation.localeCompare(right.operation),
     );
+}
+
+function countedCannotSeeScopeOperationKey(
+  site: Pick<CensusSite, "path" | "function" | "operation">,
+): string {
+  return `${site.path}\u0000${site.function}\u0000${site.operation}`;
 }
 
 function discoverRawPropertyIdentitySites(): DiscoveredSite[] {
@@ -5063,8 +5095,7 @@ function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult 
   }));
   applyAuthoredEscapeProbeMutations(sources);
   applyCarrierFieldConsumerProbeMutation(sources);
-  applyCarrierDelegationGuardProbeMutation(sources);
-  assertMechanicalCarrierComparatorDelegations(sources);
+  assertPinnedCarrierComparatorProductTests(sources);
   const aliasesByPath = rustTypeAliasesByPath(sources);
   const structFields = rustStructFieldTypes(sources, aliasesByPath);
   const functionReturnTypes = uniqueRustFunctionReturnTypes(sources, aliasesByPath);
@@ -5312,23 +5343,10 @@ function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult 
       if (
         carrierFieldSources.length > 0 &&
         carrierFieldSources.length === sourceSites.length &&
-        mechanicalCarrierNameDelegation(
+        carrierComparatorKeyDelegationBoundaryCandidate(
           record.body,
           statement.text,
           statement.start,
-          new Set(
-            carrierFieldSources.flatMap((site) =>
-              Array.from(
-                statement.text.matchAll(
-                  new RegExp(
-                    `\\b([A-Za-z_][A-Za-z0-9_]*)\\s*\\.\\s*${escapeRegExp(site.fieldName)}\\b`,
-                    "gu",
-                  ),
-                ),
-                (match) => match[1],
-              ),
-            ),
-          ),
         )
       )
         continue;
@@ -5831,65 +5849,22 @@ function applyCarrierFieldConsumerProbeMutation(sources: MutableRustSource[]): v
   );
 }
 
-function applyCarrierDelegationGuardProbeMutation(sources: MutableRustSource[]): void {
-  if (injectCarrierDelegationGuardLaundering) {
-    replaceTrackedSourceMutation(
-      sources,
-      "rust/crates/omena-query/src/types.rs",
-      "    if left_is_custom_property {",
-      "    if left.name.len() == right.name.len() {",
-      "carrier delegation family-guard laundering target",
-    );
-  }
-  if (injectCarrierDelegationGuardShadowing) {
-    replaceTrackedSourceMutation(
-      sources,
-      "rust/crates/omena-query/src/types.rs",
-      "    let identity_domain_order = left_is_custom_property.cmp(&right_is_custom_property);",
-      "    let left_is_custom_property = false; let identity_domain_order = left_is_custom_property.cmp(&right_is_custom_property);",
-      "carrier delegation family-guard shadowing target",
-    );
-  }
-}
-
-function assertMechanicalCarrierComparatorDelegations(sources: readonly MutableRustSource[]): void {
-  const comparators = [
-    {
-      path: "rust/crates/omena-lsp-server/src/state.rs",
-      functionName: "style_symbol_occurrence_name_cmp",
-    },
-    {
-      path: "rust/crates/omena-query/src/types.rs",
-      functionName: "workspace_occurrence_name_cmp",
-    },
-  ] as const;
-  for (const comparator of comparators) {
-    const source = sources.find((candidate) => candidate.relativePath === comparator.path)?.source;
-    assert.ok(source, `carrier comparator is outside escape-flow scope: ${comparator.path}`);
-    const structural = maskCommentsStringsAndTestItems(source, false);
-    const functionSlice = rustFunctionSlices(structural).find(
-      (candidate) => candidate.name === comparator.functionName,
+function assertPinnedCarrierComparatorProductTests(sources: readonly MutableRustSource[]): void {
+  const sites = discoverCarrierComparatorProductTestBoundarySites(sources);
+  for (const site of sites) {
+    const pin = carrierComparatorProductTestPins.find(
+      (candidate) =>
+        candidate.comparatorPath === site.path && candidate.functionName === site.function,
     );
     assert.ok(
-      functionSlice,
-      `carrier comparator is absent: ${comparator.path}:${comparator.functionName}`,
+      pin,
+      `carrier comparator boundary lacks a pinned product test: ${site.path}:${site.function}`,
     );
-    const body = source.slice(functionSlice.bodyStart, functionSlice.bodyEnd);
-    const rawComparison = rustStatementSlices(body).find((statement) =>
-      /\bleft\s*\.\s*name\s*\.\s*cmp\s*\(\s*&\s*right\s*\.\s*name\s*\)/u.test(statement.text),
-    );
-    assert.ok(
-      rawComparison,
-      `carrier comparator raw fallback is absent: ${comparator.path}:${comparator.functionName}`,
-    );
-    assert.ok(
-      mechanicalCarrierNameDelegation(
-        body,
-        rawComparison.text,
-        rawComparison.start,
-        new Set(["left", "right"]),
-      ),
-      `carrier comparator delegation guard does not prove custom-property family selection: ${comparator.path}:${comparator.functionName}`,
+    const testSource = readFileSync(path.join(repoRoot, pin.testPath), "utf8");
+    assert.match(
+      testSource,
+      new RegExp(`\\bfn\\s+${escapeRegExp(pin.testName)}\\s*\\(`, "u"),
+      `carrier comparator product test is absent: ${pin.testPath}:${pin.testName}`,
     );
   }
 }
@@ -8339,9 +8314,7 @@ function discoverEscapePopulatedCarrierFieldIdentitySites(
           )
         )
           continue;
-        if (
-          mechanicalCarrierNameDelegation(body, statement.text, statement.start, carrierParameters)
-        )
+        if (carrierComparatorKeyDelegationBoundaryCandidate(body, statement.text, statement.start))
           continue;
         sites.push(
           siteAt(
@@ -8358,118 +8331,26 @@ function discoverEscapePopulatedCarrierFieldIdentitySites(
   return uniqueSites(sites);
 }
 
-function mechanicalCarrierNameDelegation(
+function carrierComparatorKeyDelegationBoundaryCandidate(
   body: string,
   rawComparison: string,
   rawComparisonOffset: number,
-  carrierBindings: ReadonlySet<string>,
 ): boolean {
-  const rawBindings = new Set(
-    Array.from(
-      rawComparison.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)\s*\.\s*name\b/gu),
-      (match) => match[1],
-    ).filter((binding) => carrierBindings.has(binding)),
-  );
-  if (rawBindings.size < 2) return false;
+  const rawNameComparison =
+    /\b([A-Za-z_][A-Za-z0-9_]*)\s*\.\s*name\s*\.\s*cmp\s*\(\s*&\s*([A-Za-z_][A-Za-z0-9_]*)\s*\.\s*name\s*\)/u.exec(
+      rawComparison,
+    );
+  if (!rawNameComparison || rawNameComparison[1] === rawNameComparison[2]) return false;
+  const rawBindings = [rawNameComparison[1], rawNameComparison[2]];
   const prefix = body.slice(0, rawComparisonOffset);
-  const canonicalKeyOffsets: number[] = [];
   for (const binding of rawBindings) {
     const keyPattern = new RegExp(
       `\\bPropertyNameV0\\s*::\\s*canonical_custom_key\\s*\\(\\s*${escapeRegExp(binding)}\\s*\\.\\s*name\\b`,
-      "gu",
-    );
-    const keyMatches = [...prefix.matchAll(keyPattern)];
-    if (keyMatches.length === 0) return false;
-    canonicalKeyOffsets.push(keyMatches.at(-1)?.index ?? -1);
-  }
-  const canonicalStart = Math.min(...canonicalKeyOffsets);
-  if (canonicalStart < 0) return false;
-  const canonicalTail = prefix.slice(canonicalStart);
-  if (!/\.\s*cmp\s*\(/u.test(canonicalTail)) return false;
-  const returnOffset = prefix.lastIndexOf("return", canonicalStart);
-  if (returnOffset < 0 || canonicalStart - returnOffset > 120) return false;
-  const guardOffset = [...prefix.slice(0, returnOffset).matchAll(/\bif\b/gu)].at(-1)?.index ?? -1;
-  if (guardOffset < 0) return false;
-  const guardOpen = prefix.indexOf("{", guardOffset);
-  if (guardOpen < 0 || guardOpen > returnOffset) return false;
-  const guardClose = matchingBrace(maskCommentsStringsAndTestItems(prefix, false), guardOpen);
-  if (guardClose === undefined || guardClose < canonicalStart) return false;
-  const guardCondition = prefix.slice(guardOffset + 2, guardOpen);
-  return customPropertyFamilyGuardSelectsBindings(
-    prefix.slice(0, guardOffset),
-    guardCondition,
-    rawBindings,
-  );
-}
-
-function customPropertyFamilyGuardSelectsBindings(
-  beforeGuard: string,
-  guardCondition: string,
-  rawBindings: ReadonlySet<string>,
-): boolean {
-  const familyExpression = (binding: string): string =>
-    `\\b${escapeRegExp(binding)}\\s*\\.\\s*kind\\s*\\.\\s*family\\s*\\(\\s*\\)\\s*==\\s*OmenaWorkspaceOccurrenceFamilyV0\\s*::\\s*CustomProperty\\b`;
-  const bindings = [...rawBindings];
-  if (bindings.length === 2) {
-    const [leftBinding, rightBinding] = bindings;
-    const leftFamily = familyExpression(leftBinding);
-    const rightFamily = familyExpression(rightBinding);
-    if (
-      new RegExp(
-        `(?:${leftFamily})\\s*&&\\s*(?:${rightFamily})|(?:${rightFamily})\\s*&&\\s*(?:${leftFamily})`,
-        "u",
-      ).test(guardCondition)
-    ) {
-      return true;
-    }
-  }
-
-  const familyFlags = new Map<string, string>();
-  for (const binding of rawBindings) {
-    const declarations = [
-      ...beforeGuard.matchAll(
-        new RegExp(
-          `\\blet\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*${familyExpression(binding)}\\s*;`,
-          "gu",
-        ),
-      ),
-    ];
-    const flag = declarations.at(-1)?.[1];
-    if (!flag) return false;
-    familyFlags.set(binding, flag);
-  }
-  const flags = [...familyFlags.values()];
-  if (flags.length !== 2) return false;
-  const shadowedBindings = shadowedRustBindings(beforeGuard);
-  if (flags.some((flag) => shadowedBindings.has(flag))) return false;
-  const [leftFlag, rightFlag] = flags.map(escapeRegExp);
-  if (
-    new RegExp(
-      `(?:\\b${leftFlag}\\b)\\s*&&\\s*(?:\\b${rightFlag}\\b)|(?:\\b${rightFlag}\\b)\\s*&&\\s*(?:\\b${leftFlag}\\b)`,
       "u",
-    ).test(guardCondition)
-  ) {
-    return true;
+    );
+    if (!keyPattern.test(prefix)) return false;
   }
-  const selectedFlags = flags.filter((flag) =>
-    new RegExp(`\\b${escapeRegExp(flag)}\\b`, "u").test(guardCondition),
-  );
-  if (selectedFlags.length !== 1) return false;
-
-  const relationDeclarations = [
-    ...beforeGuard.matchAll(
-      new RegExp(
-        `\\blet\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*(?:${escapeRegExp(flags[0])}\\s*\\.\\s*cmp\\s*\\(\\s*&\\s*${escapeRegExp(flags[1])}|${escapeRegExp(flags[1])}\\s*\\.\\s*cmp\\s*\\(\\s*&\\s*${escapeRegExp(flags[0])})\\s*\\)\\s*;`,
-        "gu",
-      ),
-    ),
-  ];
-  const relation = relationDeclarations.at(-1)?.[1];
-  if (!relation) return false;
-  return new RegExp(
-    `\\bif\\s+${escapeRegExp(relation)}\\s*!=\\s*(?:[A-Za-z_][A-Za-z0-9_]*\\s*::\\s*)?Equal\\s*\\{[\\s\\S]*?\\breturn\\s+${escapeRegExp(relation)}\\s*;[\\s\\S]*?\\}`,
-    "u",
-  ).test(beforeGuard);
+  return /PropertyNameV0\s*::\s*canonical_custom_key[\s\S]{0,320}?\.\s*cmp\s*\(/u.test(prefix);
 }
 
 function rustStructLiterals(body: string): readonly { typeName: string; fields: string }[] {
@@ -9500,10 +9381,40 @@ function offsetForLine(source: string, line: number): number {
 
 function sourceNeedleLocation(relativePath: string, needle: string): string {
   const source = readFileSync(path.join(repoRoot, relativePath), "utf8");
-  const offset = source.indexOf(needle);
+  const offset = sourceNeedleOffset(source, needle);
   assert.ok(offset >= 0, `cannotSee anchor missing: ${relativePath}:${needle}`);
   return `${relativePath}:${lineNumberAt(source, offset)}`;
 }
+
+function sourceNeedleOffset(source: string, needle: string): number {
+  let offset = source.indexOf(needle);
+  while (offset >= 0) {
+    const lineStart = source.lastIndexOf("\n", offset - 1) + 1;
+    const lineEndCandidate = source.indexOf("\n", offset);
+    const lineEnd = lineEndCandidate >= 0 ? lineEndCandidate : source.length;
+    const line = source.slice(lineStart, lineEnd);
+    if (deleteSourceNeedleSelfReferenceFilter || !line.includes("sourceNeedleLocation(")) {
+      return offset;
+    }
+    offset = source.indexOf(needle, offset + needle.length);
+  }
+  return -1;
+}
+
+function assertSourceNeedleLocationRejectsSelfReference(): void {
+  const source = [
+    'const anchor = sourceNeedleLocation("checker", "function targetMechanism(");',
+    "function targetMechanism(): void {}",
+  ].join("\n");
+  const offset = sourceNeedleOffset(source, "function targetMechanism(");
+  assert.equal(
+    lineNumberAt(source, offset),
+    2,
+    "source needle locator selected its own call instead of the mechanism",
+  );
+}
+
+assertSourceNeedleLocationRejectsSelfReference();
 
 function assertInventoryRowsOutsideCfgTestItems(
   rows: readonly {
@@ -9553,6 +9464,27 @@ function discoverCountedCannotSeeBoundaries(
       "counted boundary growth target",
     );
   }
+  if (injectCarrierComparatorBoundaryGrowth) {
+    replaceTrackedSourceMutation(
+      boundarySources,
+      "rust/crates/omena-query/src/types.rs",
+      "    left.name.cmp(&right.name)\n}",
+      [
+        "    left.name.cmp(&right.name)",
+        "}",
+        "",
+        "fn injected_workspace_occurrence_name_cmp(",
+        "    left: &OmenaWorkspaceOccurrenceV0,",
+        "    right: &OmenaWorkspaceOccurrenceV0,",
+        ") -> Ordering {",
+        "    let _ = PropertyNameV0::canonical_custom_key(left.name.clone())",
+        "        .cmp(&PropertyNameV0::canonical_custom_key(right.name.clone()));",
+        "    left.name.cmp(&right.name)",
+        "}",
+      ].join("\n"),
+      "carrier comparator counted boundary growth target",
+    );
+  }
   const aliasesByPath = rustTypeAliasesByPath(boundarySources);
   const structFields = rustStructFieldTypes(boundarySources, aliasesByPath);
   const functionReturnTypes = uniqueRustFunctionReturnTypes(boundarySources, aliasesByPath);
@@ -9593,7 +9525,7 @@ function discoverCountedCannotSeeBoundaries(
       "carrier-field-read-spelling-grammar",
       ["field-name-not-name", "match-pattern", "closure-binder", "deref-field"],
       discoverCarrierFieldReadSpellingGrammarSites(boundarySources),
-      "Carrier-source discovery is bound to a literal String field named `name` and direct `.name` or `Type { name }` reads. Alternative fields are only partially enumerated by /property|custom|declaration|reference|identity|selector|class|key/; match-arm, closure-binder, and explicit Deref field reads are counted lexical upper bounds, not affirmed non-property flows.",
+      "Carrier-source discovery is bound to a literal String field named `name` and direct `.name` or `Type { name }` reads. The /property|custom|declaration|reference|identity|selector|class|key/ regex governs only the `field-name-not-name` operation; match-arm, closure-binder, and explicit Deref field reads are separately counted lexical upper bounds, not affirmed non-property flows.",
     ),
     countedCannotSeeBoundary(
       "carrier-type-qualification-gate",
@@ -9640,6 +9572,12 @@ function discoverCountedCannotSeeBoundaries(
       discoverNonStringContainerScalarEgressSites(records),
       "The flow engine tracks authored sources into known non-String containers but does not generally transfer a container source back into scalars returned by these egress methods.",
     ),
+    countedCannotSeeBoundary(
+      "carrier-comparator-product-test-boundary",
+      ["key-delegating-occurrence-name-comparator"],
+      discoverCarrierComparatorProductTestBoundarySites(boundarySources),
+      "Occurrence-name comparators with a raw `.name` fallback and nearby canonical custom-property key delegation are counted here rather than certified by the census. Their guard semantics are owned by pinned cargo product tests, not by a lexical predicate.",
+    ),
   ];
 }
 
@@ -9658,6 +9596,41 @@ function countedCannotSeeBoundary(
     siteDigest: digest(sites),
     reason,
   };
+}
+
+function discoverCarrierComparatorProductTestBoundarySites(
+  sources: readonly MutableRustSource[],
+): CensusSite[] {
+  const sites: CensusSite[] = [];
+  for (const { relativePath, source } of sources) {
+    const scannable = maskCommentsStringsAndTestItems(source, false);
+    for (const functionSlice of rustFunctionSlices(scannable)) {
+      const body = source.slice(functionSlice.bodyStart, functionSlice.bodyEnd);
+      for (const statement of rustStatementSlices(body)) {
+        if (!carrierComparatorKeyDelegationBoundaryCandidate(body, statement.text, statement.start))
+          continue;
+        const pin = carrierComparatorProductTestPins.find(
+          (candidate) =>
+            candidate.comparatorPath === relativePath &&
+            candidate.functionName === functionSlice.name,
+        );
+        sites.push({
+          ...siteAt(
+            relativePath,
+            source,
+            scannable,
+            functionSlice.bodyStart + statement.start,
+            "carrier-comparator:key-delegating-occurrence-name-comparator",
+          ),
+          disposition: "named-exempt",
+          reason: pin
+            ? `The census does not prove this comparator's guard semantics; cargo product test ${pin.testPath}:${pin.testName} owns that behavior.`
+            : "A newly observed key-delegating raw-name comparator has no adopted product-test pin; the decrease-only boundary ratchet forbids it.",
+        });
+      }
+    }
+  }
+  return uniqueSites(sites);
 }
 
 function discoverCollectionCallbackComparisonGrammarSites(
@@ -10041,7 +10014,7 @@ function countedCannotSeeSiteMultiplicity(
 ): ReadonlyMap<string, number> {
   const multiplicity = new Map<string, number>();
   for (const site of sites) {
-    const key = `${site.path}\u0000${site.function}\u0000${site.operation}`;
+    const key = countedCannotSeeScopeOperationKey(site);
     multiplicity.set(key, (multiplicity.get(key) ?? 0) + 1);
   }
   return multiplicity;
@@ -10101,7 +10074,7 @@ function authoredEscapeCannotSee(
     `${sourceNeedleLocation("rust/crates/omena-syntax/src/ident.rs", "pub fn canonical_name(&self) -> &str {")}: canonical_name()/sealed-key as_str() text comparisons are not escape flows; they are canonical-correct only within a kind, and standard("--foo") collides textually with custom("--foo").`,
     `${sourceNeedleLocation(checkerPath, "function discoverAuthoredEscapeClosureAudit(): AuthoredEscapeClosureAuditResult {")}: cross-crate calls, dyn dispatch, unknown method receivers, and indirect function bindings are not resolved by the intra-crate text fixpoint; module-qualified free calls and uniquely typed inherent methods are resolved.`,
     `${sourceNeedleLocation(checkerPath, "const definitionCounts = new Map<string, number>();")}: ${unresolvedCallEdgeCount} known-but-ambiguous intra-crate call edges remain separately enumerated with file:line and do not contribute return taint.`,
-    `${sourceNeedleLocation(checkerPath, "const shadowedBindings = new Set(")}: ${unresolvedBindingEdgeCount} identity-shaped uses reached only through reused binding spellings remain separately enumerated with file:line; the text engine declines to infer through them because it cannot prove lexical scope.`,
+    `${sourceNeedleLocation(checkerPath, "function shadowedRustBindings(")}: ${unresolvedBindingEdgeCount} identity-shaped uses reached only through reused binding spellings remain separately enumerated with file:line. The comparator and taint planes share shadowedRustBindings; its let-with-initializer assignment grammar does not model deferred initialization such as \`let flag; flag = false;\`, so that class remains a named split-goal carry rather than a definite flow.`,
     `${sourceNeedleLocation(checkerPath, "function discoverResidualRawPropertyCarrierSites(")}: key construction whose input was normalized before the authority constructor is visible only when the residual provenance resolver recognizes that normalization; any unrecognized pre-normalization remains outside the claim.`,
     `${sourceNeedleLocation(checkerPath, "function maskCommentsStringsAndTestItems(")}: proc-macro-generated bodies other than serde derives and unsafe transmute are outside the text scanner.`,
     `${sourceNeedleLocation(checkerPath, 'const generatedFixtureOnly = process.argv.includes("--generated-fixture-only");')}: generated matrix cells are scanner-only and are never compiled; their ORIGIN scores come from a paired fixture detector, not the production flow fixpoint.`,
