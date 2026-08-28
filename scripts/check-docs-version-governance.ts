@@ -26,6 +26,8 @@ interface TagGrammarReport {
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const governancePath = "docs/governance/version-governance.md";
 const governance = read(governancePath);
+const tokenRotationPath = "docs/releases/css-modules-token-rotation.md";
+const tokenRotation = read(tokenRotationPath);
 const rows = parseDerivedRows(governance);
 const rootPackage = readJson<PackageManifest>("package.json");
 const workspaceVersion = readWorkspaceVersion();
@@ -83,6 +85,14 @@ assert.ok(
 assert.ok(
   governance.includes("first public publish requires a separate decision"),
   `${governancePath} must keep first-publish decisions explicit`,
+);
+assert.ok(
+  tokenRotation.includes(`Rust crate-train \`${linkedEmission.targetReleaseVersion}\``),
+  `${tokenRotationPath} must cite the linked-emission target release`,
+);
+assert.ok(
+  tokenRotation.includes("does not reserve\nor require an extension `6.0.0` release"),
+  `${tokenRotationPath} must not reserve extension 6.0.0 for linked emission`,
 );
 
 process.stdout.write(
