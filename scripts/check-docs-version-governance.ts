@@ -91,7 +91,7 @@ assert.ok(
   `${tokenRotationPath} must cite the linked-emission target release`,
 );
 assert.ok(
-  tokenRotation.includes("does not reserve\nor require an extension `6.0.0` release"),
+  /does not reserve\s+or require an extension `6\.0\.0` release/u.test(tokenRotation),
   `${tokenRotationPath} must not reserve extension 6.0.0 for linked emission`,
 );
 
