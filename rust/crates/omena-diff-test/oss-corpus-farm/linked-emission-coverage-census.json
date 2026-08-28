@@ -8,8 +8,8 @@
   "notCoveredShapeCount": 4,
   "fixtureCount": 20,
   "moduleCount": 48,
-  "markerObservableModuleCount": 43,
-  "blindSpotModuleCount": 5,
+  "markerObservableModuleCount": 42,
+  "blindSpotModuleCount": 6,
   "unknownStructuralSelectorCount": 0,
   "unknownAtRuleCount": 0,
   "moduleTokenCollisionScope": "boundedFixtureRegressionTripwire",
@@ -551,8 +551,8 @@
     {
       "fixtureId": "font-face-only-module",
       "moduleCount": 2,
-      "markerObservableModuleCount": 1,
-      "blindSpotModuleCount": 1
+      "markerObservableModuleCount": 0,
+      "blindSpotModuleCount": 2
     },
     {
       "fixtureId": "empty-module-boundary",
@@ -600,11 +600,23 @@
     },
     {
       "fixtureId": "font-face-only-module",
+      "modulePath": "linked-byte/font-face-only-module/app.css",
+      "shapeClasses": ["font-face-only"],
+      "emissionPlanEntryCount": 1,
+      "factCategories": ["sassModuleEdges", "atRules"],
+      "outputBytesDiffer": false,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": true
+    },
+    {
+      "fixtureId": "font-face-only-module",
       "modulePath": "linked-byte/font-face-only-module/fonts.css",
       "shapeClasses": ["font-face-only"],
       "emissionPlanEntryCount": 1,
       "factCategories": ["atRules"],
-      "outputBytesDiffer": true,
+      "outputBytesDiffer": false,
       "markerOrdersAgree": true,
       "linkedMarkerOrderMatchesAuthority": true,
       "semanticDifferenceObserved": false,

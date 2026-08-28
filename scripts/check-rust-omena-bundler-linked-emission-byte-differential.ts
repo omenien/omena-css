@@ -348,6 +348,7 @@ const forwardedArguments = process.argv
   .filter((argument) =>
     [
       "--inject-unexpected-divergence",
+      "--inject-linked-asset-url-drift",
       "--force-equivalent",
       "--inject-cross-module-declaration-loss",
       "--inject-composed-declaration-loss",
@@ -564,6 +565,7 @@ assert.deepEqual(
 );
 assert.equal(census.placementWitnesses.length, 4);
 const moduleBoundaryShapeClasses = new Set(["empty-module", "comment-only-module"]);
+const equivalentBlindSpotFixtureIds = new Set(["font-face-only-module"]);
 const moduleBoundaryBlindSpots = census.blindSpots.filter((blindSpot) =>
   blindSpot.shapeClasses.some((shapeClass) => moduleBoundaryShapeClasses.has(shapeClass)),
 );
@@ -583,12 +585,29 @@ assert.ok(
       !blindSpot.semanticDifferenceObserved,
   ),
 );
+const equivalentBlindSpots = census.blindSpots.filter((blindSpot) =>
+  equivalentBlindSpotFixtureIds.has(blindSpot.fixtureId),
+);
+// FALSIFIER: id=linked-emission-asset-url-equivalence class=accounting via=--inject-linked-asset-url-drift producer=can-fail owner=linked-emission-instrument entry=font-face-bytes-equal
+assert.ok(
+  equivalentBlindSpots.length > 0 &&
+    equivalentBlindSpots.every(
+      (blindSpot) =>
+        blindSpot.emissionPlanEntryCount > 0 &&
+        !blindSpot.outputBytesDiffer &&
+        blindSpot.markerOrdersAgree &&
+        blindSpot.linkedMarkerOrderMatchesAuthority &&
+        !blindSpot.semanticDifferenceObserved,
+    ),
+  "the repaired selectorless asset fixture must remain byte-identical across emission paths",
+);
 // FALSIFIER: id=linked-emission-gate-014 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
 assert.ok(
   census.blindSpots
     .filter(
       (blindSpot) =>
-        !blindSpot.shapeClasses.some((shapeClass) => moduleBoundaryShapeClasses.has(shapeClass)),
+        !blindSpot.shapeClasses.some((shapeClass) => moduleBoundaryShapeClasses.has(shapeClass)) &&
+        !equivalentBlindSpotFixtureIds.has(blindSpot.fixtureId),
     )
     .every(
       (blindSpot) =>

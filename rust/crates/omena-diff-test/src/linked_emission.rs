@@ -35,6 +35,7 @@ pub enum LinkedEmissionByteDifferentialPerturbationV0 {
     #[default]
     None,
     AddUnexpectedRule,
+    DriftLinkedAssetUrl,
     CollapseToLegacyBytes,
     DropReachableCrossModuleDeclaration,
     DropComposedDeclaration,
@@ -507,6 +508,11 @@ pub fn summarize_linked_emission_byte_differential_envelope_v0(
         .map(|(index, fixture)| {
             let case_perturbation = match perturbation {
                 LinkedEmissionByteDifferentialPerturbationV0::AddUnexpectedRule if index == 0 => {
+                    perturbation
+                }
+                LinkedEmissionByteDifferentialPerturbationV0::DriftLinkedAssetUrl
+                    if fixture.id == "font-face-only-module" =>
+                {
                     perturbation
                 }
                 LinkedEmissionByteDifferentialPerturbationV0::CollapseToLegacyBytes => perturbation,
@@ -1328,6 +1334,12 @@ fn analyze_linked_emission_fixture_v0(
         LinkedEmissionByteDifferentialPerturbationV0::None => {}
         LinkedEmissionByteDifferentialPerturbationV0::AddUnexpectedRule => {
             linked_css.push_str("\n.injected-unexpected-rule { color: magenta; }");
+        }
+        LinkedEmissionByteDifferentialPerturbationV0::DriftLinkedAssetUrl => {
+            linked_css = linked_css.replace(
+                "url(\"linked-byte/font-face-only-module/font.woff2\")",
+                "url(\"./font.woff2\")",
+            );
         }
         LinkedEmissionByteDifferentialPerturbationV0::CollapseToLegacyBytes => {
             linked_css.clone_from(&legacy_css);
@@ -2899,13 +2911,7 @@ fn linked_emission_fixtures_v0() -> Vec<LinkedEmissionFixtureV0> {
             "@layer reset;",
             "@layer reset;",
         ),
-        selectorless_module_fixture_v0(
-            "font-face-only-module",
-            "font-face-only",
-            "fonts.css",
-            "@font-face { font-family: \"OmenaFixture\"; src: url(\"./font.woff2\"); }",
-            "OmenaFixture",
-        ),
+        font_face_only_fixture_v0(),
         selectorless_module_fixture_v0(
             "empty-module-boundary",
             "empty-module",
@@ -2957,6 +2963,35 @@ fn selectorless_module_fixture_v0(
                 dialect: StyleDialect::Css,
                 marker_names: Vec::new(),
                 order_probe: imported_order_probe.to_string(),
+            },
+        ],
+        workspace_only_modules: Vec::new(),
+        reachability_references: Vec::new(),
+        liveness_expectations: Vec::new(),
+    }
+}
+
+fn font_face_only_fixture_v0() -> LinkedEmissionFixtureV0 {
+    let root = "linked-byte/font-face-only-module";
+    LinkedEmissionFixtureV0 {
+        id: "font-face-only-module".to_string(),
+        entry_path: format!("{root}/app.css"),
+        shape_classes: vec!["font-face-only"],
+        modules: vec![
+            LinkedEmissionFixtureModuleV0 {
+                path: format!("{root}/app.css"),
+                source: "@import \"./fonts.css\";".to_string(),
+                dialect: StyleDialect::Css,
+                marker_names: Vec::new(),
+                order_probe: String::new(),
+            },
+            LinkedEmissionFixtureModuleV0 {
+                path: format!("{root}/fonts.css"),
+                source: "@font-face { font-family: \"OmenaFixture\"; src: url(\"./font.woff2\"); }"
+                    .to_string(),
+                dialect: StyleDialect::Css,
+                marker_names: Vec::new(),
+                order_probe: "OmenaFixture".to_string(),
             },
         ],
         workspace_only_modules: Vec::new(),
@@ -4247,11 +4282,8 @@ mod tests {
             .map(|blind_spot| blind_spot.fixture_id.as_str())
             .collect::<BTreeSet<_>>();
 
-        // FALSIFIER: id=linked-emission-rust-047 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert_eq!(
-            unexpected_fixture_ids,
-            BTreeSet::from(["font-face-only-module"])
-        );
+        // FALSIFIER: id=linked-emission-rust-047 class=accounting via=DriftLinkedAssetUrl producer=can-fail owner=linked-emission-instrument entry=no-unexpected-divergences
+        assert!(unexpected_fixture_ids.is_empty());
         // FALSIFIER: id=linked-emission-rust-048 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(blind_spot_fixture_ids, expected_fixture_ids);
         // FALSIFIER: id=linked-emission-rust-049 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
@@ -4301,7 +4333,7 @@ mod tests {
     }
 
     #[test]
-    fn asset_url_drift_is_not_laundered_as_module_placement() -> Result<(), String> {
+    fn linked_emission_rewrites_asset_urls_from_the_owning_module_path() -> Result<(), String> {
         let fixture = linked_emission_fixtures_v0()
             .into_iter()
             .find(|fixture| fixture.id == "font-face-only-module")
@@ -4311,23 +4343,19 @@ mod tests {
             LinkedEmissionByteDifferentialPerturbationV0::None,
         )?;
 
-        assert_ne!(
-            css_url_arguments_v0(&analysis.legacy_css),
-            css_url_arguments_v0(&analysis.linked_css)
+        let expected_asset_urls =
+            vec!["\"linked-byte/font-face-only-module/font.woff2\"".to_string()];
+        // FALSIFIER: id=linked-emission-rust-052 class=accounting via=DriftLinkedAssetUrl producer=can-fail owner=linked-emission-instrument entry=linked-asset-url-matches-legacy
+        assert_eq!(
+            css_url_arguments_v0(&analysis.linked_css),
+            expected_asset_urls
         );
-        // FALSIFIER: id=linked-emission-rust-052 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert!(analysis.case.semantic_preserved);
-        // FALSIFIER: id=linked-emission-rust-053 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert!(
-            analysis
-                .case
-                .reasons
-                .contains(&LinkedEmissionByteDifferenceReasonV0::ImportGraphModulePlacement)
-        );
-        // FALSIFIER: id=linked-emission-rust-054 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
+        // FALSIFIER: id=linked-emission-rust-053 class=accounting via=DriftLinkedAssetUrl producer=can-fail owner=linked-emission-instrument entry=font-face-bytes-equal
+        assert_eq!(analysis.legacy_css, analysis.linked_css);
+        // FALSIFIER: id=linked-emission-rust-054 class=accounting via=DriftLinkedAssetUrl producer=can-fail owner=linked-emission-instrument entry=font-face-equivalent-class
         assert_eq!(
             analysis.case.difference_class,
-            LinkedEmissionByteDifferenceClassV0::Unexpected
+            LinkedEmissionByteDifferenceClassV0::Equivalent
         );
         Ok(())
     }

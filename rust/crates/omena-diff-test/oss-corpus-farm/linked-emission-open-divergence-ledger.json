@@ -1,13 +1,5 @@
 {
   "schemaVersion": "0",
   "product": "omena-diff-test.linked-emission-open-divergence-ledger",
-  "entries": [
-    {
-      "fixtureId": "font-face-only-module",
-      "shapeClass": "font-face-only",
-      "owningGoal": "bundle-asset-url-rewrite",
-      "witnessDigest": "b3478b99c8b78ccd996c59793ef55035605d13bbd16d35944bb680cd9f186072",
-      "note": "Emission-item placement is represented, but legacy and linked paths still disagree on relative asset URL rewriting."
-    }
-  ]
+  "entries": []
 }

@@ -34,6 +34,7 @@ use omena_query_transform_runner::{
     normalize_omena_transform_bundle_path,
     project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules_with_instance_reachability,
     project_omena_transform_bundle_linker_inputs_from_parsed_modules,
+    rewrite_omena_transform_bundle_asset_urls_in_source,
 };
 use omena_sif::normalize_omena_sif_location_spelling_v1;
 use std::path::{Path, PathBuf};
@@ -522,7 +523,7 @@ fn run_omena_query_bundle_with_optional_module_reachability(
         requested_pass_ids,
         context,
         resolution_inputs,
-        asset_rewrites,
+        mut asset_rewrites,
         bundle_entry_style_paths,
     } = input;
     let Some(target_source) = find_target_style_source(target_style_path, style_sources) else {
@@ -630,8 +631,10 @@ fn run_omena_query_bundle_with_optional_module_reachability(
                     module_css_module_contexts,
                     module_identity_root,
                     resolution_inputs,
+                    asset_rewrites.as_slice(),
                     options,
                 )?;
+                asset_rewrites.extend(linked_execution.asset_rewrites.iter().cloned());
                 let execution_scope = summarize_linked_bundle_execution_scope(&linked_execution)?;
                 (
                     linked_execution.execution,
@@ -663,8 +666,10 @@ fn run_omena_query_bundle_with_optional_module_reachability(
                     module_css_module_contexts,
                     module_identity_root,
                     resolution_inputs,
+                    asset_rewrites.as_slice(),
                     options,
                 )?;
+                asset_rewrites.extend(linked_execution.asset_rewrites.iter().cloned());
                 (
                     linked_execution.execution,
                     None,
@@ -4160,7 +4165,7 @@ fn execute_linked_bundle_modules(
         let summary =
             execute_omena_query_consumer_build_style_module_with_context_and_closed_world_bundle(
                 style_path,
-                module_input.style_source,
+                module_input.style_source.as_str(),
                 pass_set,
                 &module_input.context,
                 execution_inputs,
@@ -4208,6 +4213,7 @@ fn execute_linked_bundle_modules(
         entry_module_instance: target_instance.clone(),
         module_executions,
         materialization: materialized,
+        asset_rewrites: Vec::new(),
     })
 }
 
@@ -4222,6 +4228,7 @@ fn execute_linked_bundle_modules_with_ownership_reference(
     module_css_module_contexts: &[TransformModuleCssModuleContextV0],
     module_identity_root: Option<&str>,
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    pre_rewritten_asset_sources: &[TransformBundleAssetUrlRewriteSummaryV0],
     options: &OmenaQueryConsumerBuildOptionsV0,
 ) -> Result<LinkedBundleExecutionV0, String> {
     let linked_stylesheet = &linked.linked_stylesheet;
@@ -4242,6 +4249,7 @@ fn execute_linked_bundle_modules_with_ownership_reference(
         .collect::<Result<Vec<_>, String>>()?;
 
     let mut module_inputs = Vec::with_capacity(linked_stylesheet.module_instances.len());
+    let mut asset_rewrites = Vec::new();
     for module_instance in &linked_stylesheet.module_instances {
         let style_path = module_instance.module().as_str();
         let Some(style_source) = find_target_style_source(style_path, style_sources) else {
@@ -4282,10 +4290,23 @@ fn execute_linked_bundle_modules_with_ownership_reference(
         for inline in &mut module_context.import_inlines {
             inline.replacement_css.clear();
         }
+        let source_was_pre_rewritten = pre_rewritten_asset_sources.iter().any(|rewrite| {
+            normalize_omena_transform_bundle_path(rewrite.source_path.as_str())
+                == normalize_omena_transform_bundle_path(style_path)
+        });
+        let execution_source = if source_was_pre_rewritten {
+            style_source.to_string()
+        } else {
+            let rewrite =
+                rewrite_omena_transform_bundle_asset_urls_in_source(style_path, style_source);
+            let output_css = rewrite.output_css.clone();
+            asset_rewrites.push(rewrite);
+            output_css
+        };
         module_inputs.push(LinkedModuleExecutionInputV0 {
             module_instance,
             ownership_module_instance: token_module_instance,
-            style_source,
+            style_source: execution_source,
             context: module_context,
         });
     }
@@ -4340,7 +4361,7 @@ fn execute_linked_bundle_modules_with_ownership_reference(
         None
     };
 
-    execute_linked_bundle_modules(
+    let mut execution = execute_linked_bundle_modules(
         linked,
         target_style_path,
         module_inputs.as_slice(),
@@ -4348,7 +4369,9 @@ fn execute_linked_bundle_modules_with_ownership_reference(
         &pass_set,
         ownership_reference.as_ref(),
         options,
-    )
+    )?;
+    execution.asset_rewrites = asset_rewrites;
+    Ok(execution)
 }
 
 fn pass_id_is_fact_consuming(pass_id: &str) -> bool {
@@ -4384,7 +4407,7 @@ struct LinkedModuleExecutionV0 {
 struct LinkedModuleExecutionInputV0<'a> {
     module_instance: &'a omena_parser::ModuleInstanceKeyV0,
     ownership_module_instance: omena_parser::ModuleInstanceKeyV0,
-    style_source: &'a str,
+    style_source: String,
     context: TransformExecutionContextV0,
 }
 
@@ -4458,6 +4481,7 @@ struct LinkedBundleExecutionV0 {
     entry_module_instance: omena_parser::ModuleInstanceKeyV0,
     module_executions: Vec<LinkedModuleExecutionV0>,
     materialization: LinkedEmissionArtifactV0,
+    asset_rewrites: Vec<TransformBundleAssetUrlRewriteSummaryV0>,
 }
 
 fn summarize_bundle_execution(linked: &LinkedBundleExecutionV0) -> BundleExecutionSummaryV0 {
@@ -5177,13 +5201,13 @@ mod linked_source_map_tests {
             LinkedModuleExecutionInputV0 {
                 module_instance: &entry,
                 ownership_module_instance: entry.clone(),
-                style_source: ".entry { color: red; }",
+                style_source: ".entry { color: red; }".to_string(),
                 context: entry_context,
             },
             LinkedModuleExecutionInputV0 {
                 module_instance: &dependency,
                 ownership_module_instance: dependency.clone(),
-                style_source: ".live { color: blue; } .shared { color: green; }",
+                style_source: ".live { color: blue; } .shared { color: green; }".to_string(),
                 context: dependency_context,
             },
         ];
@@ -5341,6 +5365,7 @@ mod linked_source_map_tests {
             &[],
             None,
             &resolution_inputs,
+            &[],
             &OmenaQueryConsumerBuildOptionsV0 {
                 bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
                 ..OmenaQueryConsumerBuildOptionsV0::default()
@@ -5656,6 +5681,7 @@ mod linked_source_map_tests {
             &[],
             None,
             &resolution_inputs,
+            &[],
             &OmenaQueryConsumerBuildOptionsV0 {
                 bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
                 ..OmenaQueryConsumerBuildOptionsV0::default()
@@ -5735,6 +5761,7 @@ mod linked_source_map_tests {
             &[],
             None,
             &resolution_inputs,
+            &[],
             &OmenaQueryConsumerBuildOptionsV0 {
                 bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
                 ..OmenaQueryConsumerBuildOptionsV0::default()

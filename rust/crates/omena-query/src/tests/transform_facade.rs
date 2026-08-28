@@ -928,6 +928,65 @@ fn bundle_emission_path_selects_linked_order_without_changing_the_default() -> R
 }
 
 #[test]
+fn linked_emission_rewrites_asset_urls_from_each_module_path() -> Result<(), String> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/app.css".to_string(),
+            style_source: "@import \"./fonts/fonts.css\";".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/fonts/fonts.css".to_string(),
+            style_source: "@font-face { font-family: Omena; src: url(\"./font.woff2\"); }"
+                .to_string(),
+        },
+    ];
+    let pass_ids = vec!["import-inline".to_string(), "print-css".to_string()];
+    let context = OmenaQueryTransformExecutionContextV0::default();
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let result = run_omena_query_bundle_with_semantic_inputs_and_options(
+        OmenaQueryBundlePlanInputV0 {
+            target_style_path: "src/app.css",
+            style_sources: &sources,
+            source_map_sources: &sources,
+            requested_pass_ids: &pass_ids,
+            context: &context,
+            resolution_inputs: &resolution_inputs,
+            asset_rewrites: Vec::new(),
+            bundle_entry_style_paths: &[],
+        },
+        &[],
+        &OmenaQueryConsumerBuildOptionsV0 {
+            bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
+            ..OmenaQueryConsumerBuildOptionsV0::default()
+        },
+    )?;
+
+    assert_eq!(
+        result.artifact.output_css,
+        "@font-face { font-family: Omena; src: url(\"src/fonts/font.woff2\"); }"
+    );
+    let font_rewrite = result
+        .artifact
+        .asset_rewrites
+        .iter()
+        .find(|rewrite| rewrite.source_path == "src/fonts/fonts.css")
+        .ok_or_else(|| "linked font module omitted its asset rewrite receipt".to_string())?;
+    assert_eq!(font_rewrite.asset_url_count, 1);
+    assert_eq!(font_rewrite.rewrite_count, 1);
+    assert_eq!(
+        font_rewrite.rewritten_asset_urls[0].normalized_url,
+        "./font.woff2"
+    );
+    assert_eq!(
+        font_rewrite.rewritten_asset_urls[0]
+            .resolved_path
+            .as_deref(),
+        Some("src/fonts/font.woff2")
+    );
+    Ok(())
+}
+
+#[test]
 fn strict_css_module_token_integrity_uses_module_qualified_preimages() -> Result<(), String> {
     let pass_ids = Vec::<String>::new();
     let context = OmenaQueryTransformExecutionContextV0::default();

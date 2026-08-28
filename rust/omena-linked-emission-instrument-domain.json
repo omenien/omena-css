@@ -21,7 +21,7 @@
     {
       "file": "rust/crates/omena-diff-test/src/linked_emission.rs",
       "syntax": "assert_ne!",
-      "expectedCount": 3,
+      "expectedCount": 2,
       "owner": "linked-emission differential tests",
       "reentry": "a not-equal assertion is added or removed from the bounded domain"
     },

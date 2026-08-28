@@ -133,6 +133,11 @@
       "firedSiteIds": ["linked-emission-product-run-status"]
     },
     {
+      "perturbation": "--inject-linked-asset-url-drift",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-linked-asset-url-drift",
+      "firedSiteIds": ["linked-emission-asset-url-equivalence"]
+    },
+    {
       "perturbation": "--inject-linked-rule-misattribution",
       "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-linked-rule-misattribution",
       "firedSiteIds": ["linked-emission-product-run-status"]

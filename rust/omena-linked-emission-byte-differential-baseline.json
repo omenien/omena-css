@@ -6,5 +6,5 @@
   "minimumFixtureCount": 20,
   "minimumInDomainFixtureCount": 9,
   "expectedDivergenceCount": 7,
-  "maximumUnexpectedDivergenceCount": 1
+  "maximumUnexpectedDivergenceCount": 0
 }

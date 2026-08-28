@@ -6,6 +6,8 @@ use omena_diff_test::{
 fn main() {
     let perturbation = if std::env::args().any(|arg| arg == "--inject-unexpected-divergence") {
         LinkedEmissionByteDifferentialPerturbationV0::AddUnexpectedRule
+    } else if std::env::args().any(|arg| arg == "--inject-linked-asset-url-drift") {
+        LinkedEmissionByteDifferentialPerturbationV0::DriftLinkedAssetUrl
     } else if std::env::args().any(|arg| arg == "--force-equivalent") {
         LinkedEmissionByteDifferentialPerturbationV0::CollapseToLegacyBytes
     } else if std::env::args().any(|arg| arg == "--inject-cross-module-declaration-loss") {
