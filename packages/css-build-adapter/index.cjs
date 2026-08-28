@@ -224,6 +224,7 @@ function buildAdapterEnvironment(options, state) {
     sourceMap: options.sourceMap !== false,
     treeShake: Boolean(options.treeShake),
     bundle: Boolean(options.bundle),
+    legacyEmission: Boolean(options.legacyEmission),
     closedStyleWorld: Boolean(options.closedStyleWorld),
     moduleInterface: options.moduleInterface !== false,
     devRuntime: Boolean(options.devRuntime),
