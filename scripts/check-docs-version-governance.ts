@@ -42,6 +42,7 @@ const separateFirstPublishPackages = readPrivatePackageNames()
   .toSorted();
 const npmPublishWorkflow = read(".github/workflows/_publish-npm.yml");
 const releaseManagedNpmBindings = deriveNpmBindingFamilies(npmPublishWorkflow);
+const oneWhitespaceSeam = String.raw`(?:[ \t]+|[ \t]*\r?\n[ \t]*)`;
 
 const expectedRows = new Map<string, string>([
   ["extensionVersion", rootPackage.version],
@@ -87,11 +88,21 @@ assert.ok(
   `${governancePath} must keep first-publish decisions explicit`,
 );
 assert.ok(
-  tokenRotation.includes(`Rust crate-train \`${linkedEmission.targetReleaseVersion}\``),
+  new RegExp(
+    "linked-emission default follows on Rust crate-train" +
+      oneWhitespaceSeam +
+      "`" +
+      escapeRegex(linkedEmission.targetReleaseVersion) +
+      "`;",
+    "u",
+  ).test(tokenRotation),
   `${tokenRotationPath} must cite the linked-emission target release`,
 );
 assert.ok(
-  /does not reserve\s+or require an extension `6\.0\.0` release/u.test(tokenRotation),
+  new RegExp(
+    "it does not reserve" + oneWhitespaceSeam + "or require an extension `6\\.0\\.0` release\\.",
+    "u",
+  ).test(tokenRotation),
   `${tokenRotationPath} must not reserve extension 6.0.0 for linked emission`,
 );
 
@@ -168,6 +179,10 @@ function readTagGrammarReport(): TagGrammarReport {
 function semverMajor(version: string): number {
   assert.match(version, /^\d+\.\d+\.\d+$/u, `expected stable semver, got ${version}`);
   return Number.parseInt(version.split(".")[0]!, 10);
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
 function read(relativePath: string): string {

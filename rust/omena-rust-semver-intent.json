@@ -467,6 +467,31 @@
           ]
         },
         {
+          "id": "cli-linked-bundle-summary-scope",
+          "kind": "selection-outcome-changing",
+          "surface": "omena build --bundle JSON semanticRemovalCount, execution.mutationCount, and sourceMapV3.x_omenaSegmentCount",
+          "reason": "Selecting linked emission changes these summary values from the legacy entry-module execution view to the flattened bundle execution view: semantic-removal and mutation values describe the materialized bundle, while source-map segments describe linked module regions rather than legacy import-inline regions.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-cli/src/build.rs",
+              "needles": [
+                "if artifact.emission_path == OmenaQueryBundleEmissionPathV0::LinkedOrder",
+                "summary.semantic_removal_count = artifact.execution.semantic_removals.len();",
+                "summary.execution = artifact.execution.clone();"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
+              "needles": [
+                "aggregate_mutation_count: linked",
+                "aggregate_semantic_removal_count: linked",
+                "let (source_map, dispositions) = summarize_omena_query_linked_bundle_source_map_v3",
+                "segment_count: segments.len() - segment_start"
+              ]
+            }
+          ]
+        },
+        {
           "id": "postcss-compat-strict-adoption",
           "kind": "selection-outcome-changing",
           "surface": "omena build CSS output and payload.postcssCompat adoptionVerdict",

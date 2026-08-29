@@ -171,6 +171,7 @@ interface LinkedEmissionOpenDivergenceLedgerV0 {
 interface LinkedEmissionExpectedDivergenceLedgerV0 {
   readonly schemaVersion: "0";
   readonly product: "omena-diff-test.linked-emission-expected-divergence-ledger";
+  readonly comparisonSurface: "output_css";
   readonly entries: ReadonlyArray<{
     readonly fixtureId: string;
     readonly classificationArm:
@@ -847,6 +848,11 @@ const expectedFixtureIds = report.cases
   .map((entry) => entry.fixtureId)
   .toSorted();
 assert.equal(new Set(expectedLedgerFixtureIds).size, expectedLedgerFixtureIds.length);
+assert.equal(
+  expectedDivergenceLedger.comparisonSurface,
+  "output_css",
+  "the expected-divergence ledger compares emitted CSS bytes only",
+);
 // FALSIFIER: id=linked-emission-gate-032 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
 assert.deepEqual(
   expectedLedgerFixtureIds,

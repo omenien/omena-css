@@ -1,6 +1,7 @@
 {
   "schemaVersion": "0",
   "product": "omena-diff-test.linked-emission-expected-divergence-ledger",
+  "comparisonSurface": "output_css",
   "entries": [
     {
       "fixtureId": "dialect-css-import-order",

@@ -310,7 +310,7 @@
       "stage": "blocking",
       "reviewedAt": "2026-08-29",
       "reviewAfter": "2026-11-27",
-      "evidence": "Eight construction surfaces, every explicit legacy constructor, and the pre-1.0 removal ledger are checked together; four source mutations independently prove failure sensitivity."
+      "evidence": "Nine construction surfaces, every explicit legacy constructor, and the pre-1.0 removal ledger are checked together; four source mutations independently prove failure sensitivity."
     },
     {
       "gateId": "rust/omena-bundler/linked-emission-falsifier-disclosure",
