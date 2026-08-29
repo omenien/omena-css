@@ -4734,7 +4734,8 @@ mod line_index_measurement_tests {
     }
 
     #[test]
-    fn hover_candidate_line_index_source_scan_steps_do_not_scale_with_candidate_count() {
+    fn hover_candidate_line_index_source_scan_steps_do_not_scale_with_candidate_count()
+    -> Result<(), String> {
         let _guard = LINE_INDEX_MEASUREMENT_LOCK
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -4744,17 +4745,18 @@ mod line_index_measurement_tests {
             LINE_INDEX_SOURCE_SCAN_STEPS.store(0, std::sync::atomic::Ordering::SeqCst);
             let summary =
                 summarize_omena_query_style_hover_candidates("fixture.module.css", &source)
-                    .expect("CSS hover facts must be available");
+                    .ok_or_else(|| "CSS hover facts must be available".to_string())?;
             assert_eq!(summary.candidates.len(), active_slots);
             observed_steps
                 .push(LINE_INDEX_SOURCE_SCAN_STEPS.load(std::sync::atomic::Ordering::SeqCst));
         }
         assert_eq!(observed_steps, vec![1_472, 1_472, 1_472]);
+        Ok(())
     }
 
     #[test]
     #[ignore = "wall-clock evidence is collected explicitly in release mode"]
-    fn reports_the_large_hover_candidate_line_index_measurement() {
+    fn reports_the_large_hover_candidate_line_index_measurement() -> Result<(), String> {
         let _guard = LINE_INDEX_MEASUREMENT_LOCK
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -4763,7 +4765,7 @@ mod line_index_measurement_tests {
         LINE_INDEX_SOURCE_SCAN_STEPS.store(0, std::sync::atomic::Ordering::SeqCst);
         let started = std::time::Instant::now();
         let summary = summarize_omena_query_style_hover_candidates("large.module.css", &source)
-            .expect("CSS hover facts must be available");
+            .ok_or_else(|| "CSS hover facts must be available".to_string())?;
         let elapsed = started.elapsed();
         let source_scan_steps =
             LINE_INDEX_SOURCE_SCAN_STEPS.load(std::sync::atomic::Ordering::SeqCst);
@@ -4776,6 +4778,7 @@ mod line_index_measurement_tests {
             source_scan_steps,
             elapsed.as_micros()
         );
+        Ok(())
     }
 }
 

@@ -17,10 +17,10 @@ impl OmenaLineIndexV0 {
         let mut line_starts = vec![0];
         for (index, byte) in source.as_bytes().iter().enumerate() {
             if *byte == b'\n' {
-                line_starts.push(
-                    u32::try_from(index + 1)
-                        .expect("source length was validated against the u32 offset space"),
-                );
+                let Ok(line_start) = u32::try_from(index + 1) else {
+                    unreachable!("source length was validated against the u32 offset space");
+                };
+                line_starts.push(line_start);
             }
         }
         Self { line_starts }
