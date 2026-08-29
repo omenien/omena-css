@@ -9,7 +9,7 @@
       "version": "0.5.0",
       "notesFile": "docs/releases/0.5.0.md",
       "distribution": [
-        "The coordinated train contains 51 publishable Rust crates at exact version `0.5.0`, including the first publication of `omena-reactive`.",
+        "The coordinated train contains 51 publishable Rust crates at exact version `0.5.0`; live registry classification found all 51 names registered at `0.4.0`, so the train used workflow-bound trusted publishing throughout.",
         "The GitHub Release contains five native `omena-cli` archives and their SHA-256 checksums for version `0.5.0`.",
         "Selected npm publication stages `@omena/wasm`, `@omena/napi`, its native target packages, and build-tool integrations at `0.5.0` from the Rust workspace version."
       ]
