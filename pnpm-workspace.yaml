@@ -24,4 +24,4 @@ overrides:
 
 patchedDependencies:
   # Keep static server-function cache requests inside the configured router base path.
-  "@tanstack/start-static-server-functions@1.167.29": patches/@tanstack__start-static-server-functions@1.167.29.patch
+  "@tanstack/start-static-server-functions@1.167.32": patches/@tanstack__start-static-server-functions@1.167.32.patch

@@ -15,12 +15,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d036a3c4ab069c7b410a2ce876bd74808d2d0888a82667669f8e783a898bf1"
 
 [[package]]
-name = "arrayref"
-version = "0.3.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76a2e8124351fda1ef8aaaa3bbd7ebbcb486bbcd4225aca0aa0d84bb2db8fecb"
-
-[[package]]
 name = "arrayvec"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -40,16 +34,24 @@ checksum = "b4388bee8683e3d04af747c73422af53102d2bd24d9eadb6cbc100baef4b43f8"
 
 [[package]]
 name = "blake3"
-version = "1.8.6"
+version = "1.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76ae7bad254120e9e4c63bafc385310756f90c484eac0e36b8317cf09cb92a77"
+checksum = "6d9e454fc11f76977dc803893aff6304ed33d6a26efae8696573bea74baa27ae"
 dependencies = [
- "arrayref",
  "arrayvec",
  "cc",
  "cfg-if",
  "constant_time_eq",
  "cpufeatures",
+]
+
+[[package]]
+name = "block-buffer"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2f6c7dbe95a6ed67ad9f18e57daf93a2f034c524b99fd2b76d18fdfeb6660aa"
+dependencies = [
+ "hybrid-array",
 ]
 
 [[package]]
@@ -99,6 +101,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
+name = "const-oid"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
+
+[[package]]
 name = "constant_time_eq"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -129,6 +137,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
+name = "crypto-common"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce6e4c961d6cd6c9a86db418387425e8bdeaf05b3c8bc1411e6dca4c252f1453"
+dependencies = [
+ "hybrid-array",
+]
+
+[[package]]
 name = "cstree"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -140,6 +157,17 @@ dependencies = [
  "rustc-hash",
  "text-size",
  "triomphe",
+]
+
+[[package]]
+name = "digest"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2"
+dependencies = [
+ "block-buffer",
+ "const-oid",
+ "crypto-common",
 ]
 
 [[package]]
@@ -190,6 +218,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a5081f264ed7adee96ea4b4778b6bb9da0a7228b084587aa3bd3ff05da7c5a3b"
 dependencies = [
  "hashbrown",
+]
+
+[[package]]
+name = "hybrid-array"
+version = "0.4.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "707114b52a152fa7bdb290cd7cd5912d9467273b6d74e21b8d81aca1f8533f6b"
+dependencies = [
+ "typenum",
 ]
 
 [[package]]
@@ -278,7 +315,7 @@ dependencies = [
 
 [[package]]
 name = "omena-abstract-value"
-version = "0.3.0"
+version = "0.5.0"
 dependencies = [
  "omena-cascade",
  "omena-evidence-graph",
@@ -288,11 +325,12 @@ dependencies = [
  "omena-value-lattice",
  "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]
 name = "omena-cascade"
-version = "0.3.0"
+version = "0.5.0"
 dependencies = [
  "omena-refinement-trait",
  "omena-syntax",
@@ -302,19 +340,21 @@ dependencies = [
 
 [[package]]
 name = "omena-cascade-proof"
-version = "0.3.0"
+version = "0.5.0"
 dependencies = [
  "blake3",
  "omena-cascade",
  "omena-evidence-graph",
+ "omena-parser",
  "omena-refinement-trait",
+ "omena-syntax",
  "serde",
  "serde_json",
 ]
 
 [[package]]
 name = "omena-cross-file-summary"
-version = "0.3.0"
+version = "0.5.0"
 dependencies = [
  "omena-abstract-value",
  "serde",
@@ -333,7 +373,7 @@ dependencies = [
 
 [[package]]
 name = "omena-engine-input-producers"
-version = "0.3.0"
+version = "0.5.0"
 dependencies = [
  "omena-abstract-value",
  "serde",
@@ -342,14 +382,14 @@ dependencies = [
 
 [[package]]
 name = "omena-evidence-graph"
-version = "0.3.0"
+version = "0.5.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "omena-incremental"
-version = "0.3.0"
+version = "0.5.0"
 dependencies = [
  "omena-cascade",
  "omena-evidence-graph",
@@ -359,7 +399,7 @@ dependencies = [
 
 [[package]]
 name = "omena-interner"
-version = "0.3.0"
+version = "0.5.0"
 dependencies = [
  "omena-syntax",
  "salsa",
@@ -368,11 +408,11 @@ dependencies = [
 
 [[package]]
 name = "omena-meta-macros"
-version = "0.3.0"
+version = "0.5.0"
 
 [[package]]
 name = "omena-parser"
-version = "0.3.0"
+version = "0.5.0"
 dependencies = [
  "cstree",
  "omena-interner",
@@ -384,14 +424,14 @@ dependencies = [
 
 [[package]]
 name = "omena-refinement-trait"
-version = "0.3.0"
+version = "0.5.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "omena-resolver"
-version = "0.3.0"
+version = "0.5.0"
 dependencies = [
  "omena-engine-input-producers",
  "serde",
@@ -400,7 +440,7 @@ dependencies = [
 
 [[package]]
 name = "omena-scss-eval"
-version = "0.3.0"
+version = "0.5.0"
 dependencies = [
  "cstree",
  "omena-abstract-value",
@@ -415,7 +455,7 @@ dependencies = [
 
 [[package]]
 name = "omena-semantic"
-version = "0.3.0"
+version = "0.5.0"
 dependencies = [
  "omena-cascade",
  "omena-cross-file-summary",
@@ -431,7 +471,7 @@ dependencies = [
 
 [[package]]
 name = "omena-spec-audit"
-version = "0.3.0"
+version = "0.5.0"
 dependencies = [
  "omena-meta-macros",
  "serde",
@@ -440,14 +480,15 @@ dependencies = [
 
 [[package]]
 name = "omena-syntax"
-version = "0.3.0"
+version = "0.5.0"
 dependencies = [
  "cstree",
+ "serde",
 ]
 
 [[package]]
 name = "omena-transform-cst"
-version = "0.3.0"
+version = "0.5.0"
 dependencies = [
  "omena-cascade-proof",
  "omena-evidence-graph",
@@ -458,7 +499,7 @@ dependencies = [
 
 [[package]]
 name = "omena-transform-passes"
-version = "0.3.0"
+version = "0.5.0"
 dependencies = [
  "blake3",
  "cstree",
@@ -479,7 +520,7 @@ dependencies = [
 
 [[package]]
 name = "omena-value-lattice"
-version = "0.3.0"
+version = "0.5.0"
 dependencies = [
  "omena-parser",
  "omena-syntax",
@@ -664,6 +705,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha2"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "446ba717509524cb3f22f17ecc096f10f4822d76ab5c0b9822c5f9c284e825f4"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "digest",
+]
+
+[[package]]
 name = "shlex"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -747,6 +799,12 @@ name = "typeid"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc7d623258602320d5c55d1bc22793b57daff0ec7efc270ea7d55ce1d5f5471c"
+
+[[package]]
+name = "typenum"
+version = "1.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 
 [[package]]
 name = "unicode-ident"
