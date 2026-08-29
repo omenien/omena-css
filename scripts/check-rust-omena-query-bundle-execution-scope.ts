@@ -694,10 +694,9 @@ assert.match(
 assert.match(stripRustComments(adapterGateSource), /executionScope: null/u);
 assert.match(stripRustComments(adapterTestSource), /executionScope/u);
 
+// Internal execution-summary types are validated from queryTypesSource above;
+// the public snapshot only needs to retain the carrier and entrypoint contract.
 for (const surface of [
-  "BundleExecutionSummaryV0",
-  "BundleModuleExecutionV0",
-  "BundleEmissionExecutionV0",
   "OmenaQueryBundleExecutionScopeEvidenceV0",
   "OmenaQueryBundleExecutionScopeResultV0",
   "run_omena_query_bundle_with_execution_scope_evidence_and_options",
