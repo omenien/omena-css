@@ -1,0 +1,12 @@
+name: Install Rust API tools
+description: Install the pinned public API compatibility tools used by CI.
+inputs:
+  tool:
+    description: Comma-separated cargo tool specifications.
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: taiki-e/install-action@fcf5432d9f50d67e37ee6e29bdb7a224ff67b4a7 # v2.86.8
+      with:
+        tool: ${{ inputs.tool }}

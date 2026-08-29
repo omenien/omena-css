@@ -390,7 +390,7 @@
         "          key: rust-api-tools-${{ runner.os }}-${{ runner.arch }}-public-api-0.52.0-semver-checks-0.48.0",
         "      - name: Install Rust API tools",
         "        if: matrix.contract-shard == 'api-surface' && steps.rust-api-tools-cache.outputs.cache-hit != 'true'",
-        "        uses: taiki-e/install-action@6cd13508893c0e7eab5f273c2575d3859bd7229a # v2.86.6",
+        "        uses: ./.github/actions/install-rust-api-tools",
         "        with:",
         "          tool: cargo-public-api@0.52.0,cargo-semver-checks@0.48.0",
         "      - run: pnpm omena-check bundle rust/product-test-contracts --summary --shard=${{ matrix.contract-shard }}",

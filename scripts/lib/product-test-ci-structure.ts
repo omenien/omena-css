@@ -26,6 +26,7 @@ export interface ProductTestCiStructureExpectation {
 const CRATE_JOB = "rust-product-test-crates";
 const CONTRACT_JOB = "rust-product-test-contracts";
 const PRODUCT_TEST_JOBS = [CRATE_JOB, CONTRACT_JOB] as const;
+const PREBUILT_INSTALLER_ACTION = "./.github/actions/install-rust-api-tools";
 // The duty is satisfied only by an EXECUTING run step — a comment naming
 // the invocation is not a step (the same fail-open species the g130 judge
 // rules closed; stage-5 lens reproduced the comment evasion end-to-end).
@@ -161,11 +162,7 @@ export function findProductTestCiStructureErrors(
     ) {
       errors.push(`job "${CONTRACT_JOB}" must use the orchestrator shard table`);
     }
-    if (
-      !contractJob.block.some((line) =>
-        /taiki-e\/install-action@[0-9a-f]{40}(?:\s+#\s+v\d+\.\d+\.\d+)?\s*$/u.test(line),
-      )
-    ) {
+    if (!contractJob.block.some((line) => line.trim() === `uses: ${PREBUILT_INSTALLER_ACTION}`)) {
       errors.push(`job "${CONTRACT_JOB}" must retain the pinned prebuilt tool installer`);
     }
     if (

@@ -1,7 +1,7 @@
 # Dependabot keeps the SHA-pinned GitHub Actions, the Cargo workspace, and the
 # pnpm workspace up to date. The repo pins every action to a commit SHA for
-# supply-chain integrity (doc 12 §10) — those pins have no other updater and
-# would silently rot, so the github-actions ecosystem is the load-bearing one.
+# supply-chain integrity (doc 12 §10). Dependabot updates authored workflows and
+# composites; generated-workflow pins move through their canonical registry.
 # Updates are grouped to keep PR volume low for a solo + AI-agent workflow.
 #
 # `cooldown` holds a freshly-released version for a few days before proposing it,
@@ -10,9 +10,14 @@
 # cargo-vet hard-gating (doc 13 §10 / the CI-hardening research pass).
 version: 2
 updates:
-  # GitHub Actions: .github/workflows/*.yml + the .github/actions/* composites.
+  # GitHub Actions: authored workflows plus the .github/actions/* composites.
   - package-ecosystem: github-actions
     directory: "/"
+    # ci.yml is generated from the check-orchestrator registry. External actions
+    # used there are either wrapped by a local composite or updated manually in
+    # the registry; a bot edit to the generated file alone is never authoritative.
+    exclude-paths:
+      - ".github/workflows/ci.yml"
     schedule:
       interval: weekly
     cooldown:

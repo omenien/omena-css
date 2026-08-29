@@ -1160,6 +1160,9 @@ describe("check orchestrator manifest", () => {
       [
         "version: 2",
         "updates:",
+        "  - package-ecosystem: github-actions",
+        '    directory: "/"',
+        "    exclude-paths: []",
         "  - package-ecosystem: cargo",
         '    directory: "/rust"',
         "    ignore: []",
@@ -1175,11 +1178,33 @@ describe("check orchestrator manifest", () => {
 
     expect(runDoctor(loadCheckManifest(root))).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({ code: "dependabot-generated-workflow-authority-leak" }),
         expect.objectContaining({ code: "dependabot-rust-oxc-authority-missing" }),
         expect.objectContaining({
           code: "dependabot-manual-authority-leak",
           message: expect.stringContaining("@types/vscode"),
         }),
+      ]),
+    );
+  });
+
+  it("rejects a floating Rust API tool installer behind the local CI action", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
+    mkdirSync(path.join(root, ".github/actions/install-rust-api-tools"), { recursive: true });
+    writeFileSync(
+      path.join(root, "package.json"),
+      JSON.stringify({ name: "omena-css", scripts: { "omena-check": "node ./check.js" } }),
+    );
+    writeFileSync(
+      path.join(root, ".github/actions/install-rust-api-tools/action.yml"),
+      ["runs:", "  using: composite", "  steps:", "    - uses: taiki-e/install-action@v2", ""].join(
+        "\n",
+      ),
+    );
+
+    expect(runDoctor(loadCheckManifest(root))).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "rust-api-tool-installer-unpinned" }),
       ]),
     );
   });

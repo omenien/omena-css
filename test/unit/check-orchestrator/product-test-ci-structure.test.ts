@@ -150,7 +150,9 @@ describe("product-test CI structure (registry-anchored classguard, g131-S0)", ()
       job.name === "rust-product-test-contracts"
         ? {
             ...job,
-            block: job.block.filter((line) => !line.includes("taiki-e/install-action")),
+            block: job.block.filter(
+              (line) => !line.includes(".github/actions/install-rust-api-tools"),
+            ),
           }
         : job,
     );
@@ -163,7 +165,7 @@ describe("product-test CI structure (registry-anchored classguard, g131-S0)", ()
         ? {
             ...job,
             block: job.block.map((line) =>
-              line.includes("taiki-e/install-action")
+              line.includes(".github/actions/install-rust-api-tools")
                 ? "        uses: taiki-e/install-action@v2"
                 : line,
             ),

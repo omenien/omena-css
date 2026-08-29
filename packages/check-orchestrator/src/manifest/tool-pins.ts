@@ -20,6 +20,7 @@ interface ToolPinLocation {
 interface DependabotUpdatePolicy {
   readonly "package-ecosystem"?: string;
   readonly directory?: string;
+  readonly "exclude-paths"?: readonly string[];
   readonly ignore?: readonly { readonly "dependency-name"?: string }[];
   readonly groups?: Readonly<Record<string, { readonly "exclude-patterns"?: readonly string[] }>>;
 }
@@ -66,6 +67,7 @@ export function findToolPinCoherenceDiagnostics(rootDir: string): readonly Check
   const diagnostics: CheckDiagnostic[] = [
     ...findVscodeCompatibilityDiagnostics(rootDir),
     ...findRustOxcCoherenceDiagnostics(rootDir),
+    ...findRustApiToolInstallerDiagnostics(rootDir),
     ...findDependabotAuthorityDiagnostics(rootDir),
   ];
   const pinsByPackageName = new Map<
@@ -128,6 +130,23 @@ export function findToolPinCoherenceDiagnostics(rootDir: string): readonly Check
   return diagnostics;
 }
 
+function findRustApiToolInstallerDiagnostics(rootDir: string): readonly CheckDiagnostic[] {
+  const relativePath = ".github/actions/install-rust-api-tools/action.yml";
+  const absolutePath = path.join(rootDir, relativePath);
+  if (!existsSync(absolutePath)) return [];
+  const source = readFileSync(absolutePath, "utf8");
+  if (/^\s*- uses: taiki-e\/install-action@[0-9a-f]{40}\s+#\s+v\d+\.\d+\.\d+\s*$/mu.test(source)) {
+    return [];
+  }
+  return [
+    {
+      severity: "error",
+      code: "rust-api-tool-installer-unpinned",
+      message: `${relativePath} must pin taiki-e/install-action to a 40-character commit SHA.`,
+    },
+  ];
+}
+
 function findDependabotAuthorityDiagnostics(rootDir: string): readonly CheckDiagnostic[] {
   const relativePath = ".github/dependabot.yml";
   const absolutePath = path.join(rootDir, relativePath);
@@ -137,12 +156,24 @@ function findDependabotAuthorityDiagnostics(rootDir: string): readonly CheckDiag
   };
   const updates = config.updates ?? [];
   const diagnostics: CheckDiagnostic[] = [];
+  const githubActions = updates.find(
+    (update) => update["package-ecosystem"] === "github-actions" && update.directory === "/",
+  );
   const cargo = updates.find(
     (update) => update["package-ecosystem"] === "cargo" && update.directory === "/rust",
   );
   const npm = updates.find(
     (update) => update["package-ecosystem"] === "npm" && update.directory === "/",
   );
+  if (!githubActions?.["exclude-paths"]?.includes(".github/workflows/ci.yml")) {
+    diagnostics.push({
+      severity: "error",
+      code: "dependabot-generated-workflow-authority-leak",
+      message:
+        `${relativePath} must exclude generated .github/workflows/ci.yml from action updates; ` +
+        "update its registry or local composites instead.",
+    });
+  }
   const cargoIgnored = new Set(
     cargo?.ignore?.flatMap((entry) =>
       entry["dependency-name"] ? [entry["dependency-name"]] : [],
