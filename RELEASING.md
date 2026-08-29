@@ -81,15 +81,10 @@ gates, packages the VSIX, and verifies the packaged Rust LSP/type-fact path.
   release containing any never-published name uses bootstrap authentication for
   that whole run; tag-triggered releases derive this choice from live registry
   state and return to OIDC once every name is registered.
-- Confirm every publishable crate at the exact version, the sparse-index poll,
-  install smoke, GitHub release, CLI archives, and checksums.
-- After those live checks pass, append the immutable release tag to
-  `rust/omena-published-release-baselines.json` and rotate
-  `rust/omena-rust-semver-intent.json` from the completed train to the next
-  pre-1.0 minor window. Commit this closeout before resuming normal development;
-  the fast intent contract rejects a ledger/register mismatch.
-- Publishing is non-atomic and irreversible. If a train stops after partial
-  upload, re-dispatch with `resume=true`; do not reuse the version.
+- Verify exact registry versions, sparse-index poll, install smoke, GitHub
+  Release, archives, and checksums; then register the immutable release tag.
+- Rotate the active intent to the next pre-1.0 minor and commit before resuming;
+  the contract rejects mismatches. Resume partial publishes; never reuse versions.
 
 ### npm
 
