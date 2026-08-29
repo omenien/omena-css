@@ -2760,7 +2760,6 @@ version = "0.5.0"
 dependencies = [
  "napi",
  "napi-derive",
- "omena-bridge",
  "omena-query",
  "serde",
  "serde_json",

@@ -1,29 +1,9 @@
-#[cfg(any(test, feature = "test-support"))]
-std::thread_local! {
-    static EXTERNAL_SIF_SIGNATURE_VERIFICATION_ATTEMPT_COUNT: std::cell::Cell<u64> =
-        const { std::cell::Cell::new(0) };
-}
-
-#[cfg(any(test, feature = "test-support"))]
-#[doc(hidden)]
-pub fn reset_external_sif_signature_verification_attempt_count_for_test() {
-    EXTERNAL_SIF_SIGNATURE_VERIFICATION_ATTEMPT_COUNT.set(0);
-}
-
-#[cfg(any(test, feature = "test-support"))]
-#[doc(hidden)]
-pub fn external_sif_signature_verification_attempt_count_for_test() -> u64 {
-    EXTERNAL_SIF_SIGNATURE_VERIFICATION_ATTEMPT_COUNT.get()
-}
-
 #[cfg(not(target_family = "wasm"))]
 pub(crate) fn verify_omena_external_sif_keyless_bundle(
     artifact_bytes: &[u8],
     bundle_bytes: &[u8],
     expected_bundle_sha256: &str,
 ) -> Result<(), String> {
-    #[cfg(any(test, feature = "test-support"))]
-    EXTERNAL_SIF_SIGNATURE_VERIFICATION_ATTEMPT_COUNT.with(|count| count.set(count.get() + 1));
     use sha2::{Digest, Sha256};
     use std::fmt::Write as _;
 

@@ -4030,6 +4030,7 @@ fn bridge_resolution_refuses_unverified_recorded_verdict() -> Result<(), Box<dyn
 }
 
 #[test]
+#[cfg(feature = "sif-attestation")]
 fn bridge_resolution_rechecks_the_published_subject_at_the_query_boundary()
 -> Result<(), Box<dyn std::error::Error>> {
     const BUNDLE_SHA256: &str = "0c99e37ac1b1d3cbfd677416a74218c9a1ca8e28c3aac95c7614549f3b3b0ce1";

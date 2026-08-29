@@ -5,6 +5,19 @@
   "targetReleaseVersion": "0.6.0",
   "intents": [
     {
+      "crate": "omena-bridge",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor makes unavailable offline SIF attestation verification an explicit refusal instead of silently retaining the former host-only trust closure on every consumer.",
+      "expectedFailures": [
+        {
+          "lint": "enum_variant_added",
+          "evidenceNeedles": [
+            "variant OmenaBridgeExternalSifShardRefusalV1:AttestationVerificationUnavailable"
+          ]
+        }
+      ]
+    },
+    {
       "crate": "omena-lsp-server",
       "releaseClass": "pre1MinorBreaking",
       "reason": "The next pre-1.0 minor removes a frame-refresh runtime that was constructed only by an unregistered test and whose parse-reuse claim never reached the product request path.",

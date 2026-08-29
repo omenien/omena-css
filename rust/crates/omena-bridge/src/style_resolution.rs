@@ -7,6 +7,7 @@ use std::{
 };
 
 use crate::bundler_config_alias::load_omena_bridge_workspace_bundler_path_alias_mappings;
+#[cfg(any(feature = "sif-attestation", test))]
 use crate::external_sif_signature::verify_omena_external_sif_keyless_bundle;
 use omena_resolver::{
     OmenaResolverBundlerPathAliasMappingV0, OmenaResolverStyleModuleConfirmationOptionsV0,
@@ -17,19 +18,23 @@ use omena_resolver::{
     is_omena_resolver_indexable_style_module_path,
     normalize_omena_resolver_style_module_source_for_routing,
 };
+#[cfg(any(feature = "sif-attestation", test))]
 use omena_sif::{
     OMENA_SIF_PUBLISHED_ATTESTATION_SUBJECT_PRODUCT_V1,
     OMENA_SIF_PUBLISHED_ATTESTATION_SUBJECT_SCHEMA_VERSION_V1,
+    OmenaSifPublishedAttestationSubjectV1, validate_omena_sif_published_attestation_subject_v1,
+    write_omena_sif_published_attestation_subject_json_v1,
+};
+use omena_sif::{
     OMENA_SIF_SHARD_TRUST_ENVELOPE_PRODUCT_V1, OMENA_SIF_SHARD_TRUST_ENVELOPE_SCHEMA_VERSION_V1,
-    OMENA_SIF_SHARD_VERDICT_DIR_V1, OmenaLifExportsV1, OmenaSifPublishedAttestationSubjectV1,
-    OmenaSifShardLockBindingV1, OmenaSifShardRecordedVerdictV1, OmenaSifShardTrustEnvelopeV1,
-    OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1, OmenaSifTrustTierV1, OmenaSifV1,
+    OMENA_SIF_SHARD_VERDICT_DIR_V1, OmenaLifExportsV1, OmenaSifShardLockBindingV1,
+    OmenaSifShardRecordedVerdictV1, OmenaSifShardTrustEnvelopeV1, OmenaSifSourceSyntaxV1,
+    OmenaSifStaticGeneratorInputV1, OmenaSifTrustTierV1, OmenaSifV1,
     compute_omena_sif_artifact_hash_v1, compute_omena_sif_leaf_hash_v1,
     compute_omena_sif_shard_recorded_verdict_address_v1, generate_static_omena_lif_exports_v1,
     generate_static_omena_sif_v1, read_omena_sif_json_v1,
     read_omena_sif_shard_recorded_verdict_json_v1, read_omena_sif_shard_trust_envelope_json_v1,
-    validate_omena_sif_published_attestation_subject_v1, write_omena_canonical_json_bytes_v1,
-    write_omena_sif_json_v1, write_omena_sif_published_attestation_subject_json_v1,
+    write_omena_canonical_json_bytes_v1, write_omena_sif_json_v1,
 };
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -45,8 +50,11 @@ const EXTERNAL_SIF_CACHE_MAX_MEMORY_ENTRIES: usize = 256;
 const EXTERNAL_SIF_CACHE_MAX_SHARDS: usize = 2048;
 const EXTERNAL_SIF_CACHE_MAX_TOTAL_BYTES: u64 = 256 * 1024 * 1024;
 const EXTERNAL_SIF_CACHE_MAX_SHARD_BYTES: u64 = 8 * 1024 * 1024;
+#[cfg(any(feature = "sif-attestation", test))]
 const EXTERNAL_SIF_RECORDED_BUNDLE_DIR_V1: &str = "bundles-v1";
+#[cfg(any(feature = "sif-attestation", test))]
 const EXTERNAL_SIF_RECORDED_BUNDLE_SUFFIX_V1: &str = ".sigstore.json";
+#[cfg(any(feature = "sif-attestation", test))]
 const EXTERNAL_SIF_RECORDED_BUNDLE_MAX_BYTES: u64 = 4 * 1024 * 1024;
 const EXTERNAL_SIF_RECORDED_VERDICT_SCAN_LIMIT: usize = 4096;
 const WORKSPACE_STYLE_PATH_IDENTITY_SCAN_LIMIT: usize = 4096;
@@ -160,6 +168,7 @@ pub enum OmenaBridgeExternalSifShardRefusalV1 {
     TierAboveRecordedVerdict,
     RecordedVerdictDowngrade,
     RecordedVerdictSignatureVerificationFailed,
+    AttestationVerificationUnavailable,
 }
 
 impl OmenaBridgeExternalSifShardRefusalV1 {
@@ -180,6 +189,7 @@ impl OmenaBridgeExternalSifShardRefusalV1 {
             Self::RecordedVerdictSignatureVerificationFailed => {
                 "recordedVerdictSignatureVerificationFailed"
             }
+            Self::AttestationVerificationUnavailable => "attestationVerificationUnavailable",
         }
     }
 }
@@ -835,8 +845,19 @@ fn external_sif_result_with_recorded_verdict(
         .map_err(|error| format!("failed to hash generated SIF trust payload: {error}"))?;
     let verdict =
         load_recorded_shard_verdict(recorded_verdict_dir, sif.canonical_url.as_str(), &sif_hash);
-    let verified_verdict = verdict
-        .filter(|verdict| verify_recorded_shard_verdict(recorded_verdict_dir, verdict).is_ok());
+    let verified_verdict = match verdict {
+        Some(verdict) => match verify_recorded_shard_verdict(recorded_verdict_dir, &verdict) {
+            Ok(()) => Some(verdict),
+            Err(OmenaBridgeExternalSifShardRefusalV1::AttestationVerificationUnavailable) => {
+                return Err(format!(
+                    "external SIF trust refused: {}",
+                    OmenaBridgeExternalSifShardRefusalV1::AttestationVerificationUnavailable.code()
+                ));
+            }
+            Err(_) => None,
+        },
+        None => None,
+    };
     let (trust_tier, signature, trust_source) = match verified_verdict {
         Some(verdict) => (
             verdict.trust_tier,
@@ -954,6 +975,15 @@ fn has_recorded_shard_verdict_for_canonical_url(
     false
 }
 
+#[cfg(not(any(feature = "sif-attestation", test)))]
+fn verify_recorded_shard_verdict(
+    _recorded_verdict_dir: Option<&Path>,
+    _verdict: &OmenaSifShardRecordedVerdictV1,
+) -> Result<(), OmenaBridgeExternalSifShardRefusalV1> {
+    Err(OmenaBridgeExternalSifShardRefusalV1::AttestationVerificationUnavailable)
+}
+
+#[cfg(any(feature = "sif-attestation", test))]
 fn verify_recorded_shard_verdict(
     recorded_verdict_dir: Option<&Path>,
     verdict: &OmenaSifShardRecordedVerdictV1,

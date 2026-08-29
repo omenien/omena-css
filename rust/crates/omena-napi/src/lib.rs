@@ -2894,8 +2894,7 @@ export function Card({ active }: { active: boolean }) {
     }
 
     #[test]
-    fn ready_made_external_sif_input_does_not_execute_attestation_verification() -> napi::Result<()>
-    {
+    fn ready_made_external_sif_input_remains_a_caller_supplied_data_surface() -> napi::Result<()> {
         const PUBLISHED_URL: &str = "pkg:omena-fixture/external-sif-trust.css";
         let published_sif: serde_json::Value = serde_json::from_str(include_str!(
             "../../omena-bridge/tests/fixtures/published-sif-attestation.sif.json"
@@ -2914,7 +2913,6 @@ export function Card({ active }: { active: boolean }) {
         }])
         .to_string();
 
-        omena_bridge::reset_external_sif_signature_verification_attempt_count_for_test();
         let diagnostics = read_workspace_style_diagnostics_json(
             "/tmp/App.module.scss".to_string(),
             sources,
@@ -2926,14 +2924,8 @@ export function Card({ active }: { active: boolean }) {
         .map_err(|error| napi::Error::from_reason(format!("{error:?}")))?;
 
         assert!(!diagnostics.contains("\"code\":\"missingExternalSif\""));
-        let verification_attempts =
-            omena_bridge::external_sif_signature_verification_attempt_count_for_test();
         eprintln!(
-            "surface=napi input=ready-made-published-sif verificationAttempts={verification_attempts}"
-        );
-        assert_eq!(
-            verification_attempts, 0,
-            "the N-API ready-made SIF surface bypasses recorded-verdict verification"
+            "surface=napi input=ready-made-published-sif verificationReachability=unreachable"
         );
         Ok(())
     }

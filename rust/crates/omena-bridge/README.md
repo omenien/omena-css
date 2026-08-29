@@ -49,6 +49,15 @@ Current public products:
   claiming a CSS Module style source. External plugin ABI is intentionally not
   stable yet.
 
+## SIF attestation feature
+
+`sif-attestation` is off by default and owns the host-only `sha2` and
+`sigstore-verify` dependency closure. `omena-cli` is the sole product owner that
+enables it through `omena-query`; LSP, N-API, and Wasm builds omit it. A
+feature-off consumer that encounters a recorded elevated-trust verdict receives
+the typed `attestationVerificationUnavailable` refusal. It never silently
+relabels that verdict as unsigned T1 evidence.
+
 Primary check:
 
 ```sh

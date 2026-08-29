@@ -1264,7 +1264,7 @@ fn lsp_bridge_refuses_unverified_recorded_shard_verdict() -> TestResult {
 }
 
 #[test]
-fn trust_record_projection_rechecks_the_omena_published_subject() -> TestResult {
+fn trust_record_projection_refuses_unavailable_attestation_verification() -> TestResult {
     const BUNDLE_SHA256: &str = "0c99e37ac1b1d3cbfd677416a74218c9a1ca8e28c3aac95c7614549f3b3b0ce1";
     const PUBLISHED_URL: &str = "pkg:omena-fixture/external-sif-trust.css";
     let root = std::env::temp_dir().join(format!(
@@ -1331,103 +1331,28 @@ fn trust_record_projection_rechecks_the_omena_published_subject() -> TestResult 
             &storage,
         )
     };
-    omena_bridge::reset_external_sif_signature_verification_attempt_count_for_test();
-    let mut state = LspShellState::default();
-    let elevated = resolve();
-    let verification_attempts =
-        omena_bridge::external_sif_signature_verification_attempt_count_for_test();
+    let direct_refusal =
+        omena_bridge::generate_omena_bridge_sif_for_resolved_style_path_with_canonical_url_cache_context_storage_and_trust(
+            resolved_url.as_str(),
+            PUBLISHED_URL,
+            &omena_bridge::OmenaBridgeExternalSifCacheContextV0::default(),
+            Some(&storage),
+        )
+        .expect_err("the LSP build must not silently skip unavailable attestation verification");
+    assert_eq!(
+        direct_refusal,
+        format!(
+            "external SIF trust refused: {}",
+            omena_bridge::OmenaBridgeExternalSifShardRefusalV1::AttestationVerificationUnavailable
+                .code()
+        )
+    );
+
+    let refused = resolve();
+    assert!(refused.resolution.external_sifs.is_empty());
+    assert!(refused.trust_records.is_empty());
     eprintln!(
-        "surface=lsp-server input=recorded-verdict-published-sif verificationAttempts={verification_attempts}"
-    );
-    assert_eq!(
-        verification_attempts, 1,
-        "the LSP trust projection must execute offline signature verification"
-    );
-    state.resolution.external_sifs = elevated.resolution.external_sifs;
-    state.resolution.external_sif_trust_records =
-        crate::external_sif_loader::external_sif_trust_record_map(elevated.trust_records);
-    let elevated_trust = state
-        .resolution
-        .external_sif_trust_records
-        .get(PUBLISHED_URL)
-        .ok_or_else(|| std::io::Error::other("published external SIF trust"))?;
-    assert_eq!(
-        elevated_trust.trust_tier,
-        omena_sif::OmenaSifTrustTierV1::T3
-    );
-    assert_eq!(
-        elevated_trust.trust_source,
-        omena_query::OmenaQueryExternalSifTrustSourceV1::RecordedVerdict
-    );
-
-    let poisoned_source = format!("{source}\n/* substituted after publication */\n");
-    fs::write(style.as_path(), poisoned_source.as_str())?;
-    let poisoned_sif =
-        omena_sif::generate_static_omena_sif_v1(omena_sif::OmenaSifStaticGeneratorInputV1 {
-            canonical_url: PUBLISHED_URL,
-            source: poisoned_source.as_str(),
-            syntax: omena_sif::OmenaSifSourceSyntaxV1::Css,
-        })?;
-    let poisoned_hash = omena_sif::compute_omena_sif_artifact_hash_v1(&poisoned_sif)?;
-    let poisoned_verdict = omena_sif::OmenaSifShardRecordedVerdictV1 {
-        canonical_url: PUBLISHED_URL.to_string(),
-        sif_hash: poisoned_hash.clone(),
-        signature: omena_sif::OmenaSifShardSignatureV1 {
-            algorithm_version: omena_sif::OMENA_SIF_SHARD_SIGNATURE_ALGORITHM_VERSION_V1
-                .to_string(),
-            reference: verdict.signature.reference.clone(),
-            signed_payload_digest: poisoned_hash.clone(),
-        },
-        ..verdict.clone()
-    };
-    let poisoned_verdict_address = omena_sif::compute_omena_sif_shard_recorded_verdict_address_v1(
-        PUBLISHED_URL,
-        &poisoned_hash,
-    )?;
-    let poisoned_verdict_name = poisoned_verdict_address
-        .as_str()
-        .strip_prefix("blake3:")
-        .ok_or_else(|| std::io::Error::other("poisoned recorded verdict address"))?;
-    fs::write(
-        verdict_dir.join(format!("{poisoned_verdict_name}.json")),
-        omena_sif::write_omena_sif_shard_recorded_verdict_json_v1(&poisoned_verdict)?,
-    )?;
-    let substituted = resolve();
-    state.resolution.external_sifs = substituted.resolution.external_sifs;
-    state.resolution.external_sif_trust_records =
-        crate::external_sif_loader::external_sif_trust_record_map(substituted.trust_records);
-    let substituted_trust = state
-        .resolution
-        .external_sif_trust_records
-        .get(PUBLISHED_URL)
-        .ok_or_else(|| std::io::Error::other("substituted external SIF trust"))?;
-    assert_eq!(
-        substituted_trust.trust_tier,
-        omena_sif::OmenaSifTrustTierV1::T1
-    );
-    assert_eq!(
-        substituted_trust.trust_source,
-        omena_query::OmenaQueryExternalSifTrustSourceV1::UnsignedLegacy
-    );
-
-    fs::write(style.as_path(), source)?;
-    fs::write(bundle_path, b"{}")?;
-    let downgraded = resolve();
-    state.resolution.external_sifs = downgraded.resolution.external_sifs;
-    state.resolution.external_sif_trust_records =
-        crate::external_sif_loader::external_sif_trust_record_map(downgraded.trust_records);
-    let downgraded_trust = state
-        .resolution
-        .external_sif_trust_records
-        .get(PUBLISHED_URL)
-        .ok_or_else(|| std::io::Error::other("downgraded external SIF trust"))?;
-    assert_eq!(
-        downgraded_trust.trust_tier,
-        omena_sif::OmenaSifTrustTierV1::T1
-    );
-    assert_eq!(
-        downgraded_trust.trust_source,
-        omena_query::OmenaQueryExternalSifTrustSourceV1::UnsignedLegacy
+        "surface=lsp-server input=recorded-verdict-published-sif refusal=attestationVerificationUnavailable"
     );
 
     let _ = fs::remove_dir_all(root.as_path());

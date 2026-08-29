@@ -71,10 +71,12 @@ data; current tools preserve `--external ignored` for explicit compatibility.
 
 Provenance is acquired and recorded by CLI/CI workflows, never by
 latency-sensitive LSP requests. For an external-SIF cache shard above T1, the
-native bridge verifies the recorded Sigstore bundle offline at consumption time
+native bridge, when built with `sif-attestation`, verifies the recorded Sigstore bundle offline at consumption time
 against the production Fulcio root, Rekor inclusion proof, OIDC issuer, and
-approved workflow identity. The language server does not fetch registry metadata
-or transparency logs while serving editor requests.
+approved workflow identity. The CLI is the sole product surface that enables
+this feature. LSP, N-API, and Wasm builds do not carry the Sigstore dependency
+closure; the language server does not fetch registry metadata or transparency
+logs while serving editor requests.
 
 | Tier | Required evidence                                                                                |
 | ---- | ------------------------------------------------------------------------------------------------ |
@@ -106,10 +108,13 @@ T2 and T3 are advisory provenance labels for Omena-published artifacts only.
 `lock verify-attestation` records a verdict for the exact canonical URL, tier,
 and SIF hash, plus a content-addressed Sigstore bundle whose signed subject binds
 all three values. Bridge reconstructs that subject and verifies the bundle
-offline at consumption time; LSP consumes the resulting bridge label without
-using the lock as trust authority or accessing the network. Missing, forged,
-mismatched, or third-party
-evidence remains at T0/T1. No tier widens a cache partition, permits
+offline at consumption time on the CLI-owned feature path. If an LSP resolution
+encounters a recorded T2/T3 verdict, it returns
+`attestationVerificationUnavailable` and withholds that external interface
+instead of silently treating the verdict as T1. The N-API ready-made SIF input
+is a caller-supplied data surface and does not perform recorded-verdict
+verification. Missing, forged, mismatched, or third-party evidence on a
+verifier-enabled path remains at T0/T1. No tier widens a cache partition, permits
 cross-workspace serving, or enables a product capability. Wasm builds contain no
 verifier and therefore never attach Omena-published T2/T3 provenance.
 
