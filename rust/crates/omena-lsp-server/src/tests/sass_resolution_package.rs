@@ -1331,8 +1331,18 @@ fn trust_record_projection_rechecks_the_omena_published_subject() -> TestResult 
             &storage,
         )
     };
+    omena_bridge::reset_external_sif_signature_verification_attempt_count_for_test();
     let mut state = LspShellState::default();
     let elevated = resolve();
+    let verification_attempts =
+        omena_bridge::external_sif_signature_verification_attempt_count_for_test();
+    eprintln!(
+        "surface=lsp-server input=recorded-verdict-published-sif verificationAttempts={verification_attempts}"
+    );
+    assert_eq!(
+        verification_attempts, 1,
+        "the LSP trust projection must execute offline signature verification"
+    );
     state.resolution.external_sifs = elevated.resolution.external_sifs;
     state.resolution.external_sif_trust_records =
         crate::external_sif_loader::external_sif_trust_record_map(elevated.trust_records);

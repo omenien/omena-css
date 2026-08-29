@@ -15,6 +15,11 @@ use serde::Serialize;
 mod bundler_config_alias;
 mod cache_root;
 mod external_sif_signature;
+#[cfg(any(test, feature = "test-support"))]
+pub use external_sif_signature::{
+    external_sif_signature_verification_attempt_count_for_test,
+    reset_external_sif_signature_verification_attempt_count_for_test,
+};
 mod promotion_evidence;
 mod selector_references;
 mod source_cfg;
