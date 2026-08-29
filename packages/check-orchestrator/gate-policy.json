@@ -208,6 +208,13 @@
       "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
+      "gateId": "rust/frame-refresh-runtime-disposition",
+      "stage": "blocking",
+      "reviewedAt": "2026-08-30",
+      "reviewAfter": "2026-11-28",
+      "evidence": "Fast source and semver-intent validation prevents the retired unowned refresh runtime from silently returning to the product surface."
+    },
+    {
       "gateId": "rust/feature-resolved-product-reachability",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
@@ -227,6 +234,13 @@
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
       "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
+    },
+    {
+      "gateId": "rust/line-index-authority",
+      "stage": "blocking",
+      "reviewedAt": "2026-08-30",
+      "reviewAfter": "2026-11-28",
+      "evidence": "The shared UTF-16 authority check runs focused Rust tests and a mutation-sensitive membership census in the closure shard."
     },
     {
       "gateId": "rust/layer-dependency-exceptions",
@@ -586,6 +600,13 @@
       "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
+      "gateId": "rust/omena-query/dead-reexports",
+      "stage": "blocking",
+      "reviewedAt": "2026-08-30",
+      "reviewAfter": "2026-11-28",
+      "evidence": "Public compatibility-path validation is fast and mutation-sensitive; blocking prevents deprecated facade paths from disappearing without a reviewed removal decision."
+    },
+    {
       "gateId": "rust/omena-query/css-module-token-integrity",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
@@ -621,6 +642,13 @@
       "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
+      "gateId": "rust/omena-query/public-surface-all-features",
+      "stage": "blocking",
+      "reviewedAt": "2026-08-30",
+      "reviewAfter": "2026-11-28",
+      "evidence": "All-features rustdoc reuses the query shard build cache and closes feature-gated API drift that the default-feature snapshot cannot observe."
+    },
+    {
       "gateId": "rust/omena-query/runtime-contract",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
@@ -640,6 +668,13 @@
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
       "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
+    },
+    {
+      "gateId": "rust/omena-query/visibility-experiment",
+      "stage": "blocking",
+      "reviewedAt": "2026-08-30",
+      "reviewAfter": "2026-11-28",
+      "evidence": "Per-name visibility outcomes are checked together with all-targets all-features compilation and the warning-deny policy in the query shard."
     },
     {
       "gateId": "rust/omena-reactive/contract",
@@ -957,6 +992,13 @@
       "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
+      "gateId": "rust/sif-attestation-feature",
+      "stage": "blocking",
+      "reviewedAt": "2026-08-30",
+      "reviewAfter": "2026-11-28",
+      "evidence": "Feature-isolation validation is mutation-sensitive and keeps verification reachability explicit without enabling host dependencies by default."
+    },
+    {
       "gateId": "rust/source-frontend/cross-language",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
@@ -976,6 +1018,13 @@
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
       "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
+    },
+    {
+      "gateId": "rust/style-hover-index-policy",
+      "stage": "blocking",
+      "reviewedAt": "2026-08-30",
+      "reviewAfter": "2026-11-28",
+      "evidence": "Focused hover policy tests pin the oversized-source refusal and counter without adding a second expensive workspace build."
     },
     {
       "gateId": "rust/theory-generalization",

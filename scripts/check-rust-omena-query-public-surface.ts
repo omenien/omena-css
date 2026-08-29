@@ -6,7 +6,13 @@ import { fileURLToPath } from "node:url";
 import { runDeclaredRustSemverCheck } from "./lib/rust-semver-intent.ts";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const snapshotPath = path.join(repoRoot, "rust/crates/omena-query/tests/snapshots/public-api.txt");
+const allFeaturesSnapshot = process.argv.includes("--all-features");
+const snapshotPath = path.join(
+  repoRoot,
+  allFeaturesSnapshot
+    ? "rust/crates/omena-query/tests/snapshots/public-api-all-features.txt"
+    : "rust/crates/omena-query/tests/snapshots/public-api.txt",
+);
 const wildcardBaselinePath = path.join(
   repoRoot,
   "rust/crates/omena-query/tests/snapshots/wildcard-reexport-baseline.json",
@@ -48,6 +54,7 @@ const publicApi = normalizeOutput(
       "-sss",
       "--color",
       "never",
+      ...(allFeaturesSnapshot ? ["--all-features"] : []),
     ],
     { cwd: repoRoot, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
   ),
@@ -61,7 +68,7 @@ if (writeSnapshot) {
   if (!existsSync(snapshotPath)) {
     throw new Error(
       `${path.relative(repoRoot, snapshotPath)} is missing. Run ` +
-        "`pnpm run update:rust-omena-query-public-surface` to create it.",
+        `\`${snapshotUpdater()}\` to create it.`,
     );
   }
   const expected = normalizeOutput(readFileSync(snapshotPath, "utf8"));
@@ -71,7 +78,7 @@ if (writeSnapshot) {
       "omena-query public API changed without updating the snapshot.\n" +
         `First differing line: ${firstMismatch}\n` +
         "If this surface change is intentional, run " +
-        "`pnpm run update:rust-omena-query-public-surface` and review the diff.",
+        `\`${snapshotUpdater()}\` and review the diff.`,
     );
   }
 }
@@ -127,8 +134,11 @@ process.stdout.write(
   `${JSON.stringify(
     {
       schemaVersion: "0",
-      product: "rust.omena-query.public-surface",
+      product: allFeaturesSnapshot
+        ? "rust.omena-query.public-surface-all-features"
+        : "rust.omena-query.public-surface",
       snapshot: path.relative(repoRoot, snapshotPath),
+      allFeaturesSnapshot,
       workspaceVersion,
       semverPolicy,
       declaredFailureCount,
@@ -220,6 +230,12 @@ function assertPublicApiSnapshotIsNonVacuous(publicApi: string): void {
       "omena-query public API snapshot does not contain any OmenaQuery-prefixed item",
     );
   }
+}
+
+function snapshotUpdater(): string {
+  return allFeaturesSnapshot
+    ? "node --import tsx ./scripts/check-rust-omena-query-public-surface.ts --all-features --write"
+    : "pnpm run update:rust-omena-query-public-surface";
 }
 
 function scanWildcardReexports(): {
