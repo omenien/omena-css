@@ -1,14 +1,16 @@
 use serde_json::Value;
 
 use omena_query::invalidate_omena_resolver_style_identity_cache;
+use omena_syntax::OmenaLineIndexV0;
 
 use crate::{
     LspShellState, LspTextDocumentState, LspWatchedFileChangeState,
     StyleExternalDependencySnapshot, admit_foreign_style_dependencies_for_style_uri,
-    byte_offset_for_parser_position, index_workspace_style_files, insert_workspace_folder,
-    invalidate_file_uri_identity_cache, is_resolution_config_document_uri, is_style_document_uri,
-    lsp_range_from_value, lsp_text_document_state, refresh_document_reusable_indexes,
-    refresh_external_sifs_for_state, refresh_source_indexes_for_resolution_config_change,
+    byte_offset_for_parser_position_with_line_index, index_workspace_style_files,
+    insert_workspace_folder, invalidate_file_uri_identity_cache, is_resolution_config_document_uri,
+    is_style_document_uri, lsp_range_from_value, lsp_text_document_state,
+    refresh_document_reusable_indexes, refresh_external_sifs_for_state,
+    refresh_source_indexes_for_resolution_config_change,
     refresh_source_indexes_for_style_document_change,
     refresh_source_type_fact_candidates_for_document,
     refresh_style_external_inputs_after_document_removal,
@@ -139,12 +141,19 @@ fn apply_text_document_content_change(document: &mut LspTextDocumentState, chang
         document.text = next_text.to_string();
         return true;
     };
-    let Some(start_offset) = byte_offset_for_parser_position(document.text.as_str(), range.start)
-    else {
+    let line_index = OmenaLineIndexV0::new(document.text.as_str());
+    let Some(start_offset) = byte_offset_for_parser_position_with_line_index(
+        document.text.as_str(),
+        &line_index,
+        range.start,
+    ) else {
         return false;
     };
-    let Some(end_offset) = byte_offset_for_parser_position(document.text.as_str(), range.end)
-    else {
+    let Some(end_offset) = byte_offset_for_parser_position_with_line_index(
+        document.text.as_str(),
+        &line_index,
+        range.end,
+    ) else {
         return false;
     };
     if start_offset > end_offset {

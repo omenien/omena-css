@@ -20,7 +20,7 @@ use omena_parser::{
     canonical_selector_asts_from_cst, facts_from_cst, parse,
 };
 use omena_syntax::{
-    SyntaxKind, SyntaxNode, css_keyword,
+    OmenaLineIndexV0, SyntaxKind, SyntaxNode, css_keyword,
     ident::{AuthoredPropertyTextV0, render_authored},
 };
 use serde::Serialize;
@@ -1943,34 +1943,25 @@ fn parser_byte_span_for_offsets(start: usize, end: usize) -> ParserByteSpanV0 {
 }
 
 fn parser_range_for_byte_span(source: &str, span: ParserByteSpanV0) -> ParserRangeV0 {
+    let line_index = OmenaLineIndexV0::new(source);
     ParserRangeV0 {
-        start: parser_position_for_byte_offset(source, span.start),
-        end: parser_position_for_byte_offset(source, span.end),
+        start: parser_position_for_byte_offset_with_line_index(source, &line_index, span.start),
+        end: parser_position_for_byte_offset_with_line_index(source, &line_index, span.end),
     }
 }
 
+#[cfg(test)]
 fn parser_position_for_byte_offset(source: &str, byte_offset: usize) -> ParserPositionV0 {
-    // LSP positions count UTF-16 code units per line, not raw bytes. Walk chars
-    // and accumulate `len_utf16()` so non-ASCII source produces correct columns,
-    // matching the canonical helpers in omena-query/src/style.rs and
-    // omena-lsp-server/src/protocol.rs (previously this used a raw byte offset,
-    // which diverged on multi-byte characters).
-    let clamped_offset = byte_offset.min(source.len());
-    let mut line = 0usize;
-    let mut character = 0usize;
+    let line_index = OmenaLineIndexV0::new(source);
+    parser_position_for_byte_offset_with_line_index(source, &line_index, byte_offset)
+}
 
-    for (index, ch) in source.char_indices() {
-        if index >= clamped_offset {
-            break;
-        }
-        if ch == '\n' {
-            line += 1;
-            character = 0;
-        } else {
-            character += ch.len_utf16();
-        }
-    }
-
+fn parser_position_for_byte_offset_with_line_index(
+    source: &str,
+    line_index: &OmenaLineIndexV0,
+    byte_offset: usize,
+) -> ParserPositionV0 {
+    let (line, character) = line_index.position_for_byte_offset(source, byte_offset);
     ParserPositionV0 { line, character }
 }
 

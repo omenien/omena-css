@@ -1204,6 +1204,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "closure-fast",
   },
   {
+    id: "rust/line-index-authority",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/line-index-authority",
+    tags: ["closure-fast", "syntax", "line-index", "performance"],
+    ciTier: "closure-fast",
+    ciGroup: "closure-fast",
+  },
+  {
     id: "rust/omena-query/linker-input-walk-authority",
     kind: "gate",
     scope: "rust",
@@ -1492,6 +1501,16 @@ export const DECLARED_CHECK_GATES = [
     ciTier: "manual",
     ciGroup: "rust",
     ciReason: "Snapshot refresh command is invoked deliberately when accepting public API drift.",
+  },
+  {
+    id: "rust/line-index-authority:update",
+    kind: "command",
+    scope: "rust",
+    packageTarget: "rust/line-index-authority:update",
+    tags: ["syntax", "line-index", "snapshot"],
+    ciTier: "manual",
+    ciGroup: "rust",
+    ciReason: "Line-index membership and public API snapshot updates require explicit review.",
   },
   {
     // g131-S2: demoted to the manual tier alongside its bundler/query

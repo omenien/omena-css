@@ -1,0 +1,638 @@
+pub mod omena_syntax
+pub mod omena_syntax::ident
+pub enum omena_syntax::ident::CanonicalPropertyKeyV0
+pub omena_syntax::ident::CanonicalPropertyKeyV0::Custom(omena_syntax::ident::CanonicalCustomPropertyNameV0)
+pub omena_syntax::ident::CanonicalPropertyKeyV0::Standard(omena_syntax::ident::CanonicalStandardPropertyNameV0)
+impl omena_syntax::ident::CanonicalPropertyKeyV0
+pub fn omena_syntax::ident::CanonicalPropertyKeyV0::as_custom(&self) -> core::option::Option<&omena_syntax::ident::CanonicalCustomPropertyNameV0>
+pub fn omena_syntax::ident::CanonicalPropertyKeyV0::as_standard(&self) -> core::option::Option<&omena_syntax::ident::CanonicalStandardPropertyNameV0>
+pub fn omena_syntax::ident::CanonicalPropertyKeyV0::as_str(&self) -> &str
+pub fn omena_syntax::ident::CanonicalPropertyKeyV0::kind(&self) -> omena_syntax::ident::PropertyNameKindV0
+impl serde_core::ser::Serialize for omena_syntax::ident::CanonicalPropertyKeyV0
+pub fn omena_syntax::ident::CanonicalPropertyKeyV0::serialize<S>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for omena_syntax::ident::CanonicalPropertyKeyV0
+pub fn omena_syntax::ident::CanonicalPropertyKeyV0::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+pub enum omena_syntax::ident::PropertyNameKindV0
+pub omena_syntax::ident::PropertyNameKindV0::Custom
+pub omena_syntax::ident::PropertyNameKindV0::Standard
+pub enum omena_syntax::ident::PropertyNameV0
+pub omena_syntax::ident::PropertyNameV0::Custom(CustomPropertyNamePayloadV0)
+pub omena_syntax::ident::PropertyNameV0::Standard(StandardPropertyNamePayloadV0)
+impl omena_syntax::ident::PropertyNameV0
+pub fn omena_syntax::ident::PropertyNameV0::as_custom_key(&self) -> core::option::Option<omena_syntax::ident::CanonicalCustomPropertyNameV0>
+pub fn omena_syntax::ident::PropertyNameV0::as_standard_key(&self) -> core::option::Option<&omena_syntax::ident::CanonicalStandardPropertyNameV0>
+pub fn omena_syntax::ident::PropertyNameV0::authored_text(&self) -> omena_syntax::ident::AuthoredPropertyTextV0
+pub fn omena_syntax::ident::PropertyNameV0::canonical_custom_key(impl core::convert::Into<alloc::string::String>) -> omena_syntax::ident::CanonicalCustomPropertyNameV0
+pub fn omena_syntax::ident::PropertyNameV0::canonical_key(&self) -> omena_syntax::ident::CanonicalPropertyKeyV0
+pub fn omena_syntax::ident::PropertyNameV0::canonical_name(&self) -> &str
+pub fn omena_syntax::ident::PropertyNameV0::canonical_standard_key(impl core::convert::Into<alloc::string::String>) -> omena_syntax::ident::CanonicalStandardPropertyNameV0
+pub fn omena_syntax::ident::PropertyNameV0::custom(impl core::convert::Into<alloc::string::String>) -> Self
+pub fn omena_syntax::ident::PropertyNameV0::from_authored(impl core::convert::Into<alloc::string::String>) -> Self
+pub fn omena_syntax::ident::PropertyNameV0::kind(&self) -> omena_syntax::ident::PropertyNameKindV0
+pub fn omena_syntax::ident::PropertyNameV0::new(impl core::convert::Into<alloc::string::String>, omena_syntax::ident::PropertyNameKindV0) -> Self
+pub fn omena_syntax::ident::PropertyNameV0::same_as(&self, &Self) -> bool
+pub fn omena_syntax::ident::PropertyNameV0::standard(impl core::convert::Into<alloc::string::String>) -> Self
+pub struct omena_syntax::ident::AuthoredPropertyTextV0(_)
+impl omena_syntax::ident::AuthoredPropertyTextV0
+pub fn omena_syntax::ident::AuthoredPropertyTextV0::is_empty(&self) -> bool
+pub fn omena_syntax::ident::AuthoredPropertyTextV0::new(impl core::convert::Into<alloc::string::String>) -> Self
+pub fn omena_syntax::ident::AuthoredPropertyTextV0::to_custom_key(&self) -> omena_syntax::ident::CanonicalCustomPropertyNameV0
+pub fn omena_syntax::ident::AuthoredPropertyTextV0::to_property_name(&self) -> omena_syntax::ident::PropertyNameV0
+pub fn omena_syntax::ident::AuthoredPropertyTextV0::to_standard_key(&self) -> omena_syntax::ident::CanonicalStandardPropertyNameV0
+pub fn omena_syntax::ident::AuthoredPropertyTextV0::write_into(&self, &mut impl core::fmt::Write) -> core::fmt::Result
+pub struct omena_syntax::ident::CanonicalClassKeyV0(_, _)
+impl omena_syntax::ident::CanonicalClassKeyV0
+pub fn omena_syntax::ident::CanonicalClassKeyV0::as_str(&self) -> &str
+impl serde_core::ser::Serialize for omena_syntax::ident::CanonicalClassKeyV0
+pub fn omena_syntax::ident::CanonicalClassKeyV0::serialize<S>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
+pub struct omena_syntax::ident::CanonicalCustomPropertyNameV0(_, _)
+impl omena_syntax::ident::CanonicalCustomPropertyNameV0
+pub fn omena_syntax::ident::CanonicalCustomPropertyNameV0::as_str(&self) -> &str
+impl serde_core::ser::Serialize for omena_syntax::ident::CanonicalCustomPropertyNameV0
+pub fn omena_syntax::ident::CanonicalCustomPropertyNameV0::serialize<S>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for omena_syntax::ident::CanonicalCustomPropertyNameV0
+pub fn omena_syntax::ident::CanonicalCustomPropertyNameV0::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+pub struct omena_syntax::ident::CanonicalIdKeyV0(_, _)
+impl omena_syntax::ident::CanonicalIdKeyV0
+pub fn omena_syntax::ident::CanonicalIdKeyV0::as_str(&self) -> &str
+pub fn omena_syntax::ident::CanonicalIdKeyV0::from_authored(&str) -> Self
+impl serde_core::ser::Serialize for omena_syntax::ident::CanonicalIdKeyV0
+pub fn omena_syntax::ident::CanonicalIdKeyV0::serialize<S>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
+pub struct omena_syntax::ident::CanonicalStandardPropertyNameV0(_, _)
+impl omena_syntax::ident::CanonicalStandardPropertyNameV0
+pub fn omena_syntax::ident::CanonicalStandardPropertyNameV0::as_str(&self) -> &str
+impl serde_core::ser::Serialize for omena_syntax::ident::CanonicalStandardPropertyNameV0
+pub fn omena_syntax::ident::CanonicalStandardPropertyNameV0::serialize<S>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for omena_syntax::ident::CanonicalStandardPropertyNameV0
+pub fn omena_syntax::ident::CanonicalStandardPropertyNameV0::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+pub struct omena_syntax::ident::CanonicalTypeSelectorKeyV0(_, _)
+impl omena_syntax::ident::CanonicalTypeSelectorKeyV0
+pub fn omena_syntax::ident::CanonicalTypeSelectorKeyV0::as_str(&self) -> &str
+pub fn omena_syntax::ident::CanonicalTypeSelectorKeyV0::from_authored(&str) -> Self
+impl serde_core::ser::Serialize for omena_syntax::ident::CanonicalTypeSelectorKeyV0
+pub fn omena_syntax::ident::CanonicalTypeSelectorKeyV0::serialize<S>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
+pub struct omena_syntax::ident::ClassNameV0
+impl omena_syntax::ident::ClassNameV0
+pub fn omena_syntax::ident::ClassNameV0::canonical_key(self) -> omena_syntax::ident::CanonicalClassKeyV0
+pub fn omena_syntax::ident::ClassNameV0::decoded(&self) -> &str
+pub fn omena_syntax::ident::ClassNameV0::into_raw(self) -> alloc::string::String
+pub fn omena_syntax::ident::ClassNameV0::new(impl core::convert::Into<alloc::string::String>) -> Self
+pub fn omena_syntax::ident::ClassNameV0::raw(&self) -> &str
+pub fn omena_syntax::ident::ClassNameV0::same_as(&self, &Self) -> bool
+pub struct omena_syntax::ident::ClassSelectorNameV0
+pub omena_syntax::ident::ClassSelectorNameV0::name: omena_syntax::ident::ClassNameV0
+pub omena_syntax::ident::ClassSelectorNameV0::position: omena_syntax::ident::ClassSelectorPositionV0
+pub struct omena_syntax::ident::ClassSelectorPositionV0
+pub omena_syntax::ident::ClassSelectorPositionV0::end: usize
+pub omena_syntax::ident::ClassSelectorPositionV0::start: usize
+pub fn omena_syntax::ident::class_selector_name_end(&str, usize) -> core::option::Option<usize>
+pub fn omena_syntax::ident::class_selector_names(&str) -> alloc::vec::Vec<omena_syntax::ident::ClassSelectorNameV0>
+pub fn omena_syntax::ident::css_identifier_escape_sequence_end(&str, usize) -> core::option::Option<usize>
+pub fn omena_syntax::ident::decode_css_identifier_escapes(&str) -> alloc::borrow::Cow<'_, str>
+pub fn omena_syntax::ident::is_ascii_word_continue(char) -> bool
+pub fn omena_syntax::ident::is_css_name_continue(char) -> bool
+pub fn omena_syntax::ident::is_css_name_start(char) -> bool
+pub fn omena_syntax::ident::is_custom_property_name(&str) -> bool
+pub fn omena_syntax::ident::is_safe_css_identifier(&str) -> bool
+pub fn omena_syntax::ident::property_names_same(&str, &str) -> bool
+pub fn omena_syntax::ident::render_authored(&omena_syntax::ident::AuthoredPropertyTextV0, &mut alloc::string::String) -> core::fmt::Result
+pub enum omena_syntax::CanonicalSelectorCombinatorV0
+pub omena_syntax::CanonicalSelectorCombinatorV0::Child
+pub omena_syntax::CanonicalSelectorCombinatorV0::Column
+pub omena_syntax::CanonicalSelectorCombinatorV0::Descendant
+pub omena_syntax::CanonicalSelectorCombinatorV0::NextSibling
+pub omena_syntax::CanonicalSelectorCombinatorV0::Other
+pub omena_syntax::CanonicalSelectorCombinatorV0::SubsequentSibling
+pub enum omena_syntax::ModuleMode
+pub omena_syntax::ModuleMode::CssModules
+pub omena_syntax::ModuleMode::Plain
+impl omena_syntax::ModuleMode
+pub const omena_syntax::ModuleMode::ALL: &'static [Self]
+pub enum omena_syntax::ReferenceKind
+pub omena_syntax::ReferenceKind::Class
+pub omena_syntax::ReferenceKind::ComposesFrom
+pub omena_syntax::ReferenceKind::ComposesTarget
+pub omena_syntax::ReferenceKind::Container
+pub omena_syntax::ReferenceKind::CssModuleAccess
+pub omena_syntax::ReferenceKind::CssModuleToken
+pub omena_syntax::ReferenceKind::CustomPropertyRead
+pub omena_syntax::ReferenceKind::Export
+pub omena_syntax::ReferenceKind::FunctionCall
+pub omena_syntax::ReferenceKind::Id
+pub omena_syntax::ReferenceKind::Import
+pub omena_syntax::ReferenceKind::Keyframes
+pub omena_syntax::ReferenceKind::Layer
+pub omena_syntax::ReferenceKind::MixinInclude
+pub omena_syntax::ReferenceKind::NamespaceMember
+pub omena_syntax::ReferenceKind::PlaceholderSelector
+pub omena_syntax::ReferenceKind::SelectorExtends
+pub omena_syntax::ReferenceKind::TypeSelector
+pub omena_syntax::ReferenceKind::ValueRead
+pub omena_syntax::ReferenceKind::VarRead
+impl omena_syntax::ReferenceKind
+pub const omena_syntax::ReferenceKind::ALL: &'static [Self]
+pub enum omena_syntax::ScopeKind
+pub omena_syntax::ScopeKind::AtRuleScope
+pub omena_syntax::ScopeKind::CascadeLayer
+pub omena_syntax::ScopeKind::ContainerQuery
+pub omena_syntax::ScopeKind::CssModuleExport
+pub omena_syntax::ScopeKind::CssModuleImport
+pub omena_syntax::ScopeKind::File
+pub omena_syntax::ScopeKind::FunctionBody
+pub omena_syntax::ScopeKind::GlobalBlock
+pub omena_syntax::ScopeKind::LessMixin
+pub omena_syntax::ScopeKind::LocalBlock
+pub omena_syntax::ScopeKind::MediaQuery
+pub omena_syntax::ScopeKind::MixinBody
+pub omena_syntax::ScopeKind::ModuleNamespace
+pub omena_syntax::ScopeKind::NestedRule
+pub omena_syntax::ScopeKind::SassControlFlow
+pub omena_syntax::ScopeKind::ScopeAtRule
+pub omena_syntax::ScopeKind::SelectorBlock
+pub omena_syntax::ScopeKind::SupportsQuery
+impl omena_syntax::ScopeKind
+pub const omena_syntax::ScopeKind::ALL: &'static [Self]
+pub enum omena_syntax::StyleDialect
+pub omena_syntax::StyleDialect::Css
+pub omena_syntax::StyleDialect::Less
+pub omena_syntax::StyleDialect::Sass
+pub omena_syntax::StyleDialect::Scss
+impl omena_syntax::StyleDialect
+pub const omena_syntax::StyleDialect::ALL: &'static [Self]
+pub enum omena_syntax::SymbolKind
+pub omena_syntax::SymbolKind::Class
+pub omena_syntax::SymbolKind::ComposesTarget
+pub omena_syntax::SymbolKind::Container
+pub omena_syntax::SymbolKind::CustomProperty
+pub omena_syntax::SymbolKind::Export
+pub omena_syntax::SymbolKind::Function
+pub omena_syntax::SymbolKind::Id
+pub omena_syntax::SymbolKind::Import
+pub omena_syntax::SymbolKind::Keyframes
+pub omena_syntax::SymbolKind::Layer
+pub omena_syntax::SymbolKind::LessVariable
+pub omena_syntax::SymbolKind::Mixin
+pub omena_syntax::SymbolKind::ModuleGlobal
+pub omena_syntax::SymbolKind::ModuleLocal
+pub omena_syntax::SymbolKind::Namespace
+pub omena_syntax::SymbolKind::PlaceholderSelector
+pub omena_syntax::SymbolKind::Scope
+pub omena_syntax::SymbolKind::ScssVariable
+pub omena_syntax::SymbolKind::TypeSelector
+pub omena_syntax::SymbolKind::ValueDeclaration
+impl omena_syntax::SymbolKind
+pub const omena_syntax::SymbolKind::ALL: &'static [Self]
+#[repr(u32)] pub enum omena_syntax::SyntaxKind
+pub omena_syntax::SyntaxKind::Ampersand = 36
+pub omena_syntax::SyntaxKind::Arrow = 50
+pub omena_syntax::SyntaxKind::AtKeyword = 13
+pub omena_syntax::SyntaxKind::AtRule = 4133
+pub omena_syntax::SyntaxKind::AtRulePrelude = 4190
+pub omena_syntax::SyntaxKind::AttrFunction = 4167
+pub omena_syntax::SyntaxKind::AttributeMatcher = 4111
+pub omena_syntax::SyntaxKind::AttributeModifier = 4207
+pub omena_syntax::SyntaxKind::AttributeName = 4205
+pub omena_syntax::SyntaxKind::AttributeSelector = 4110
+pub omena_syntax::SyntaxKind::AttributeValue = 4206
+pub omena_syntax::SyntaxKind::BadString = 6
+pub omena_syntax::SyntaxKind::BadUrl = 8
+pub omena_syntax::SyntaxKind::BinaryExpression = 4124
+pub omena_syntax::SyntaxKind::BlockComment = 2
+pub omena_syntax::SyntaxKind::BogusAtRule = 8206
+pub omena_syntax::SyntaxKind::BogusAtRulePrelude = 8229
+pub omena_syntax::SyntaxKind::BogusBracketedValue = 8230
+pub omena_syntax::SyntaxKind::BogusCombinator = 8198
+pub omena_syntax::SyntaxKind::BogusComposesDeclaration = 8214
+pub omena_syntax::SyntaxKind::BogusComposesTarget = 8215
+pub omena_syntax::SyntaxKind::BogusCompoundSelector = 8197
+pub omena_syntax::SyntaxKind::BogusContainerCondition = 8209
+pub omena_syntax::SyntaxKind::BogusCssModuleBlock = 8213
+pub omena_syntax::SyntaxKind::BogusDeclaration = 8199
+pub omena_syntax::SyntaxKind::BogusDeclarationList = 8200
+pub omena_syntax::SyntaxKind::BogusFromClause = 8216
+pub omena_syntax::SyntaxKind::BogusFunctionArguments = 8205
+pub omena_syntax::SyntaxKind::BogusFunctionCall = 8204
+pub omena_syntax::SyntaxKind::BogusInterpolation = 8217
+pub omena_syntax::SyntaxKind::BogusKeyframeBlock = 8212
+pub omena_syntax::SyntaxKind::BogusLayerName = 8210
+pub omena_syntax::SyntaxKind::BogusLessCondition = 8236
+pub omena_syntax::SyntaxKind::BogusLessDetachedRuleset = 8226
+pub omena_syntax::SyntaxKind::BogusLessGuard = 8225
+pub omena_syntax::SyntaxKind::BogusLessMixin = 8224
+pub omena_syntax::SyntaxKind::BogusLessVariable = 8223
+pub omena_syntax::SyntaxKind::BogusMediaQuery = 8207
+pub omena_syntax::SyntaxKind::BogusPropertyName = 8201
+pub omena_syntax::SyntaxKind::BogusRecovery = 8227
+pub omena_syntax::SyntaxKind::BogusRule = 8194
+pub omena_syntax::SyntaxKind::BogusSassIndentation = 8222
+pub omena_syntax::SyntaxKind::BogusScopeRange = 8211
+pub omena_syntax::SyntaxKind::BogusScssCondition = 8235
+pub omena_syntax::SyntaxKind::BogusScssControl = 8221
+pub omena_syntax::SyntaxKind::BogusScssFunction = 8220
+pub omena_syntax::SyntaxKind::BogusScssList = 8234
+pub omena_syntax::SyntaxKind::BogusScssMap = 8232
+pub omena_syntax::SyntaxKind::BogusScssMapEntry = 8233
+pub omena_syntax::SyntaxKind::BogusScssMixin = 8219
+pub omena_syntax::SyntaxKind::BogusScssModuleConfig = 8228
+pub omena_syntax::SyntaxKind::BogusScssVariable = 8218
+pub omena_syntax::SyntaxKind::BogusSelector = 8195
+pub omena_syntax::SyntaxKind::BogusSelectorList = 8196
+pub omena_syntax::SyntaxKind::BogusSimpleBlock = 8231
+pub omena_syntax::SyntaxKind::BogusSupportsCondition = 8208
+pub omena_syntax::SyntaxKind::BogusToken = 8192
+pub omena_syntax::SyntaxKind::BogusTrivia = 8193
+pub omena_syntax::SyntaxKind::BogusValue = 8202
+pub omena_syntax::SyntaxKind::BogusValueList = 8203
+pub omena_syntax::SyntaxKind::BracketedValue = 4198
+pub omena_syntax::SyntaxKind::CalcFunction = 4132
+pub omena_syntax::SyntaxKind::Caret = 34
+pub omena_syntax::SyntaxKind::CaretEquals = 45
+pub omena_syntax::SyntaxKind::Cdc = 102
+pub omena_syntax::SyntaxKind::Cdo = 101
+pub omena_syntax::SyntaxKind::CharsetRule = 4145
+pub omena_syntax::SyntaxKind::ClassName = 59
+pub omena_syntax::SyntaxKind::ClassSelector = 4106
+pub omena_syntax::SyntaxKind::Colon = 18
+pub omena_syntax::SyntaxKind::ColorProfileRule = 4174
+pub omena_syntax::SyntaxKind::ColorValue = 4129
+pub omena_syntax::SyntaxKind::ColumnCombinator = 56
+pub omena_syntax::SyntaxKind::Combinator = 4116
+pub omena_syntax::SyntaxKind::Comma = 17
+pub omena_syntax::SyntaxKind::CommaSeparatedComponentValueList = 4203
+pub omena_syntax::SyntaxKind::Comment = 4164
+pub omena_syntax::SyntaxKind::ComplexSelector = 4104
+pub omena_syntax::SyntaxKind::ComponentValue = 4200
+pub omena_syntax::SyntaxKind::ComponentValueList = 4202
+pub omena_syntax::SyntaxKind::CompoundSelector = 4105
+pub omena_syntax::SyntaxKind::ContainerCondition = 4152
+pub omena_syntax::SyntaxKind::ContainerRule = 4136
+pub omena_syntax::SyntaxKind::CounterStyleRule = 4172
+pub omena_syntax::SyntaxKind::CssModuleComposesDeclaration = 4159
+pub omena_syntax::SyntaxKind::CssModuleComposesTarget = 4160
+pub omena_syntax::SyntaxKind::CssModuleExportBlock = 4157
+pub omena_syntax::SyntaxKind::CssModuleFromClause = 4161
+pub omena_syntax::SyntaxKind::CssModuleGlobalBlock = 4156
+pub omena_syntax::SyntaxKind::CssModuleImportBlock = 4158
+pub omena_syntax::SyntaxKind::CssModuleLocalBlock = 4155
+pub omena_syntax::SyntaxKind::CustomMediaRule = 4192
+pub omena_syntax::SyntaxKind::CustomPropertyDeclaration = 4119
+pub omena_syntax::SyntaxKind::CustomPropertyName = 58
+pub omena_syntax::SyntaxKind::CustomPropertyValue = 4204
+pub omena_syntax::SyntaxKind::DashMatch = 52
+pub omena_syntax::SyntaxKind::Declaration = 4099
+pub omena_syntax::SyntaxKind::DeclarationList = 4100
+pub omena_syntax::SyntaxKind::Delim = 14
+pub omena_syntax::SyntaxKind::Dimension = 11
+pub omena_syntax::SyntaxKind::DimensionValue = 4128
+pub omena_syntax::SyntaxKind::DirectionalitySelectorArgument = 4215
+pub omena_syntax::SyntaxKind::Dollar = 35
+pub omena_syntax::SyntaxKind::DollarEquals = 46
+pub omena_syntax::SyntaxKind::Dot = 16
+pub omena_syntax::SyntaxKind::DoubleAmpersand = 49
+pub omena_syntax::SyntaxKind::DoubleColon = 47
+pub omena_syntax::SyntaxKind::DoublePipe = 48
+pub omena_syntax::SyntaxKind::ElseRule = 4171
+pub omena_syntax::SyntaxKind::EnvFunction = 4166
+pub omena_syntax::SyntaxKind::Eof = 8449
+pub omena_syntax::SyntaxKind::Equals = 31
+pub omena_syntax::SyntaxKind::ErrorNode = 4165
+pub omena_syntax::SyntaxKind::FilterFunction = 4187
+pub omena_syntax::SyntaxKind::FontFaceRule = 4141
+pub omena_syntax::SyntaxKind::FontFeatureValuesAnnotationRule = 4182
+pub omena_syntax::SyntaxKind::FontFeatureValuesCharacterVariantRule = 4179
+pub omena_syntax::SyntaxKind::FontFeatureValuesHistoricalFormsRule = 4183
+pub omena_syntax::SyntaxKind::FontFeatureValuesOrnamentsRule = 4181
+pub omena_syntax::SyntaxKind::FontFeatureValuesRule = 4176
+pub omena_syntax::SyntaxKind::FontFeatureValuesStylesetRule = 4178
+pub omena_syntax::SyntaxKind::FontFeatureValuesStylisticRule = 4177
+pub omena_syntax::SyntaxKind::FontFeatureValuesSwashRule = 4180
+pub omena_syntax::SyntaxKind::FontPaletteValuesRule = 4173
+pub omena_syntax::SyntaxKind::FunctionArguments = 4123
+pub omena_syntax::SyntaxKind::FunctionCall = 4122
+pub omena_syntax::SyntaxKind::FunctionRule = 4217
+pub omena_syntax::SyntaxKind::GradientFunction = 4185
+pub omena_syntax::SyntaxKind::GreaterThan = 37
+pub omena_syntax::SyntaxKind::Hash = 4
+pub omena_syntax::SyntaxKind::IdName = 60
+pub omena_syntax::SyntaxKind::IdSelector = 4107
+pub omena_syntax::SyntaxKind::Ident = 3
+pub omena_syntax::SyntaxKind::IdentifierValue = 4193
+pub omena_syntax::SyntaxKind::IfFunction = 4218
+pub omena_syntax::SyntaxKind::IfRule = 4219
+pub omena_syntax::SyntaxKind::ImageFunction = 4188
+pub omena_syntax::SyntaxKind::ImportRule = 4144
+pub omena_syntax::SyntaxKind::Important = 15
+pub omena_syntax::SyntaxKind::ImportantAnnotation = 4199
+pub omena_syntax::SyntaxKind::IncludesMatch = 51
+pub omena_syntax::SyntaxKind::Interpolation = 4127
+pub omena_syntax::SyntaxKind::KeyframeBlock = 4140
+pub omena_syntax::SyntaxKind::KeyframesRule = 4139
+pub omena_syntax::SyntaxKind::KeywordAnd = 61
+pub omena_syntax::SyntaxKind::KeywordAs = 74
+pub omena_syntax::SyntaxKind::KeywordCharset = 82
+pub omena_syntax::SyntaxKind::KeywordComposes = 73
+pub omena_syntax::SyntaxKind::KeywordContainer = 78
+pub omena_syntax::SyntaxKind::KeywordEach = 97
+pub omena_syntax::SyntaxKind::KeywordElse = 89
+pub omena_syntax::SyntaxKind::KeywordExport = 71
+pub omena_syntax::SyntaxKind::KeywordFontFace = 85
+pub omena_syntax::SyntaxKind::KeywordFor = 98
+pub omena_syntax::SyntaxKind::KeywordForward = 91
+pub omena_syntax::SyntaxKind::KeywordFrom = 65
+pub omena_syntax::SyntaxKind::KeywordFunction = 94
+pub omena_syntax::SyntaxKind::KeywordGlobal = 69
+pub omena_syntax::SyntaxKind::KeywordIf = 96
+pub omena_syntax::SyntaxKind::KeywordImport = 72
+pub omena_syntax::SyntaxKind::KeywordImportant = 68
+pub omena_syntax::SyntaxKind::KeywordIn = 100
+pub omena_syntax::SyntaxKind::KeywordInclude = 93
+pub omena_syntax::SyntaxKind::KeywordKeyframes = 81
+pub omena_syntax::SyntaxKind::KeywordLayer = 76
+pub omena_syntax::SyntaxKind::KeywordLocal = 70
+pub omena_syntax::SyntaxKind::KeywordMedia = 80
+pub omena_syntax::SyntaxKind::KeywordMixin = 92
+pub omena_syntax::SyntaxKind::KeywordNamespace = 83
+pub omena_syntax::SyntaxKind::KeywordNot = 63
+pub omena_syntax::SyntaxKind::KeywordOnly = 64
+pub omena_syntax::SyntaxKind::KeywordOr = 62
+pub omena_syntax::SyntaxKind::KeywordPage = 84
+pub omena_syntax::SyntaxKind::KeywordProperty = 86
+pub omena_syntax::SyntaxKind::KeywordReturn = 95
+pub omena_syntax::SyntaxKind::KeywordScope = 79
+pub omena_syntax::SyntaxKind::KeywordStartingStyle = 87
+pub omena_syntax::SyntaxKind::KeywordSupports = 77
+pub omena_syntax::SyntaxKind::KeywordThrough = 67
+pub omena_syntax::SyntaxKind::KeywordTo = 66
+pub omena_syntax::SyntaxKind::KeywordUse = 90
+pub omena_syntax::SyntaxKind::KeywordWhen = 88
+pub omena_syntax::SyntaxKind::KeywordWhile = 99
+pub omena_syntax::SyntaxKind::KeywordWith = 75
+pub omena_syntax::SyntaxKind::LanguageSelectorArgument = 4213
+pub omena_syntax::SyntaxKind::LanguageTag = 4214
+pub omena_syntax::SyntaxKind::LayerName = 4153
+pub omena_syntax::SyntaxKind::LayerRule = 4137
+pub omena_syntax::SyntaxKind::LeftBrace = 20
+pub omena_syntax::SyntaxKind::LeftBracket = 24
+pub omena_syntax::SyntaxKind::LeftParen = 22
+pub omena_syntax::SyntaxKind::LessCondition = 5166
+pub omena_syntax::SyntaxKind::LessDetachedRuleset = 1042
+pub omena_syntax::SyntaxKind::LessDetachedRulesetNode = 5158
+pub omena_syntax::SyntaxKind::LessEscapedString = 1041
+pub omena_syntax::SyntaxKind::LessExtendKeyword = 1044
+pub omena_syntax::SyntaxKind::LessExtendRule = 5159
+pub omena_syntax::SyntaxKind::LessInterpolationEnd = 1047
+pub omena_syntax::SyntaxKind::LessInterpolationStart = 1046
+pub omena_syntax::SyntaxKind::LessMixinCall = 5156
+pub omena_syntax::SyntaxKind::LessMixinDeclaration = 5155
+pub omena_syntax::SyntaxKind::LessMixinGuard = 5157
+pub omena_syntax::SyntaxKind::LessMixinGuardWhen = 1043
+pub omena_syntax::SyntaxKind::LessNamespaceAccess = 5160
+pub omena_syntax::SyntaxKind::LessNamespaceSeparator = 1045
+pub omena_syntax::SyntaxKind::LessPropertyVariable = 5161
+pub omena_syntax::SyntaxKind::LessPropertyVariableToken = 1048
+pub omena_syntax::SyntaxKind::LessStylesheet = 5152
+pub omena_syntax::SyntaxKind::LessThan = 38
+pub omena_syntax::SyntaxKind::LessVariable = 1040
+pub omena_syntax::SyntaxKind::LessVariableDeclaration = 5153
+pub omena_syntax::SyntaxKind::LessVariableReference = 5154
+pub omena_syntax::SyntaxKind::LineComment = 1
+pub omena_syntax::SyntaxKind::MathFunction = 4168
+pub omena_syntax::SyntaxKind::MediaFeature = 4150
+pub omena_syntax::SyntaxKind::MediaQuery = 4149
+pub omena_syntax::SyntaxKind::MediaQueryList = 4148
+pub omena_syntax::SyntaxKind::MediaRule = 4134
+pub omena_syntax::SyntaxKind::Minus = 27
+pub omena_syntax::SyntaxKind::MinusEquals = 40
+pub omena_syntax::SyntaxKind::NamespacePrefix = 4216
+pub omena_syntax::SyntaxKind::NamespaceRule = 4143
+pub omena_syntax::SyntaxKind::NestRule = 4191
+pub omena_syntax::SyntaxKind::NestingSelector = 57
+pub omena_syntax::SyntaxKind::NestingSelectorNode = 4115
+pub omena_syntax::SyntaxKind::NthSelectorArgument = 4208
+pub omena_syntax::SyntaxKind::NthSelectorFormula = 4209
+pub omena_syntax::SyntaxKind::NthSelectorOfSelectorList = 4210
+pub omena_syntax::SyntaxKind::Number = 9
+pub omena_syntax::SyntaxKind::NumberValue = 4196
+pub omena_syntax::SyntaxKind::PageMarginRule = 4169
+pub omena_syntax::SyntaxKind::PageRule = 4142
+pub omena_syntax::SyntaxKind::ParenthesizedExpression = 4126
+pub omena_syntax::SyntaxKind::Percent = 30
+pub omena_syntax::SyntaxKind::Percentage = 10
+pub omena_syntax::SyntaxKind::PercentageValue = 4197
+pub omena_syntax::SyntaxKind::Pipe = 33
+pub omena_syntax::SyntaxKind::PipeEquals = 43
+pub omena_syntax::SyntaxKind::Plus = 26
+pub omena_syntax::SyntaxKind::PlusEquals = 39
+pub omena_syntax::SyntaxKind::PositionTryRule = 4175
+pub omena_syntax::SyntaxKind::PrefixMatch = 53
+pub omena_syntax::SyntaxKind::PropertyName = 4118
+pub omena_syntax::SyntaxKind::PropertyRule = 4146
+pub omena_syntax::SyntaxKind::PseudoClassSelector = 4112
+pub omena_syntax::SyntaxKind::PseudoElementSelector = 4113
+pub omena_syntax::SyntaxKind::PseudoSelectorArgument = 4114
+pub omena_syntax::SyntaxKind::QualifiedRule = 4098
+pub omena_syntax::SyntaxKind::RelativeSelector = 4212
+pub omena_syntax::SyntaxKind::RelativeSelectorList = 4211
+pub omena_syntax::SyntaxKind::RightBrace = 21
+pub omena_syntax::SyntaxKind::RightBracket = 25
+pub omena_syntax::SyntaxKind::RightParen = 23
+pub omena_syntax::SyntaxKind::Root = 8448
+pub omena_syntax::SyntaxKind::Rule = 4097
+pub omena_syntax::SyntaxKind::RuleList = 4101
+pub omena_syntax::SyntaxKind::SassDedent = 1032
+pub omena_syntax::SyntaxKind::SassIndent = 1031
+pub omena_syntax::SyntaxKind::SassIndentedBlock = 5138
+pub omena_syntax::SyntaxKind::SassIndentedNewline = 1030
+pub omena_syntax::SyntaxKind::SassIndentedRule = 5139
+pub omena_syntax::SyntaxKind::SassOptionalSemicolon = 1033
+pub omena_syntax::SyntaxKind::ScopeRange = 4154
+pub omena_syntax::SyntaxKind::ScopeRule = 4138
+pub omena_syntax::SyntaxKind::ScssAtRootRule = 5140
+pub omena_syntax::SyntaxKind::ScssCondition = 5165
+pub omena_syntax::SyntaxKind::ScssContentRule = 5144
+pub omena_syntax::SyntaxKind::ScssControlEach = 5133
+pub omena_syntax::SyntaxKind::ScssControlElse = 5132
+pub omena_syntax::SyntaxKind::ScssControlFor = 5134
+pub omena_syntax::SyntaxKind::ScssControlIf = 5131
+pub omena_syntax::SyntaxKind::ScssControlWhile = 5135
+pub omena_syntax::SyntaxKind::ScssDebugRule = 5143
+pub omena_syntax::SyntaxKind::ScssErrorRule = 5141
+pub omena_syntax::SyntaxKind::ScssExtendRule = 5130
+pub omena_syntax::SyntaxKind::ScssForwardRule = 5122
+pub omena_syntax::SyntaxKind::ScssFunctionDeclaration = 5125
+pub omena_syntax::SyntaxKind::ScssIncludeRule = 5124
+pub omena_syntax::SyntaxKind::ScssInterpolationEnd = 1026
+pub omena_syntax::SyntaxKind::ScssInterpolationStart = 1025
+pub omena_syntax::SyntaxKind::ScssList = 5164
+pub omena_syntax::SyntaxKind::ScssMap = 5162
+pub omena_syntax::SyntaxKind::ScssMapEntry = 5163
+pub omena_syntax::SyntaxKind::ScssMixinDeclaration = 5123
+pub omena_syntax::SyntaxKind::ScssModuleConfig = 5137
+pub omena_syntax::SyntaxKind::ScssModuleNamespace = 1029
+pub omena_syntax::SyntaxKind::ScssNestedProperty = 5136
+pub omena_syntax::SyntaxKind::ScssPlaceholder = 1028
+pub omena_syntax::SyntaxKind::ScssPlaceholderSelector = 5129
+pub omena_syntax::SyntaxKind::ScssReturnRule = 5126
+pub omena_syntax::SyntaxKind::ScssSilentComment = 1027
+pub omena_syntax::SyntaxKind::ScssStylesheet = 5120
+pub omena_syntax::SyntaxKind::ScssUseRule = 5121
+pub omena_syntax::SyntaxKind::ScssVariable = 1024
+pub omena_syntax::SyntaxKind::ScssVariableDeclaration = 5127
+pub omena_syntax::SyntaxKind::ScssVariableFlag = 5145
+pub omena_syntax::SyntaxKind::ScssVariableReference = 5128
+pub omena_syntax::SyntaxKind::ScssWarnRule = 5142
+pub omena_syntax::SyntaxKind::Selector = 4103
+pub omena_syntax::SyntaxKind::SelectorList = 4102
+pub omena_syntax::SyntaxKind::SelectorValue = 4117
+pub omena_syntax::SyntaxKind::Semicolon = 19
+pub omena_syntax::SyntaxKind::ShapeFunction = 4189
+pub omena_syntax::SyntaxKind::SimpleBlock = 4201
+pub omena_syntax::SyntaxKind::Slash = 29
+pub omena_syntax::SyntaxKind::SlashEquals = 42
+pub omena_syntax::SyntaxKind::Star = 28
+pub omena_syntax::SyntaxKind::StarEquals = 41
+pub omena_syntax::SyntaxKind::StartingStyleRule = 4147
+pub omena_syntax::SyntaxKind::String = 5
+pub omena_syntax::SyntaxKind::StringValue = 4194
+pub omena_syntax::SyntaxKind::Stylesheet = 4096
+pub omena_syntax::SyntaxKind::SubstringMatch = 55
+pub omena_syntax::SyntaxKind::SuffixMatch = 54
+pub omena_syntax::SyntaxKind::SupportsCondition = 4151
+pub omena_syntax::SyntaxKind::SupportsRule = 4135
+pub omena_syntax::SyntaxKind::TemplateInterpolationEnd = 1050
+pub omena_syntax::SyntaxKind::TemplateInterpolationStart = 1049
+pub omena_syntax::SyntaxKind::TemplatePlaceholder = 1051
+pub omena_syntax::SyntaxKind::Tilde = 32
+pub omena_syntax::SyntaxKind::TildeEquals = 44
+pub omena_syntax::SyntaxKind::TokenDefinition = 4162
+pub omena_syntax::SyntaxKind::TokenReference = 4163
+pub omena_syntax::SyntaxKind::Tombstone = 8703
+pub omena_syntax::SyntaxKind::TransformFunction = 4186
+pub omena_syntax::SyntaxKind::TypeSelector = 4108
+pub omena_syntax::SyntaxKind::UnaryExpression = 4125
+pub omena_syntax::SyntaxKind::UnicodeRange = 12
+pub omena_syntax::SyntaxKind::UnicodeRangeValue = 4195
+pub omena_syntax::SyntaxKind::UniversalSelector = 4109
+pub omena_syntax::SyntaxKind::Unknown = 8702
+pub omena_syntax::SyntaxKind::Url = 7
+pub omena_syntax::SyntaxKind::UrlValue = 4130
+pub omena_syntax::SyntaxKind::Value = 4120
+pub omena_syntax::SyntaxKind::ValueList = 4121
+pub omena_syntax::SyntaxKind::VarFunction = 4131
+pub omena_syntax::SyntaxKind::ViewTransitionRule = 4184
+pub omena_syntax::SyntaxKind::WhenRule = 4170
+pub omena_syntax::SyntaxKind::Whitespace = 0
+impl omena_syntax::SyntaxKind
+pub const omena_syntax::SyntaxKind::ALL: &'static [Self]
+pub const fn omena_syntax::SyntaxKind::as_u32(self) -> u32
+pub fn omena_syntax::SyntaxKind::from_raw_kind(u32) -> core::option::Option<Self>
+pub const fn omena_syntax::SyntaxKind::is_bogus(self) -> bool
+pub const fn omena_syntax::SyntaxKind::is_dialect(self) -> bool
+pub const fn omena_syntax::SyntaxKind::is_dialect_specific(self) -> bool
+pub const fn omena_syntax::SyntaxKind::is_marker(self) -> bool
+pub const fn omena_syntax::SyntaxKind::is_node(self) -> bool
+pub const fn omena_syntax::SyntaxKind::is_token(self) -> bool
+pub const fn omena_syntax::SyntaxKind::is_trivia(self) -> bool
+impl cstree::Syntax for omena_syntax::SyntaxKind
+pub fn omena_syntax::SyntaxKind::from_raw(cstree::RawSyntaxKind) -> Self
+pub fn omena_syntax::SyntaxKind::into_raw(self) -> cstree::RawSyntaxKind
+pub fn omena_syntax::SyntaxKind::static_text(self) -> core::option::Option<&'static str>
+pub struct omena_syntax::CanonicalCompoundSelectorV0
+impl omena_syntax::CanonicalCompoundSelectorV0
+pub fn omena_syntax::CanonicalCompoundSelectorV0::byte_range(&self) -> core::ops::range::Range<usize>
+pub fn omena_syntax::CanonicalCompoundSelectorV0::nesting_tokens(&self) -> &[omena_syntax::NestingTokenV0]
+pub fn omena_syntax::CanonicalCompoundSelectorV0::required_classes(&self) -> &[omena_syntax::ident::CanonicalClassKeyV0]
+pub fn omena_syntax::CanonicalCompoundSelectorV0::required_id(&self) -> core::option::Option<&omena_syntax::ident::CanonicalIdKeyV0>
+pub fn omena_syntax::CanonicalCompoundSelectorV0::required_tag(&self) -> core::option::Option<&omena_syntax::ident::CanonicalTypeSelectorKeyV0>
+pub struct omena_syntax::CanonicalLayerIdentifierKeyV0(_, _)
+impl omena_syntax::CanonicalLayerIdentifierKeyV0
+pub fn omena_syntax::CanonicalLayerIdentifierKeyV0::as_str(&self) -> &str
+pub fn omena_syntax::CanonicalLayerIdentifierKeyV0::from_authored(&str) -> core::option::Option<Self>
+impl serde_core::ser::Serialize for omena_syntax::CanonicalLayerIdentifierKeyV0
+pub fn omena_syntax::CanonicalLayerIdentifierKeyV0::serialize<S>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
+pub struct omena_syntax::CanonicalSelectorAst
+impl omena_syntax::CanonicalSelectorAst
+pub fn omena_syntax::CanonicalSelectorAst::authored(&self) -> &str
+pub fn omena_syntax::CanonicalSelectorAst::branches(&self) -> &[omena_syntax::CanonicalSelectorBranchV0]
+pub fn omena_syntax::CanonicalSelectorAst::canonical_class_key_for_source_span(&self, &str, core::ops::range::Range<usize>, core::option::Option<&str>) -> core::option::Option<omena_syntax::ident::CanonicalClassKeyV0>
+pub fn omena_syntax::CanonicalSelectorAst::canonical_class_keys(&self) -> impl core::iter::traits::iterator::Iterator<Item = &omena_syntax::ident::CanonicalClassKeyV0>
+pub fn omena_syntax::CanonicalSelectorAst::expand_with_parent(&self, &Self) -> core::option::Option<alloc::string::String>
+pub fn omena_syntax::CanonicalSelectorAst::from_cst(&omena_syntax::SyntaxNode) -> core::option::Option<Self>
+pub fn omena_syntax::CanonicalSelectorAst::nesting_token_count(&self) -> usize
+pub struct omena_syntax::CanonicalSelectorBranchV0
+impl omena_syntax::CanonicalSelectorBranchV0
+pub fn omena_syntax::CanonicalSelectorBranchV0::authored(&self) -> &str
+pub fn omena_syntax::CanonicalSelectorBranchV0::byte_range(&self) -> core::ops::range::Range<usize>
+pub fn omena_syntax::CanonicalSelectorBranchV0::combinators(&self) -> &[omena_syntax::CanonicalSelectorCombinatorV0]
+pub fn omena_syntax::CanonicalSelectorBranchV0::compounds(&self) -> &[omena_syntax::CanonicalCompoundSelectorV0]
+pub fn omena_syntax::CanonicalSelectorBranchV0::nesting_tokens(&self) -> &[omena_syntax::NestingTokenV0]
+pub fn omena_syntax::CanonicalSelectorBranchV0::specificity(&self) -> omena_syntax::CanonicalSelectorSpecificityWitnessV0
+pub struct omena_syntax::CanonicalSelectorSpecificityWitnessV0
+pub omena_syntax::CanonicalSelectorSpecificityWitnessV0::classes: u32
+pub omena_syntax::CanonicalSelectorSpecificityWitnessV0::exact: bool
+pub omena_syntax::CanonicalSelectorSpecificityWitnessV0::ids: u32
+pub omena_syntax::CanonicalSelectorSpecificityWitnessV0::types: u32
+pub struct omena_syntax::CssKeywordText<'a>
+impl<'a> omena_syntax::CssKeywordText<'a>
+pub fn omena_syntax::CssKeywordText<'a>::contains(self, &str) -> bool
+pub fn omena_syntax::CssKeywordText<'a>::equals(self, &str) -> bool
+pub fn omena_syntax::CssKeywordText<'a>::find(self, &str) -> core::option::Option<usize>
+pub fn omena_syntax::CssKeywordText<'a>::strip_prefix(self, &str) -> core::option::Option<&'a str>
+pub fn omena_syntax::CssKeywordText<'a>::strip_suffix(self, &str) -> core::option::Option<&'a str>
+pub struct omena_syntax::LayerPathV0
+impl omena_syntax::LayerPathV0
+pub fn omena_syntax::LayerPathV0::canonical_name(&self) -> alloc::string::String
+pub fn omena_syntax::LayerPathV0::from_authored_segments<'a>(impl core::iter::traits::collect::IntoIterator<Item = &'a str>) -> core::option::Option<Self>
+pub fn omena_syntax::LayerPathV0::joined(&self, &Self) -> Self
+pub fn omena_syntax::LayerPathV0::local_name(&self) -> &str
+pub fn omena_syntax::LayerPathV0::nesting_depth(&self) -> usize
+pub fn omena_syntax::LayerPathV0::parent(&self) -> core::option::Option<Self>
+pub fn omena_syntax::LayerPathV0::prefix(&self, usize) -> core::option::Option<Self>
+pub fn omena_syntax::LayerPathV0::segments(&self) -> &[omena_syntax::CanonicalLayerIdentifierKeyV0]
+pub struct omena_syntax::NestingTokenV0
+impl omena_syntax::NestingTokenV0
+pub fn omena_syntax::NestingTokenV0::byte_range(&self) -> core::ops::range::Range<usize>
+pub struct omena_syntax::OmenaLineIndexV0
+impl omena_syntax::OmenaLineIndexV0
+pub fn omena_syntax::OmenaLineIndexV0::byte_offset_for_position(&self, &str, usize, usize) -> core::option::Option<usize>
+pub fn omena_syntax::OmenaLineIndexV0::line_count(&self) -> usize
+pub fn omena_syntax::OmenaLineIndexV0::new(&str) -> Self
+pub fn omena_syntax::OmenaLineIndexV0::position_for_byte_offset(&self, &str, usize) -> (usize, usize)
+pub struct omena_syntax::OmenaSyntaxBoundarySummaryV0
+pub omena_syntax::OmenaSyntaxBoundarySummaryV0::bogus_kind_count: usize
+pub omena_syntax::OmenaSyntaxBoundarySummaryV0::cstree_integration_ready: bool
+pub omena_syntax::OmenaSyntaxBoundarySummaryV0::dialect_kind_count: usize
+pub omena_syntax::OmenaSyntaxBoundarySummaryV0::marker_kind_count: usize
+pub omena_syntax::OmenaSyntaxBoundarySummaryV0::module_mode_count: usize
+pub omena_syntax::OmenaSyntaxBoundarySummaryV0::next_surfaces: alloc::vec::Vec<&'static str>
+pub omena_syntax::OmenaSyntaxBoundarySummaryV0::node_kind_count: usize
+pub omena_syntax::OmenaSyntaxBoundarySummaryV0::parser_consumer_policy: &'static str
+pub omena_syntax::OmenaSyntaxBoundarySummaryV0::phase: &'static str
+pub omena_syntax::OmenaSyntaxBoundarySummaryV0::product: &'static str
+pub omena_syntax::OmenaSyntaxBoundarySummaryV0::ready_surfaces: alloc::vec::Vec<&'static str>
+pub omena_syntax::OmenaSyntaxBoundarySummaryV0::reference_kind_count: usize
+pub omena_syntax::OmenaSyntaxBoundarySummaryV0::schema_version: &'static str
+pub omena_syntax::OmenaSyntaxBoundarySummaryV0::scope_kind_count: usize
+pub omena_syntax::OmenaSyntaxBoundarySummaryV0::style_dialect_count: usize
+pub omena_syntax::OmenaSyntaxBoundarySummaryV0::symbol_kind_count: usize
+pub omena_syntax::OmenaSyntaxBoundarySummaryV0::syntax_kind_count: usize
+pub omena_syntax::OmenaSyntaxBoundarySummaryV0::syntax_kind_owner_crate: &'static str
+pub omena_syntax::OmenaSyntaxBoundarySummaryV0::token_kind_count: usize
+pub const omena_syntax::BOGUS_END: u32
+pub const omena_syntax::BOGUS_START: u32
+pub const omena_syntax::DIALECT_NODE_END: u32
+pub const omena_syntax::DIALECT_NODE_START: u32
+pub const omena_syntax::DIALECT_TOKEN_END: u32
+pub const omena_syntax::DIALECT_TOKEN_START: u32
+pub const omena_syntax::MARKER_END: u32
+pub const omena_syntax::MARKER_START: u32
+pub const omena_syntax::NODE_END: u32
+pub const omena_syntax::NODE_START: u32
+pub const omena_syntax::TOKEN_END: u32
+pub const omena_syntax::TOKEN_START: u32
+pub const fn omena_syntax::css_keyword(&str) -> omena_syntax::CssKeywordText<'_>
+pub fn omena_syntax::summarize_omena_syntax_boundary() -> omena_syntax::OmenaSyntaxBoundarySummaryV0
+pub type omena_syntax::SyntaxElement<D> = cstree::syntax::element::SyntaxElement<omena_syntax::SyntaxKind, D>
+pub type omena_syntax::SyntaxElementRef<'a, D> = cstree::syntax::element::SyntaxElementRef<'a, omena_syntax::SyntaxKind, D>
+pub type omena_syntax::SyntaxNode<D> = cstree::syntax::node::SyntaxNode<omena_syntax::SyntaxKind, D>
+pub type omena_syntax::SyntaxToken<D> = cstree::syntax::token::SyntaxToken<omena_syntax::SyntaxKind, D>

@@ -1,5 +1,6 @@
 use crate::LspTextDocumentState;
 use omena_query::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage};
+use omena_syntax::OmenaLineIndexV0;
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -369,29 +370,24 @@ pub(crate) fn lsp_position_from_value(position: &Value) -> Option<ParserPosition
 }
 
 pub(crate) fn parser_range_for_byte_span(source: &str, span: ParserByteSpanV0) -> ParserRangeV0 {
+    let line_index = OmenaLineIndexV0::new(source);
     ParserRangeV0 {
-        start: parser_position_for_byte_offset(source, span.start),
-        end: parser_position_for_byte_offset(source, span.end),
+        start: parser_position_for_byte_offset_with_line_index(source, &line_index, span.start),
+        end: parser_position_for_byte_offset_with_line_index(source, &line_index, span.end),
     }
 }
 
 pub(crate) fn parser_position_for_byte_offset(source: &str, offset: usize) -> ParserPositionV0 {
-    let clamped_offset = offset.min(source.len());
-    let mut line = 0usize;
-    let mut character = 0usize;
+    let line_index = OmenaLineIndexV0::new(source);
+    parser_position_for_byte_offset_with_line_index(source, &line_index, offset)
+}
 
-    for (byte_index, ch) in source.char_indices() {
-        if byte_index >= clamped_offset {
-            break;
-        }
-        if ch == '\n' {
-            line += 1;
-            character = 0;
-        } else {
-            character += ch.len_utf16();
-        }
-    }
-
+pub(crate) fn parser_position_for_byte_offset_with_line_index(
+    source: &str,
+    line_index: &OmenaLineIndexV0,
+    offset: usize,
+) -> ParserPositionV0 {
+    let (line, character) = line_index.position_for_byte_offset(source, offset);
     ParserPositionV0 { line, character }
 }
 
@@ -399,32 +395,16 @@ pub(crate) fn byte_offset_for_parser_position(
     source: &str,
     position: ParserPositionV0,
 ) -> Option<usize> {
-    let mut line = 0usize;
-    let mut character = 0usize;
+    let line_index = OmenaLineIndexV0::new(source);
+    byte_offset_for_parser_position_with_line_index(source, &line_index, position)
+}
 
-    for (byte_index, ch) in source.char_indices() {
-        if line == position.line && character == position.character {
-            return Some(byte_index);
-        }
-        if ch == '\n' {
-            if line == position.line {
-                return None;
-            }
-            line += 1;
-            character = 0;
-        } else {
-            character += ch.len_utf16();
-            if line == position.line && character > position.character {
-                return None;
-            }
-        }
-    }
-
-    if line == position.line && character == position.character {
-        Some(source.len())
-    } else {
-        None
-    }
+pub(crate) fn byte_offset_for_parser_position_with_line_index(
+    source: &str,
+    line_index: &OmenaLineIndexV0,
+    position: ParserPositionV0,
+) -> Option<usize> {
+    line_index.byte_offset_for_position(source, position.line, position.character)
 }
 
 pub(crate) fn parser_range_contains_position(
@@ -457,7 +437,9 @@ pub(crate) fn style_language_label(language: StyleLanguage) -> &'static str {
 
 #[cfg(test)]
 mod file_label_tests {
-    use super::file_label_from_uri;
+    use super::{
+        byte_offset_for_parser_position, file_label_from_uri, parser_position_for_byte_offset,
+    };
 
     #[test]
     fn decodes_percent_encoded_non_ascii_labels() {
@@ -484,5 +466,21 @@ mod file_label_tests {
             "App.module.css"
         );
         assert_eq!(file_label_from_uri("no-slash"), "no-slash");
+    }
+
+    #[test]
+    fn line_index_round_trips_utf16_positions() {
+        let source = "한글\n😀 value";
+        for offset in source
+            .char_indices()
+            .map(|(offset, _)| offset)
+            .chain(std::iter::once(source.len()))
+        {
+            let position = parser_position_for_byte_offset(source, offset);
+            assert_eq!(
+                byte_offset_for_parser_position(source, position),
+                Some(offset)
+            );
+        }
     }
 }

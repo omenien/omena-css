@@ -3,7 +3,7 @@ use crate::{
     build_source_syntax_index_with_type_fact_attempts, collect_source_imports,
     collect_style_hover_candidates,
     protocol::{
-        byte_offset_for_parser_position, file_uri_to_path, is_style_document_uri,
+        byte_offset_for_parser_position_with_line_index, file_uri_to_path, is_style_document_uri,
         parser_range_for_byte_span,
     },
     source_selector_candidates_from_index,
@@ -20,6 +20,7 @@ use omena_query::{
     summarize_omena_query_source_binding_index_for_source_language,
 };
 use omena_sif::compute_omena_sif_leaf_hash_v1;
+use omena_syntax::OmenaLineIndexV0;
 use serde::Serialize;
 use std::sync::Arc;
 
@@ -306,8 +307,15 @@ fn embedded_range_to_document_range(
     content_start: usize,
     range: omena_query::ParserRangeV0,
 ) -> Option<omena_query::ParserRangeV0> {
-    let start = content_start + byte_offset_for_parser_position(embedded_source, range.start)?;
-    let end = content_start + byte_offset_for_parser_position(embedded_source, range.end)?;
+    let line_index = OmenaLineIndexV0::new(embedded_source);
+    let start = content_start
+        + byte_offset_for_parser_position_with_line_index(
+            embedded_source,
+            &line_index,
+            range.start,
+        )?;
+    let end = content_start
+        + byte_offset_for_parser_position_with_line_index(embedded_source, &line_index, range.end)?;
     Some(parser_range_for_byte_span(
         document_source,
         ParserByteSpanV0 { start, end },

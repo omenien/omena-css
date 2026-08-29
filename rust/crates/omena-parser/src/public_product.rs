@@ -15,6 +15,7 @@ use crate::{
     product_facts_from_cst, summarize_omena_parser_parity_lite,
 };
 use cstree::text::TextRange;
+use omena_syntax::OmenaLineIndexV0;
 use omena_syntax::ident::{
     AuthoredPropertyTextV0, CanonicalCustomPropertyNameV0, CanonicalPropertyKeyV0, PropertyNameV0,
     class_selector_names,
@@ -2479,44 +2480,24 @@ fn range_start(range: TextRange) -> usize {
     u32::from(range.start()) as usize
 }
 
-struct SourceLineIndex {
-    line_starts: Vec<usize>,
-}
-
-impl SourceLineIndex {
-    fn new(source: &str) -> Self {
-        let mut line_starts = vec![0];
-        for (index, byte) in source.as_bytes().iter().enumerate() {
-            if *byte == b'\n' {
-                line_starts.push(index + 1);
-            }
-        }
-        Self { line_starts }
-    }
-
-    fn position_for_byte_offset(&self, source: &str, byte_offset: usize) -> ParserPositionV0 {
-        let offset = byte_offset.min(source.len());
-        let line = self.line_starts.partition_point(|start| *start <= offset);
-        let line_index = line.saturating_sub(1);
-        let line_start = self.line_starts.get(line_index).copied().unwrap_or(0);
-        ParserPositionV0 {
-            line: line_index,
-            character: source
-                .get(line_start..offset)
-                .map(|text| text.encode_utf16().count())
-                .unwrap_or_else(|| offset.saturating_sub(line_start)),
-        }
-    }
-}
+type SourceLineIndex = OmenaLineIndexV0;
 
 fn parser_range_for_byte_span(
     source: &str,
     line_index: &SourceLineIndex,
     span: ParserByteSpanV0,
 ) -> ParserRangeV0 {
+    let (start_line, start_character) = line_index.position_for_byte_offset(source, span.start);
+    let (end_line, end_character) = line_index.position_for_byte_offset(source, span.end);
     ParserRangeV0 {
-        start: line_index.position_for_byte_offset(source, span.start),
-        end: line_index.position_for_byte_offset(source, span.end),
+        start: ParserPositionV0 {
+            line: start_line,
+            character: start_character,
+        },
+        end: ParserPositionV0 {
+            line: end_line,
+            character: end_character,
+        },
     }
 }
 

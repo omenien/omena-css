@@ -1,13 +1,15 @@
 use omena_query::{ParserPositionV0, ParserRangeV0};
+use omena_syntax::OmenaLineIndexV0;
 
 pub(crate) fn apply_text_edit(
     source: &str,
     range: ParserRangeV0,
     new_text: &str,
 ) -> Result<String, String> {
-    let start = byte_offset_for_position(source, range.start)
+    let line_index = OmenaLineIndexV0::new(source);
+    let start = byte_offset_for_position_with_line_index(source, &line_index, range.start)
         .ok_or_else(|| "edit start position is outside the target source".to_string())?;
-    let end = byte_offset_for_position(source, range.end)
+    let end = byte_offset_for_position_with_line_index(source, &line_index, range.end)
         .ok_or_else(|| "edit end position is outside the target source".to_string())?;
     apply_byte_edit(source, start, end, new_text)
 }
@@ -32,8 +34,9 @@ pub(crate) fn apply_byte_edit(
 }
 
 pub(crate) fn byte_span_for_range(source: &str, range: ParserRangeV0) -> Option<(usize, usize)> {
-    let start = byte_offset_for_position(source, range.start)?;
-    let end = byte_offset_for_position(source, range.end)?;
+    let line_index = OmenaLineIndexV0::new(source);
+    let start = byte_offset_for_position_with_line_index(source, &line_index, range.start)?;
+    let end = byte_offset_for_position_with_line_index(source, &line_index, range.end)?;
     (start <= end).then_some((start, end))
 }
 
@@ -45,52 +48,39 @@ pub(crate) fn range_for_byte_span(source: &str, start: usize, end: usize) -> Opt
     {
         return None;
     }
+    let line_index = OmenaLineIndexV0::new(source);
     Some(ParserRangeV0 {
-        start: position_for_byte_offset(source, start),
-        end: position_for_byte_offset(source, end),
+        start: position_for_byte_offset_with_line_index(source, &line_index, start),
+        end: position_for_byte_offset_with_line_index(source, &line_index, end),
     })
 }
 
+#[cfg(test)]
 pub(crate) fn byte_offset_for_position(source: &str, position: ParserPositionV0) -> Option<usize> {
-    let mut line = 0;
-    let mut line_start = 0;
-    for (offset, character) in source.char_indices() {
-        if line == position.line {
-            line_start = offset;
-            break;
-        }
-        if character == '\n' {
-            line += 1;
-            line_start = offset + character.len_utf8();
-        }
-    }
-    if line != position.line {
-        if position.line == line && line_start == source.len() {
-            return (position.character == 0).then_some(source.len());
-        }
-        return None;
-    }
-    let line_source = source[line_start..]
-        .split_once('\n')
-        .map_or(&source[line_start..], |(line_source, _)| line_source);
-    let mut utf16_offset = 0;
-    for (byte_offset, character) in line_source.char_indices() {
-        if utf16_offset == position.character {
-            return Some(line_start + byte_offset);
-        }
-        utf16_offset += character.len_utf16();
-        if utf16_offset > position.character {
-            return None;
-        }
-    }
-    (utf16_offset == position.character).then_some(line_start + line_source.len())
+    let line_index = OmenaLineIndexV0::new(source);
+    byte_offset_for_position_with_line_index(source, &line_index, position)
 }
 
+#[cfg(test)]
 fn position_for_byte_offset(source: &str, offset: usize) -> ParserPositionV0 {
-    let prefix = &source[..offset];
-    let line = prefix.bytes().filter(|byte| *byte == b'\n').count();
-    let line_start = prefix.rfind('\n').map_or(0, |index| index + 1);
-    let character = source[line_start..offset].encode_utf16().count();
+    let line_index = OmenaLineIndexV0::new(source);
+    position_for_byte_offset_with_line_index(source, &line_index, offset)
+}
+
+fn byte_offset_for_position_with_line_index(
+    source: &str,
+    line_index: &OmenaLineIndexV0,
+    position: ParserPositionV0,
+) -> Option<usize> {
+    line_index.byte_offset_for_position(source, position.line, position.character)
+}
+
+fn position_for_byte_offset_with_line_index(
+    source: &str,
+    line_index: &OmenaLineIndexV0,
+    offset: usize,
+) -> ParserPositionV0 {
+    let (line, character) = line_index.position_for_byte_offset(source, offset);
     ParserPositionV0 { line, character }
 }
 
@@ -127,6 +117,8 @@ mod tests {
         let end = start + "button".len();
         let range = range_for_byte_span(source, start, end)
             .ok_or_else(|| "fixture byte span is invalid".to_string())?;
+        assert_eq!(position_for_byte_offset(source, start), range.start);
+        assert_eq!(byte_offset_for_position(source, range.start), Some(start));
         assert_eq!(byte_span_for_range(source, range), Some((start, end)));
         Ok(())
     }

@@ -13,10 +13,12 @@ use cstree::{RawSyntaxKind, Syntax};
 pub mod ident;
 mod keyword;
 mod layer;
+mod line_index;
 mod selector;
 
 pub use keyword::{CssKeywordText, css_keyword};
 pub use layer::{CanonicalLayerIdentifierKeyV0, LayerPathV0};
+pub use line_index::OmenaLineIndexV0;
 pub use selector::{
     CanonicalCompoundSelectorV0, CanonicalSelectorAst, CanonicalSelectorBranchV0,
     CanonicalSelectorCombinatorV0, CanonicalSelectorSpecificityWitnessV0, NestingTokenV0,

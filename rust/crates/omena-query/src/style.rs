@@ -4,7 +4,7 @@ use omena_parser::{
     expand_nested_selector_from_cst,
 };
 use omena_syntax::{
-    css_keyword,
+    OmenaLineIndexV0, css_keyword,
     ident::{
         AuthoredPropertyTextV0, CanonicalClassKeyV0, CanonicalCustomPropertyNameV0,
         CanonicalPropertyKeyV0, ClassNameV0, PropertyNameV0, is_ascii_word_continue,
@@ -14,6 +14,12 @@ use omena_syntax::{
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
+
+#[cfg(test)]
+static LINE_INDEX_SOURCE_SCAN_STEPS: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+#[cfg(test)]
+static LINE_INDEX_MEASUREMENT_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 mod cascade_position;
 mod code_actions;
@@ -542,28 +548,33 @@ pub fn summarize_omena_query_style_hover_candidates(
 ) -> Option<OmenaQueryStyleHoverCandidatesV0> {
     let dialect = omena_parser_dialect_for_style_path(style_path);
     let facts = collect_omena_query_omena_parser_style_facts_raw(style_source, dialect);
+    let line_index = omena_query_line_index(style_source);
     let mut seen = BTreeSet::new();
     let mut candidates = Vec::new();
     collect_style_selector_hover_candidates_from_omena_parser_facts(
         style_source,
+        &line_index,
         facts.selectors.as_slice(),
         &mut seen,
         &mut candidates,
     );
     collect_custom_property_hover_candidates_from_omena_parser_facts(
         style_source,
+        &line_index,
         facts.variables.as_slice(),
         &mut seen,
         &mut candidates,
     );
     collect_sass_symbol_hover_candidates_from_omena_parser_facts(
         style_source,
+        &line_index,
         facts.sass_symbols.as_slice(),
         &mut seen,
         &mut candidates,
     );
     collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts(
         style_source,
+        &line_index,
         facts.sass_includes.as_slice(),
         &mut seen,
         &mut candidates,
@@ -4138,6 +4149,7 @@ fn resolve_style_module_source_with_path_mappings_and_identity_index(
 
 fn collect_style_selector_hover_candidates_from_omena_parser_facts(
     source: &str,
+    line_index: &OmenaLineIndexV0,
     definition_facts: &[ParsedSelectorFact],
     seen: &mut BTreeSet<(usize, usize, String)>,
     candidates: &mut Vec<OmenaQueryStyleHoverCandidateV0>,
@@ -4158,7 +4170,7 @@ fn collect_style_selector_hover_candidates_from_omena_parser_facts(
                 name: AuthoredPropertyTextV0::new(fact.name.clone()),
                 selector_key: Some(ClassNameV0::new(&fact.name).canonical_key()),
                 property_key: None,
-                range: parser_range_for_byte_span(source, byte_span),
+                range: parser_range_for_byte_span_with_line_index(source, line_index, byte_span),
                 source: "omenaParserSelectorFacts",
                 namespace: None,
             });
@@ -4168,6 +4180,7 @@ fn collect_style_selector_hover_candidates_from_omena_parser_facts(
 
 fn collect_custom_property_hover_candidates_from_omena_parser_facts(
     source: &str,
+    line_index: &OmenaLineIndexV0,
     variable_facts: &[ParsedVariableFact],
     seen: &mut BTreeSet<(usize, usize, String)>,
     candidates: &mut Vec<OmenaQueryStyleHoverCandidateV0>,
@@ -4200,7 +4213,7 @@ fn collect_custom_property_hover_candidates_from_omena_parser_facts(
                 name,
                 selector_key: None,
                 property_key: Some(property_key),
-                range: parser_range_for_byte_span(source, byte_span),
+                range: parser_range_for_byte_span_with_line_index(source, line_index, byte_span),
                 source: "omenaParserVariableFacts",
                 namespace: None,
             });
@@ -4210,6 +4223,7 @@ fn collect_custom_property_hover_candidates_from_omena_parser_facts(
 
 fn collect_sass_symbol_hover_candidates_from_omena_parser_facts(
     source: &str,
+    line_index: &OmenaLineIndexV0,
     symbol_facts: &[omena_parser::ParsedSassSymbolFact],
     seen: &mut BTreeSet<(usize, usize, String)>,
     candidates: &mut Vec<OmenaQueryStyleHoverCandidateV0>,
@@ -4248,7 +4262,7 @@ fn collect_sass_symbol_hover_candidates_from_omena_parser_facts(
                 name: AuthoredPropertyTextV0::new(fact.name.clone()),
                 selector_key: None,
                 property_key: None,
-                range: parser_range_for_byte_span(source, byte_span),
+                range: parser_range_for_byte_span_with_line_index(source, line_index, byte_span),
                 source: "omenaParserSassSymbolFacts",
                 namespace: fact.namespace.clone(),
             });
@@ -4258,6 +4272,7 @@ fn collect_sass_symbol_hover_candidates_from_omena_parser_facts(
 
 fn collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts(
     source: &str,
+    line_index: &OmenaLineIndexV0,
     includes: &[ParsedSassIncludeFact],
     seen: &mut BTreeSet<(usize, usize, String)>,
     candidates: &mut Vec<OmenaQueryStyleHoverCandidateV0>,
@@ -4276,7 +4291,9 @@ fn collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts(
                     name: AuthoredPropertyTextV0::new(selector_name.clone()),
                     selector_key: Some(ClassNameV0::new(selector_name).canonical_key()),
                     property_key: None,
-                    range: parser_range_for_byte_span(source, range_span),
+                    range: parser_range_for_byte_span_with_line_index(
+                        source, line_index, range_span,
+                    ),
                     source: "sassPartialEvaluatorGeneratedSelectors",
                     namespace: None,
                 });
@@ -4638,9 +4655,18 @@ fn trim_hover_snippet(snippet: &str) -> String {
 }
 
 fn parser_range_for_byte_span(source: &str, span: ParserByteSpanV0) -> ParserRangeV0 {
+    let line_index = omena_query_line_index(source);
+    parser_range_for_byte_span_with_line_index(source, &line_index, span)
+}
+
+fn parser_range_for_byte_span_with_line_index(
+    source: &str,
+    line_index: &OmenaLineIndexV0,
+    span: ParserByteSpanV0,
+) -> ParserRangeV0 {
     ParserRangeV0 {
-        start: parser_position_for_byte_offset(source, span.start),
-        end: parser_position_for_byte_offset(source, span.end),
+        start: parser_position_for_byte_offset_with_line_index(source, line_index, span.start),
+        end: parser_position_for_byte_offset_with_line_index(source, line_index, span.end),
     }
 }
 
@@ -4659,50 +4685,100 @@ fn end_of_source_range(source: &str) -> ParserRangeV0 {
 }
 
 fn parser_position_for_byte_offset(source: &str, offset: usize) -> ParserPositionV0 {
-    let clamped_offset = offset.min(source.len());
-    let mut line = 0usize;
-    let mut character = 0usize;
+    let line_index = omena_query_line_index(source);
+    parser_position_for_byte_offset_with_line_index(source, &line_index, offset)
+}
 
-    for (byte_index, ch) in source.char_indices() {
-        if byte_index >= clamped_offset {
-            break;
-        }
-        if ch == '\n' {
-            line += 1;
-            character = 0;
-        } else {
-            character += ch.len_utf16();
-        }
-    }
-
+fn parser_position_for_byte_offset_with_line_index(
+    source: &str,
+    line_index: &OmenaLineIndexV0,
+    offset: usize,
+) -> ParserPositionV0 {
+    let (line, character) = line_index.position_for_byte_offset(source, offset);
     ParserPositionV0 { line, character }
 }
 
 fn byte_offset_for_parser_position(source: &str, position: ParserPositionV0) -> Option<usize> {
-    let mut current_line = 0usize;
-    let mut current_character = 0usize;
+    let line_index = omena_query_line_index(source);
+    byte_offset_for_parser_position_with_line_index(source, &line_index, position)
+}
 
-    if position.line == 0 && position.character == 0 {
-        return Some(0);
+fn byte_offset_for_parser_position_with_line_index(
+    source: &str,
+    line_index: &OmenaLineIndexV0,
+    position: ParserPositionV0,
+) -> Option<usize> {
+    line_index.byte_offset_for_position(source, position.line, position.character)
+}
+
+fn omena_query_line_index(source: &str) -> OmenaLineIndexV0 {
+    #[cfg(test)]
+    LINE_INDEX_SOURCE_SCAN_STEPS
+        .fetch_add(source.chars().count(), std::sync::atomic::Ordering::SeqCst);
+    OmenaLineIndexV0::new(source)
+}
+
+#[cfg(test)]
+mod line_index_measurement_tests {
+    use super::*;
+
+    fn fixed_width_hover_source(total_slots: usize, active_slots: usize) -> String {
+        (0..total_slots)
+            .map(|index| {
+                let segment = if index < active_slots {
+                    format!(".c{index:04}{{color:red}}")
+                } else {
+                    format!("/* slot {index:04} off */")
+                };
+                format!("{segment:<22}\n")
+            })
+            .collect()
     }
 
-    for (byte_index, ch) in source.char_indices() {
-        if current_line == position.line && current_character == position.character {
-            return Some(byte_index);
+    #[test]
+    fn hover_candidate_line_index_source_scan_steps_do_not_scale_with_candidate_count() {
+        let _guard = LINE_INDEX_MEASUREMENT_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut observed_steps = Vec::new();
+        for active_slots in [1usize, 16, 64] {
+            let source = fixed_width_hover_source(64, active_slots);
+            LINE_INDEX_SOURCE_SCAN_STEPS.store(0, std::sync::atomic::Ordering::SeqCst);
+            let summary =
+                summarize_omena_query_style_hover_candidates("fixture.module.css", &source)
+                    .expect("CSS hover facts must be available");
+            assert_eq!(summary.candidates.len(), active_slots);
+            observed_steps
+                .push(LINE_INDEX_SOURCE_SCAN_STEPS.load(std::sync::atomic::Ordering::SeqCst));
         }
-        if ch == '\n' {
-            current_line += 1;
-            current_character = 0;
-            if current_line == position.line && position.character == 0 {
-                return Some(byte_index + ch.len_utf8());
-            }
-        } else if current_line == position.line {
-            current_character += ch.len_utf16();
-        }
+        assert_eq!(observed_steps, vec![1_472, 1_472, 1_472]);
     }
 
-    (current_line == position.line && current_character == position.character)
-        .then_some(source.len())
+    #[test]
+    #[ignore = "wall-clock evidence is collected explicitly in release mode"]
+    fn reports_the_large_hover_candidate_line_index_measurement() {
+        let _guard = LINE_INDEX_MEASUREMENT_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let source = fixed_width_hover_source(4_609, 4_609);
+        assert!((105_900..=106_100).contains(&source.len()));
+        LINE_INDEX_SOURCE_SCAN_STEPS.store(0, std::sync::atomic::Ordering::SeqCst);
+        let started = std::time::Instant::now();
+        let summary = summarize_omena_query_style_hover_candidates("large.module.css", &source)
+            .expect("CSS hover facts must be available");
+        let elapsed = started.elapsed();
+        let source_scan_steps =
+            LINE_INDEX_SOURCE_SCAN_STEPS.load(std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(summary.candidates.len(), 4_609);
+        assert_eq!(source_scan_steps, source.chars().count());
+        println!(
+            "{{\"sourceBytes\":{},\"candidateCount\":{},\"lineIndexSourceScanSteps\":{},\"elapsedMicros\":{}}}",
+            source.len(),
+            summary.candidates.len(),
+            source_scan_steps,
+            elapsed.as_micros()
+        );
+    }
 }
 
 fn skip_ascii_whitespace(source: &str, mut offset: usize) -> usize {
