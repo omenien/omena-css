@@ -2,34 +2,36 @@ import { strict as assert } from "node:assert";
 import { readdirSync, readFileSync } from "node:fs";
 
 const lspManifest = read("rust/crates/omena-lsp-server/Cargo.toml");
+const lspDependencies = readTomlTable(lspManifest, "dependencies");
 assert.ok(
-  lspManifest.includes("omena-query"),
+  lspDependencies.includes("omena-query"),
   "omena-lsp-server must consume parser-backed facts through omena-query",
 );
 assert.ok(
-  !lspManifest.includes("engine-style-parser"),
+  !lspDependencies.includes("engine-style-parser"),
   "omena-lsp-server must not depend on engine-style-parser",
 );
 assert.ok(
-  !lspManifest.includes("omena-bridge"),
+  !lspDependencies.includes("omena-bridge"),
   "omena-lsp-server must not bypass omena-query with a direct omena-bridge dependency",
 );
 assert.ok(
-  !lspManifest.includes("omena-parser"),
+  !lspDependencies.includes("omena-parser"),
   "omena-lsp-server must not bypass omena-query with a direct omena-parser dependency",
 );
 
 const queryManifest = read("rust/crates/omena-query/Cargo.toml");
+const queryDependencies = readTomlTable(queryManifest, "dependencies");
 assert.ok(
-  queryManifest.includes("omena-parser"),
+  queryDependencies.includes("omena-parser"),
   "omena-query must own the parser-facing dependency for LSP consumers",
 );
 assert.ok(
-  queryManifest.includes("omena-bridge"),
+  queryDependencies.includes("omena-bridge"),
   "omena-query must own the bridge-facing dependency for LSP consumers",
 );
 assert.ok(
-  !queryManifest.includes("engine-style-parser"),
+  !queryDependencies.includes("engine-style-parser"),
   "omena-query must not expose legacy parser coupling to LSP consumers",
 );
 
@@ -126,4 +128,13 @@ process.stdout.write(
 
 function read(filePath: string): string {
   return readFileSync(filePath, "utf8");
+}
+
+function readTomlTable(source: string, tableName: string): string {
+  const header = `[${tableName}]`;
+  const headerOffset = source.indexOf(header);
+  assert.notEqual(headerOffset, -1, `Cargo manifest must declare ${header}`);
+  const contentOffset = headerOffset + header.length;
+  const nextTableOffset = source.indexOf("\n[", contentOffset);
+  return source.slice(contentOffset, nextTableOffset === -1 ? source.length : nextTableOffset);
 }
