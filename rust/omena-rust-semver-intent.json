@@ -1144,8 +1144,14 @@
     {
       "crate": "omena-wasm",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor replaces caller-supplied lexical import hints with exact Rust declaration-ID resolutions, adds a typed browser declaration-enumeration surface, forwards typed class and ICSS-value export namespaces through the bundler-host boundary, and makes the browser bundle default linked while returning bundle summaries as plain JavaScript objects.",
+      "reason": "The next pre-1.0 minor replaces caller-supplied lexical import hints with exact Rust declaration-ID resolutions, adds a typed browser declaration-enumeration surface, forwards typed class and ICSS-value export namespaces through the bundler-host boundary, and makes the browser bundle default linked while returning bundle summaries as plain JavaScript objects. The former neutral dual-mode bundle export is removed so legacy emission remains reachable only through its explicitly named deprecated export.",
       "expectedFailures": [
+        {
+          "lint": "function_missing",
+          "evidenceNeedles": [
+            "function omena_wasm::bundle_style_sources_with_context_execution_scope_js, previously in file"
+          ]
+        },
         {
           "lint": "function_parameter_count_changed",
           "evidenceNeedles": [
