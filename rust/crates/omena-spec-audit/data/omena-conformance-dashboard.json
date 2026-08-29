@@ -10,13 +10,13 @@
   },
   "pins": {
     "wptExtraction": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b",
-    "webref": "@webref/css@8.7.1#d3c8b8167e3d550525f84b823b5e99e726c37369"
+    "webref": "@webref/css@8.7.3#48cc619e954aeae12ac70b6f34fe56056a297d92"
   },
   "inputFingerprints": {
     "wptTuplesSha256": "3c64a3897827f40e42a20628578305470a2c91748c9ec557a9a6774c8a37ade9",
     "wptCoverageSha256": "cb5736d7da8014cfbe06f2985b5be96351db7b6f98459eea498f1859ac6d6ce6",
     "expectationReviewSha256": "f6f72e3759f548dd6a4bd76341d2a407f352027dddd3e6a54b1ffc9b67ccb71d",
-    "coverageGapSha256": "9e026ed77ae14db44d2fcd77a7267908fcb420210ef3105b7c353d90413df6b4"
+    "coverageGapSha256": "4fc660b461abd1938624884146831e19f2cf4a3b566d469a84db612f729bee05"
   },
   "wpt": {
     "evaluatedCaseCount": 1359,
@@ -140,7 +140,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.7.1#d3c8b8167e3d550525f84b823b5e99e726c37369"
+          "webref": "@webref/css@8.7.3#48cc619e954aeae12ac70b6f34fe56056a297d92"
         },
         "evaluatedCaseCount": 10,
         "omenaConformantCaseCount": 3,
@@ -157,7 +157,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.7.1#d3c8b8167e3d550525f84b823b5e99e726c37369"
+          "webref": "@webref/css@8.7.3#48cc619e954aeae12ac70b6f34fe56056a297d92"
         },
         "evaluatedCaseCount": 11,
         "omenaConformantCaseCount": 3,
@@ -174,7 +174,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.7.1#d3c8b8167e3d550525f84b823b5e99e726c37369"
+          "webref": "@webref/css@8.7.3#48cc619e954aeae12ac70b6f34fe56056a297d92"
         },
         "evaluatedCaseCount": 32,
         "omenaConformantCaseCount": 0,
@@ -191,7 +191,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.7.1#d3c8b8167e3d550525f84b823b5e99e726c37369"
+          "webref": "@webref/css@8.7.3#48cc619e954aeae12ac70b6f34fe56056a297d92"
         },
         "evaluatedCaseCount": 629,
         "omenaConformantCaseCount": 106,
@@ -208,7 +208,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.7.1#d3c8b8167e3d550525f84b823b5e99e726c37369"
+          "webref": "@webref/css@8.7.3#48cc619e954aeae12ac70b6f34fe56056a297d92"
         },
         "evaluatedCaseCount": 5,
         "omenaConformantCaseCount": 0,
@@ -225,7 +225,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.7.1#d3c8b8167e3d550525f84b823b5e99e726c37369"
+          "webref": "@webref/css@8.7.3#48cc619e954aeae12ac70b6f34fe56056a297d92"
         },
         "evaluatedCaseCount": 28,
         "omenaConformantCaseCount": 22,
@@ -242,7 +242,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.7.1#d3c8b8167e3d550525f84b823b5e99e726c37369"
+          "webref": "@webref/css@8.7.3#48cc619e954aeae12ac70b6f34fe56056a297d92"
         },
         "evaluatedCaseCount": 19,
         "omenaConformantCaseCount": 9,
@@ -259,7 +259,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.7.1#d3c8b8167e3d550525f84b823b5e99e726c37369"
+          "webref": "@webref/css@8.7.3#48cc619e954aeae12ac70b6f34fe56056a297d92"
         },
         "evaluatedCaseCount": 21,
         "omenaConformantCaseCount": 2,
@@ -276,7 +276,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.7.1#d3c8b8167e3d550525f84b823b5e99e726c37369"
+          "webref": "@webref/css@8.7.3#48cc619e954aeae12ac70b6f34fe56056a297d92"
         },
         "evaluatedCaseCount": 302,
         "omenaConformantCaseCount": 129,
@@ -293,7 +293,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.7.1#d3c8b8167e3d550525f84b823b5e99e726c37369"
+          "webref": "@webref/css@8.7.3#48cc619e954aeae12ac70b6f34fe56056a297d92"
         },
         "evaluatedCaseCount": 28,
         "omenaConformantCaseCount": 0,
@@ -310,7 +310,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.7.1#d3c8b8167e3d550525f84b823b5e99e726c37369"
+          "webref": "@webref/css@8.7.3#48cc619e954aeae12ac70b6f34fe56056a297d92"
         },
         "evaluatedCaseCount": 8,
         "omenaConformantCaseCount": 3,
@@ -327,7 +327,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.7.1#d3c8b8167e3d550525f84b823b5e99e726c37369"
+          "webref": "@webref/css@8.7.3#48cc619e954aeae12ac70b6f34fe56056a297d92"
         },
         "evaluatedCaseCount": 60,
         "omenaConformantCaseCount": 39,
@@ -344,7 +344,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.7.1#d3c8b8167e3d550525f84b823b5e99e726c37369"
+          "webref": "@webref/css@8.7.3#48cc619e954aeae12ac70b6f34fe56056a297d92"
         },
         "evaluatedCaseCount": 60,
         "omenaConformantCaseCount": 51,
@@ -361,7 +361,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.7.1#d3c8b8167e3d550525f84b823b5e99e726c37369"
+          "webref": "@webref/css@8.7.3#48cc619e954aeae12ac70b6f34fe56056a297d92"
         },
         "evaluatedCaseCount": 28,
         "omenaConformantCaseCount": 11,
@@ -378,7 +378,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.7.1#d3c8b8167e3d550525f84b823b5e99e726c37369"
+          "webref": "@webref/css@8.7.3#48cc619e954aeae12ac70b6f34fe56056a297d92"
         },
         "evaluatedCaseCount": 24,
         "omenaConformantCaseCount": 8,
@@ -395,7 +395,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.7.1#d3c8b8167e3d550525f84b823b5e99e726c37369"
+          "webref": "@webref/css@8.7.3#48cc619e954aeae12ac70b6f34fe56056a297d92"
         },
         "evaluatedCaseCount": 61,
         "omenaConformantCaseCount": 12,
@@ -412,7 +412,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.7.1#d3c8b8167e3d550525f84b823b5e99e726c37369"
+          "webref": "@webref/css@8.7.3#48cc619e954aeae12ac70b6f34fe56056a297d92"
         },
         "evaluatedCaseCount": 7,
         "omenaConformantCaseCount": 0,
@@ -429,7 +429,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.7.1#d3c8b8167e3d550525f84b823b5e99e726c37369"
+          "webref": "@webref/css@8.7.3#48cc619e954aeae12ac70b6f34fe56056a297d92"
         },
         "evaluatedCaseCount": 3,
         "omenaConformantCaseCount": 0,
@@ -448,7 +448,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.7.1#d3c8b8167e3d550525f84b823b5e99e726c37369"
+          "webref": "@webref/css@8.7.3#48cc619e954aeae12ac70b6f34fe56056a297d92"
         },
         "evaluatedCaseCount": 24,
         "omenaConformantCaseCount": 12,
@@ -465,7 +465,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.7.1#d3c8b8167e3d550525f84b823b5e99e726c37369"
+          "webref": "@webref/css@8.7.3#48cc619e954aeae12ac70b6f34fe56056a297d92"
         },
         "evaluatedCaseCount": 3,
         "omenaConformantCaseCount": 3,
@@ -477,16 +477,16 @@
     "unlinkedModules": []
   },
   "capabilityLedger": {
-    "rowCount": 1717,
+    "rowCount": 1718,
     "categoryCounts": {
-      "atrules": 56,
+      "atrules": 55,
       "functions": 162,
-      "properties": 817,
+      "properties": 818,
       "selectors": 158,
-      "types": 524
+      "types": 525
     },
     "tierCounts": {
-      "T0": 1232,
+      "T0": 1233,
       "T1": 1,
       "T2": 3,
       "T3": 0,
@@ -508,7 +508,7 @@
         "T4": 0
       },
       "properties": {
-        "T0": 813,
+        "T0": 814,
         "T1": 1,
         "T2": 3,
         "T3": 0,
@@ -531,10 +531,10 @@
     },
     "unassignedCount": 481,
     "namedReasonCounts": {
-      "engine-recognition-not-observed": 267,
+      "engine-recognition-not-observed": 266,
       "engine-typed-parsing-not-observed": 946,
       "upstream-syntax-absent": 109,
-      "forward-specification": 395
+      "forward-specification": 397
     },
     "capabilityTiers": ["T0", "T1", "T2", "T3", "T4"],
     "namedReasons": [
