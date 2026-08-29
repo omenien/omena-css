@@ -10,6 +10,7 @@ packages:
 # Keep transitive packages above published security-fix floors even when an
 # upstream tool still admits a vulnerable version through a broad range.
 overrides:
+  "@types/node": "26.3.0"
   "brace-expansion@>=5.0.0 <5.0.9": "5.0.9"
   "fast-uri@>=3.0.0 <3.1.5": "3.1.5"
   "form-data@>=4.0.0 <4.0.6": "4.0.6"

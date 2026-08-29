@@ -1175,11 +1175,20 @@ describe("check orchestrator manifest", () => {
         "",
       ].join("\n"),
     );
+    writeFileSync(path.join(root, "pnpm-workspace.yaml"), "packages: ['.']\noverrides: {}\n");
 
     expect(runDoctor(loadCheckManifest(root))).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ code: "dependabot-generated-workflow-authority-leak" }),
         expect.objectContaining({ code: "dependabot-rust-oxc-authority-missing" }),
+        expect.objectContaining({
+          code: "dependabot-manual-authority-leak",
+          message: expect.stringContaining("@types/node"),
+        }),
+        expect.objectContaining({
+          code: "tool-pin-missing",
+          message: expect.stringContaining("cooldown-filtered peer auto-installs"),
+        }),
         expect.objectContaining({
           code: "dependabot-manual-authority-leak",
           message: expect.stringContaining("@types/vscode"),

@@ -78,6 +78,12 @@ updates:
       semver-major-days: 30
     open-pull-requests-limit: 5
     ignore:
+      # pnpm auto-installs @types/node as a peer in importers that do not name it.
+      # Dependabot translates this ecosystem's cooldown to minimumReleaseAge, so
+      # advancing only a direct manifest can strand those peer snapshots on an
+      # immature version. Move the workspace override and direct ranges together
+      # only after the version clears the seven-day hold.
+      - dependency-name: "@types/node"
       # VS Code types are locked to the minimum supported editor. Raising the
       # engine floor is a product decision, so this dependency is manual-only.
       - dependency-name: "@types/vscode"
@@ -113,6 +119,7 @@ updates:
         # fallback group from absorbing a sensitive package if bot behavior or
         # an existing branch predates the ignore rule.
         exclude-patterns:
+          - "@types/node"
           - "@types/vscode"
           - "@typescript/native-preview"
           - "sass"

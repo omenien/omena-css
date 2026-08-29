@@ -189,6 +189,7 @@ function findDependabotAuthorityDiagnostics(rootDir: string): readonly CheckDiag
   }
 
   const npmManual = [
+    "@types/node",
     "@types/vscode",
     "@typescript/native-preview",
     "sass",
@@ -212,6 +213,28 @@ function findDependabotAuthorityDiagnostics(rootDir: string): readonly CheckDiag
         severity: "error",
         code: "dependabot-manual-authority-leak",
         message: `${relativePath} must both ignore and fallback-exclude ${dependencyName}.`,
+      });
+    }
+  }
+
+  const workspacePath = path.join(rootDir, "pnpm-workspace.yaml");
+  if (existsSync(workspacePath)) {
+    const workspace = parse(readFileSync(workspacePath, "utf8")) as {
+      readonly overrides?: Readonly<Record<string, string>>;
+    };
+    const nodeTypesOverride = workspace.overrides?.["@types/node"];
+    if (!nodeTypesOverride) {
+      diagnostics.push({
+        severity: "error",
+        code: "tool-pin-missing",
+        message:
+          "pnpm-workspace.yaml must globally override @types/node so cooldown-filtered peer auto-installs cannot select an immature version.",
+      });
+    } else if (!EXACT_VERSION.test(nodeTypesOverride)) {
+      diagnostics.push({
+        severity: "error",
+        code: "tool-pin-not-exact",
+        message: `pnpm-workspace.yaml overrides.@types/node must be exact-pinned, got "${nodeTypesOverride}".`,
       });
     }
   }
