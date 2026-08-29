@@ -16,10 +16,11 @@ use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
 
 #[cfg(test)]
-static LINE_INDEX_SOURCE_SCAN_STEPS: std::sync::atomic::AtomicUsize =
-    std::sync::atomic::AtomicUsize::new(0);
-#[cfg(test)]
-static LINE_INDEX_MEASUREMENT_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+thread_local! {
+    static LINE_INDEX_SOURCE_SCAN_STEPS: std::cell::Cell<usize> = const {
+        std::cell::Cell::new(0)
+    };
+}
 
 mod cascade_position;
 mod code_actions;
@@ -4711,8 +4712,9 @@ fn byte_offset_for_parser_position_with_line_index(
 
 fn omena_query_line_index(source: &str) -> OmenaLineIndexV0 {
     #[cfg(test)]
-    LINE_INDEX_SOURCE_SCAN_STEPS
-        .fetch_add(source.chars().count(), std::sync::atomic::Ordering::SeqCst);
+    LINE_INDEX_SOURCE_SCAN_STEPS.with(|steps| {
+        steps.set(steps.get().saturating_add(source.chars().count()));
+    });
     OmenaLineIndexV0::new(source)
 }
 
@@ -4736,19 +4738,15 @@ mod line_index_measurement_tests {
     #[test]
     fn hover_candidate_line_index_source_scan_steps_do_not_scale_with_candidate_count()
     -> Result<(), String> {
-        let _guard = LINE_INDEX_MEASUREMENT_LOCK
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut observed_steps = Vec::new();
         for active_slots in [1usize, 16, 64] {
             let source = fixed_width_hover_source(64, active_slots);
-            LINE_INDEX_SOURCE_SCAN_STEPS.store(0, std::sync::atomic::Ordering::SeqCst);
+            LINE_INDEX_SOURCE_SCAN_STEPS.set(0);
             let summary =
                 summarize_omena_query_style_hover_candidates("fixture.module.css", &source)
                     .ok_or_else(|| "CSS hover facts must be available".to_string())?;
             assert_eq!(summary.candidates.len(), active_slots);
-            observed_steps
-                .push(LINE_INDEX_SOURCE_SCAN_STEPS.load(std::sync::atomic::Ordering::SeqCst));
+            observed_steps.push(LINE_INDEX_SOURCE_SCAN_STEPS.get());
         }
         assert_eq!(observed_steps, vec![1_472, 1_472, 1_472]);
         Ok(())
@@ -4757,18 +4755,14 @@ mod line_index_measurement_tests {
     #[test]
     #[ignore = "wall-clock evidence is collected explicitly in release mode"]
     fn reports_the_large_hover_candidate_line_index_measurement() -> Result<(), String> {
-        let _guard = LINE_INDEX_MEASUREMENT_LOCK
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let source = fixed_width_hover_source(4_609, 4_609);
         assert!((105_900..=106_100).contains(&source.len()));
-        LINE_INDEX_SOURCE_SCAN_STEPS.store(0, std::sync::atomic::Ordering::SeqCst);
+        LINE_INDEX_SOURCE_SCAN_STEPS.set(0);
         let started = std::time::Instant::now();
         let summary = summarize_omena_query_style_hover_candidates("large.module.css", &source)
             .ok_or_else(|| "CSS hover facts must be available".to_string())?;
         let elapsed = started.elapsed();
-        let source_scan_steps =
-            LINE_INDEX_SOURCE_SCAN_STEPS.load(std::sync::atomic::Ordering::SeqCst);
+        let source_scan_steps = LINE_INDEX_SOURCE_SCAN_STEPS.get();
         assert_eq!(summary.candidates.len(), 4_609);
         assert_eq!(source_scan_steps, source.chars().count());
         println!(
