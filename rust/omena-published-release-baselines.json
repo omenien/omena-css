@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-published-rust-release-baselines",
+  "releases": [
+    {
+      "version": "0.3.0",
+      "tag": "release-v0.3.0"
+    },
+    {
+      "version": "0.4.0",
+      "tag": "release-v0.4.0"
+    },
+    {
+      "version": "0.5.0",
+      "tag": "release-v0.5.0"
+    }
+  ]
+}

@@ -83,19 +83,19 @@
   "exit": {
     "sourceRef": null,
     "domain": {
-      "trackedFileCount": 2622,
-      "textualFileCount": 2622,
+      "trackedFileCount": 2623,
+      "textualFileCount": 2623,
       "nulExcludedCount": 0,
       "bootstrapUntrackedFileCount": 0,
       "deletedTrackedFileCount": 0,
-      "fileListSha256": "d3875acfa85f89a0f9a3a4356cee77e7ba5d37f32ab2c2abc8e7e675e8fe6268"
+      "fileListSha256": "5dc027973c4b27b211747ed620800206639d1b640eccec1870cd4c750c86c399"
     },
-    "occurrenceCount": 1785,
+    "occurrenceCount": 1775,
     "dispositionCounts": {
       "claim": 21,
-      "compat": 923,
-      "identityEscalation": 532,
-      "governanceData": 309
+      "compat": 922,
+      "identityEscalation": 529,
+      "governanceData": 303
     },
     "families": [
       {
@@ -123,7 +123,7 @@
         "compatCount": 247,
         "identityEscalationCount": 216,
         "governanceDataCount": 79,
-        "siteSetSha256": "638ee70280fe256790f64b2306e1c64fc4e9d284a2a893a39e951a802b154fbf"
+        "siteSetSha256": "c6bf2ac66c14877b30b12645c9d77b8b10db322c02f7c351596e328173c7c8a1"
       },
       {
         "familyId": "f04",
@@ -132,31 +132,31 @@
         "compatCount": 264,
         "identityEscalationCount": 189,
         "governanceDataCount": 97,
-        "siteSetSha256": "f4f60193255ed853fc3b597ff6470ce3fde2c30f81eb2d8558c6989497af3e82"
+        "siteSetSha256": "adfdedb84608e61b8a8b0f68a3198738a5f69646c30fcbda0bdc271c5768bd02"
       },
       {
         "familyId": "f05",
-        "occurrenceCount": 253,
+        "occurrenceCount": 246,
         "claimCount": 9,
-        "compatCount": 192,
+        "compatCount": 191,
         "identityEscalationCount": 0,
-        "governanceDataCount": 52,
-        "siteSetSha256": "0d1e6a30057c648b40dbe981ea69f796d11745a0b5125daff3365ab09352a6e7"
+        "governanceDataCount": 46,
+        "siteSetSha256": "7ddde59db7cb1f37b88c44215f2e669f0dc92c2da553099b8c9e84ee1e1e038e"
       },
       {
         "familyId": "f06",
-        "occurrenceCount": 363,
+        "occurrenceCount": 360,
         "claimCount": 8,
         "compatCount": 170,
-        "identityEscalationCount": 127,
+        "identityEscalationCount": 124,
         "governanceDataCount": 58,
-        "siteSetSha256": "036dff6e1b21e0a6411377882c9ece5df2791771a2be8ef65cefe2b8bb7ddab2"
+        "siteSetSha256": "77069d4139db62aa934b0476edd9983f0b0fc1446b6507de967e0c3c19264ea9"
       }
     ],
-    "siteSetSha256": "46a95608ddcca571b6eca6d84278e650eb907954389e352a02b07611d813a0e1",
+    "siteSetSha256": "3c7224e4c6e94ca34412c22ca785f0149820660713bf75c0efc946a62d119557",
     "claimSiteSetSha256": "241f9aaf1a64925ca155841b244a333fca315e3a8305f6c6da9ccb0afd139761",
-    "compatDeclarationSetSha256": "34aae0acdcbc33f2b6d4f212665eaf41d13e823e20e2c2d7108b28244a40b21c",
+    "compatDeclarationSetSha256": "83276fa27e53d092ba713ed2c1ab5a81df822763a1d9ca5a4a15d09e30ca1dd0",
     "identityCrateSetSha256": "301477ffa6f128519a55a9aa55d336d35400f48ae4fd73cd66b4d2fcc60ae772",
-    "governanceRuleSetSha256": "620a686cd058896eda23ba284125f7c43826b9e572131386925e1358c257e966"
+    "governanceRuleSetSha256": "7c10bd4fa049f70b4f38411296bda0c58ed6689fd594de131f04466b92cba246"
   }
 }

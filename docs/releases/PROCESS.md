@@ -52,6 +52,12 @@ workflows run (the notes gate fails otherwise).
 6. **Verify after publishing** — registry state, release bodies
    (`verify-github`), attestations, and the same-pin push CI must all be
    green before the release is closed out.
+7. **Rotate the compatibility window** — after live publication is verified,
+   append the immutable Rust release tag to
+   `rust/omena-published-release-baselines.json`, move the active semver-intent
+   baseline to that version, and open the next `0.x` minor window with an empty
+   intent set. The release-semver intent gate binds these two records and rejects
+   a completed train left active after publication.
 
 ## Provenance rule
 

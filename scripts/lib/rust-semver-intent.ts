@@ -42,6 +42,17 @@ interface RustSemverIntentRegister {
   readonly intents: readonly RustSemverIntent[];
 }
 
+interface PublishedRustReleaseBaseline {
+  readonly version: string;
+  readonly tag: string;
+}
+
+interface PublishedRustReleaseBaselineRegister {
+  readonly schemaVersion: "0";
+  readonly product: "omena-published-rust-release-baselines";
+  readonly releases: readonly PublishedRustReleaseBaseline[];
+}
+
 interface RuntimeHonestySurface {
   readonly owner: string;
   readonly changeId: string;
@@ -76,6 +87,7 @@ export interface DeclaredRustSemverCheckResult {
 }
 
 const registerRelativePath = "rust/omena-rust-semver-intent.json";
+const publishedBaselineRelativePath = "rust/omena-published-release-baselines.json";
 const diagnosticHeaderPattern = /^--- (failure|warning) ([a-z0-9_]+):[^\n]*$/gmu;
 const runtimeValueChangeKinds = new Set<ExpectedRuntimeValueChange["kind"]>([
   "wire-value-order-preserving",
@@ -94,14 +106,12 @@ export function validateRustSemverIntentRegister(repoRoot: string): {
   readonly honestyValueSurfaceCount: number;
   readonly honestyZeroSurfaceCount: number;
   readonly honestySelftestMutationCount: 2;
+  readonly lifecycleSelftestMutationCount: 3;
 } {
   const register = readRegister(repoRoot);
+  const publishedBaselines = readPublishedBaselines(repoRoot);
   const workspaceVersion = readWorkspaceVersion(repoRoot);
-  assertReleaseWindow(
-    register.baselineWorkspaceVersion,
-    register.targetReleaseVersion,
-    workspaceVersion,
-  );
+  assertReleaseLifecycle(register, publishedBaselines, workspaceVersion);
 
   let runtimeValueChangeCount = 0;
   for (const intent of register.intents) {
@@ -151,12 +161,14 @@ export function validateRustSemverIntentRegister(repoRoot: string): {
   const honestyTable = readAuthoredTextEgressHonestyTable(repoRoot);
   const honestyCounts = validateRuntimeHonestyTable(register.intents, honestyTable);
   runRuntimeHonestyTableSelftest();
+  runReleaseLifecycleSelftest();
 
   return {
     intentCount: register.intents.length,
     runtimeValueChangeCount,
     ...honestyCounts,
     honestySelftestMutationCount: 2,
+    lifecycleSelftestMutationCount: 3,
   };
 }
 
@@ -357,9 +369,9 @@ export function runDeclaredRustSemverCheck(
     };
   }
 
-  assertReleaseWindow(
-    register.baselineWorkspaceVersion,
-    register.targetReleaseVersion,
+  assertReleaseLifecycle(
+    register,
+    readPublishedBaselines(options.repoRoot),
     options.workspaceVersion,
   );
   assert.ok(intent.reason.trim().length > 0, `${options.crate} semver intent requires a reason`);
@@ -562,6 +574,21 @@ function readRegister(repoRoot: string): RustSemverIntentRegister {
   return register;
 }
 
+function readPublishedBaselines(repoRoot: string): PublishedRustReleaseBaselineRegister {
+  const register = JSON.parse(
+    readFileSync(path.join(repoRoot, publishedBaselineRelativePath), "utf8"),
+  ) as PublishedRustReleaseBaselineRegister;
+  assert.equal(register.schemaVersion, "0", `${publishedBaselineRelativePath} schemaVersion`);
+  assert.equal(
+    register.product,
+    "omena-published-rust-release-baselines",
+    `${publishedBaselineRelativePath} product`,
+  );
+  assert.ok(Array.isArray(register.releases), `${publishedBaselineRelativePath} releases`);
+  assert.ok(register.releases.length > 0, `${publishedBaselineRelativePath} must not be empty`);
+  return register;
+}
+
 function readAuthoredTextEgressHonestyTable(repoRoot: string): AuthoredTextEgressHonestyTable {
   const census = JSON.parse(
     readFileSync(path.join(repoRoot, "rust/omena-identifier-authority-census.json"), "utf8"),
@@ -609,6 +636,94 @@ function assertReleaseWindow(baseline: string, target: string, current: string):
   assert.ok(
     current === baseline || current === target,
     `${registerRelativePath} applies only while the workspace is ${baseline} or ${target}`,
+  );
+}
+
+function assertReleaseLifecycle(
+  intent: Pick<RustSemverIntentRegister, "baselineWorkspaceVersion" | "targetReleaseVersion">,
+  published: PublishedRustReleaseBaselineRegister,
+  current: string,
+): void {
+  const versions = published.releases.map((release) => release.version);
+  assert.equal(
+    new Set(versions).size,
+    versions.length,
+    `${publishedBaselineRelativePath} versions must be unique`,
+  );
+  for (const [index, release] of published.releases.entries()) {
+    const parts = parseVersion(release.version);
+    assert.equal(
+      release.tag,
+      `release-v${release.version}`,
+      `${publishedBaselineRelativePath} tag must bind its exact version`,
+    );
+    if (index > 0) {
+      const previous = parseVersion(published.releases[index - 1]!.version);
+      assert.ok(
+        parts.major > previous.major ||
+          (parts.major === previous.major && parts.minor > previous.minor) ||
+          (parts.major === previous.major &&
+            parts.minor === previous.minor &&
+            parts.patch > previous.patch),
+        `${publishedBaselineRelativePath} releases must be strictly version-ordered`,
+      );
+    }
+  }
+  const latest = published.releases.at(-1)!;
+  assert.equal(
+    intent.baselineWorkspaceVersion,
+    latest.version,
+    `${registerRelativePath} baseline must rotate to the latest published release`,
+  );
+  assertReleaseWindow(intent.baselineWorkspaceVersion, intent.targetReleaseVersion, current);
+}
+
+function runReleaseLifecycleSelftest(): void {
+  const published: PublishedRustReleaseBaselineRegister = {
+    schemaVersion: "0",
+    product: "omena-published-rust-release-baselines",
+    releases: [
+      { version: "0.4.0", tag: "release-v0.4.0" },
+      { version: "0.5.0", tag: "release-v0.5.0" },
+    ],
+  };
+  const rotated = {
+    baselineWorkspaceVersion: "0.5.0",
+    targetReleaseVersion: "0.6.0",
+  } as const;
+  assert.doesNotThrow(() => assertReleaseLifecycle(rotated, published, "0.5.0"));
+  assert.throws(
+    () =>
+      assertReleaseLifecycle(
+        { baselineWorkspaceVersion: "0.4.0", targetReleaseVersion: "0.5.0" },
+        published,
+        "0.5.0",
+      ),
+    /baseline must rotate to the latest published release/u,
+    "post-publication lifecycle selftest must reject the completed train as the active window",
+  );
+  assert.throws(
+    () =>
+      assertReleaseLifecycle(
+        rotated,
+        {
+          ...published,
+          releases: [published.releases[0]!, { version: "0.5.0", tag: "release-v0.4.0" }],
+        },
+        "0.5.0",
+      ),
+    /tag must bind its exact version/u,
+    "release lifecycle selftest must reject a tag/version split",
+  );
+  assert.throws(
+    () =>
+      assertReleaseLifecycle(
+        { baselineWorkspaceVersion: "0.5.0", targetReleaseVersion: "0.7.0" },
+        published,
+        "0.5.0",
+      ),
+    /advance the baseline 0.x minor exactly once/u,
+    "release lifecycle selftest must reject a skipped active minor window",
   );
 }
 

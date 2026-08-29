@@ -752,7 +752,7 @@ function renderGeneratedChangelog(
 ): string {
   const lines = ["## Changes", ""];
   if (entry.axis === "rust") {
-    const declared = declaredBreakingSection(entry.version);
+    const declared = declaredBreakingSection(entry.version, entry.tag);
     if (declared.length > 0) lines.push(...declared, "");
   }
   if (!previousTag) {
@@ -802,10 +802,10 @@ function renderGeneratedChangelog(
   return lines.join("\n");
 }
 
-function declaredBreakingSection(releaseVersion: string): readonly string[] {
+function declaredBreakingSection(releaseVersion: string, releaseTag: string): readonly string[] {
   const intentPath = path.join(repoRoot, "rust/omena-rust-semver-intent.json");
   if (!existsSync(intentPath)) return [];
-  const intent = JSON.parse(readFileSync(intentPath, "utf8")) as {
+  type ReleaseIntent = {
     readonly baselineWorkspaceVersion?: string;
     readonly targetReleaseVersion?: string;
     readonly intents?: readonly {
@@ -814,9 +814,20 @@ function declaredBreakingSection(releaseVersion: string): readonly string[] {
       readonly expectedRuntimeValueChanges?: readonly unknown[];
     }[];
   };
-  // The intent contract is the CURRENT train's declaration. Only render it when
-  // it targets exactly this release; a HEAD-side backfill of an older tag must
-  // not borrow the in-progress next-train declaration.
+  const activeIntent = JSON.parse(readFileSync(intentPath, "utf8")) as ReleaseIntent;
+  let intent = activeIntent;
+  if (activeIntent.targetReleaseVersion !== releaseVersion) {
+    const historical = spawnSync(
+      "git",
+      ["show", `${releaseTag}:rust/omena-rust-semver-intent.json`],
+      { cwd: repoRoot, encoding: "utf8" },
+    );
+    if (historical.status !== 0) return [];
+    intent = JSON.parse(historical.stdout) as ReleaseIntent;
+  }
+  // Active declarations belong only to their current train. Completed release
+  // declarations are read from that release's immutable tag, so rotating the
+  // active window cannot erase or borrow historical breaking-change evidence.
   if (intent.targetReleaseVersion !== releaseVersion) return [];
   const rows = intent.intents ?? [];
   if (rows.length === 0) return [];

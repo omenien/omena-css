@@ -1012,13 +1012,6 @@
     },
     {
       "familyId": "f05",
-      "sourcePath": "rust/omena-rust-semver-intent.json",
-      "declarations": ["CascadeSiteKeyV0"],
-      "owner": "Rust semver intent maintainers",
-      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
-    },
-    {
-      "familyId": "f05",
       "sourcePath": "scripts/check-rust-m4-closure-audit.ts",
       "declarations": ["LEGACY_CONTEXT_GLUE_OR_MODAL_THEOREM_KEY_V0"],
       "owner": "omena-categorical maintainers",
@@ -1238,14 +1231,6 @@
       "owner": "domain claim census maintainers",
       "justification": "The authored governance map must spell the superseded forms so reviewers can audit each mapping, compatibility declaration, and topology escalation.",
       "reviewCondition": "Remove a form only when the independent lexical seed and every mapped compatibility or escalation obligation are removed in the same reviewed change."
-    },
-    {
-      "id": "rust-semver-intent-governance-data",
-      "pathExact": "rust/omena-rust-semver-intent.json",
-      "familyIds": ["f05"],
-      "owner": "Rust semver intent maintainers",
-      "justification": "The semver intent ledger names deprecated compatibility carriers and their regression evidence as release-governance data; those descriptions do not assert the superseded domain claim.",
-      "reviewCondition": "Remove this rule when the semver intent ledger no longer names any compatibility surface matched by the independent domain-claim scanner."
     }
   ]
 }
