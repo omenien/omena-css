@@ -3956,6 +3956,7 @@ fn derives_transform_context_from_package_manifest_style_exports() {
 }
 
 #[test]
+#[cfg(feature = "sif-attestation")]
 fn bridge_resolution_refuses_unverified_recorded_verdict() -> Result<(), Box<dyn std::error::Error>>
 {
     let root = std::env::temp_dir().join(format!(
