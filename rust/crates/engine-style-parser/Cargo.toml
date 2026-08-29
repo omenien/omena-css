@@ -16,6 +16,6 @@ role = "I"
 workspace = true
 
 [dependencies]
-omena-syntax = { path = "../omena-syntax", version = "=0.4.0" }
+omena-syntax = { path = "../omena-syntax", version = "=0.5.0" }
 serde.workspace = true
 serde_json.workspace = true

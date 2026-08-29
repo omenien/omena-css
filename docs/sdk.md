@@ -27,14 +27,14 @@ surface at the same release version.
 
 | Package       | Latest published | API shape                           |
 | ------------- | ---------------- | ----------------------------------- |
-| `@omena/napi` | `0.4.0`          | JSON functions and Node `Workspace` |
-| `@omena/wasm` | `0.4.0`          | JavaScript values and `Workspace`   |
+| `@omena/napi` | `0.5.0`          | JSON functions and Node `Workspace` |
+| `@omena/wasm` | `0.5.0`          | JavaScript values and `Workspace`   |
 
 ## Install
 
 ```bash
-npm install @omena/napi@0.4.0
-npm install @omena/wasm@0.4.0
+npm install @omena/napi@0.5.0
+npm install @omena/wasm@0.5.0
 cargo install omena-cli --locked
 ```
 

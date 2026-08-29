@@ -13,7 +13,7 @@ sourceOfTruth: authored
 Install the published plugin:
 
 ```sh
-npm install --save-dev @omena/vite-plugin@0.4.0
+npm install --save-dev @omena/vite-plugin@0.5.0
 ```
 
 ```js
@@ -30,7 +30,7 @@ export default defineConfig({
 });
 ```
 
-Version `0.4.0` transforms `.module.css` and `.module.scss` by default. The
+Version `0.5.0` transforms `.module.css` and `.module.scss` by default. The
 repository's next adapter also includes `.module.less`; opt into a wider
 published scope with `include` rather than relying on unreleased behavior.
 

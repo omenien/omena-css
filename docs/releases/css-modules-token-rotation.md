@@ -11,8 +11,8 @@ sourceOfTruth: authored
 # CSS Modules Token Rotation
 
 The CSS Modules token producer now identifies each emitted class by its module
-and raw class-name bytes. This rotation is planned as a coordinated extension
-`5.4.0` and Rust crate-train `0.4.0` release. The independently reviewed
+and raw class-name bytes. This rotation shipped in the preceding coordinated
+extension and Rust train. The independently reviewed
 linked-emission default follows on Rust crate-train `0.5.0`; it does not reserve
 or require an extension `6.0.0` release.
 

@@ -16,12 +16,12 @@ role = "R2"
 workspace = true
 
 [dependencies]
-omena-cascade = { path = "../omena-cascade", version = "=0.4.0" }
-omena-cross-file-summary = { path = "../omena-cross-file-summary", version = "=0.4.0" }
-omena-parser = { path = "../omena-parser", version = "=0.4.0" }
-omena-syntax = { path = "../omena-syntax", version = "=0.4.0" }
-omena-transform-cst = { path = "../omena-transform-cst", version = "=0.4.0" }
-omena-transform-passes = { path = "../omena-transform-passes", version = "=0.4.0" }
+omena-cascade = { path = "../omena-cascade", version = "=0.5.0" }
+omena-cross-file-summary = { path = "../omena-cross-file-summary", version = "=0.5.0" }
+omena-parser = { path = "../omena-parser", version = "=0.5.0" }
+omena-syntax = { path = "../omena-syntax", version = "=0.5.0" }
+omena-transform-cst = { path = "../omena-transform-cst", version = "=0.5.0" }
+omena-transform-passes = { path = "../omena-transform-passes", version = "=0.5.0" }
 serde.workspace = true
 
 [dev-dependencies]

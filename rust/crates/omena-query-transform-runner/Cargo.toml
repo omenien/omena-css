@@ -23,16 +23,16 @@ transform-catalog-trace = ["omena-transform-passes/transform-catalog-trace"]
 lawvere-trace = ["transform-catalog-trace"]
 
 [dependencies]
-omena-abstract-value = { path = "../omena-abstract-value", version = "=0.4.0" }
-omena-bridge = { path = "../omena-bridge", version = "=0.4.0" }
-omena-bundler = { path = "../omena-bundler", version = "=0.4.0" }
-omena-evidence-graph = { path = "../omena-evidence-graph", version = "=0.4.0" }
-omena-incremental = { path = "../omena-incremental", version = "=0.4.0" }
-omena-transform-cst = { path = "../omena-transform-cst", version = "=0.4.0" }
-omena-transform-egg = { path = "../omena-transform-egg", version = "=0.4.0" }
-omena-transform-passes = { path = "../omena-transform-passes", version = "=0.4.0" }
-omena-transform-print = { path = "../omena-transform-print", version = "=0.4.0" }
-omena-transform-target = { path = "../omena-transform-target", version = "=0.4.0" }
+omena-abstract-value = { path = "../omena-abstract-value", version = "=0.5.0" }
+omena-bridge = { path = "../omena-bridge", version = "=0.5.0" }
+omena-bundler = { path = "../omena-bundler", version = "=0.5.0" }
+omena-evidence-graph = { path = "../omena-evidence-graph", version = "=0.5.0" }
+omena-incremental = { path = "../omena-incremental", version = "=0.5.0" }
+omena-transform-cst = { path = "../omena-transform-cst", version = "=0.5.0" }
+omena-transform-egg = { path = "../omena-transform-egg", version = "=0.5.0" }
+omena-transform-passes = { path = "../omena-transform-passes", version = "=0.5.0" }
+omena-transform-print = { path = "../omena-transform-print", version = "=0.5.0" }
+omena-transform-target = { path = "../omena-transform-target", version = "=0.5.0" }
 serde.workspace = true
 
 [dev-dependencies]

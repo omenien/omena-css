@@ -15,13 +15,13 @@ repository.
 
 | Surface                            | Public version | Status                                     |
 | ---------------------------------- | -------------- | ------------------------------------------ |
-| CLI and Rust crate train           | `0.4.0`        | CLI archives; coordinated 51-crate train   |
-| `omena-reactive`                   | `0.4.0`        | first publication in the coordinated train |
-| `@omena/wasm`                      | `0.4.0`        | release-managed npm binding                |
-| `@omena/napi`                      | `0.4.0`        | native binding and `Workspace` class       |
-| `@omena/css-build-adapter`         | `0.4.0`        | release-managed integration                |
-| `@omena/vite-plugin`               | `0.4.0`        | release-managed integration                |
-| `@omena/postcss-plugin`            | `0.4.0`        | release-managed integration                |
+| CLI and Rust crate train           | `0.5.0`        | CLI archives; coordinated 51-crate train   |
+| `omena-reactive`                   | `0.5.0`        | first publication in the coordinated train |
+| `@omena/wasm`                      | `0.5.0`        | release-managed npm binding                |
+| `@omena/napi`                      | `0.5.0`        | native binding and `Workspace` class       |
+| `@omena/css-build-adapter`         | `0.5.0`        | release-managed integration                |
+| `@omena/vite-plugin`               | `0.5.0`        | release-managed integration                |
+| `@omena/postcss-plugin`            | `0.5.0`        | release-managed integration                |
 | ESLint, Stylelint, Oxlint adapters | none           | repository-only                            |
 | VS Code extension                  | `5.4.0`        | coordinated VSIX release                   |
 | Legacy VS Marketplace listing      | `5.2.0`        | older publisher listing                    |

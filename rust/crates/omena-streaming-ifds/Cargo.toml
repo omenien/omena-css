@@ -25,8 +25,8 @@ streaming-ifds = ["demand-sliced-monotone-fact-propagation"]
 with-frame-rule = []
 
 [dependencies]
-omena-abstract-value = { path = "../omena-abstract-value", version = "=0.4.0" }
-omena-cross-file-summary = { path = "../omena-cross-file-summary", version = "=0.4.0" }
+omena-abstract-value = { path = "../omena-abstract-value", version = "=0.5.0" }
+omena-cross-file-summary = { path = "../omena-cross-file-summary", version = "=0.5.0" }
 serde.workspace = true
 sha2.workspace = true
 

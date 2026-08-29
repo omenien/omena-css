@@ -3,6 +3,18 @@
   "repository": "omenien/omena-css",
   "releases": [
     {
+      "tag": "release-v0.5.0",
+      "name": "Omena Rust crate train, CLI, and npm bindings 0.5.0",
+      "axis": "rust",
+      "version": "0.5.0",
+      "notesFile": "docs/releases/0.5.0.md",
+      "distribution": [
+        "The coordinated train contains 51 publishable Rust crates at exact version `0.5.0`, including the first publication of `omena-reactive`.",
+        "The GitHub Release contains five native `omena-cli` archives and their SHA-256 checksums for version `0.5.0`.",
+        "Selected npm publication stages `@omena/wasm`, `@omena/napi`, its native target packages, and build-tool integrations at `0.5.0` from the Rust workspace version."
+      ]
+    },
+    {
       "tag": "vscode-v5.4.0",
       "name": "Omena CSS Modules 5.4.0",
       "axis": "extension",

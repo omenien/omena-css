@@ -20,13 +20,13 @@ default = []
 smt-z3 = ["dep:omena-smt", "omena-smt/smt-z3"]
 
 [dependencies]
-omena-abstract-value = { path = "../omena-abstract-value", version = "=0.4.0" }
-omena-cascade = { path = "../omena-cascade", version = "=0.4.0" }
-omena-cascade-proof = { path = "../omena-cascade-proof", version = "=0.4.0" }
-omena-product-hints = { path = "../omena-product-hints", version = "=0.4.0" }
-omena-resolver = { path = "../omena-resolver", version = "=0.4.0" }
-omena-smt = { path = "../omena-smt", version = "=0.4.0", optional = true }
-omena-syntax = { path = "../omena-syntax", version = "=0.4.0" }
+omena-abstract-value = { path = "../omena-abstract-value", version = "=0.5.0" }
+omena-cascade = { path = "../omena-cascade", version = "=0.5.0" }
+omena-cascade-proof = { path = "../omena-cascade-proof", version = "=0.5.0" }
+omena-product-hints = { path = "../omena-product-hints", version = "=0.5.0" }
+omena-resolver = { path = "../omena-resolver", version = "=0.5.0" }
+omena-smt = { path = "../omena-smt", version = "=0.5.0", optional = true }
+omena-syntax = { path = "../omena-syntax", version = "=0.5.0" }
 serde.workspace = true
 
 [dev-dependencies]

@@ -16,7 +16,7 @@ and the coordinated release publishes the same snapshot-bound class surface.
 
 ## Published NAPI
 
-`@omena/napi@0.4.0` exports JSON functions and the snapshot-bound `Workspace`
+`@omena/napi@0.5.0` exports JSON functions and the snapshot-bound `Workspace`
 class:
 
 ```js
@@ -29,7 +29,7 @@ const result = JSON.parse(
 
 ## Published WASM
 
-`@omena/wasm@0.4.0` is a bundler-target package and initializes during import:
+`@omena/wasm@0.5.0` is a bundler-target package and initializes during import:
 
 ```js
 import { Workspace } from "@omena/wasm";
