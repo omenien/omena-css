@@ -41,21 +41,16 @@ fn decode_case(data: &[u8]) -> Option<(&str, ElementSignature)> {
         .and_then(|value| value.trim().parse::<u8>().ok())
         .unwrap_or(0);
 
-    Some((
-        selector,
-        ElementSignature {
-            tag,
-            id,
-            classes,
-            attributes,
-            pseudo_states,
-            classes_are_exact: exactness & 1 != 0,
-            attributes_are_exact: exactness & 2 != 0,
-            pseudo_states_are_exact: exactness & 4 != 0,
-            tag_is_exact: exactness & 8 != 0,
-            id_is_exact: exactness & 16 != 0,
-        },
-    ))
+    let mut element = ElementSignature::concrete(tag, id, classes);
+    element.attributes = attributes;
+    element.pseudo_states = pseudo_states;
+    element.classes_are_exact = exactness & 1 != 0;
+    element.attributes_are_exact = exactness & 2 != 0;
+    element.pseudo_states_are_exact = exactness & 4 != 0;
+    element.tag_is_exact = exactness & 8 != 0;
+    element.id_is_exact = exactness & 16 != 0;
+
+    Some((selector, element))
 }
 
 fn optional_field(value: Option<&str>) -> Option<String> {
