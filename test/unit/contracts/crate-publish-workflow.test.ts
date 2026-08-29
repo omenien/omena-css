@@ -177,10 +177,14 @@ describe("crate publish registry contract", () => {
     expect(publishIndex).toBeGreaterThan(semverIndex);
     expect(workflow).toContain("steps.registry.outputs.effective_mode");
     expect(workflow).toContain(".semverEligible | index($crate) != null");
-    expect(workflow).toContain("startsWith(github.ref, 'refs/tags/release-v') && 'auto'");
     expect(workflow).toContain(
-      "(env.RESUME != 'true' && !startsWith(github.ref, 'refs/tags/release-v')) || steps.resume.outputs.remaining_count != '0'",
+      "(inputs.tag != '' || startsWith(github.ref, 'refs/tags/release-v')) && 'auto'",
     );
+    expect(workflow).toContain(
+      "(env.RESUME != 'true' && env.RELEASE_IS_TAG != 'true') || steps.resume.outputs.remaining_count != '0'",
+    );
+    expect(workflow.match(/ref: \$\{\{ inputs\.tag \|\| github\.ref \}\}/gu)).toHaveLength(2);
+    expect(workflow).toContain("target_commitish: ${{ steps.source.outputs.sha }}");
     expect(action).toContain("inputs.mode == 'trusted' && inputs.dry-run != 'true'");
     expect(action).toContain("PUBLISH_DRY_RUN: ${{ inputs.dry-run }}");
     expect(action).toContain('if [ "${PUBLISH_DRY_RUN}" != "true" ]');
