@@ -1,0 +1,2754 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-query.visibility-experiment",
+  "authoredCandidateCount": 391,
+  "commands": {
+    "compile": "cargo check --manifest-path rust/Cargo.toml -p omena-query --all-targets --all-features",
+    "warningPolicy": "cargo clippy --manifest-path rust/Cargo.toml -p omena-query --all-targets --all-features --no-deps -- -D warnings"
+  },
+  "outcomeCounts": {
+    "compiledCrateVisible": 279,
+    "integrationConsumerRequired": 8,
+    "warningFreeDeletionRequired": 86,
+    "testOnlyExcluded": 18
+  },
+  "rows": [
+    {
+      "name": "abstract_class_value_from_facts",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "abstract_class_value_kind",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "AbstractClassValueV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "AbstractPropertyValueCandidateV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "AbstractValueDomainSummaryV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "attach_omena_query_consumer_build_source_map_v3",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "build_omena_query_guarded_token_map_for_site",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "BundleEmissionExecutionV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "BundleExecutionSummaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "BundleModuleExecutionV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "CanonicalFormV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "canonicalize_css_value",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "CascadeContextV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "CascadeDimensionalRefinementBridgeV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "CascadeValueFamilyMemberV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "check_omena_query_schema_version",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "collect_omena_query_style_cascade_narrowing_substrate",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "derive_context_indexed_cascade_restriction_maps_v0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "DesignSystemMinimumDescriptionV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "execute_omena_query_consumer_build_style_sources",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options_and_resolution_inputs",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "execute_omena_query_consumer_build_style_sources_for_target_query_with_context_options_additional_passes_and_resolution_inputs",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "execute_omena_query_consumer_build_style_sources_for_target_query_with_options",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "execute_omena_query_transform_passes_from_source_with_transform_catalog_trace",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "execute_omena_sdk_diagnostics_debug_workflow",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "integrationConsumerRequired"
+    },
+    {
+      "name": "execute_omena_sdk_diagnostics_workflow",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "integrationConsumerRequired"
+    },
+    {
+      "name": "explain_omena_query_tree_shake_for_module",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "ExternalStringTypeFactsV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "fact_precision_from_class_value",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "fact_precision_from_class_value_with_witness",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "fact_precision_from_evidence_analysis_precision",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "FastFactsV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "GuardedTokenLanguageV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "GuardedTokenMapV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "HypergraphIFDSSummaryEdgeV0",
+      "originCrate": "omena-cross-file-summary",
+      "authoredClass": "c_tests_only",
+      "visibility": "public",
+      "outcome": "testOnlyExcluded"
+    },
+    {
+      "name": "IncrementalEditDistancePriorityInputV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "IncrementalGraphInputV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_tests_only",
+      "visibility": "public",
+      "outcome": "testOnlyExcluded"
+    },
+    {
+      "name": "IncrementalNodeInputV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_tests_only",
+      "visibility": "public",
+      "outcome": "testOnlyExcluded"
+    },
+    {
+      "name": "iterate_reduced_class_value_product_constraints",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "join_abstract_class_values",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "LinearProvenancePathV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "LinearProvenanceV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "memo_css_modules_cross_file_resolution_from_module_interfaces",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "memo_module_interface_projection",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "memo_sass_module_cross_file_resolution_from_module_interfaces",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "memo_sass_module_cross_file_resolution_with_external_sifs_from_module_interfaces",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "memo_sass_module_cross_file_resolution_without_manifests_from_module_interfaces",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "memo_sass_module_cross_file_resolution_without_path_mappings_from_module_interfaces",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "ModelClassV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "modern_omena_query_target_feature_support",
+      "originCrate": "omena-query-transform-runner",
+      "authoredClass": "c_tests_only",
+      "visibility": "public",
+      "outcome": "testOnlyExcluded"
+    },
+    {
+      "name": "narrow_abstract_property_value_for_cascade_branch",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "NaturalCountProvenanceSemiringV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OMENA_BUNDLER_HOST_PROTOCOL_VERSION_V0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "omena_error_from_boundary_encoding",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "integrationConsumerRequired"
+    },
+    {
+      "name": "OMENA_QUERY_CASCADE_SECTION_AGGREGATION_COMPATIBILITY_MESSAGE_V0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OMENA_QUERY_CURRENT_SCHEMA_VERSION",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OMENA_QUERY_CURRENT_SCHEMA_VERSION_LABEL",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OMENA_QUERY_FRAGILE_GUARDED_WINNER_THRESHOLD_V0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_MESSAGE_V0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_PROVENANCE_V0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "omena_query_sass_symbol_target_matches",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "OmenaAbstractValueCoverageDirectionV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaAbstractValuePrecisionBasisV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaAbstractValuePrecisionWitnessV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaBundlerHostCapabilitiesV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaBundlerHostComposesEdgeV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaBundlerHostDiagnosticV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaBundlerHostResolveModuleResponseV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaCrossFileSummaryViewReportV0",
+      "originCrate": "omena-cross-file-summary",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaErrorEvidenceBindingErrorV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaErrorEvidenceReferenceV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaErrorV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaIncrementalDatabaseV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_tests_only",
+      "visibility": "public",
+      "outcome": "testOnlyExcluded"
+    },
+    {
+      "name": "OmenaQueryAnalysisResultV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryBoundarySummaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryBridgeExternalSifResolutionV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryBundleCodeSplitWorkspacePlanOutputV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryBundleCodeSplitWorkspacePlanV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryBundleCompositeExecutionByteFactsV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryBundleEvidenceGateV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryBundleExecutionScopeResultV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryBundleModuleExecutionByteFactsV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryBundleReachabilityEvidenceV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryBundlerPathAliasMappingV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryBundleTokenOwnershipResultV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "OmenaQueryCanonicalClassTokenV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCanonicalFormInput",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "OmenaQueryCascadeConfidenceV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCascadeInsightV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCascadeLayerTopologyIncompleteV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCascadeNarrowingEvidenceV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCascadeOriginStylesheetV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "OmenaQueryCascadeSectionOutcomeV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCascadeSiteOutcomeV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "OmenaQueryCategoricalDesignSystemInvariantSummaryV0",
+      "originCrate": "omena-query-checker-orchestrator",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCategoricalDesignSystemModelV0",
+      "originCrate": "omena-query-checker-orchestrator",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryClassSitePlaneV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryClassSiteTokenProvenanceV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryClassSiteTypeFactInputV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryClassSiteUnknownCauseV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryClassSiteValueV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryClosedWorldBlockerV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryClosedWorldDecisionParityV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCommittedStyleSemanticGraphV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCommittedWaveSubstrateV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCreateCustomPropertyActionV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCreateSelectorActionV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCrossFileSccEvidenceV0",
+      "originCrate": "omena-cross-file-summary",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCrossFileSummaryCapabilitiesV0",
+      "originCrate": "omena-cross-file-summary",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCrossFileSummaryEdgeKindCountV0",
+      "originCrate": "omena-cross-file-summary",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCrossFileSummaryEdgeV0",
+      "originCrate": "omena-cross-file-summary",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCssModuleClassExportV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCssModuleClassReferenceV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCssModuleComposesEdgeFactV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCssModuleExportUsageStatusV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCssModuleExportUsageV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCssModuleIcssExportV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCssModuleInterfaceV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCssModulesComposesClosureEdgeV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCssModulesCrossFileResolutionCapabilitiesV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCssModulesCrossFileResolutionV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCssModulesCycleV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCssModulesExportUsageReportV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCssModulesIcssClosureEdgeV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCssModulesImportEdgeResolutionV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCssModulesUnusedExportDiagnosticV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCssModulesUnusedExportSkipReasonCountV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCssModulesUnusedExportSkipReasonV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCssModulesValueClosureEdgeV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCssModuleValueDefinitionEdgeFactV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCssModuleValueImportEdgeFactV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCustomPropertyAnnotationSummaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "OmenaQueryCustomPropertyAnnotationV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "OmenaQueryCustomPropertyLeastFixedPointSummaryV0",
+      "originCrate": "omena-query-transform-runner",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCustomPropertyOccurrenceIndexV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryCustomPropertyOccurrenceV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryDiagnosticSuppressionSummaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryDynamicClassnameCallSiteV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryDynamicClassValueInputV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryEmissionCycleClassV0",
+      "originCrate": "omena-query-transform-runner",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryEmissionCycleDialectV0",
+      "originCrate": "omena-query-transform-runner",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryEvaluationRuntimeSummaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryExecutionFieldScopeV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryExplainCapabilityV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryExplainFactV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryExplainSourceSpanV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryExplainTargetV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryFragileGuardedWinnerDiagnosticV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryIcssExportEdgeFactV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryIcssImportEdgeFactV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryInlineStyleRuntimeOverrideV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryInsightV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryLinearProvenanceV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryLinkedSourceMapDispositionV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryLinkedSourceMapGranularityV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryM4AxisCReadinessSummaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryM4AxisCSummaryHashSamplesV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryModuleAttributedBundleResultV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "OmenaQueryModuleIdV0",
+      "originCrate": "omena-parser",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryModuleInterfaceProjectionV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryModuleReachabilityAttributionKindV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryModuleReachabilityAttributionV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryModuleTreeShakeExplanationV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "OmenaQueryNativeCssEvaluatorSummaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryOmenaParserStyleFactsV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryOpenWorldSnapshotV0",
+      "originCrate": "omena-parser",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryPolynomialProvenanceV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryRefsForClassV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryRegisteredCustomPropertyComputedValueV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "OmenaQueryRenamePlanV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryRuntimeStateDriverSummaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryRuntimeStateScenarioEvidenceV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryRuntimeStateScenarioV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryRuntimeStateStaticBoundaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySassModuleCrossFileResolutionV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySassModuleEdgeFactV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySassModuleRuleConfigurationSurfaceV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySassModuleSourceEdgeV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySassModuleSourcesV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySassModuleUseEdgeV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySassSymbolFactV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySassSymbolResolutionCapabilitiesV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySassSymbolResolutionEdgeV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySassSymbolResolutionV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySassUnsupportedCountV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySassUnsupportedLedgerRecordV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySassUnsupportedLedgerViewV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySchemaVersionCheckV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySchemaVersionPolicyV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryScssEvalCallReturnIrSummaryV0",
+      "originCrate": "omena-scss-eval",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryScssEvalControlFlowIrSummaryV0",
+      "originCrate": "omena-scss-eval",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryScssEvalControlFlowPruneReachabilityV0",
+      "originCrate": "omena-scss-eval",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryScssEvalControlFlowValueAnalysisV0",
+      "originCrate": "omena-scss-eval",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryScssEvalNativeCssFunctionCallEvaluationSurfaceV0",
+      "originCrate": "omena-scss-eval",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryScssEvalNativeCssFunctionSurfaceV0",
+      "originCrate": "omena-scss-eval",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryScssEvalNativeCssIfFunctionDecisionSurfaceV0",
+      "originCrate": "omena-scss-eval",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryScssEvalNativeCssStaticEditPlanV0",
+      "originCrate": "omena-scss-eval",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryScssEvaluatorControlFlowSummaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySemanticReachabilitySourceV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryShorthandCombinableV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySourceClassAttributeSiteFactV0",
+      "originCrate": "omena-bridge",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySourceFlowBlockGraphSnapshotV0",
+      "originCrate": "omena-bridge",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySourceFlowBlockSnapshotV0",
+      "originCrate": "omena-bridge",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySourcePrecisionReferenceV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySourceProviderCandidateResolutionV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQuerySourceSelectorReferenceEditTargetV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryStaticConditionPruningEvidenceV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryStaticLifExportsSummaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryStaticStylesheetEvaluatorOracleCorpusSummaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryStaticStylesheetEvaluatorSummaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryStyleCompletionConsumerDecisionV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryStyleDiagnosticsWithSelectorV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryStyleDocumentSummaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryStyleFileInputV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryStyleInsightsV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryStyleParallelResolveSyncV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryStyleRevisionSelectorV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryStyleSemanticGraphBatchEntryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryStyleWorkspaceInputV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryStyleWorkspaceTransactionCommitV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "OmenaQueryStyleWorkspaceTransactionErrorV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryStyleWorkspaceTransactionV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "OmenaQuerySymlinkChainLinkV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryTransformCatalogDifferentialCommutativityWitnessV0",
+      "originCrate": "omena-query-transform-runner",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryTransformCatalogModelTraceV0",
+      "originCrate": "omena-query-transform-runner",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryTransformCatalogReorderabilityCertificateV0",
+      "originCrate": "omena-query-transform-runner",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryTransformCatalogTransformExecuteSummaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "OmenaQueryTransformCatalogTransformPassParallelPlanV0",
+      "originCrate": "omena-query-transform-runner",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryTransformClassNameRewriteV0",
+      "originCrate": "omena-query-transform-runner",
+      "authoredClass": "c_tests_only",
+      "visibility": "public",
+      "outcome": "testOnlyExcluded"
+    },
+    {
+      "name": "OmenaQueryTransformContextFromSourcesSummaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryTransformDesignTokenRouteV0",
+      "originCrate": "omena-query-transform-runner",
+      "authoredClass": "c_tests_only",
+      "visibility": "public",
+      "outcome": "testOnlyExcluded"
+    },
+    {
+      "name": "OmenaQueryTransformModuleCssModuleContextV0",
+      "originCrate": "omena-query-transform-runner",
+      "authoredClass": "c_tests_only",
+      "visibility": "public",
+      "outcome": "testOnlyExcluded"
+    },
+    {
+      "name": "OmenaQueryTransformModuleEvaluationNativeEditV0",
+      "originCrate": "omena-query-transform-runner",
+      "authoredClass": "c_tests_only",
+      "visibility": "public",
+      "outcome": "testOnlyExcluded"
+    },
+    {
+      "name": "OmenaQueryTransformModuleEvaluationOracleV0",
+      "originCrate": "omena-query-transform-runner",
+      "authoredClass": "c_tests_only",
+      "visibility": "public",
+      "outcome": "testOnlyExcluded"
+    },
+    {
+      "name": "OmenaQueryTransformPlanSummaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryTransformStrictPolicyEventV0",
+      "originCrate": "omena-query-transform-runner",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryTransformStrictPolicySummaryV0",
+      "originCrate": "omena-query-transform-runner",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaQueryUnifiedCrossFileSccReportV0",
+      "originCrate": "omena-cross-file-summary",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaSalsaDatabaseV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaSdkBuildResponseV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaSdkBuildVerificationEventV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaSdkBuildVerificationProfileV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "integrationConsumerRequired"
+    },
+    {
+      "name": "OmenaSdkBuildVerificationReasonV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "integrationConsumerRequired"
+    },
+    {
+      "name": "OmenaSdkBuildVerificationSummaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaSdkDiagnosticsDebugReportV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaSdkDiagnosticsResponseV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaSdkDiagnosticsSummaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaSdkExplainPositionV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "integrationConsumerRequired"
+    },
+    {
+      "name": "OmenaSdkExplainResponseV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaSdkQueryResponseV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "OmenaSdkResponsePartitionV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "integrationConsumerRequired"
+    },
+    {
+      "name": "OmenaSdkSnapshotResponseV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "integrationConsumerRequired"
+    },
+    {
+      "name": "PolynomialProvenanceV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "prefix_suffix_class_value",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "ProvenanceSemiringLawReportV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "read_css_modules_cross_file_resolution_compute_count_for_test",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "read_css_modules_import_edge_resolution_probe_for_test",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "read_module_interface_projection_probe_for_test",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "read_omena_query_cascade_at_position_analysis_result",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "read_omena_query_cascade_at_position_from_graph",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "read_sass_module_edge_resolution_probe_for_test",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "read_sass_module_resolution_internal_compute_count_for_test",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "read_workspace_cross_file_summary_internal_compute_count_for_test",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "recompute_cross_file_summary_raw_edge_kind_counts_v0",
+      "originCrate": "omena-cross-file-summary",
+      "authoredClass": "c_tests_only",
+      "visibility": "public",
+      "outcome": "testOnlyExcluded"
+    },
+    {
+      "name": "ReducedClassValueProductIterationV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "ReducedClassValueProductV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "RefinementPropertyPredicateV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "reset_css_modules_cross_file_resolution_compute_count_for_test",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "reset_css_modules_import_edge_resolution_probe_for_test",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "reset_module_interface_projection_probe_for_test",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "reset_sass_module_edge_resolution_probe_for_test",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "reset_sass_module_resolution_internal_compute_count_for_test",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "reset_workspace_cross_file_summary_internal_compute_count_for_test",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "resolve_committed_workspace_style_diagnostics_from_view_with_external_mode",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "resolve_committed_workspace_style_diagnostics_from_view_with_identity_index",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "resolve_omena_query_bridge_external_sifs_for_seed_pairs",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "resolve_omena_query_class_site_values_for_source",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "resolve_omena_query_class_site_values_for_source_with_type_facts",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "resolve_omena_query_selector_rename_edits",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "resolve_omena_query_style_uri_for_specifier",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "resolve_omena_query_style_uri_for_specifier_with_package_manifests",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "round_trip_omena_query_linear_provenance_labels",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "run_omena_query_bundle",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "run_omena_query_bundle_with_module_css_module_contexts_and_options",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "run_omena_query_bundle_with_module_css_module_contexts_for_style_sources_with_context_and_options",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "run_omena_query_bundle_with_module_reachability_and_options",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "run_omena_query_bundle_with_semantic_inputs",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "run_omena_query_bundle_with_semantic_inputs_and_options",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "run_omena_query_bundle_with_token_ownership_census_and_options",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "SassNamespaceBitsV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "SelectedQueryAdapterCapabilitiesV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "SelectedQueryBackendCapabilityV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "SelectedQueryRunnerCommandV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "SelectorProjectionCertaintyV0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "snapshot_from_graph_input",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_tests_only",
+      "visibility": "public",
+      "outcome": "testOnlyExcluded"
+    },
+    {
+      "name": "SourcePinV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "split_top_level_value_arguments",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "StyleEditDistanceCascadeMarginBridgeV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "StyleEditDistanceSummaryV0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_cascade_dimensional_refinement_bridge_v0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_context_indexed_cascade_value_family_v0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_cross_file_graph_delta_v0",
+      "originCrate": "omena-cross-file-summary",
+      "authoredClass": "c_tests_only",
+      "visibility": "public",
+      "outcome": "testOnlyExcluded"
+    },
+    {
+      "name": "summarize_html_standard_user_agent_sample_v0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_canonical_form",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_cascade_aware_style_diagnostics",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_cascade_origin_stylesheet_v0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_cascade_site_outcomes_from_source",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_categorical_design_system_cross_project_summary",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_consumer_build_source_map_v3",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_consumer_build_source_map_v3_with_resolution_inputs",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_core_abstract_value_domain",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_css_modules_interface_bundle",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_css_modules_local_composes_style_diagnostics",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_css_modules_resolution_style_diagnostics",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_custom_property_annotations",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_expression_domain_incremental_flow_analysis_result",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_tests_only",
+      "visibility": "public",
+      "outcome": "testOnlyExcluded"
+    },
+    {
+      "name": "summarize_omena_query_expression_domain_selector_projection_with_precision",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_tests_only",
+      "visibility": "public",
+      "outcome": "testOnlyExcluded"
+    },
+    {
+      "name": "summarize_omena_query_fast_facts",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_fragile_guarded_winner_v0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_fragment_bundle",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_linear_provenance",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_linear_provenance_semiring_laws",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_linear_provenance_with_support_count",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_missing_custom_property_diagnostics",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_missing_extend_target_diagnostics",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_missing_keyframes_diagnostics",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_missing_sass_symbol_diagnostics",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_missing_selector_diagnostic",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_module_interface_projection",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_native_css_evaluator_from_source",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_polynomial_provenance",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_refs_for_class",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_refs_for_workspace_class_with_resolution_inputs",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_registered_custom_property_computed_value_v0",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_rename_plan",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_rename_plan_for_workspace_class_with_resolution_inputs",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_sass_import_deprecation_hints",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_schema_version_policy",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_scss_evaluator_control_flow_from_source",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_source_binding_index",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_source_completion_for_workspace_file_with_resolution_inputs",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_source_diagnostics_for_workspace_file",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_source_diagnostics_for_workspace_file_with_context_depth",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index_and_context_depth",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_source_import_declarations",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_source_selector_occurrence_index",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_source_selector_reference_cross_file_summary",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_source_selector_reference_cross_file_summary_with_resolution_inputs",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_source_syntax_index",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_source_syntax_index_with_type_fact_attempts",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_static_lif_exports_from_source",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_static_stylesheet_evaluator_from_source",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_style_completion_candidate_documentation_for_workspace_file",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_style_completion_for_workspace_file",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_style_completion_for_workspace_file_with_resolution_inputs",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_style_diagnostics_for_file_with_local_composes",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_suppression_mode",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_style_edit_distance",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_style_edit_distance_cascade_margin_bridge",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_style_hover_render_parts",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_style_hover_render_parts_for_workspace_file",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_style_hover_render_parts_for_workspace_file_with_substrate",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_style_inline_code_actions_with_resolution_inputs",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_style_insights",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_style_refactor_code_actions",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_style_semantic_graph_batch_from_sources",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_style_semantic_graph_batch_from_sources_with_resolution_inputs",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_transform_plan_from_source",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_unified_cross_file_monotone_fact_propagation_hypergraph",
+      "originCrate": "omena-cross-file-summary",
+      "authoredClass": "c_tests_only",
+      "visibility": "public",
+      "outcome": "testOnlyExcluded"
+    },
+    {
+      "name": "summarize_omena_query_unified_cross_file_scc_report",
+      "originCrate": "omena-cross-file-summary",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "summarize_omena_query_unused_selector_style_diagnostics",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_omena_query_workspace_occurrence_index_from_source_occurrences",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "public",
+      "outcome": "warningFreeDeletionRequired"
+    },
+    {
+      "name": "summarize_polynomial_provenance_from_linear_v0",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "tabulate_hypergraph_ifds_summary_edges",
+      "originCrate": "omena-cross-file-summary",
+      "authoredClass": "c_tests_only",
+      "visibility": "public",
+      "outcome": "testOnlyExcluded"
+    },
+    {
+      "name": "tabulate_hypergraph_monotone_fact_propagation_summary_edges",
+      "originCrate": "omena-cross-file-summary",
+      "authoredClass": "c_tests_only",
+      "visibility": "public",
+      "outcome": "testOnlyExcluded"
+    },
+    {
+      "name": "TransformPrintArtifactV0",
+      "originCrate": "omena-query-transform-runner",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "validate_omena_query_closed_world_decision_parity",
+      "originCrate": "omena-query",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    },
+    {
+      "name": "verify_provenance_semiring_laws_on_fixtures",
+      "originCrate": "omena-query-core",
+      "authoredClass": "c_internal_only",
+      "visibility": "crate",
+      "outcome": "compiledCrateVisible"
+    }
+  ]
+}

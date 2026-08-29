@@ -34,19 +34,31 @@
     {
       "crate": "omena-query",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor removes a parse-reuse cache surface whose only non-test caller created a fresh cache for every call, and deprecates 115 unused query-facade re-exports while retaining two existing deprecations and three rename-map compatibility aliases for separate removal review.",
+      "reason": "The next pre-1.0 minor removes a parse-reuse cache surface whose only non-test caller created a fresh cache for every call, narrows 279 query-facade items to crate visibility, and deprecates 115 unused re-exports while retaining two existing deprecations and three rename-map compatibility aliases for separate removal review.",
       "expectedFailures": [
+        {
+          "lint": "enum_missing",
+          "evidenceNeedles": [
+            "enum omena_query::OmenaQueryStyleWorkspaceTransactionErrorV0, previously in file"
+          ]
+        },
         {
           "lint": "function_missing",
           "evidenceNeedles": [
-            "function omena_query::summarize_omena_query_style_frame_refresh_facts_with_reuse, previously in file"
+            "function omena_query::summarize_omena_query_style_frame_refresh_facts_with_reuse, previously in file",
+            "function omena_query::read_omena_query_cascade_at_position_from_graph, previously in file"
           ]
+        },
+        {
+          "lint": "pub_module_level_const_missing",
+          "evidenceNeedles": ["OMENA_BUNDLER_HOST_PROTOCOL_VERSION_V0 in file"]
         },
         {
           "lint": "struct_missing",
           "evidenceNeedles": [
             "struct omena_query::OmenaQueryStyleFrameRefreshParseCacheV0, previously in file",
-            "struct omena_query::OmenaQueryStyleFrameRefreshFactsV0, previously in file"
+            "struct omena_query::OmenaQueryStyleFrameRefreshFactsV0, previously in file",
+            "struct omena_query::OmenaSdkExplainResponseV0, previously in file"
           ]
         }
       ]
