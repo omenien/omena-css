@@ -979,6 +979,14 @@ source-map = true
     expect(state.cacheMetrics).toMatchObject({ hits: 1, misses: 2, bypasses: 0, builds: 2 });
   });
 
+  it("binds targetQuery before serving a cached target build", async () => {
+    await expectTargetIdentityChange("targetQuery", "chrome 60", "modern");
+  });
+
+  it("binds targetOptions before serving a cached target build", async () => {
+    await expectTargetIdentityChange("targetOptions", "preserve", "lower");
+  });
+
   it("keeps dynamic configuration dependencies on the fail-closed path", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-build-adapter-dynamic-config-"));
     tempRoots.push(root);
@@ -1014,6 +1022,66 @@ source-map = true
       buildSnapshotDigest: null,
       cacheBypassReason: "dynamicBuildConfigurationDependencies",
     });
+  });
+
+  it.each(["js", "mjs"])(
+    "keeps .%s configuration on the dynamic fail-closed path",
+    async (extension) => {
+      const root = fs.mkdtempSync(
+        path.join(os.tmpdir(), `omena-build-adapter-dynamic-${extension}-`),
+      );
+      tempRoots.push(root);
+      const stylePath = path.join(root, "App.css");
+      const configPath = path.join(root, `omena.config.${extension}`);
+      const source = ".button { color: red; }";
+      fs.writeFileSync(path.join(root, "package.json"), '{"type":"module"}\n');
+      fs.writeFileSync(configPath, "export default { build: { sourceMap: false } };\n");
+      let buildCount = 0;
+      const engine = {
+        buildSnapshotIdentity: buildSnapshotIdentityMock,
+        buildStyleSourcesWithContextJson: () => {
+          buildCount += 1;
+          return JSON.stringify({ execution: { outputCss: source } });
+        },
+      };
+      const explicitOptions = {
+        cwd: root,
+        configFile: configPath,
+        engine,
+        moduleInterface: false,
+      };
+      const state = createOmenaBuildState({ cwd: root });
+
+      for (let iteration = 0; iteration < 2; iteration += 1) {
+        const options = await resolveEffectiveOptions(explicitOptions, state);
+        await rebuildAndCache(stylePath, source, options, state);
+      }
+
+      expect(buildCount).toBe(2);
+      expect(state.cacheMetrics).toMatchObject({ hits: 0, misses: 0, bypasses: 2, builds: 2 });
+      expect(state.cache.get(stylePath) as CacheEntry | undefined).toMatchObject({
+        buildSnapshotDigest: null,
+        cacheBypassReason: "dynamicBuildConfigurationDependencies",
+      });
+    },
+  );
+
+  it("pins JavaScript and TypeScript dynamic config branches to fail closed", () => {
+    const adapterSource = fs.readFileSync(
+      path.join(process.cwd(), "packages/css-build-adapter/index.cjs"),
+      "utf8",
+    );
+    const javascriptBranch = adapterSource.match(
+      /if \(configPath\.endsWith\("\.js"\) \|\| configPath\.endsWith\("\.mjs"\)\) \{([\s\S]*?)\n  \}/u,
+    )?.[1];
+    const typeScriptBranch = adapterSource.match(
+      /if \(configPath\.endsWith\("\.ts"\)\) \{([\s\S]*?)\n  \}/u,
+    )?.[1];
+
+    for (const branch of [javascriptBranch, typeScriptBranch]) {
+      expect(branch).toContain("cacheable: false");
+      expect(branch).toContain('reason: "dynamicBuildConfigurationDependencies"');
+    }
   });
 
   it("rebuilds instead of serving a hopeful hit when the engine cannot seal an identity", async () => {
@@ -1057,4 +1125,53 @@ function deferred<T>() {
     reject = rejectPromise;
   });
   return { promise, resolve, reject };
+}
+
+async function expectTargetIdentityChange(
+  field: "targetQuery" | "targetOptions",
+  firstValue: string,
+  secondValue: string,
+) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), `omena-build-adapter-${field}-`));
+  tempRoots.push(root);
+  const stylePath = path.join(root, "App.css");
+  const source = ".button { color: red; }";
+  const builtValues: string[] = [];
+  const engine = {
+    buildSnapshotIdentity: buildSnapshotIdentityMock,
+    buildStyleSourcesWithContextJson: () => JSON.stringify({ execution: { outputCss: source } }),
+    buildStyleSourcesForTargetQueryWithContextJson: (
+      _targetPath: string,
+      _sourcesJson: string,
+      targetQuery: string,
+      targetOptionsJson: string,
+    ) => {
+      const value =
+        field === "targetQuery"
+          ? targetQuery
+          : (JSON.parse(targetOptionsJson) as { mode: string }).mode;
+      builtValues.push(value);
+      return JSON.stringify({ execution: { outputCss: `/* ${value} */${source}` } });
+    },
+  };
+  const state = createOmenaBuildState({ cwd: root });
+  const options = (value: string) => ({
+    cwd: root,
+    configFile: false,
+    engine,
+    moduleInterface: false,
+    sourceMap: false,
+    targetQuery: field === "targetQuery" ? value : "modern",
+    ...(field === "targetOptions" ? { targetOptions: { mode: value } } : {}),
+  });
+
+  const first = await rebuildAndCache(stylePath, source, options(firstValue), state);
+  const second = await rebuildAndCache(stylePath, source, options(secondValue), state);
+  const unchanged = await rebuildAndCache(stylePath, source, options(secondValue), state);
+
+  expect(first.code).toContain(firstValue);
+  expect(second.code).toContain(secondValue);
+  expect(unchanged.code).toBe(second.code);
+  expect(builtValues).toEqual([firstValue, secondValue]);
+  expect(state.cacheMetrics).toMatchObject({ hits: 1, misses: 2, bypasses: 0, builds: 2 });
 }
