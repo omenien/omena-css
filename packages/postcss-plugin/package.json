@@ -18,7 +18,7 @@
     "postcss": "^8.5.0"
   },
   "optionalDependencies": {
-    "@omena/napi": "^0.2.1",
-    "@omena/wasm": "^0.3.0"
+    "@omena/napi": "^0.4.0",
+    "@omena/wasm": "^0.4.0"
   }
 }
