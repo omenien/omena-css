@@ -77,7 +77,7 @@ if (writeSnapshot) {
 }
 
 const wildcardReexports = scanWildcardReexports();
-assertWildcardReexportScanIsNonVacuous(wildcardReexports);
+assertWildcardReexportScannerIsSensitive();
 if (writeSnapshot) {
   mkdirSync(path.dirname(wildcardBaselinePath), { recursive: true });
   writeFileSync(
@@ -103,7 +103,7 @@ if (writeSnapshot) {
     throw new Error(
       "omena-query wildcard re-export count changed without updating the baseline.\n" +
         `Expected ${expected.wildcardReexportCount}, got ${wildcardReexports.total}.\n` +
-        "If this decrease is intentional, run " +
+        "If this change is intentional, run " +
         "`pnpm run update:rust-omena-query-public-surface` in the same change that removes the wildcard.",
     );
   }
@@ -239,13 +239,10 @@ function scanWildcardReexports(): {
     .filter((relativePath) => relativePath !== "tests.rs")
     .filter((relativePath) => !relativePath.startsWith("tests/"))
     .sort();
-  const wildcardReexportPattern = /^\s*pub\s+use\s+[A-Za-z_][A-Za-z0-9_:]*::\*\s*;/gmu;
   const countedFiles = files
     .map((relativePath) => {
       const absolutePath = path.join(srcRoot, relativePath);
-      const count = Array.from(
-        readFileSync(absolutePath, "utf8").matchAll(wildcardReexportPattern),
-      ).length;
+      const count = countWildcardReexports(readFileSync(absolutePath, "utf8"));
       return { path: `rust/crates/omena-query/src/${relativePath}`, count };
     })
     .filter((entry) => entry.count > 0);
@@ -267,18 +264,17 @@ function listRustSourceFiles(root: string): readonly string[] {
   });
 }
 
-function assertWildcardReexportScanIsNonVacuous(wildcardReexports: {
-  readonly total: number;
-  readonly files: readonly { readonly path: string; readonly count: number }[];
-}): void {
-  if (wildcardReexports.total === 0) {
-    throw new Error("omena-query wildcard re-export scan found no occurrences");
-  }
-  if (
-    !wildcardReexports.files.some((entry) => entry.path === "rust/crates/omena-query/src/style.rs")
-  ) {
+function countWildcardReexports(source: string): number {
+  return Array.from(source.matchAll(/^\s*pub\s+use\s+[A-Za-z_][A-Za-z0-9_:]*::\*\s*;/gmu)).length;
+}
+
+function assertWildcardReexportScannerIsSensitive(): void {
+  const fixturePath = path.join(repoRoot, "scripts/fixtures/rust-wildcard-reexports.rs");
+  const observed = countWildcardReexports(readFileSync(fixturePath, "utf8"));
+  const expected = 2;
+  if (observed !== expected) {
     throw new Error(
-      "omena-query wildcard re-export scan did not find the expected style.rs occurrences",
+      `omena-query wildcard re-export scanner selftest expected ${expected}, got ${observed}`,
     );
   }
 }
