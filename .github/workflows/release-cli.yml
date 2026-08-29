@@ -133,6 +133,8 @@ jobs:
       - name: Render canonical release notes
         if: github.event_name != 'workflow_dispatch'
         run: pnpm omena-check run release/release/notes -- --tag "${{ steps.tag.outputs.tag }}" --changelog --output release-notes.md
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Export existing GitHub Release notes
         if: github.event_name == 'workflow_dispatch'
         run: pnpm omena-check run release/release/notes -- export-github --tag "${{ steps.tag.outputs.tag }}" --output release-notes.md

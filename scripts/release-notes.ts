@@ -220,6 +220,11 @@ function checkCommand(args: readonly string[]): void {
     ([relativePath]) => relativePath === ".github/workflows/release-cli.yml",
   )?.[1];
   assert.ok(cliWorkflow);
+  const cliChangelogStep = namedWorkflowStep(cliWorkflow, "Render canonical release notes");
+  assert.ok(
+    cliChangelogStep.source.includes("GH_TOKEN: ${{ github.token }}"),
+    "release-cli changelog rendering must authenticate its gh compare request",
+  );
   const cliBuildJob = cliWorkflow.slice(
     cliWorkflow.indexOf("  build:"),
     cliWorkflow.indexOf("  release:"),
@@ -233,6 +238,38 @@ function checkCommand(args: readonly string[]): void {
     cliReleaseJob.includes("github.event.repository.default_branch") &&
       cliReleaseJob.includes("export-github"),
     "historical CLI rebuilds must use current tooling and preserve the existing release body",
+  );
+  const crateWorkflow = workflows.find(
+    ([relativePath]) => relativePath === ".github/workflows/_publish-crate-train.yml",
+  )?.[1];
+  assert.ok(crateWorkflow);
+  const crateChangelogStep = namedWorkflowStep(crateWorkflow, "Render canonical release notes");
+  assert.ok(
+    crateChangelogStep.source.includes("GH_TOKEN: ${{ github.token }}"),
+    "crate-train changelog rendering must authenticate its gh compare request",
+  );
+  assert.equal(
+    occurrences(crateWorkflow, "ref: ${{ inputs.tag || github.ref }}"),
+    2,
+    "crate-train recovery must checkout the requested immutable tag in both release jobs",
+  );
+  const crateIntegrityJob = yamlJobSource(crateWorkflow, "release-integrity");
+  const cratePublishJob = yamlJobSource(crateWorkflow, "publish");
+  for (const [scope, source] of [
+    ["release-integrity", crateIntegrityJob],
+    ["publish", cratePublishJob],
+  ] as const) {
+    const sourceGuard = namedWorkflowStep(source, "Verify immutable release source");
+    assert.ok(
+      sourceGuard.source.includes("git show-ref --verify --quiet") &&
+        sourceGuard.source.includes('git rev-parse "${tag_ref}^{commit}"') &&
+        sourceGuard.source.includes('if [ "${source_sha}" != "${tag_sha}" ]; then'),
+      `crate-train ${scope} must fail closed when the checkout differs from the requested tag`,
+    );
+  }
+  assert.ok(
+    cratePublishJob.includes("target_commitish: ${{ steps.source.outputs.sha }}"),
+    "crate-train recovery must bind the GitHub Release to the verified tag commit",
   );
   const directPublisher = readFileSync(path.join(repoRoot, "scripts/publish-extension.sh"), "utf8");
   assert.ok(
@@ -472,7 +509,46 @@ function assertProvenanceSourceGuard(input: ProvenanceGuardCheckInput): Provenan
 }
 
 function workflowSourceForCheck(relativePath: string, args: readonly string[]): string {
-  const source = readFileSync(path.join(repoRoot, relativePath), "utf8");
+  let source = readFileSync(path.join(repoRoot, relativePath), "utf8");
+  const releaseMutationFlags = [
+    "--inject-cli-changelog-token-deletion",
+    "--inject-crate-changelog-token-deletion",
+    "--inject-crate-recovery-source-bypass",
+  ].filter((flag) => args.includes(flag));
+  assert.ok(releaseMutationFlags.length <= 1, "select at most one release workflow mutation");
+  const [releaseMutation] = releaseMutationFlags;
+  if (
+    releaseMutation === "--inject-cli-changelog-token-deletion" &&
+    relativePath === ".github/workflows/release-cli.yml"
+  ) {
+    source = deleteStepLine(
+      source,
+      "Render canonical release notes",
+      "GH_TOKEN: ${{ github.token }}",
+    );
+  }
+  if (
+    releaseMutation === "--inject-crate-changelog-token-deletion" &&
+    relativePath === ".github/workflows/_publish-crate-train.yml"
+  ) {
+    source = deleteStepLine(
+      source,
+      "Render canonical release notes",
+      "GH_TOKEN: ${{ github.token }}",
+    );
+  }
+  if (
+    releaseMutation === "--inject-crate-recovery-source-bypass" &&
+    relativePath === ".github/workflows/_publish-crate-train.yml"
+  ) {
+    const requestedTagCheckout = "ref: ${{ inputs.tag || github.ref }}";
+    assert.equal(
+      occurrences(source, requestedTagCheckout),
+      2,
+      "crate recovery source-bypass mutation target count changed",
+    );
+    source = source.replaceAll(requestedTagCheckout, "ref: ${{ github.ref }}");
+  }
   if (relativePath !== ".github/workflows/publish-extension.yml") return source;
   const mutationFlags = [
     "--inject-provenance-guard-deletion",
@@ -502,6 +578,14 @@ function workflowSourceForCheck(relativePath: string, args: readonly string[]): 
   assert.ok(exitIndex >= 0, "provenance exit mutation target is absent");
   const mutated = `${step.source.slice(0, exitIndex)}exit 0${step.source.slice(exitIndex + 6)}`;
   return source.slice(0, step.start) + mutated + source.slice(step.end);
+}
+
+function deleteStepLine(source: string, stepName: string, line: string): string {
+  const step = namedWorkflowStep(source, stepName);
+  const lineWithIndent = step.source.split("\n").find((candidate) => candidate.trim() === line);
+  assert.ok(lineWithIndent, `${stepName} mutation target is absent: ${line}`);
+  const mutatedStep = step.source.replace(`${lineWithIndent}\n`, "");
+  return source.slice(0, step.start) + mutatedStep + source.slice(step.end);
 }
 
 function namedWorkflowStep(
