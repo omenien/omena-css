@@ -18,13 +18,12 @@ use omena_parser::{
 };
 use omena_query::{
     ClassExpressionInputV2, EngineInputV2, OmenaQueryBundleEmissionPathV0,
-    OmenaQueryBundleExecutionScopeResultV0, OmenaQueryBundlePlanInputV0,
-    OmenaQueryConsumerBuildOptionsV0, OmenaQueryEngineInputModuleReachabilityV0,
-    OmenaQueryModuleReachabilityAttributionReportV0, OmenaQueryStylePackageManifestV0,
-    OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
-    OmenaQueryTransformExecutionContextV0, OmenaQueryTsconfigPathMappingV0, PositionV2, RangeV2,
-    SourceAnalysisInputV2, SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2,
-    StyleDocumentV2, StyleSelectorV2, TypeFactEntryV2,
+    OmenaQueryBundlePlanInputV0, OmenaQueryConsumerBuildOptionsV0,
+    OmenaQueryEngineInputModuleReachabilityV0, OmenaQueryModuleReachabilityAttributionReportV0,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryStyleSourceInputV0, OmenaQueryTransformExecutionContextV0,
+    OmenaQueryTsconfigPathMappingV0, PositionV2, RangeV2, SourceAnalysisInputV2, SourceDocumentV2,
+    StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2, StyleSelectorV2, TypeFactEntryV2,
     compare_omena_query_transform_css_semantics_v0,
     derive_omena_query_module_reachability_from_engine_input,
     run_omena_query_bundle_with_execution_scope_evidence_and_options,
@@ -1442,27 +1441,13 @@ fn resolved_dependencies_for_fixture_v0(
 
 fn validate_coverage_shape_execution_v0(
     fixture: &LinkedEmissionFixtureV0,
-    linked: &OmenaQueryBundleExecutionScopeResultV0,
+    module_instances: &[(String, String)],
+    code_split_outputs: &[(String, String, Vec<String>)],
 ) -> Result<(), String> {
-    let module_instances = linked
-        .execution_scope
-        .as_ref()
-        .map(|scope| {
-            scope
-                .bundle_execution
-                .module_executions
-                .iter()
-                .map(|module| module.module_instance.clone())
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
     match fixture.id.as_str() {
         "package-export-import-resolution" => {
             let target = "node_modules/@acme/theme/dist/tokens.css";
-            if !module_instances
-                .iter()
-                .any(|instance| instance.module().as_str() == target)
-            {
+            if !module_instances.iter().any(|(module, _)| module == target) {
                 // FALSIFIER: id=linked-emission-package-export-execution class=accounting via=DropCoverageShapeFixture producer=can-fail owner=linked-emission-instrument entry=package-export-target-executed
                 return Err(format!(
                     "package-export linked fixture did not execute resolved target {target}"
@@ -1471,10 +1456,7 @@ fn validate_coverage_shape_execution_v0(
         }
         "tsconfig-path-alias-import-resolution" => {
             let target = "/workspace/src/styles/tokens.css";
-            if !module_instances
-                .iter()
-                .any(|instance| instance.module().as_str() == target)
-            {
+            if !module_instances.iter().any(|(module, _)| module == target) {
                 // FALSIFIER: id=linked-emission-tsconfig-execution class=accounting via=DropCoverageShapeFixture producer=can-fail owner=linked-emission-instrument entry=tsconfig-target-executed
                 return Err(format!(
                     "tsconfig-alias linked fixture did not execute resolved target {target}"
@@ -1484,10 +1466,8 @@ fn validate_coverage_shape_execution_v0(
         "configured-sass-module-instances" => {
             let configurations = module_instances
                 .iter()
-                .filter(|instance| {
-                    instance.module().as_str() == "linked-byte/configured-sass/theme.scss"
-                })
-                .map(|instance| instance.configuration().as_str())
+                .filter(|(module, _)| module == "linked-byte/configured-sass/theme.scss")
+                .map(|(_, configuration)| configuration.as_str())
                 .collect::<BTreeSet<_>>();
             let expected = BTreeSet::from(["with|5:brand=3:red", "with|5:brand=4:blue"]);
             if configurations != expected {
@@ -1498,45 +1478,29 @@ fn validate_coverage_shape_execution_v0(
             }
         }
         "code-split-entry-closure" => {
-            let observed = linked
-                .bundle_result
-                .artifact
-                .code_split_outputs
-                .iter()
-                .map(|output| {
-                    (
-                        output.source_path.as_str(),
-                        output.split_boundary,
-                        output
-                            .reachable_from_entries
-                            .iter()
-                            .map(String::as_str)
-                            .collect::<Vec<_>>(),
-                    )
-                })
-                .collect::<BTreeSet<_>>();
+            let observed = code_split_outputs.iter().cloned().collect::<BTreeSet<_>>();
             let expected = BTreeSet::from([
                 (
-                    "linked-byte/code-split/admin-only.css",
-                    "styleDependency",
-                    vec!["linked-byte/code-split/admin.css"],
+                    "linked-byte/code-split/admin-only.css".to_string(),
+                    "styleDependency".to_string(),
+                    vec!["linked-byte/code-split/admin.css".to_string()],
                 ),
                 (
-                    "linked-byte/code-split/admin.css",
-                    "entryConfig",
-                    vec!["linked-byte/code-split/admin.css"],
+                    "linked-byte/code-split/admin.css".to_string(),
+                    "entryConfig".to_string(),
+                    vec!["linked-byte/code-split/admin.css".to_string()],
                 ),
                 (
-                    "linked-byte/code-split/app.css",
-                    "entry",
-                    vec!["linked-byte/code-split/app.css"],
+                    "linked-byte/code-split/app.css".to_string(),
+                    "entry".to_string(),
+                    vec!["linked-byte/code-split/app.css".to_string()],
                 ),
                 (
-                    "linked-byte/code-split/shared.css",
-                    "shared",
+                    "linked-byte/code-split/shared.css".to_string(),
+                    "shared".to_string(),
                     vec![
-                        "linked-byte/code-split/admin.css",
-                        "linked-byte/code-split/app.css",
+                        "linked-byte/code-split/admin.css".to_string(),
+                        "linked-byte/code-split/app.css".to_string(),
                     ],
                 ),
             ]);
@@ -1661,7 +1625,41 @@ fn analyze_linked_emission_fixture_v0(
         OmenaQueryBundleEmissionPathV0::LinkedOrder,
         &resolution_inputs,
     )?;
-    validate_coverage_shape_execution_v0(fixture, &linked)?;
+    let linked_module_instances = linked
+        .execution_scope
+        .as_ref()
+        .map(|scope| {
+            scope
+                .bundle_execution
+                .module_executions
+                .iter()
+                .map(|module| {
+                    (
+                        module.module_instance.module().as_str().to_string(),
+                        module.module_instance.configuration().as_str().to_string(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let linked_code_split_outputs = linked
+        .bundle_result
+        .artifact
+        .code_split_outputs
+        .iter()
+        .map(|output| {
+            (
+                output.source_path.clone(),
+                output.split_boundary.to_string(),
+                output.reachable_from_entries.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    validate_coverage_shape_execution_v0(
+        fixture,
+        &linked_module_instances,
+        &linked_code_split_outputs,
+    )?;
     if matches!(
         fixture.id.as_str(),
         "package-export-import-resolution" | "tsconfig-path-alias-import-resolution"
