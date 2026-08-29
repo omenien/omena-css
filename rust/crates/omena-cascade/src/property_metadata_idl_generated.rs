@@ -108,7 +108,7 @@ pub const CSS_PROPERTY_METADATA_V1: CssPropertyMetadataStaticV1 = CssPropertyMet
     product: "omena-cascade.property-metadata",
     source: CssPropertyMetadataSourceStaticV1 {
         package: "@webref/css",
-        version: "8.7.2",
+        version: "8.7.3",
         source_path: "rust/crates/omena-spec-audit/data/webref-grammar.json",
         tool: "scripts/generate-engine-v2-contract-idl.ts",
     },
