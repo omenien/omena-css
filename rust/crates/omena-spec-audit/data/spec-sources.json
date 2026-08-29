@@ -1,10 +1,10 @@
 {
   "schemaVersion": "0",
   "product": "omena-spec-audit.source-pins",
-  "refreshedAt": "2026-08-27",
+  "refreshedAt": "2026-08-30",
   "refreshPolicy": {
     "maxAgeDays": 30,
-    "nextReviewDueAt": "2026-09-26"
+    "nextReviewDueAt": "2026-09-29"
   },
   "generatedDataReviewGate": {
     "humanReviewRequired": true,
@@ -16,9 +16,9 @@
     {
       "name": "webref-css",
       "package": "@webref/css",
-      "version": "8.7.1",
-      "gitHead": "d3c8b8167e3d550525f84b823b5e99e726c37369",
-      "tarball": "https://registry.npmjs.org/@webref/css/-/css-8.7.1.tgz",
+      "version": "8.7.3",
+      "gitHead": "48cc619e954aeae12ac70b6f34fe56056a297d92",
+      "tarball": "https://registry.npmjs.org/@webref/css/-/css-8.7.3.tgz",
       "declaredVersionSource": "package.json#devDependencies.@webref/css",
       "role": "primary-css-idl-and-dfn-source"
     },
@@ -34,18 +34,18 @@
     {
       "name": "web-features",
       "package": "web-features",
-      "version": "3.34.3",
-      "gitHead": "5fdfcb97677574752b4282298fa4684df134d9c3",
-      "tarball": "https://registry.npmjs.org/web-features/-/web-features-3.34.3.tgz",
+      "version": "3.35.1",
+      "gitHead": "7a18cb476688e853b3e82938a33782497ec89a0c",
+      "tarball": "https://registry.npmjs.org/web-features/-/web-features-3.35.1.tgz",
       "declaredVersionSource": "package.json#devDependencies.web-features",
       "role": "baseline-and-feature-group-source"
     },
     {
       "name": "mdn-browser-compat-data",
       "package": "@mdn/browser-compat-data",
-      "version": "8.0.11",
-      "gitHead": "7dba436cc3a90fe05c94a449c24b8b9fc744a1fe",
-      "tarball": "https://registry.npmjs.org/@mdn/browser-compat-data/-/browser-compat-data-8.0.11.tgz",
+      "version": "8.0.12",
+      "gitHead": "83ae7d8d53baa7229235a327144ff2c009ae0b73",
+      "tarball": "https://registry.npmjs.org/@mdn/browser-compat-data/-/browser-compat-data-8.0.12.tgz",
       "declaredVersionSource": "package.json#devDependencies.@mdn/browser-compat-data",
       "role": "compat-fallback-source"
     },
