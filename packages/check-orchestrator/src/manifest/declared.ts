@@ -24,6 +24,16 @@ const VALID_CI_TIERS = new Set<CheckCiTier>([
 
 export const DECLARED_CHECK_GATES = [
   {
+    id: "rust/benchmark/parser-edit-slope",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "check:rust-benchmark-parser-edit-slope",
+    ciTier: "scheduled",
+    ciGroup: "benchmark-regression",
+    tags: ["benchmark", "parser", "edit-slope", "scheduled"],
+    timeoutMinutes: 30,
+  },
+  {
     id: "rust/omena-abstract-value/split-boundary",
     kind: "bundle",
     scope: "rust",

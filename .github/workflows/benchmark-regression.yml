@@ -89,6 +89,42 @@ jobs:
           job-name: instruction-count-advisory
           run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
+  parser-edit-slope:
+    # omena-ci-tier: scheduled
+    permissions:
+      contents: read
+      issues: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
+      - name: Run parser edit slope gate
+        run: pnpm omena-check run rust/benchmark/parser-edit-slope
+        env:
+          OMENA_PARSER_EDIT_SLOPE_REPORT: benchmark-artifacts/parser-edit-slope-report-v0.json
+      - name: Require parser edit slope artifact
+        run: test -s benchmark-artifacts/parser-edit-slope-report-v0.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: parser-edit-slope
+          path: benchmark-artifacts/parser-edit-slope-report-v0.json
+          if-no-files-found: error
+      - name: Escalate scheduled failure
+        if: ${{ failure() }}
+        uses: ./.github/actions/escalate-ci-failure
+        with:
+          title: "CI failure: benchmark-regression / parser-edit-slope"
+          body: |
+            The scheduled parser edit slope lane failed.
+          workflow-name: Benchmark Regression
+          job-name: parser-edit-slope
+          run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   wpt-case-count-advisory:
     # omena-ci-tier: scheduled
     permissions:

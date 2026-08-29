@@ -21,6 +21,7 @@ const REQUIRED_BENCHMARK_GATES = [
   "rust/benchmark/emitted-css-golden-gate",
   "rust/benchmark/headline-axis",
   "rust/benchmark/instruction-count-advisory",
+  "rust/benchmark/parser-edit-slope",
   "rust/benchmark/transform-relex-baseline",
   "rust/omena-diff-test-wpt-perf",
   "rust/omena-diff-test-wpt-perf-record",
@@ -156,6 +157,23 @@ assert.ok(
 );
 
 const benchmarkRegression = read(".github/workflows/benchmark-regression.yml");
+assert.ok(
+  benchmarkRegression.includes("pnpm omena-check run rust/benchmark/parser-edit-slope"),
+  "benchmark regression must hard-run the parser edit slope gate",
+);
+const parserEditJobStart = benchmarkRegression.indexOf("  parser-edit-slope:");
+const parserEditJobEnd = benchmarkRegression.indexOf(
+  "\n  wpt-case-count-advisory:",
+  parserEditJobStart,
+);
+assert.ok(parserEditJobStart >= 0 && parserEditJobEnd > parserEditJobStart);
+const parserEditJob = benchmarkRegression.slice(parserEditJobStart, parserEditJobEnd);
+assert.ok(
+  parserEditJob.includes("# omena-ci-tier: scheduled") &&
+    parserEditJob.includes("escalate-ci-failure") &&
+    parserEditJob.includes("parser-edit-slope-report-v0.json"),
+  "parser edit slope must stay scheduled, escalated, and artifact-producing",
+);
 const wptPolicyIndex = benchmarkRegression.indexOf(
   "pnpm omena-check run rust/omena-diff-test-wpt-perf",
 );

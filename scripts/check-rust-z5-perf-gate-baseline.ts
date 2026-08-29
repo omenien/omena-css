@@ -4,6 +4,12 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { runParserEditSlopeGate } from "./lib/parser-edit-slope-gate";
+
+if (process.argv.includes("--parser-edit-slope")) {
+  runParserEditSlopeGate();
+  process.exit(0);
+}
 
 type PerfGateLane =
   | "cold-open-n"
