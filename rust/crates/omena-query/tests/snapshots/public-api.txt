@@ -458,7 +458,6 @@ pub fn omena_query::summarize_omena_query_style_document(&str, &str) -> core::op
 pub fn omena_query::summarize_omena_query_style_edit_distance(&str, &str, &str, &str) -> omena_query::StyleEditDistanceSummaryV0
 pub fn omena_query::summarize_omena_query_style_edit_distance_cascade_margin_bridge(&omena_query::StyleEditDistanceSummaryV0, &omena_cascade::model::CascadeMarginV0) -> omena_query::StyleEditDistanceCascadeMarginBridgeV0
 pub fn omena_query::summarize_omena_query_style_extract_code_actions(&str, &str, omena_parser::spans::ParserRangeV0) -> omena_query::OmenaQueryCodeActionPlanV0
-pub fn omena_query::summarize_omena_query_style_frame_refresh_facts_with_reuse(&str, omena_syntax::StyleDialect, &mut omena_query::OmenaQueryStyleFrameRefreshParseCacheV0) -> omena_query::OmenaQueryStyleFrameRefreshFactsV0
 pub fn omena_query::summarize_omena_query_style_hover_candidates(&str, &str) -> core::option::Option<omena_query::OmenaQueryStyleHoverCandidatesV0>
 pub fn omena_query::summarize_omena_query_style_hover_render_parts(&str, &str, &str, omena_parser::spans::ParserPositionV0) -> omena_query::OmenaQueryStyleHoverRenderPartsV0
 pub fn omena_query::summarize_omena_query_style_hover_render_parts_for_hover_position(&str, &str, &str, omena_parser::spans::ParserPositionV0) -> omena_query::OmenaQueryStyleHoverRenderPartsV0
@@ -2026,9 +2025,6 @@ pub omena_query::OmenaQueryStyleDocumentSummaryV0::sass_module_forward_sources: 
 pub omena_query::OmenaQueryStyleDocumentSummaryV0::sass_module_use_sources: alloc::vec::Vec<alloc::string::String>
 pub omena_query::OmenaQueryStyleDocumentSummaryV0::schema_version: &'static str
 pub omena_query::OmenaQueryStyleDocumentSummaryV0::selector_names: alloc::vec::Vec<alloc::string::String>
-pub omena_query::OmenaQueryStyleFrameRefreshFactsV0::dependency_ids: alloc::vec::Vec<alloc::string::String>
-pub omena_query::OmenaQueryStyleFrameRefreshFactsV0::error_count: usize
-pub omena_query::OmenaQueryStyleFrameRefreshFactsV0::token_count: usize
 pub omena_query::OmenaQueryStyleHoverCandidateV0::kind: &'static str
 pub omena_query::OmenaQueryStyleHoverCandidateV0::name: omena_syntax::ident::AuthoredPropertyTextV0
 pub omena_query::OmenaQueryStyleHoverCandidateV0::namespace: core::option::Option<alloc::string::String>
@@ -2532,8 +2528,6 @@ pub struct omena_query::OmenaQueryStyleContextIndexV0
 pub struct omena_query::OmenaQueryStyleDiagnosticV0
 pub struct omena_query::OmenaQueryStyleDiagnosticsForFileV0
 pub struct omena_query::OmenaQueryStyleDocumentSummaryV0
-pub struct omena_query::OmenaQueryStyleFrameRefreshFactsV0
-pub struct omena_query::OmenaQueryStyleFrameRefreshParseCacheV0
 pub struct omena_query::OmenaQueryStyleHoverCandidateV0
 pub struct omena_query::OmenaQueryStyleHoverCandidatesV0
 pub struct omena_query::OmenaQueryStyleHoverRenderPartsV0

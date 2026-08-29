@@ -1213,6 +1213,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "closure-fast",
   },
   {
+    id: "rust/frame-refresh-runtime-disposition",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/frame-refresh-runtime-disposition",
+    tags: ["closure-fast", "lsp", "incremental", "semver"],
+    ciTier: "closure-fast",
+    ciGroup: "closure-fast",
+  },
+  {
     id: "rust/omena-query/linker-input-walk-authority",
     kind: "gate",
     scope: "rust",

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-lsp-server.frame-refresh-runtime-disposition",
+  "disposition": "retired",
+  "retiredRuntime": "FrameAwareRefreshRuntimeV0",
+  "retiredPublicCache": "OmenaQueryStyleFrameRefreshParseCacheV0",
+  "reason": "The runtime was constructed only by an unregistered test, while the sole non-test public-cache caller created a fresh cache for every call.",
+  "preservedGate": "check:rust-m4-alpha-frame-refresh-latency",
+  "preservedGateMeasurement": "frame-selection work reduction",
+  "liveCliParsePath": "summarize_omena_query_omena_parser_style_facts",
+  "dirtinessAfterParseDisposition": "retired with the unowned runtime before it reached a product request path"
+}

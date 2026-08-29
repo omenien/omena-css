@@ -1,16 +1,5 @@
-use std::collections::BTreeMap;
-
 use omena_cascade::{
     DiagnosticFrameFootprintV0, RecheckSelectionV0, compute_edit_footprint, select_recheck_set,
-};
-use omena_incremental::{
-    IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
-    OmenaIncrementalDatabaseV0,
-};
-use omena_query::{
-    OmenaParserStyleDialect, OmenaQueryStyleFrameRefreshFactsV0,
-    OmenaQueryStyleFrameRefreshParseCacheV0,
-    summarize_omena_query_style_frame_refresh_facts_with_reuse,
 };
 use serde::Serialize;
 
@@ -45,97 +34,6 @@ pub struct FrameAwareRefreshComparisonV0 {
     pub feature_gate: &'static str,
     pub disable_gate: &'static str,
     pub layer_marker: &'static str,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FrameAwareStyleModuleInputV0 {
-    pub module_id: String,
-    pub source: String,
-    pub dialect: OmenaParserStyleDialect,
-}
-
-#[derive(Default)]
-pub struct FrameAwareRefreshRuntimeV0 {
-    revision: u64,
-    incremental_database: OmenaIncrementalDatabaseV0,
-    parse_caches_by_module_id: BTreeMap<String, OmenaQueryStyleFrameRefreshParseCacheV0>,
-}
-
-impl FrameAwareRefreshRuntimeV0 {
-    pub fn refresh_diagnostics_with_style_modules_policy(
-        &mut self,
-        frames: &[DiagnosticFrameFootprintV0],
-        modules: &[FrameAwareStyleModuleInputV0],
-        selective_refresh_enabled: bool,
-    ) -> FrameAwareRefreshReportV0 {
-        let graph = self.frame_refresh_graph_input(modules);
-        let update = self
-            .incremental_database
-            .plan_and_upsert_graph_input(&graph);
-        let dirty_module_ids = update
-            .incremental_plan
-            .nodes
-            .iter()
-            .filter(|node| node.dirty)
-            .map(|node| node.id.clone())
-            .collect::<Vec<_>>();
-        let edited_module_count = dirty_module_ids.len();
-        let selection = if selective_refresh_enabled {
-            select_recheck_set_for_module_ids(frames, dirty_module_ids)
-        } else {
-            select_recheck_set_for_module_ids(frames, frames_to_module_ids(frames))
-        };
-
-        FrameAwareRefreshReportV0 {
-            schema_version: "0",
-            product: "omena-lsp-server.frame-aware-refresh",
-            feature_gate: "OMENA_LSP_ENABLE_FRAME_AWARE_REFRESH",
-            selective_refresh_enabled,
-            edited_module_count,
-            selected_diagnostic_instance_ids: selection.selected_diagnostic_instance_ids,
-            skipped_diagnostic_instance_ids: selection.skipped_diagnostic_instance_ids,
-            layer_marker: "frame-rule",
-        }
-    }
-
-    fn frame_refresh_graph_input(
-        &mut self,
-        modules: &[FrameAwareStyleModuleInputV0],
-    ) -> IncrementalGraphInputV0 {
-        self.revision = self.revision.saturating_add(1);
-        IncrementalGraphInputV0 {
-            revision: IncrementalRevisionV0 {
-                value: self.revision,
-            },
-            nodes: modules
-                .iter()
-                .map(|module| self.frame_refresh_node_input(module))
-                .collect(),
-        }
-    }
-
-    fn frame_refresh_node_input(
-        &mut self,
-        module: &FrameAwareStyleModuleInputV0,
-    ) -> IncrementalNodeInputV0 {
-        let cache = self
-            .parse_caches_by_module_id
-            .entry(module.module_id.clone())
-            .or_default();
-        let facts = summarize_omena_query_style_frame_refresh_facts_with_reuse(
-            module.source.as_str(),
-            module.dialect,
-            cache,
-        );
-        let dependency_ids = facts.dependency_ids.clone();
-        let digest = frame_refresh_digest(module, &facts);
-
-        IncrementalNodeInputV0 {
-            id: module.module_id.clone(),
-            digest,
-            dependency_ids,
-        }
-    }
 }
 
 pub fn refresh_diagnostics_with_frame(
@@ -219,31 +117,6 @@ fn select_recheck_set_for_module_ids(
 ) -> RecheckSelectionV0 {
     let footprint = compute_edit_footprint(module_ids);
     select_recheck_set(frames, &footprint)
-}
-
-fn frame_refresh_digest(
-    module: &FrameAwareStyleModuleInputV0,
-    facts: &OmenaQueryStyleFrameRefreshFactsV0,
-) -> String {
-    frame_refresh_stable_hash_hex(
-        format!(
-            "source={};tokens={};errors={};deps={}",
-            module.source,
-            facts.token_count,
-            facts.error_count,
-            facts.dependency_ids.join(",")
-        )
-        .as_bytes(),
-    )
-}
-
-fn frame_refresh_stable_hash_hex(bytes: &[u8]) -> String {
-    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
-    for byte in bytes {
-        hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    format!("{hash:016x}")
 }
 
 fn frame_aware_refresh_enabled_from_env() -> bool {
@@ -340,59 +213,5 @@ mod tests {
         assert_eq!(report.selective_selected_count, 1);
         assert_eq!(report.skipped_diagnostic_count, 99);
         assert!(report.selected_work_reduction_ratio >= 0.99);
-    }
-
-    #[test]
-    fn runtime_refresh_uses_parser_facts_and_salsa_dirty_dependencies() {
-        let mut runtime = FrameAwareRefreshRuntimeV0::default();
-        let frames = vec![
-            derive_frame_for_diagnostic(
-                "missing-static-class",
-                "a-diagnostic",
-                vec!["a".to_string()],
-            ),
-            derive_frame_for_diagnostic(
-                "missing-static-class",
-                "b-diagnostic",
-                vec!["b".to_string()],
-            ),
-        ];
-        let initial = vec![
-            FrameAwareStyleModuleInputV0 {
-                module_id: "a".to_string(),
-                source: ".a { color: red; }".to_string(),
-                dialect: OmenaParserStyleDialect::Scss,
-            },
-            FrameAwareStyleModuleInputV0 {
-                module_id: "b".to_string(),
-                source: "@use \"a\"; .b { color: blue; }".to_string(),
-                dialect: OmenaParserStyleDialect::Scss,
-            },
-        ];
-        let first = runtime.refresh_diagnostics_with_style_modules_policy(&frames, &initial, true);
-        assert_eq!(
-            first.selected_diagnostic_instance_ids,
-            vec!["a-diagnostic", "b-diagnostic"]
-        );
-
-        let changed = vec![
-            FrameAwareStyleModuleInputV0 {
-                module_id: "a".to_string(),
-                source: ".a { color: green; }".to_string(),
-                dialect: OmenaParserStyleDialect::Scss,
-            },
-            FrameAwareStyleModuleInputV0 {
-                module_id: "b".to_string(),
-                source: "@use \"a\"; .b { color: blue; }".to_string(),
-                dialect: OmenaParserStyleDialect::Scss,
-            },
-        ];
-        let second = runtime.refresh_diagnostics_with_style_modules_policy(&frames, &changed, true);
-
-        assert_eq!(second.edited_module_count, 2);
-        assert_eq!(
-            second.selected_diagnostic_instance_ids,
-            vec!["a-diagnostic", "b-diagnostic"]
-        );
     }
 }

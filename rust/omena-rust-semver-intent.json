@@ -3,5 +3,40 @@
   "product": "omena-rust-semver-intent",
   "baselineWorkspaceVersion": "0.5.0",
   "targetReleaseVersion": "0.6.0",
-  "intents": []
+  "intents": [
+    {
+      "crate": "omena-lsp-server",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor removes a frame-refresh runtime that was constructed only by an unregistered test and whose parse-reuse claim never reached the product request path.",
+      "expectedFailures": [
+        {
+          "lint": "struct_missing",
+          "evidenceNeedles": [
+            "struct omena_lsp_server::FrameAwareStyleModuleInputV0, previously in file",
+            "struct omena_lsp_server::FrameAwareRefreshRuntimeV0, previously in file"
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-query",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor removes a parse-reuse cache surface whose only non-test caller created a fresh cache for every call and therefore could not provide reuse.",
+      "expectedFailures": [
+        {
+          "lint": "function_missing",
+          "evidenceNeedles": [
+            "function omena_query::summarize_omena_query_style_frame_refresh_facts_with_reuse, previously in file"
+          ]
+        },
+        {
+          "lint": "struct_missing",
+          "evidenceNeedles": [
+            "struct omena_query::OmenaQueryStyleFrameRefreshParseCacheV0, previously in file",
+            "struct omena_query::OmenaQueryStyleFrameRefreshFactsV0, previously in file"
+          ]
+        }
+      ]
+    }
+  ]
 }

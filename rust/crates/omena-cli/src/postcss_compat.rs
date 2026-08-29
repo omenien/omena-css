@@ -5,10 +5,10 @@ use omena_evidence_graph::{
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryExternalCssSemanticChangeClassificationV0,
     OmenaQueryExternalCssSemanticChangeKindV0, OmenaQueryExternalCssSemanticChangeV0,
-    OmenaQueryExternalCssSemanticDiffV0, OmenaQueryStyleFrameRefreshParseCacheV0,
-    OmenaQueryTransformTargetQueryPlanV0, compare_omena_query_external_css_semantic_changes_v0,
+    OmenaQueryExternalCssSemanticDiffV0, OmenaQueryTransformTargetQueryPlanV0,
+    compare_omena_query_external_css_semantic_changes_v0,
     omena_query_external_css_adoption_boundary_is_complete_v0,
-    summarize_omena_query_style_frame_refresh_facts_with_reuse,
+    summarize_omena_query_omena_parser_style_facts,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -503,9 +503,7 @@ fn decide_postcss_compat_adoption(
 }
 
 fn postcss_parse_error_count(source_css: &str, dialect: OmenaParserStyleDialect) -> usize {
-    let mut cache = OmenaQueryStyleFrameRefreshParseCacheV0::default();
-    summarize_omena_query_style_frame_refresh_facts_with_reuse(source_css, dialect, &mut cache)
-        .error_count
+    summarize_omena_query_omena_parser_style_facts(source_css, dialect).parser_error_count
 }
 
 fn parse_manifest(plugin_id: &str) -> Result<PostcssCompatManifestV0, PostcssCompatFailureV0> {

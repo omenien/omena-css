@@ -166,13 +166,6 @@ pub use origin_inputs::{
 };
 #[cfg(test)]
 pub(crate) use parser_facade::style_facts_collect_probe;
-pub use parser_facade::{
-    OmenaQueryStyleFrameRefreshFactsV0, OmenaQueryStyleFrameRefreshParseCacheV0,
-    summarize_omena_query_omena_parser_css_modules_intermediate,
-    summarize_omena_query_omena_parser_lex, summarize_omena_query_omena_parser_style_facts,
-    summarize_omena_query_sass_module_source_edges, summarize_omena_query_style_document,
-    summarize_omena_query_style_frame_refresh_facts_with_reuse,
-};
 use parser_facade::{
     collect_omena_query_omena_parser_style_facts_raw,
     collect_omena_query_style_facts_with_icss_values_raw, omena_parser_dialect_for_style_path,
@@ -184,6 +177,11 @@ use parser_facade::{
 use parser_facade::{
     collect_omena_query_style_facts_with_icss_values_from_parse,
     parse_omena_query_omena_parser_style_source,
+};
+pub use parser_facade::{
+    summarize_omena_query_omena_parser_css_modules_intermediate,
+    summarize_omena_query_omena_parser_lex, summarize_omena_query_omena_parser_style_facts,
+    summarize_omena_query_sass_module_source_edges, summarize_omena_query_style_document,
 };
 pub use registered_property_values::{
     OmenaQueryRegisteredCustomPropertyComputedValueV0,
