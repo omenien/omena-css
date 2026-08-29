@@ -2,7 +2,22 @@ use super::*;
 
 mod evaluator;
 
-pub use evaluator::*;
+pub use evaluator::{
+    OmenaQueryNativeCssEvaluatorSummaryV0, OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0,
+    OmenaQueryScssEvaluatorControlFlowSummaryV0, OmenaQueryStaticLifExportsSummaryV0,
+    OmenaQueryStaticStylesheetEvaluatorOracleCorpusSummaryV0,
+    OmenaQueryStaticStylesheetEvaluatorSummaryV0,
+    summarize_omena_query_native_css_evaluator_from_engine_input,
+    summarize_omena_query_native_css_evaluator_from_source,
+    summarize_omena_query_scss_evaluator_control_flow_from_engine_input,
+    summarize_omena_query_scss_evaluator_control_flow_from_source,
+    summarize_omena_query_scss_evaluator_control_flow_oracle_corpus,
+    summarize_omena_query_static_lif_exports_from_engine_input,
+    summarize_omena_query_static_lif_exports_from_source,
+    summarize_omena_query_static_stylesheet_evaluator_from_engine_input,
+    summarize_omena_query_static_stylesheet_evaluator_from_source,
+    summarize_omena_query_static_stylesheet_evaluator_oracle_corpus,
+};
 
 /// Shannon entropy (in bits) of an empirical value-frequency histogram.
 ///

@@ -42,11 +42,35 @@ fn canonical_class_key(name: &str) -> CanonicalClassKeyV0 {
 
 #[cfg(test)]
 pub(crate) use cascade_checker::cascade_declarations_collect_probe;
-pub use cascade_position::*;
-pub use code_actions::*;
-pub use completion::*;
+pub use cascade_position::{
+    read_omena_query_cascade_at_position, read_omena_query_cascade_at_position_analysis_result,
+    read_omena_query_cascade_at_position_from_graph,
+    read_omena_query_cascade_at_position_with_categorical_evidence,
+};
+pub use code_actions::{
+    summarize_omena_query_style_extract_code_actions,
+    summarize_omena_query_style_inline_code_actions,
+    summarize_omena_query_style_inline_code_actions_with_resolution_inputs,
+    summarize_omena_query_style_refactor_code_actions,
+    summarize_omena_query_style_refactor_code_actions_with_resolution_inputs,
+};
+pub use completion::{
+    summarize_omena_query_source_completion_at_position,
+    summarize_omena_query_source_completion_for_workspace_file,
+    summarize_omena_query_source_completion_for_workspace_file_with_resolution_inputs,
+    summarize_omena_query_style_completion_at_position,
+    summarize_omena_query_style_completion_candidate_documentation,
+    summarize_omena_query_style_completion_candidate_documentation_for_workspace_file,
+    summarize_omena_query_style_completion_candidate_documentation_for_workspace_file_with_substrate,
+    summarize_omena_query_style_completion_for_workspace_file,
+    summarize_omena_query_style_completion_for_workspace_file_with_resolution_inputs,
+    summarize_omena_query_style_completion_for_workspace_file_with_substrate,
+};
 #[cfg(feature = "hypergraph-monotone-fact-propagation")]
-pub use cross_file_hypergraph::*;
+pub use cross_file_hypergraph::{
+    summarize_omena_query_unified_cross_file_hypergraph,
+    summarize_omena_query_unified_cross_file_scc_report,
+};
 use cross_file_summary::summarize_omena_query_cross_file_summary;
 #[cfg(any(test, feature = "test-support"))]
 pub use cross_file_summary::{
@@ -65,9 +89,59 @@ pub use cross_file_summary::{
 };
 #[cfg(test)]
 pub(crate) use diagnostics::collect_omena_query_visible_sass_symbol_keys_for_workspace_file;
-pub use diagnostics::*;
-pub use dynamic_classname::*;
-pub use insights::*;
+pub(in crate::style) use diagnostics::sass_module_source_is_workspace_local;
+pub use diagnostics::{
+    OmenaQueryCssModuleExportUsageStatusV0, OmenaQueryCssModuleExportUsageV0,
+    OmenaQueryCssModulesExportUsageReportV0, OmenaQueryCssModulesUnusedExportDiagnosticV0,
+    OmenaQueryCssModulesUnusedExportSkipReasonCountV0,
+    OmenaQueryCssModulesUnusedExportSkipReasonV0, OmenaQueryExternalModuleModeV0,
+    summarize_omena_query_cascade_aware_style_diagnostics,
+    summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis,
+    summarize_omena_query_css_modules_export_usage,
+    summarize_omena_query_css_modules_local_composes_style_diagnostics,
+    summarize_omena_query_css_modules_resolution_style_diagnostics,
+    summarize_omena_query_missing_custom_property_diagnostics,
+    summarize_omena_query_missing_extend_target_diagnostics,
+    summarize_omena_query_missing_keyframes_diagnostics,
+    summarize_omena_query_missing_sass_symbol_diagnostics,
+    summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace,
+    summarize_omena_query_sass_import_deprecation_hints,
+    summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace,
+    summarize_omena_query_style_diagnostics_for_file,
+    summarize_omena_query_style_diagnostics_for_file_with_deep_analysis,
+    summarize_omena_query_style_diagnostics_for_file_with_local_composes,
+    summarize_omena_query_style_diagnostics_for_file_with_local_composes_and_deep_analysis,
+    summarize_omena_query_style_diagnostics_for_workspace_file,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_complete_source_corpus,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_suppression_mode,
+    summarize_omena_query_target_unresolved_sass_import_diagnostics_for_workspace_paths,
+    summarize_omena_query_unused_selector_style_diagnostics,
+    summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings,
+};
+#[cfg(feature = "salsa-memo")]
+pub(in crate::style) use diagnostics::{
+    OmenaQueryWorkspaceDiagnosticsSubstrateV0,
+    collect_omena_query_workspace_diagnostics_substrate_from_entries,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared,
+};
+#[cfg(all(feature = "salsa-memo", any(test, feature = "test-support")))]
+pub use diagnostics::{
+    read_unused_selector_shared_walk_count_for_test,
+    reset_unused_selector_shared_walk_count_for_test,
+};
+pub use dynamic_classname::{
+    OmenaQueryDynamicClassValueInputV0, OmenaQueryDynamicClassnameCallSiteV0,
+    OmenaQueryDynamicClassnameMTierInputV0,
+    summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth,
+};
+pub use insights::{
+    summarize_omena_query_style_insight_code_actions, summarize_omena_query_style_insights,
+};
 use module_interface::{
     EmittedClassNameIndexV0, summarize_css_modules_interface_bundle_from_projections,
 };
@@ -80,7 +154,10 @@ pub use module_interface::{
     render_omena_query_css_modules_interface_json,
     summarize_omena_query_css_modules_interface_summary_view,
 };
-pub use origin_inputs::*;
+pub use origin_inputs::{
+    OmenaQueryCascadeOriginStylesheetV0, summarize_html_standard_user_agent_sample_v0,
+    summarize_omena_query_cascade_origin_stylesheet_v0,
+};
 #[cfg(test)]
 pub(crate) use parser_facade::style_facts_collect_probe;
 pub use parser_facade::{
@@ -102,15 +179,168 @@ use parser_facade::{
     collect_omena_query_style_facts_with_icss_values_from_parse,
     parse_omena_query_omena_parser_style_source,
 };
-pub use registered_property_values::*;
+pub use registered_property_values::{
+    OmenaQueryRegisteredCustomPropertyComputedValueV0,
+    summarize_omena_query_registered_custom_property_computed_value_v0,
+};
 #[cfg(feature = "salsa-memo")]
-pub use salsa_memo::*;
-pub use sass::*;
-pub use source_refs::*;
-pub use substrate::*;
+#[allow(unused_imports)]
+pub use salsa_memo::{
+    OmenaQueryCommittedStyleSemanticGraphV0, OmenaQueryCommittedWaveSubstrateV0,
+    OmenaQueryElementComputedValueStatusV0, OmenaQueryElementComputedValueV0,
+    OmenaQuerySourceFileInputV0, OmenaQueryStyleDiagnosticsWithSelectorV0,
+    OmenaQueryStyleFileInputV0, OmenaQueryStyleMemoDatabaseV0, OmenaQueryStyleMemoHostV0,
+    OmenaQueryStylePackageManifestInputV0, OmenaQueryStyleParallelResolveSyncV0,
+    OmenaQueryStyleRevisionSelectorV0, OmenaQueryStyleWorkspaceInputV0,
+    OmenaQueryStyleWorkspaceTransactionCommitV0, OmenaQueryStyleWorkspaceTransactionErrorV0,
+    OmenaQueryStyleWorkspaceTransactionV0,
+    memo_css_modules_cross_file_resolution_from_module_interfaces,
+    memo_module_interface_projection,
+    memo_sass_module_cross_file_resolution_from_module_interfaces,
+    memo_sass_module_cross_file_resolution_with_external_sifs_from_module_interfaces,
+    memo_sass_module_cross_file_resolution_without_manifests_from_module_interfaces,
+    memo_sass_module_cross_file_resolution_without_path_mappings_from_module_interfaces,
+    memo_source_element_computed_value, memo_source_element_parent_chain,
+    memo_source_scope_proximity, prepare_committed_workspace_wave_substrate,
+    resolve_committed_workspace_style_diagnostics_from_view,
+    resolve_committed_workspace_style_diagnostics_from_view_with_external_mode,
+    resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode,
+    resolve_committed_workspace_style_diagnostics_from_view_with_identity_index,
+    resolve_committed_workspace_style_diagnostics_from_view_with_identity_index_and_wave_substrate,
+};
+#[cfg(all(feature = "salsa-memo", any(test, feature = "test-support")))]
+pub use salsa_memo::{
+    read_committed_style_semantic_graph_compute_count_for_test,
+    read_css_modules_cross_file_resolution_compute_count_for_test,
+    read_css_modules_import_edge_resolution_probe_for_test,
+    read_sass_module_edge_resolution_probe_for_test,
+    reset_committed_style_semantic_graph_compute_count_for_test,
+    reset_css_modules_cross_file_resolution_compute_count_for_test,
+    reset_css_modules_import_edge_resolution_probe_for_test,
+    reset_sass_module_edge_resolution_probe_for_test,
+};
+#[cfg(all(feature = "salsa-memo", feature = "test-support"))]
+#[allow(unused_imports)]
+pub use salsa_memo::{
+    read_module_interface_projection_probe_for_test,
+    read_source_workspace_projection_probe_for_test, read_style_fact_entry_probe_for_test,
+    reset_module_interface_projection_probe_for_test,
+    reset_source_workspace_projection_probe_for_test, reset_style_fact_entry_probe_for_test,
+};
+#[cfg(all(feature = "salsa-memo", test))]
+#[allow(unused_imports)]
+pub use salsa_memo::{
+    read_source_element_computed_value_compute_count_for_test,
+    read_source_element_parent_chain_run_paths_for_test,
+    reset_source_element_computed_value_compute_count_for_test,
+    reset_source_element_parent_chain_run_paths_for_test,
+};
+pub use sass::{
+    is_omena_query_sass_symbol_candidate_kind, is_omena_query_sass_symbol_declaration_kind,
+    is_omena_query_sass_symbol_reference_kind, omena_query_sass_symbol_kind_from_candidate_kind,
+    omena_query_sass_symbol_target_matches, resolve_omena_query_sass_forward_sources,
+    resolve_omena_query_sass_module_use_sources_for_candidate,
+    resolve_omena_query_sass_symbol_declarations, summarize_omena_query_sass_module_sources,
+};
+pub use source_refs::{
+    OmenaWorkspaceMonikerInput, occurrences_for_monikers, omena_workspace_moniker,
+    resolve_omena_query_selector_rename_edits, resolve_omena_query_source_candidate_selector_names,
+    resolve_omena_query_source_provider_candidates,
+    resolve_omena_query_style_selector_definitions_for_source_candidate,
+    summarize_omena_query_global_class_fallthrough_diagnostic,
+    summarize_omena_query_missing_selector_diagnostic, summarize_omena_query_refs_for_class,
+    summarize_omena_query_refs_for_class_from_occurrence_index,
+    summarize_omena_query_refs_for_workspace_class,
+    summarize_omena_query_refs_for_workspace_class_with_resolution_inputs,
+    summarize_omena_query_rename_plan, summarize_omena_query_rename_plan_for_workspace_class,
+    summarize_omena_query_rename_plan_for_workspace_class_with_resolution_inputs,
+    summarize_omena_query_rename_plan_from_occurrence_index,
+    summarize_omena_query_source_baseline_diagnostics_for_workspace_file_with_source_syntax_index_and_definitions,
+    summarize_omena_query_source_diagnostics_for_file,
+    summarize_omena_query_source_diagnostics_for_workspace_file,
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_context_depth,
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs,
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_identity_index,
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index,
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index_and_context_depth,
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index_and_definitions,
+    summarize_omena_query_source_selector_occurrence_index,
+    summarize_omena_query_workspace_occurrence_index_from_occurrences,
+    summarize_omena_query_workspace_occurrence_index_from_source_occurrences,
+};
+pub use substrate::{
+    OMENA_QUERY_FRAGILE_GUARDED_WINNER_THRESHOLD_V0, summarize_omena_query_analyzed_graph,
+    summarize_omena_query_custom_property_annotations, summarize_omena_query_fast_facts,
+    summarize_omena_query_fragile_guarded_winner_v0, summarize_omena_query_style_edit_distance,
+    summarize_omena_query_style_edit_distance_cascade_margin_bridge,
+};
 #[cfg(test)]
 pub(crate) use transform::LINKED_FALLBACK_EXACT_TOKEN_REASON;
-pub use transform::*;
+pub(crate) use transform::build_closed_world_bundle_for_single_style_source_context;
+pub use transform::derive_omena_query_module_reachability_from_engine_input;
+#[allow(deprecated)]
+pub use transform::{
+    OmenaQueryBundlePlanInputV0, OmenaQueryTargetConsumerBuildInputsV0,
+    attach_omena_query_consumer_build_bundle_summary,
+    attach_omena_query_consumer_build_source_map_v3,
+    attach_omena_query_consumer_build_source_map_v3_with_sources,
+    attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs,
+    execute_omena_query_consumer_build_style_source,
+    execute_omena_query_consumer_build_style_source_for_target_query,
+    execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
+    execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_additional_passes_and_build_options,
+    execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_and_additional_passes,
+    execute_omena_query_consumer_build_style_source_for_target_query_with_options,
+    execute_omena_query_consumer_build_style_source_with_context,
+    execute_omena_query_consumer_build_style_source_with_context_and_options,
+    execute_omena_query_consumer_build_style_source_with_engine_input_context,
+    execute_omena_query_consumer_build_style_sources,
+    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_build_inputs,
+    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
+    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options_and_resolution_inputs,
+    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_options_additional_passes_and_resolution_inputs,
+    execute_omena_query_consumer_build_style_sources_for_target_query_with_options,
+    execute_omena_query_consumer_build_style_sources_with_context,
+    execute_omena_query_consumer_build_style_sources_with_context_and_options,
+    execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs,
+    execute_omena_query_consumer_build_style_sources_with_context_resolution_inputs_and_options,
+    execute_omena_query_transform_passes_from_source,
+    execute_omena_query_transform_passes_from_source_with_context,
+    list_omena_query_transform_pass_summaries, run_omena_query_bundle,
+    run_omena_query_bundle_for_style_sources_with_context,
+    run_omena_query_bundle_with_evidence_for_style_sources_with_context,
+    run_omena_query_bundle_with_execution_scope_evidence_and_options,
+    run_omena_query_bundle_with_execution_scope_for_style_sources_with_context_and_options,
+    run_omena_query_bundle_with_module_css_module_contexts_and_options,
+    run_omena_query_bundle_with_module_css_module_contexts_for_style_sources_with_context_and_options,
+    run_omena_query_bundle_with_module_reachability_and_execution_scope_evidence_and_options,
+    run_omena_query_bundle_with_module_reachability_and_options,
+    run_omena_query_bundle_with_semantic_inputs,
+    run_omena_query_bundle_with_semantic_inputs_and_options,
+    run_omena_query_bundle_with_token_ownership_census_and_options,
+    summarize_omena_query_build_decision_coverage_refusal,
+    summarize_omena_query_build_preflight_refusals,
+    summarize_omena_query_bundle_code_split_source_map_v3,
+    summarize_omena_query_bundle_code_split_workspace_plan, summarize_omena_query_bundle_evidence,
+    summarize_omena_query_closed_world_outcome_for_style_source,
+    summarize_omena_query_consumer_build_source_map_v3,
+    summarize_omena_query_consumer_build_source_map_v3_with_resolution_inputs,
+    summarize_omena_query_consumer_check_style_source,
+    summarize_omena_query_transform_context_from_engine_input,
+    summarize_omena_query_transform_context_from_sources,
+    summarize_omena_query_transform_context_from_sources_with_resolution_inputs,
+    summarize_omena_query_transform_plan_from_source,
+    summarize_omena_query_transform_plan_from_source_with_context,
+    summarize_omena_query_transform_plan_from_target_query,
+    summarize_omena_query_transform_plan_from_target_query_with_context,
+    validate_omena_query_closed_world_decision_parity,
+};
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+pub use transform::{
+    execute_omena_query_transform_passes_from_source_with_lawvere_trace,
+    execute_omena_query_transform_passes_from_source_with_transform_catalog_trace,
+};
 
 mod cascade_checker;
 
