@@ -34,7 +34,7 @@
     {
       "crate": "omena-query",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor removes a parse-reuse cache surface whose only non-test caller created a fresh cache for every call and therefore could not provide reuse.",
+      "reason": "The next pre-1.0 minor removes a parse-reuse cache surface whose only non-test caller created a fresh cache for every call, and deprecates 115 unused query-facade re-exports while retaining two existing deprecations and three rename-map compatibility aliases for separate removal review.",
       "expectedFailures": [
         {
           "lint": "function_missing",

@@ -1,0 +1,626 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-query.dead-reexport-experiment",
+  "baseline": {
+    "kind": "publishedRegistry",
+    "version": "0.5.0",
+    "allFeatures": true
+  },
+  "authoredCandidateCount": 120,
+  "rows": [
+    {
+      "originCrate": "omena-bridge",
+      "name": "built_in_omena_query_style_intelligence_provider",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "built_in_omena_query_style_intelligence_providers",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "classify_omena_query_utility_class",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "generate_omena_bridge_sif_for_resolved_style_path",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "generate_omena_bridge_sif_for_resolved_style_path_with_cache_context",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQuerySourceBindingDeclFactV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQuerySourceBindingScopeFactV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQuerySourceBindingStyleImportFactV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQuerySourceClassExpressionNodeFactV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQuerySourceClassnamesBindUtilityBindingFactV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQuerySourceClassUtilityBindingFactV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQuerySourceDeclaresStyleImportFactV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQuerySourceDeclaresUtilityBindingFactV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQuerySourceExpressionTargetsModuleFactV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQuerySourceFlowBindingRefV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQuerySourceGuardedClassTokenFactV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQuerySourceLanguageParserBoundarySummaryV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQuerySourceLanguageParserDescriptorV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQuerySourceModuleSpecifierFactV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQuerySourceScopeContainsDeclFactV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQuerySourceScopeParentFactV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQuerySourceStyleAccessUsesStyleImportFactV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQuerySourceStyleImportResolvesModuleFactV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQuerySourceSymbolRefUsesDeclFactV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQuerySourceUtilityUsesStyleImportFactV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQueryStyleIntelligenceClassUniverseV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQueryStyleIntelligenceCompletionV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQueryStyleIntelligenceProviderMetadataV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQueryStyleIntelligenceSourceContextV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQueryUtilityClassIntelligenceReportV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQueryUtilityClassLintSignalV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQueryUtilityClassMembershipKindV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "OmenaQueryUtilityConfigKindV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "summarize_omena_query_source_language_parser_boundary_v0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-bridge",
+      "name": "summarize_omena_query_utility_class_intelligence_for_config",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "BatchHypergraphConnectivityOracle",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "collect_directed_graph_cycles",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "collect_directed_graph_cycles_with_work_cap",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "collect_directed_graph_sccs",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "collect_hypergraph_transitive_closure_paths",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "collect_hypergraph_transitive_closure_paths_with_mode",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "collect_reachable_node_ids",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "collect_reachable_node_ids_bitset",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "HypergraphClosureMode",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "HypergraphClosurePath",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "HypergraphMonotoneFactPropagationSummaryEdgeV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "OmenaCrossFileGraphDeltaEdgeV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "OmenaCrossFileGraphDeltaV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "OmenaCrossFileLinearProvenanceV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "OmenaCrossFileSummaryNodeRoleV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "OmenaCrossFileSummaryRawEdgeKindV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "OmenaQueryUnifiedCrossFileHypergraphV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "OmenaQueryUnifiedCrossFileMonotoneFactPropagationHypergraphV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "OmenaUnifiedHypergraphConnectivityOracle",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "parse_cross_file_summary_node_role_v0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "parse_cross_file_summary_raw_edge_kind_v0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-cross-file-summary",
+      "name": "reverse_dependency_closure_v0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "ClassValueFlowAnalysisV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "ClassValueFlowIncrementalAnalysisV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "derive_cascade_restriction_maps_v0",
+      "disposition": "existingDeprecation"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "ExpressionDomainCallSiteFlowAnalysisV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "ExpressionDomainControlFlowAnalysisV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "ExpressionDomainFlowAnalysisV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "ExpressionDomainProvenanceExplanationsV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "ExpressionDomainReducedProductIterationV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "ExpressionSemanticsCanonicalProducerSignalV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "ExpressionSemanticsQueryFragmentsV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "IncrementalInvalidationPriorityPlanV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "Lin01ProvenanceSemiringV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "narrow_abstract_property_value_for_pseudo_state",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "OmenaQueryExpressionDomainIncrementalFlowAnalysisEntryV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "OmenaQueryExpressionDomainSelectorPrecisionV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "OmenaQueryExpressionDomainSelectorProjectionEntryV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "OmenaQueryFragmentBundleV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "OmenaResolverSourceResolutionRuntimeIndexV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "PolynomialProvenanceProjectionV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "PolynomialProvenanceTermV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "PolynomialProvenanceVariableV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "SelectorUsageCanonicalProducerSignalV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "SelectorUsageQueryFragmentsV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "SourceResolutionCanonicalProducerSignalV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "SourceResolutionQueryFragmentsV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "split_top_level_whitespace_value_components",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-core",
+      "name": "summarize_cascade_value_family_v0",
+      "disposition": "existingDeprecation"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "built_in_omena_query_plugins",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "default_omena_query_minify_build_profiles",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "default_omena_query_minify_pass_classifications",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "execute_built_in_omena_query_plugin",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "omena_query_external_css_semantic_diff_is_total_v0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaPlugin",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryExternalCssCstCoverageV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryExternalCssSemanticEntryV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryLawvereDifferentialCommutativityWitnessV0",
+      "disposition": "renamedCompatibility"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryLawvereReorderabilityCertificateV0",
+      "disposition": "renamedCompatibility"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryLawvereTransformPassParallelPlanV0",
+      "disposition": "renamedCompatibility"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryMinifyPassClassificationV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryMinifyPassProfileClassV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryPluginAnalysisV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryPluginChangeSummaryV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryPluginIrNodeV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryPluginKindV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryPluginMetadataV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryPluginOutcomeV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryPluginOutcomeValidationErrorV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryPluginTransformContextV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryPluginTransformIrV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryPluginWorkspaceSnapshotV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryTransformCascadeEnvironmentDeclarationV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryTransformCascadeEnvironmentV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryTransformCssModuleComposesResolutionV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryTransformCssModuleValueResolutionV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryTransformExecutionPolicyV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryTransformImportInlineV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryTransformModuleEvaluationNativeReplacementV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryTransformPassExecutionOutcomeV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryTransformSourceMapCompositionV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-query-transform-runner",
+      "name": "OmenaQueryTransformVendorPrefixPolicyV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-resolver",
+      "name": "omena_resolver_style_identity_generation",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-resolver",
+      "name": "OmenaQueryStyleResolutionPolicyStepV0",
+      "disposition": "deprecatedFacade"
+    },
+    {
+      "originCrate": "omena-resolver",
+      "name": "OmenaQueryStyleResolutionPolicyV0",
+      "disposition": "deprecatedFacade"
+    }
+  ],
+  "deletionExperiment": {
+    "command": "pnpm run measure:rust-omena-query-dead-reexport-removal",
+    "compileCommand": "cargo check --manifest-path rust/Cargo.toml -p omena-query --all-targets --all-features",
+    "semverCommand": "cargo semver-checks check-release --manifest-path rust/crates/omena-query/Cargo.toml --baseline-version 0.5.0 --all-features --color never",
+    "removedAllFeaturesPublicApiPathCount": 120,
+    "cargoSemverCandidateFailureCount": 0,
+    "cargoSemverObservedFailureLints": ["function_missing", "struct_missing"],
+    "cargoSemverUnrelatedWitnesses": [
+      "function omena_query::summarize_omena_query_style_frame_refresh_facts_with_reuse",
+      "struct omena_query::OmenaQueryStyleFrameRefreshFactsV0",
+      "struct omena_query::OmenaQueryStyleFrameRefreshParseCacheV0"
+    ],
+    "disposition": "cargo-semver-checks 0.48.0 did not report removed dependency re-export paths; the all-features cargo-public-api differential is the path-removal witness"
+  }
+}
