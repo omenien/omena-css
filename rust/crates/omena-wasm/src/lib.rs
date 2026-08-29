@@ -5,9 +5,9 @@ mod sdk_workspace;
 pub use sdk_workspace::OmenaWasmWorkspaceV0;
 
 use omena_query::{
-    OmenaBundlerHostResolveModuleRequestV0, OmenaBundlerHostResolveModuleResponseV0,
-    OmenaParserStyleDialect, OmenaQueryBuildVerificationProfileV0,
-    OmenaQueryBundleArtifactV0 as OmenaWasmBundleArtifactV0, OmenaQueryBundleEmissionPathV0,
+    OmenaBundlerHostResolveModuleRequestV0, OmenaParserStyleDialect,
+    OmenaQueryBuildVerificationProfileV0, OmenaQueryBundleArtifactV0 as OmenaWasmBundleArtifactV0,
+    OmenaQueryBundleEmissionPathV0,
     OmenaQueryBundleExecutionScopeEvidenceV0 as OmenaWasmBundleExecutionScopeEvidenceV0,
     OmenaQueryBundleWithEvidenceV0 as OmenaWasmBundleWithEvidenceV0,
     OmenaQueryCascadeAtPositionV0 as OmenaWasmCascadeAtPositionV0,
@@ -92,7 +92,8 @@ pub fn bundler_host_capabilities() -> Result<JsValue, JsValue> {
 pub fn resolve_css_module_for_bundler_host(request: JsValue) -> Result<JsValue, JsValue> {
     let request = serde_wasm_bindgen::from_value::<OmenaBundlerHostResolveModuleRequestV0>(request)
         .map_err(|error| JsValue::from_str(&format!("invalid bundler host request: {error}")))?;
-    to_json_compatible_js_value(&resolve_css_module_for_bundler_host_response(request))
+    let response = resolve_omena_bundler_host_module_v0(request);
+    to_json_compatible_js_value(&response)
 }
 
 #[wasm_bindgen(js_name = checkStyleSource)]
@@ -1400,12 +1401,6 @@ fn infer_style_dialect(path: &str) -> OmenaParserStyleDialect {
     }
 }
 
-fn resolve_css_module_for_bundler_host_response(
-    request: OmenaBundlerHostResolveModuleRequestV0,
-) -> OmenaBundlerHostResolveModuleResponseV0 {
-    resolve_omena_bundler_host_module_v0(request)
-}
-
 #[cfg(test)]
 mod tests {
     #![allow(deprecated)]
@@ -1430,7 +1425,7 @@ mod tests {
         let Ok(request) = request else {
             return;
         };
-        let payload = serde_json::to_value(resolve_css_module_for_bundler_host_response(request));
+        let payload = serde_json::to_value(resolve_omena_bundler_host_module_v0(request));
         assert!(payload.is_ok(), "wasm bundler response must serialize");
         let Ok(payload) = payload else {
             return;
