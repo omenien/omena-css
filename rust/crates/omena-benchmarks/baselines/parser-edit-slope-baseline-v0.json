@@ -1,0 +1,51 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-benchmarks.parser-edit-slope-baseline",
+  "generatedAtUtc": "2026-08-29T22:41:50.595Z",
+  "omenaGitSha": "9c78fc9ea880dcf331eddd45e9b82912e19ea95e",
+  "measurement": "normalized-minimum-path-p90-nanoseconds-per-byte",
+  "allowedRegressionRatio": 0.35,
+  "machine": {
+    "cpuModel": "Apple M2 Max",
+    "cores": 12,
+    "os": "Darwin 27.0.0",
+    "arch": "arm64"
+  },
+  "pins": [
+    {
+      "corpusId": "omena-non-finite-dynamic",
+      "band": "500B",
+      "sourceBytes": 515,
+      "normalizedSlopeRatio": 1,
+      "measuredMinimumPathP90Nanoseconds": 28968
+    },
+    {
+      "corpusId": "tailwind-preflight",
+      "band": "8KB",
+      "sourceBytes": 8489,
+      "normalizedSlopeRatio": 0.45058377852990317,
+      "measuredMinimumPathP90Nanoseconds": 215151
+    },
+    {
+      "corpusId": "tailwind-index",
+      "band": "30KB",
+      "sourceBytes": 29786,
+      "normalizedSlopeRatio": 0.4389200231744244,
+      "measuredMinimumPathP90Nanoseconds": 735375
+    },
+    {
+      "corpusId": "fumadocs-distribution-style",
+      "band": "100KB",
+      "sourceBytes": 105923,
+      "normalizedSlopeRatio": 0.8633817534125913,
+      "measuredMinimumPathP90Nanoseconds": 5144041
+    },
+    {
+      "corpusId": "openbridge-distribution-style",
+      "band": "1MB",
+      "sourceBytes": 680488,
+      "normalizedSlopeRatio": 0.5084815970303664,
+      "measuredMinimumPathP90Nanoseconds": 19462875
+    }
+  ]
+}
