@@ -1222,6 +1222,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "closure-fast",
   },
   {
+    id: "rust/style-hover-index-policy",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/style-hover-index-policy",
+    tags: ["closure-fast", "lsp", "hover", "performance"],
+    ciTier: "closure-fast",
+    ciGroup: "closure-fast",
+  },
+  {
     id: "rust/omena-query/linker-input-walk-authority",
     kind: "gate",
     scope: "rust",

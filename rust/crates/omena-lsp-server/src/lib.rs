@@ -176,6 +176,7 @@ use provider_tier_feedback::{
     provider_tier_feedback_for_hover_definitions,
 };
 use query_adapter::*;
+pub use query_reuse::STYLE_HOVER_INDEX_MAX_SOURCE_BYTES_V0;
 use query_reuse::{
     cascade_narrowing_substrate_for_style_sources, effective_style_package_manifests,
     refresh_document_reusable_indexes,

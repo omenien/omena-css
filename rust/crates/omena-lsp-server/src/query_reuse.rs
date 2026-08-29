@@ -24,6 +24,15 @@ use omena_syntax::OmenaLineIndexV0;
 use serde::Serialize;
 use std::sync::Arc;
 
+pub const STYLE_HOVER_INDEX_MAX_SOURCE_BYTES_V0: usize = 64 * 1024;
+
+static OVERSIZED_STYLE_HOVER_INDEX_SKIP_COUNT: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+
+#[cfg(test)]
+static OVERSIZED_STYLE_HOVER_INDEX_MEASUREMENT_LOCK: std::sync::Mutex<()> =
+    std::sync::Mutex::new(());
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RustQueryReuseBoundaryV0 {
@@ -161,10 +170,14 @@ pub(crate) fn refresh_document_reusable_indexes(
     if is_style_document_uri(document.uri.as_str()) {
         document.style_summary =
             summarize_style_document(document.uri.as_str(), Some(document.text.as_str()));
-        document.style_candidates =
+        document.style_candidates = if style_hover_index_is_oversized(document.text.len()) {
+            record_oversized_style_hover_index_skip(document.uri.as_str(), document.text.len());
+            Vec::new()
+        } else {
             collect_style_hover_candidates(document.uri.as_str(), document.text.as_str())
                 .map(|(_, candidates)| candidates)
-                .unwrap_or_default();
+                .unwrap_or_default()
+        };
     } else if let Some((summary, candidates)) = collect_vue_embedded_module_style_indexes(document)
     {
         document.style_summary = Some(summary);
@@ -226,6 +239,13 @@ fn collect_vue_embedded_module_style_indexes(
     let embedded = embedded_vue_module_style(document)?;
     let summary =
         summarize_style_document(embedded.virtual_uri.as_str(), Some(embedded.style_source))?;
+    if style_hover_index_is_oversized(embedded.style_source.len()) {
+        record_oversized_style_hover_index_skip(
+            embedded.virtual_uri.as_str(),
+            embedded.style_source.len(),
+        );
+        return Some((summary, Vec::new()));
+    }
     let (_, candidates) =
         collect_style_hover_candidates(embedded.virtual_uri.as_str(), embedded.style_source)?;
     let candidates = candidates
@@ -241,6 +261,29 @@ fn collect_vue_embedded_module_style_indexes(
         })
         .collect();
     Some((summary, candidates))
+}
+
+fn style_hover_index_is_oversized(source_bytes: usize) -> bool {
+    source_bytes > STYLE_HOVER_INDEX_MAX_SOURCE_BYTES_V0
+}
+
+fn record_oversized_style_hover_index_skip(uri: &str, source_bytes: usize) {
+    let skip_count = OVERSIZED_STYLE_HOVER_INDEX_SKIP_COUNT
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        .saturating_add(1);
+    eprintln!(
+        "{}",
+        serde_json::json!({
+            "schemaVersion": "0",
+            "product": "omena-lsp-server.style-hover-index-policy",
+            "outcome": "skipped",
+            "reason": "source-byte-limit",
+            "sourceUri": uri,
+            "sourceBytes": source_bytes,
+            "maximumSourceBytes": STYLE_HOVER_INDEX_MAX_SOURCE_BYTES_V0,
+            "oversizedSkipCount": skip_count,
+        })
+    );
 }
 
 struct EmbeddedVueModuleStyle<'a> {
@@ -320,4 +363,63 @@ fn embedded_range_to_document_range(
         document_source,
         ParserByteSpanV0 { start, end },
     ))
+}
+
+#[cfg(test)]
+mod oversized_style_hover_index_tests {
+    use super::*;
+
+    #[test]
+    fn ordinary_style_source_keeps_hover_indexing_enabled() {
+        let _guard = OVERSIZED_STYLE_HOVER_INDEX_MEASUREMENT_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        OVERSIZED_STYLE_HOVER_INDEX_SKIP_COUNT.store(0, std::sync::atomic::Ordering::SeqCst);
+        let document = crate::lsp_text_document_state(
+            "file:///workspace/card.module.css".to_string(),
+            Some("file:///workspace".to_string()),
+            "css".to_string(),
+            1,
+            ".card { color: red; }\n".to_string(),
+            &OmenaQueryStyleResolutionInputsV0::default(),
+        );
+        assert_eq!(document.style_candidates.len(), 1);
+        assert_eq!(
+            OVERSIZED_STYLE_HOVER_INDEX_SKIP_COUNT.load(std::sync::atomic::Ordering::SeqCst),
+            0
+        );
+    }
+
+    #[test]
+    fn one_megabyte_style_source_skips_hover_indexing_with_a_counted_policy() {
+        let _guard = OVERSIZED_STYLE_HOVER_INDEX_MEASUREMENT_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        OVERSIZED_STYLE_HOVER_INDEX_SKIP_COUNT.store(0, std::sync::atomic::Ordering::SeqCst);
+        let rule = ".oversized { color: red; }\n";
+        let source = rule.repeat((1024 * 1024 / rule.len()) + 1);
+        assert!(source.len() >= 1024 * 1024);
+        let started = std::time::Instant::now();
+        let document = crate::lsp_text_document_state(
+            "file:///workspace/oversized.module.css".to_string(),
+            Some("file:///workspace".to_string()),
+            "css".to_string(),
+            1,
+            source,
+            &OmenaQueryStyleResolutionInputsV0::default(),
+        );
+        let elapsed = started.elapsed();
+        assert!(document.style_summary.is_some());
+        assert!(document.style_candidates.is_empty());
+        assert_eq!(
+            OVERSIZED_STYLE_HOVER_INDEX_SKIP_COUNT.load(std::sync::atomic::Ordering::SeqCst),
+            1
+        );
+        println!(
+            "{{\"sourceBytes\":{},\"maximumSourceBytes\":{},\"hoverIndexAttempted\":false,\"oversizedSkipCount\":1,\"elapsedMicros\":{}}}",
+            document.text.len(),
+            STYLE_HOVER_INDEX_MAX_SOURCE_BYTES_V0,
+            elapsed.as_micros()
+        );
+    }
 }
