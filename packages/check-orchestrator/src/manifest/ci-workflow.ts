@@ -251,7 +251,8 @@ export function checkCiWorkflow(rootDir: string): CiWorkflowCheckOutcome {
       ok: false,
       reason:
         ".github/workflows/ci.yml differs from the generated registry output; edit the registry " +
-        "and run `omena-check ci-workflow --write` (hand edits to ci.yml are not sanctioned)",
+        "and run `omena-check ci-workflow --write`, or adopt an intentional Dependabot action-pin " +
+        "change with `omena-check ci-workflow --adopt` (other hand edits to ci.yml are not sanctioned)",
     };
   }
   return { ok: true };

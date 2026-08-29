@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { parse } from "yaml";
 import type { CheckDiagnostic } from "./types";
 
 interface PackageJsonLike {
@@ -14,6 +15,13 @@ interface ToolPinLocation {
   readonly dependencyBucket: "dependencies" | "devDependencies" | "peerDependencies";
   readonly packageName: string;
   readonly required?: boolean;
+}
+
+interface DependabotUpdatePolicy {
+  readonly "package-ecosystem"?: string;
+  readonly directory?: string;
+  readonly ignore?: readonly { readonly "dependency-name"?: string }[];
+  readonly groups?: Readonly<Record<string, { readonly "exclude-patterns"?: readonly string[] }>>;
 }
 
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
@@ -37,10 +45,29 @@ const TOOL_PIN_LOCATIONS: readonly ToolPinLocation[] = [
     packageName: "oxlint",
     required: true,
   },
+  {
+    packagePath: "examples/package.json",
+    dependencyBucket: "devDependencies",
+    packageName: "vite-plus",
+    required: true,
+  },
 ];
 
+const RUST_OXC_PACKAGES = [
+  "oxc_allocator",
+  "oxc_ast",
+  "oxc_ast_visit",
+  "oxc_parser",
+  "oxc_semantic",
+  "oxc_span",
+] as const;
+
 export function findToolPinCoherenceDiagnostics(rootDir: string): readonly CheckDiagnostic[] {
-  const diagnostics: CheckDiagnostic[] = [...findVscodeCompatibilityDiagnostics(rootDir)];
+  const diagnostics: CheckDiagnostic[] = [
+    ...findVscodeCompatibilityDiagnostics(rootDir),
+    ...findRustOxcCoherenceDiagnostics(rootDir),
+    ...findDependabotAuthorityDiagnostics(rootDir),
+  ];
   const pinsByPackageName = new Map<
     string,
     Array<{ location: ToolPinLocation; version: string }>
@@ -98,6 +125,106 @@ export function findToolPinCoherenceDiagnostics(rootDir: string): readonly Check
     });
   }
 
+  return diagnostics;
+}
+
+function findDependabotAuthorityDiagnostics(rootDir: string): readonly CheckDiagnostic[] {
+  const relativePath = ".github/dependabot.yml";
+  const absolutePath = path.join(rootDir, relativePath);
+  if (!existsSync(absolutePath)) return [];
+  const config = parse(readFileSync(absolutePath, "utf8")) as {
+    readonly updates?: readonly DependabotUpdatePolicy[];
+  };
+  const updates = config.updates ?? [];
+  const diagnostics: CheckDiagnostic[] = [];
+  const cargo = updates.find(
+    (update) => update["package-ecosystem"] === "cargo" && update.directory === "/rust",
+  );
+  const npm = updates.find(
+    (update) => update["package-ecosystem"] === "npm" && update.directory === "/",
+  );
+  const cargoIgnored = new Set(
+    cargo?.ignore?.flatMap((entry) =>
+      entry["dependency-name"] ? [entry["dependency-name"]] : [],
+    ) ?? [],
+  );
+  for (const dependencyName of ["oxc_*", "oxc-*"]) {
+    if (cargoIgnored.has(dependencyName)) continue;
+    diagnostics.push({
+      severity: "error",
+      code: "dependabot-rust-oxc-authority-missing",
+      message: `${relativePath} must keep ${dependencyName} under manual lockstep authority.`,
+    });
+  }
+
+  const npmManual = [
+    "@types/vscode",
+    "@typescript/native-preview",
+    "sass",
+    "@omena/napi",
+    "@omena/wasm",
+    "oxlint",
+    "oxfmt",
+    "vite-plus",
+    "@tanstack/react-router",
+    "@tanstack/react-start",
+    "@tanstack/start-static-server-functions",
+  ] as const;
+  const npmIgnored = new Set(
+    npm?.ignore?.flatMap((entry) => (entry["dependency-name"] ? [entry["dependency-name"]] : [])) ??
+      [],
+  );
+  const npmFallbackExcluded = new Set(npm?.groups?.["npm-minor-patch"]?.["exclude-patterns"] ?? []);
+  for (const dependencyName of npmManual) {
+    if (!npmIgnored.has(dependencyName) || !npmFallbackExcluded.has(dependencyName)) {
+      diagnostics.push({
+        severity: "error",
+        code: "dependabot-manual-authority-leak",
+        message: `${relativePath} must both ignore and fallback-exclude ${dependencyName}.`,
+      });
+    }
+  }
+  return diagnostics;
+}
+
+function findRustOxcCoherenceDiagnostics(rootDir: string): readonly CheckDiagnostic[] {
+  const manifestPath = "rust/crates/omena-bridge/Cargo.toml";
+  const absolutePath = path.join(rootDir, manifestPath);
+  if (!existsSync(absolutePath)) return [];
+  const source = readFileSync(absolutePath, "utf8");
+  const pins: Array<{ packageName: string; version: string }> = [];
+  const diagnostics: CheckDiagnostic[] = [];
+
+  for (const packageName of RUST_OXC_PACKAGES) {
+    const match = new RegExp(`^${packageName}\\s*=\\s*"([^"]+)"\\s*$`, "mu").exec(source);
+    if (!match) {
+      diagnostics.push({
+        severity: "error",
+        code: "rust-oxc-pin-missing",
+        message: `${manifestPath} must exact-pin ${packageName}.`,
+      });
+      continue;
+    }
+    const version = match[1]!;
+    pins.push({ packageName, version });
+    if (!EXACT_VERSION.test(version)) {
+      diagnostics.push({
+        severity: "error",
+        code: "rust-oxc-pin-not-exact",
+        message: `${manifestPath} ${packageName} must be exact-pinned, got "${version}".`,
+      });
+    }
+  }
+
+  if (new Set(pins.map((pin) => pin.version)).size > 1) {
+    diagnostics.push({
+      severity: "error",
+      code: "rust-oxc-pin-version-skew",
+      message: `Rust OXC crates must use one exact version: ${pins
+        .map((pin) => `${pin.packageName}=${pin.version}`)
+        .join(", ")}.`,
+    });
+  }
   return diagnostics;
 }
 

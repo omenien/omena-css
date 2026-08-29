@@ -34,18 +34,13 @@ updates:
       default-days: 7
       semver-major-days: 30
     open-pull-requests-limit: 5
+    ignore:
+      # The six direct OXC crates are one API family. Dependabot has repeatedly
+      # split them into incompatible PRs, so maintainers update all six pins and
+      # the lockfile together under the tool-pin coherence gate.
+      - dependency-name: "oxc_*"
+      - dependency-name: "oxc-*"
     groups:
-      # The oxc crate family must move in lockstep — a solo oxc_* bump is version
-      # skew and breaks the build (seen at 0.128→0.134 and again at 0.134→0.135).
-      # 0.x family bumps classify as semver-major, so the group covers major too.
-      oxc:
-        patterns:
-          - "oxc_*"
-          - "oxc-*"
-        update-types:
-          - major
-          - minor
-          - patch
       cargo-minor-patch:
         update-types:
           - minor
@@ -78,10 +73,9 @@ updates:
       semver-major-days: 30
     open-pull-requests-limit: 5
     ignore:
-      # vsce enforces @types/vscode <= engines.vscode (^1.115.0); raising the
-      # engine floor is a product decision, so this bump is manual-only.
+      # VS Code types are locked to the minimum supported editor. Raising the
+      # engine floor is a product decision, so this dependency is manual-only.
       - dependency-name: "@types/vscode"
-        versions: [">1.115"]
       # tsgo nightlies have regressed the type-fact protocol twice (20260606.1,
       # 20260609.1 — hover contents.value null / finiteSet→none). Bump manually,
       # gated by check-rust-omena-lsp-server-type-fact-protocol and
@@ -91,20 +85,42 @@ updates:
       # is pin-asserted by check-rust-omena-diff-test-sass-spec-oracle and a bump
       # requires a deliberate oracle re-capture. Bump manually with the recapture.
       - dependency-name: "sass"
+      # Release packaging rewrites these source placeholders to the selected
+      # crate-train version. Registry versions are not source dependency pins.
+      - dependency-name: "@omena/napi"
+      - dependency-name: "@omena/wasm"
+      # OXC tools move under one exact-pin gate with the Rust OXC crate family;
+      # a bot-only root bump leaves the plugin peer pin stale.
+      - dependency-name: "oxlint"
+      - dependency-name: "oxfmt"
+      - dependency-name: "vite-plus"
+      # TanStack Start packages expose one cross-package type surface, and the
+      # static server-functions package carries a local base-path patch. Update
+      # the trio together and rebase the patch before accepting a new version.
+      - dependency-name: "@tanstack/react-router"
+      - dependency-name: "@tanstack/react-start"
+      - dependency-name: "@tanstack/start-static-server-functions"
     groups:
-      # Keep the JavaScript OXC toolchain exact-pinned in package manifests and
-      # update it as one PR so lock refreshes cannot reintroduce tool skew.
-      oxc-js-tools:
+      npm-minor-patch:
         patterns:
+          - "*"
+        # `ignore` is the update authority; these exclusions also prevent a
+        # fallback group from absorbing a sensitive package if bot behavior or
+        # an existing branch predates the ignore rule.
+        exclude-patterns:
+          - "@types/vscode"
+          - "@typescript/native-preview"
+          - "sass"
+          - "@omena/napi"
+          - "@omena/wasm"
           - "oxlint"
           - "oxfmt"
+          - "vite-plus"
+          - "@tanstack/react-router"
+          - "@tanstack/react-start"
+          - "@tanstack/start-static-server-functions"
           - "@oxc/*"
           - "oxc-*"
-        update-types:
-          - major
-          - minor
-          - patch
-      npm-minor-patch:
         update-types:
           - minor
           - patch

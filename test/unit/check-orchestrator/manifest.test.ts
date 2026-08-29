@@ -1117,6 +1117,73 @@ describe("check orchestrator manifest", () => {
     );
   });
 
+  it("rejects split Rust OXC crate-family pins before matrix CI", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
+    mkdirSync(path.join(root, "rust/crates/omena-bridge"), { recursive: true });
+    writeFileSync(
+      path.join(root, "package.json"),
+      JSON.stringify({ name: "omena-css", scripts: { "omena-check": "node ./check.js" } }),
+    );
+    writeFileSync(
+      path.join(root, "rust/crates/omena-bridge/Cargo.toml"),
+      [
+        'oxc_allocator = "0.147.0"',
+        'oxc_ast = "0.147.0"',
+        'oxc_ast_visit = "0.147.0"',
+        'oxc_parser = "0.146.0"',
+        'oxc_semantic = "0.147.0"',
+        'oxc_span = "0.147.0"',
+        "",
+      ].join("\n"),
+    );
+
+    expect(runDoctor(loadCheckManifest(root))).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          code: "rust-oxc-pin-version-skew",
+          message: expect.stringContaining("oxc_parser=0.146.0"),
+        }),
+      ]),
+    );
+  });
+
+  it("rejects Dependabot fallback access to manual dependency authorities", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
+    mkdirSync(path.join(root, ".github"), { recursive: true });
+    writeFileSync(
+      path.join(root, "package.json"),
+      JSON.stringify({ name: "omena-css", scripts: { "omena-check": "node ./check.js" } }),
+    );
+    writeFileSync(
+      path.join(root, ".github/dependabot.yml"),
+      [
+        "version: 2",
+        "updates:",
+        "  - package-ecosystem: cargo",
+        '    directory: "/rust"',
+        "    ignore: []",
+        "  - package-ecosystem: npm",
+        '    directory: "/"',
+        "    ignore: []",
+        "    groups:",
+        "      npm-minor-patch:",
+        "        exclude-patterns: []",
+        "",
+      ].join("\n"),
+    );
+
+    expect(runDoctor(loadCheckManifest(root))).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "dependabot-rust-oxc-authority-missing" }),
+        expect.objectContaining({
+          code: "dependabot-manual-authority-leak",
+          message: expect.stringContaining("@types/vscode"),
+        }),
+      ]),
+    );
+  });
+
   it("rejects VS Code types newer than the minimum supported editor", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
     writeFileSync(
