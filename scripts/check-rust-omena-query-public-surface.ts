@@ -91,20 +91,14 @@ if (writeSnapshot) {
         "`pnpm run update:rust-omena-query-public-surface` to create it.",
     );
   }
-  const expected = JSON.parse(readFileSync(wildcardBaselinePath, "utf8")) as {
-    readonly wildcardReexportCount?: unknown;
-  };
-  if (typeof expected.wildcardReexportCount !== "number") {
+  const expected = JSON.parse(readFileSync(wildcardBaselinePath, "utf8")) as unknown;
+  const observed = wildcardReexportBaseline(wildcardReexports);
+  if (JSON.stringify(observed) !== JSON.stringify(expected)) {
     throw new Error(
-      `${path.relative(repoRoot, wildcardBaselinePath)} does not contain numeric wildcardReexportCount`,
-    );
-  }
-  if (wildcardReexports.total !== expected.wildcardReexportCount) {
-    throw new Error(
-      "omena-query wildcard re-export count changed without updating the baseline.\n" +
-        `Expected ${expected.wildcardReexportCount}, got ${wildcardReexports.total}.\n` +
+      "omena-query wildcard re-export baseline changed.\n" +
+        `Expected ${JSON.stringify(expected)}, got ${JSON.stringify(observed)}.\n` +
         "If this change is intentional, run " +
-        "`pnpm run update:rust-omena-query-public-surface` in the same change that removes the wildcard.",
+        "`pnpm run update:rust-omena-query-public-surface` and review the baseline diff.",
     );
   }
 }
@@ -277,6 +271,12 @@ function assertWildcardReexportScannerIsSensitive(): void {
       `omena-query wildcard re-export scanner selftest expected ${expected}, got ${observed}`,
     );
   }
+  const productScan = scanWildcardReexports();
+  if (productScan.total !== 0) {
+    throw new Error(
+      `omena-query production sources must use named re-exports; found ${productScan.total} wildcard re-exports`,
+    );
+  }
 }
 
 function wildcardReexportBaseline(wildcardReexports: {
@@ -284,14 +284,14 @@ function wildcardReexportBaseline(wildcardReexports: {
   readonly files: readonly { readonly path: string; readonly count: number }[];
 }): {
   readonly schemaVersion: "0";
-  readonly product: "rust.omena-query.wildcard-reexport-ratchet";
+  readonly product: "rust.omena-query.wildcard-reexport-baseline";
   readonly wildcardReexportCount: number;
   readonly files: readonly { readonly path: string; readonly count: number }[];
   readonly excluded: readonly string[];
 } {
   return {
     schemaVersion: "0",
-    product: "rust.omena-query.wildcard-reexport-ratchet",
+    product: "rust.omena-query.wildcard-reexport-baseline",
     wildcardReexportCount: wildcardReexports.total,
     files: wildcardReexports.files,
     excluded: [

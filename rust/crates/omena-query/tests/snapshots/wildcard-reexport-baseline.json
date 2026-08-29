@@ -1,6 +1,6 @@
 {
   "schemaVersion": "0",
-  "product": "rust.omena-query.wildcard-reexport-ratchet",
+  "product": "rust.omena-query.wildcard-reexport-baseline",
   "wildcardReexportCount": 0,
   "files": [],
   "excluded": [
