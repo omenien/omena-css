@@ -1248,15 +1248,20 @@ fn lsp_bridge_refuses_unverified_recorded_shard_verdict() -> TestResult {
     );
     open_style_document(&mut state, source_uri.as_str(), source_text.as_str());
 
-    let trust = state
-        .resolution
-        .external_sif_trust_records
-        .get(external_uri.as_str())
-        .ok_or_else(|| std::io::Error::other("recorded external SIF trust"))?;
-    assert_eq!(trust.trust_tier, omena_sif::OmenaSifTrustTierV1::T1);
-    assert_eq!(
-        trust.trust_source,
-        omena_query::OmenaQueryExternalSifTrustSourceV1::UnsignedLegacy
+    assert!(
+        state
+            .resolution
+            .external_sifs
+            .iter()
+            .all(|candidate| candidate.canonical_url != external_uri),
+        "the verifier-free LSP build must refuse a recorded verdict instead of serving it as unsigned legacy"
+    );
+    assert!(
+        !state
+            .resolution
+            .external_sif_trust_records
+            .contains_key(external_uri.as_str()),
+        "a refused recorded verdict must not leave an apparent trust record"
     );
 
     let _ = fs::remove_dir_all(root.as_path());
