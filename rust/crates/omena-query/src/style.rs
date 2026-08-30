@@ -4737,6 +4737,8 @@ fn omena_query_line_index(source: &str) -> OmenaLineIndexV0 {
 
 #[cfg(test)]
 mod line_index_measurement_tests {
+    use std::hint::black_box;
+
     use super::*;
 
     fn fixed_width_hover_source(total_slots: usize, active_slots: usize) -> String {
@@ -4795,6 +4797,124 @@ mod line_index_measurement_tests {
             elapsed.as_micros()
         );
         Ok(())
+    }
+
+    #[test]
+    #[ignore = "wall-clock pickup comparison is collected explicitly in release mode"]
+    fn reports_pickup_scanner_and_shared_index_pass_measurement() -> Result<(), String> {
+        let source = fixed_width_hover_source(4_609, 4_609);
+        assert_eq!(source.len(), 106_007);
+
+        let shared = summarize_omena_query_style_hover_candidates("large.module.css", &source)
+            .ok_or_else(|| "CSS hover facts must be available".to_string())?;
+        let pickup =
+            summarize_selector_hover_candidates_with_pickup_scanner("large.module.css", &source)?;
+        assert_eq!(pickup, shared);
+
+        let mut shared_samples = Vec::new();
+        let mut pickup_samples = Vec::new();
+        for _ in 0..3 {
+            let started = std::time::Instant::now();
+            black_box(summarize_omena_query_style_hover_candidates(
+                "large.module.css",
+                black_box(&source),
+            ));
+            shared_samples.push(started.elapsed().as_micros());
+
+            let started = std::time::Instant::now();
+            black_box(summarize_selector_hover_candidates_with_pickup_scanner(
+                "large.module.css",
+                black_box(&source),
+            )?);
+            pickup_samples.push(started.elapsed().as_micros());
+        }
+        shared_samples.sort_unstable();
+        pickup_samples.sort_unstable();
+        let shared_p50 = shared_samples[shared_samples.len() / 2];
+        let pickup_p50 = pickup_samples[pickup_samples.len() / 2];
+        assert!(
+            pickup_p50 > shared_p50.saturating_mul(10),
+            "the pickup scanner comparison must retain a decisive signal"
+        );
+        println!(
+            "{{\"sourceBytes\":{},\"candidateCount\":{},\"pickupRecipe\":\"fresh offset-bounded char scan for both endpoints of every selector candidate\",\"pickupSamplesMicros\":{:?},\"pickupP50Micros\":{},\"sharedPassSamplesMicros\":{:?},\"sharedPassP50Micros\":{},\"speedupMilli\":{}}}",
+            source.len(),
+            shared.candidates.len(),
+            pickup_samples,
+            pickup_p50,
+            shared_samples,
+            shared_p50,
+            pickup_p50.saturating_mul(1_000) / shared_p50.max(1)
+        );
+        Ok(())
+    }
+
+    fn summarize_selector_hover_candidates_with_pickup_scanner(
+        style_path: &str,
+        style_source: &str,
+    ) -> Result<OmenaQueryStyleHoverCandidatesV0, String> {
+        let dialect = omena_parser_dialect_for_style_path(style_path);
+        let facts = collect_omena_query_omena_parser_style_facts_raw(style_source, dialect);
+        if !facts.variables.is_empty()
+            || !facts.sass_symbols.is_empty()
+            || !facts.sass_includes.is_empty()
+        {
+            return Err("pickup comparison fixture must contain selector facts only".to_string());
+        }
+        let mut seen = BTreeSet::new();
+        let mut candidates = Vec::new();
+        for fact in facts.selectors {
+            if fact.kind != ParsedSelectorFactKind::Class {
+                continue;
+            }
+            let byte_span = ParserByteSpanV0 {
+                start: u32::from(fact.range.start()) as usize,
+                end: u32::from(fact.range.end()) as usize,
+            };
+            if seen.insert((byte_span.start, byte_span.end, fact.name.clone())) {
+                candidates.push(OmenaQueryStyleHoverCandidateV0 {
+                    kind: "selector",
+                    name: AuthoredPropertyTextV0::new(fact.name.clone()),
+                    selector_key: Some(ClassNameV0::new(&fact.name).canonical_key()),
+                    property_key: None,
+                    range: pickup_parser_range_for_byte_span(style_source, byte_span),
+                    source: "omenaParserSelectorFacts",
+                    namespace: None,
+                });
+            }
+        }
+        candidates.sort();
+        Ok(OmenaQueryStyleHoverCandidatesV0 {
+            schema_version: "0",
+            product: "omena-query.style-hover-candidates",
+            language: omena_parser_style_dialect_label(dialect),
+            candidates,
+        })
+    }
+
+    fn pickup_parser_range_for_byte_span(source: &str, span: ParserByteSpanV0) -> ParserRangeV0 {
+        ParserRangeV0 {
+            start: pickup_parser_position_for_byte_offset(source, span.start),
+            end: pickup_parser_position_for_byte_offset(source, span.end),
+        }
+    }
+
+    fn pickup_parser_position_for_byte_offset(source: &str, offset: usize) -> ParserPositionV0 {
+        let clamped_offset = offset.min(source.len());
+        let mut line = 0usize;
+        let mut character = 0usize;
+        for (byte_index, ch) in source.char_indices() {
+            if byte_index >= clamped_offset {
+                break;
+            }
+            if ch == '\n' {
+                line += 1;
+                character = 0;
+            } else {
+                character += ch.len_utf16();
+            }
+        }
+        ParserPositionV0 { line, character }
     }
 }
 
