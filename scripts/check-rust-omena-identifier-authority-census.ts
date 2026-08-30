@@ -6,6 +6,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertRustCfgTestMaskContract, maskRustCfgTestItems } from "./lib/rust-cfg-test-mask";
 
+const deleteInventoryBuildCfgMask =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_INVENTORY_BUILD_CFG_MASK === "1";
+
 assertRustCfgTestMaskContract();
 
 const cfgTestMaskProbe = maskRustCfgTestItems(
@@ -601,8 +604,6 @@ const injectUnregisteredSerdeFrontend =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNREGISTERED_SERDE_FRONTEND === "1";
 const injectZeroBranchGateRegistryDeletion =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_ZERO_BRANCH_GATE_REGISTRY_ENTRY === "1";
-const deleteInventoryBuildCfgMask =
-  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_INVENTORY_BUILD_CFG_MASK === "1";
 const injectCountedBoundaryGrowth =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_COUNTED_BOUNDARY_GROWTH === "1";
 const injectCarrierComparatorBoundaryGrowth =
@@ -1386,6 +1387,12 @@ const authoredEscapeIdentityViolations = authoredEscapeClosureAudit.identityFlow
 const unresolvedTaintedReceiverMutations = authoredEscapeClosureAudit.unresolvedCallEdges.filter(
   (site) => site.operation === "unresolved-tainted-receiver-mutation",
 );
+if (deleteInventoryBuildCfgMask) {
+  assertInventoryRowsOutsideCfgTestItems(
+    authoredEscapeClosureAudit.identityFlows,
+    "authored escape identity flow",
+  );
+}
 assertReferenceSanctionedEscapeSites(authoredEscapeClosureAudit.escapeSites);
 assertSerializedWholeValueEquivalenceSanctions(authoredEscapeClosureAudit.identityFlows);
 assertSanctionedEscapeReasons(authoredEscapeClosureAudit.identityFlows);
@@ -9327,7 +9334,10 @@ function maskCommentsStringsAndTestItems(
       }
     }
   }
-  return maskRustCfgTestItems(chars.join(""));
+  const commentsAndStringsMasked = chars.join("");
+  return deleteInventoryBuildCfgMask
+    ? commentsAndStringsMasked
+    : maskRustCfgTestItems(commentsAndStringsMasked);
 }
 
 function rustCharacterLiteralEnd(chars: readonly string[], quoteIndex: number): number | undefined {
@@ -10063,7 +10073,7 @@ function authoredEscapeCannotSee(
     `${sourceNeedleLocation(checkerPath, '.filter((sourcePath) => !sourcePath.includes("/tests/"))')}: /tests/ trees are outside the product escape-flow scan.`,
     `${sourceNeedleLocation(checkerPath, '.filter((sourcePath) => !sourcePath.endsWith("/tests.rs"))')}: */tests.rs files are outside the product escape-flow scan.`,
     `${sourceNeedleLocation(checkerPath, '.filter((sourcePath) => !sourcePath.endsWith("_test.rs"))')}: *_test.rs files are outside the product escape-flow scan.`,
-    `${sourceNeedleLocation(checkerPath, 'return maskRustCfgTestItems(chars.join(""));')}: #[cfg(test)] items are masked before escape-flow analysis.`,
+    `${sourceNeedleLocation(checkerPath, ": maskRustCfgTestItems(commentsAndStringsMasked);")}: #[cfg(test)] items are masked before escape-flow analysis.`,
     `${sourceNeedleLocation(checkerPath, '.filter((sourcePath) => !sourcePath.includes("/src/bin/"))')}: /src/bin/ files are excluded; named binaries: ${binaries || "none"}.`,
     `${sourceNeedleLocation(checkerPath, '.filter((sourcePath) => !sourcePath.endsWith("_generated.rs"))')}: *_generated.rs files are excluded.`,
     `${scopeAnchor}: benches/, examples/, and build.rs are outside the /src/ production-source root.`,
