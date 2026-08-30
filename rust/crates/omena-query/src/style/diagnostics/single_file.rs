@@ -22,6 +22,7 @@ pub fn summarize_omena_query_missing_custom_property_diagnostics(
     // `var(--a, var(--b))` stays a live candidate).
     let dialect = omena_parser_dialect_for_style_path(style_uri);
     let facts = collect_omena_query_omena_parser_style_facts_raw(source, dialect);
+    let line_index = omena_query_line_index(source);
     let fallback_ranges = facts
         .variables
         .iter()
@@ -35,7 +36,7 @@ pub fn summarize_omena_query_missing_custom_property_diagnostics(
             };
             Some((
                 fact.name.as_custom_property()?.to_custom_key(),
-                parser_range_for_byte_span(source, byte_span),
+                parser_range_for_byte_span_with_line_index(source, &line_index, byte_span),
             ))
         })
         .collect::<BTreeSet<_>>();
@@ -175,6 +176,7 @@ pub fn summarize_omena_query_missing_keyframes_diagnostics(
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let dialect = omena_parser_dialect_for_style_path(style_uri);
     let facts = collect_omena_query_omena_parser_style_facts_raw(source, dialect);
+    let line_index = omena_query_line_index(source);
     let declared_keyframes = facts
         .animations
         .iter()
@@ -198,7 +200,10 @@ pub fn summarize_omena_query_missing_keyframes_diagnostics(
             if !emitted.insert((animation.name.clone(), byte_span.start, byte_span.end)) {
                 return None;
             }
-            Some((animation, parser_range_for_byte_span(source, byte_span)))
+            Some((
+                animation,
+                parser_range_for_byte_span_with_line_index(source, &line_index, byte_span),
+            ))
         })
         .map(|(animation, range)| OmenaQueryStyleDiagnosticV0 {
             code: "missingKeyframes",

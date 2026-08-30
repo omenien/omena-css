@@ -328,6 +328,7 @@ pub(in crate::style) fn summarize_omena_query_unused_selector_style_diagnostics_
 
     let dialect = omena_parser_dialect_for_style_path(target_style_path);
     let target_facts = collect_omena_query_omena_parser_style_facts_raw(target_source, dialect);
+    let line_index = omena_query_line_index(target_source);
     let used_in_target = shared
         .used_selectors
         .get(target_style_path)
@@ -353,8 +354,9 @@ pub(in crate::style) fn summarize_omena_query_unused_selector_style_diagnostics_
                     "omena-parser.selector-facts",
                     "omena-query.source-selector-usage",
                 ],
-                range: parser_range_for_byte_span(
+                range: parser_range_for_byte_span_with_line_index(
                     target_source,
+                    &line_index,
                     ParserByteSpanV0 {
                         start: start as usize,
                         end: end as usize,

@@ -4,7 +4,7 @@ use crate::{
     collect_style_hover_candidates,
     protocol::{
         byte_offset_for_parser_position_with_line_index, file_uri_to_path, is_style_document_uri,
-        parser_range_for_byte_span,
+        parser_range_for_byte_span_with_line_index,
     },
     source_selector_candidates_from_index,
     source_type_facts::initial_source_type_fact_tier_attempts,
@@ -248,12 +248,16 @@ fn collect_vue_embedded_module_style_indexes(
     }
     let (_, candidates) =
         collect_style_hover_candidates(embedded.virtual_uri.as_str(), embedded.style_source)?;
+    let embedded_line_index = OmenaLineIndexV0::new(embedded.style_source);
+    let document_line_index = OmenaLineIndexV0::new(document.text.as_str());
     let candidates = candidates
         .into_iter()
         .filter_map(|mut candidate| {
             candidate.range = embedded_range_to_document_range(
                 document.text.as_str(),
+                &document_line_index,
                 embedded.style_source,
+                &embedded_line_index,
                 embedded.content_start,
                 candidate.range,
             )?;
@@ -346,21 +350,27 @@ fn vue_embedded_style_virtual_extension(tag: &str) -> &'static str {
 
 fn embedded_range_to_document_range(
     document_source: &str,
+    document_line_index: &OmenaLineIndexV0,
     embedded_source: &str,
+    embedded_line_index: &OmenaLineIndexV0,
     content_start: usize,
     range: omena_query::ParserRangeV0,
 ) -> Option<omena_query::ParserRangeV0> {
-    let line_index = OmenaLineIndexV0::new(embedded_source);
     let start = content_start
         + byte_offset_for_parser_position_with_line_index(
             embedded_source,
-            &line_index,
+            embedded_line_index,
             range.start,
         )?;
     let end = content_start
-        + byte_offset_for_parser_position_with_line_index(embedded_source, &line_index, range.end)?;
-    Some(parser_range_for_byte_span(
+        + byte_offset_for_parser_position_with_line_index(
+            embedded_source,
+            embedded_line_index,
+            range.end,
+        )?;
+    Some(parser_range_for_byte_span_with_line_index(
         document_source,
+        document_line_index,
         ParserByteSpanV0 { start, end },
     ))
 }

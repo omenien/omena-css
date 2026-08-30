@@ -50,7 +50,8 @@ use theory_hints::{
 
 use super::{
     OmenaQueryStyleDiagnosticV0, ParserByteSpanV0, ParserRangeV0,
-    omena_parser_dialect_for_style_path, parser_range_for_byte_span,
+    omena_parser_dialect_for_style_path, omena_query_line_index, parser_range_for_byte_span,
+    parser_range_for_byte_span_with_line_index,
 };
 
 /// Cascade diagnostics with optional theory hints; overlaps with `circularVar` fold into its provenance.
@@ -66,6 +67,7 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
         topology_incomplete_unresolved_count,
         standard_property_value_verdicts,
     } = collect_query_checker_cascade_input(style_uri, source);
+    let line_index = omena_query_line_index(source);
     let mut diagnostics = Vec::new();
 
     // Keep whole-file theory hints off the default LSP/CLI surface.
@@ -102,8 +104,9 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
                 "omena-query-checker-orchestrator.cascade-gate",
                 "omena-query.cascade-checker",
             ],
-            range: parser_range_for_byte_span(
+            range: parser_range_for_byte_span_with_line_index(
                 source,
+                &line_index,
                 ParserByteSpanV0 {
                     start: 0,
                     end: source.len(),
@@ -149,8 +152,9 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
                     .find_map(|name| custom_property_ranges.get(&name.to_custom_key()).copied())
             })
             .unwrap_or_else(|| {
-                parser_range_for_byte_span(
+                parser_range_for_byte_span_with_line_index(
                     source,
+                    &line_index,
                     ParserByteSpanV0 {
                         start: 0,
                         end: source.len(),

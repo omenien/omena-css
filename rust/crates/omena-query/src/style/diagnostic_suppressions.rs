@@ -393,11 +393,13 @@ fn find_plain_omena_ignore_directive(line: &str) -> Option<usize> {
 }
 
 fn find_omena_ignore_block_line_range(source: &str, after_offset: usize) -> Option<(usize, usize)> {
+    let line_index = omena_query_line_index(source);
     let open_index = source[after_offset..]
         .find('{')
         .map(|relative| after_offset + relative)?;
-    let open_range = parser_range_for_byte_span(
+    let open_range = parser_range_for_byte_span_with_line_index(
         source,
+        &line_index,
         ParserByteSpanV0 {
             start: open_index,
             end: open_index + 1,
@@ -427,8 +429,9 @@ fn find_omena_ignore_block_line_range(source: &str, after_offset: usize) -> Opti
             '}' => {
                 depth = depth.saturating_sub(1);
                 if depth == 0 {
-                    let close_range = parser_range_for_byte_span(
+                    let close_range = parser_range_for_byte_span_with_line_index(
                         source,
+                        &line_index,
                         ParserByteSpanV0 {
                             start: index,
                             end: index + character.len_utf8(),

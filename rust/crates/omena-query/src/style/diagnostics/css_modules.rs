@@ -19,6 +19,7 @@ pub fn summarize_omena_query_css_modules_local_composes_style_diagnostics(
         .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
         .map(|selector| selector.name.as_str())
         .collect::<BTreeSet<_>>();
+    let line_index = omena_query_line_index(target_source);
     let mut diagnostics = Vec::new();
 
     for edge in target_facts.css_module_composes_edges {
@@ -29,8 +30,9 @@ pub fn summarize_omena_query_css_modules_local_composes_style_diagnostics(
         }
         let start: u32 = edge.range.start().into();
         let end: u32 = edge.range.end().into();
-        let range = parser_range_for_byte_span(
+        let range = parser_range_for_byte_span_with_line_index(
             target_source,
+            &line_index,
             ParserByteSpanV0 {
                 start: start as usize,
                 end: end as usize,
@@ -120,6 +122,7 @@ pub(super) fn summarize_omena_query_css_modules_resolution_style_diagnostics_fro
         .collect::<BTreeMap<_, _>>();
     let dialect = omena_parser_dialect_for_style_path(target_style_path);
     let target_facts = collect_omena_query_omena_parser_style_facts_raw(target_source, dialect);
+    let line_index = omena_query_line_index(target_source);
     let mut diagnostics = Vec::new();
 
     for edge in target_facts.css_module_composes_edges {
@@ -128,8 +131,9 @@ pub(super) fn summarize_omena_query_css_modules_resolution_style_diagnostics_fro
         }
         let start: u32 = edge.range.start().into();
         let end: u32 = edge.range.end().into();
-        let range = parser_range_for_byte_span(
+        let range = parser_range_for_byte_span_with_line_index(
             target_source,
+            &line_index,
             ParserByteSpanV0 {
                 start: start as usize,
                 end: end as usize,
@@ -219,8 +223,9 @@ pub(super) fn summarize_omena_query_css_modules_resolution_style_diagnostics_fro
     for edge in target_facts.css_module_value_import_edges {
         let start: u32 = edge.range.start().into();
         let end: u32 = edge.range.end().into();
-        let range = parser_range_for_byte_span(
+        let range = parser_range_for_byte_span_with_line_index(
             target_source,
+            &line_index,
             ParserByteSpanV0 {
                 start: start as usize,
                 end: end as usize,

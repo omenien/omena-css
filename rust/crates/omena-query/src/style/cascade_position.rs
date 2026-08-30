@@ -27,7 +27,8 @@ use crate::{
 };
 
 use super::{
-    byte_offset_for_parser_position, parser_range_for_byte_span,
+    byte_offset_for_parser_position, omena_query_line_index,
+    parser_range_for_byte_span_with_line_index,
     summarize_omena_query_style_semantic_graph_from_source,
 };
 
@@ -568,6 +569,7 @@ fn positioned_custom_property_reference_facts<'a>(
     ref_facts: impl IntoIterator<Item = CustomPropertyReferenceFactView<'a>>,
 ) -> Vec<(CustomPropertyReferenceFactView<'a>, ParserRangeV0)> {
     let ref_facts = ref_facts.into_iter().collect::<Vec<_>>();
+    let line_index = omena_query_line_index(source);
     let mut ranges_by_name =
         BTreeMap::<CanonicalCustomPropertyNameV0, VecDeque<ParserRangeV0>>::new();
     for fact in &ref_facts {
@@ -581,7 +583,7 @@ fn positioned_custom_property_reference_facts<'a>(
             identity_key,
             custom_property_ref_byte_spans(source, &rendered_name)
                 .into_iter()
-                .map(|span| parser_range_for_byte_span(source, span))
+                .map(|span| parser_range_for_byte_span_with_line_index(source, &line_index, span))
                 .collect(),
         );
     }

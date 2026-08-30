@@ -287,6 +287,7 @@ pub(in crate::style) fn collect_omena_query_inline_style_runtime_overrides_by_st
             None,
             style_import_resolutions,
         );
+        let line_index = omena_query_line_index(document.source_source.as_str());
         for declaration in index.inline_style_declarations {
             let Some(target_style_uri) = declaration.target_style_uri.as_deref() else {
                 continue;
@@ -296,8 +297,9 @@ pub(in crate::style) fn collect_omena_query_inline_style_runtime_overrides_by_st
                 .or_default()
                 .push(OmenaQueryInlineStyleRuntimeOverrideV0 {
                     source_path: document.source_path.clone(),
-                    range: parser_range_for_byte_span(
+                    range: parser_range_for_byte_span_with_line_index(
                         &document.source_source,
+                        &line_index,
                         declaration.byte_span,
                     ),
                     property_name: declaration.property_name,

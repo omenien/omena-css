@@ -24,8 +24,9 @@ use omena_syntax::ident::{
 };
 
 use super::super::{
-    ParserByteSpanV0, ParserRangeV0, omena_parser_dialect_for_style_path,
-    parser_range_for_byte_span, summarize_static_css_custom_property_fixed_point_from_source,
+    ParserByteSpanV0, ParserRangeV0, omena_parser_dialect_for_style_path, omena_query_line_index,
+    parser_range_for_byte_span_with_line_index,
+    summarize_static_css_custom_property_fixed_point_from_source,
 };
 use super::custom_property_registration::collect_query_checker_custom_property_registrations;
 use super::declaration_facts::collect_parsed_declaration_fact_collection;
@@ -53,12 +54,17 @@ pub(super) fn collect_query_checker_cascade_input(
     let declarations = collection.declarations;
     let custom_property_registrations =
         collect_query_checker_custom_property_registrations(style_uri, source);
+    let line_index = omena_query_line_index(source);
     let declaration_ranges = declarations
         .iter()
         .map(|declaration| {
             (
                 declaration.input.declaration_id.clone(),
-                parser_range_for_byte_span(source, declaration.byte_span),
+                parser_range_for_byte_span_with_line_index(
+                    source,
+                    &line_index,
+                    declaration.byte_span,
+                ),
             )
         })
         .collect::<BTreeMap<_, _>>();
@@ -104,7 +110,7 @@ pub(super) fn collect_query_checker_cascade_input(
         .map(|(property_key, (_, _, _, byte_span))| {
             (
                 property_key.clone(),
-                parser_range_for_byte_span(source, *byte_span),
+                parser_range_for_byte_span_with_line_index(source, &line_index, *byte_span),
             )
         })
         .collect::<BTreeMap<_, _>>();

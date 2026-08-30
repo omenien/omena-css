@@ -658,6 +658,7 @@ fn summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_i
     );
     let mut style_import_resolutions = Vec::new();
     let mut diagnostics = Vec::new();
+    let line_index = omena_query_line_index(source_source);
 
     for import in imports.imports {
         if import.specifier == "classnames/bind" {
@@ -688,7 +689,11 @@ fn summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_i
                     "omena-query.source-import-declarations",
                     "omena-resolver.style-module-resolution",
                 ],
-                range: parser_range_for_byte_span(source_source, import.specifier_byte_span),
+                range: parser_range_for_byte_span_with_line_index(
+                    source_source,
+                    &line_index,
+                    import.specifier_byte_span,
+                ),
                 message: if resolution_inputs.disk_style_path_identities.is_empty() {
                     format!(
                         "Cannot resolve CSS Module '{}' from the provided workspace inputs.",
@@ -898,6 +903,7 @@ fn summarize_omena_query_source_diagnostics_from_syntax_index(
     mut diagnostics: Vec<OmenaQuerySourceDiagnosticV0>,
     options: OmenaQuerySourceDiagnosticsAssemblyOptions,
 ) -> OmenaQuerySourceDiagnosticsForFileV0 {
+    let line_index = omena_query_line_index(source_source);
     let style_sources_by_path = workspace_facts
         .style_sources
         .iter()
@@ -980,7 +986,11 @@ fn summarize_omena_query_source_diagnostics_from_syntax_index(
                     }
                 },
                 name: selector_name.clone(),
-                range: parser_range_for_byte_span(source_source, reference.byte_span),
+                range: parser_range_for_byte_span_with_line_index(
+                    source_source,
+                    &line_index,
+                    reference.byte_span,
+                ),
                 source: "omenaQuerySourceSyntaxIndex",
                 target_style_uri: Some(target_style_uri.to_string()),
             };
@@ -1062,6 +1072,7 @@ fn summarize_omena_query_type_fact_provider_unavailable_diagnostics(
     source: &str,
     index: &OmenaQuerySourceSyntaxIndexV0,
 ) -> Vec<OmenaQuerySourceDiagnosticV0> {
+    let line_index = omena_query_line_index(source);
     let provenance = || {
         omena_query_evidence_graph_provenance![
             "omena-query.source-syntax-index",
@@ -1088,7 +1099,11 @@ fn summarize_omena_query_type_fact_provider_unavailable_diagnostics(
                 code: "unknownClassValueDomain",
                 severity: "hint",
                 provenance: provenance(),
-                range: parser_range_for_byte_span(source, fact.byte_span),
+                range: parser_range_for_byte_span_with_line_index(
+                    source,
+                    &line_index,
+                    fact.byte_span,
+                ),
                 message: "This class value has an open string type, so its class names cannot be checked here.".to_string(),
                 precision: precision(),
                 suggestion: Some(
@@ -1112,7 +1127,11 @@ fn summarize_omena_query_type_fact_provider_unavailable_diagnostics(
             code: "unknownClassValueDomain",
             severity: "warning",
             provenance: provenance(),
-            range: parser_range_for_byte_span(source, first.byte_span),
+            range: parser_range_for_byte_span_with_line_index(
+                source,
+                &line_index,
+                first.byte_span,
+            ),
             message: format!(
                 "CSS Module class value domain is unknown because {cause}. Dynamic class values in this file ({site_count} site{}) are not checked until the provider is available.",
                 if site_count == 1 { "" } else { "s" }
@@ -1129,6 +1148,7 @@ fn summarize_omena_query_domain_class_reference_diagnostics(
     source: &str,
     index: &OmenaQuerySourceSyntaxIndexV0,
 ) -> Vec<OmenaQuerySourceDiagnosticV0> {
+    let line_index = omena_query_line_index(source);
     let mut diagnostics = Vec::new();
     for reference in &index.domain_class_references {
         let Some(option_name) = reference.option_name.as_ref() else {
@@ -1158,7 +1178,11 @@ fn summarize_omena_query_domain_class_reference_diagnostics(
                 "omena-bridge.class-value-universe-provider",
                 "omena-query.source-domain-class-references",
             ],
-            range: parser_range_for_byte_span(source, reference.byte_span),
+            range: parser_range_for_byte_span_with_line_index(
+                source,
+                &line_index,
+                reference.byte_span,
+            ),
             message: format!(
                 "Class value option '{}' is not defined for {}.{}.",
                 option_name, reference.owner_name, reference.axis_name
@@ -1295,6 +1319,7 @@ pub(super) fn collect_omena_query_source_selector_references_with_resolution_inp
             continue;
         };
         canonicalize_omena_query_source_selector_references(&mut index.selector_references);
+        let line_index = omena_query_line_index(document.source_source.as_str());
 
         for reference in index.selector_references {
             let Some(name) = reference.selector_name.clone().or_else(|| {
@@ -1316,7 +1341,11 @@ pub(super) fn collect_omena_query_source_selector_references_with_resolution_inp
                         "sourceSelectorPrefixReference"
                     },
                     name,
-                    range: parser_range_for_byte_span(&document.source_source, reference.byte_span),
+                    range: parser_range_for_byte_span_with_line_index(
+                        &document.source_source,
+                        &line_index,
+                        reference.byte_span,
+                    ),
                     source: reference.surface.as_str(),
                     target_style_uri: reference.target_style_uri,
                 },

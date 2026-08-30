@@ -23,6 +23,7 @@ pub fn summarize_omena_query_missing_sass_symbol_diagnostics(
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let dialect = omena_parser_dialect_for_style_path(style_uri);
     let facts = collect_omena_query_omena_parser_style_facts_raw(source, dialect);
+    let line_index = omena_query_line_index(source);
     let mut declarations = BTreeSet::<SassSymbolKey>::new();
     let mut emitted = BTreeSet::new();
     let mut diagnostics = Vec::new();
@@ -74,7 +75,7 @@ pub fn summarize_omena_query_missing_sass_symbol_diagnostics(
                 "omena-parser.sass-symbol-facts",
                 "omena-query.style-diagnostics",
             ],
-            range: parser_range_for_byte_span(source, byte_span),
+            range: parser_range_for_byte_span_with_line_index(source, &line_index, byte_span),
             message: format!(
                 "{} not found in this file.",
                 format_query_sass_symbol_label(symbol.symbol_kind, symbol.name.as_str())
@@ -107,6 +108,7 @@ pub fn summarize_omena_query_missing_extend_target_diagnostics(
     if facts.extend_targets.is_empty() {
         return Vec::new();
     }
+    let line_index = omena_query_line_index(source);
 
     let mut declared_placeholders = BTreeSet::new();
     let mut declared_classes = BTreeSet::new();
@@ -157,7 +159,7 @@ pub fn summarize_omena_query_missing_extend_target_diagnostics(
                 "omena-parser.extend-target-facts",
                 "omena-query.missing-extend-target-diagnostics",
             ],
-            range: parser_range_for_byte_span(source, byte_span),
+            range: parser_range_for_byte_span_with_line_index(source, &line_index, byte_span),
             message: format!(
                 "@extend target '{label}' does not exist in this file. dart-sass rejects this as a hard error."
             ),
@@ -197,6 +199,7 @@ pub(super) fn summarize_omena_query_missing_extend_target_diagnostics_for_worksp
     if target_facts.extend_targets.is_empty() {
         return Vec::new();
     }
+    let line_index = omena_query_line_index(target.style_source.as_str());
 
     let resolution = &substrate.sass_resolution_without_manifests;
     let reachable_paths =
@@ -260,7 +263,11 @@ pub(super) fn summarize_omena_query_missing_extend_target_diagnostics_for_worksp
                 "omena-parser.extend-target-facts",
                 "omena-query.missing-extend-target-diagnostics",
             ],
-            range: parser_range_for_byte_span(target.style_source.as_str(), byte_span),
+            range: parser_range_for_byte_span_with_line_index(
+                target.style_source.as_str(),
+                &line_index,
+                byte_span,
+            ),
             message: format!(
                 "@extend target '{label}' does not exist in the visible Sass module graph. dart-sass rejects this as a hard error."
             ),
@@ -289,6 +296,7 @@ pub fn summarize_omena_query_sass_import_deprecation_hints(
     }
 
     let facts = collect_omena_query_omena_parser_style_facts_raw(source, dialect);
+    let line_index = omena_query_line_index(source);
     facts
         .sass_module_edges
         .into_iter()
@@ -304,8 +312,9 @@ pub fn summarize_omena_query_sass_import_deprecation_hints(
                     "omena-parser.sass-module-edges",
                     "omena-query.sass-import-deprecation-hints",
                 ],
-                range: parser_range_for_byte_span(
+                range: parser_range_for_byte_span_with_line_index(
                     source,
+                    &line_index,
                     ParserByteSpanV0 {
                         start: start as usize,
                         end: end as usize,
@@ -428,6 +437,7 @@ pub(super) fn summarize_omena_query_missing_sass_symbol_diagnostics_for_workspac
         target.style_source.as_str(),
         omena_parser_dialect_for_style_path(target_style_path),
     );
+    let line_index = omena_query_line_index(target.style_source.as_str());
     let mut emitted = BTreeSet::new();
     let mut diagnostics = Vec::new();
 
@@ -474,7 +484,11 @@ pub(super) fn summarize_omena_query_missing_sass_symbol_diagnostics_for_workspac
                 "omena-parser.sass-symbol-facts",
                 "omena-query.graph-aware-sass-diagnostics",
             ],
-            range: parser_range_for_byte_span(target.style_source.as_str(), byte_span),
+            range: parser_range_for_byte_span_with_line_index(
+                target.style_source.as_str(),
+                &line_index,
+                byte_span,
+            ),
             message: format!(
                 "{} not found in the visible Sass module graph.",
                 format_query_sass_symbol_label(symbol.symbol_kind, symbol.name.as_str())
@@ -511,6 +525,7 @@ pub(super) fn summarize_omena_query_sass_use_cycle_diagnostics_for_workspace(
         target.style_source.as_str(),
         omena_parser_dialect_for_style_path(target_style_path),
     );
+    let line_index = omena_query_line_index(target.style_source.as_str());
 
     let mut emitted = BTreeSet::new();
     let mut diagnostics = Vec::new();
@@ -556,7 +571,11 @@ pub(super) fn summarize_omena_query_sass_use_cycle_diagnostics_for_workspace(
                 "omena-query.sass-module-cross-file-resolution",
                 "omena-query.sass-use-cycle-diagnostics",
             ],
-            range: parser_range_for_byte_span(target.style_source.as_str(), byte_span),
+            range: parser_range_for_byte_span_with_line_index(
+                target.style_source.as_str(),
+                &line_index,
+                byte_span,
+            ),
             message: format!(
                 "Sass module loop: {}. dart-sass rejects this as a hard error.",
                 render_sass_module_cycle_from(&canonical_cycle, target_style_path)
@@ -685,6 +704,7 @@ fn unresolved_sass_import_diagnostics_from_edges<'a>(
     target_facts: &omena_parser::ParsedStyleFacts,
     edges: impl IntoIterator<Item = ResolvedSassImportEdgeForDiagnostic<'a>>,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let line_index = omena_query_line_index(target_style_source);
     let mut emitted = BTreeSet::new();
     let mut diagnostics = Vec::new();
 
@@ -714,7 +734,11 @@ fn unresolved_sass_import_diagnostics_from_edges<'a>(
                 "omena-query.sass-module-cross-file-resolution",
                 "omena-query.unresolved-sass-import-diagnostics",
             ],
-            range: parser_range_for_byte_span(target_style_source, byte_span),
+            range: parser_range_for_byte_span_with_line_index(
+                target_style_source,
+                &line_index,
+                byte_span,
+            ),
             message: format!(
                 "Cannot resolve Sass module '{}'. dart-sass rejects this as a hard error.",
                 edge.source

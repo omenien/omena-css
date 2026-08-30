@@ -198,6 +198,7 @@ pub(super) fn harvest_omena_query_dynamic_classname_m_tier_diagnostics(
     selector_universe_by_uri: &BTreeMap<String, Vec<String>>,
     max_context_depth: usize,
 ) -> Vec<OmenaQuerySourceDiagnosticV0> {
+    let line_index = omena_query_line_index(source);
     // Partition harvested call sites by the resolved module they are bound to so
     // each scope is evaluated against its CORRECTLY-scoped selector universe. A
     // `None` scope (no resolved binding) is evaluated against the union.
@@ -222,7 +223,11 @@ pub(super) fn harvest_omena_query_dynamic_classname_m_tier_diagnostics(
                     format!("{}:{}", target.byte_span.start, target.byte_span.end),
                 ],
                 exit_value,
-                reference_range: parser_range_for_byte_span(source, target.byte_span),
+                reference_range: parser_range_for_byte_span_with_line_index(
+                    source,
+                    &line_index,
+                    target.byte_span,
+                ),
             });
     }
     for skipped in &source_syntax_index.type_fact_target_skipped {
@@ -271,7 +276,11 @@ pub(super) fn harvest_omena_query_dynamic_classname_m_tier_diagnostics(
                     format!("{}:{}", skipped.byte_span.start, skipped.byte_span.end),
                 ],
                 exit_value,
-                reference_range: parser_range_for_byte_span(source, reference_span),
+                reference_range: parser_range_for_byte_span_with_line_index(
+                    source,
+                    &line_index,
+                    reference_span,
+                ),
             });
     }
 

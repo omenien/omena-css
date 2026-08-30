@@ -79,6 +79,7 @@ pub(super) fn collect_omena_query_external_top_any_sass_symbol_ranges(
         target.style_source.as_str(),
         omena_parser_dialect_for_style_path(target_style_path),
     );
+    let line_index = omena_query_line_index(target.style_source.as_str());
     // The protocol lattice is the single source of truth: a namespace is TopAny iff its
     // external edge classifies to a `top == TopAny` state (Missing/Partial/Stale). A
     // Resolved (TopOpaque) edge, backed by a complete SIF, stays subject to ordinary
@@ -125,8 +126,9 @@ pub(super) fn collect_omena_query_external_top_any_sass_symbol_ranges(
         .map(|symbol| {
             let start: u32 = symbol.range.start().into();
             let end: u32 = symbol.range.end().into();
-            parser_range_for_byte_span(
+            parser_range_for_byte_span_with_line_index(
                 target.style_source.as_str(),
+                &line_index,
                 ParserByteSpanV0 {
                     start: start as usize,
                     end: end as usize,
@@ -251,6 +253,7 @@ pub(super) fn summarize_omena_query_external_sif_boundary_diagnostics(
         target.style_source.as_str(),
         omena_parser_dialect_for_style_path(target_style_path),
     );
+    let line_index = omena_query_line_index(target.style_source.as_str());
     let mut emitted = BTreeSet::new();
     let mut diagnostics = Vec::new();
     for edge in &facts.sass_module_edges {
@@ -289,8 +292,9 @@ pub(super) fn summarize_omena_query_external_sif_boundary_diagnostics(
                 "omena-resolver.boundary-state",
                 "omena-query.external-sif-boundary-diagnostics",
             ],
-            range: parser_range_for_byte_span(
+            range: parser_range_for_byte_span_with_line_index(
                 target.style_source.as_str(),
+                &line_index,
                 ParserByteSpanV0 {
                     start: start as usize,
                     end: end as usize,

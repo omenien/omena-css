@@ -122,6 +122,7 @@ fn collect_shorthand_combinable_insights(
     selector_declarations: &[&QueryCheckerCascadeDeclaration],
     emitted_edits: &mut BTreeSet<(usize, usize, &'static str)>,
 ) -> Vec<OmenaQueryInsightV0> {
+    let line_index = omena_query_line_index(source);
     let mut insights = Vec::new();
     for (shorthand, expected_longhands) in query_smt_box_shorthand_longhand_quartets() {
         let Some(quartet) =
@@ -145,7 +146,8 @@ fn collect_shorthand_combinable_insights(
         if !emitted_edits.insert((replacement_span.start, replacement_span.end, shorthand)) {
             continue;
         }
-        let range = parser_range_for_byte_span(source, replacement_span);
+        let range =
+            parser_range_for_byte_span_with_line_index(source, &line_index, replacement_span);
         let longhand_properties = expected_longhands
             .iter()
             .map(|property| PropertyNameV0::canonical_standard_key(*property))
@@ -198,6 +200,7 @@ fn collect_partial_shorthand_override_insights(
     selector: &str,
     selector_declarations: &[&QueryCheckerCascadeDeclaration],
 ) -> Vec<OmenaQueryInsightV0> {
+    let line_index = omena_query_line_index(source);
     let mut insights = Vec::new();
     let mut emitted = BTreeSet::new();
     for declaration in selector_declarations {
@@ -218,7 +221,11 @@ fn collect_partial_shorthand_override_insights(
                 )) {
                     continue;
                 }
-                let range = parser_range_for_byte_span(source, override_declaration.byte_span);
+                let range = parser_range_for_byte_span_with_line_index(
+                    source,
+                    &line_index,
+                    override_declaration.byte_span,
+                );
                 let mut override_property = String::new();
                 let _ =
                     render_authored(&override_declaration.input.property, &mut override_property);
@@ -261,6 +268,7 @@ fn collect_longhand_redundant_insights(
     selector: &str,
     selector_declarations: &[&QueryCheckerCascadeDeclaration],
 ) -> Vec<OmenaQueryInsightV0> {
+    let line_index = omena_query_line_index(source);
     let mut insights = Vec::new();
     for pair in selector_declarations.windows(2) {
         let previous = pair[0];
@@ -271,7 +279,8 @@ fn collect_longhand_redundant_insights(
         {
             continue;
         }
-        let range = parser_range_for_byte_span(source, current.byte_span);
+        let range =
+            parser_range_for_byte_span_with_line_index(source, &line_index, current.byte_span);
         let mut current_property = String::new();
         let _ = render_authored(&current.input.property, &mut current_property);
         insights.push(OmenaQueryInsightV0 {
@@ -310,6 +319,7 @@ fn collect_specificity_tie_insights(
     source: &str,
     declarations: &[QueryCheckerCascadeDeclaration],
 ) -> Vec<OmenaQueryInsightV0> {
+    let line_index = omena_query_line_index(source);
     let mut insights = Vec::new();
     let mut emitted = BTreeSet::new();
     for (index, left) in declarations.iter().enumerate() {
@@ -356,7 +366,8 @@ fn collect_specificity_tie_insights(
             )) {
                 continue;
             }
-            let range = parser_range_for_byte_span(source, winner.byte_span);
+            let range =
+                parser_range_for_byte_span_with_line_index(source, &line_index, winner.byte_span);
             let mut winner_property = String::new();
             let _ = render_authored(&winner.input.property, &mut winner_property);
             insights.push(OmenaQueryInsightV0 {
