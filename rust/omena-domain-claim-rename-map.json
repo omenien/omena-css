@@ -74,7 +74,7 @@
     {
       "familyId": "f03",
       "sourcePath": "rust/omena-identifier-authority-census.json",
-      "line": 37829,
+      "line": 37807,
       "lineSha256": "058ea29a62e6ddadb1f1bc25f265c3d9d0def6d3539492c62092b7ff6a811f38",
       "occurrenceInLine": 0,
       "justification": "The generated authority inventory quotes the production function name verbatim as a counted lexical boundary; retaining that provenance does not assert the superseded data-flow construction."
@@ -82,7 +82,7 @@
     {
       "familyId": "f03",
       "sourcePath": "rust/omena-identifier-authority-census.json",
-      "line": 42671,
+      "line": 42649,
       "lineSha256": "cd71927fcce3f7f6690f28edc2948bcaf771a6f74e2bf6f46e4e7798bcfc3863",
       "occurrenceInLine": 0,
       "justification": "The generated authority inventory quotes the production function name verbatim as a counted lexical boundary; retaining that provenance does not assert the superseded data-flow construction."
@@ -90,7 +90,7 @@
     {
       "familyId": "f04",
       "sourcePath": "rust/omena-identifier-authority-census.json",
-      "line": 38171,
+      "line": 38149,
       "lineSha256": "68793e1baca21c34e00c156efdf1d616982270cd82797a21c6adf603422955da",
       "occurrenceInLine": 0,
       "justification": "The generated authority inventory quotes the production witness function name verbatim as a counted lexical boundary; retaining that provenance does not assert the superseded categorical construction."
@@ -98,7 +98,7 @@
     {
       "familyId": "f04",
       "sourcePath": "rust/omena-identifier-authority-census.json",
-      "line": 38173,
+      "line": 38151,
       "lineSha256": "c1c84d5f0d8214c88e5a0f0867fac75a525642b178b75cd7845cc38ef290fe0a",
       "occurrenceInLine": 0,
       "justification": "The generated authority inventory quotes the production call evidence verbatim as a counted lexical boundary; retaining that provenance does not assert the superseded categorical construction."
@@ -106,7 +106,7 @@
     {
       "familyId": "f05",
       "sourcePath": "rust/omena-identifier-authority-census.json",
-      "line": 21977,
+      "line": 21955,
       "lineSha256": "97edbd77332e1dd8881af03bc142bc1e9f94f4b757921ef949282217f046343d",
       "occurrenceInLine": 0,
       "justification": "The generated authority inventory quotes the production summary function name verbatim as a counted lexical boundary; retaining that provenance does not assert the superseded mathematical construction."
@@ -114,7 +114,7 @@
     {
       "familyId": "f05",
       "sourcePath": "rust/omena-identifier-authority-census.json",
-      "line": 21979,
+      "line": 21957,
       "lineSha256": "9d0a29bb67492646bd1ccac53928566d6b7820f5ccb66812267752eec14aa418",
       "occurrenceInLine": 0,
       "justification": "The generated authority inventory quotes the production call evidence verbatim as a counted lexical boundary; retaining that provenance does not assert the superseded mathematical construction."
@@ -122,7 +122,7 @@
     {
       "familyId": "f06",
       "sourcePath": "rust/omena-identifier-authority-census.json",
-      "line": 33211,
+      "line": 33189,
       "lineSha256": "eea0d0fdf823c22f651964dd6789616799ead916fd5136fd5f4c6a31f9e1acd0",
       "occurrenceInLine": 0,
       "justification": "The generated authority inventory quotes the production gate function name verbatim as a counted lexical boundary; retaining that provenance does not assert the superseded multiscale construction."
