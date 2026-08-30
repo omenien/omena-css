@@ -8,11 +8,17 @@ import { spawnSync } from "node:child_process";
 interface CorpusEntry {
   readonly id: string;
   readonly band: string;
+  readonly sourceProject: string;
+  readonly sourceKind: string;
   readonly expectedBytes: number;
   readonly sha256: string;
   readonly localPath: string | null;
   readonly remoteFileName: string | null;
   readonly sourceUrl: string;
+  readonly version: string;
+  readonly license: string;
+  readonly parkEligible: boolean;
+  readonly parkScopeReason: string;
 }
 
 interface CorpusManifest {
@@ -34,8 +40,32 @@ interface ParserEditSummary {
   readonly corpusId: string;
   readonly band: string;
   readonly sourceBytes: number;
+  readonly sourceProject: string;
+  readonly sourceKind: string;
+  readonly sourceUrl: string;
+  readonly sourceVersion: string;
+  readonly sourceSha256: string;
+  readonly parkEligible: boolean;
   readonly normalizedSlopeRatio: number;
   readonly minimumPathP90Nanoseconds: number;
+}
+
+interface BandBudgetComparison {
+  readonly corpusId: string;
+  readonly band: string;
+  readonly sourceProject: string;
+  readonly sourceKind: string;
+  readonly sourceUrl: string;
+  readonly sourceVersion: string;
+  readonly sourceSha256: string;
+  readonly sourceBytes: number;
+  readonly parkEligible: boolean;
+  readonly pinnedMinimumPathP90Nanoseconds: number;
+  readonly allowedMinimumPathP90Nanoseconds: number;
+  readonly currentMinimumPathP90Nanoseconds: number;
+  readonly withinBudget: boolean;
+  readonly reentryThresholdNanoseconds: number;
+  readonly reentryCandidate: boolean;
 }
 
 interface ParserEditReport {
@@ -58,10 +88,14 @@ interface ParserEditReport {
     readonly thresholdConsumptionMilli: number;
     readonly fires: boolean;
   };
+  readonly baselineMeasurementPin: string;
+  readonly bandBudgetComparisons: readonly BandBudgetComparison[];
   dispositionInputs: {
-    minimumAcrossPaths: boolean;
-    perBand: boolean;
-    absoluteThresholdOnly: boolean;
+    comparisonRunCount: number;
+    perBandBudgetCount: number;
+    withinBudgetCount: number;
+    overBudgetCount: number;
+    reentryRegressionRatioMilli: number;
     qualifyingSourceCount: number;
     qualifyingIndependentSourceCount: number;
     requiredIndependentSourceCount: number;
@@ -76,8 +110,10 @@ interface ParserEditBaseline {
   readonly product: "omena-benchmarks.parser-edit-slope-baseline";
   readonly generatedAtUtc: string;
   readonly omenaGitSha: string;
-  readonly measurement: "normalized-minimum-path-p90-nanoseconds-per-byte";
+  readonly measurement: "absolute-minimum-path-p90-nanoseconds";
   readonly allowedRegressionRatio: number;
+  readonly reentryRegressionRatio: number;
+  readonly requiredIndependentSourceCount: number;
   readonly machine: {
     readonly cpuModel: string;
     readonly cores: number;
@@ -87,9 +123,15 @@ interface ParserEditBaseline {
   readonly pins: readonly {
     readonly corpusId: string;
     readonly band: string;
+    readonly sourceProject: string;
+    readonly sourceKind: string;
+    readonly sourceUrl: string;
+    readonly sourceVersion: string;
+    readonly sourceSha256: string;
     readonly sourceBytes: number;
-    normalizedSlopeRatio: number;
+    readonly parkEligible: boolean;
     readonly measuredMinimumPathP90Nanoseconds: number;
+    allowedMinimumPathP90Nanoseconds: number;
   }[];
 }
 
@@ -123,7 +165,59 @@ const EXPECTED_PATHS = [
 ] as const;
 const EXPECTED_BANDS = ["500B", "8KB", "30KB", "100KB", "1MB"] as const;
 const EXPECTED_DISPOSITION_POLICY =
-  "minimum-across-paths-per-band-and-two-independent-park-eligible-sources-v0";
+  "absolute-per-band-p90-budgets-and-two-run-two-independent-source-reentry-v1";
+const PARK_ELIGIBILITY_BY_SOURCE_IDENTITY = new Map<string, boolean>([
+  [
+    [
+      "omena-css",
+      "hand-authored",
+      "https://github.com/omenien/omena-css/blob/master/examples/src/scenarios/14-non-finite-dynamic/NonFiniteDynamic.module.scss",
+      "repository-pin",
+      "e9702b58c036ade265d90cbe01efa8688581871115619650ce06eb1d49df8a5e",
+    ].join("\0"),
+    true,
+  ],
+  [
+    [
+      "tailwindcss",
+      "hand-authored",
+      "https://unpkg.com/tailwindcss@4.3.3/preflight.css",
+      "4.3.3",
+      "ace8310eed6dc5568a56fc16e1d695cf58da7528d81d66d81649e93cce644df6",
+    ].join("\0"),
+    true,
+  ],
+  [
+    [
+      "tailwindcss",
+      "hand-authored",
+      "https://unpkg.com/tailwindcss@4.3.3/index.css",
+      "4.3.3",
+      "175f88737ecb7e033059eac4a3b22a3b5f971d5a05d9fd50811610a0714633b2",
+    ].join("\0"),
+    true,
+  ],
+  [
+    [
+      "fumadocs",
+      "distribution",
+      "https://unpkg.com/fumadocs-ui@16.15.2/dist/style.css",
+      "16.15.2",
+      "765821c9236ec61778b7e8b29f662dd9bf9c5c7a5ac667bf0adbf74fd0140d4d",
+    ].join("\0"),
+    false,
+  ],
+  [
+    [
+      "inscada-openbridge-bundle",
+      "distribution",
+      "https://unpkg.com/@inscada/openbridge-bundle@1.0.2/dist/openbridge.css",
+      "1.0.2",
+      "b0fa72f204e8d6354c3a534a4a5df8d83d4373421fcbdf2a90db50ad8f3e7a0e",
+    ].join("\0"),
+    false,
+  ],
+]);
 
 export function runParserEditSlopeGate(): void {
   const manifest = JSON.parse(readFileSync(MANIFEST_PATH, "utf8")) as CorpusManifest;
@@ -152,6 +246,7 @@ export function runParserEditSlopeGate(): void {
         OMENA_MEASUREMENT_PIN: gitSha,
         OMENA_PARSER_EDIT_CORPUS_MANIFEST: MANIFEST_PATH,
         OMENA_PARSER_EDIT_CORPUS_ROOT: path.resolve(CORPUS_CACHE),
+        OMENA_PARSER_EDIT_BASELINE: path.resolve(BASELINE_PATH),
       },
     },
   );
@@ -167,11 +262,10 @@ export function runParserEditSlopeGate(): void {
   }
   if (process.argv.includes("--inject-absolute-only-disposition")) {
     report.dispositionPolicy = "absolute-threshold-only";
-    report.dispositionInputs.absoluteThresholdOnly = true;
-    report.dispositionInputs.minimumAcrossPaths = false;
   }
   validateReport(report, manifest);
   runDispositionMutationSelftest(report, manifest);
+  runRustDispositionPredicateArm();
 
   const reportPath = process.env.OMENA_PARSER_EDIT_SLOPE_REPORT ?? DEFAULT_REPORT_PATH;
   mkdirSync(path.dirname(reportPath), { recursive: true });
@@ -186,7 +280,7 @@ export function runParserEditSlopeGate(): void {
     assert.ok(existsSync(BASELINE_PATH), `missing parser-edit baseline: ${BASELINE_PATH}`);
     const baseline = JSON.parse(readFileSync(BASELINE_PATH, "utf8")) as ParserEditBaseline;
     if (process.argv.includes("--inject-pin-regression")) {
-      baseline.pins[baseline.pins.length - 1]!.normalizedSlopeRatio = 0.000_001;
+      baseline.pins[0]!.allowedMinimumPathP90Nanoseconds = 0;
     }
     validateAgainstBaseline(report, baseline);
     runPinMutationSelftest(report, baseline);
@@ -208,7 +302,8 @@ export function runParserEditSlopeGate(): void {
       mutationSelftests: {
         sessionOnlyDisposition: "red",
         absoluteThresholdOnlyDisposition: "red",
-        perBandPinRegression: writeMode ? "not-run-in-writer" : "red",
+        everyAbsolutePerBandPin: writeMode ? "not-run-in-writer" : "red",
+        rustDispositionPredicate: "green",
       },
     }),
   );
@@ -231,6 +326,24 @@ function validateManifest(manifest: CorpusManifest): void {
       `${entry.id} must select exactly one local or remote corpus source`,
     );
     assert.ok(entry.sourceUrl.startsWith("https://"));
+    const identity = [
+      entry.sourceProject,
+      entry.sourceKind,
+      entry.sourceUrl,
+      entry.version,
+      entry.sha256,
+    ].join("\0");
+    assert.ok(
+      PARK_ELIGIBILITY_BY_SOURCE_IDENTITY.has(identity),
+      `${entry.id} source identity is not registered for PARK eligibility`,
+    );
+    assert.equal(
+      entry.parkEligible,
+      PARK_ELIGIBILITY_BY_SOURCE_IDENTITY.get(identity),
+      `${entry.id} PARK eligibility does not match its pinned source identity`,
+    );
+    assert.ok(entry.parkScopeReason.trim().length > 0);
+    assert.ok(entry.license.trim().length > 0);
   }
 }
 
@@ -302,13 +415,14 @@ function validateReport(report: ParserEditReport, manifest: CorpusManifest): voi
   assert.deepEqual(report.editShapes, EXPECTED_EDIT_SHAPES);
   assert.deepEqual(report.measurementPaths, EXPECTED_PATHS);
   assert.equal(report.dispositionPolicy, EXPECTED_DISPOSITION_POLICY);
-  assert.equal(report.dispositionInputs.minimumAcrossPaths, true);
-  assert.equal(report.dispositionInputs.perBand, true);
-  assert.equal(report.dispositionInputs.absoluteThresholdOnly, false);
+  assert.match(report.baselineMeasurementPin, /^[0-9a-f]{40}$/);
+  assert.equal(report.dispositionInputs.comparisonRunCount, 2);
+  assert.equal(report.dispositionInputs.perBandBudgetCount, EXPECTED_BANDS.length);
+  assert.equal(report.dispositionInputs.reentryRegressionRatioMilli, 2_000);
   assert.equal(report.dispositionInputs.requiredIndependentSourceCount, 2);
   assert.match(report.parkScope, /hand-authored, non-minified, non-dist/);
   assert.match(report.yardstickValidation, /unvalidated-wall-clock/);
-  assert.match(report.yardstickValidation, /load-bearing-normalized-per-band-pins/);
+  assert.match(report.yardstickValidation, /load-bearing-absolute-per-band-p90-pins/);
   assert.equal(report.originalResearchTrigger.realWorldP90Nanoseconds, 4_355_000);
   assert.equal(report.originalResearchTrigger.thresholdNanoseconds, 3_200_000);
   assert.equal(report.originalResearchTrigger.thresholdConsumptionMilli, 1_360);
@@ -316,6 +430,63 @@ function validateReport(report: ParserEditReport, manifest: CorpusManifest): voi
   assert.deepEqual(
     report.summaries.map((summary) => summary.band),
     EXPECTED_BANDS,
+  );
+  assert.deepEqual(
+    report.bandBudgetComparisons.map((comparison) => comparison.band),
+    EXPECTED_BANDS,
+    "every absolute per-band budget must be represented, including the reference band",
+  );
+  assert.equal(
+    report.dispositionInputs.withinBudgetCount,
+    report.bandBudgetComparisons.filter((comparison) => comparison.withinBudget).length,
+  );
+  assert.equal(
+    report.dispositionInputs.overBudgetCount,
+    report.bandBudgetComparisons.filter((comparison) => !comparison.withinBudget).length,
+  );
+  const qualifyingSources = new Set<string>();
+  for (const [index, comparison] of report.bandBudgetComparisons.entries()) {
+    const summary = report.summaries[index]!;
+    assert.equal(comparison.corpusId, summary.corpusId);
+    assert.equal(comparison.band, summary.band);
+    assert.equal(comparison.sourceProject, summary.sourceProject);
+    assert.equal(comparison.sourceKind, summary.sourceKind);
+    assert.equal(comparison.sourceUrl, summary.sourceUrl);
+    assert.equal(comparison.sourceVersion, summary.sourceVersion);
+    assert.equal(comparison.sourceSha256, summary.sourceSha256);
+    assert.equal(comparison.sourceBytes, summary.sourceBytes);
+    assert.equal(comparison.parkEligible, summary.parkEligible);
+    assert.ok(comparison.pinnedMinimumPathP90Nanoseconds > 0);
+    assert.ok(
+      comparison.allowedMinimumPathP90Nanoseconds > comparison.pinnedMinimumPathP90Nanoseconds,
+    );
+    assert.equal(comparison.currentMinimumPathP90Nanoseconds, summary.minimumPathP90Nanoseconds);
+    assert.equal(
+      comparison.withinBudget,
+      comparison.currentMinimumPathP90Nanoseconds <= comparison.allowedMinimumPathP90Nanoseconds,
+    );
+    assert.equal(
+      comparison.reentryThresholdNanoseconds,
+      comparison.pinnedMinimumPathP90Nanoseconds * 2,
+    );
+    assert.equal(
+      comparison.reentryCandidate,
+      comparison.parkEligible &&
+        comparison.currentMinimumPathP90Nanoseconds >= comparison.reentryThresholdNanoseconds,
+    );
+    if (comparison.reentryCandidate) qualifyingSources.add(comparison.sourceProject);
+  }
+  assert.equal(
+    report.dispositionInputs.qualifyingSourceCount,
+    report.bandBudgetComparisons.filter((comparison) => comparison.reentryCandidate).length,
+  );
+  assert.equal(report.dispositionInputs.qualifyingIndependentSourceCount, qualifyingSources.size);
+  assert.equal(
+    report.disposition,
+    qualifyingSources.size >= report.dispositionInputs.requiredIndependentSourceCount
+      ? "draft-edit-local-parser-design"
+      : "park-edit-local-parser",
+    "Rust disposition must be derived from the absolute per-band comparisons",
   );
   assert.equal(
     report.samples.length,
@@ -349,9 +520,15 @@ function runDispositionMutationSelftest(report: ParserEditReport, manifest: Corp
   assert.throws(() => validateReport(sessionOnly, manifest));
   const absoluteOnly = structuredClone(report);
   absoluteOnly.dispositionPolicy = "absolute-threshold-only";
-  absoluteOnly.dispositionInputs.minimumAcrossPaths = false;
-  absoluteOnly.dispositionInputs.absoluteThresholdOnly = true;
   assert.throws(() => validateReport(absoluteOnly, manifest));
+  const fabricatedComparison = structuredClone(report);
+  const comparison = fabricatedComparison.bandBudgetComparisons[0];
+  assert.ok(comparison);
+  (comparison as { reentryCandidate: boolean }).reentryCandidate = !comparison.reentryCandidate;
+  assert.throws(
+    () => validateReport(fabricatedComparison, manifest),
+    /Expected values to be strictly equal/u,
+  );
 }
 
 function baselineFromReport(report: ParserEditReport, gitSha: string): ParserEditBaseline {
@@ -360,8 +537,10 @@ function baselineFromReport(report: ParserEditReport, gitSha: string): ParserEdi
     product: "omena-benchmarks.parser-edit-slope-baseline",
     generatedAtUtc: new Date().toISOString(),
     omenaGitSha: gitSha,
-    measurement: "normalized-minimum-path-p90-nanoseconds-per-byte",
+    measurement: "absolute-minimum-path-p90-nanoseconds",
     allowedRegressionRatio: 0.35,
+    reentryRegressionRatio: 2,
+    requiredIndependentSourceCount: 2,
     machine: {
       cpuModel: os.cpus()[0]?.model ?? "unknown",
       cores: os.cpus().length,
@@ -371,9 +550,15 @@ function baselineFromReport(report: ParserEditReport, gitSha: string): ParserEdi
     pins: report.summaries.map((summary) => ({
       corpusId: summary.corpusId,
       band: summary.band,
+      sourceProject: summary.sourceProject,
+      sourceKind: summary.sourceKind,
+      sourceUrl: summary.sourceUrl,
+      sourceVersion: summary.sourceVersion,
+      sourceSha256: summary.sourceSha256,
       sourceBytes: summary.sourceBytes,
-      normalizedSlopeRatio: summary.normalizedSlopeRatio,
+      parkEligible: summary.parkEligible,
       measuredMinimumPathP90Nanoseconds: summary.minimumPathP90Nanoseconds,
+      allowedMinimumPathP90Nanoseconds: Math.ceil(summary.minimumPathP90Nanoseconds * 1.35),
     })),
   };
 }
@@ -381,8 +566,10 @@ function baselineFromReport(report: ParserEditReport, gitSha: string): ParserEdi
 function validateAgainstBaseline(report: ParserEditReport, baseline: ParserEditBaseline): void {
   assert.equal(baseline.schemaVersion, "0");
   assert.equal(baseline.product, "omena-benchmarks.parser-edit-slope-baseline");
-  assert.equal(baseline.measurement, "normalized-minimum-path-p90-nanoseconds-per-byte");
+  assert.equal(baseline.measurement, "absolute-minimum-path-p90-nanoseconds");
   assert.ok(baseline.allowedRegressionRatio > 0 && baseline.allowedRegressionRatio < 1);
+  assert.equal(baseline.reentryRegressionRatio, 2);
+  assert.equal(baseline.requiredIndependentSourceCount, 2);
   assert.deepEqual(
     baseline.pins.map((pin) => pin.band),
     EXPECTED_BANDS,
@@ -391,24 +578,72 @@ function validateAgainstBaseline(report: ParserEditReport, baseline: ParserEditB
   assert.equal(baseline.pins.length, report.summaries.length);
   for (const [index, summary] of report.summaries.entries()) {
     const pin = baseline.pins[index]!;
+    const comparison = report.bandBudgetComparisons[index]!;
     assert.equal(pin.corpusId, summary.corpusId);
     assert.equal(pin.band, summary.band);
+    assert.equal(pin.sourceProject, summary.sourceProject);
+    assert.equal(pin.sourceKind, summary.sourceKind);
+    assert.equal(pin.sourceUrl, summary.sourceUrl);
+    assert.equal(pin.sourceVersion, summary.sourceVersion);
+    assert.equal(pin.sourceSha256, summary.sourceSha256);
     assert.equal(pin.sourceBytes, summary.sourceBytes);
-    assert.ok(pin.normalizedSlopeRatio > 0, `${pin.band} must have a positive slope pin`);
-    const threshold = pin.normalizedSlopeRatio * (1 + baseline.allowedRegressionRatio);
+    assert.equal(pin.parkEligible, summary.parkEligible);
     assert.ok(
-      summary.normalizedSlopeRatio <= threshold,
-      `${pin.band} normalized parser-edit slope regressed: current=${summary.normalizedSlopeRatio.toFixed(
-        6,
-      )} pin=${pin.normalizedSlopeRatio.toFixed(6)} threshold=${threshold.toFixed(6)}`,
+      pin.measuredMinimumPathP90Nanoseconds > 0,
+      `${pin.band} must have a positive absolute P90 pin`,
+    );
+    const threshold = Math.ceil(
+      pin.measuredMinimumPathP90Nanoseconds * (1 + baseline.allowedRegressionRatio),
+    );
+    assert.equal(
+      pin.allowedMinimumPathP90Nanoseconds,
+      threshold,
+      `${pin.band} absolute P90 budget drifted`,
+    );
+    assert.equal(comparison.pinnedMinimumPathP90Nanoseconds, pin.measuredMinimumPathP90Nanoseconds);
+    assert.equal(comparison.allowedMinimumPathP90Nanoseconds, pin.allowedMinimumPathP90Nanoseconds);
+    assert.ok(
+      summary.minimumPathP90Nanoseconds <= threshold,
+      `${pin.band} absolute parser-edit P90 regressed: current=${summary.minimumPathP90Nanoseconds} pin=${pin.measuredMinimumPathP90Nanoseconds} threshold=${threshold}`,
     );
   }
 }
 
 function runPinMutationSelftest(report: ParserEditReport, baseline: ParserEditBaseline): void {
-  const mutation = structuredClone(baseline);
-  mutation.pins[mutation.pins.length - 1]!.normalizedSlopeRatio = 0.000_001;
-  assert.throws(() => validateAgainstBaseline(report, mutation));
+  for (const [index, pin] of baseline.pins.entries()) {
+    const mutation = structuredClone(baseline);
+    mutation.pins[index]!.allowedMinimumPathP90Nanoseconds = 0;
+    assert.throws(
+      () => validateAgainstBaseline(report, mutation),
+      new RegExp(`${pin.band} absolute P90 budget drifted`, "u"),
+    );
+  }
+}
+
+function runRustDispositionPredicateArm(): void {
+  const run = spawnSync(
+    "cargo",
+    [
+      "test",
+      "--quiet",
+      "--release",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "omena-benchmarks",
+      "--bin",
+      "parser_edit_trace_slope_profile",
+      "disposition_requires_two_independent_reentry_sources",
+      "--",
+      "--exact",
+    ],
+    { cwd: process.cwd(), encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
+  );
+  assert.equal(
+    run.status,
+    0,
+    `Rust parser-edit disposition predicate arm failed\nstdout:\n${run.stdout}\nstderr:\n${run.stderr}`,
+  );
 }
 
 function commandOutput(command: string, args: readonly string[]): string {
