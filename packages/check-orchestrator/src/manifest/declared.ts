@@ -1252,9 +1252,9 @@ export const DECLARED_CHECK_GATES = [
     kind: "gate",
     scope: "rust",
     packageTarget: "rust/line-index-authority",
-    tags: ["closure-fast", "syntax", "line-index", "performance"],
-    ciTier: "closure-fast",
-    ciGroup: "closure-fast",
+    tags: ["rust-workspace", "syntax", "line-index", "performance"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
   },
   {
     id: "rust/frame-refresh-runtime-disposition",
