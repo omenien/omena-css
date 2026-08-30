@@ -148,7 +148,7 @@ const semanticTransportAnchors = [
     relativePath: "rust/crates/omena-wasm/src/lib.rs",
     needles: [
       "resolve_css_module_for_bundler_host(request",
-      "resolve_css_module_for_bundler_host_response(request)",
+      "resolve_omena_bundler_host_module_v0(request)",
     ],
   },
 ] as const;
