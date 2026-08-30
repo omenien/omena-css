@@ -95,9 +95,12 @@ pub fn summarize_omena_query_style_inline_code_actions_with_resolution_inputs(
     else {
         return empty_style_code_action_plan(style_uri, "styleInlineRefactorActions");
     };
-    let Some(range_start) =
-        byte_offset_for_parser_position(&target_source.style_source, range.start)
-    else {
+    let line_index = omena_query_line_index(target_source.style_source.as_str());
+    let Some(range_start) = byte_offset_for_parser_position_with_line_index(
+        target_source.style_source.as_str(),
+        &line_index,
+        range.start,
+    ) else {
         return empty_style_code_action_plan(style_uri, "styleInlineRefactorActions");
     };
 
@@ -167,8 +170,11 @@ pub fn summarize_omena_query_style_inline_code_actions_with_resolution_inputs(
             continue;
         }
 
-        let replacement_range =
-            expand_inline_composes_statement_range(target_source.style_source.as_str(), edge_span);
+        let replacement_range = expand_inline_composes_statement_range(
+            target_source.style_source.as_str(),
+            &line_index,
+            edge_span,
+        );
         let replacement_text = format_inline_declarations(
             declarations.as_slice(),
             line_indent_at(
@@ -465,7 +471,11 @@ fn matching_close_brace(source: &str, open_brace: usize) -> Option<usize> {
     None
 }
 
-fn expand_inline_composes_statement_range(source: &str, span: ParserByteSpanV0) -> ParserRangeV0 {
+fn expand_inline_composes_statement_range(
+    source: &str,
+    line_index: &OmenaLineIndexV0,
+    span: ParserByteSpanV0,
+) -> ParserRangeV0 {
     let mut end = span.end;
     while source
         .as_bytes()
@@ -477,8 +487,9 @@ fn expand_inline_composes_statement_range(source: &str, span: ParserByteSpanV0) 
     if source.as_bytes().get(end) == Some(&b';') {
         end += 1;
     }
-    parser_range_for_byte_span(
+    parser_range_for_byte_span_with_line_index(
         source,
+        line_index,
         ParserByteSpanV0 {
             start: span.start,
             end,

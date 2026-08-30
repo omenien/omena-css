@@ -43,10 +43,11 @@ pub fn summarize_omena_query_style_insight_code_actions(
     source: &str,
     range: ParserRangeV0,
 ) -> OmenaQueryCodeActionPlanV0 {
+    let line_index = omena_query_line_index(source);
     let actions = summarize_omena_query_style_insights(style_uri, source)
         .insights
         .into_iter()
-        .filter(|insight| insight_matches_selection(source, insight.range, range))
+        .filter(|insight| insight_matches_selection(source, &line_index, insight.range, range))
         .filter_map(|insight| {
             let primary_edit = insight.primary_edit?;
             Some(OmenaQueryCodeActionV0 {
@@ -457,19 +458,28 @@ fn shorthand_quartet_is_combinable(quartet: &[&QueryCheckerCascadeDeclaration]) 
 
 fn insight_matches_selection(
     source: &str,
+    line_index: &OmenaLineIndexV0,
     insight_range: ParserRangeV0,
     selection: ParserRangeV0,
 ) -> bool {
-    let Some(insight_start) = byte_offset_for_parser_position(source, insight_range.start) else {
+    let Some(insight_start) =
+        byte_offset_for_parser_position_with_line_index(source, line_index, insight_range.start)
+    else {
         return false;
     };
-    let Some(insight_end) = byte_offset_for_parser_position(source, insight_range.end) else {
+    let Some(insight_end) =
+        byte_offset_for_parser_position_with_line_index(source, line_index, insight_range.end)
+    else {
         return false;
     };
-    let Some(selection_start) = byte_offset_for_parser_position(source, selection.start) else {
+    let Some(selection_start) =
+        byte_offset_for_parser_position_with_line_index(source, line_index, selection.start)
+    else {
         return false;
     };
-    let Some(selection_end) = byte_offset_for_parser_position(source, selection.end) else {
+    let Some(selection_end) =
+        byte_offset_for_parser_position_with_line_index(source, line_index, selection.end)
+    else {
         return false;
     };
 

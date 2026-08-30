@@ -281,8 +281,9 @@ fn file_directives_suppress_code(
 fn parse_omena_query_diagnostic_directives(source: &str) -> Vec<OmenaDiagnosticDirectiveV0> {
     let mut directives = Vec::new();
     let mut line_start_offset = 0usize;
+    let line_index = omena_query_line_index(source);
 
-    for (line_index, line) in source.split_inclusive('\n').enumerate() {
+    for (line_number, line) in source.split_inclusive('\n').enumerate() {
         let line_without_newline = line.trim_end_matches(['\r', '\n']);
         let line_context = OmenaDiagnosticDirectiveLineV0 {
             source,
@@ -291,6 +292,7 @@ fn parse_omena_query_diagnostic_directives(source: &str) -> Vec<OmenaDiagnosticD
         };
         collect_line_directive(
             line_context,
+            &line_index,
             OmenaDiagnosticDirectiveSpecV0 {
                 name: OMENA_IGNORE_FILE,
                 kind: OmenaDiagnosticDirectiveKindV0::IgnoreFile,
@@ -300,23 +302,25 @@ fn parse_omena_query_diagnostic_directives(source: &str) -> Vec<OmenaDiagnosticD
         );
         collect_line_directive(
             line_context,
+            &line_index,
             OmenaDiagnosticDirectiveSpecV0 {
                 name: OMENA_IGNORE_NEXT_LINE,
                 kind: OmenaDiagnosticDirectiveKindV0::IgnoreNextLine,
-                target_line: Some(line_index + 1),
+                target_line: Some(line_number + 1),
             },
             &mut directives,
         );
         collect_line_directive(
             line_context,
+            &line_index,
             OmenaDiagnosticDirectiveSpecV0 {
                 name: OMENA_EXPECT_ERROR,
                 kind: OmenaDiagnosticDirectiveKindV0::ExpectError,
-                target_line: Some(line_index + 1),
+                target_line: Some(line_number + 1),
             },
             &mut directives,
         );
-        collect_block_directive(line_context, &mut directives);
+        collect_block_directive(line_context, &line_index, &mut directives);
         line_start_offset += line.len();
     }
 
@@ -325,14 +329,16 @@ fn parse_omena_query_diagnostic_directives(source: &str) -> Vec<OmenaDiagnosticD
 
 fn collect_line_directive(
     line_context: OmenaDiagnosticDirectiveLineV0<'_>,
+    line_index: &OmenaLineIndexV0,
     spec: OmenaDiagnosticDirectiveSpecV0,
     directives: &mut Vec<OmenaDiagnosticDirectiveV0>,
 ) {
     let Some(directive_offset) = line_context.line.find(spec.name) else {
         return;
     };
-    let range = parser_range_for_byte_span(
+    let range = parser_range_for_byte_span_with_line_index(
         line_context.source,
+        line_index,
         ParserByteSpanV0 {
             start: line_context.line_start_offset + directive_offset,
             end: line_context.line_start_offset + directive_offset + spec.name.len(),
@@ -351,6 +357,7 @@ fn collect_line_directive(
 
 fn collect_block_directive(
     line_context: OmenaDiagnosticDirectiveLineV0<'_>,
+    line_index: &OmenaLineIndexV0,
     directives: &mut Vec<OmenaDiagnosticDirectiveV0>,
 ) {
     let Some(directive_offset) = find_plain_omena_ignore_directive(line_context.line) else {
@@ -363,8 +370,9 @@ fn collect_block_directive(
     else {
         return;
     };
-    let range = parser_range_for_byte_span(
+    let range = parser_range_for_byte_span_with_line_index(
         line_context.source,
+        line_index,
         ParserByteSpanV0 {
             start: line_context.line_start_offset + directive_offset,
             end: directive_end,

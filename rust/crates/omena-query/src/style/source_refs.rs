@@ -1025,6 +1025,7 @@ fn summarize_omena_query_source_diagnostics_from_syntax_index(
             diagnostics.push(
                 summarize_omena_query_unresolved_source_reference_diagnostic(
                     source_source,
+                    &line_index,
                     reference,
                     selector_name.as_str(),
                     target_style_source,
@@ -1435,13 +1436,14 @@ pub(super) struct OmenaQueryWorkspaceSourceReferenceCandidateV0 {
 
 fn summarize_omena_query_unresolved_source_reference_diagnostic(
     source: &str,
+    line_index: &OmenaLineIndexV0,
     reference: &OmenaQuerySourceSelectorReferenceFactV0,
     selector_name: &str,
     target_style_source: Option<&str>,
     definitions: &[OmenaQueryStyleSelectorDefinitionV0],
     value_domain_size: usize,
 ) -> OmenaQuerySourceDiagnosticV0 {
-    let range = parser_range_for_byte_span(source, reference.byte_span);
+    let range = parser_range_for_byte_span_with_line_index(source, line_index, reference.byte_span);
     let reference_text = source
         .get(reference.byte_span.start..reference.byte_span.end)
         .unwrap_or_default()
