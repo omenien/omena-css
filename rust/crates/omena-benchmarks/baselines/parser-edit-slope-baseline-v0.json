@@ -101,8 +101,8 @@
     },
     {
       "id": "local-darwin-arm64",
-      "generatedAtUtc": "2026-08-30T09:55:13.113Z",
-      "omenaGitSha": "fcb34eeef9de12974f39f4e0e41faf02f2568753",
+      "generatedAtUtc": "2026-08-30T09:57:28.362Z",
+      "omenaGitSha": "480776aa7209fa6d31d62dcbd8faf5053d50468a",
       "executionEnvironment": "local:darwin:arm64",
       "statistic": "minimum-across-paths-of-median-across-edit-shape-batch-medians",
       "spreadStatistic": "maximum-of-within-run-median-absolute-deviation-and-between-run-range",
@@ -110,8 +110,8 @@
         "kind": "local-writer",
         "runId": null
       },
-      "observedMaximumSpreadRatio": 0.034378484912056,
-      "allowedRegressionRatio": 0.104,
+      "observedMaximumSpreadRatio": 0.02238020960729041,
+      "allowedRegressionRatio": 0.068,
       "reentryRegressionRatio": 2,
       "requiredConsecutiveRunCount": 2,
       "requiredIndependentSourceCount": 2,
@@ -133,9 +133,9 @@
           "sourceSha256": "e9702b58c036ade265d90cbe01efa8688581871115619650ce06eb1d49df8a5e",
           "sourceBytes": 515,
           "parkEligible": true,
-          "measuredMinimumPathMedianNanoseconds": 27285,
-          "observedSpreadNanoseconds": 315,
-          "allowedMinimumPathMedianNanoseconds": 30123
+          "measuredMinimumPathMedianNanoseconds": 27975,
+          "observedSpreadNanoseconds": 318,
+          "allowedMinimumPathMedianNanoseconds": 29878
         },
         {
           "corpusId": "tailwind-preflight",
@@ -147,9 +147,9 @@
           "sourceSha256": "ace8310eed6dc5568a56fc16e1d695cf58da7528d81d66d81649e93cce644df6",
           "sourceBytes": 8489,
           "parkEligible": true,
-          "measuredMinimumPathMedianNanoseconds": 183765,
-          "observedSpreadNanoseconds": 5444,
-          "allowedMinimumPathMedianNanoseconds": 202877
+          "measuredMinimumPathMedianNanoseconds": 193004,
+          "observedSpreadNanoseconds": 2316,
+          "allowedMinimumPathMedianNanoseconds": 206129
         },
         {
           "corpusId": "tailwind-index",
@@ -161,9 +161,9 @@
           "sourceSha256": "175f88737ecb7e033059eac4a3b22a3b5f971d5a05d9fd50811610a0714633b2",
           "sourceBytes": 29786,
           "parkEligible": true,
-          "measuredMinimumPathMedianNanoseconds": 724552,
-          "observedSpreadNanoseconds": 24909,
-          "allowedMinimumPathMedianNanoseconds": 799906
+          "measuredMinimumPathMedianNanoseconds": 748161,
+          "observedSpreadNanoseconds": 16744,
+          "allowedMinimumPathMedianNanoseconds": 799036
         },
         {
           "corpusId": "fumadocs-distribution-style",
@@ -175,9 +175,9 @@
           "sourceSha256": "765821c9236ec61778b7e8b29f662dd9bf9c5c7a5ac667bf0adbf74fd0140d4d",
           "sourceBytes": 105923,
           "parkEligible": false,
-          "measuredMinimumPathMedianNanoseconds": 4917437,
-          "observedSpreadNanoseconds": 19761,
-          "allowedMinimumPathMedianNanoseconds": 5428851
+          "measuredMinimumPathMedianNanoseconds": 5183854,
+          "observedSpreadNanoseconds": 67312,
+          "allowedMinimumPathMedianNanoseconds": 5536357
         },
         {
           "corpusId": "openbridge-distribution-style",
@@ -189,9 +189,9 @@
           "sourceSha256": "b0fa72f204e8d6354c3a534a4a5df8d83d4373421fcbdf2a90db50ad8f3e7a0e",
           "sourceBytes": 680488,
           "parkEligible": false,
-          "measuredMinimumPathMedianNanoseconds": 19095250,
-          "observedSpreadNanoseconds": 98875,
-          "allowedMinimumPathMedianNanoseconds": 21081156
+          "measuredMinimumPathMedianNanoseconds": 20215416,
+          "observedSpreadNanoseconds": 237333,
+          "allowedMinimumPathMedianNanoseconds": 21590065
         }
       ]
     }
