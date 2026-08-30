@@ -1336,14 +1336,21 @@ fn trust_record_projection_refuses_unavailable_attestation_verification() -> Tes
             &storage,
         )
     };
-    let direct_refusal =
+    let direct_refusal = match
         omena_bridge::generate_omena_bridge_sif_for_resolved_style_path_with_canonical_url_cache_context_storage_and_trust(
             resolved_url.as_str(),
             PUBLISHED_URL,
             &omena_bridge::OmenaBridgeExternalSifCacheContextV0::default(),
             Some(&storage),
-        )
-        .expect_err("the LSP build must not silently skip unavailable attestation verification");
+        ) {
+        Err(refusal) => refusal,
+        Ok(_) => {
+            return Err(std::io::Error::other(
+                "the LSP build must not silently skip unavailable attestation verification",
+            )
+            .into());
+        }
+    };
     assert_eq!(
         direct_refusal,
         format!(
