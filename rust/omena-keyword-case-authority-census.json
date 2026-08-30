@@ -791,7 +791,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/code_actions.rs",
-      "line": 422,
+      "line": 428,
       "function": "selector_inline_declarations",
       "idiom": "strip-prefix",
       "keyword": "composes",
@@ -2121,7 +2121,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:fef364404cea9eddf93d7abc44a36261e486fcebb92ae6eda574851eda4e671f",
+  "siteDigest": "sha256:0ac4b2c4d2bf2fbda6aa14ada1bf2012f06de05be7b3a562082e4f470385039d",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [

@@ -7492,7 +7492,7 @@
       "crate": "omena-query",
       "typeName": "InlineDeclarationContext",
       "sourcePath": "rust/crates/omena-query/src/style/code_actions.rs",
-      "line": 263
+      "line": 269
     },
     {
       "crate": "omena-query",
@@ -9028,7 +9028,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQueryWorkspaceSourceReferenceCandidateV0",
       "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 1431
+      "line": 1432
     },
     {
       "crate": "omena-query",
