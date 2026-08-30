@@ -416,8 +416,45 @@ mod oversized_style_hover_index_tests {
             1
         );
         println!(
-            "{{\"sourceBytes\":{},\"maximumSourceBytes\":{},\"hoverIndexAttempted\":false,\"oversizedSkipCount\":1,\"elapsedMicros\":{}}}",
+            "{{\"schemaVersion\":\"0\",\"product\":\"omena-lsp-server.style-hover-index-measurement\",\"fixtureKind\":\"styleDocument\",\"sourceBytes\":{},\"maximumSourceBytes\":{},\"hoverIndexAttempted\":false,\"oversizedSkipCount\":1,\"elapsedMicros\":{}}}",
             document.text.len(),
+            STYLE_HOVER_INDEX_MAX_SOURCE_BYTES_V0,
+            elapsed.as_micros()
+        );
+    }
+
+    #[test]
+    fn one_megabyte_vue_module_style_skips_hover_indexing_with_a_counted_policy() {
+        let _guard = OVERSIZED_STYLE_HOVER_INDEX_MEASUREMENT_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        OVERSIZED_STYLE_HOVER_INDEX_SKIP_COUNT.store(0, std::sync::atomic::Ordering::SeqCst);
+        let rule = ".embedded { color: blue; }\n";
+        let embedded_source = rule.repeat((1024 * 1024 / rule.len()) + 1);
+        assert!(embedded_source.len() >= 1024 * 1024);
+        let embedded_source_bytes = embedded_source.len();
+        let source =
+            format!("<template><div /></template>\n<style module>\n{embedded_source}</style>\n");
+        let started = std::time::Instant::now();
+        let document = crate::lsp_text_document_state(
+            "file:///workspace/Oversized.vue".to_string(),
+            Some("file:///workspace".to_string()),
+            "vue".to_string(),
+            1,
+            source,
+            &OmenaQueryStyleResolutionInputsV0::default(),
+        );
+        let elapsed = started.elapsed();
+        assert!(document.style_summary.is_some());
+        assert!(document.style_candidates.is_empty());
+        assert_eq!(
+            OVERSIZED_STYLE_HOVER_INDEX_SKIP_COUNT.load(std::sync::atomic::Ordering::SeqCst),
+            1
+        );
+        println!(
+            "{{\"schemaVersion\":\"0\",\"product\":\"omena-lsp-server.style-hover-index-measurement\",\"fixtureKind\":\"vueEmbeddedStyleModule\",\"documentBytes\":{},\"embeddedSourceBytes\":{},\"maximumSourceBytes\":{},\"hoverIndexAttempted\":false,\"oversizedSkipCount\":1,\"elapsedMicros\":{}}}",
+            document.text.len(),
+            embedded_source_bytes,
             STYLE_HOVER_INDEX_MAX_SOURCE_BYTES_V0,
             elapsed.as_micros()
         );

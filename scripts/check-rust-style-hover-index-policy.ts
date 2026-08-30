@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -45,8 +46,23 @@ for (const needle of [
   assert.ok(source.includes(needle), `typed hover-index skip log is missing ${needle}`);
 }
 assert.match(source, /fn one_megabyte_style_source_skips_hover_indexing_with_a_counted_policy/);
+assert.match(source, /fn one_megabyte_vue_module_style_skips_hover_indexing_with_a_counted_policy/);
 assert.match(source, /assert!\(document\.style_candidates\.is_empty\(\)\)/);
 assert.match(source, /OVERSIZED_STYLE_HOVER_INDEX_SKIP_COUNT\.load/);
+
+const measurementReceipts = runMeasurementTests();
+const measuredFixtureKinds = measurementReceipts.map((receipt) => receipt.fixtureKind).toSorted();
+assert.deepEqual(measuredFixtureKinds, ["styleDocument", "vueEmbeddedStyleModule"]);
+for (const receipt of measurementReceipts) {
+  const measuredSourceBytes =
+    receipt.fixtureKind === "vueEmbeddedStyleModule"
+      ? receipt.embeddedSourceBytes
+      : receipt.sourceBytes;
+  assert.ok(measuredSourceBytes >= 1_048_576);
+  assert.equal(receipt.maximumSourceBytes, 65_536);
+  assert.equal(receipt.hoverIndexAttempted, false);
+  assert.equal(receipt.oversizedSkipCount, 1);
+}
 
 process.stdout.write(
   `${JSON.stringify(
@@ -57,12 +73,65 @@ process.stdout.write(
       oversizedFixtureMinimumBytes: 1_048_576,
       policy: "skip-hover-index-and-emit-typed-log",
       skipCounter: "OVERSIZED_STYLE_HOVER_INDEX_SKIP_COUNT",
-      embeddedStyleCovered: true,
+      measurementReceiptCount: measurementReceipts.length,
+      measuredFixtureKinds,
+      embeddedStyleCovered: measuredFixtureKinds.includes("vueEmbeddedStyleModule"),
     },
     null,
     2,
   )}\n`,
 );
+
+interface MeasurementReceipt {
+  readonly schemaVersion: "0";
+  readonly product: "omena-lsp-server.style-hover-index-measurement";
+  readonly fixtureKind: "styleDocument" | "vueEmbeddedStyleModule";
+  readonly sourceBytes?: number;
+  readonly embeddedSourceBytes?: number;
+  readonly maximumSourceBytes: number;
+  readonly hoverIndexAttempted: false;
+  readonly oversizedSkipCount: 1;
+}
+
+function runMeasurementTests(): readonly MeasurementReceipt[] {
+  const run = spawnSync(
+    "cargo",
+    [
+      "test",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "omena-lsp-server",
+      "oversized_style_hover_index_tests",
+      "--lib",
+      "--",
+      "--nocapture",
+    ],
+    { cwd: repoRoot, encoding: "utf8", maxBuffer: 32 * 1024 * 1024 },
+  );
+  assert.equal(
+    run.status,
+    0,
+    `style-hover index measurement tests failed\nstdout:\n${run.stdout}\nstderr:\n${run.stderr}`,
+  );
+  const receipts: MeasurementReceipt[] = [];
+  for (const line of `${run.stdout}\n${run.stderr}`.split("\n")) {
+    const start = line.indexOf("{");
+    const end = line.lastIndexOf("}");
+    if (start < 0 || end <= start) continue;
+    try {
+      const candidate = JSON.parse(line.slice(start, end + 1)) as Partial<MeasurementReceipt>;
+      if (candidate.product === "omena-lsp-server.style-hover-index-measurement") {
+        receipts.push(candidate as MeasurementReceipt);
+      }
+    } catch {
+      // Cargo can place non-JSON test text around braces; only complete measurement
+      // receipts are relevant to this derivation.
+    }
+  }
+  assert.equal(receipts.length, 2, "both oversized style measurement receipts must execute");
+  return receipts;
+}
 
 function extractFunctionBody(rustSource: string, functionName: string): string {
   const match = new RegExp(`\\bfn\\s+${functionName}\\b`).exec(rustSource);
