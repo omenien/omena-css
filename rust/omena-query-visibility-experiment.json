@@ -6,6 +6,93 @@
     "compile": "cargo check --manifest-path rust/Cargo.toml -p omena-query --all-targets --all-features",
     "warningPolicy": "cargo clippy --manifest-path rust/Cargo.toml -p omena-query --all-targets --all-features --no-deps -- -D warnings"
   },
+  "reexportBoundaryReconstruction": {
+    "publicApiTool": "cargo-public-api 0.52.0",
+    "pickupRevision": "1d97626b3d3bd335945dcb43b261821aa91279a4",
+    "explicitReexportRevision": "8df0ea1f9485fc6cecfd2f236543ecb9473374e2",
+    "expectedChangedPaths": [
+      "rust/crates/omena-query/src/boundary.rs",
+      "rust/crates/omena-query/src/style.rs"
+    ],
+    "authoredEntryGate": {
+      "facadeNameCount": 914,
+      "defaultRootNameCount": 859,
+      "allFeaturesOnlyRootNameCount": 61,
+      "renamedOnlyCandidateCount": 67,
+      "renamedOnlyCandidateListSha256": "sha256:330931f068fe11173c0c264322606cd5aabf8f7f54677f87477d42cebb4cec2d",
+      "renameOnlyCriterion": "exported alias differs from origin leaf name"
+    },
+    "pickupEntryGate": {
+      "namedReexportCount": 923,
+      "publicTypeAliasCount": 1,
+      "facadeNameCount": 924,
+      "defaultRootNameCount": 869,
+      "allFeaturesRootNameCount": 930,
+      "allFeaturesOnlyRootNameCount": 61,
+      "semverIntentCount": 0
+    },
+    "explicitReexportReplay": {
+      "pickupWildcardReexportCount": 15,
+      "explicitReexportWildcardReexportCount": 0,
+      "defaultFeatures": {
+        "pickupOutputSha256": "sha256:10f12c59226ecb147d645f3ea5b64ee9b072c962d803086416d7e80cfcea62bb",
+        "explicitReexportOutputSha256": "sha256:10f12c59226ecb147d645f3ea5b64ee9b072c962d803086416d7e80cfcea62bb",
+        "pickupRootNameCount": 869,
+        "explicitReexportRootNameCount": 869,
+        "addedRootNameCount": 0,
+        "removedRootNameCount": 0
+      },
+      "allFeatures": {
+        "pickupOutputSha256": "sha256:f163f27710d6a9c8b5f3c51aac43e37921ac90301b3f9346b44f7de0d5c65abc",
+        "explicitReexportOutputSha256": "sha256:f163f27710d6a9c8b5f3c51aac43e37921ac90301b3f9346b44f7de0d5c65abc",
+        "pickupRootNameCount": 930,
+        "explicitReexportRootNameCount": 930,
+        "addedRootNameCount": 0,
+        "removedRootNameCount": 0
+      }
+    },
+    "currentSurfaceAccounting": {
+      "defaultRootNameCount": 566,
+      "allFeaturesRootNameCount": 651,
+      "allFeaturesOnlyRootNameCount": 85,
+      "defaultRootNameLossFromPickup": 303,
+      "allFeaturesRootNameLossFromPickup": 279,
+      "compiledVisibilityReductionCount": 276,
+      "compiledVisibilityNamesAbsentFromPickupDefaultCount": 20,
+      "defaultOnlyNarrowingCount": 44,
+      "retiredRefreshSurfaceCount": 3,
+      "restoredCompatibilityPromiseCount": 3,
+      "defaultLossResidueCount": 27,
+      "defaultLossResidueEquation": "44 - 20 + 3 = 27",
+      "compiledVisibilityNamesAbsentFromPickupDefault": [
+        "OmenaQueryCommittedStyleSemanticGraphV0",
+        "OmenaQueryCommittedWaveSubstrateV0",
+        "OmenaQueryStyleDiagnosticsWithSelectorV0",
+        "OmenaQueryStyleFileInputV0",
+        "OmenaQueryStyleParallelResolveSyncV0",
+        "OmenaQueryStyleRevisionSelectorV0",
+        "OmenaQueryStyleWorkspaceInputV0",
+        "OmenaQueryStyleWorkspaceTransactionErrorV0",
+        "OmenaQueryTransformCatalogDifferentialCommutativityWitnessV0",
+        "OmenaQueryTransformCatalogModelTraceV0",
+        "OmenaQueryTransformCatalogReorderabilityCertificateV0",
+        "OmenaQueryTransformCatalogTransformPassParallelPlanV0",
+        "memo_css_modules_cross_file_resolution_from_module_interfaces",
+        "memo_module_interface_projection",
+        "memo_sass_module_cross_file_resolution_from_module_interfaces",
+        "memo_sass_module_cross_file_resolution_with_external_sifs_from_module_interfaces",
+        "memo_sass_module_cross_file_resolution_without_manifests_from_module_interfaces",
+        "memo_sass_module_cross_file_resolution_without_path_mappings_from_module_interfaces",
+        "resolve_committed_workspace_style_diagnostics_from_view_with_external_mode",
+        "resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode"
+      ],
+      "retiredRefreshSurfaceNames": [
+        "OmenaQueryStyleFrameRefreshFactsV0",
+        "OmenaQueryStyleFrameRefreshParseCacheV0",
+        "summarize_omena_query_style_frame_refresh_facts_with_reuse"
+      ]
+    }
+  },
   "defaultFeatureNarrowing": {
     "feature": "transform-catalog-trace",
     "rowCount": 44,

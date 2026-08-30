@@ -1,6 +1,8 @@
 import { strict as assert } from "node:assert";
 import { execFileSync, spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,6 +31,54 @@ interface VisibilityExperiment {
     readonly compile: string;
     readonly warningPolicy: string;
   };
+  readonly reexportBoundaryReconstruction: {
+    readonly publicApiTool: "cargo-public-api 0.52.0";
+    readonly pickupRevision: "1d97626b3d3bd335945dcb43b261821aa91279a4";
+    readonly explicitReexportRevision: "8df0ea1f9485fc6cecfd2f236543ecb9473374e2";
+    readonly expectedChangedPaths: readonly [
+      "rust/crates/omena-query/src/boundary.rs",
+      "rust/crates/omena-query/src/style.rs",
+    ];
+    readonly authoredEntryGate: {
+      readonly facadeNameCount: 914;
+      readonly defaultRootNameCount: 859;
+      readonly allFeaturesOnlyRootNameCount: 61;
+      readonly renamedOnlyCandidateCount: 67;
+      readonly renamedOnlyCandidateListSha256: "sha256:330931f068fe11173c0c264322606cd5aabf8f7f54677f87477d42cebb4cec2d";
+      readonly renameOnlyCriterion: "exported alias differs from origin leaf name";
+    };
+    readonly pickupEntryGate: {
+      readonly namedReexportCount: 923;
+      readonly publicTypeAliasCount: 1;
+      readonly facadeNameCount: 924;
+      readonly defaultRootNameCount: 869;
+      readonly allFeaturesRootNameCount: 930;
+      readonly allFeaturesOnlyRootNameCount: 61;
+      readonly semverIntentCount: 0;
+    };
+    readonly explicitReexportReplay: {
+      readonly pickupWildcardReexportCount: 15;
+      readonly explicitReexportWildcardReexportCount: 0;
+      readonly defaultFeatures: ReexportReplayPlane;
+      readonly allFeatures: ReexportReplayPlane;
+    };
+    readonly currentSurfaceAccounting: {
+      readonly defaultRootNameCount: 566;
+      readonly allFeaturesRootNameCount: 651;
+      readonly allFeaturesOnlyRootNameCount: 85;
+      readonly defaultRootNameLossFromPickup: 303;
+      readonly allFeaturesRootNameLossFromPickup: 279;
+      readonly compiledVisibilityReductionCount: 276;
+      readonly compiledVisibilityNamesAbsentFromPickupDefaultCount: 20;
+      readonly defaultOnlyNarrowingCount: 44;
+      readonly retiredRefreshSurfaceCount: 3;
+      readonly restoredCompatibilityPromiseCount: 3;
+      readonly defaultLossResidueCount: 27;
+      readonly defaultLossResidueEquation: "44 - 20 + 3 = 27";
+      readonly compiledVisibilityNamesAbsentFromPickupDefault: readonly string[];
+      readonly retiredRefreshSurfaceNames: readonly string[];
+    };
+  };
   readonly outcomeCounts: Readonly<Record<Outcome, number>>;
   readonly defaultFeatureNarrowing: {
     readonly feature: "transform-catalog-trace";
@@ -41,6 +91,15 @@ interface VisibilityExperiment {
     }[];
   };
   readonly rows: readonly VisibilityRow[];
+}
+
+interface ReexportReplayPlane {
+  readonly pickupOutputSha256: string;
+  readonly explicitReexportOutputSha256: string;
+  readonly pickupRootNameCount: number;
+  readonly explicitReexportRootNameCount: number;
+  readonly addedRootNameCount: 0;
+  readonly removedRootNameCount: 0;
 }
 
 interface DefaultWarningDispositions {
@@ -68,6 +127,15 @@ const integrationTestPath = path.join(
   repoRoot,
   "rust/crates/omena-query/tests/sdk_workflow_contract.rs",
 );
+const defaultPublicApiSnapshotPath = path.join(
+  repoRoot,
+  "rust/crates/omena-query/tests/snapshots/public-api.txt",
+);
+const allFeaturesPublicApiSnapshotPath = path.join(
+  repoRoot,
+  "rust/crates/omena-query/tests/snapshots/public-api-all-features.txt",
+);
+const semverIntentPath = path.join(repoRoot, "rust/omena-rust-semver-intent.json");
 const table = JSON.parse(readFileSync(tablePath, "utf8")) as VisibilityExperiment;
 const warningDispositions = JSON.parse(
   readFileSync(warningDispositionPath, "utf8"),
@@ -90,6 +158,11 @@ const defaultVisibility = scanFacadeVisibility(source, new Set());
 const allFeaturesVisibility = scanFacadeVisibility(source, cargoFeatureNames());
 validateExperiment(table, allFeaturesVisibility, integrationTest);
 validateDefaultFeatureNarrowing(table, defaultVisibility, allFeaturesVisibility);
+validateReexportBoundaryReconstruction(table);
+const replayedReexportBoundary = process.argv.includes("--replay-reexport-boundary");
+if (replayedReexportBoundary) {
+  replayReexportBoundary(table);
+}
 const forcedDefaultWarnings = measureForcedDefaultFeatureWarnings();
 validateDefaultWarningDispositions(warningDispositions, forcedDefaultWarnings);
 runValidatorSelftests(table, source, integrationTest);
@@ -151,6 +224,7 @@ process.stdout.write(
       newlyDispositionedDefaultWarningCount: warningDispositions.newlyDispositionedWarningCount,
       preexistingAllowedWarningCount: warningDispositions.preexistingAllowedWarningCount,
       forcedDefaultWarningCensusCount: forcedDefaultWarnings.length,
+      reexportBoundaryReconstruction: replayedReexportBoundary ? "replayed" : "validated",
       compile: "green",
       warningPolicy: "green",
       selftestMutationCount: 4,
@@ -259,6 +333,346 @@ function validateDefaultFeatureNarrowing(
     assert.equal(row.releaseClass, "pre1MinorBreaking");
     assert.ok(authoredNames.has(row.name), `${row.name} lacks an authored visibility row`);
   }
+}
+
+function validateReexportBoundaryReconstruction(candidate: VisibilityExperiment): void {
+  const reconstruction = candidate.reexportBoundaryReconstruction;
+  assert.equal(reconstruction.publicApiTool, "cargo-public-api 0.52.0");
+  const parentRevision = gitText([
+    "rev-parse",
+    `${reconstruction.explicitReexportRevision}^`,
+  ]).trim();
+  assert.equal(parentRevision, reconstruction.pickupRevision);
+  const changedPaths = gitText([
+    "diff-tree",
+    "--no-commit-id",
+    "--name-only",
+    "-r",
+    reconstruction.explicitReexportRevision,
+  ])
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .toSorted();
+  assert.deepEqual(changedPaths, [...reconstruction.expectedChangedPaths].toSorted());
+
+  assert.deepEqual(reconstruction.authoredEntryGate, {
+    facadeNameCount: 914,
+    defaultRootNameCount: 859,
+    allFeaturesOnlyRootNameCount: 61,
+    renamedOnlyCandidateCount: 67,
+    renamedOnlyCandidateListSha256:
+      "sha256:330931f068fe11173c0c264322606cd5aabf8f7f54677f87477d42cebb4cec2d",
+    renameOnlyCriterion: "exported alias differs from origin leaf name",
+  });
+
+  const pickupSource = gitText([
+    "show",
+    `${reconstruction.pickupRevision}:rust/crates/omena-query/src/lib.rs`,
+  ]);
+  const explicitReexportSource = gitText([
+    "show",
+    `${reconstruction.explicitReexportRevision}:rust/crates/omena-query/src/lib.rs`,
+  ]);
+  assert.equal(countNamedPublicReexports(pickupSource), 923);
+  assert.equal(countNamedPublicReexports(explicitReexportSource), 923);
+  assert.equal(countPublicTypeAliases(pickupSource), 1);
+  assert.equal(countPublicTypeAliases(explicitReexportSource), 1);
+  assert.equal(reconstruction.pickupEntryGate.namedReexportCount, 923);
+  assert.equal(reconstruction.pickupEntryGate.publicTypeAliasCount, 1);
+  assert.equal(reconstruction.pickupEntryGate.facadeNameCount, 924);
+  assert.equal(
+    reconstruction.pickupEntryGate.namedReexportCount +
+      reconstruction.pickupEntryGate.publicTypeAliasCount,
+    reconstruction.pickupEntryGate.facadeNameCount,
+  );
+
+  const pickupDefaultOutput = gitText([
+    "show",
+    `${reconstruction.pickupRevision}:rust/crates/omena-query/tests/snapshots/public-api.txt`,
+  ]);
+  const pickupDefaultRootNames = publicApiRootNames(pickupDefaultOutput);
+  const currentDefaultRootNames = publicApiRootNames(
+    readFileSync(defaultPublicApiSnapshotPath, "utf8"),
+  );
+  const currentAllFeaturesRootNames = publicApiRootNames(
+    readFileSync(allFeaturesPublicApiSnapshotPath, "utf8"),
+  );
+  assert.equal(pickupDefaultRootNames.size, reconstruction.pickupEntryGate.defaultRootNameCount);
+  assert.equal(reconstruction.pickupEntryGate.allFeaturesRootNameCount, 930);
+  assert.equal(reconstruction.pickupEntryGate.allFeaturesOnlyRootNameCount, 61);
+  assert.equal(
+    reconstruction.pickupEntryGate.allFeaturesRootNameCount -
+      reconstruction.pickupEntryGate.defaultRootNameCount,
+    reconstruction.pickupEntryGate.allFeaturesOnlyRootNameCount,
+  );
+
+  const pickupSemverRegister = JSON.parse(
+    gitText(["show", `${reconstruction.pickupRevision}:rust/omena-rust-semver-intent.json`]),
+  ) as { readonly intents?: readonly unknown[] };
+  const currentSemverRegister = JSON.parse(readFileSync(semverIntentPath, "utf8")) as {
+    readonly intents?: readonly unknown[];
+  };
+  assert.equal(pickupSemverRegister.intents?.length ?? 0, 0);
+  assert.equal(reconstruction.pickupEntryGate.semverIntentCount, 0);
+  assert.equal(currentSemverRegister.intents?.length ?? 0, 3);
+
+  const replay = reconstruction.explicitReexportReplay;
+  assert.equal(replay.pickupWildcardReexportCount, 15);
+  assert.equal(replay.explicitReexportWildcardReexportCount, 0);
+  assert.equal(
+    countWildcardReexportsAtRevision(
+      reconstruction.pickupRevision,
+      reconstruction.expectedChangedPaths,
+    ),
+    replay.pickupWildcardReexportCount,
+  );
+  assert.equal(
+    countWildcardReexportsAtRevision(
+      reconstruction.explicitReexportRevision,
+      reconstruction.expectedChangedPaths,
+    ),
+    replay.explicitReexportWildcardReexportCount,
+  );
+  validateReplayPlane(replay.defaultFeatures, {
+    pickupOutputSha256: "sha256:10f12c59226ecb147d645f3ea5b64ee9b072c962d803086416d7e80cfcea62bb",
+    pickupRootNameCount: pickupDefaultRootNames.size,
+  });
+  validateReplayPlane(replay.allFeatures, {
+    pickupOutputSha256: "sha256:f163f27710d6a9c8b5f3c51aac43e37921ac90301b3f9346b44f7de0d5c65abc",
+    pickupRootNameCount: 930,
+  });
+
+  const accounting = reconstruction.currentSurfaceAccounting;
+  assert.equal(currentDefaultRootNames.size, accounting.defaultRootNameCount);
+  assert.equal(currentAllFeaturesRootNames.size, accounting.allFeaturesRootNameCount);
+  assert.equal(
+    currentAllFeaturesRootNames.size - currentDefaultRootNames.size,
+    accounting.allFeaturesOnlyRootNameCount,
+  );
+  assert.equal(
+    pickupDefaultRootNames.size - currentDefaultRootNames.size,
+    accounting.defaultRootNameLossFromPickup,
+  );
+  assert.equal(
+    reconstruction.pickupEntryGate.allFeaturesRootNameCount - currentAllFeaturesRootNames.size,
+    accounting.allFeaturesRootNameLossFromPickup,
+  );
+
+  const compiledVisibilityNames = candidate.rows
+    .filter((row) => row.outcome === "compiledCrateVisible")
+    .map((row) => row.name)
+    .toSorted();
+  assert.equal(compiledVisibilityNames.length, accounting.compiledVisibilityReductionCount);
+  const compiledNamesAbsentFromPickupDefault = compiledVisibilityNames
+    .filter((name) => !pickupDefaultRootNames.has(name))
+    .toSorted();
+  assert.deepEqual(
+    compiledNamesAbsentFromPickupDefault,
+    [...accounting.compiledVisibilityNamesAbsentFromPickupDefault].toSorted(),
+  );
+  assert.equal(
+    compiledNamesAbsentFromPickupDefault.length,
+    accounting.compiledVisibilityNamesAbsentFromPickupDefaultCount,
+  );
+  for (const name of compiledVisibilityNames) {
+    assert.ok(
+      !currentAllFeaturesRootNames.has(name),
+      `${name} remains on the all-features surface`,
+    );
+  }
+
+  assert.equal(candidate.defaultFeatureNarrowing.rows.length, accounting.defaultOnlyNarrowingCount);
+  for (const row of candidate.defaultFeatureNarrowing.rows) {
+    assert.ok(pickupDefaultRootNames.has(row.name), `${row.name} was not public at pickup`);
+    assert.ok(!currentDefaultRootNames.has(row.name), `${row.name} remains default-public`);
+    assert.ok(currentAllFeaturesRootNames.has(row.name), `${row.name} is not all-features-public`);
+  }
+
+  assert.equal(accounting.retiredRefreshSurfaceNames.length, accounting.retiredRefreshSurfaceCount);
+  const candidateNames = new Set(candidate.rows.map((row) => row.name));
+  for (const name of accounting.retiredRefreshSurfaceNames) {
+    assert.ok(pickupDefaultRootNames.has(name), `${name} was not public at pickup`);
+    assert.ok(!currentAllFeaturesRootNames.has(name), `${name} remains public after retirement`);
+    assert.ok(!candidateNames.has(name), `${name} was incorrectly charged to visibility narrowing`);
+  }
+  assert.equal(
+    candidate.rows.filter((row) => row.outcome === "compatibilityPromiseRestored").length,
+    accounting.restoredCompatibilityPromiseCount,
+  );
+  assert.equal(
+    accounting.defaultOnlyNarrowingCount -
+      accounting.compiledVisibilityNamesAbsentFromPickupDefaultCount +
+      accounting.retiredRefreshSurfaceCount,
+    accounting.defaultLossResidueCount,
+  );
+  assert.equal(accounting.defaultLossResidueEquation, "44 - 20 + 3 = 27");
+  assert.equal(
+    accounting.defaultRootNameLossFromPickup - accounting.compiledVisibilityReductionCount,
+    accounting.defaultLossResidueCount,
+  );
+}
+
+function validateReplayPlane(
+  plane: ReexportReplayPlane,
+  pickup: { readonly pickupOutputSha256: string; readonly pickupRootNameCount: number },
+): void {
+  assert.equal(plane.pickupOutputSha256, pickup.pickupOutputSha256);
+  assert.equal(plane.explicitReexportOutputSha256, plane.pickupOutputSha256);
+  assert.equal(plane.pickupRootNameCount, pickup.pickupRootNameCount);
+  assert.equal(plane.explicitReexportRootNameCount, plane.pickupRootNameCount);
+  assert.equal(plane.addedRootNameCount, 0);
+  assert.equal(plane.removedRootNameCount, 0);
+}
+
+function replayReexportBoundary(candidate: VisibilityExperiment): void {
+  const reconstruction = candidate.reexportBoundaryReconstruction;
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), "omena-query-reexport-reconstruction-"));
+  const worktreePath = path.join(tempRoot, "worktree");
+  const targetPath = path.join(tempRoot, "target");
+  let worktreeAdded = false;
+  try {
+    execFileSync(
+      "git",
+      ["worktree", "add", "--detach", worktreePath, reconstruction.pickupRevision],
+      { cwd: repoRoot, stdio: "ignore" },
+    );
+    worktreeAdded = true;
+    const pickupDefault = runHistoricalPublicApi(worktreePath, targetPath, false);
+    const pickupAllFeatures = runHistoricalPublicApi(worktreePath, targetPath, true);
+    execFileSync(
+      "git",
+      ["-C", worktreePath, "checkout", "--detach", reconstruction.explicitReexportRevision],
+      { cwd: repoRoot, stdio: "ignore" },
+    );
+    const explicitDefault = runHistoricalPublicApi(worktreePath, targetPath, false);
+    const explicitAllFeatures = runHistoricalPublicApi(worktreePath, targetPath, true);
+    assert.equal(
+      explicitDefault,
+      pickupDefault,
+      "default-feature de-glob replay changed public API",
+    );
+    assert.equal(
+      explicitAllFeatures,
+      pickupAllFeatures,
+      "all-features de-glob replay changed public API",
+    );
+    assertReplayOutput(
+      reconstruction.explicitReexportReplay.defaultFeatures,
+      pickupDefault,
+      explicitDefault,
+    );
+    assertReplayOutput(
+      reconstruction.explicitReexportReplay.allFeatures,
+      pickupAllFeatures,
+      explicitAllFeatures,
+    );
+  } finally {
+    if (worktreeAdded) {
+      spawnSync("git", ["worktree", "remove", "--force", worktreePath], {
+        cwd: repoRoot,
+        stdio: "ignore",
+      });
+    }
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+function runHistoricalPublicApi(
+  worktreePath: string,
+  targetPath: string,
+  allFeatures: boolean,
+): string {
+  return execFileSync(
+    "cargo",
+    [
+      "public-api",
+      "--manifest-path",
+      path.join(worktreePath, "rust/Cargo.toml"),
+      "-p",
+      "omena-query",
+      "-sss",
+      "--color",
+      "never",
+      ...(allFeatures ? ["--all-features"] : []),
+    ],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      env: { ...process.env, CARGO_TARGET_DIR: targetPath },
+      maxBuffer: 64 * 1024 * 1024,
+    },
+  );
+}
+
+function assertReplayOutput(
+  plane: ReexportReplayPlane,
+  pickupOutput: string,
+  explicitReexportOutput: string,
+): void {
+  assert.equal(sha256Text(pickupOutput), plane.pickupOutputSha256);
+  assert.equal(sha256Text(explicitReexportOutput), plane.explicitReexportOutputSha256);
+  assert.equal(publicApiRootNames(pickupOutput).size, plane.pickupRootNameCount);
+  assert.equal(
+    publicApiRootNames(explicitReexportOutput).size,
+    plane.explicitReexportRootNameCount,
+  );
+}
+
+function countNamedPublicReexports(candidateSource: string): number {
+  let count = 0;
+  const groupedUsePattern = /\bpub\s+use\s+[A-Za-z0-9_:]+::\{([\s\S]*?)\};/gu;
+  for (const match of candidateSource.matchAll(groupedUsePattern)) {
+    count += (match[1] ?? "")
+      .split(",")
+      .map((item) => exportedName(item.trim()))
+      .filter((name): name is string => name !== null).length;
+  }
+  const withoutGroupedUses = candidateSource.replace(groupedUsePattern, "");
+  const singleUsePattern =
+    /\bpub\s+use\s+[A-Za-z0-9_:]+::(?:[A-Za-z0-9_]+)(?:\s+as\s+[A-Za-z0-9_]+)?\s*;/gu;
+  count += [...withoutGroupedUses.matchAll(singleUsePattern)].length;
+  return count;
+}
+
+function countPublicTypeAliases(candidateSource: string): number {
+  return [...candidateSource.matchAll(/\bpub\s+type\s+[A-Za-z0-9_]+\b/gu)].length;
+}
+
+function countWildcardReexportsAtRevision(
+  revision: string,
+  sourcePaths: readonly string[],
+): number {
+  return sourcePaths.reduce((count, sourcePath) => {
+    const source = gitText(["show", `${revision}:${sourcePath}`]);
+    return (
+      count + [...source.matchAll(/^\s*pub\s+use\s+[A-Za-z_][A-Za-z0-9_:]*::\*\s*;/gmu)].length
+    );
+  }, 0);
+}
+
+function publicApiRootNames(publicApi: string): ReadonlySet<string> {
+  const names = new Set<string>();
+  const pattern =
+    /^(?:#\[[^\]]*\]\s*)?pub\s+(?:use|fn|struct|enum|const|type|trait|mod|macro|static|union)\s+omena_query::([A-Za-z_][A-Za-z0-9_]*)(.*)$/gmu;
+  for (const match of publicApi.matchAll(pattern)) {
+    if (!(match[2] ?? "").startsWith("::")) {
+      names.add(match[1]!);
+    }
+  }
+  return names;
+}
+
+function sha256Text(value: string): string {
+  return `sha256:${createHash("sha256").update(value).digest("hex")}`;
+}
+
+function gitText(args: readonly string[]): string {
+  return execFileSync("git", [...args], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
 }
 
 function runValidatorSelftests(
