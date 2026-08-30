@@ -28,6 +28,7 @@ interface CorpusManifest {
 }
 
 interface ParserEditSample {
+  readonly comparisonRunIndex: number;
   readonly corpusId: string;
   readonly band: string;
   readonly editShape: string;
@@ -47,7 +48,8 @@ interface ParserEditSummary {
   readonly sourceSha256: string;
   readonly parkEligible: boolean;
   readonly normalizedSlopeRatio: number;
-  readonly minimumPathP90Nanoseconds: number;
+  readonly minimumPathMedianNanoseconds: number;
+  readonly minimumPathObservedSpreadNanoseconds: number;
 }
 
 interface BandBudgetComparison {
@@ -60,9 +62,11 @@ interface BandBudgetComparison {
   readonly sourceSha256: string;
   readonly sourceBytes: number;
   readonly parkEligible: boolean;
-  readonly pinnedMinimumPathP90Nanoseconds: number;
-  readonly allowedMinimumPathP90Nanoseconds: number;
-  readonly currentMinimumPathP90Nanoseconds: number;
+  readonly pinnedMinimumPathMedianNanoseconds: number;
+  readonly observedBaselineSpreadNanoseconds: number;
+  readonly allowedMinimumPathMedianNanoseconds: number;
+  readonly comparisonRunMinimumPathMedianNanoseconds: readonly number[];
+  readonly currentMinimumPathMedianNanoseconds: number;
   readonly withinBudget: boolean;
   readonly reentryThresholdNanoseconds: number;
   readonly reentryCandidate: boolean;
@@ -74,6 +78,7 @@ interface ParserEditReport {
   readonly measurementPin: string;
   readonly releaseBuild: boolean;
   readonly sampleBatchCount: number;
+  readonly comparisonRunCount: number;
   readonly corpusManifestSchemaVersion: "0";
   readonly corpusManifestProduct: "omena-benchmarks.parser-edit-corpus";
   readonly editShapes: readonly string[];
@@ -88,6 +93,11 @@ interface ParserEditReport {
     readonly thresholdConsumptionMilli: number;
     readonly fires: boolean;
   };
+  readonly baselineProfileId: string;
+  readonly executionEnvironment: string;
+  readonly comparisonStatistic: string;
+  readonly observedSpreadStatistic: string;
+  readonly baselineAllowedRegressionRatio: number;
   readonly baselineMeasurementPin: string;
   readonly bandBudgetComparisons: readonly BandBudgetComparison[];
   dispositionInputs: {
@@ -106,15 +116,32 @@ interface ParserEditReport {
 }
 
 interface ParserEditBaseline {
-  readonly schemaVersion: "0";
+  readonly schemaVersion: "1";
   readonly product: "omena-benchmarks.parser-edit-slope-baseline";
+  readonly measurement: "absolute-minimum-path-median-nanoseconds";
+  readonly profiles: readonly ParserEditBaselineProfile[];
+}
+
+interface ParserEditBaselineProfile {
+  readonly id: string;
   readonly generatedAtUtc: string;
   readonly omenaGitSha: string;
-  readonly measurement: "absolute-minimum-path-p90-nanoseconds";
+  readonly executionEnvironment: string;
+  readonly statistic: "minimum-across-paths-of-median-across-edit-shape-batch-medians";
+  readonly spreadStatistic:
+    | "maximum-of-within-run-median-absolute-deviation-and-between-run-range"
+    | "maximum-of-observed-edit-shape-median-range-and-between-run-range";
+  readonly provenance: {
+    readonly kind: "local-writer" | "github-actions-artifact";
+    readonly runId: string | null;
+  };
+  readonly observedMaximumSpreadRatio: number;
   readonly allowedRegressionRatio: number;
-  readonly reentryRegressionRatio: number;
+  readonly reentryRegressionRatio: 2;
+  readonly requiredConsecutiveRunCount: 2;
   readonly requiredIndependentSourceCount: number;
   readonly machine: {
+    readonly runnerClass: "local" | "github-hosted";
     readonly cpuModel: string;
     readonly cores: number;
     readonly os: string;
@@ -130,8 +157,9 @@ interface ParserEditBaseline {
     readonly sourceSha256: string;
     readonly sourceBytes: number;
     readonly parkEligible: boolean;
-    readonly measuredMinimumPathP90Nanoseconds: number;
-    allowedMinimumPathP90Nanoseconds: number;
+    readonly measuredMinimumPathMedianNanoseconds: number;
+    readonly observedSpreadNanoseconds: number;
+    allowedMinimumPathMedianNanoseconds: number;
   }[];
 }
 
@@ -165,7 +193,15 @@ const EXPECTED_PATHS = [
 ] as const;
 const EXPECTED_BANDS = ["500B", "8KB", "30KB", "100KB", "1MB"] as const;
 const EXPECTED_DISPOSITION_POLICY =
-  "absolute-per-band-p90-budgets-and-two-run-two-independent-source-reentry-v1";
+  "absolute-per-band-median-budgets-and-two-consecutive-run-two-independent-source-reentry-v2";
+const EXPECTED_STATISTIC =
+  "minimum-across-paths-of-median-across-edit-shape-batch-medians" as const;
+const EXPECTED_SPREAD_STATISTIC =
+  "maximum-of-within-run-median-absolute-deviation-and-between-run-range" as const;
+const SUPPORTED_SPREAD_STATISTICS = new Set<ParserEditBaselineProfile["spreadStatistic"]>([
+  EXPECTED_SPREAD_STATISTIC,
+  "maximum-of-observed-edit-shape-median-range-and-between-run-range",
+]);
 const PARK_ELIGIBILITY_BY_SOURCE_IDENTITY = new Map<string, boolean>([
   [
     [
@@ -219,11 +255,113 @@ const PARK_ELIGIBILITY_BY_SOURCE_IDENTITY = new Map<string, boolean>([
   ],
 ]);
 
+interface ParserEditExecutionEnvironment {
+  readonly profileId: string;
+  readonly executionEnvironment: string;
+  readonly runnerClass: "local" | "github-hosted";
+  readonly cpuModel: string;
+  readonly cores: number;
+  readonly os: string;
+  readonly arch: string;
+}
+
+function resolveExecutionEnvironment(): ParserEditExecutionEnvironment {
+  const githubHosted = process.env.GITHUB_ACTIONS === "true";
+  const detectedOs = os.type();
+  const detectedArch = os.arch();
+  const profileId =
+    process.env.OMENA_PARSER_EDIT_BASELINE_PROFILE ??
+    (githubHosted && detectedOs === "Linux" && detectedArch === "x64"
+      ? "github-actions-ubuntu-x64"
+      : detectedOs === "Darwin" && detectedArch === "arm64"
+        ? "local-darwin-arm64"
+        : "");
+  assert.ok(
+    profileId.length > 0,
+    `no parser-edit baseline profile for ${detectedOs}/${detectedArch}`,
+  );
+  const executionEnvironment =
+    process.env.OMENA_PARSER_EDIT_EXECUTION_ENVIRONMENT ??
+    (profileId === "github-actions-ubuntu-x64"
+      ? "github-actions:ubuntu-latest:x64"
+      : "local:darwin:arm64");
+  return {
+    profileId,
+    executionEnvironment,
+    runnerClass: githubHosted ? "github-hosted" : "local",
+    cpuModel: os.cpus()[0]?.model ?? "unknown",
+    cores: os.cpus().length,
+    os: `${detectedOs} ${os.release()}`,
+    arch: detectedArch,
+  };
+}
+
+function selectedBaselineProfile(
+  baseline: ParserEditBaseline,
+  profileId: string,
+): ParserEditBaselineProfile {
+  const profile = baseline.profiles.find((candidate) => candidate.id === profileId);
+  assert.ok(profile, `missing parser-edit baseline profile ${profileId}`);
+  return profile;
+}
+
+function validateExecutionEnvironmentBinding(
+  baseline: ParserEditBaseline,
+  execution: ParserEditExecutionEnvironment,
+): void {
+  assert.equal(baseline.schemaVersion, "1");
+  assert.equal(baseline.product, "omena-benchmarks.parser-edit-slope-baseline");
+  assert.equal(baseline.measurement, "absolute-minimum-path-median-nanoseconds");
+  const profile = selectedBaselineProfile(baseline, execution.profileId);
+  assert.equal(profile.executionEnvironment, execution.executionEnvironment);
+  assert.equal(profile.statistic, EXPECTED_STATISTIC);
+  assert.ok(
+    SUPPORTED_SPREAD_STATISTICS.has(profile.spreadStatistic),
+    `${profile.id} has an unsupported observed-spread statistic`,
+  );
+  assert.equal(profile.machine.runnerClass, execution.runnerClass);
+  assert.equal(profile.machine.arch, execution.arch);
+  assert.ok(
+    execution.os.startsWith(profile.machine.os.split(" ")[0]!),
+    `${profile.id} expected ${profile.machine.os}; observed ${execution.os}`,
+  );
+  const derivedRatio = Math.ceil(profile.observedMaximumSpreadRatio * 3 * 1_000) / 1_000;
+  assert.equal(
+    profile.allowedRegressionRatio,
+    derivedRatio,
+    `${profile.id} budget ratio must be three times its observed spread ratio`,
+  );
+  const mismatched = structuredClone(baseline);
+  (
+    selectedBaselineProfile(mismatched, execution.profileId) as {
+      executionEnvironment: string;
+    }
+  ).executionEnvironment += "-mutation";
+  assert.throws(
+    () => validateExecutionEnvironmentBindingWithoutSelftest(mismatched, execution),
+    /Expected values to be strictly equal/u,
+  );
+}
+
+function validateExecutionEnvironmentBindingWithoutSelftest(
+  baseline: ParserEditBaseline,
+  execution: ParserEditExecutionEnvironment,
+): void {
+  const profile = selectedBaselineProfile(baseline, execution.profileId);
+  assert.equal(profile.executionEnvironment, execution.executionEnvironment);
+  assert.equal(profile.machine.runnerClass, execution.runnerClass);
+  assert.equal(profile.machine.arch, execution.arch);
+}
+
 export function runParserEditSlopeGate(): void {
   const manifest = JSON.parse(readFileSync(MANIFEST_PATH, "utf8")) as CorpusManifest;
   validateManifest(manifest);
   materializeCorpora(manifest);
   const gitSha = commandOutput("git", ["rev-parse", "HEAD"]);
+  assert.ok(existsSync(BASELINE_PATH), `missing parser-edit baseline: ${BASELINE_PATH}`);
+  const baseline = JSON.parse(readFileSync(BASELINE_PATH, "utf8")) as ParserEditBaseline;
+  const execution = resolveExecutionEnvironment();
+  validateExecutionEnvironmentBinding(baseline, execution);
   const run = spawnSync(
     "cargo",
     [
@@ -247,6 +385,8 @@ export function runParserEditSlopeGate(): void {
         OMENA_PARSER_EDIT_CORPUS_MANIFEST: MANIFEST_PATH,
         OMENA_PARSER_EDIT_CORPUS_ROOT: path.resolve(CORPUS_CACHE),
         OMENA_PARSER_EDIT_BASELINE: path.resolve(BASELINE_PATH),
+        OMENA_PARSER_EDIT_BASELINE_PROFILE: execution.profileId,
+        OMENA_PARSER_EDIT_EXECUTION_ENVIRONMENT: execution.executionEnvironment,
       },
     },
   );
@@ -265,7 +405,7 @@ export function runParserEditSlopeGate(): void {
   }
   validateReport(report, manifest);
   runDispositionMutationSelftest(report, manifest);
-  runRustDispositionPredicateArm();
+  const rustPredicateExecutedTestCount = runRustDispositionPredicateArm();
 
   const reportPath = process.env.OMENA_PARSER_EDIT_SLOPE_REPORT ?? DEFAULT_REPORT_PATH;
   mkdirSync(path.dirname(reportPath), { recursive: true });
@@ -273,17 +413,19 @@ export function runParserEditSlopeGate(): void {
 
   const writeMode = process.argv.includes("--write");
   if (writeMode) {
-    const baseline = baselineFromReport(report, gitSha);
+    const updatedBaseline = baselineFromReport(report, gitSha, baseline, execution);
     mkdirSync(path.dirname(BASELINE_PATH), { recursive: true });
-    writeFileSync(BASELINE_PATH, `${JSON.stringify(baseline, null, 2)}\n`);
+    writeFileSync(BASELINE_PATH, `${JSON.stringify(updatedBaseline, null, 2)}\n`);
   } else {
-    assert.ok(existsSync(BASELINE_PATH), `missing parser-edit baseline: ${BASELINE_PATH}`);
-    const baseline = JSON.parse(readFileSync(BASELINE_PATH, "utf8")) as ParserEditBaseline;
     if (process.argv.includes("--inject-pin-regression")) {
-      baseline.pins[0]!.allowedMinimumPathP90Nanoseconds = 0;
+      (
+        selectedBaselineProfile(baseline, execution.profileId).pins[0] as {
+          allowedMinimumPathMedianNanoseconds: number;
+        }
+      ).allowedMinimumPathMedianNanoseconds = 0;
     }
-    validateAgainstBaseline(report, baseline);
-    runPinMutationSelftest(report, baseline);
+    validateAgainstBaseline(report, baseline, execution);
+    runPinMutationSelftest(report, baseline, execution);
   }
 
   console.log(
@@ -294,16 +436,20 @@ export function runParserEditSlopeGate(): void {
       editShapeCount: report.editShapes.length,
       measurementPathCount: report.measurementPaths.length,
       sampleCount: report.samples.length,
+      comparisonRunCount: report.comparisonRunCount,
       disposition: report.disposition,
       originalResearchTriggerFires: report.originalResearchTrigger.fires,
       reportPath,
       baselinePath: BASELINE_PATH,
+      baselineProfileId: report.baselineProfileId,
+      executionEnvironment: report.executionEnvironment,
       writeMode,
       mutationSelftests: {
         sessionOnlyDisposition: "red",
         absoluteThresholdOnlyDisposition: "red",
         everyAbsolutePerBandPin: writeMode ? "not-run-in-writer" : "red",
-        rustDispositionPredicate: "green",
+        rustDispositionPredicate: "red-on-decision-mutation",
+        rustDispositionPredicateExecutedTestCount: rustPredicateExecutedTestCount,
       },
     }),
   );
@@ -410,6 +556,10 @@ function validateReport(report: ParserEditReport, manifest: CorpusManifest): voi
   assert.equal(report.schemaVersion, "0");
   assert.equal(report.product, "omena-benchmarks.parser-edit-trace-slope-profile");
   assert.equal(report.releaseBuild, true, "parser-edit slope evidence must use a release build");
+  assert.equal(report.comparisonRunCount, 2);
+  assert.equal(report.comparisonStatistic, EXPECTED_STATISTIC);
+  assert.ok(SUPPORTED_SPREAD_STATISTICS.has(report.observedSpreadStatistic));
+  assert.ok(report.baselineAllowedRegressionRatio > 0);
   assert.equal(report.corpusManifestSchemaVersion, "0");
   assert.equal(report.corpusManifestProduct, "omena-benchmarks.parser-edit-corpus");
   assert.deepEqual(report.editShapes, EXPECTED_EDIT_SHAPES);
@@ -422,7 +572,7 @@ function validateReport(report: ParserEditReport, manifest: CorpusManifest): voi
   assert.equal(report.dispositionInputs.requiredIndependentSourceCount, 2);
   assert.match(report.parkScope, /hand-authored, non-minified, non-dist/);
   assert.match(report.yardstickValidation, /unvalidated-wall-clock/);
-  assert.match(report.yardstickValidation, /load-bearing-absolute-per-band-p90-pins/);
+  assert.match(report.yardstickValidation, /environment-keyed-absolute-per-band-median-pins/);
   assert.equal(report.originalResearchTrigger.realWorldP90Nanoseconds, 4_355_000);
   assert.equal(report.originalResearchTrigger.thresholdNanoseconds, 3_200_000);
   assert.equal(report.originalResearchTrigger.thresholdConsumptionMilli, 1_360);
@@ -456,23 +606,39 @@ function validateReport(report: ParserEditReport, manifest: CorpusManifest): voi
     assert.equal(comparison.sourceSha256, summary.sourceSha256);
     assert.equal(comparison.sourceBytes, summary.sourceBytes);
     assert.equal(comparison.parkEligible, summary.parkEligible);
-    assert.ok(comparison.pinnedMinimumPathP90Nanoseconds > 0);
+    assert.ok(comparison.pinnedMinimumPathMedianNanoseconds > 0);
+    assert.ok(comparison.observedBaselineSpreadNanoseconds > 0);
     assert.ok(
-      comparison.allowedMinimumPathP90Nanoseconds > comparison.pinnedMinimumPathP90Nanoseconds,
+      comparison.allowedMinimumPathMedianNanoseconds >
+        comparison.pinnedMinimumPathMedianNanoseconds,
     );
-    assert.equal(comparison.currentMinimumPathP90Nanoseconds, summary.minimumPathP90Nanoseconds);
+    assert.equal(
+      comparison.comparisonRunMinimumPathMedianNanoseconds.length,
+      report.comparisonRunCount,
+    );
+    assert.equal(
+      comparison.currentMinimumPathMedianNanoseconds,
+      Math.min(...comparison.comparisonRunMinimumPathMedianNanoseconds),
+    );
+    assert.equal(
+      comparison.currentMinimumPathMedianNanoseconds,
+      summary.minimumPathMedianNanoseconds,
+    );
     assert.equal(
       comparison.withinBudget,
-      comparison.currentMinimumPathP90Nanoseconds <= comparison.allowedMinimumPathP90Nanoseconds,
+      comparison.currentMinimumPathMedianNanoseconds <=
+        comparison.allowedMinimumPathMedianNanoseconds,
     );
     assert.equal(
       comparison.reentryThresholdNanoseconds,
-      comparison.pinnedMinimumPathP90Nanoseconds * 2,
+      comparison.allowedMinimumPathMedianNanoseconds * 2,
     );
     assert.equal(
       comparison.reentryCandidate,
       comparison.parkEligible &&
-        comparison.currentMinimumPathP90Nanoseconds >= comparison.reentryThresholdNanoseconds,
+        comparison.comparisonRunMinimumPathMedianNanoseconds.every(
+          (current) => current >= comparison.reentryThresholdNanoseconds,
+        ),
     );
     if (comparison.reentryCandidate) qualifyingSources.add(comparison.sourceProject);
   }
@@ -490,21 +656,31 @@ function validateReport(report: ParserEditReport, manifest: CorpusManifest): voi
   );
   assert.equal(
     report.samples.length,
-    manifest.corpora.length * EXPECTED_EDIT_SHAPES.length * EXPECTED_PATHS.length,
+    manifest.corpora.length *
+      EXPECTED_EDIT_SHAPES.length *
+      EXPECTED_PATHS.length *
+      report.comparisonRunCount,
   );
   const matrix = new Set(
     report.samples.map(
-      (sample) => `${sample.corpusId}#${sample.editShape}#${sample.measurementPath}`,
+      (sample) =>
+        `${sample.comparisonRunIndex}#${sample.corpusId}#${sample.editShape}#${sample.measurementPath}`,
     ),
   );
   assert.equal(matrix.size, report.samples.length, "every corpus/shape/path sample must be unique");
-  for (const entry of manifest.corpora) {
-    for (const shape of EXPECTED_EDIT_SHAPES) {
-      for (const measurementPath of EXPECTED_PATHS) {
-        assert.ok(
-          matrix.has(`${entry.id}#${shape}#${measurementPath}`),
-          `missing parser-edit sample ${entry.id}/${shape}/${measurementPath}`,
-        );
+  for (
+    let comparisonRunIndex = 0;
+    comparisonRunIndex < report.comparisonRunCount;
+    comparisonRunIndex += 1
+  ) {
+    for (const entry of manifest.corpora) {
+      for (const shape of EXPECTED_EDIT_SHAPES) {
+        for (const measurementPath of EXPECTED_PATHS) {
+          assert.ok(
+            matrix.has(`${comparisonRunIndex}#${entry.id}#${shape}#${measurementPath}`),
+            `missing parser-edit sample run=${comparisonRunIndex} ${entry.id}/${shape}/${measurementPath}`,
+          );
+        }
       }
     }
   }
@@ -531,21 +707,39 @@ function runDispositionMutationSelftest(report: ParserEditReport, manifest: Corp
   );
 }
 
-function baselineFromReport(report: ParserEditReport, gitSha: string): ParserEditBaseline {
-  return {
-    schemaVersion: "0",
-    product: "omena-benchmarks.parser-edit-slope-baseline",
+function baselineFromReport(
+  report: ParserEditReport,
+  gitSha: string,
+  existing: ParserEditBaseline,
+  execution: ParserEditExecutionEnvironment,
+): ParserEditBaseline {
+  const observedMaximumSpreadRatio = Math.max(
+    ...report.summaries.map(
+      (summary) =>
+        summary.minimumPathObservedSpreadNanoseconds / summary.minimumPathMedianNanoseconds,
+    ),
+  );
+  const allowedRegressionRatio = Math.ceil(observedMaximumSpreadRatio * 3 * 1_000) / 1_000;
+  assert.ok(allowedRegressionRatio > 0 && allowedRegressionRatio < 1);
+  const profile: ParserEditBaselineProfile = {
+    id: execution.profileId,
     generatedAtUtc: new Date().toISOString(),
     omenaGitSha: gitSha,
-    measurement: "absolute-minimum-path-p90-nanoseconds",
-    allowedRegressionRatio: 0.35,
+    executionEnvironment: execution.executionEnvironment,
+    statistic: EXPECTED_STATISTIC,
+    spreadStatistic: EXPECTED_SPREAD_STATISTIC,
+    provenance: { kind: "local-writer", runId: null },
+    observedMaximumSpreadRatio,
+    allowedRegressionRatio,
     reentryRegressionRatio: 2,
+    requiredConsecutiveRunCount: 2,
     requiredIndependentSourceCount: 2,
     machine: {
-      cpuModel: os.cpus()[0]?.model ?? "unknown",
-      cores: os.cpus().length,
-      os: `${os.type()} ${os.release()}`,
-      arch: os.arch(),
+      runnerClass: execution.runnerClass,
+      cpuModel: execution.cpuModel,
+      cores: execution.cores,
+      os: execution.os,
+      arch: execution.arch,
     },
     pins: report.summaries.map((summary) => ({
       corpusId: summary.corpusId,
@@ -557,27 +751,48 @@ function baselineFromReport(report: ParserEditReport, gitSha: string): ParserEdi
       sourceSha256: summary.sourceSha256,
       sourceBytes: summary.sourceBytes,
       parkEligible: summary.parkEligible,
-      measuredMinimumPathP90Nanoseconds: summary.minimumPathP90Nanoseconds,
-      allowedMinimumPathP90Nanoseconds: Math.ceil(summary.minimumPathP90Nanoseconds * 1.35),
+      measuredMinimumPathMedianNanoseconds: summary.minimumPathMedianNanoseconds,
+      observedSpreadNanoseconds: summary.minimumPathObservedSpreadNanoseconds,
+      allowedMinimumPathMedianNanoseconds: Math.ceil(
+        summary.minimumPathMedianNanoseconds * (1 + allowedRegressionRatio),
+      ),
     })),
+  };
+  return {
+    schemaVersion: "1",
+    product: "omena-benchmarks.parser-edit-slope-baseline",
+    measurement: "absolute-minimum-path-median-nanoseconds",
+    profiles: [
+      ...existing.profiles.filter((candidate) => candidate.id !== execution.profileId),
+      profile,
+    ].toSorted((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0)),
   };
 }
 
-function validateAgainstBaseline(report: ParserEditReport, baseline: ParserEditBaseline): void {
-  assert.equal(baseline.schemaVersion, "0");
-  assert.equal(baseline.product, "omena-benchmarks.parser-edit-slope-baseline");
-  assert.equal(baseline.measurement, "absolute-minimum-path-p90-nanoseconds");
-  assert.ok(baseline.allowedRegressionRatio > 0 && baseline.allowedRegressionRatio < 1);
-  assert.equal(baseline.reentryRegressionRatio, 2);
-  assert.equal(baseline.requiredIndependentSourceCount, 2);
+function validateAgainstBaseline(
+  report: ParserEditReport,
+  baseline: ParserEditBaseline,
+  execution: ParserEditExecutionEnvironment,
+): void {
+  validateExecutionEnvironmentBindingWithoutSelftest(baseline, execution);
+  const profile = selectedBaselineProfile(baseline, execution.profileId);
+  assert.equal(report.baselineProfileId, profile.id);
+  assert.equal(report.executionEnvironment, profile.executionEnvironment);
+  assert.equal(report.comparisonStatistic, profile.statistic);
+  assert.equal(report.observedSpreadStatistic, profile.spreadStatistic);
+  assert.equal(report.baselineAllowedRegressionRatio, profile.allowedRegressionRatio);
+  assert.ok(profile.allowedRegressionRatio > 0 && profile.allowedRegressionRatio < 1);
+  assert.equal(profile.reentryRegressionRatio, 2);
+  assert.equal(profile.requiredConsecutiveRunCount, 2);
+  assert.equal(profile.requiredIndependentSourceCount, 2);
   assert.deepEqual(
-    baseline.pins.map((pin) => pin.band),
+    profile.pins.map((pin) => pin.band),
     EXPECTED_BANDS,
     "all five per-band slope pins are load-bearing",
   );
-  assert.equal(baseline.pins.length, report.summaries.length);
+  assert.equal(profile.pins.length, report.summaries.length);
   for (const [index, summary] of report.summaries.entries()) {
-    const pin = baseline.pins[index]!;
+    const pin = profile.pins[index]!;
     const comparison = report.bandBudgetComparisons[index]!;
     assert.equal(pin.corpusId, summary.corpusId);
     assert.equal(pin.band, summary.band);
@@ -589,38 +804,54 @@ function validateAgainstBaseline(report: ParserEditReport, baseline: ParserEditB
     assert.equal(pin.sourceBytes, summary.sourceBytes);
     assert.equal(pin.parkEligible, summary.parkEligible);
     assert.ok(
-      pin.measuredMinimumPathP90Nanoseconds > 0,
-      `${pin.band} must have a positive absolute P90 pin`,
+      pin.measuredMinimumPathMedianNanoseconds > 0,
+      `${pin.band} must have a positive absolute median pin`,
     );
     const threshold = Math.ceil(
-      pin.measuredMinimumPathP90Nanoseconds * (1 + baseline.allowedRegressionRatio),
+      pin.measuredMinimumPathMedianNanoseconds * (1 + profile.allowedRegressionRatio),
     );
     assert.equal(
-      pin.allowedMinimumPathP90Nanoseconds,
+      pin.allowedMinimumPathMedianNanoseconds,
       threshold,
-      `${pin.band} absolute P90 budget drifted`,
+      `${pin.band} absolute median budget drifted`,
     );
-    assert.equal(comparison.pinnedMinimumPathP90Nanoseconds, pin.measuredMinimumPathP90Nanoseconds);
-    assert.equal(comparison.allowedMinimumPathP90Nanoseconds, pin.allowedMinimumPathP90Nanoseconds);
+    assert.equal(
+      comparison.pinnedMinimumPathMedianNanoseconds,
+      pin.measuredMinimumPathMedianNanoseconds,
+    );
+    assert.equal(comparison.observedBaselineSpreadNanoseconds, pin.observedSpreadNanoseconds);
+    assert.equal(
+      comparison.allowedMinimumPathMedianNanoseconds,
+      pin.allowedMinimumPathMedianNanoseconds,
+    );
     assert.ok(
-      summary.minimumPathP90Nanoseconds <= threshold,
-      `${pin.band} absolute parser-edit P90 regressed: current=${summary.minimumPathP90Nanoseconds} pin=${pin.measuredMinimumPathP90Nanoseconds} threshold=${threshold}`,
+      summary.minimumPathMedianNanoseconds <= threshold,
+      `${pin.band} absolute parser-edit median regressed: current=${summary.minimumPathMedianNanoseconds} pin=${pin.measuredMinimumPathMedianNanoseconds} threshold=${threshold}`,
     );
   }
 }
 
-function runPinMutationSelftest(report: ParserEditReport, baseline: ParserEditBaseline): void {
-  for (const [index, pin] of baseline.pins.entries()) {
+function runPinMutationSelftest(
+  report: ParserEditReport,
+  baseline: ParserEditBaseline,
+  execution: ParserEditExecutionEnvironment,
+): void {
+  const profile = selectedBaselineProfile(baseline, execution.profileId);
+  for (const [index, pin] of profile.pins.entries()) {
     const mutation = structuredClone(baseline);
-    mutation.pins[index]!.allowedMinimumPathP90Nanoseconds = 0;
+    (
+      selectedBaselineProfile(mutation, execution.profileId).pins[index] as {
+        allowedMinimumPathMedianNanoseconds: number;
+      }
+    ).allowedMinimumPathMedianNanoseconds = 0;
     assert.throws(
-      () => validateAgainstBaseline(report, mutation),
-      new RegExp(`${pin.band} absolute P90 budget drifted`, "u"),
+      () => validateAgainstBaseline(report, mutation, execution),
+      new RegExp(`${pin.band} absolute median budget drifted`, "u"),
     );
   }
 }
 
-function runRustDispositionPredicateArm(): void {
+function runRustDispositionPredicateArm(): number {
   const run = spawnSync(
     "cargo",
     [
@@ -633,7 +864,7 @@ function runRustDispositionPredicateArm(): void {
       "omena-benchmarks",
       "--bin",
       "parser_edit_trace_slope_profile",
-      "disposition_requires_two_independent_reentry_sources",
+      "tests::disposition_mutation_flips_decision_after_two_consecutive_runs",
       "--",
       "--exact",
     ],
@@ -644,6 +875,12 @@ function runRustDispositionPredicateArm(): void {
     0,
     `Rust parser-edit disposition predicate arm failed\nstdout:\n${run.stdout}\nstderr:\n${run.stderr}`,
   );
+  const output = `${run.stdout ?? ""}${run.stderr ?? ""}`;
+  const executed = output.match(/test result: ok\. (\d+) passed;/u);
+  assert.ok(executed, `Rust predicate arm did not report an executed test\n${output}`);
+  assert.equal(Number(executed[1]), 1, "Rust predicate arm must execute exactly one test");
+  assert.match(output, /running 1 test/u);
+  return 1;
 }
 
 function commandOutput(command: string, args: readonly string[]): string {

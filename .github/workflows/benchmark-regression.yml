@@ -107,6 +107,8 @@ jobs:
         run: pnpm omena-check run rust/benchmark/parser-edit-slope
         env:
           OMENA_PARSER_EDIT_SLOPE_REPORT: benchmark-artifacts/parser-edit-slope-report-v0.json
+          OMENA_PARSER_EDIT_BASELINE_PROFILE: github-actions-ubuntu-x64
+          OMENA_PARSER_EDIT_EXECUTION_ENVIRONMENT: github-actions:ubuntu-latest:x64
       - name: Require parser edit slope artifact
         run: test -s benchmark-artifacts/parser-edit-slope-report-v0.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -13,9 +13,10 @@ use std::{
 };
 
 const SAMPLE_BATCH_COUNT: usize = 7;
+const COMPARISON_RUN_COUNT: usize = 2;
 const EDIT_LOCAL_THRESHOLD_NS: u128 = 3_200_000;
 const DISPOSITION_POLICY: &str =
-    "absolute-per-band-p90-budgets-and-two-run-two-independent-source-reentry-v1";
+    "absolute-per-band-median-budgets-and-two-consecutive-run-two-independent-source-reentry-v2";
 const PARK_SCOPE: &str =
     "hand-authored, non-minified, non-dist stylesheets below 100KB from independent sources";
 
@@ -51,11 +52,23 @@ struct CorpusEntry {
 struct ParserEditBaseline {
     schema_version: String,
     product: String,
+    measurement: String,
+    profiles: Vec<ParserEditBaselineProfile>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ParserEditBaselineProfile {
+    id: String,
     generated_at_utc: String,
     omena_git_sha: String,
-    measurement: String,
+    execution_environment: String,
+    statistic: String,
+    spread_statistic: String,
+    observed_maximum_spread_ratio: f64,
     allowed_regression_ratio: f64,
     reentry_regression_ratio: f64,
+    required_consecutive_run_count: usize,
     required_independent_source_count: usize,
     pins: Vec<ParserEditBaselinePin>,
 }
@@ -72,8 +85,9 @@ struct ParserEditBaselinePin {
     source_sha256: String,
     source_bytes: usize,
     park_eligible: bool,
-    measured_minimum_path_p90_nanoseconds: u128,
-    allowed_minimum_path_p90_nanoseconds: u128,
+    measured_minimum_path_median_nanoseconds: u128,
+    observed_spread_nanoseconds: u128,
+    allowed_minimum_path_median_nanoseconds: u128,
 }
 
 struct LoadedCorpus {
@@ -90,6 +104,7 @@ struct Profile {
     measurement_pin: String,
     release_build: bool,
     sample_batch_count: usize,
+    comparison_run_count: usize,
     corpus_manifest: String,
     corpus_manifest_schema_version: String,
     corpus_manifest_product: String,
@@ -100,6 +115,11 @@ struct Profile {
     park_scope: &'static str,
     yardstick_validation: &'static str,
     original_research_trigger: OriginalResearchTrigger,
+    baseline_profile_id: String,
+    execution_environment: String,
+    comparison_statistic: String,
+    observed_spread_statistic: String,
+    baseline_allowed_regression_ratio: f64,
     baseline_measurement_pin: String,
     band_budget_comparisons: Vec<BandBudgetComparison>,
     disposition_inputs: DispositionInputs,
@@ -131,7 +151,7 @@ struct DispositionInputs {
     required_independent_source_count: usize,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct BandBudgetComparison {
     corpus_id: String,
@@ -143,15 +163,17 @@ struct BandBudgetComparison {
     source_sha256: String,
     source_bytes: usize,
     park_eligible: bool,
-    pinned_minimum_path_p90_nanoseconds: u128,
-    allowed_minimum_path_p90_nanoseconds: u128,
-    current_minimum_path_p90_nanoseconds: u128,
+    pinned_minimum_path_median_nanoseconds: u128,
+    observed_baseline_spread_nanoseconds: u128,
+    allowed_minimum_path_median_nanoseconds: u128,
+    comparison_run_minimum_path_median_nanoseconds: Vec<u128>,
+    current_minimum_path_median_nanoseconds: u128,
     within_budget: bool,
     reentry_threshold_nanoseconds: u128,
     reentry_candidate: bool,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct BandSummary {
     corpus_id: String,
@@ -165,15 +187,18 @@ struct BandSummary {
     park_eligible: bool,
     park_scope_reason: String,
     minimum_path: &'static str,
-    minimum_path_p90_nanoseconds: u128,
+    minimum_path_median_nanoseconds: u128,
+    minimum_path_observed_spread_nanoseconds: u128,
     minimum_path_nanoseconds_per_byte: f64,
     normalized_slope_ratio: f64,
-    path_p90_nanoseconds: BTreeMap<&'static str, u128>,
+    path_median_nanoseconds: BTreeMap<&'static str, u128>,
+    path_observed_spread_nanoseconds: BTreeMap<&'static str, u128>,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Sample {
+    comparison_run_index: usize,
     corpus_id: String,
     band: String,
     source_project: String,
@@ -190,8 +215,10 @@ struct Sample {
     edit_shape: &'static str,
     measurement_path: &'static str,
     iterations_per_batch: usize,
-    nanoseconds_p50: u128,
-    nanoseconds_p90: u128,
+    nanoseconds_median: u128,
+    observed_batch_minimum_nanoseconds: u128,
+    observed_batch_maximum_nanoseconds: u128,
+    observed_batch_median_absolute_deviation_nanoseconds: u128,
     parse_invocations_per_iteration: f64,
     parse_tokens_per_iteration: f64,
 }
@@ -265,6 +292,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let baseline: ParserEditBaseline =
         serde_json::from_str(fs::read_to_string(&baseline_path)?.as_str())?;
     validate_baseline_header(&baseline)?;
+    let baseline_profile_id = std::env::var("OMENA_PARSER_EDIT_BASELINE_PROFILE")
+        .map_err(|_| "OMENA_PARSER_EDIT_BASELINE_PROFILE is required")?;
+    let execution_environment = std::env::var("OMENA_PARSER_EDIT_EXECUTION_ENVIRONMENT")
+        .map_err(|_| "OMENA_PARSER_EDIT_EXECUTION_ENVIRONMENT is required")?;
+    let baseline_profile = select_baseline_profile(
+        &baseline,
+        baseline_profile_id.as_str(),
+        execution_environment.as_str(),
+    )?;
     let remote_root = std::env::var("OMENA_PARSER_EDIT_CORPUS_ROOT")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from("benchmark-artifacts/parser-edit-corpus"));
@@ -273,65 +309,68 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .into_iter()
         .map(|entry| load_corpus(entry, &remote_root))
         .collect::<Result<Vec<_>, _>>()?;
-    let mut samples = Vec::with_capacity(corpora.len() * EditShape::ALL.len() * 3);
-
-    for corpus in &corpora {
-        for shape in EditShape::ALL {
-            let edited = apply_edit(corpus.source.as_str(), shape);
-            let changed_bytes = corpus.source.len().abs_diff(edited.len());
-            let iterations_per_batch = iterations_for_size(edited.len());
-            for path in MeasurementPath::ALL {
-                let measurement = measure_path(
-                    path,
-                    corpus.source.as_str(),
-                    edited.as_str(),
-                    corpus.dialect,
-                    iterations_per_batch,
-                );
-                samples.push(Sample {
-                    corpus_id: corpus.entry.id.clone(),
-                    band: corpus.entry.band.clone(),
-                    source_project: corpus.entry.source_project.clone(),
-                    source_kind: corpus.entry.source_kind.clone(),
-                    source_url: corpus.entry.source_url.clone(),
-                    source_version: corpus.entry.version.clone(),
-                    source_license: corpus.entry.license.clone(),
-                    source_sha256: corpus.entry.sha256.clone(),
-                    dialect: dialect_label(corpus.dialect),
-                    source_bytes: corpus.source.len(),
-                    edited_bytes: edited.len(),
-                    changed_bytes,
-                    park_eligible: corpus.entry.park_eligible,
-                    edit_shape: shape.label(),
-                    measurement_path: path.label(),
-                    iterations_per_batch,
-                    nanoseconds_p50: measurement.p50,
-                    nanoseconds_p90: measurement.p90,
-                    parse_invocations_per_iteration: measurement.parse_invocations_per_iteration,
-                    parse_tokens_per_iteration: measurement.parse_tokens_per_iteration,
-                });
+    let mut samples = Vec::with_capacity(
+        corpora.len() * EditShape::ALL.len() * MeasurementPath::ALL.len() * COMPARISON_RUN_COUNT,
+    );
+    let mut comparison_run_summaries = Vec::with_capacity(COMPARISON_RUN_COUNT);
+    for comparison_run_index in 0..COMPARISON_RUN_COUNT {
+        for corpus in &corpora {
+            for shape in EditShape::ALL {
+                let edited = apply_edit(corpus.source.as_str(), shape);
+                let changed_bytes = corpus.source.len().abs_diff(edited.len());
+                let iterations_per_batch = iterations_for_size(edited.len());
+                for path in MeasurementPath::ALL {
+                    let measurement = measure_path(
+                        path,
+                        corpus.source.as_str(),
+                        edited.as_str(),
+                        corpus.dialect,
+                        iterations_per_batch,
+                    );
+                    samples.push(Sample {
+                        comparison_run_index,
+                        corpus_id: corpus.entry.id.clone(),
+                        band: corpus.entry.band.clone(),
+                        source_project: corpus.entry.source_project.clone(),
+                        source_kind: corpus.entry.source_kind.clone(),
+                        source_url: corpus.entry.source_url.clone(),
+                        source_version: corpus.entry.version.clone(),
+                        source_license: corpus.entry.license.clone(),
+                        source_sha256: corpus.entry.sha256.clone(),
+                        dialect: dialect_label(corpus.dialect),
+                        source_bytes: corpus.source.len(),
+                        edited_bytes: edited.len(),
+                        changed_bytes,
+                        park_eligible: corpus.entry.park_eligible,
+                        edit_shape: shape.label(),
+                        measurement_path: path.label(),
+                        iterations_per_batch,
+                        nanoseconds_median: measurement.median,
+                        observed_batch_minimum_nanoseconds: measurement.minimum,
+                        observed_batch_maximum_nanoseconds: measurement.maximum,
+                        observed_batch_median_absolute_deviation_nanoseconds: measurement
+                            .median_absolute_deviation,
+                        parse_invocations_per_iteration: measurement
+                            .parse_invocations_per_iteration,
+                        parse_tokens_per_iteration: measurement.parse_tokens_per_iteration,
+                    });
+                }
             }
         }
+        let mut run_summaries = corpora
+            .iter()
+            .map(|corpus| summarize_corpus(corpus, &samples, comparison_run_index))
+            .collect::<Result<Vec<_>, Box<dyn std::error::Error>>>()?;
+        normalize_slope_ratios(&mut run_summaries)?;
+        comparison_run_summaries.push(run_summaries);
     }
-
-    let mut summaries = corpora
-        .iter()
-        .map(|corpus| summarize_corpus(corpus, &samples))
-        .collect::<Result<Vec<_>, Box<dyn std::error::Error>>>()?;
-    let reference_ns_per_byte = summaries
-        .first()
-        .ok_or("parser-edit corpus cannot be empty")?
-        .minimum_path_nanoseconds_per_byte;
-    for summary in &mut summaries {
-        summary.normalized_slope_ratio =
-            summary.minimum_path_nanoseconds_per_byte / reference_ns_per_byte;
-    }
-
-    let band_budget_comparisons = compare_band_budgets(&summaries, &baseline)?;
+    let summaries = aggregate_comparison_run_summaries(&comparison_run_summaries)?;
+    let band_budget_comparisons =
+        compare_band_budgets(&comparison_run_summaries, baseline_profile)?;
     let qualifying_sources = reentry_source_projects(&band_budget_comparisons);
     let disposition = parser_edit_disposition(
-        qualifying_sources.len(),
-        baseline.required_independent_source_count,
+        &band_budget_comparisons,
+        baseline_profile.required_independent_source_count,
     );
     let original_research_p90 = 4_355_000;
     let profile = Profile {
@@ -341,6 +380,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or_else(|_| "unrecorded".to_string()),
         release_build: !cfg!(debug_assertions),
         sample_batch_count: SAMPLE_BATCH_COUNT,
+        comparison_run_count: COMPARISON_RUN_COUNT,
         corpus_manifest: manifest_path.display().to_string(),
         corpus_manifest_schema_version: "0".to_string(),
         corpus_manifest_product: "omena-benchmarks.parser-edit-corpus".to_string(),
@@ -352,7 +392,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         edit_local_threshold_nanoseconds: EDIT_LOCAL_THRESHOLD_NS,
         disposition_policy: DISPOSITION_POLICY,
         park_scope: PARK_SCOPE,
-        yardstick_validation: "unvalidated-wall-clock-yardstick-with-load-bearing-absolute-per-band-p90-pins",
+        yardstick_validation: "unvalidated-wall-clock-yardstick-with-environment-keyed-absolute-per-band-median-pins",
         original_research_trigger: OriginalResearchTrigger {
             source_scope: "measured real-world third-party distribution corpus",
             real_world_p90_nanoseconds: original_research_p90,
@@ -360,9 +400,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             threshold_consumption_milli: original_research_p90 * 1_000 / EDIT_LOCAL_THRESHOLD_NS,
             fires: original_research_p90 >= EDIT_LOCAL_THRESHOLD_NS,
         },
-        baseline_measurement_pin: baseline.omena_git_sha.clone(),
+        baseline_profile_id,
+        execution_environment,
+        comparison_statistic: baseline_profile.statistic.clone(),
+        observed_spread_statistic: baseline_profile.spread_statistic.clone(),
+        baseline_allowed_regression_ratio: baseline_profile.allowed_regression_ratio,
+        baseline_measurement_pin: baseline_profile.omena_git_sha.clone(),
         disposition_inputs: DispositionInputs {
-            comparison_run_count: usize::from(!baseline.generated_at_utc.is_empty()) + 1,
+            comparison_run_count: comparison_run_summaries.len(),
             per_band_budget_count: band_budget_comparisons.len(),
             within_budget_count: band_budget_comparisons
                 .iter()
@@ -372,14 +417,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .iter()
                 .filter(|comparison| !comparison.within_budget)
                 .count(),
-            reentry_regression_ratio_milli: (baseline.reentry_regression_ratio * 1_000.0).round()
-                as u128,
+            reentry_regression_ratio_milli: (baseline_profile.reentry_regression_ratio * 1_000.0)
+                .round() as u128,
             qualifying_source_count: band_budget_comparisons
                 .iter()
                 .filter(|comparison| comparison.reentry_candidate)
                 .count(),
             qualifying_independent_source_count: qualifying_sources.len(),
-            required_independent_source_count: baseline.required_independent_source_count,
+            required_independent_source_count: baseline_profile.required_independent_source_count,
         },
         band_budget_comparisons,
         disposition,
@@ -393,34 +438,83 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn validate_baseline_header(
     baseline: &ParserEditBaseline,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if baseline.schema_version != "0"
+    if baseline.schema_version != "1"
         || baseline.product != "omena-benchmarks.parser-edit-slope-baseline"
-        || baseline.measurement != "absolute-minimum-path-p90-nanoseconds"
+        || baseline.measurement != "absolute-minimum-path-median-nanoseconds"
     {
         return Err("unsupported parser-edit baseline".into());
     }
-    if baseline.generated_at_utc.is_empty()
-        || baseline.omena_git_sha.is_empty()
-        || !(0.0..1.0).contains(&baseline.allowed_regression_ratio)
-        || baseline.reentry_regression_ratio < 1.0
-        || baseline.required_independent_source_count < 2
-    {
-        return Err("invalid parser-edit baseline policy".into());
+    if baseline.profiles.is_empty() {
+        return Err("parser-edit baseline must contain environment profiles".into());
+    }
+    let mut ids = BTreeSet::new();
+    for profile in &baseline.profiles {
+        let derived_ratio =
+            (profile.observed_maximum_spread_ratio * 3.0 * 1_000.0).ceil() / 1_000.0;
+        if !ids.insert(profile.id.as_str())
+            || profile.generated_at_utc.is_empty()
+            || profile.omena_git_sha.is_empty()
+            || profile.execution_environment.is_empty()
+            || profile.statistic != "minimum-across-paths-of-median-across-edit-shape-batch-medians"
+            || !matches!(
+                profile.spread_statistic.as_str(),
+                "maximum-of-within-run-median-absolute-deviation-and-between-run-range"
+                    | "maximum-of-observed-edit-shape-median-range-and-between-run-range"
+            )
+            || !(0.0..1.0).contains(&profile.observed_maximum_spread_ratio)
+            || (profile.allowed_regression_ratio - derived_ratio).abs() > f64::EPSILON
+            || profile.reentry_regression_ratio != 2.0
+            || profile.required_consecutive_run_count != COMPARISON_RUN_COUNT
+            || profile.required_independent_source_count < 2
+            || profile.pins.is_empty()
+        {
+            return Err(format!("invalid parser-edit baseline profile {}", profile.id).into());
+        }
     }
     Ok(())
 }
 
+fn select_baseline_profile<'a>(
+    baseline: &'a ParserEditBaseline,
+    profile_id: &str,
+    execution_environment: &str,
+) -> Result<&'a ParserEditBaselineProfile, Box<dyn std::error::Error>> {
+    let profile = baseline
+        .profiles
+        .iter()
+        .find(|profile| profile.id == profile_id)
+        .ok_or_else(|| format!("unknown parser-edit baseline profile {profile_id}"))?;
+    if profile.execution_environment != execution_environment {
+        return Err(format!(
+            "parser-edit baseline profile {profile_id} is bound to {}; runner declared {execution_environment}",
+            profile.execution_environment
+        )
+        .into());
+    }
+    Ok(profile)
+}
+
 fn compare_band_budgets(
-    summaries: &[BandSummary],
-    baseline: &ParserEditBaseline,
+    comparison_run_summaries: &[Vec<BandSummary>],
+    baseline: &ParserEditBaselineProfile,
 ) -> Result<Vec<BandBudgetComparison>, Box<dyn std::error::Error>> {
-    if summaries.len() != baseline.pins.len() {
+    if comparison_run_summaries.len() != baseline.required_consecutive_run_count
+        || comparison_run_summaries
+            .iter()
+            .any(|summaries| summaries.len() != baseline.pins.len())
+    {
         return Err("parser-edit baseline band count drifted".into());
     }
-    summaries
+    baseline
+        .pins
         .iter()
-        .zip(&baseline.pins)
-        .map(|(summary, pin)| {
+        .enumerate()
+        .map(|(index, pin)| {
+            let run_summaries = comparison_run_summaries
+                .iter()
+                .map(|summaries| &summaries[index])
+                .collect::<Vec<_>>();
+            let summary = run_summaries[0];
             if pin.corpus_id != summary.corpus_id
                 || pin.band != summary.band
                 || pin.source_project != summary.source_project
@@ -435,13 +529,21 @@ fn compare_band_budgets(
                     format!("{} parser-edit baseline identity drifted", summary.band).into(),
                 );
             }
-            let expected_budget = ((pin.measured_minimum_path_p90_nanoseconds as f64)
+            let expected_budget = ((pin.measured_minimum_path_median_nanoseconds as f64)
                 * (1.0 + baseline.allowed_regression_ratio))
                 .ceil() as u128;
-            if pin.allowed_minimum_path_p90_nanoseconds != expected_budget {
+            if pin.allowed_minimum_path_median_nanoseconds != expected_budget {
                 return Err(format!("{} parser-edit absolute budget drifted", summary.band).into());
             }
-            let reentry_threshold = ((pin.measured_minimum_path_p90_nanoseconds as f64)
+            let current_runs = run_summaries
+                .iter()
+                .map(|summary| summary.minimum_path_median_nanoseconds)
+                .collect::<Vec<_>>();
+            let current_minimum = *current_runs
+                .iter()
+                .min()
+                .ok_or("parser-edit comparison run cannot be empty")?;
+            let reentry_threshold = ((pin.allowed_minimum_path_median_nanoseconds as f64)
                 * baseline.reentry_regression_ratio)
                 .ceil() as u128;
             Ok(BandBudgetComparison {
@@ -454,14 +556,19 @@ fn compare_band_budgets(
                 source_sha256: summary.source_sha256.clone(),
                 source_bytes: summary.source_bytes,
                 park_eligible: summary.park_eligible,
-                pinned_minimum_path_p90_nanoseconds: pin.measured_minimum_path_p90_nanoseconds,
-                allowed_minimum_path_p90_nanoseconds: pin.allowed_minimum_path_p90_nanoseconds,
-                current_minimum_path_p90_nanoseconds: summary.minimum_path_p90_nanoseconds,
-                within_budget: summary.minimum_path_p90_nanoseconds
-                    <= pin.allowed_minimum_path_p90_nanoseconds,
+                pinned_minimum_path_median_nanoseconds: pin
+                    .measured_minimum_path_median_nanoseconds,
+                observed_baseline_spread_nanoseconds: pin.observed_spread_nanoseconds,
+                allowed_minimum_path_median_nanoseconds: pin
+                    .allowed_minimum_path_median_nanoseconds,
+                comparison_run_minimum_path_median_nanoseconds: current_runs.clone(),
+                current_minimum_path_median_nanoseconds: current_minimum,
+                within_budget: current_minimum <= pin.allowed_minimum_path_median_nanoseconds,
                 reentry_threshold_nanoseconds: reentry_threshold,
                 reentry_candidate: summary.park_eligible
-                    && summary.minimum_path_p90_nanoseconds >= reentry_threshold,
+                    && current_runs
+                        .iter()
+                        .all(|current| *current >= reentry_threshold),
             })
         })
         .collect()
@@ -470,15 +577,28 @@ fn compare_band_budgets(
 fn reentry_source_projects(comparisons: &[BandBudgetComparison]) -> BTreeSet<&str> {
     comparisons
         .iter()
-        .filter(|comparison| comparison.reentry_candidate)
+        .filter(|comparison| is_reentry_candidate(comparison))
         .map(|comparison| comparison.source_project.as_str())
         .collect()
 }
 
-const fn parser_edit_disposition(
-    qualifying_independent_source_count: usize,
+fn is_reentry_candidate(comparison: &BandBudgetComparison) -> bool {
+    comparison.park_eligible
+        && comparison
+            .comparison_run_minimum_path_median_nanoseconds
+            .len()
+            == COMPARISON_RUN_COUNT
+        && comparison
+            .comparison_run_minimum_path_median_nanoseconds
+            .iter()
+            .all(|current| *current >= comparison.reentry_threshold_nanoseconds)
+}
+
+fn parser_edit_disposition(
+    comparisons: &[BandBudgetComparison],
     required_independent_source_count: usize,
 ) -> &'static str {
+    let qualifying_independent_source_count = reentry_source_projects(comparisons).len();
     if qualifying_independent_source_count >= required_independent_source_count {
         "draft-edit-local-parser-design"
     } else {
@@ -525,8 +645,10 @@ fn load_corpus(
 }
 
 struct PathMeasurement {
-    p50: u128,
-    p90: u128,
+    median: u128,
+    minimum: u128,
+    maximum: u128,
+    median_absolute_deviation: u128,
     parse_invocations_per_iteration: f64,
     parse_tokens_per_iteration: f64,
 }
@@ -587,9 +709,13 @@ fn measure_path(
     }
     timings.sort_unstable();
     let measured_iteration_count = (SAMPLE_BATCH_COUNT * iterations_per_batch) as f64;
+    let minimum = timings[0];
+    let maximum = timings[timings.len() - 1];
     PathMeasurement {
-        p50: timings[timings.len() / 2],
-        p90: timings[percentile_index(timings.len(), 90)],
+        median: median_u128(timings.as_slice()),
+        minimum,
+        maximum,
+        median_absolute_deviation: median_absolute_deviation(timings.as_slice()),
         parse_invocations_per_iteration: parse_invocations as f64 / measured_iteration_count,
         parse_tokens_per_iteration: parse_tokens as f64 / measured_iteration_count,
     }
@@ -605,24 +731,46 @@ fn consume_cached(text: &str, dialect: StyleDialect, cache: &mut ParseReuseCache
 fn summarize_corpus(
     corpus: &LoadedCorpus,
     samples: &[Sample],
+    comparison_run_index: usize,
 ) -> Result<BandSummary, Box<dyn std::error::Error>> {
-    let mut path_p90_nanoseconds = BTreeMap::new();
+    let mut path_median_nanoseconds = BTreeMap::new();
+    let mut path_observed_spread_nanoseconds = BTreeMap::new();
     for path in MeasurementPath::ALL {
-        let p90 = samples
+        let path_samples = samples
             .iter()
             .filter(|sample| {
-                sample.corpus_id == corpus.entry.id && sample.measurement_path == path.label()
+                sample.comparison_run_index == comparison_run_index
+                    && sample.corpus_id == corpus.entry.id
+                    && sample.measurement_path == path.label()
             })
-            .map(|sample| sample.nanoseconds_p90)
-            .max()
-            .ok_or("every corpus/path pair must have edit-shape samples")?;
-        path_p90_nanoseconds.insert(path.label(), p90);
+            .collect::<Vec<_>>();
+        if path_samples.len() != EditShape::ALL.len() {
+            return Err("every corpus/path pair must have five edit-shape samples".into());
+        }
+        let mut shape_medians = path_samples
+            .iter()
+            .map(|sample| sample.nanoseconds_median)
+            .collect::<Vec<_>>();
+        shape_medians.sort_unstable();
+        let median = median_u128(shape_medians.as_slice());
+        let shape_spread = median_absolute_deviation(shape_medians.as_slice());
+        let mut batch_deviations = path_samples
+            .iter()
+            .map(|sample| sample.observed_batch_median_absolute_deviation_nanoseconds)
+            .collect::<Vec<_>>();
+        batch_deviations.sort_unstable();
+        let batch_spread = median_u128(batch_deviations.as_slice());
+        path_median_nanoseconds.insert(path.label(), median);
+        path_observed_spread_nanoseconds.insert(path.label(), shape_spread.max(batch_spread));
     }
-    let (minimum_path, minimum_path_p90_nanoseconds) = path_p90_nanoseconds
+    let (minimum_path, minimum_path_median_nanoseconds) = path_median_nanoseconds
         .iter()
         .min_by_key(|(_, value)| **value)
         .map(|(path, value)| (*path, *value))
         .ok_or("every corpus must have path measurements")?;
+    let minimum_path_observed_spread_nanoseconds = *path_observed_spread_nanoseconds
+        .get(minimum_path)
+        .ok_or("minimum path must carry an observed spread")?;
     Ok(BandSummary {
         corpus_id: corpus.entry.id.clone(),
         band: corpus.entry.band.clone(),
@@ -635,12 +783,85 @@ fn summarize_corpus(
         park_eligible: corpus.entry.park_eligible,
         park_scope_reason: corpus.entry.park_scope_reason.clone(),
         minimum_path,
-        minimum_path_p90_nanoseconds,
-        minimum_path_nanoseconds_per_byte: minimum_path_p90_nanoseconds as f64
+        minimum_path_median_nanoseconds,
+        minimum_path_observed_spread_nanoseconds,
+        minimum_path_nanoseconds_per_byte: minimum_path_median_nanoseconds as f64
             / corpus.source.len() as f64,
         normalized_slope_ratio: 0.0,
-        path_p90_nanoseconds,
+        path_median_nanoseconds,
+        path_observed_spread_nanoseconds,
     })
+}
+
+fn normalize_slope_ratios(summaries: &mut [BandSummary]) -> Result<(), Box<dyn std::error::Error>> {
+    let reference_ns_per_byte = summaries
+        .first()
+        .ok_or("parser-edit corpus cannot be empty")?
+        .minimum_path_nanoseconds_per_byte;
+    for summary in summaries {
+        summary.normalized_slope_ratio =
+            summary.minimum_path_nanoseconds_per_byte / reference_ns_per_byte;
+    }
+    Ok(())
+}
+
+fn median_u128(sorted_values: &[u128]) -> u128 {
+    sorted_values[sorted_values.len() / 2]
+}
+
+fn median_absolute_deviation(sorted_values: &[u128]) -> u128 {
+    let median = median_u128(sorted_values);
+    let mut deviations = sorted_values
+        .iter()
+        .map(|value| value.abs_diff(median))
+        .collect::<Vec<_>>();
+    deviations.sort_unstable();
+    median_u128(deviations.as_slice())
+}
+
+fn aggregate_comparison_run_summaries(
+    comparison_runs: &[Vec<BandSummary>],
+) -> Result<Vec<BandSummary>, Box<dyn std::error::Error>> {
+    let first = comparison_runs
+        .first()
+        .ok_or("parser-edit comparison runs cannot be empty")?;
+    let mut aggregated = Vec::with_capacity(first.len());
+    for index in 0..first.len() {
+        let candidates = comparison_runs
+            .iter()
+            .map(|summaries| &summaries[index])
+            .collect::<Vec<_>>();
+        if candidates.iter().any(|summary| {
+            summary.corpus_id != candidates[0].corpus_id || summary.band != candidates[0].band
+        }) {
+            return Err("parser-edit comparison-run summary identity drifted".into());
+        }
+        let mut selected = (*candidates
+            .iter()
+            .min_by_key(|summary| summary.minimum_path_median_nanoseconds)
+            .ok_or("parser-edit comparison-run summary is missing")?)
+        .clone();
+        let minimum = candidates
+            .iter()
+            .map(|summary| summary.minimum_path_median_nanoseconds)
+            .min()
+            .unwrap_or(0);
+        let maximum = candidates
+            .iter()
+            .map(|summary| summary.minimum_path_median_nanoseconds)
+            .max()
+            .unwrap_or(0);
+        let within_run_spread = candidates
+            .iter()
+            .map(|summary| summary.minimum_path_observed_spread_nanoseconds)
+            .max()
+            .unwrap_or(0);
+        selected.minimum_path_observed_spread_nanoseconds =
+            within_run_spread.max(maximum.saturating_sub(minimum));
+        aggregated.push(selected);
+    }
+    normalize_slope_ratios(&mut aggregated)?;
+    Ok(aggregated)
 }
 
 fn apply_edit(source: &str, shape: EditShape) -> String {
@@ -677,14 +898,6 @@ fn nearest_char_boundary(source: &str, mut offset: usize) -> usize {
     offset
 }
 
-fn percentile_index(sample_count: usize, percentile: usize) -> usize {
-    sample_count
-        .saturating_mul(percentile)
-        .div_ceil(100)
-        .saturating_sub(1)
-        .min(sample_count.saturating_sub(1))
-}
-
 const fn iterations_for_size(byte_length: usize) -> usize {
     if byte_length <= 2 * 1024 {
         400
@@ -710,15 +923,46 @@ const fn dialect_label(dialect: StyleDialect) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::parser_edit_disposition;
+    use super::{BandBudgetComparison, is_reentry_candidate, parser_edit_disposition};
+
+    fn comparison(source_project: &str, current_runs: [u128; 2]) -> BandBudgetComparison {
+        let mut comparison = BandBudgetComparison {
+            corpus_id: source_project.to_string(),
+            band: "fixture".to_string(),
+            source_project: source_project.to_string(),
+            source_kind: "hand-authored".to_string(),
+            source_url: "https://example.com/fixture.css".to_string(),
+            source_version: "fixture".to_string(),
+            source_sha256: "0".repeat(64),
+            source_bytes: 1,
+            park_eligible: true,
+            pinned_minimum_path_median_nanoseconds: 50,
+            observed_baseline_spread_nanoseconds: 5,
+            allowed_minimum_path_median_nanoseconds: 100,
+            comparison_run_minimum_path_median_nanoseconds: current_runs.to_vec(),
+            current_minimum_path_median_nanoseconds: *current_runs.iter().min().unwrap(),
+            within_budget: false,
+            reentry_threshold_nanoseconds: 200,
+            reentry_candidate: false,
+        };
+        comparison.reentry_candidate = is_reentry_candidate(&comparison);
+        comparison
+    }
 
     #[test]
-    fn disposition_requires_two_independent_reentry_sources() {
+    fn disposition_mutation_flips_decision_after_two_consecutive_runs() {
+        let first = comparison("fixture-a", [220, 230]);
+        let mut second = comparison("fixture-b", [220, 199]);
         assert_eq!(
-            parser_edit_disposition(2, 2),
+            parser_edit_disposition(&[first.clone(), second.clone()], 2),
+            "park-edit-local-parser"
+        );
+        second.comparison_run_minimum_path_median_nanoseconds[1] = 230;
+        second.current_minimum_path_median_nanoseconds = 220;
+        second.reentry_candidate = is_reentry_candidate(&second);
+        assert_eq!(
+            parser_edit_disposition(&[first, second], 2),
             "draft-edit-local-parser-design"
         );
-        assert_eq!(parser_edit_disposition(1, 2), "park-edit-local-parser");
-        assert_eq!(parser_edit_disposition(0, 2), "park-edit-local-parser");
     }
 }
