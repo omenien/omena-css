@@ -940,7 +940,7 @@ mod tests {
             observed_baseline_spread_nanoseconds: 5,
             allowed_minimum_path_median_nanoseconds: 100,
             comparison_run_minimum_path_median_nanoseconds: current_runs.to_vec(),
-            current_minimum_path_median_nanoseconds: *current_runs.iter().min().unwrap(),
+            current_minimum_path_median_nanoseconds: current_runs[0].min(current_runs[1]),
             within_budget: false,
             reentry_threshold_nanoseconds: 200,
             reentry_candidate: false,
