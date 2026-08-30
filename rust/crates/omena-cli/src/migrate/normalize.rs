@@ -1,5 +1,10 @@
 use super::*;
 
+pub(super) struct IndexedWorkspaceSourceV0 {
+    pub(super) source: String,
+    pub(super) line_index: OmenaLineIndexV0,
+}
+
 pub(super) fn workspace_source_map(
     style_sources: &[omena_query::OmenaQueryStyleSourceInputV0],
     source_documents: &[omena_query::OmenaQuerySourceDocumentInputV0],
@@ -16,17 +21,14 @@ pub(super) fn workspace_source_map(
 }
 
 pub(super) fn source_for_uri<'a>(
-    sources: &'a BTreeMap<String, String>,
+    sources: &'a BTreeMap<String, IndexedWorkspaceSourceV0>,
     uri: &str,
-) -> Option<&'a str> {
-    sources
-        .get(uri)
-        .or_else(|| {
-            cli_file_uri_to_path(uri)
-                .as_ref()
-                .and_then(|path| sources.get(path_string(path.as_path()).as_str()))
-        })
-        .map(String::as_str)
+) -> Option<&'a IndexedWorkspaceSourceV0> {
+    sources.get(uri).or_else(|| {
+        cli_file_uri_to_path(uri)
+            .as_ref()
+            .and_then(|path| sources.get(path_string(path.as_path()).as_str()))
+    })
 }
 
 pub(super) fn resolve_workspace_root(root: Option<&Path>) -> Result<PathBuf, String> {

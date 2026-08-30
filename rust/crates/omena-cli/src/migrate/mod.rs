@@ -878,10 +878,12 @@ fn build_css_modules_rename_plan(
         source_documents.as_slice(),
         package_manifests.as_slice(),
     );
-    let sources = workspace_source_map(&style_sources, &source_documents);
-    let source_line_indexes = sources
-        .iter()
-        .map(|(uri, source)| (uri.clone(), OmenaLineIndexV0::new(source)))
+    let sources = workspace_source_map(&style_sources, &source_documents)
+        .into_iter()
+        .map(|(uri, source)| {
+            let line_index = OmenaLineIndexV0::new(source.as_str());
+            (uri, IndexedWorkspaceSourceV0 { source, line_index })
+        })
         .collect::<BTreeMap<_, _>>();
     let exact_locations = rename
         .edits
@@ -909,7 +911,6 @@ fn build_css_modules_rename_plan(
         match draft_from_workspace_edit(
             edit,
             &sources,
-            &source_line_indexes,
             exact_workspace_safety(),
             MigrationEditEvidenceV0 {
                 primary: authority_evidence.id.clone(),
@@ -933,7 +934,6 @@ fn build_css_modules_rename_plan(
             location,
             new_name.as_str(),
             &sources,
-            &source_line_indexes,
             MigrationEditEvidenceV0 {
                 primary: dynamic_evidence.id.clone(),
                 supporting: vec![authority_evidence.id.clone()],
@@ -968,8 +968,7 @@ fn build_css_modules_rename_plan(
 
 fn draft_from_workspace_edit(
     edit: &OmenaQueryWorkspaceTextEditV0,
-    sources: &BTreeMap<String, String>,
-    source_line_indexes: &BTreeMap<String, OmenaLineIndexV0>,
+    sources: &BTreeMap<String, IndexedWorkspaceSourceV0>,
     safety_evidence: FixSafetyEvidenceInputV0,
     evidence: MigrationEditEvidenceV0,
 ) -> Result<MigrationEditDraftV0, String> {
@@ -978,7 +977,6 @@ fn draft_from_workspace_edit(
         edit.range,
         edit.new_text.as_str(),
         sources,
-        source_line_indexes,
         safety_evidence,
         evidence,
     )
@@ -987,8 +985,7 @@ fn draft_from_workspace_edit(
 fn draft_from_review_location(
     location: &OmenaQueryReferenceLocationV0,
     replacement_text: &str,
-    sources: &BTreeMap<String, String>,
-    source_line_indexes: &BTreeMap<String, OmenaLineIndexV0>,
+    sources: &BTreeMap<String, IndexedWorkspaceSourceV0>,
     evidence: MigrationEditEvidenceV0,
 ) -> Result<MigrationEditDraftV0, String> {
     draft_from_range(
@@ -996,7 +993,6 @@ fn draft_from_review_location(
         location.range,
         replacement_text,
         sources,
-        source_line_indexes,
         manual_review_safety(),
         evidence,
     )
@@ -1006,16 +1002,14 @@ fn draft_from_range(
     uri: &str,
     range: ParserRangeV0,
     replacement_text: &str,
-    sources: &BTreeMap<String, String>,
-    source_line_indexes: &BTreeMap<String, OmenaLineIndexV0>,
+    sources: &BTreeMap<String, IndexedWorkspaceSourceV0>,
     safety_evidence: FixSafetyEvidenceInputV0,
     evidence: MigrationEditEvidenceV0,
 ) -> Result<MigrationEditDraftV0, String> {
-    let source = source_for_uri(sources, uri)
+    let indexed_source = source_for_uri(sources, uri)
         .ok_or_else(|| format!("workspace source {uri} is not indexed"))?;
-    let line_index = source_line_indexes
-        .get(uri)
-        .ok_or_else(|| format!("workspace source {uri} has no line index"))?;
+    let source = indexed_source.source.as_str();
+    let line_index = &indexed_source.line_index;
     let (start, end) = byte_span_for_range_with_line_index(source, line_index, range)
         .ok_or_else(|| format!("query range for {uri} is outside the indexed source"))?;
     let expected_text = source
