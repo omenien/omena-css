@@ -535,7 +535,7 @@
       "loopNested": false
     }
   ],
-  "migratedQueryWrapperCallSiteCount": 43,
+  "migratedQueryWrapperCallSiteCount": 44,
   "queryWrapperCallSites": [
     {
       "id": "rust/crates/omena-query/src/style.rs:end_of_source_range:parser_position_for_byte_offset:1",
@@ -571,16 +571,6 @@
       "id": "rust/crates/omena-query/src/style.rs:sass_callable_definition_render_parts:byte_offset_for_parser_position:1",
       "relativePath": "rust/crates/omena-query/src/style.rs",
       "functionName": "sass_callable_definition_render_parts",
-      "wrapperName": "byte_offset_for_parser_position",
-      "occurrenceWithinFunction": 1,
-      "loopNested": false,
-      "callerLoopNested": false,
-      "loopNestedCallerCallSiteIds": []
-    },
-    {
-      "id": "rust/crates/omena-query/src/style.rs:selector_hover_branch_scope_at_position:byte_offset_for_parser_position:1",
-      "relativePath": "rust/crates/omena-query/src/style.rs",
-      "functionName": "selector_hover_branch_scope_at_position",
       "wrapperName": "byte_offset_for_parser_position",
       "occurrenceWithinFunction": 1,
       "loopNested": false,
@@ -710,6 +700,16 @@
       "loopNestedCallerCallSiteIds": []
     },
     {
+      "id": "rust/crates/omena-query/src/style.rs:collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs:omena_query_line_index:1",
+      "relativePath": "rust/crates/omena-query/src/style.rs",
+      "functionName": "collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs",
+      "wrapperName": "omena_query_line_index",
+      "occurrenceWithinFunction": 1,
+      "loopNested": true,
+      "callerLoopNested": false,
+      "loopNestedCallerCallSiteIds": []
+    },
+    {
       "id": "rust/crates/omena-query/src/style.rs:omena_query_line_index:OmenaLineIndexV0::new:1",
       "relativePath": "rust/crates/omena-query/src/style.rs",
       "functionName": "omena_query_line_index",
@@ -718,9 +718,13 @@
       "loopNested": false,
       "callerLoopNested": true,
       "loopNestedCallerCallSiteIds": [
+        "rust/crates/omena-query/src/style.rs:collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs:omena_query_line_index:1",
         "rust/crates/omena-query/src/style.rs:summarize_omena_query_custom_property_occurrence_index:omena_query_line_index:1",
         "rust/crates/omena-query/src/style/diagnostics/cascade_runtime.rs:collect_omena_query_inline_style_runtime_overrides_by_style:omena_query_line_index:1",
-        "rust/crates/omena-query/src/style/source_refs.rs:collect_omena_query_source_selector_references_with_resolution_inputs:omena_query_line_index:1"
+        "rust/crates/omena-query/src/style/salsa_memo.rs:style_cascade_narrowing_substrate:omena_query_line_index:1",
+        "rust/crates/omena-query/src/style/source_refs.rs:collect_omena_query_source_selector_references_with_resolution_inputs:omena_query_line_index:1",
+        "rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_source_diagnostics_for_file:omena_query_line_index:1",
+        "rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_source_diagnostics_from_syntax_index:omena_query_line_index:2"
       ]
     },
     {
@@ -737,6 +741,16 @@
       "id": "rust/crates/omena-query/src/style.rs:parser_range_for_byte_span:omena_query_line_index:1",
       "relativePath": "rust/crates/omena-query/src/style.rs",
       "functionName": "parser_range_for_byte_span",
+      "wrapperName": "omena_query_line_index",
+      "occurrenceWithinFunction": 1,
+      "loopNested": false,
+      "callerLoopNested": false,
+      "loopNestedCallerCallSiteIds": []
+    },
+    {
+      "id": "rust/crates/omena-query/src/style.rs:selector_hover_branch_scope_at_position:omena_query_line_index:1",
+      "relativePath": "rust/crates/omena-query/src/style.rs",
+      "functionName": "selector_hover_branch_scope_at_position",
       "wrapperName": "omena_query_line_index",
       "occurrenceWithinFunction": 1,
       "loopNested": false,
@@ -1043,6 +1057,16 @@
       "loopNestedCallerCallSiteIds": []
     },
     {
+      "id": "rust/crates/omena-query/src/style/salsa_memo.rs:style_cascade_narrowing_substrate:omena_query_line_index:1",
+      "relativePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
+      "functionName": "style_cascade_narrowing_substrate",
+      "wrapperName": "omena_query_line_index",
+      "occurrenceWithinFunction": 1,
+      "loopNested": true,
+      "callerLoopNested": false,
+      "loopNestedCallerCallSiteIds": []
+    },
+    {
       "id": "rust/crates/omena-query/src/style/source_refs.rs:collect_omena_query_source_selector_references_with_resolution_inputs:omena_query_line_index:1",
       "relativePath": "rust/crates/omena-query/src/style/source_refs.rs",
       "functionName": "collect_omena_query_source_selector_references_with_resolution_inputs",
@@ -1063,6 +1087,16 @@
       "loopNestedCallerCallSiteIds": []
     },
     {
+      "id": "rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_source_diagnostics_for_file:omena_query_line_index:1",
+      "relativePath": "rust/crates/omena-query/src/style/source_refs.rs",
+      "functionName": "summarize_omena_query_source_diagnostics_for_file",
+      "wrapperName": "omena_query_line_index",
+      "occurrenceWithinFunction": 1,
+      "loopNested": true,
+      "callerLoopNested": false,
+      "loopNestedCallerCallSiteIds": []
+    },
+    {
       "id": "rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth:omena_query_line_index:1",
       "relativePath": "rust/crates/omena-query/src/style/source_refs.rs",
       "functionName": "summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth",
@@ -1079,6 +1113,16 @@
       "wrapperName": "omena_query_line_index",
       "occurrenceWithinFunction": 1,
       "loopNested": false,
+      "callerLoopNested": false,
+      "loopNestedCallerCallSiteIds": []
+    },
+    {
+      "id": "rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_source_diagnostics_from_syntax_index:omena_query_line_index:2",
+      "relativePath": "rust/crates/omena-query/src/style/source_refs.rs",
+      "functionName": "summarize_omena_query_source_diagnostics_from_syntax_index",
+      "wrapperName": "omena_query_line_index",
+      "occurrenceWithinFunction": 2,
+      "loopNested": true,
       "callerLoopNested": false,
       "loopNestedCallerCallSiteIds": []
     },
