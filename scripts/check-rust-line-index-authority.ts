@@ -40,6 +40,8 @@ interface FreshIndexCallSite {
   readonly wrapperName: string;
   readonly occurrenceWithinFunction: number;
   readonly loopNested: boolean;
+  readonly callerLoopNested: boolean;
+  readonly loopNestedCallerCallSiteIds: readonly string[];
 }
 
 interface RustFunctionSpan {
@@ -76,6 +78,9 @@ const injectedProductLoop = process.argv
 const injectedWrapperLoop = process.argv
   .find((argument) => argument.startsWith("--inject-wrapper-loop="))
   ?.slice("--inject-wrapper-loop=".length);
+const injectedCallerWrapperLoop = process.argv
+  .find((argument) => argument.startsWith("--inject-caller-wrapper-loop="))
+  ?.slice("--inject-caller-wrapper-loop=".length);
 const initialWrapperSourcePinArgument = process.argv
   .find((argument) => argument.startsWith("--initial-wrapper-source-pin="))
   ?.slice("--initial-wrapper-source-pin=".length);
@@ -350,12 +355,30 @@ if (injectedWrapperLoop !== undefined) {
     injectedWrapperLoop,
   );
 }
-const loopResidentQueryWrapperCallSites = queryWrapperCallSites.filter((site) => site.loopNested);
+if (injectedCallerWrapperLoop !== undefined) {
+  queryWrapperCallSites = injectCallerCallIntoSyntheticLoop(
+    queryProductionSources,
+    queryWrapperCallSites,
+    injectedCallerWrapperLoop,
+  );
+}
+const intraproceduralLoopResidentQueryWrapperCallSites = queryWrapperCallSites.filter(
+  (site) => site.loopNested,
+);
+const callerLoopResidentQueryWrapperCallSites = queryWrapperCallSites.filter(
+  (site) => site.callerLoopNested,
+);
+const loopResidentQueryWrapperCallSites = queryWrapperCallSites.filter(
+  (site) => site.loopNested || site.callerLoopNested,
+);
 assert.deepEqual(
   loopResidentQueryWrapperCallSites,
   [],
-  `fresh-index wrapper calls remain inside item loops: ${loopResidentQueryWrapperCallSites
-    .map((site) => site.id)
+  `fresh-index wrapper calls remain inside item loops in their host or one caller frame: ${loopResidentQueryWrapperCallSites
+    .map(
+      (site) =>
+        `${site.id}[host=${site.loopNested},caller=${site.loopNestedCallerCallSiteIds.join("|") || "none"}]`,
+    )
     .join(", ")}`,
 );
 assert.ok(
@@ -535,6 +558,9 @@ process.stdout.write(
       ).length,
       migratedQueryWrapperCallSiteCount,
       survivingQueryWrapperCallSiteCount: queryWrapperCallSites.length,
+      intraproceduralLoopResidentQueryWrapperCallSiteCount:
+        intraproceduralLoopResidentQueryWrapperCallSites.length,
+      callerLoopResidentQueryWrapperCallSiteCount: callerLoopResidentQueryWrapperCallSites.length,
       loopResidentQueryWrapperCallSiteCount: loopResidentQueryWrapperCallSites.length,
       queryConstructorCallSiteCount: queryConstructorCallSites.length,
       workspaceMemberCount: workspaceMemberManifestPaths.length,
@@ -667,10 +693,12 @@ function trackedQueryProductionSources(): RustSourceFile[] {
     .split("\n")
     .filter(Boolean)
     .sort();
-  return relativePaths.map((relativePath) => ({
+  const sourceFiles = relativePaths.map((relativePath) => ({
     relativePath,
     source: readFileSync(path.join(repoRoot, relativePath), "utf8"),
   }));
+  const testOnlyPaths = testOnlyRustModulePaths(sourceFiles);
+  return sourceFiles.filter(({ relativePath }) => !testOnlyPaths.has(relativePath));
 }
 
 function trackedQueryProductionSourcesAtPin(gitSha: string): RustSourceFile[] {
@@ -689,6 +717,7 @@ function enumerateFreshIndexCallSites(
   callNames: readonly string[],
 ): FreshIndexCallSite[] {
   const sites: FreshIndexCallSite[] = [];
+  const callerIdsByFunction = new Map<string, readonly string[]>();
   for (const { relativePath, source } of sourceFiles) {
     const maskedSource = maskCfgTestItems(source);
     const spans = rustFunctionSpans(maskedSource);
@@ -699,6 +728,10 @@ function enumerateFreshIndexCallSites(
         const offsets = matchOffsets(body, new RegExp(`\\b${escapedName}\\s*\\(`, "g"));
         for (const [index, bodyOffset] of offsets.entries()) {
           const sourceOffset = span.bodyStart + bodyOffset;
+          const loopNestedCallerCallSiteIds =
+            callerIdsByFunction.get(span.name) ??
+            enumerateLoopNestedCallerCallSiteIds(sourceFiles, span.name);
+          callerIdsByFunction.set(span.name, loopNestedCallerCallSiteIds);
           sites.push({
             id: `${relativePath}:${span.name}:${wrapperName}:${index + 1}`,
             relativePath,
@@ -706,6 +739,8 @@ function enumerateFreshIndexCallSites(
             wrapperName,
             occurrenceWithinFunction: index + 1,
             loopNested: isLoopNested(body, bodyOffset),
+            callerLoopNested: loopNestedCallerCallSiteIds.length > 0,
+            loopNestedCallerCallSiteIds,
           });
           assert.ok(
             sourceOffset < span.bodyEnd,
@@ -715,7 +750,52 @@ function enumerateFreshIndexCallSites(
       }
     }
   }
-  return sites.sort((left, right) => left.id.localeCompare(right.id, "en"));
+  return sites.sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+}
+
+function testOnlyRustModulePaths(sourceFiles: readonly RustSourceFile[]): Set<string> {
+  const availablePaths = new Set(sourceFiles.map(({ relativePath }) => relativePath));
+  const testOnlyPaths = new Set<string>();
+  const declarationPattern =
+    /#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/g;
+  for (const { relativePath, source } of sourceFiles) {
+    const fileName = path.posix.basename(relativePath, ".rs");
+    const moduleDirectory = ["lib", "main", "mod"].includes(fileName)
+      ? path.posix.dirname(relativePath)
+      : path.posix.join(path.posix.dirname(relativePath), fileName);
+    for (const match of maskRustLexemes(source).matchAll(declarationPattern)) {
+      const moduleBase = path.posix.join(moduleDirectory, match[1]);
+      for (const candidate of [`${moduleBase}.rs`, `${moduleBase}/mod.rs`]) {
+        if (availablePaths.has(candidate)) testOnlyPaths.add(candidate);
+      }
+      for (const candidate of availablePaths) {
+        if (candidate.startsWith(`${moduleBase}/`)) testOnlyPaths.add(candidate);
+      }
+    }
+  }
+  return testOnlyPaths;
+}
+
+function enumerateLoopNestedCallerCallSiteIds(
+  sourceFiles: readonly RustSourceFile[],
+  calleeName: string,
+): string[] {
+  const callerIds: string[] = [];
+  const escapedName = calleeName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const callPattern = new RegExp(`\\b${escapedName}\\s*\\(`, "g");
+  for (const { relativePath, source } of sourceFiles) {
+    const maskedSource = maskCfgTestItems(source);
+    for (const span of rustFunctionSpans(maskedSource)) {
+      const body = maskedSource.slice(span.bodyStart, span.bodyEnd);
+      const offsets = matchOffsets(body, callPattern);
+      for (const [index, bodyOffset] of offsets.entries()) {
+        if (isLoopNested(body, bodyOffset)) {
+          callerIds.push(`${relativePath}:${span.name}:${calleeName}:${index + 1}`);
+        }
+      }
+    }
+  }
+  return callerIds.sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
 }
 
 function injectCallSiteIntoSyntheticLoop(
@@ -743,6 +823,39 @@ function injectCallSiteIntoSyntheticLoop(
     ),
     QUERY_FRESH_INDEX_WRAPPERS,
   );
+}
+
+function injectCallerCallIntoSyntheticLoop(
+  sourceFiles: readonly RustSourceFile[],
+  callSites: readonly FreshIndexCallSite[],
+  id: string,
+): FreshIndexCallSite[] {
+  const target = callSites.find((site) => site.id === id);
+  assert.ok(target, `unknown caller wrapper loop injection ${id}`);
+  const escapedName = target.functionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const callPattern = new RegExp(`\\b${escapedName}\\s*\\(`, "g");
+  for (const sourceFile of sourceFiles) {
+    const maskedSource = maskCfgTestItems(sourceFile.source);
+    for (const span of rustFunctionSpans(maskedSource)) {
+      if (span.name === target.functionName) continue;
+      const body = sourceFile.source.slice(span.bodyStart, span.bodyEnd);
+      const bodyOffset = matchOffsets(body, callPattern).find(
+        (offset) => !isLoopNested(body, offset),
+      );
+      if (bodyOffset === undefined) continue;
+      const injectedBody = `${body.slice(0, bodyOffset)}for _item in _items { ${body.slice(bodyOffset)}`;
+      const injectedSource = `${sourceFile.source.slice(0, span.bodyStart)}${injectedBody}${sourceFile.source.slice(span.bodyEnd)}}`;
+      return enumerateFreshIndexCallSites(
+        sourceFiles.map((entry) =>
+          entry.relativePath === sourceFile.relativePath
+            ? { ...entry, source: injectedSource }
+            : entry,
+        ),
+        QUERY_FRESH_INDEX_WRAPPERS,
+      );
+    }
+  }
+  throw new Error(`no non-loop caller is available for caller wrapper loop injection ${id}`);
 }
 
 function rustFunctionSpans(source: string): RustFunctionSpan[] {
