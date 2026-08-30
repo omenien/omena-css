@@ -913,7 +913,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 2450,
+      "line": 2451,
       "caller": "workspace_style_diagnostics",
       "callee": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate",
       "callOrdinal": 0,
@@ -923,7 +923,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 2474,
+      "line": 2475,
       "caller": "workspace_revision_selector",
       "callee": "workspace_revision_selector_with_source_corpus_completeness",
       "callOrdinal": 0,
@@ -934,7 +934,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 2495,
+      "line": 2496,
       "caller": "workspace_revision_selector_with_identity_index",
       "callee": "workspace_revision_selector_with_source_corpus_completeness",
       "callOrdinal": 0,
@@ -944,7 +944,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 2515,
+      "line": 2516,
       "caller": "workspace_revision_selector_with_complete_source_corpus",
       "callee": "workspace_revision_selector_with_source_corpus_completeness",
       "callOrdinal": 0,
@@ -955,7 +955,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 2556,
+      "line": 2557,
       "caller": "workspace_revision_selector_with_source_corpus_completeness",
       "callee": "set_resolver_identity_index",
       "callOrdinal": 0,
@@ -965,7 +965,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 2738,
+      "line": 2739,
       "caller": "commit_workspace_transaction_core",
       "callee": "build_committed_style_semantic_graph_with_identity_index",
       "callOrdinal": 0,
@@ -975,7 +975,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3663,
+      "line": 3664,
       "caller": "build_committed_style_semantic_graph_with_identity_index",
       "callee": "css_modules_resolution_with_identity_index_from_module_interfaces",
       "callOrdinal": 0,
@@ -985,7 +985,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3671,
+      "line": 3672,
       "caller": "build_committed_style_semantic_graph_with_identity_index",
       "callee": "sass_module_resolution_with_identity_index_from_module_interfaces",
       "callOrdinal": 0,
@@ -995,7 +995,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3682,
+      "line": 3683,
       "caller": "build_committed_style_semantic_graph_with_identity_index",
       "callee": "sass_module_resolution_with_identity_index_from_module_interfaces",
       "callOrdinal": 1,
@@ -1005,7 +1005,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3693,
+      "line": 3694,
       "caller": "build_committed_style_semantic_graph_with_identity_index",
       "callee": "sass_module_resolution_with_identity_index_from_module_interfaces",
       "callOrdinal": 2,
@@ -1015,7 +1015,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3719,
+      "line": 3720,
       "caller": "build_committed_style_semantic_graph_with_identity_index",
       "callee": "summarize_omena_query_workspace_cross_file_summary_from_module_interfaces",
       "callOrdinal": 0,
@@ -1025,7 +1025,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3755,
+      "line": 3756,
       "caller": "css_modules_resolution_with_identity_index_from_module_interfaces",
       "callee": "style_import_reachability_edges_from_dependency_surfaces",
       "callOrdinal": 0,
@@ -1035,7 +1035,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3773,
+      "line": 3774,
       "caller": "css_modules_resolution_with_identity_index_from_module_interfaces",
       "callee": "resolve_style_module_source_with_resolution_inputs_and_identity_index",
       "callOrdinal": 0,
@@ -1045,7 +1045,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3787,
+      "line": 3788,
       "caller": "css_modules_resolution_with_identity_index_from_module_interfaces",
       "callee": "summarize_css_modules_import_edge_resolutions_for_module_interface",
       "callOrdinal": 0,
@@ -1055,7 +1055,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3832,
+      "line": 3833,
       "caller": "sass_module_resolution_with_identity_index_from_module_interfaces",
       "callee": "sass_configurable_variable_names_for_module_interface_tracked",
       "callOrdinal": 0,
@@ -1065,7 +1065,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3850,
+      "line": 3851,
       "caller": "sass_module_resolution_with_identity_index_from_module_interfaces",
       "callee": "summarize_sass_module_edge_resolutions_for_module_interface",
       "callOrdinal": 0,
@@ -1075,7 +1075,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3894,
+      "line": 3895,
       "caller": "build_committed_style_semantic_graph_monolith",
       "callee": "summarize_css_modules_cross_file_resolution_with_resolution_inputs_and_identity_index",
       "callOrdinal": 0,
@@ -1085,7 +1085,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3933,
+      "line": 3934,
       "caller": "build_committed_style_semantic_graph_monolith",
       "callee": "summarize_omena_query_workspace_cross_file_summary_from_style_summary",
       "callOrdinal": 0,
@@ -1095,7 +1095,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 5356,
+      "line": 5357,
       "caller": "complete_empty_source_corpus_reaches_the_workspace_memo",
       "callee": "resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector_and_identity_index",
       "callOrdinal": 0,
@@ -1106,7 +1106,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 5512,
+      "line": 5513,
       "caller": "non_default_unused_selector_axes_retain_target_local_resolution",
       "callee": "resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_identity_index",
       "callOrdinal": 0,
@@ -1117,7 +1117,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 5556,
+      "line": 5557,
       "caller": "non_default_unused_selector_axes_retain_target_local_resolution",
       "callee": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate",
       "callOrdinal": 0,
@@ -1127,7 +1127,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 5579,
+      "line": 5580,
       "caller": "non_default_unused_selector_axes_retain_target_local_resolution",
       "callee": "resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_identity_index",
       "callOrdinal": 1,
@@ -1266,5 +1266,5 @@
     "justifiedNoneCount": 16,
     "violationCount": 0
   },
-  "siteDigest": "sha256:f4398b3f9f6f2e3b9f68533e349e593aa1baa0a13fcea6560e11cf7b31b1d14e"
+  "siteDigest": "sha256:a134c09019471b8f4f39021859a9c0d3fa271125c9e4d406c0167b4b288f5816"
 }
