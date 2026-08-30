@@ -245,7 +245,9 @@ for (const site of productPassSites) {
     readFileSync(path.join(repoRoot, site.relativePath), "utf8");
   let body = extractFunctionBody(source, site.functionName);
   if (site.id === injectedProductRebuild) {
-    body += "\nlet _line_index_regression = OmenaLineIndexV0::new(source);";
+    body += site.buildPattern.source.includes("omena_query_line_index")
+      ? "\nlet _line_index_regression = omena_query_line_index(source);"
+      : "\nlet _line_index_regression = OmenaLineIndexV0::new(source);";
   }
   assert.equal(
     countMatches(body, site.buildPattern),
