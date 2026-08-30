@@ -5,21 +5,29 @@ use omena_query::{
     OmenaQueryStyleIntelligenceSnapshotV0 as StyleIntelligenceSnapshot, ParserPositionV0,
     ParserRangeV0, omena_query_style_intelligence_hover_at_offset,
 };
+use omena_syntax::OmenaLineIndexV0;
 use serde_json::{Value, json};
 
 use crate::{
     LspQueryReadView, LspTextDocumentState,
-    protocol::{byte_offset_for_parser_position, parser_range_for_byte_span},
+    protocol::{
+        byte_offset_for_parser_position_with_line_index, parser_range_for_byte_span_with_line_index,
+    },
     style_selector_definitions_from_open_documents,
 };
 
 const UTILITY_PROVIDER_ID: &str = "tailwind-uno-utility-domain";
 
-fn source_domain_reference_at_position(
-    document: &LspTextDocumentState,
+fn source_domain_reference_at_position<'document>(
+    document: &'document LspTextDocumentState,
+    line_index: &OmenaLineIndexV0,
     position: ParserPositionV0,
-) -> Option<&SourceDomainClassReferenceFact> {
-    let offset = byte_offset_for_parser_position(document.text.as_str(), position)?;
+) -> Option<&'document SourceDomainClassReferenceFact> {
+    let offset = byte_offset_for_parser_position_with_line_index(
+        document.text.as_str(),
+        line_index,
+        position,
+    )?;
     document
         .source_syntax_index
         .domain_class_references
@@ -32,11 +40,16 @@ pub(crate) fn source_domain_reference_trace_at_position(
     document: &LspTextDocumentState,
     position: ParserPositionV0,
 ) -> Option<Value> {
-    let reference = source_domain_reference_at_position(document, position)?;
+    let line_index = OmenaLineIndexV0::new(document.text.as_str());
+    let reference = source_domain_reference_at_position(document, &line_index, position)?;
     let hover = provider_hover_for_reference(state, document, reference)?;
     let current = hover.current_option.as_deref().unwrap_or("*");
     let validity = source_domain_reference_validity(&hover);
-    let range = parser_range_for_byte_span(document.text.as_str(), reference.byte_span);
+    let range = parser_range_for_byte_span_with_line_index(
+        document.text.as_str(),
+        &line_index,
+        reference.byte_span,
+    );
     let definitions = hover
         .graph_bindings
         .iter()
@@ -117,10 +130,15 @@ pub(crate) fn source_domain_reference_hover_at_position(
     document: &LspTextDocumentState,
     position: ParserPositionV0,
 ) -> Option<(ParserRangeV0, String)> {
-    let reference = source_domain_reference_at_position(document, position)?;
+    let line_index = OmenaLineIndexV0::new(document.text.as_str());
+    let reference = source_domain_reference_at_position(document, &line_index, position)?;
     let hover = provider_hover_for_reference(state, document, reference)?;
     Some((
-        parser_range_for_byte_span(document.text.as_str(), reference.byte_span),
+        parser_range_for_byte_span_with_line_index(
+            document.text.as_str(),
+            &line_index,
+            reference.byte_span,
+        ),
         render_source_domain_reference_hover_text(&hover),
     ))
 }

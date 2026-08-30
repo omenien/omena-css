@@ -371,9 +371,17 @@ pub(crate) fn lsp_position_from_value(position: &Value) -> Option<ParserPosition
 
 pub(crate) fn parser_range_for_byte_span(source: &str, span: ParserByteSpanV0) -> ParserRangeV0 {
     let line_index = OmenaLineIndexV0::new(source);
+    parser_range_for_byte_span_with_line_index(source, &line_index, span)
+}
+
+pub(crate) fn parser_range_for_byte_span_with_line_index(
+    source: &str,
+    line_index: &OmenaLineIndexV0,
+    span: ParserByteSpanV0,
+) -> ParserRangeV0 {
     ParserRangeV0 {
-        start: parser_position_for_byte_offset_with_line_index(source, &line_index, span.start),
-        end: parser_position_for_byte_offset_with_line_index(source, &line_index, span.end),
+        start: parser_position_for_byte_offset_with_line_index(source, line_index, span.start),
+        end: parser_position_for_byte_offset_with_line_index(source, line_index, span.end),
     }
 }
 

@@ -559,6 +559,7 @@ pub fn collect_parser_declaration_syntax_and_style_context_from_parse(
     parsed: &ParseResult,
 ) -> (Vec<ParserDeclarationSyntaxFactV0>, StyleContextIndexV0) {
     let cst = parsed.cst();
+    let line_index = OmenaLineIndexV0::new(source);
     let invalid_layer_blocks = layer_tree::invalid_layer_block_spans(&cst);
     let declarations = ProductSyntaxIndexV0::declarations_from_parse(source, parsed)
         .into_iter()
@@ -572,7 +573,7 @@ pub fn collect_parser_declaration_syntax_and_style_context_from_parse(
             )
         })
         .collect();
-    let context_index = summarize_style_context_index(source, &cst);
+    let context_index = summarize_style_context_index(source, &line_index, &cst);
     (declarations, context_index)
 }
 
@@ -584,16 +585,23 @@ fn summarize_omena_parser_style_semantic_boundary_with_facts_from_source(
     let parsed = parse(style_source, dialect);
     let facts = facts_from_cst(style_source, &parsed);
     let cst = parsed.cst();
+    let line_index = OmenaLineIndexV0::new(style_source);
     let parser_facts = summarize_omena_parser_contract_facts(
         style_source,
+        &line_index,
         parsed.token_count(),
         parsed.syntax().children().count(),
         parsed.errors().len(),
         &facts,
         &cst,
     );
-    let semantic_facts =
-        summarize_omena_parser_semantic_facts(style_source, &facts, &parser_facts, &cst);
+    let semantic_facts = summarize_omena_parser_semantic_facts(
+        style_source,
+        &line_index,
+        &facts,
+        &parser_facts,
+        &cst,
+    );
     let design_token_semantics = summarize_design_token_semantics(&parser_facts, &semantic_facts);
     let selector_identity_engine =
         summarize_selector_identity_engine(&semantic_facts.selector_identity);
@@ -617,6 +625,7 @@ fn summarize_omena_parser_style_semantic_boundary_with_facts_from_source(
 
 fn summarize_omena_parser_contract_facts(
     source: &str,
+    line_index: &OmenaLineIndexV0,
     token_count: usize,
     root_node_count: usize,
     diagnostic_count: usize,
@@ -634,9 +643,11 @@ fn summarize_omena_parser_contract_facts(
             all_token_spans_within_source,
             all_node_spans_within_source,
         },
-        selectors: summarize_omena_parser_selector_facts(source, facts),
+        selectors: summarize_omena_parser_selector_facts(source, line_index, facts),
         values: summarize_omena_parser_value_facts(facts),
-        custom_properties: summarize_omena_parser_custom_property_facts(source, facts, cst),
+        custom_properties: summarize_omena_parser_custom_property_facts(
+            source, line_index, facts, cst,
+        ),
         sass: summarize_omena_parser_sass_syntax_facts(facts),
         keyframes: summarize_omena_parser_keyframe_facts(facts),
         composes: summarize_omena_parser_composes_facts(facts),
@@ -676,6 +687,7 @@ fn byte_offsets_within_source(start: usize, end: usize, source_byte_len: usize) 
 
 fn summarize_omena_parser_semantic_facts(
     source: &str,
+    line_index: &OmenaLineIndexV0,
     facts: &ParsedStyleFacts,
     parser_facts: &ParserBoundarySyntaxFactsV0,
     cst: &ParsedCst,
@@ -710,16 +722,21 @@ fn summarize_omena_parser_semantic_facts(
             selectors_with_function_calls_names: parser_facts.sass.function_call_names.clone(),
             same_file_resolution: sass_same_file_resolution,
         },
-        context_index: summarize_style_context_index(source, cst),
+        context_index: summarize_style_context_index(source, line_index, cst),
     }
 }
 
-fn summarize_style_context_index(source: &str, cst: &ParsedCst) -> StyleContextIndexV0 {
+fn summarize_style_context_index(
+    source: &str,
+    line_index: &OmenaLineIndexV0,
+    cst: &ParsedCst,
+) -> StyleContextIndexV0 {
     if !source_may_have_style_context(source) {
         return empty_style_context_index();
     }
-    let layer_statements = layer_statement_facts_from_cst(source, cst);
-    let (context_blocks, memberships) = style_context_blocks_and_memberships_from_cst(source, cst);
+    let layer_statements = layer_statement_facts_from_cst(source, line_index, cst);
+    let (context_blocks, memberships) =
+        style_context_blocks_and_memberships_from_cst(source, line_index, cst);
     let block_layers = context_blocks
         .iter()
         .filter(|block| block.kind == "layer")
@@ -867,11 +884,16 @@ pub fn summarize_style_layer_order_from_source(
     }
     let parsed = parse(source, dialect);
     let cst = parsed.cst();
-    let context = summarize_style_context_index(source, &cst);
+    let line_index = OmenaLineIndexV0::new(source);
+    let context = summarize_style_context_index(source, &line_index, &cst);
     context.layer_index
 }
 
-fn layer_statement_facts_from_cst(source: &str, cst: &ParsedCst) -> Vec<StyleLayerStatementV0> {
+fn layer_statement_facts_from_cst(
+    source: &str,
+    line_index: &OmenaLineIndexV0,
+    cst: &ParsedCst,
+) -> Vec<StyleLayerStatementV0> {
     let invalid_layer_blocks = layer_tree::invalid_layer_block_spans(cst);
     let mut statements = Vec::new();
     for node in cst
@@ -899,7 +921,7 @@ fn layer_statement_facts_from_cst(source: &str, cst: &ParsedCst) -> Vec<StyleLay
                 name: layer_name,
                 source_order: statements.len(),
                 byte_span,
-                range: parser_range_for_byte_span(source, byte_span),
+                range: parser_range_for_byte_span_with_line_index(source, line_index, byte_span),
             });
         }
     }
@@ -908,6 +930,7 @@ fn layer_statement_facts_from_cst(source: &str, cst: &ParsedCst) -> Vec<StyleLay
 
 fn style_context_blocks_and_memberships_from_cst(
     source: &str,
+    line_index: &OmenaLineIndexV0,
     cst: &ParsedCst,
 ) -> (
     Vec<StyleContextBlockV0>,
@@ -927,7 +950,9 @@ fn style_context_blocks_and_memberships_from_cst(
                 &invalid_layer_blocks,
             )
     }) {
-        let Some(context) = style_context_block_for_cst_node(source, node, blocks.len()) else {
+        let Some(context) =
+            style_context_block_for_cst_node(source, line_index, node, blocks.len())
+        else {
             continue;
         };
         context_nodes.push((node, context.clone()));
@@ -966,6 +991,7 @@ fn style_context_blocks_and_memberships_from_cst(
 
 fn style_context_block_for_cst_node(
     source: &str,
+    line_index: &OmenaLineIndexV0,
     node: &SyntaxNode,
     source_order: usize,
 ) -> Option<StyleContextBlockV0> {
@@ -990,7 +1016,7 @@ fn style_context_block_for_cst_node(
         prelude,
         source_order,
         byte_span,
-        range: parser_range_for_byte_span(source, byte_span),
+        range: parser_range_for_byte_span_with_line_index(source, line_index, byte_span),
     })
 }
 
@@ -1155,6 +1181,7 @@ fn css_identifier_text_is_plain(value: &str) -> bool {
 
 fn summarize_omena_parser_selector_facts(
     source: &str,
+    line_index: &OmenaLineIndexV0,
     facts: &ParsedStyleFacts,
 ) -> ParserIndexSelectorFactsV0 {
     let mut names = Vec::new();
@@ -1188,7 +1215,7 @@ fn summarize_omena_parser_selector_facts(
             name: selector.name.clone(),
             source_order,
             byte_span,
-            range: parser_range_for_byte_span(source, byte_span),
+            range: parser_range_for_byte_span_with_line_index(source, line_index, byte_span),
             nested_safety_kind,
             bem_suffix_parent_name: parent_name,
             under_media: false,
@@ -1252,6 +1279,7 @@ fn summarize_omena_parser_value_facts(facts: &ParsedStyleFacts) -> ParserIndexVa
 
 fn summarize_omena_parser_custom_property_facts(
     source: &str,
+    line_index: &OmenaLineIndexV0,
     facts: &ParsedStyleFacts,
     cst: &ParsedCst,
 ) -> ParserIndexCustomPropertyFactsV0 {
@@ -1283,7 +1311,9 @@ fn summarize_omena_parser_custom_property_facts(
                     value: declaration_value_text(source, byte_span.start),
                     source_order: decl_facts.len(),
                     byte_span,
-                    range: parser_range_for_byte_span(source, byte_span),
+                    range: parser_range_for_byte_span_with_line_index(
+                        source, line_index, byte_span,
+                    ),
                     selector_contexts: context.selector_contexts,
                     condition_context: context.condition_context,
                     layer_names: context.layer_names,
@@ -1942,11 +1972,14 @@ fn parser_byte_span_for_offsets(start: usize, end: usize) -> ParserByteSpanV0 {
     ParserByteSpanV0 { start, end }
 }
 
-fn parser_range_for_byte_span(source: &str, span: ParserByteSpanV0) -> ParserRangeV0 {
-    let line_index = OmenaLineIndexV0::new(source);
+fn parser_range_for_byte_span_with_line_index(
+    source: &str,
+    line_index: &OmenaLineIndexV0,
+    span: ParserByteSpanV0,
+) -> ParserRangeV0 {
     ParserRangeV0 {
-        start: parser_position_for_byte_offset_with_line_index(source, &line_index, span.start),
-        end: parser_position_for_byte_offset_with_line_index(source, &line_index, span.end),
+        start: parser_position_for_byte_offset_with_line_index(source, line_index, span.start),
+        end: parser_position_for_byte_offset_with_line_index(source, line_index, span.end),
     }
 }
 

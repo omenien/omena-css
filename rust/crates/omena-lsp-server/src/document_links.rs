@@ -10,7 +10,8 @@
 //! link (never a broken one). Runs on the dispatched query lane because
 //! resolution may probe disk.
 
-use crate::{LspQueryReadView, protocol::parser_position_for_byte_offset};
+use crate::{LspQueryReadView, protocol::parser_position_for_byte_offset_with_line_index};
+use omena_syntax::OmenaLineIndexV0;
 use serde_json::{Value, json};
 
 pub(crate) fn resolve_lsp_document_links(
@@ -51,6 +52,7 @@ pub(crate) fn resolve_lsp_document_links(
     specifiers.sort_unstable();
     specifiers.dedup();
 
+    let line_index = OmenaLineIndexV0::new(document.text.as_str());
     let mut links = Vec::new();
     for specifier in specifiers {
         if specifier.is_empty() {
@@ -60,7 +62,7 @@ pub(crate) fn resolve_lsp_document_links(
         else {
             continue;
         };
-        for range in quoted_occurrence_ranges(document.text.as_str(), specifier) {
+        for range in quoted_occurrence_ranges(document.text.as_str(), &line_index, specifier) {
             links.push(json!({
                 "range": range,
                 "target": target,
@@ -77,7 +79,11 @@ pub(crate) fn resolve_lsp_document_links(
 /// comment, `content:`, or `url()` must not become a link (review
 /// finding). Still lexical on purpose: the parser facts carry no spans,
 /// and the resolver stays the only semantic authority.
-fn quoted_occurrence_ranges(text: &str, specifier: &str) -> Vec<Value> {
+fn quoted_occurrence_ranges(
+    text: &str,
+    line_index: &OmenaLineIndexV0,
+    specifier: &str,
+) -> Vec<Value> {
     let mut ranges = Vec::new();
     for quote in ['"', '\''] {
         let needle = format!("{quote}{specifier}{quote}");
@@ -91,8 +97,8 @@ fn quoted_occurrence_ranges(text: &str, specifier: &str) -> Vec<Value> {
                 continue;
             }
             ranges.push(json!({
-                "start": parser_position_for_byte_offset(text, start),
-                "end": parser_position_for_byte_offset(text, end),
+                "start": parser_position_for_byte_offset_with_line_index(text, line_index, start),
+                "end": parser_position_for_byte_offset_with_line_index(text, line_index, end),
             }));
         }
     }

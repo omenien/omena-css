@@ -18,7 +18,10 @@ use omena_query::{
     OmenaQueryStyleSourceInputV0, summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index_and_definitions,
 };
-use omena_syntax::ident::{CanonicalClassKeyV0, ClassNameV0};
+use omena_syntax::{
+    OmenaLineIndexV0,
+    ident::{CanonicalClassKeyV0, ClassNameV0},
+};
 use serde_json::{Value, json};
 
 pub(crate) struct LspSourceDiagnosticsRenderInputsV0<'inputs> {
@@ -118,12 +121,17 @@ fn gather_source_diagnostics_render_inputs(
     // runtime fall-through, so a module miss there stays a real miss.
     let global_class_definitions =
         global_class_definitions_for_workspace(state, document.workspace_folder_uri.as_deref());
+    let line_index = OmenaLineIndexV0::new(document.text.as_str());
     let property_access_ranges = document
         .source_syntax_index
         .style_property_accesses
         .iter()
         .map(|access| {
-            crate::protocol::parser_range_for_byte_span(document.text.as_str(), access.byte_span)
+            crate::protocol::parser_range_for_byte_span_with_line_index(
+                document.text.as_str(),
+                &line_index,
+                access.byte_span,
+            )
         })
         .collect::<Vec<_>>();
     let mut global_class_fallthroughs = Vec::new();

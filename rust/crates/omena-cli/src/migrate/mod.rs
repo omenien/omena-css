@@ -17,7 +17,10 @@ use omena_query::{
     summarize_omena_query_sass_module_cross_file_resolution_for_workspace,
     summarize_omena_query_sass_module_source_edges,
 };
-use omena_syntax::ident::{CanonicalCustomPropertyNameV0, PropertyNameV0, is_custom_property_name};
+use omena_syntax::{
+    OmenaLineIndexV0,
+    ident::{CanonicalCustomPropertyNameV0, PropertyNameV0, is_custom_property_name},
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -29,13 +32,17 @@ use apply::apply_migration_plan;
 use normalize::*;
 use plan::{content_sha256, finalize_migration_plan, hex_digest, validate_migration_plan};
 
+#[cfg(test)]
+use crate::text_edit::range_for_byte_span;
 use crate::{
     commands::{MigrateCommand, MigrationModeArgs},
     io::{read_package_manifests, read_source_documents, read_style_sources},
     lint::discover_workspace_files,
     output::{CliOutputMetadataV0, print_json, write_json_artifact},
     paths::{cli_file_uri_to_path, path_string},
-    text_edit::{apply_byte_edit, byte_span_for_range, range_for_byte_span},
+    text_edit::{
+        apply_byte_edit, byte_span_for_range_with_line_index, range_for_byte_span_with_line_index,
+    },
     write_safety::{
         SourceWriteEvidenceV0, SourceWriteModeV0, SourceWriteReportV0, apply_write_with_safety,
     },
@@ -447,6 +454,7 @@ fn build_sass_import_to_use_plan_with_oracle(
         };
         let source_edges =
             summarize_omena_query_sass_module_source_edges(style.style_source.as_str(), dialect);
+        let line_index = OmenaLineIndexV0::new(style.style_source.as_str());
         for edge in source_edges.iter().filter(|edge| edge.kind == "sassImport") {
             let oracle_evidence_id =
                 stable_evidence_id("dart-sass-oracle", style.style_path.as_str());
@@ -512,10 +520,15 @@ fn build_sass_import_to_use_plan_with_oracle(
                 });
                 continue;
             }
-            let range =
-                range_for_byte_span(style.style_source.as_str(), start, end).ok_or_else(|| {
-                    "Sass import statement is outside UTF-8 source boundaries".to_string()
-                })?;
+            let range = range_for_byte_span_with_line_index(
+                style.style_source.as_str(),
+                &line_index,
+                start,
+                end,
+            )
+            .ok_or_else(|| {
+                "Sass import statement is outside UTF-8 source boundaries".to_string()
+            })?;
             drafts.push(MigrationEditDraftV0 {
                 uri: style.style_path.clone(),
                 range,
@@ -866,6 +879,10 @@ fn build_css_modules_rename_plan(
         package_manifests.as_slice(),
     );
     let sources = workspace_source_map(&style_sources, &source_documents);
+    let source_line_indexes = sources
+        .iter()
+        .map(|(uri, source)| (uri.clone(), OmenaLineIndexV0::new(source)))
+        .collect::<BTreeMap<_, _>>();
     let exact_locations = rename
         .edits
         .iter()
@@ -892,6 +909,7 @@ fn build_css_modules_rename_plan(
         match draft_from_workspace_edit(
             edit,
             &sources,
+            &source_line_indexes,
             exact_workspace_safety(),
             MigrationEditEvidenceV0 {
                 primary: authority_evidence.id.clone(),
@@ -915,6 +933,7 @@ fn build_css_modules_rename_plan(
             location,
             new_name.as_str(),
             &sources,
+            &source_line_indexes,
             MigrationEditEvidenceV0 {
                 primary: dynamic_evidence.id.clone(),
                 supporting: vec![authority_evidence.id.clone()],
@@ -950,6 +969,7 @@ fn build_css_modules_rename_plan(
 fn draft_from_workspace_edit(
     edit: &OmenaQueryWorkspaceTextEditV0,
     sources: &BTreeMap<String, String>,
+    source_line_indexes: &BTreeMap<String, OmenaLineIndexV0>,
     safety_evidence: FixSafetyEvidenceInputV0,
     evidence: MigrationEditEvidenceV0,
 ) -> Result<MigrationEditDraftV0, String> {
@@ -958,6 +978,7 @@ fn draft_from_workspace_edit(
         edit.range,
         edit.new_text.as_str(),
         sources,
+        source_line_indexes,
         safety_evidence,
         evidence,
     )
@@ -967,6 +988,7 @@ fn draft_from_review_location(
     location: &OmenaQueryReferenceLocationV0,
     replacement_text: &str,
     sources: &BTreeMap<String, String>,
+    source_line_indexes: &BTreeMap<String, OmenaLineIndexV0>,
     evidence: MigrationEditEvidenceV0,
 ) -> Result<MigrationEditDraftV0, String> {
     draft_from_range(
@@ -974,6 +996,7 @@ fn draft_from_review_location(
         location.range,
         replacement_text,
         sources,
+        source_line_indexes,
         manual_review_safety(),
         evidence,
     )
@@ -984,12 +1007,16 @@ fn draft_from_range(
     range: ParserRangeV0,
     replacement_text: &str,
     sources: &BTreeMap<String, String>,
+    source_line_indexes: &BTreeMap<String, OmenaLineIndexV0>,
     safety_evidence: FixSafetyEvidenceInputV0,
     evidence: MigrationEditEvidenceV0,
 ) -> Result<MigrationEditDraftV0, String> {
     let source = source_for_uri(sources, uri)
         .ok_or_else(|| format!("workspace source {uri} is not indexed"))?;
-    let (start, end) = byte_span_for_range(source, range)
+    let line_index = source_line_indexes
+        .get(uri)
+        .ok_or_else(|| format!("workspace source {uri} has no line index"))?;
+    let (start, end) = byte_span_for_range_with_line_index(source, line_index, range)
         .ok_or_else(|| format!("query range for {uri} is outside the indexed source"))?;
     let expected_text = source
         .get(start..end)

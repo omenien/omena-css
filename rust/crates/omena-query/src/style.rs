@@ -20,6 +20,9 @@ thread_local! {
     static LINE_INDEX_SOURCE_SCAN_STEPS: std::cell::Cell<usize> = const {
         std::cell::Cell::new(0)
     };
+    static LINE_INDEX_BUILD_COUNT: std::cell::Cell<usize> = const {
+        std::cell::Cell::new(0)
+    };
 }
 
 mod cascade_position;
@@ -595,6 +598,7 @@ pub fn summarize_omena_query_custom_property_occurrence_index(
         let dialect = omena_parser_dialect_for_style_path(style.style_path.as_str());
         let facts =
             collect_omena_query_omena_parser_style_facts_raw(style.style_source.as_str(), dialect);
+        let line_index = omena_query_line_index(style.style_source.as_str());
         for fact in facts.variables {
             let kind = match fact.kind {
                 ParsedVariableFactKind::CustomPropertyDeclaration => "customPropertyDeclaration",
@@ -617,7 +621,11 @@ pub fn summarize_omena_query_custom_property_occurrence_index(
                 uri: style.style_path.clone(),
                 name,
                 property_key,
-                range: parser_range_for_byte_span(style.style_source.as_str(), byte_span),
+                range: parser_range_for_byte_span_with_line_index(
+                    style.style_source.as_str(),
+                    &line_index,
+                    byte_span,
+                ),
                 byte_span,
                 kind,
                 has_fallback: fact.has_fallback,
@@ -4694,6 +4702,10 @@ fn parser_position_for_byte_offset_with_line_index(
     offset: usize,
 ) -> ParserPositionV0 {
     let (line, character) = line_index.position_for_byte_offset(source, offset);
+    #[cfg(test)]
+    LINE_INDEX_SOURCE_SCAN_STEPS.with(|steps| {
+        steps.set(steps.get().saturating_add(character));
+    });
     ParserPositionV0 { line, character }
 }
 
@@ -4707,13 +4719,18 @@ fn byte_offset_for_parser_position_with_line_index(
     line_index: &OmenaLineIndexV0,
     position: ParserPositionV0,
 ) -> Option<usize> {
-    line_index.byte_offset_for_position(source, position.line, position.character)
+    let offset = line_index.byte_offset_for_position(source, position.line, position.character);
+    #[cfg(test)]
+    LINE_INDEX_SOURCE_SCAN_STEPS.with(|steps| {
+        steps.set(steps.get().saturating_add(position.character));
+    });
+    offset
 }
 
 fn omena_query_line_index(source: &str) -> OmenaLineIndexV0 {
     #[cfg(test)]
-    LINE_INDEX_SOURCE_SCAN_STEPS.with(|steps| {
-        steps.set(steps.get().saturating_add(source.chars().count()));
+    LINE_INDEX_BUILD_COUNT.with(|count| {
+        count.set(count.get().saturating_add(1));
     });
     OmenaLineIndexV0::new(source)
 }
@@ -4742,13 +4759,15 @@ mod line_index_measurement_tests {
         for active_slots in [1usize, 16, 64] {
             let source = fixed_width_hover_source(64, active_slots);
             LINE_INDEX_SOURCE_SCAN_STEPS.set(0);
+            LINE_INDEX_BUILD_COUNT.set(0);
             let summary =
                 summarize_omena_query_style_hover_candidates("fixture.module.css", &source)
                     .ok_or_else(|| "CSS hover facts must be available".to_string())?;
             assert_eq!(summary.candidates.len(), active_slots);
+            assert_eq!(LINE_INDEX_BUILD_COUNT.get(), 1);
             observed_steps.push(LINE_INDEX_SOURCE_SCAN_STEPS.get());
         }
-        assert_eq!(observed_steps, vec![1_472, 1_472, 1_472]);
+        assert_eq!(observed_steps, vec![7, 112, 448]);
         Ok(())
     }
 
@@ -4758,17 +4777,20 @@ mod line_index_measurement_tests {
         let source = fixed_width_hover_source(4_609, 4_609);
         assert!((105_900..=106_100).contains(&source.len()));
         LINE_INDEX_SOURCE_SCAN_STEPS.set(0);
+        LINE_INDEX_BUILD_COUNT.set(0);
         let started = std::time::Instant::now();
         let summary = summarize_omena_query_style_hover_candidates("large.module.css", &source)
             .ok_or_else(|| "CSS hover facts must be available".to_string())?;
         let elapsed = started.elapsed();
         let source_scan_steps = LINE_INDEX_SOURCE_SCAN_STEPS.get();
         assert_eq!(summary.candidates.len(), 4_609);
-        assert_eq!(source_scan_steps, source.chars().count());
+        assert_eq!(LINE_INDEX_BUILD_COUNT.get(), 1);
+        assert_eq!(source_scan_steps, summary.candidates.len() * 7);
         println!(
-            "{{\"sourceBytes\":{},\"candidateCount\":{},\"lineIndexSourceScanSteps\":{},\"elapsedMicros\":{}}}",
+            "{{\"sourceBytes\":{},\"candidateCount\":{},\"lineIndexBuildCount\":{},\"lineIndexSourceScanSteps\":{},\"elapsedMicros\":{}}}",
             source.len(),
             summary.candidates.len(),
+            LINE_INDEX_BUILD_COUNT.get(),
             source_scan_steps,
             elapsed.as_micros()
         );

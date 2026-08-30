@@ -228,8 +228,10 @@ fn malformed_source_boundary_rejects_out_of_bounds_cst_spans() {
     let cst = parsed.cst();
     let facts = omena_parser::facts_from_cst(original_source, &parsed);
     let truncated_source = ".button";
+    let line_index = omena_syntax::OmenaLineIndexV0::new(truncated_source);
     let parser_facts = summarize_omena_parser_contract_facts(
         truncated_source,
+        &line_index,
         parsed.token_count(),
         parsed.syntax().children().count(),
         parsed.errors().len(),

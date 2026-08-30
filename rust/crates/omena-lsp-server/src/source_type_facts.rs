@@ -5,7 +5,7 @@ use crate::source_type_fact_cache::{
 };
 use crate::{
     LspShellState, LspSourceTypeFactCacheEntryV0, LspSourceTypeFactTierAttemptV0,
-    LspTextDocumentState, ensure_style_document_loaded_from_disk, parser_range_for_byte_span,
+    LspTextDocumentState, ensure_style_document_loaded_from_disk,
     source_selector_candidates_from_index,
 };
 use omena_query::{
@@ -1453,6 +1453,7 @@ fn query_engine_input_for_source_type_facts(
     targets: &[SourceTypeFactTarget],
     entries: &[TsgoTypeFactResultEntryV0],
 ) -> Option<OmenaQueryEngineInputV2> {
+    let line_index = omena_syntax::OmenaLineIndexV0::new(document.text.as_str());
     let entries_by_id = entries
         .iter()
         .map(|entry| (entry.expression_id.as_str(), entry))
@@ -1468,7 +1469,11 @@ fn query_engine_input_for_source_type_facts(
                 "id": target.expression_id,
                 "kind": "symbolRef",
                 "scssModulePath": target_style_uri,
-                "range": parser_range_for_byte_span(document.text.as_str(), target.byte_span),
+                "range": crate::protocol::parser_range_for_byte_span_with_line_index(
+                    document.text.as_str(),
+                    &line_index,
+                    target.byte_span,
+                ),
                 "className": null,
                 "rootBindingDeclId": null,
                 "accessPath": null,

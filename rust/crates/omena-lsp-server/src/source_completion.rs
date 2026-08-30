@@ -7,13 +7,13 @@ use omena_query::{
     OmenaQueryStyleIntelligenceSnapshotV0 as StyleIntelligenceSnapshot, ParserByteSpanV0,
     ParserPositionV0, ParserRangeV0, omena_query_style_intelligence_completions_at_offset,
 };
-use omena_syntax::ident::is_ascii_word_continue;
+use omena_syntax::{OmenaLineIndexV0, ident::is_ascii_word_continue};
 
 use crate::{
     LspShellState,
     protocol::{
-        byte_offset_for_parser_position, file_uri_equivalent, parser_range_contains_position,
-        parser_range_for_byte_span,
+        byte_offset_for_parser_position_with_line_index, file_uri_equivalent,
+        parser_range_contains_position, parser_range_for_byte_span_with_line_index,
     },
     source_selector_candidates_at_position,
     state::LspTextDocumentState,
@@ -32,7 +32,12 @@ pub(crate) fn source_completion_context_at_position(
     document: &LspTextDocumentState,
     position: ParserPositionV0,
 ) -> Option<SourceCompletionContext> {
-    let offset = byte_offset_for_parser_position(document.text.as_str(), position)?;
+    let line_index = OmenaLineIndexV0::new(document.text.as_str());
+    let offset = byte_offset_for_parser_position_with_line_index(
+        document.text.as_str(),
+        &line_index,
+        position,
+    )?;
     if let Some(reference) = document
         .source_syntax_index
         .domain_class_references
@@ -84,7 +89,8 @@ pub(crate) fn source_completion_context_at_position(
             candidate.kind == "sourceSelectorReference"
                 || candidate.kind == "sourceSelectorPrefixReference"
         })
-        && let Some(span) = byte_span_for_parser_range(document.text.as_str(), candidate.range)
+        && let Some(span) =
+            byte_span_for_parser_range(document.text.as_str(), &line_index, candidate.range)
     {
         return Some(SourceCompletionContext {
             target_style_uri: candidate.target_style_uri.clone(),
@@ -107,10 +113,9 @@ pub(crate) fn source_completion_context_at_position(
         .iter()
         .find(|access| offset >= access.byte_span.start && offset <= access.byte_span.end)
     {
-        let target_style_uri = access
-            .target_style_uri
-            .clone()
-            .or_else(|| source_completion_target_uri_for_span(document, access.byte_span));
+        let target_style_uri = access.target_style_uri.clone().or_else(|| {
+            source_completion_target_uri_for_span(document, &line_index, access.byte_span)
+        });
         return Some(SourceCompletionContext {
             target_style_uri,
             value_prefix: source_completion_prefix_for_terminal_offset(
@@ -132,10 +137,9 @@ pub(crate) fn source_completion_context_at_position(
         .iter()
         .find(|reference| offset >= reference.byte_span.start && offset <= reference.byte_span.end)
     {
-        let target_style_uri = reference
-            .target_style_uri
-            .clone()
-            .or_else(|| source_completion_target_uri_for_span(document, reference.byte_span));
+        let target_style_uri = reference.target_style_uri.clone().or_else(|| {
+            source_completion_target_uri_for_span(document, &line_index, reference.byte_span)
+        });
         return Some(SourceCompletionContext {
             target_style_uri,
             value_prefix: source_completion_prefix_for_terminal_offset(
@@ -221,9 +225,11 @@ pub(crate) fn source_domain_reference_option_names(
 
 fn source_completion_target_uri_for_span(
     document: &LspTextDocumentState,
+    line_index: &OmenaLineIndexV0,
     span: ParserByteSpanV0,
 ) -> Option<String> {
-    let range = parser_range_for_byte_span(document.text.as_str(), span);
+    let range =
+        parser_range_for_byte_span_with_line_index(document.text.as_str(), line_index, span);
     document
         .source_selector_candidates
         .iter()
@@ -235,10 +241,14 @@ fn source_completion_target_uri_for_span(
         .and_then(|candidate| candidate.target_style_uri.clone())
 }
 
-fn byte_span_for_parser_range(source: &str, range: ParserRangeV0) -> Option<ParserByteSpanV0> {
+fn byte_span_for_parser_range(
+    source: &str,
+    line_index: &OmenaLineIndexV0,
+    range: ParserRangeV0,
+) -> Option<ParserByteSpanV0> {
     Some(ParserByteSpanV0 {
-        start: byte_offset_for_parser_position(source, range.start)?,
-        end: byte_offset_for_parser_position(source, range.end)?,
+        start: byte_offset_for_parser_position_with_line_index(source, line_index, range.start)?,
+        end: byte_offset_for_parser_position_with_line_index(source, line_index, range.end)?,
     })
 }
 

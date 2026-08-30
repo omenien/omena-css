@@ -35,12 +35,30 @@ pub(crate) fn apply_byte_edit(
 
 pub(crate) fn byte_span_for_range(source: &str, range: ParserRangeV0) -> Option<(usize, usize)> {
     let line_index = OmenaLineIndexV0::new(source);
-    let start = byte_offset_for_position_with_line_index(source, &line_index, range.start)?;
-    let end = byte_offset_for_position_with_line_index(source, &line_index, range.end)?;
+    byte_span_for_range_with_line_index(source, &line_index, range)
+}
+
+pub(crate) fn byte_span_for_range_with_line_index(
+    source: &str,
+    line_index: &OmenaLineIndexV0,
+    range: ParserRangeV0,
+) -> Option<(usize, usize)> {
+    let start = byte_offset_for_position_with_line_index(source, line_index, range.start)?;
+    let end = byte_offset_for_position_with_line_index(source, line_index, range.end)?;
     (start <= end).then_some((start, end))
 }
 
 pub(crate) fn range_for_byte_span(source: &str, start: usize, end: usize) -> Option<ParserRangeV0> {
+    let line_index = OmenaLineIndexV0::new(source);
+    range_for_byte_span_with_line_index(source, &line_index, start, end)
+}
+
+pub(crate) fn range_for_byte_span_with_line_index(
+    source: &str,
+    line_index: &OmenaLineIndexV0,
+    start: usize,
+    end: usize,
+) -> Option<ParserRangeV0> {
     if start > end
         || end > source.len()
         || !source.is_char_boundary(start)
@@ -48,10 +66,9 @@ pub(crate) fn range_for_byte_span(source: &str, start: usize, end: usize) -> Opt
     {
         return None;
     }
-    let line_index = OmenaLineIndexV0::new(source);
     Some(ParserRangeV0 {
-        start: position_for_byte_offset_with_line_index(source, &line_index, start),
-        end: position_for_byte_offset_with_line_index(source, &line_index, end),
+        start: position_for_byte_offset_with_line_index(source, line_index, start),
+        end: position_for_byte_offset_with_line_index(source, line_index, end),
     })
 }
 

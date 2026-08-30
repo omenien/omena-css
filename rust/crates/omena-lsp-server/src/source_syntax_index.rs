@@ -1,6 +1,6 @@
 use crate::{
     LspStyleHoverCandidate, LspTextDocumentState,
-    protocol::{is_style_document_uri, parser_range_for_byte_span},
+    protocol::{is_style_document_uri, parser_range_for_byte_span_with_line_index},
 };
 use omena_query::{
     OmenaQuerySourceImportedStyleBindingV0 as ImportedStyleBinding,
@@ -15,7 +15,7 @@ use omena_query::{
     summarize_omena_query_source_import_declarations_for_source_language,
     summarize_omena_query_source_syntax_index_for_source_language_with_type_fact_attempts,
 };
-use omena_syntax::ident::AuthoredPropertyTextV0;
+use omena_syntax::{OmenaLineIndexV0, ident::AuthoredPropertyTextV0};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SourceImportIndex {
@@ -29,10 +29,11 @@ pub(crate) fn source_selector_candidates_from_index(
     document: &LspTextDocumentState,
     index: &SourceSyntaxIndex,
 ) -> Vec<LspStyleHoverCandidate> {
+    let line_index = OmenaLineIndexV0::new(document.text.as_str());
     let mut candidates: Vec<LspStyleHoverCandidate> = index
         .selector_references
         .iter()
-        .map(|reference| source_reference_candidate(document, reference))
+        .map(|reference| source_reference_candidate(document, &line_index, reference))
         .collect();
     candidates.sort();
     candidates.dedup();
@@ -144,6 +145,7 @@ fn has_vue_module_style_block(source: &str) -> bool {
 
 fn source_reference_candidate(
     document: &LspTextDocumentState,
+    line_index: &OmenaLineIndexV0,
     reference: &SourceSelectorReferenceFact,
 ) -> LspStyleHoverCandidate {
     let name = reference.selector_name.clone().unwrap_or_else(|| {
@@ -160,7 +162,11 @@ fn source_reference_candidate(
             .as_deref()
             .map(|name| omena_syntax::ident::ClassNameV0::new(name).canonical_key()),
         property_key: None,
-        range: parser_range_for_byte_span(document.text.as_str(), reference.byte_span),
+        range: parser_range_for_byte_span_with_line_index(
+            document.text.as_str(),
+            line_index,
+            reference.byte_span,
+        ),
         source: "omenaQuerySourceSyntaxIndex",
         target_style_uri: reference.target_style_uri.clone(),
         namespace: None,
