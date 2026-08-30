@@ -610,7 +610,7 @@
     }
   ],
   "deletionExperiment": {
-    "command": "pnpm run measure:rust-omena-query-dead-reexport-removal",
+    "command": "pnpm run check:rust-omena-query-dead-reexport-removal-measurement",
     "compileCommand": "cargo check --manifest-path rust/Cargo.toml -p omena-query --all-targets --all-features",
     "semverCommand": "cargo semver-checks check-release --manifest-path rust/crates/omena-query/Cargo.toml --baseline-version 0.5.0 --all-features --color never",
     "removedAllFeaturesPublicApiPathCount": 120,

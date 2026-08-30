@@ -599,6 +599,12 @@ const GOVERNED_CI_LEAF_CLASSIFICATIONS: readonly GovernedLeafClassification[] = 
     criterion: "compat-alias-with-retirement-window",
   },
   {
+    id: "rust/omena-query/dead-reexport-removal-measurement",
+    reason:
+      "Isolated published-baseline deletion experiment retained for manual API-removal evidence; the read-only facade and public-surface gates carry CI coverage.",
+    criterion: "research-evidence",
+  },
+  {
     id: "rust/omena-resolver/fixture-suite",
     reason:
       "Rust subsystem probe retained for targeted manual diagnosis; canonical boundary/readiness bundles carry CI coverage.",
