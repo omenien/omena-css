@@ -55,6 +55,19 @@ interface RustSourceFile {
   readonly source: string;
 }
 
+interface RustFunctionCallSite {
+  readonly id: string;
+  readonly relativePath: string;
+  readonly functionName: string;
+  readonly calleeName: string;
+  readonly loopNested: boolean;
+}
+
+interface TwoFrameLoopResidentWrapperSite {
+  readonly wrapperCallSiteId: string;
+  readonly paths: readonly string[];
+}
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const baselinePath = path.join(
   repoRoot,
@@ -81,6 +94,10 @@ const injectedWrapperLoop = process.argv
 const injectedCallerWrapperLoop = process.argv
   .find((argument) => argument.startsWith("--inject-caller-wrapper-loop="))
   ?.slice("--inject-caller-wrapper-loop=".length);
+const injectedTwoFrameWrapperLoop = process.argv
+  .find((argument) => argument.startsWith("--inject-two-frame-wrapper-loop="))
+  ?.slice("--inject-two-frame-wrapper-loop=".length);
+const reportTwoFramePopulation = process.argv.includes("--report-two-frame-population");
 const initialWrapperSourcePinArgument = process.argv
   .find((argument) => argument.startsWith("--initial-wrapper-source-pin="))
   ?.slice("--initial-wrapper-source-pin=".length);
@@ -371,6 +388,34 @@ const callerLoopResidentQueryWrapperCallSites = queryWrapperCallSites.filter(
 const loopResidentQueryWrapperCallSites = queryWrapperCallSites.filter(
   (site) => site.loopNested || site.callerLoopNested,
 );
+let rustProductionSources = trackedRustProductionSources();
+if (injectedTwoFrameWrapperLoop !== undefined) {
+  rustProductionSources = injectTwoFrameCallerCallIntoSyntheticLoop(
+    rustProductionSources,
+    queryWrapperCallSites,
+    injectedTwoFrameWrapperLoop,
+  );
+}
+const twoFrameLoopResidentQueryWrapperCallSites = enumerateTwoFrameLoopResidentWrapperSites(
+  rustProductionSources,
+  queryWrapperCallSites,
+);
+if (reportTwoFramePopulation) {
+  process.stderr.write(
+    `${JSON.stringify(
+      {
+        schemaVersion: "0",
+        product: "omena-syntax.line-index-authority-two-frame-population",
+        predicate:
+          "wrapper host is called outside a loop by an intermediate function that is called inside a loop",
+        wrapperCallSiteCount: twoFrameLoopResidentQueryWrapperCallSites.length,
+        wrapperCallSites: twoFrameLoopResidentQueryWrapperCallSites,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+}
 assert.deepEqual(
   loopResidentQueryWrapperCallSites,
   [],
@@ -379,6 +424,13 @@ assert.deepEqual(
       (site) =>
         `${site.id}[host=${site.loopNested},caller=${site.loopNestedCallerCallSiteIds.join("|") || "none"}]`,
     )
+    .join(", ")}`,
+);
+assert.deepEqual(
+  twoFrameLoopResidentQueryWrapperCallSites,
+  [],
+  `fresh-index wrapper calls remain inside item loops two caller frames out: ${twoFrameLoopResidentQueryWrapperCallSites
+    .map((site) => `${site.wrapperCallSiteId}[paths=${site.paths.join("|")}]`)
     .join(", ")}`,
 );
 assert.ok(
@@ -561,6 +613,8 @@ process.stdout.write(
       intraproceduralLoopResidentQueryWrapperCallSiteCount:
         intraproceduralLoopResidentQueryWrapperCallSites.length,
       callerLoopResidentQueryWrapperCallSiteCount: callerLoopResidentQueryWrapperCallSites.length,
+      twoCallerFrameLoopResidentQueryWrapperCallSiteCount:
+        twoFrameLoopResidentQueryWrapperCallSites.length,
       loopResidentQueryWrapperCallSiteCount: loopResidentQueryWrapperCallSites.length,
       queryConstructorCallSiteCount: queryConstructorCallSites.length,
       workspaceMemberCount: workspaceMemberManifestPaths.length,
@@ -701,6 +755,15 @@ function trackedQueryProductionSources(): RustSourceFile[] {
   return sourceFiles.filter(({ relativePath }) => !testOnlyPaths.has(relativePath));
 }
 
+function trackedRustProductionSources(): RustSourceFile[] {
+  const sourceFiles = trackedRustSources().map((relativePath) => ({
+    relativePath,
+    source: readFileSync(path.join(repoRoot, relativePath), "utf8"),
+  }));
+  const testOnlyPaths = testOnlyRustModulePaths(sourceFiles);
+  return sourceFiles.filter(({ relativePath }) => !testOnlyPaths.has(relativePath));
+}
+
 function trackedQueryProductionSourcesAtPin(gitSha: string): RustSourceFile[] {
   return trackedQueryProductionSources().map(({ relativePath }) => ({
     relativePath,
@@ -796,6 +859,104 @@ function enumerateLoopNestedCallerCallSiteIds(
     }
   }
   return callerIds.sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+}
+
+function enumerateTwoFrameLoopResidentWrapperSites(
+  sourceFiles: readonly RustSourceFile[],
+  wrapperCallSites: readonly FreshIndexCallSite[],
+): TwoFrameLoopResidentWrapperSite[] {
+  const callSitesByCallee = new Map<string, readonly RustFunctionCallSite[]>();
+  const callsTo = (calleeName: string): readonly RustFunctionCallSite[] => {
+    const recorded = callSitesByCallee.get(calleeName);
+    if (recorded !== undefined) return recorded;
+    const callSites = enumerateRustFunctionCallSites(sourceFiles, calleeName);
+    callSitesByCallee.set(calleeName, callSites);
+    return callSites;
+  };
+
+  return wrapperCallSites
+    .map((wrapperCallSite) => {
+      const paths = callsTo(wrapperCallSite.functionName)
+        .filter((intermediateCall) => !intermediateCall.loopNested)
+        .flatMap((intermediateCall) =>
+          callsTo(intermediateCall.functionName)
+            .filter((outerCall) => outerCall.loopNested)
+            .map((outerCall) => `${outerCall.id} -> ${intermediateCall.id}`),
+        )
+        .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+      return {
+        wrapperCallSiteId: wrapperCallSite.id,
+        paths: [...new Set(paths)],
+      };
+    })
+    .filter((site) => site.paths.length > 0)
+    .sort((left, right) =>
+      left.wrapperCallSiteId < right.wrapperCallSiteId
+        ? -1
+        : left.wrapperCallSiteId > right.wrapperCallSiteId
+          ? 1
+          : 0,
+    );
+}
+
+function enumerateRustFunctionCallSites(
+  sourceFiles: readonly RustSourceFile[],
+  calleeName: string,
+): RustFunctionCallSite[] {
+  const escapedName = calleeName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const callPattern = new RegExp(`\\b${escapedName}\\s*\\(`, "g");
+  const callSites: RustFunctionCallSite[] = [];
+  for (const { relativePath, source } of sourceFiles) {
+    const maskedSource = maskCfgTestItems(source);
+    for (const span of rustFunctionSpans(maskedSource)) {
+      const body = maskedSource.slice(span.bodyStart, span.bodyEnd);
+      for (const [index, bodyOffset] of matchOffsets(body, callPattern).entries()) {
+        callSites.push({
+          id: `${relativePath}:${span.name}:${calleeName}:${index + 1}`,
+          relativePath,
+          functionName: span.name,
+          calleeName,
+          loopNested: isLoopNested(body, bodyOffset),
+        });
+      }
+    }
+  }
+  return callSites.sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+}
+
+function injectTwoFrameCallerCallIntoSyntheticLoop(
+  sourceFiles: readonly RustSourceFile[],
+  wrapperCallSites: readonly FreshIndexCallSite[],
+  id: string,
+): RustSourceFile[] {
+  const target = wrapperCallSites.find((site) => site.id === id);
+  assert.ok(target, `unknown two-frame wrapper loop injection ${id}`);
+  const intermediateCall = enumerateRustFunctionCallSites(sourceFiles, target.functionName).find(
+    (site) => !site.loopNested && site.functionName !== target.functionName,
+  );
+  assert.ok(intermediateCall, `no flat intermediate caller is available for ${id}`);
+
+  const escapedName = intermediateCall.functionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const callPattern = new RegExp(`\\b${escapedName}\\s*\\(`, "g");
+  for (const sourceFile of sourceFiles) {
+    const maskedSource = maskCfgTestItems(sourceFile.source);
+    for (const span of rustFunctionSpans(maskedSource)) {
+      if (span.name === intermediateCall.functionName) continue;
+      const body = sourceFile.source.slice(span.bodyStart, span.bodyEnd);
+      const bodyOffset = matchOffsets(body, callPattern).find(
+        (offset) => !isLoopNested(body, offset),
+      );
+      if (bodyOffset === undefined) continue;
+      const injectedBody = `${body.slice(0, bodyOffset)}for _item in _items { ${body.slice(bodyOffset)}`;
+      const injectedSource = `${sourceFile.source.slice(0, span.bodyStart)}${injectedBody}${sourceFile.source.slice(span.bodyEnd)}}`;
+      return sourceFiles.map((entry) =>
+        entry.relativePath === sourceFile.relativePath
+          ? { ...entry, source: injectedSource }
+          : entry,
+      );
+    }
+  }
+  throw new Error(`no flat second-frame caller is available for ${id}`);
 }
 
 function injectCallSiteIntoSyntheticLoop(
