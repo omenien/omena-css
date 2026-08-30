@@ -146,7 +146,6 @@ use omena_query::{
     summarize_omena_query_style_completion_for_workspace_file_with_substrate,
     summarize_omena_query_style_diagnostics_for_file,
     summarize_omena_query_style_diagnostics_for_file_with_deep_analysis,
-    summarize_omena_query_style_hover_render_parts_for_hover_position,
     summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position_with_substrate,
 };
 #[cfg(not(feature = "salsa-style-diagnostics"))]

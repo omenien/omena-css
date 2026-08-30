@@ -2,8 +2,8 @@
 //! REFERENCES: the built-in SCSS service already decorates color LITERALS,
 //! so this provider fills exactly the gap it cannot — resolving `$token`
 //! and `var(--token)` reference sites to their declared color values
-//! through the same render machinery the hover uses (alias chains and
-//! external token facts included). Literal sites are deliberately NOT
+//! through the same declaration-value semantics the hover uses (alias chains
+//! and external token facts included). Literal sites are deliberately NOT
 //! emitted here: two providers decorating the same range would double the
 //! swatch.
 
@@ -15,9 +15,8 @@ use omena_query::{
     resolve_omena_query_sass_forward_sources,
     resolve_omena_query_sass_module_use_sources_for_candidate,
     summarize_omena_query_sass_module_sources,
-    summarize_omena_query_style_hover_render_parts_for_hover_position,
 };
-use omena_syntax::ident::CanonicalCustomPropertyNameV0;
+use omena_syntax::{OmenaLineIndexV0, ident::CanonicalCustomPropertyNameV0};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -247,6 +246,14 @@ fn collect_document_variable_values(
     document: &LspTextDocumentState,
     values: &mut BTreeMap<CanonicalCustomPropertyNameV0, Option<String>>,
 ) {
+    if !document
+        .style_candidates
+        .iter()
+        .any(|declaration| declaration.kind == "sassVariableDeclaration")
+    {
+        return;
+    }
+    let line_index = OmenaLineIndexV0::new(document.text.as_str());
     for declaration in document
         .style_candidates
         .iter()
@@ -255,17 +262,64 @@ fn collect_document_variable_values(
         values
             .entry(declaration.name.to_custom_key())
             .or_insert_with(|| {
-                let mut declaration_name = String::new();
-                let _ =
-                    omena_syntax::ident::render_authored(&declaration.name, &mut declaration_name);
-                summarize_omena_query_style_hover_render_parts_for_hover_position(
+                sass_variable_declaration_value_with_line_index(
                     document.text.as_str(),
-                    declaration.kind,
-                    declaration_name.as_str(),
+                    &line_index,
                     declaration.range.start,
                 )
-                .value
             });
+    }
+}
+
+fn sass_variable_declaration_value_with_line_index(
+    source: &str,
+    line_index: &OmenaLineIndexV0,
+    position: omena_query::ParserPositionV0,
+) -> Option<String> {
+    let line_start = line_index.byte_offset_for_position(source, position.line, 0)?;
+    let line_end = source[line_start..]
+        .find('\n')
+        .map(|offset| line_start + offset)
+        .unwrap_or(source.len());
+    let line = source[line_start..line_end].trim();
+    let (_, value) = line.split_once(':')?;
+    let value = value
+        .trim()
+        .trim_end_matches(';')
+        .trim()
+        .trim_end_matches("!default")
+        .trim();
+    (!value.is_empty()).then(|| value.to_string())
+}
+
+#[cfg(test)]
+mod line_index_tests {
+    use super::*;
+
+    #[test]
+    fn shared_index_value_extraction_matches_the_query_hover_oracle() {
+        for source in [
+            "$accent: #ff0066;\n",
+            "$accent: rgb(1 2 3) !default;\n",
+            "$accent: ;\n",
+        ] {
+            let position = omena_query::ParserPositionV0 {
+                line: 0,
+                character: 0,
+            };
+            let line_index = OmenaLineIndexV0::new(source);
+            let actual =
+                sass_variable_declaration_value_with_line_index(source, &line_index, position);
+            let expected =
+                omena_query::summarize_omena_query_style_hover_render_parts_for_hover_position(
+                    source,
+                    "sassVariableDeclaration",
+                    "$accent",
+                    position,
+                )
+                .value;
+            assert_eq!(actual, expected);
+        }
     }
 }
 

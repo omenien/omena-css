@@ -697,12 +697,7 @@ pub(crate) fn render_style_hover_candidate_markdown_for_workspace(
             candidate.range.start,
         )
         .unwrap_or_else(|| {
-            summarize_omena_query_style_hover_render_parts_for_hover_position(
-                source,
-                candidate.kind,
-                candidate.identity_name().as_str(),
-                candidate.range.start,
-            )
+            unreachable!("the hover-render corpus must contain its requested document")
         });
     render_style_hover_candidate_markdown_from_parts(document_uri, candidate, &render_parts)
 }

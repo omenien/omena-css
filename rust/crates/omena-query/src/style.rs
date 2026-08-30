@@ -857,7 +857,14 @@ pub fn summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_p
         .iter()
         .find(|source| source.style_path == target_style_path)?;
     let branch_scope = (kind == "selector")
-        .then(|| selector_hover_branch_scope_at_position(&target.style_source, name, position))
+        .then(|| {
+            selector_hover_branch_scope_at_position_with_line_index(
+                &target.style_source,
+                substrate.line_index_for_style_path(target_style_path)?,
+                name,
+                position,
+            )
+        })
         .flatten();
     summarize_omena_query_style_hover_render_parts_for_target_with_substrate(
         target_style_path,
@@ -939,9 +946,17 @@ struct StyleCascadeNarrowingSubstrateEntry {
     style_path: String,
     facts: OmenaQueryOmenaParserStyleFactsV0,
     declarations: Vec<cascade_checker::QueryCheckerCascadeDeclaration>,
+    line_index: OmenaLineIndexV0,
 }
 
 impl OmenaQueryStyleCascadeNarrowingSubstrateV0 {
+    fn line_index_for_style_path(&self, style_path: &str) -> Option<&OmenaLineIndexV0> {
+        self.entries
+            .iter()
+            .find(|entry| entry.style_path == style_path)
+            .map(|entry| &entry.line_index)
+    }
+
     fn declarations_for_style_path(
         &self,
         style_path: &str,
@@ -1044,6 +1059,7 @@ pub fn collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs(
                 declarations: cascade_checker::collect_query_checker_cascade_declarations(
                     source.style_source.as_str(),
                 ),
+                line_index: omena_query_line_index(source.style_source.as_str()),
             })
         })
         .collect();
@@ -1304,7 +1320,17 @@ fn selector_hover_branch_scope_at_position(
     name: &str,
     position: ParserPositionV0,
 ) -> Option<HoverCascadeBranchScope> {
-    let offset = byte_offset_for_parser_position(source, position)?;
+    let line_index = omena_query_line_index(source);
+    selector_hover_branch_scope_at_position_with_line_index(source, &line_index, name, position)
+}
+
+fn selector_hover_branch_scope_at_position_with_line_index(
+    source: &str,
+    line_index: &OmenaLineIndexV0,
+    name: &str,
+    position: ParserPositionV0,
+) -> Option<HoverCascadeBranchScope> {
+    let offset = byte_offset_for_parser_position_with_line_index(source, line_index, position)?;
     let selector = format!(".{name}");
     let mut layer_orders = BTreeMap::new();
     let mut next_layer_order = 0i32;
@@ -4691,6 +4717,18 @@ fn end_of_source_range(source: &str) -> ParserRangeV0 {
     }
 }
 
+fn end_of_source_range_with_line_index(
+    source: &str,
+    line_index: &OmenaLineIndexV0,
+) -> ParserRangeV0 {
+    let position =
+        parser_position_for_byte_offset_with_line_index(source, line_index, source.len());
+    ParserRangeV0 {
+        start: position,
+        end: position,
+    }
+}
+
 fn parser_position_for_byte_offset(source: &str, offset: usize) -> ParserPositionV0 {
     let line_index = omena_query_line_index(source);
     parser_position_for_byte_offset_with_line_index(source, &line_index, offset)
@@ -4771,6 +4809,66 @@ mod line_index_measurement_tests {
         }
         assert_eq!(observed_steps, vec![7, 112, 448]);
         Ok(())
+    }
+
+    #[test]
+    fn missing_selector_diagnostics_share_one_target_line_index() {
+        let target_style_source = ".root {\n  color: red;\n}\n";
+        let candidates = (0..1_500)
+            .map(
+                |index| OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 {
+                    target_style_uri: "file:///workspace/App.module.css".to_string(),
+                    target_style_source: target_style_source.to_string(),
+                    selector_name: format!("missing-{index}"),
+                    source_reference_range: ParserRangeV0 {
+                        start: ParserPositionV0 {
+                            line: index,
+                            character: 0,
+                        },
+                        end: ParserPositionV0 {
+                            line: index,
+                            character: 1,
+                        },
+                    },
+                },
+            )
+            .collect::<Vec<_>>();
+        let mut expected = vec![summarize_omena_query_missing_selector_diagnostic(
+            candidates[0].target_style_uri.as_str(),
+            candidates[0].target_style_source.as_str(),
+            candidates[0].selector_name.as_str(),
+            candidates[0].source_reference_range,
+        )];
+        apply_omena_query_checker_product_gate_to_source_diagnostics(&mut expected);
+
+        LINE_INDEX_BUILD_COUNT.set(0);
+        let diagnostics = summarize_omena_query_source_diagnostics_for_file(
+            "file:///workspace/App.tsx",
+            candidates.as_slice(),
+        );
+        assert_eq!(diagnostics.diagnostic_count, candidates.len());
+        assert_eq!(diagnostics.diagnostics[0], expected[0]);
+        assert_eq!(LINE_INDEX_BUILD_COUNT.get(), 1);
+    }
+
+    #[test]
+    fn selector_branch_scope_reuses_a_caller_supplied_line_index() {
+        let source = ".target { color: red; }\n";
+        LINE_INDEX_BUILD_COUNT.set(0);
+        let line_index = omena_query_line_index(source);
+        for _ in 0..1_500 {
+            let branch_scope = selector_hover_branch_scope_at_position_with_line_index(
+                source,
+                &line_index,
+                "target",
+                ParserPositionV0 {
+                    line: 0,
+                    character: 1,
+                },
+            );
+            assert!(branch_scope.is_some());
+        }
+        assert_eq!(LINE_INDEX_BUILD_COUNT.get(), 1);
     }
 
     #[test]

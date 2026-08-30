@@ -458,6 +458,40 @@ pub fn summarize_omena_query_missing_selector_diagnostic(
     source_reference_range: ParserRangeV0,
 ) -> OmenaQuerySourceDiagnosticV0 {
     let insertion_range = end_of_source_range(target_style_source);
+    summarize_omena_query_missing_selector_diagnostic_with_insertion_range(
+        target_style_uri,
+        target_style_source,
+        selector_name,
+        source_reference_range,
+        insertion_range,
+    )
+}
+
+fn summarize_omena_query_missing_selector_diagnostic_with_line_index(
+    target_style_uri: &str,
+    target_style_source: &str,
+    target_style_line_index: &OmenaLineIndexV0,
+    selector_name: &str,
+    source_reference_range: ParserRangeV0,
+) -> OmenaQuerySourceDiagnosticV0 {
+    let insertion_range =
+        end_of_source_range_with_line_index(target_style_source, target_style_line_index);
+    summarize_omena_query_missing_selector_diagnostic_with_insertion_range(
+        target_style_uri,
+        target_style_source,
+        selector_name,
+        source_reference_range,
+        insertion_range,
+    )
+}
+
+fn summarize_omena_query_missing_selector_diagnostic_with_insertion_range(
+    target_style_uri: &str,
+    target_style_source: &str,
+    selector_name: &str,
+    source_reference_range: ParserRangeV0,
+    insertion_range: ParserRangeV0,
+) -> OmenaQuerySourceDiagnosticV0 {
     let has_existing_style_content = !target_style_source.trim().is_empty();
     OmenaQuerySourceDiagnosticV0 {
         code: "missingSelector",
@@ -546,12 +580,20 @@ pub fn summarize_omena_query_source_diagnostics_for_file(
     source_uri: &str,
     candidates: &[OmenaQuerySourceMissingSelectorDiagnosticCandidateV0],
 ) -> OmenaQuerySourceDiagnosticsForFileV0 {
+    let mut target_line_indexes = BTreeMap::new();
     let mut diagnostics = candidates
         .iter()
         .map(|candidate| {
-            summarize_omena_query_missing_selector_diagnostic(
+            let target = (
                 candidate.target_style_uri.as_str(),
                 candidate.target_style_source.as_str(),
+            );
+            summarize_omena_query_missing_selector_diagnostic_with_line_index(
+                candidate.target_style_uri.as_str(),
+                candidate.target_style_source.as_str(),
+                target_line_indexes.entry(target).or_insert_with(|| {
+                    omena_query_line_index(candidate.target_style_source.as_str())
+                }),
                 candidate.selector_name.as_str(),
                 candidate.source_reference_range,
             )
@@ -895,6 +937,12 @@ struct OmenaQuerySourceDiagnosticsAssemblyOptions {
     include_dynamic_classname_m_tier: bool,
 }
 
+#[derive(Clone, Copy)]
+struct OmenaQueryTargetStyleInsertionContext<'a> {
+    source: &'a str,
+    line_index: &'a OmenaLineIndexV0,
+}
+
 fn summarize_omena_query_source_diagnostics_from_syntax_index(
     source_path: &str,
     source_source: &str,
@@ -909,6 +957,7 @@ fn summarize_omena_query_source_diagnostics_from_syntax_index(
         .iter()
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<BTreeMap<_, _>>();
+    let mut style_line_indexes_by_path = BTreeMap::new();
     diagnostics.extend(summarize_omena_query_domain_class_reference_diagnostics(
         source_source,
         index,
@@ -1002,15 +1051,28 @@ fn summarize_omena_query_source_diagnostics_from_syntax_index(
             {
                 continue;
             }
-            let target_style_source = style_sources_by_path
-                .get(target_style_uri)
-                .copied()
+            let target_style = style_sources_by_path
+                .get_key_value(target_style_uri)
                 .or_else(|| {
                     style_sources_by_path
                         .iter()
                         .find(|(style_uri, _)| file_uri_equivalent(style_uri, target_style_uri))
-                        .map(|(_, source)| *source)
-                });
+                })
+                .map(|(style_uri, source)| (*style_uri, *source));
+            let target_style_line_index = target_style.map(|(style_uri, source)| {
+                &*style_line_indexes_by_path
+                    .entry(style_uri)
+                    .or_insert_with(|| omena_query_line_index(source))
+            });
+            let target_style_insertion = target_style
+                .map(|(_, source)| source)
+                .zip(target_style_line_index)
+                .map(
+                    |(source, line_index)| OmenaQueryTargetStyleInsertionContext {
+                        source,
+                        line_index,
+                    },
+                );
             let value_domain_size = index
                 .selector_references
                 .iter()
@@ -1028,7 +1090,7 @@ fn summarize_omena_query_source_diagnostics_from_syntax_index(
                     &line_index,
                     reference,
                     selector_name.as_str(),
-                    target_style_source,
+                    target_style_insertion,
                     workspace_facts.definitions,
                     value_domain_size,
                 ),
@@ -1439,7 +1501,7 @@ fn summarize_omena_query_unresolved_source_reference_diagnostic(
     line_index: &OmenaLineIndexV0,
     reference: &OmenaQuerySourceSelectorReferenceFactV0,
     selector_name: &str,
-    target_style_source: Option<&str>,
+    target_style: Option<OmenaQueryTargetStyleInsertionContext<'_>>,
     definitions: &[OmenaQueryStyleSelectorDefinitionV0],
     value_domain_size: usize,
 ) -> OmenaQuerySourceDiagnosticV0 {
@@ -1461,17 +1523,18 @@ fn summarize_omena_query_unresolved_source_reference_diagnostic(
     let create_selector = reference
         .target_style_uri
         .as_deref()
-        .zip(target_style_source)
+        .zip(target_style)
         .filter(|_| {
             matches!(
                 reference.match_kind,
                 OmenaQuerySourceSelectorReferenceMatchKindV0::Exact
             )
         })
-        .and_then(|(target_style_uri, target_style_source)| {
-            summarize_omena_query_missing_selector_diagnostic(
+        .and_then(|(target_style_uri, target_style)| {
+            summarize_omena_query_missing_selector_diagnostic_with_line_index(
                 target_style_uri,
-                target_style_source,
+                target_style.source,
+                target_style.line_index,
                 selector_name,
                 range,
             )

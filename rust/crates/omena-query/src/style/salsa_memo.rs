@@ -667,6 +667,11 @@ impl OmenaQueryStyleRevisionSelectorV0 {
     }
 
     pub fn style_cascade_narrowing_substrate(&self) -> OmenaQueryStyleCascadeNarrowingSubstrateV0 {
+        let files_by_path = self
+            .files
+            .iter()
+            .map(|(style_path, file)| (style_path.as_str(), file))
+            .collect::<BTreeMap<_, _>>();
         let entries = self
             .committed_graph
             .style_fact_entries
@@ -680,6 +685,15 @@ impl OmenaQueryStyleRevisionSelectorV0 {
                     .get(entry.style_path.as_str())
                     .cloned()
                     .unwrap_or_default(),
+                line_index: omena_query_line_index(
+                    files_by_path
+                        .get(entry.style_path.as_str())
+                        .unwrap_or_else(|| {
+                            unreachable!("committed style facts must retain their source input")
+                        })
+                        .style_source(&self.db)
+                        .as_str(),
+                ),
             })
             .collect();
         OmenaQueryStyleCascadeNarrowingSubstrateV0 {
