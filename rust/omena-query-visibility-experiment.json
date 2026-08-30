@@ -6,8 +6,279 @@
     "compile": "cargo check --manifest-path rust/Cargo.toml -p omena-query --all-targets --all-features",
     "warningPolicy": "cargo clippy --manifest-path rust/Cargo.toml -p omena-query --all-targets --all-features --no-deps -- -D warnings"
   },
+  "defaultFeatureNarrowing": {
+    "feature": "transform-catalog-trace",
+    "rowCount": 44,
+    "rows": [
+      {
+        "name": "OmenaQueryCascadeOriginStylesheetV0",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "OmenaQueryRegisteredCustomPropertyComputedValueV0",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "collect_omena_query_style_cascade_narrowing_substrate",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "execute_omena_query_consumer_build_style_sources",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "execute_omena_query_consumer_build_style_sources_for_target_query_with_options",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "omena_query_sass_symbol_target_matches",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "read_omena_query_cascade_at_position_analysis_result",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "run_omena_query_bundle",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "run_omena_query_bundle_with_module_css_module_contexts_and_options",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "run_omena_query_bundle_with_module_css_module_contexts_for_style_sources_with_context_and_options",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "run_omena_query_bundle_with_module_reachability_and_options",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "run_omena_query_bundle_with_token_ownership_census_and_options",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_html_standard_user_agent_sample_v0",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_cascade_aware_style_diagnostics",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_cascade_origin_stylesheet_v0",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_categorical_design_system_cross_project_summary",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_consumer_build_source_map_v3",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_css_modules_interface_bundle",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_css_modules_resolution_style_diagnostics",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_custom_property_annotations",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_fast_facts",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_module_interface_projection",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_registered_custom_property_computed_value_v0",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_source_completion_for_workspace_file_with_resolution_inputs",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_source_diagnostics_for_workspace_file",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_source_diagnostics_for_workspace_file_with_context_depth",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index_and_context_depth",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_source_selector_occurrence_index",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_style_completion_for_workspace_file",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_style_completion_for_workspace_file_with_resolution_inputs",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_style_diagnostics_for_file_with_local_composes",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_style_edit_distance",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_style_edit_distance_cascade_margin_bridge",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_style_refactor_code_actions",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_style_semantic_graph_batch_from_sources",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_style_semantic_graph_batch_from_sources_with_resolution_inputs",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_transform_plan_from_source",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_unused_selector_style_diagnostics",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      },
+      {
+        "name": "summarize_omena_query_workspace_occurrence_index_from_source_occurrences",
+        "defaultVisibility": "crate",
+        "allFeaturesVisibility": "public",
+        "releaseClass": "pre1MinorBreaking"
+      }
+    ]
+  },
   "outcomeCounts": {
-    "compiledCrateVisible": 279,
+    "compiledCrateVisible": 276,
+    "compatibilityPromiseRestored": 3,
     "integrationConsumerRequired": 8,
     "warningFreeDeletionRequired": 86,
     "testOnlyExcluded": 18
@@ -394,9 +665,9 @@
     {
       "name": "OMENA_QUERY_CASCADE_SECTION_AGGREGATION_COMPATIBILITY_MESSAGE_V0",
       "originCrate": "omena-query",
-      "authoredClass": "c_internal_only",
-      "visibility": "crate",
-      "outcome": "compiledCrateVisible"
+      "authoredClass": "c_compatibility_promise",
+      "visibility": "public",
+      "outcome": "compatibilityPromiseRestored"
     },
     {
       "name": "OMENA_QUERY_CURRENT_SCHEMA_VERSION",
@@ -422,16 +693,16 @@
     {
       "name": "OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_MESSAGE_V0",
       "originCrate": "omena-query",
-      "authoredClass": "c_internal_only",
-      "visibility": "crate",
-      "outcome": "compiledCrateVisible"
+      "authoredClass": "c_compatibility_promise",
+      "visibility": "public",
+      "outcome": "compatibilityPromiseRestored"
     },
     {
       "name": "OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_PROVENANCE_V0",
       "originCrate": "omena-query",
-      "authoredClass": "c_internal_only",
-      "visibility": "crate",
-      "outcome": "compiledCrateVisible"
+      "authoredClass": "c_compatibility_promise",
+      "visibility": "public",
+      "outcome": "compatibilityPromiseRestored"
     },
     {
       "name": "omena_query_sass_symbol_target_matches",

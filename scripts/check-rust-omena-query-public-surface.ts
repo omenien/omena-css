@@ -123,7 +123,7 @@ if (baseline) {
     crate: "omena-query",
     workspaceVersion,
     baselineArgs: semverBaselineArgs(baseline),
-    allFeatures: true,
+    allFeatures: allFeaturesSnapshot,
   });
   semverPolicy = result.policy;
   declaredFailureCount = result.declaredFailureCount;

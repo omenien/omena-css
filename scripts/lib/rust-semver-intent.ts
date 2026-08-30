@@ -517,8 +517,18 @@ export function runDeclaredRustSemverCheck(
       );
       const observedWitnesses = section.body
         .split("\n")
-        .filter((line) => line.startsWith(diagnostic.witnessLinePrefix!))
-        .map((line) => line.slice(diagnostic.witnessLinePrefix!.length).split(" in ")[0]);
+        .filter(
+          (line) =>
+            line.startsWith(diagnostic.witnessLinePrefix!) &&
+            (line.includes(", previously in file ") || line.includes(" in file ")),
+        )
+        .map(
+          (line) =>
+            line
+              .slice(diagnostic.witnessLinePrefix!.length)
+              .split(", previously in file ")[0]!
+              .split(" in file ")[0]!,
+        );
       assert.deepEqual(
         observedWitnesses.toSorted(),
         [...diagnostic.expectedWitnesses].toSorted(),
