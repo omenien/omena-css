@@ -14,7 +14,13 @@ describe("check orchestrator bundle shards", () => {
       new Set(["rust/runtime-query-api-hardening"]),
     );
     expect(resolveShardMembers("rust/closure-fast", "query-core", deps)).toEqual(
-      new Set(["rust/omena-query/core-contract", "rust/omena-query/runtime-contract"]),
+      new Set([
+        "rust/omena-query/core-contract",
+        "rust/omena-query/runtime-contract",
+        "rust/omena-query/dead-reexports",
+        "rust/omena-query/visibility-experiment",
+        "rust/omena-query/public-surface-all-features",
+      ]),
     );
     expect(resolveShardMembers("rust/closure-fast", "rest", deps)).not.toContain(
       "rust/runtime-query-api-hardening",
@@ -22,4 +28,16 @@ describe("check orchestrator bundle shards", () => {
     expect(bundleShardNames("rust/closure-fast")).toContain("query-api");
     expect(bundleShardNames("rust/closure-fast").at(-1)).toBe("rest");
   }, 5_000);
+
+  it("runs line-index API verification in the tool-equipped API-surface shard", () => {
+    const productContracts = resolveGateTarget(loadCheckManifest(), "rust/product-test-contracts");
+    const deps = productContracts?.referencedTargets ?? [];
+
+    expect(resolveShardMembers("rust/product-test-contracts", "api-surface", deps)).toContain(
+      "rust/line-index-authority",
+    );
+    expect(resolveShardMembers("rust/product-test-contracts", "rest", deps)).not.toContain(
+      "rust/line-index-authority",
+    );
+  });
 });

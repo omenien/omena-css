@@ -40,7 +40,7 @@ export const BUNDLE_SHARDS: { readonly [bundleId: string]: BundleShardTable } = 
       "rust/guarded-cascade-winner-closure",
     ],
   },
-  // g131-S2b: measured partition (ledger p95, target <=8m). The FFD proposal
+  // Measured partition (ledger p95, target <=8m). The FFD proposal
   // put public-surface-clean in rest; it is deliberately co-located with
   // public-surface instead — its 1.2s measurement rides the rustdoc JSON the
   // member just built (a rest-side solo run would rebuild it for minutes).
@@ -57,6 +57,7 @@ export const BUNDLE_SHARDS: { readonly [bundleId: string]: BundleShardTable } = 
       "rust/omena-bundler/public-surface",
       "rust/omena-cascade/layer-rank-construction",
       "rust/published-crate-surface-register",
+      "rust/line-index-authority",
     ],
     "structural-shadow": ["rust/omena-transform-passes/structural-ir-shadow"],
   },
