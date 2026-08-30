@@ -419,7 +419,7 @@ pub fn summarize_omena_query_style_completion_candidate_documentation_for_worksp
 }
 
 /// Substrate-backed variant of
-/// [`summarize_omena_query_style_completion_candidate_documentation_for_workspace_file`]
+/// `summarize_omena_query_style_completion_candidate_documentation_for_workspace_file`
 /// (rfcs#63 E-ii): the per-candidate documentation reuses the precollected narrowing
 /// substrate instead of re-collecting the whole corpus per completion item.
 pub fn summarize_omena_query_style_completion_candidate_documentation_for_workspace_file_with_substrate(
