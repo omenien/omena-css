@@ -9,6 +9,10 @@ interface ExpectedCargoSemverDiagnostic {
   readonly evidenceNeedles: readonly string[];
   readonly witnessLinePrefix?: string;
   readonly expectedWitnesses?: readonly string[];
+  readonly expectedWitnessesByFeaturePlane?: {
+    readonly defaultFeatures: readonly string[];
+    readonly allFeatures: readonly string[];
+  };
 }
 
 interface ExpectedRuntimeValueChange {
@@ -84,6 +88,8 @@ export interface DeclaredRustSemverCheckResult {
   readonly declaredWarningCount: number;
   readonly declaredRuntimeValueChangeCount: number;
   readonly declaredReleaseVersion: string | null;
+  readonly featurePlane: "default-features" | "all-features";
+  readonly declaredWitnessCount: number;
 }
 
 const registerRelativePath = "rust/omena-rust-semver-intent.json";
@@ -116,6 +122,9 @@ export function validateRustSemverIntentRegister(repoRoot: string): {
   let runtimeValueChangeCount = 0;
   for (const intent of register.intents) {
     assert.ok(intent.reason.trim().length > 0, `${intent.crate} semver intent requires a reason`);
+    for (const diagnostic of [...intent.expectedFailures, ...(intent.expectedWarnings ?? [])]) {
+      validateDiagnosticWitnessPolicy(intent.crate, diagnostic);
+    }
     const runtimeChanges = intent.expectedRuntimeValueChanges ?? [];
     assert.ok(
       intent.expectedFailures.length > 0 || runtimeChanges.length > 0,
@@ -170,6 +179,59 @@ export function validateRustSemverIntentRegister(repoRoot: string): {
     honestySelftestMutationCount: 2,
     lifecycleSelftestMutationCount: 3,
   };
+}
+
+function validateDiagnosticWitnessPolicy(
+  crate: string,
+  diagnostic: ExpectedCargoSemverDiagnostic,
+): void {
+  const flatWitnesses = diagnostic.expectedWitnesses;
+  const featurePlaneWitnesses = diagnostic.expectedWitnessesByFeaturePlane;
+  const witnessPolicyCount =
+    Number(flatWitnesses !== undefined) + Number(featurePlaneWitnesses !== undefined);
+
+  if (diagnostic.witnessLinePrefix === undefined) {
+    assert.equal(
+      witnessPolicyCount,
+      0,
+      `${crate} ${diagnostic.lint} witness sets require a witness line prefix`,
+    );
+    return;
+  }
+
+  assert.equal(
+    witnessPolicyCount,
+    1,
+    `${crate} ${diagnostic.lint} witness prefix requires exactly one witness policy`,
+  );
+  assert.ok(
+    diagnostic.witnessLinePrefix.length > 0,
+    `${crate} ${diagnostic.lint} witness line prefix must be non-empty`,
+  );
+
+  const witnessSets = featurePlaneWitnesses
+    ? [
+        ["default-features", featurePlaneWitnesses.defaultFeatures] as const,
+        ["all-features", featurePlaneWitnesses.allFeatures] as const,
+      ]
+    : ([["shared", flatWitnesses!]] as const);
+  for (const [featurePlane, witnesses] of witnessSets) {
+    assert.ok(
+      witnesses.length > 0,
+      `${crate} ${diagnostic.lint} ${featurePlane} witness set must be non-empty`,
+    );
+    assert.equal(
+      new Set(witnesses).size,
+      witnesses.length,
+      `${crate} ${diagnostic.lint} ${featurePlane} witness set must be unique`,
+    );
+    for (const witness of witnesses) {
+      assert.ok(
+        witness.trim().length > 0 && witness === witness.trim(),
+        `${crate} ${diagnostic.lint} ${featurePlane} witnesses must be trimmed and non-empty`,
+      );
+    }
+  }
 }
 
 function validateRuntimeHonestyTable(
@@ -344,6 +406,13 @@ export function runDeclaredRustSemverCheck(
   const intents = register.intents.filter((intent) => intent.crate === options.crate);
   assert.ok(intents.length <= 1, `duplicate semver intents for ${options.crate}`);
 
+  const featurePlane = options.allFeatures ? "all-features" : "default-features";
+  const featureArgs = options.allFeatures
+    ? ["--all-features"]
+    : process.argv.includes("--inject-default-semver-feature-evasion")
+      ? []
+      : ["--only-explicit-features"];
+
   const args = [
     "semver-checks",
     "--manifest-path",
@@ -351,7 +420,7 @@ export function runDeclaredRustSemverCheck(
     "-p",
     options.crate,
     ...options.baselineArgs,
-    ...(options.allFeatures ? ["--all-features"] : []),
+    ...featureArgs,
     "--release-type",
     "patch",
     "--color",
@@ -366,6 +435,8 @@ export function runDeclaredRustSemverCheck(
       declaredWarningCount: 0,
       declaredRuntimeValueChangeCount: 0,
       declaredReleaseVersion: null,
+      featurePlane,
+      declaredWitnessCount: 0,
     };
   }
 
@@ -493,6 +564,7 @@ export function runDeclaredRustSemverCheck(
     );
   }
 
+  let declaredWitnessCount = 0;
   for (const diagnostic of [...intent.expectedFailures, ...expectedWarnings]) {
     const section = diagnosticSections.find(
       (candidate) =>
@@ -511,8 +583,12 @@ export function runDeclaredRustSemverCheck(
       );
     }
     if (diagnostic.witnessLinePrefix !== undefined) {
+      const expectedWitnesses =
+        diagnostic.expectedWitnessesByFeaturePlane?.[
+          featurePlane === "all-features" ? "allFeatures" : "defaultFeatures"
+        ] ?? diagnostic.expectedWitnesses;
       assert.ok(
-        diagnostic.expectedWitnesses !== undefined,
+        expectedWitnesses !== undefined,
         `${options.crate} ${diagnostic.lint} witness prefix requires an expected witness set`,
       );
       const observedWitnesses = section.body
@@ -531,9 +607,10 @@ export function runDeclaredRustSemverCheck(
         );
       assert.deepEqual(
         observedWitnesses.toSorted(),
-        [...diagnostic.expectedWitnesses].toSorted(),
-        `${options.crate} ${diagnostic.lint} witness set drifted`,
+        [...expectedWitnesses].toSorted(),
+        `${options.crate} ${diagnostic.lint} ${featurePlane} witness set drifted`,
       );
+      declaredWitnessCount += expectedWitnesses.length;
     }
   }
 
@@ -543,6 +620,8 @@ export function runDeclaredRustSemverCheck(
     declaredWarningCount: expectedWarnings.length,
     declaredRuntimeValueChangeCount: runtimeValueChanges.length,
     declaredReleaseVersion: register.targetReleaseVersion,
+    featurePlane,
+    declaredWitnessCount,
   };
 }
 

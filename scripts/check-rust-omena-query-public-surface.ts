@@ -117,6 +117,8 @@ if (baseline?.kind === "revision") {
 let semverPolicy = semverChecksRequired ? "steady-state" : "genesis-snapshot-only";
 let declaredFailureCount = 0;
 let declaredReleaseVersion: string | null = null;
+let semverFeaturePlane: "default-features" | "all-features" | null = null;
+let declaredWitnessCount = 0;
 if (baseline) {
   const result = runDeclaredRustSemverCheck({
     repoRoot,
@@ -128,6 +130,8 @@ if (baseline) {
   semverPolicy = result.policy;
   declaredFailureCount = result.declaredFailureCount;
   declaredReleaseVersion = result.declaredReleaseVersion;
+  semverFeaturePlane = result.featurePlane;
+  declaredWitnessCount = result.declaredWitnessCount;
 }
 
 process.stdout.write(
@@ -143,6 +147,8 @@ process.stdout.write(
       semverPolicy,
       declaredFailureCount,
       declaredReleaseVersion,
+      semverFeaturePlane,
+      declaredWitnessCount,
       baselineKind: baseline?.kind ?? null,
       baselineRev: baseline?.kind === "revision" ? baseline.rev : null,
       baselineVersion: null,
