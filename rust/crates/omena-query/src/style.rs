@@ -836,7 +836,7 @@ pub fn summarize_omena_query_style_hover_render_parts_for_workspace_file_with_su
 }
 
 /// Substrate-backed variant of
-/// [`summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position`].
+/// `summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position`.
 pub fn summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position_with_substrate(
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
