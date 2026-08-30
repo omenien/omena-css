@@ -2414,10 +2414,10 @@ impl OmenaQueryStyleMemoHostV0 {
         external_sifs: &[OmenaQueryExternalSifInputV0],
         resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
-        let mut seen_paths = std::collections::BTreeSet::new();
+        let mut available_style_paths = BTreeSet::new();
         if style_sources
             .iter()
-            .any(|source| !seen_paths.insert(source.style_path.as_str()))
+            .any(|source| !available_style_paths.insert(source.style_path.as_str()))
         {
             return summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
                 target_style_path,
@@ -2430,7 +2430,12 @@ impl OmenaQueryStyleMemoHostV0 {
                 resolution_inputs,
             );
         }
-        self.register_style_paths(style_sources.iter().map(|source| source.style_path.clone()));
+        if style_sources
+            .iter()
+            .any(|source| !self.registered_style_paths.contains(&source.style_path))
+        {
+            self.register_style_paths(style_sources.iter().map(|source| source.style_path.clone()));
+        }
         let workspace = self.sync_workspace(
             style_sources,
             source_documents,
@@ -2439,10 +2444,6 @@ impl OmenaQueryStyleMemoHostV0 {
             resolution_inputs,
         );
         let substrate = memo_workspace_diagnostics_substrate(&self.db, workspace);
-        let available_style_paths = style_sources
-            .iter()
-            .map(|source| source.style_path.as_str())
-            .collect::<BTreeSet<_>>();
         let resolver_identity_index = build_omena_resolver_style_module_confirmation_identity_index(
             &available_style_paths,
             resolution_inputs.disk_style_path_identities.as_slice(),

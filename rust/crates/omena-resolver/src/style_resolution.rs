@@ -44,7 +44,7 @@ thread_local! {
 
 struct StyleIdentityCanonicalizeCache {
     version: u64,
-    paths: BTreeMap<PathBuf, Option<String>>,
+    paths: BTreeMap<PathBuf, (Option<String>, String)>,
 }
 
 struct StyleIdentityReadLinkCache {
@@ -715,7 +715,12 @@ fn is_external_style_module_source(source: &str) -> bool {
 
 pub fn canonicalize_omena_resolver_style_identity_path(path: &str) -> String {
     let path = PathBuf::from(style_identity_path_input(path));
-    canonicalize_omena_resolver_style_identity_existing_path(path.as_path())
+    if let Some((_, identity)) = style_identity_canonicalize_cache_get(path.as_path()) {
+        return identity;
+    }
+    let _ = canonicalize_omena_resolver_style_identity_existing_path(path.as_path());
+    style_identity_canonicalize_cache_get(path.as_path())
+        .map(|(_, identity)| identity)
         .unwrap_or_else(|| normalize_style_path(path))
 }
 
@@ -731,7 +736,7 @@ fn style_identity_path_input(path: &str) -> &str {
 pub(super) fn canonicalize_omena_resolver_style_identity_existing_path(
     path: &Path,
 ) -> Option<String> {
-    if let Some(cached) = style_identity_canonicalize_cache_get(path) {
+    if let Some((cached, _)) = style_identity_canonicalize_cache_get(path) {
         return cached;
     }
 
@@ -748,7 +753,7 @@ pub(super) fn canonicalize_omena_resolver_style_identity_existing_path(
     canonical
 }
 
-fn style_identity_canonicalize_cache_get(path: &Path) -> Option<Option<String>> {
+fn style_identity_canonicalize_cache_get(path: &Path) -> Option<(Option<String>, String)> {
     STYLE_IDENTITY_CANONICALIZE_CACHE.with(|cache| {
         let mut cache = cache.borrow_mut();
         sync_style_identity_canonicalize_cache_version(&mut cache);
@@ -760,7 +765,11 @@ fn style_identity_canonicalize_cache_insert(path: PathBuf, canonical: Option<Str
     STYLE_IDENTITY_CANONICALIZE_CACHE.with(|cache| {
         let mut cache = cache.borrow_mut();
         sync_style_identity_canonicalize_cache_version(&mut cache);
-        cache.paths.insert(path, canonical);
+        let identity = canonical
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(|| normalize_style_path(path.clone()));
+        cache.paths.insert(path, (canonical, identity));
     });
 }
 
