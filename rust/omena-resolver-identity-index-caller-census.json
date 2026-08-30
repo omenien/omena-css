@@ -501,7 +501,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/css_modules.rs",
-      "line": 91,
+      "line": 93,
       "caller": "summarize_omena_query_css_modules_resolution_style_diagnostics",
       "callee": "summarize_omena_query_css_modules_resolution_style_diagnostics_from_entries",
       "callOrdinal": 0,
@@ -511,7 +511,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/css_modules.rs",
-      "line": 143,
+      "line": 147,
       "caller": "summarize_omena_query_css_modules_resolution_style_diagnostics_from_entries",
       "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
       "callOrdinal": 0,
@@ -521,7 +521,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/css_modules.rs",
-      "line": 230,
+      "line": 235,
       "caller": "summarize_omena_query_css_modules_resolution_style_diagnostics_from_entries",
       "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
       "callOrdinal": 1,
@@ -621,7 +621,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-      "line": 389,
+      "line": 391,
       "caller": "summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings_from_entries",
       "callee": "collect_omena_query_unused_selector_shared",
       "callOrdinal": 0,
@@ -631,7 +631,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-      "line": 466,
+      "line": 468,
       "caller": "collect_omena_query_source_selector_usage_by_style",
       "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
       "callOrdinal": 0,
@@ -1157,7 +1157,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 671,
+      "line": 672,
       "caller": "summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth",
       "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
       "callOrdinal": 0,
@@ -1167,7 +1167,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 765,
+      "line": 770,
       "caller": "summarize_omena_query_source_diagnostics_for_workspace_file_with_context_depth",
       "callee": "summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth",
       "callOrdinal": 0,
@@ -1177,7 +1177,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 1227,
+      "line": 1251,
       "caller": "collect_omena_query_source_selector_reference_candidates",
       "callee": "collect_omena_query_source_selector_references_with_resolution_inputs",
       "callOrdinal": 0,
@@ -1187,7 +1187,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 1253,
+      "line": 1277,
       "caller": "collect_omena_query_source_selector_reference_edit_targets",
       "callee": "collect_omena_query_source_selector_references_with_resolution_inputs",
       "callOrdinal": 0,
@@ -1197,7 +1197,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 1288,
+      "line": 1312,
       "caller": "collect_omena_query_source_selector_references_with_resolution_inputs",
       "callee": "source_selector_reference_index_for_document",
       "callOrdinal": 0,
@@ -1207,7 +1207,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 1372,
+      "line": 1401,
       "caller": "source_selector_reference_index_for_document",
       "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
       "callOrdinal": 0,
@@ -1266,5 +1266,5 @@
     "justifiedNoneCount": 16,
     "violationCount": 0
   },
-  "siteDigest": "sha256:0e341fdc2dbf4a5488002ad4d8d156710e2ea50f87f1487a8f4b95a404fadb56"
+  "siteDigest": "sha256:f4398b3f9f6f2e3b9f68533e349e593aa1baa0a13fcea6560e11cf7b31b1d14e"
 }

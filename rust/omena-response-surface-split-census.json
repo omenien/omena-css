@@ -7384,7 +7384,7 @@
       "crate": "omena-query",
       "typeName": "CustomPropertyReferenceFactView",
       "sourcePath": "rust/crates/omena-query/src/style/cascade_position.rs",
-      "line": 561
+      "line": 562
     },
     {
       "crate": "omena-query",
@@ -8614,7 +8614,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQuerySourceDiagnosticsAssemblyOptions",
       "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 887
+      "line": 892
     },
     {
       "crate": "omena-query",
@@ -8626,7 +8626,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQuerySourceDiagnosticsWorkspaceFacts",
       "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 882
+      "line": 887
     },
     {
       "crate": "omena-query",
@@ -9028,7 +9028,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQueryWorkspaceSourceReferenceCandidateV0",
       "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 1402
+      "line": 1431
     },
     {
       "crate": "omena-query",
@@ -9124,25 +9124,25 @@
       "crate": "omena-query",
       "typeName": "QueryCheckerCascadeDeclaration",
       "sourcePath": "rust/crates/omena-query/src/style/cascade_checker/input.rs",
-      "line": 150
+      "line": 156
     },
     {
       "crate": "omena-query",
       "typeName": "QueryCheckerCascadeDeclarationCollection",
       "sourcePath": "rust/crates/omena-query/src/style/cascade_checker/input.rs",
-      "line": 163
+      "line": 169
     },
     {
       "crate": "omena-query",
       "typeName": "QueryCheckerCascadeInputCollection",
       "sourcePath": "rust/crates/omena-query/src/style/cascade_checker/input.rs",
-      "line": 141
+      "line": 147
     },
     {
       "crate": "omena-query",
       "typeName": "QueryCheckerCascadeScope",
       "sourcePath": "rust/crates/omena-query/src/style/cascade_checker/input.rs",
-      "line": 158
+      "line": 164
     },
     {
       "crate": "omena-query",
@@ -9172,13 +9172,13 @@
       "crate": "omena-query",
       "typeName": "ReferencedDeclarationComputedValueSeed",
       "sourcePath": "rust/crates/omena-query/src/style/cascade_position.rs",
-      "line": 267
+      "line": 268
     },
     {
       "crate": "omena-query",
       "typeName": "ResolvedSassImportEdgeForDiagnostic",
       "sourcePath": "rust/crates/omena-query/src/style/diagnostics/sass.rs",
-      "line": 676
+      "line": 695
     },
     {
       "crate": "omena-query",
@@ -9250,7 +9250,7 @@
       "crate": "omena-query",
       "typeName": "SourceSelectorUsageResolutionContext",
       "sourcePath": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-      "line": 409
+      "line": 411
     },
     {
       "crate": "omena-query",
@@ -9316,7 +9316,7 @@
       "crate": "omena-query",
       "typeName": "StyleDeclarationAtOffset",
       "sourcePath": "rust/crates/omena-query/src/style/cascade_position.rs",
-      "line": 296
+      "line": 297
     },
     {
       "crate": "omena-query",
