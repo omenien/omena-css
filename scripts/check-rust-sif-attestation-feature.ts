@@ -3,6 +3,11 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  RUST_PRODUCT_TEST_FEATURE_ISOLATION_PACKAGES,
+  RUST_PRODUCT_TEST_SHARDS,
+  rustProductTestCargoInvocations,
+} from "./lib/rust-product-test-plan";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const injectDefaultOn = process.argv.includes("--inject-default-on");
@@ -71,6 +76,32 @@ assert.match(
 );
 assert.doesNotMatch(lspManifest, /sif-attestation/);
 assert.doesNotMatch(napiManifest, /sif-attestation/);
+
+const workspaceProductTestShard = RUST_PRODUCT_TEST_SHARDS.find(
+  (shard) => shard.workspaceRemainder,
+);
+assert.ok(workspaceProductTestShard, "the product-test plan must own the workspace remainder");
+assert.deepEqual(RUST_PRODUCT_TEST_FEATURE_ISOLATION_PACKAGES, ["omena-lsp-server"]);
+const workspaceProductTestInvocations = rustProductTestCargoInvocations(workspaceProductTestShard);
+assert.ok(
+  workspaceProductTestInvocations.some(
+    (invocation) =>
+      invocation.args.includes("--workspace") &&
+      invocation.args.some(
+        (value, index) =>
+          value === "--exclude" && invocation.args[index + 1] === "omena-lsp-server",
+      ),
+  ),
+  "workspace-wide all-features tests must not unify the CLI-owned attestation feature into LSP",
+);
+assert.ok(
+  workspaceProductTestInvocations.some((invocation) =>
+    invocation.args.some(
+      (value, index) => value === "-p" && invocation.args[index + 1] === "omena-lsp-server",
+    ),
+  ),
+  "LSP must retain a standalone all-features product-test invocation",
+);
 
 const featureMentioningManifests = [...manifests]
   .filter(([, source]) => source.includes("sif-attestation"))
@@ -162,6 +193,7 @@ process.stdout.write(
       featureOffRefusal: "attestationVerificationUnavailable",
       lspFeatureEnabled: false,
       napiFeatureEnabled: false,
+      lspProductTestFeatureIsolation: true,
     },
     null,
     2,

@@ -126,7 +126,7 @@ export function findProductTestCiStructureErrors(
     }
     if (
       !crateJob.block.some((line) =>
-        // The canonical invocation, in the g131-S0 summary form: the flag
+        // The canonical invocation in summary form: the flag
         // sits before the `--` slice so parseArgs keeps it CLI-level.
         /pnpm omena-check run rust\/product-test-execution --summary -- \$\{\{ matrix\.product-shard \}\}/u.test(
           line,

@@ -6,8 +6,9 @@ import { loadCiWorkflowRegistry } from "../packages/check-orchestrator/src/manif
 import { resolveSummaryMemberArgs } from "../packages/check-orchestrator/src/cli/summary-args";
 import { findProductTestCiStructureErrors } from "./lib/product-test-ci-structure";
 import {
+  RUST_PRODUCT_TEST_FEATURE_ISOLATION_PACKAGES,
   RUST_PRODUCT_TEST_SHARDS,
-  rustProductTestCargoArgs,
+  rustProductTestCargoInvocations,
   rustProductTestPackagesByShard,
 } from "./lib/rust-product-test-plan";
 
@@ -97,12 +98,24 @@ for (const shard of RUST_PRODUCT_TEST_SHARDS) {
   const shardPackages = packagesByShard.get(shard.id) ?? [];
   assert.ok(shardPackages.length > 0, `Rust product-test shard "${shard.id}" must not be empty`);
 
-  const cargoArgs = rustProductTestCargoArgs(shard);
-  assert.ok(cargoArgs.includes("--all-features"), `${shard.id} must exercise all package features`);
-  assert.ok(cargoArgs.includes("--no-fail-fast"), `${shard.id} must preserve failure aggregation`);
+  const cargoInvocations = rustProductTestCargoInvocations(shard);
+  assert.ok(cargoInvocations.length > 0, `${shard.id} must have a Cargo invocation`);
+  for (const invocation of cargoInvocations) {
+    assert.ok(
+      invocation.args.includes("--all-features"),
+      `${shard.id}/${invocation.id} must exercise all selected package features`,
+    );
+    assert.ok(
+      invocation.args.includes("--no-fail-fast"),
+      `${shard.id}/${invocation.id} must preserve failure aggregation`,
+    );
+  }
+  const workspaceInvocationCount = cargoInvocations.filter((invocation) =>
+    invocation.args.includes("--workspace"),
+  ).length;
   assert.equal(
-    cargoArgs.includes("--workspace"),
-    shard.workspaceRemainder,
+    workspaceInvocationCount,
+    shard.workspaceRemainder ? 1 : 0,
     `${shard.id} workspace selection must match its declared mode`,
   );
 
@@ -111,6 +124,31 @@ for (const shard of RUST_PRODUCT_TEST_SHARDS) {
     owners.push(shard.id);
     packageOwners.set(packageName, owners);
   }
+}
+
+const workspaceShard = RUST_PRODUCT_TEST_SHARDS.find((shard) => shard.workspaceRemainder);
+assert.ok(workspaceShard, "exactly one product-test shard must own the workspace remainder");
+const workspaceInvocations = rustProductTestCargoInvocations(workspaceShard);
+const workspaceRemainderInvocation = workspaceInvocations.find((invocation) =>
+  invocation.args.includes("--workspace"),
+);
+assert.ok(workspaceRemainderInvocation, "the workspace remainder invocation must exist");
+for (const packageName of RUST_PRODUCT_TEST_FEATURE_ISOLATION_PACKAGES) {
+  assert.ok(
+    workspaceRemainderInvocation.args.some(
+      (value, index) =>
+        value === "--exclude" && workspaceRemainderInvocation.args[index + 1] === packageName,
+    ),
+    `${packageName} must be excluded from workspace-wide feature unification`,
+  );
+  assert.ok(
+    workspaceInvocations.some((invocation) =>
+      invocation.args.some(
+        (value, index) => value === "-p" && invocation.args[index + 1] === packageName,
+      ),
+    ),
+    `${packageName} must retain an isolated all-features product-test invocation`,
+  );
 }
 
 const missingPackages = workspaceCrates.filter((packageName) => !packageOwners.has(packageName));
@@ -129,10 +167,9 @@ assert.deepEqual(
   `workspace packages assigned to multiple shards: ${duplicatePackages}`,
 );
 
-// g131-S0: the CI-structure assertions read the governed job REGISTRY (the
+// The CI-structure assertions read the governed job registry (the
 // authority ci.yml is byte-generated from), and the aggregation invariant is
-// the transitive needs closure of ci-required — structure-proof against the
-// g131-S3 restructures (deleting the intermediate aggregator is legal; a
+// the transitive needs closure of ci-required. Deleting the intermediate aggregator is legal; a
 // product-test result no longer reaching ci-required is not).
 const registry = loadCiWorkflowRegistry(root);
 assert.ok(registry, "packages/check-orchestrator/ci-workflow.json must exist");
