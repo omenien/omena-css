@@ -331,7 +331,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/code_actions.rs",
-      "line": 147,
+      "line": 150,
       "caller": "summarize_omena_query_style_inline_code_actions_with_resolution_inputs",
       "callee": "resolve_inline_target_style_path",
       "callOrdinal": 0,
@@ -341,7 +341,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/code_actions.rs",
-      "line": 299,
+      "line": 305,
       "caller": "collect_inline_declarations",
       "callee": "resolve_inline_target_style_path",
       "callOrdinal": 0,
@@ -351,7 +351,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/code_actions.rs",
-      "line": 334,
+      "line": 340,
       "caller": "resolve_inline_target_style_path",
       "callee": "resolve_style_module_source_with_resolution_inputs_and_identity_index",
       "callOrdinal": 0,
@@ -1177,7 +1177,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 1251,
+      "line": 1252,
       "caller": "collect_omena_query_source_selector_reference_candidates",
       "callee": "collect_omena_query_source_selector_references_with_resolution_inputs",
       "callOrdinal": 0,
@@ -1187,7 +1187,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 1277,
+      "line": 1278,
       "caller": "collect_omena_query_source_selector_reference_edit_targets",
       "callee": "collect_omena_query_source_selector_references_with_resolution_inputs",
       "callOrdinal": 0,
@@ -1197,7 +1197,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 1312,
+      "line": 1313,
       "caller": "collect_omena_query_source_selector_references_with_resolution_inputs",
       "callee": "source_selector_reference_index_for_document",
       "callOrdinal": 0,
@@ -1207,7 +1207,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 1401,
+      "line": 1402,
       "caller": "source_selector_reference_index_for_document",
       "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
       "callOrdinal": 0,
@@ -1266,5 +1266,5 @@
     "justifiedNoneCount": 16,
     "violationCount": 0
   },
-  "siteDigest": "sha256:a134c09019471b8f4f39021859a9c0d3fa271125c9e4d406c0167b4b288f5816"
+  "siteDigest": "sha256:34d916efe996fad12a8c9e98c9cc238aad6e5892905a0c5f1b7b7f79fd83d545"
 }
