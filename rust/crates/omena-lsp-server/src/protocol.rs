@@ -385,6 +385,7 @@ pub(crate) fn parser_range_for_byte_span_with_line_index(
     }
 }
 
+#[cfg(test)]
 pub(crate) fn parser_position_for_byte_offset(source: &str, offset: usize) -> ParserPositionV0 {
     let line_index = OmenaLineIndexV0::new(source);
     parser_position_for_byte_offset_with_line_index(source, &line_index, offset)

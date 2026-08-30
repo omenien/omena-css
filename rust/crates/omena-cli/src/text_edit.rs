@@ -33,6 +33,7 @@ pub(crate) fn apply_byte_edit(
     Ok(edited)
 }
 
+#[cfg(test)]
 pub(crate) fn byte_span_for_range(source: &str, range: ParserRangeV0) -> Option<(usize, usize)> {
     let line_index = OmenaLineIndexV0::new(source);
     byte_span_for_range_with_line_index(source, &line_index, range)
@@ -48,6 +49,7 @@ pub(crate) fn byte_span_for_range_with_line_index(
     (start <= end).then_some((start, end))
 }
 
+#[cfg(test)]
 pub(crate) fn range_for_byte_span(source: &str, start: usize, end: usize) -> Option<ParserRangeV0> {
     let line_index = OmenaLineIndexV0::new(source);
     range_for_byte_span_with_line_index(source, &line_index, start, end)
