@@ -187,7 +187,7 @@ dependencies = [
 
 [[package]]
 name = "omena-interner"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "omena-syntax",
  "salsa",
@@ -196,7 +196,7 @@ dependencies = [
 
 [[package]]
 name = "omena-parser"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "cstree",
  "omena-interner",
@@ -218,7 +218,7 @@ dependencies = [
 
 [[package]]
 name = "omena-syntax"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "cstree",
  "serde",
