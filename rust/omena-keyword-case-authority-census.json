@@ -549,7 +549,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/public_product.rs",
-      "line": 2406,
+      "line": 2407,
       "function": "sass_module_forward_prefix_from_statement",
       "idiom": "find",
       "keyword": "as",
@@ -714,7 +714,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 1247,
+      "line": 1487,
       "function": "hover_layer_name_from_prelude",
       "idiom": "strip-prefix",
       "keyword": "@layer",
@@ -2121,7 +2121,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:8263faea11944a20897ace86f5345b292cec10709f7bee2a5b7a363b07b9b8d2",
+  "siteDigest": "sha256:2aee96e938c49bead5e6db31570a60e7ab904a685075b873b0e6bd5172aec3b0",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
