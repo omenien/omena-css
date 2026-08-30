@@ -662,7 +662,7 @@ pub fn summarize_omena_query_style_hover_render_parts_for_hover_position(
     position: ParserPositionV0,
 ) -> OmenaQueryStyleHoverRenderPartsV0 {
     let branch_scope = (kind == "selector")
-        .then(|| selector_hover_branch_scope_at_position(source, name, position))
+        .then(|| selector_hover_branch_scope_at_position(source, None, name, position))
         .flatten();
     summarize_omena_query_style_hover_render_parts_with_branch_scope(
         source,
@@ -788,7 +788,9 @@ pub fn summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_p
         .iter()
         .find(|source| source.style_path == target_style_path)?;
     let branch_scope = (kind == "selector")
-        .then(|| selector_hover_branch_scope_at_position(&target.style_source, name, position))
+        .then(|| {
+            selector_hover_branch_scope_at_position(&target.style_source, None, name, position)
+        })
         .flatten();
     let mut parts = summarize_omena_query_style_hover_render_parts_with_branch_scope(
         &target.style_source,
@@ -858,9 +860,9 @@ pub fn summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_p
         .find(|source| source.style_path == target_style_path)?;
     let branch_scope = (kind == "selector")
         .then(|| {
-            selector_hover_branch_scope_at_position_with_line_index(
+            selector_hover_branch_scope_at_position(
                 &target.style_source,
-                substrate.line_index_for_style_path(target_style_path)?,
+                Some(substrate.line_index_for_style_path(target_style_path)?),
                 name,
                 position,
             )
@@ -1317,19 +1319,18 @@ fn filter_hovered_branch_keys(
 
 fn selector_hover_branch_scope_at_position(
     source: &str,
+    line_index: Option<&OmenaLineIndexV0>,
     name: &str,
     position: ParserPositionV0,
 ) -> Option<HoverCascadeBranchScope> {
-    let line_index = omena_query_line_index(source);
-    selector_hover_branch_scope_at_position_with_line_index(source, &line_index, name, position)
-}
-
-fn selector_hover_branch_scope_at_position_with_line_index(
-    source: &str,
-    line_index: &OmenaLineIndexV0,
-    name: &str,
-    position: ParserPositionV0,
-) -> Option<HoverCascadeBranchScope> {
+    let owned_line_index;
+    let line_index = match line_index {
+        Some(line_index) => line_index,
+        None => {
+            owned_line_index = omena_query_line_index(source);
+            &owned_line_index
+        }
+    };
     let offset = byte_offset_for_parser_position_with_line_index(source, line_index, position)?;
     let selector = format!(".{name}");
     let mut layer_orders = BTreeMap::new();
@@ -4857,9 +4858,9 @@ mod line_index_measurement_tests {
         LINE_INDEX_BUILD_COUNT.set(0);
         let line_index = omena_query_line_index(source);
         for _ in 0..1_500 {
-            let branch_scope = selector_hover_branch_scope_at_position_with_line_index(
+            let branch_scope = selector_hover_branch_scope_at_position(
                 source,
-                &line_index,
+                Some(&line_index),
                 "target",
                 ParserPositionV0 {
                     line: 0,

@@ -246,11 +246,14 @@ fn collect_document_variable_values(
     document: &LspTextDocumentState,
     values: &mut BTreeMap<CanonicalCustomPropertyNameV0, Option<String>>,
 ) {
-    if !document
-        .style_candidates
-        .iter()
-        .any(|declaration| declaration.kind == "sassVariableDeclaration")
-    {
+    let mut has_sass_variable_declaration = false;
+    for candidate in &document.style_candidates {
+        if candidate.kind == "sassVariableDeclaration" {
+            has_sass_variable_declaration = true;
+            break;
+        }
+    }
+    if !has_sass_variable_declaration {
         return;
     }
     let line_index = OmenaLineIndexV0::new(document.text.as_str());
