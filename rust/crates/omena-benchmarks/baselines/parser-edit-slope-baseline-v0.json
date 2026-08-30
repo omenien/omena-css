@@ -1,8 +1,8 @@
 {
   "schemaVersion": "0",
   "product": "omena-benchmarks.parser-edit-slope-baseline",
-  "generatedAtUtc": "2026-08-30T06:41:36.388Z",
-  "omenaGitSha": "87e4ec45c83bcb49ff4b860d950bb0a9e5d489d5",
+  "generatedAtUtc": "2026-08-30T06:42:51.591Z",
+  "omenaGitSha": "ce8ccb749f8bc695e193f824fb7d1e50240ed7db",
   "measurement": "absolute-minimum-path-p90-nanoseconds",
   "allowedRegressionRatio": 0.35,
   "reentryRegressionRatio": 2,
@@ -24,8 +24,8 @@
       "sourceSha256": "e9702b58c036ade265d90cbe01efa8688581871115619650ce06eb1d49df8a5e",
       "sourceBytes": 515,
       "parkEligible": true,
-      "measuredMinimumPathP90Nanoseconds": 29062,
-      "allowedMinimumPathP90Nanoseconds": 39234
+      "measuredMinimumPathP90Nanoseconds": 35147,
+      "allowedMinimumPathP90Nanoseconds": 47449
     },
     {
       "corpusId": "tailwind-preflight",
@@ -37,8 +37,8 @@
       "sourceSha256": "ace8310eed6dc5568a56fc16e1d695cf58da7528d81d66d81649e93cce644df6",
       "sourceBytes": 8489,
       "parkEligible": true,
-      "measuredMinimumPathP90Nanoseconds": 219535,
-      "allowedMinimumPathP90Nanoseconds": 296373
+      "measuredMinimumPathP90Nanoseconds": 249564,
+      "allowedMinimumPathP90Nanoseconds": 336912
     },
     {
       "corpusId": "tailwind-index",
@@ -50,8 +50,8 @@
       "sourceSha256": "175f88737ecb7e033059eac4a3b22a3b5f971d5a05d9fd50811610a0714633b2",
       "sourceBytes": 29786,
       "parkEligible": true,
-      "measuredMinimumPathP90Nanoseconds": 766730,
-      "allowedMinimumPathP90Nanoseconds": 1035086
+      "measuredMinimumPathP90Nanoseconds": 867241,
+      "allowedMinimumPathP90Nanoseconds": 1170776
     },
     {
       "corpusId": "fumadocs-distribution-style",
@@ -63,8 +63,8 @@
       "sourceSha256": "765821c9236ec61778b7e8b29f662dd9bf9c5c7a5ac667bf0adbf74fd0140d4d",
       "sourceBytes": 105923,
       "parkEligible": false,
-      "measuredMinimumPathP90Nanoseconds": 5357896,
-      "allowedMinimumPathP90Nanoseconds": 7233160
+      "measuredMinimumPathP90Nanoseconds": 5926385,
+      "allowedMinimumPathP90Nanoseconds": 8000620
     },
     {
       "corpusId": "openbridge-distribution-style",
@@ -76,8 +76,8 @@
       "sourceSha256": "b0fa72f204e8d6354c3a534a4a5df8d83d4373421fcbdf2a90db50ad8f3e7a0e",
       "sourceBytes": 680488,
       "parkEligible": false,
-      "measuredMinimumPathP90Nanoseconds": 21322625,
-      "allowedMinimumPathP90Nanoseconds": 28785544
+      "measuredMinimumPathP90Nanoseconds": 27143333,
+      "allowedMinimumPathP90Nanoseconds": 36643500
     }
   ]
 }
