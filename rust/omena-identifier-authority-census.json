@@ -11096,7 +11096,7 @@
           },
           {
             "path": "rust/crates/omena-query/src/style/cascade_checker.rs",
-            "line": 97,
+            "line": 96,
             "function": "summarize_query_cascade_checker_diagnostics_with_deep_analysis",
             "operation": "residual-property-consumer:presentation",
             "evidence": "&standard_property_value_verdicts,",
@@ -12654,7 +12654,7 @@
     ],
     "residualCarrierConsumerSiteCount": 254,
     "residualIdentityShapedConsumerCount": 0,
-    "residualCarrierConsumerDigest": "sha256:5ba4961a42e3803ce3c4cf832efb00ff6748e00dcdcf55959b097c1580a9f643",
+    "residualCarrierConsumerDigest": "sha256:1e1c8796bb91cb215ac08d9805f74669bd44ecfade9b50e01a92e191535af25c",
     "rawStringIdentitySiteCount": 0,
     "rawStringIdentitySites": [],
     "rawStringIdentitySiteDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
