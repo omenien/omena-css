@@ -1,10 +1,12 @@
 {
   "schemaVersion": "0",
   "product": "omena-benchmarks.parser-edit-slope-baseline",
-  "generatedAtUtc": "2026-08-29T22:41:50.595Z",
-  "omenaGitSha": "9c78fc9ea880dcf331eddd45e9b82912e19ea95e",
-  "measurement": "normalized-minimum-path-p90-nanoseconds-per-byte",
+  "generatedAtUtc": "2026-08-30T06:41:36.388Z",
+  "omenaGitSha": "87e4ec45c83bcb49ff4b860d950bb0a9e5d489d5",
+  "measurement": "absolute-minimum-path-p90-nanoseconds",
   "allowedRegressionRatio": 0.35,
+  "reentryRegressionRatio": 2,
+  "requiredIndependentSourceCount": 2,
   "machine": {
     "cpuModel": "Apple M2 Max",
     "cores": 12,
@@ -15,37 +17,67 @@
     {
       "corpusId": "omena-non-finite-dynamic",
       "band": "500B",
+      "sourceProject": "omena-css",
+      "sourceKind": "hand-authored",
+      "sourceUrl": "https://github.com/omenien/omena-css/blob/master/examples/src/scenarios/14-non-finite-dynamic/NonFiniteDynamic.module.scss",
+      "sourceVersion": "repository-pin",
+      "sourceSha256": "e9702b58c036ade265d90cbe01efa8688581871115619650ce06eb1d49df8a5e",
       "sourceBytes": 515,
-      "normalizedSlopeRatio": 1,
-      "measuredMinimumPathP90Nanoseconds": 28968
+      "parkEligible": true,
+      "measuredMinimumPathP90Nanoseconds": 29062,
+      "allowedMinimumPathP90Nanoseconds": 39234
     },
     {
       "corpusId": "tailwind-preflight",
       "band": "8KB",
+      "sourceProject": "tailwindcss",
+      "sourceKind": "hand-authored",
+      "sourceUrl": "https://unpkg.com/tailwindcss@4.3.3/preflight.css",
+      "sourceVersion": "4.3.3",
+      "sourceSha256": "ace8310eed6dc5568a56fc16e1d695cf58da7528d81d66d81649e93cce644df6",
       "sourceBytes": 8489,
-      "normalizedSlopeRatio": 0.45058377852990317,
-      "measuredMinimumPathP90Nanoseconds": 215151
+      "parkEligible": true,
+      "measuredMinimumPathP90Nanoseconds": 219535,
+      "allowedMinimumPathP90Nanoseconds": 296373
     },
     {
       "corpusId": "tailwind-index",
       "band": "30KB",
+      "sourceProject": "tailwindcss",
+      "sourceKind": "hand-authored",
+      "sourceUrl": "https://unpkg.com/tailwindcss@4.3.3/index.css",
+      "sourceVersion": "4.3.3",
+      "sourceSha256": "175f88737ecb7e033059eac4a3b22a3b5f971d5a05d9fd50811610a0714633b2",
       "sourceBytes": 29786,
-      "normalizedSlopeRatio": 0.4389200231744244,
-      "measuredMinimumPathP90Nanoseconds": 735375
+      "parkEligible": true,
+      "measuredMinimumPathP90Nanoseconds": 766730,
+      "allowedMinimumPathP90Nanoseconds": 1035086
     },
     {
       "corpusId": "fumadocs-distribution-style",
       "band": "100KB",
+      "sourceProject": "fumadocs",
+      "sourceKind": "distribution",
+      "sourceUrl": "https://unpkg.com/fumadocs-ui@16.15.2/dist/style.css",
+      "sourceVersion": "16.15.2",
+      "sourceSha256": "765821c9236ec61778b7e8b29f662dd9bf9c5c7a5ac667bf0adbf74fd0140d4d",
       "sourceBytes": 105923,
-      "normalizedSlopeRatio": 0.8633817534125913,
-      "measuredMinimumPathP90Nanoseconds": 5144041
+      "parkEligible": false,
+      "measuredMinimumPathP90Nanoseconds": 5357896,
+      "allowedMinimumPathP90Nanoseconds": 7233160
     },
     {
       "corpusId": "openbridge-distribution-style",
       "band": "1MB",
+      "sourceProject": "inscada-openbridge-bundle",
+      "sourceKind": "distribution",
+      "sourceUrl": "https://unpkg.com/@inscada/openbridge-bundle@1.0.2/dist/openbridge.css",
+      "sourceVersion": "1.0.2",
+      "sourceSha256": "b0fa72f204e8d6354c3a534a4a5df8d83d4373421fcbdf2a90db50ad8f3e7a0e",
       "sourceBytes": 680488,
-      "normalizedSlopeRatio": 0.5084815970303664,
-      "measuredMinimumPathP90Nanoseconds": 19462875
+      "parkEligible": false,
+      "measuredMinimumPathP90Nanoseconds": 21322625,
+      "allowedMinimumPathP90Nanoseconds": 28785544
     }
   ]
 }
