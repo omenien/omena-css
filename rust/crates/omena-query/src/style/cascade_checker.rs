@@ -67,7 +67,6 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
         topology_incomplete_unresolved_count,
         standard_property_value_verdicts,
     } = collect_query_checker_cascade_input(style_uri, source);
-    let line_index = omena_query_line_index(source);
     let mut diagnostics = Vec::new();
 
     // Keep whole-file theory hints off the default LSP/CLI surface.
@@ -104,9 +103,8 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
                 "omena-query-checker-orchestrator.cascade-gate",
                 "omena-query.cascade-checker",
             ],
-            range: parser_range_for_byte_span_with_line_index(
+            range: parser_range_for_byte_span(
                 source,
-                &line_index,
                 ParserByteSpanV0 {
                     start: 0,
                     end: source.len(),
@@ -122,8 +120,8 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
         }];
     }
 
-    // Build the product cascade gate diagnostics first so the `circularVar`
-    // ranges are known before the theory hints are deduplicated against them.
+    // Build product diagnostics first so `circularVar` ranges are known before theory-hint deduplication.
+    let line_index = omena_query_line_index(source);
     for evaluation in gate.evaluations {
         if topology_incomplete_unresolved_count.is_some()
             && matches!(
@@ -207,11 +205,9 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
             multiscale_complexity_heuristic_diagnostics,
             categorical_diagnostics,
         );
-        // The SMT cascade-violation diagnostics are anchored on the specific
-        // longhand declaration that breaks the combination obligation (not the
-        // whole-file span the multiscale-complexity-heuristic/categorical hints use), so they are a
-        // distinct, actionable diagnostic and are appended directly rather than
-        // deduplicated against `circularVar`.
+        // SMT cascade-violation diagnostics anchor on the specific longhand declaration that
+        // breaks the obligation, not the whole-file theory-hint span. They remain distinct and
+        // actionable, so append them directly without `circularVar` deduplication.
         diagnostics.extend(smt_diagnostics);
     }
 
