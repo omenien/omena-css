@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "transform-catalog-trace"), allow(dead_code))]
+
 //! Query facade over Omena parsing, resolution, semantic, and transform authorities.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -15,8 +17,7 @@ pub const OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_C
     note = "compatibility provenance owned by omena-query maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
 )]
 #[allow(dead_code)]
-pub const OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_PROVENANCE_V0: [&str;
-    2] = [
+pub const OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_PROVENANCE_V0: [&str; 2] = [
     "omena-query-checker-orchestrator.rg-flow-gate",
     "omena-checker.rg-flow-rules",
 ];

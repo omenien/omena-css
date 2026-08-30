@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -43,14 +43,35 @@ interface VisibilityExperiment {
   readonly rows: readonly VisibilityRow[];
 }
 
+interface DefaultWarningDispositions {
+  readonly schemaVersion: "0";
+  readonly product: "omena-query.default-feature-warning-dispositions";
+  readonly feature: "transform-catalog-trace";
+  readonly defaultWarningFloor: 0;
+  readonly measuredForcedWarningCount: 83;
+  readonly newlyDispositionedWarningCount: 60;
+  readonly preexistingAllowedWarningCount: 23;
+  readonly dispositions: {
+    readonly retainedForFeatureEnabledQuerySurface: readonly string[];
+    readonly preexistingTargetedAllowance: readonly string[];
+  };
+}
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const tablePath = path.join(repoRoot, "rust/omena-query-visibility-experiment.json");
+const warningDispositionPath = path.join(
+  repoRoot,
+  "rust/omena-query-default-warning-dispositions.json",
+);
 const sourcePath = path.join(repoRoot, "rust/crates/omena-query/src/lib.rs");
 const integrationTestPath = path.join(
   repoRoot,
   "rust/crates/omena-query/tests/sdk_workflow_contract.rs",
 );
 const table = JSON.parse(readFileSync(tablePath, "utf8")) as VisibilityExperiment;
+const warningDispositions = JSON.parse(
+  readFileSync(warningDispositionPath, "utf8"),
+) as DefaultWarningDispositions;
 const source = readFileSync(sourcePath, "utf8");
 const integrationTest = readFileSync(integrationTestPath, "utf8");
 
@@ -69,7 +90,31 @@ const defaultVisibility = scanFacadeVisibility(source, new Set());
 const allFeaturesVisibility = scanFacadeVisibility(source, cargoFeatureNames());
 validateExperiment(table, allFeaturesVisibility, integrationTest);
 validateDefaultFeatureNarrowing(table, defaultVisibility, allFeaturesVisibility);
+const forcedDefaultWarnings = measureForcedDefaultFeatureWarnings();
+validateDefaultWarningDispositions(warningDispositions, forcedDefaultWarnings);
 runValidatorSelftests(table, source, integrationTest);
+runDefaultWarningDispositionSelftest(warningDispositions, forcedDefaultWarnings);
+
+if (process.argv.includes("--inject-remove-warning-disposition")) {
+  validateDefaultWarningDispositions(
+    {
+      ...warningDispositions,
+      dispositions: {
+        ...warningDispositions.dispositions,
+        retainedForFeatureEnabledQuerySurface:
+          warningDispositions.dispositions.retainedForFeatureEnabledQuerySurface.slice(1),
+      },
+    },
+    forcedDefaultWarnings,
+  );
+}
+
+assert.match(
+  source,
+  /#!\[cfg_attr\(not\(feature = "transform-catalog-trace"\), allow\(dead_code\)\)\]/,
+  "default-feature warning disposition must be explicit and feature-scoped",
+);
+runDefaultFeatureWarningFloor();
 
 runCargo([
   "check",
@@ -102,9 +147,13 @@ process.stdout.write(
       authoredCandidateCount: table.rows.length,
       outcomeCounts: table.outcomeCounts,
       defaultFeatureNarrowingCount: table.defaultFeatureNarrowing.rows.length,
+      defaultWarningFloor: warningDispositions.defaultWarningFloor,
+      newlyDispositionedDefaultWarningCount: warningDispositions.newlyDispositionedWarningCount,
+      preexistingAllowedWarningCount: warningDispositions.preexistingAllowedWarningCount,
+      forcedDefaultWarningCensusCount: forcedDefaultWarnings.length,
       compile: "green",
       warningPolicy: "green",
-      selftestMutationCount: 2,
+      selftestMutationCount: 4,
     },
     null,
     2,
@@ -352,6 +401,119 @@ function exportedName(item: string): string | null {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+function measureForcedDefaultFeatureWarnings(): readonly string[] {
+  const run = spawnSync(
+    "cargo",
+    ["check", "--manifest-path", "rust/Cargo.toml", "-p", "omena-query", "--message-format=json"],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, CARGO_TERM_COLOR: "never", RUSTFLAGS: "--force-warn=dead-code" },
+    },
+  );
+  assert.equal(
+    run.status,
+    0,
+    `forced default-feature warning census failed\nstdout:\n${run.stdout}\nstderr:\n${run.stderr}`,
+  );
+  const warnings: string[] = [];
+  for (const line of run.stdout.split("\n")) {
+    if (line.length === 0) continue;
+    const message = JSON.parse(line) as {
+      readonly reason?: string;
+      readonly target?: { readonly name?: string };
+      readonly message?: {
+        readonly level?: string;
+        readonly message?: string;
+        readonly code?: { readonly code?: string } | null;
+        readonly spans?: readonly { readonly file_name?: string; readonly is_primary?: boolean }[];
+      };
+    };
+    if (
+      message.reason !== "compiler-message" ||
+      message.target?.name !== "omena_query" ||
+      message.message?.level !== "warning" ||
+      message.message.code?.code !== "dead_code"
+    ) {
+      continue;
+    }
+    const primary = message.message.spans?.find((span) => span.is_primary);
+    assert.ok(primary?.file_name);
+    assert.ok(message.message.message);
+    warnings.push(
+      `${primary.file_name.replace(/^crates\//u, "rust/crates/")}::${message.message.message}`,
+    );
+  }
+  return warnings.toSorted();
+}
+
+function validateDefaultWarningDispositions(
+  candidate: DefaultWarningDispositions,
+  measured: readonly string[],
+): void {
+  assert.equal(candidate.schemaVersion, "0");
+  assert.equal(candidate.product, "omena-query.default-feature-warning-dispositions");
+  assert.equal(candidate.feature, "transform-catalog-trace");
+  assert.equal(candidate.defaultWarningFloor, 0);
+  assert.equal(candidate.measuredForcedWarningCount, 83);
+  assert.equal(candidate.newlyDispositionedWarningCount, 60);
+  assert.equal(candidate.preexistingAllowedWarningCount, 23);
+  assert.equal(
+    candidate.dispositions.retainedForFeatureEnabledQuerySurface.length,
+    candidate.newlyDispositionedWarningCount,
+  );
+  assert.equal(
+    candidate.dispositions.preexistingTargetedAllowance.length,
+    candidate.preexistingAllowedWarningCount,
+  );
+  const declared = [
+    ...candidate.dispositions.retainedForFeatureEnabledQuerySurface,
+    ...candidate.dispositions.preexistingTargetedAllowance,
+  ].toSorted();
+  assert.equal(declared.length, candidate.measuredForcedWarningCount);
+  assert.deepEqual(measured, declared, "default-feature dead-code warning disposition set drifted");
+}
+
+function runDefaultWarningDispositionSelftest(
+  candidate: DefaultWarningDispositions,
+  measured: readonly string[],
+): void {
+  assert.throws(
+    () =>
+      validateDefaultWarningDispositions(
+        {
+          ...candidate,
+          dispositions: {
+            ...candidate.dispositions,
+            retainedForFeatureEnabledQuerySurface:
+              candidate.dispositions.retainedForFeatureEnabledQuerySurface.slice(1),
+          },
+        },
+        measured,
+      ),
+    /60|disposition set drifted/u,
+  );
+}
+
+function runDefaultFeatureWarningFloor(): void {
+  const run = spawnSync(
+    "cargo",
+    ["check", "--manifest-path", "rust/Cargo.toml", "-p", "omena-query"],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, CARGO_TERM_COLOR: "never", RUSTFLAGS: "-Dwarnings" },
+    },
+  );
+  assert.equal(
+    run.status,
+    0,
+    `default-feature warning floor regressed\nstdout:\n${run.stdout}\nstderr:\n${run.stderr}`,
+  );
 }
 
 function runCargo(args: readonly string[]): void {
