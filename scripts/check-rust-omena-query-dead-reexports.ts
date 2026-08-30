@@ -25,6 +25,15 @@ interface DeadReexportExperiment {
     readonly removedAllFeaturesPublicApiPathCount: 120;
     readonly cargoSemverCandidateFailureCount: 0;
     readonly cargoSemverObservedFailureLints: readonly string[];
+    readonly candidateVerdictTable: {
+      readonly rowSource: "rows";
+      readonly rowCount: 120;
+      readonly lint: "all_features_public_path_missing";
+      readonly witnessTemplate: "omena_query::<name>";
+      readonly witnessAuthority: "cargo-public-api 0.52.0 all-features differential";
+      readonly cargoSemverChecksDisposition: "CANNOT-see-cross-crate-reexports";
+      readonly upstreamIssue: "https://github.com/obi1kenobi/cargo-semver-checks/issues/638";
+    };
   };
 }
 
@@ -64,7 +73,7 @@ if (process.argv.includes("--measure-removal")) {
         renamedCompatibilityCount: countDisposition(table.rows, "renamedCompatibility"),
         baselineKind: table.baseline.kind,
         baselineVersion: table.baseline.version,
-        selftestMutationCount: 2,
+        selftestMutationCount: 3,
       },
       null,
       2,
@@ -96,7 +105,21 @@ function validateTable(
   assert.equal(candidateTable.deletionExperiment.cargoSemverCandidateFailureCount, 0);
   assert.deepEqual(
     [...candidateTable.deletionExperiment.cargoSemverObservedFailureLints].toSorted(),
-    ["function_missing", "struct_missing"],
+    ["enum_missing", "function_missing", "pub_module_level_const_missing", "struct_missing"],
+  );
+  assert.deepEqual(candidateTable.deletionExperiment.candidateVerdictTable, {
+    rowSource: "rows",
+    rowCount: 120,
+    lint: "all_features_public_path_missing",
+    witnessTemplate: "omena_query::<name>",
+    witnessAuthority: "cargo-public-api 0.52.0 all-features differential",
+    cargoSemverChecksDisposition: "CANNOT-see-cross-crate-reexports",
+    upstreamIssue: "https://github.com/obi1kenobi/cargo-semver-checks/issues/638",
+  });
+  assert.equal(
+    candidateTable.deletionExperiment.candidateVerdictTable.rowCount,
+    candidateTable.rows.length,
+    "the deletion verdict table must bind every candidate row",
   );
 
   const blocks = scanUseBlocks(candidateSource);
@@ -160,6 +183,24 @@ function runValidatorSelftests(
         candidateRenameMap,
       ),
     /must remain a public compatibility path/u,
+  );
+  assert.throws(
+    () =>
+      validateTable(
+        {
+          ...candidateTable,
+          deletionExperiment: {
+            ...candidateTable.deletionExperiment,
+            candidateVerdictTable: {
+              ...candidateTable.deletionExperiment.candidateVerdictTable,
+              rowCount: 0,
+            },
+          },
+        } as DeadReexportExperiment,
+        candidateSource,
+        candidateRenameMap,
+      ),
+    /120|deletion verdict table/u,
   );
 }
 
@@ -322,6 +363,17 @@ function measureRemoval(candidateTable: DeadReexportExperiment): void {
       candidateTable.deletionExperiment.cargoSemverCandidateFailureCount,
       "cargo-semver candidate witness count drifted",
     );
+    const candidateVerdictRows = removedPaths.map((row) => ({
+      originCrate: row.originCrate,
+      name: row.name,
+      lint: candidateTable.deletionExperiment.candidateVerdictTable.lint,
+      witness: `omena_query::${row.name}`,
+    }));
+    assert.equal(
+      candidateVerdictRows.length,
+      candidateTable.deletionExperiment.candidateVerdictTable.rowCount,
+      "the public-API deletion verdict table must remain non-empty and complete",
+    );
     process.stdout.write(
       `${JSON.stringify(
         {
@@ -333,6 +385,10 @@ function measureRemoval(candidateTable: DeadReexportExperiment): void {
           removedAllFeaturesPublicApiPathCount: removedPaths.length,
           cargoSemverFailureLints: observedLints,
           cargoSemverCandidateFailureCount: candidateWitnesses.length,
+          candidateVerdictTable: {
+            ...candidateTable.deletionExperiment.candidateVerdictTable,
+            rows: candidateVerdictRows,
+          },
         },
         null,
         2,

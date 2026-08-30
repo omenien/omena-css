@@ -615,12 +615,28 @@
     "semverCommand": "cargo semver-checks check-release --manifest-path rust/crates/omena-query/Cargo.toml --baseline-version 0.5.0 --all-features --color never",
     "removedAllFeaturesPublicApiPathCount": 120,
     "cargoSemverCandidateFailureCount": 0,
-    "cargoSemverObservedFailureLints": ["function_missing", "struct_missing"],
+    "cargoSemverObservedFailureLints": [
+      "enum_missing",
+      "function_missing",
+      "pub_module_level_const_missing",
+      "struct_missing"
+    ],
     "cargoSemverUnrelatedWitnesses": [
+      "enum omena_query::OmenaQueryStyleWorkspaceTransactionErrorV0",
       "function omena_query::summarize_omena_query_style_frame_refresh_facts_with_reuse",
+      "const omena_query::OMENA_QUERY_CASCADE_SECTION_AGGREGATION_COMPATIBILITY_MESSAGE_V0",
       "struct omena_query::OmenaQueryStyleFrameRefreshFactsV0",
       "struct omena_query::OmenaQueryStyleFrameRefreshParseCacheV0"
     ],
-    "disposition": "cargo-semver-checks 0.48.0 did not report removed dependency re-export paths; the all-features cargo-public-api differential is the path-removal witness"
+    "candidateVerdictTable": {
+      "rowSource": "rows",
+      "rowCount": 120,
+      "lint": "all_features_public_path_missing",
+      "witnessTemplate": "omena_query::<name>",
+      "witnessAuthority": "cargo-public-api 0.52.0 all-features differential",
+      "cargoSemverChecksDisposition": "CANNOT-see-cross-crate-reexports",
+      "upstreamIssue": "https://github.com/obi1kenobi/cargo-semver-checks/issues/638"
+    },
+    "disposition": "cargo-semver-checks 0.48.0 cannot observe cross-crate re-export paths because rustdoc does not inline foreign items; the complete 120-row all-features cargo-public-api differential is the non-empty path-removal verdict table"
   }
 }

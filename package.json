@@ -322,6 +322,7 @@
     "check:rust-omena-query-public-surface": "node --import tsx ./scripts/check-rust-omena-query-public-surface.ts",
     "check:rust-omena-query-public-surface-all-features": "node --import tsx ./scripts/check-rust-omena-query-public-surface.ts --all-features",
     "check:rust-omena-query-dead-reexports": "node --import tsx ./scripts/check-rust-omena-query-dead-reexports.ts",
+    "measure:rust-omena-query-dead-reexport-removal": "node --import tsx ./scripts/check-rust-omena-query-dead-reexports.ts --measure-removal",
     "check:rust-omena-query-visibility-experiment": "node --import tsx ./scripts/check-rust-omena-query-visibility-experiment.ts",
     "check:rust-line-index-authority": "node --import tsx ./scripts/check-rust-line-index-authority.ts && cargo test --manifest-path rust/Cargo.toml -p omena-syntax line_index && cargo test --manifest-path rust/Cargo.toml -p omena-query line_index_measurement_tests --lib && cargo test --manifest-path rust/Cargo.toml -p omena-semantic parser_position_uses_utf16_columns_for_non_ascii --lib && cargo test --manifest-path rust/Cargo.toml -p omena-lsp-server line_index_round_trips_utf16_positions --lib && cargo test --manifest-path rust/Cargo.toml -p omena-cli byte_spans_round_trip_through_utf16_ranges --lib",
     "check:rust-omena-query-cascade-input-authority": "node --import tsx ./scripts/check-rust-omena-query-cascade-input-authority.ts",
