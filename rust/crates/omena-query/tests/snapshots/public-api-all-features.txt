@@ -56,7 +56,10 @@ pub const fn omena_query::OmenaQueryModuleTreeShakeExplanationV0::flat_reachable
 pub const fn omena_query::OmenaQueryModuleTreeShakeExplanationV0::guarantee(&self) -> omena_evidence_graph::GuaranteeKindV0
 pub const fn omena_query::OmenaQueryModuleTreeShakeExplanationV0::reachable(&self) -> core::option::Option<bool>
 pub const fn omena_query::OmenaQueryModuleTreeShakeExplanationV0::symbol_kind(&self) -> omena_query::OmenaQueryExplainSymbolKindV0
+pub const omena_query::OMENA_QUERY_CASCADE_SECTION_AGGREGATION_COMPATIBILITY_MESSAGE_V0: &str
 pub const omena_query::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0: &str
+pub const omena_query::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_MESSAGE_V0: &str
+pub const omena_query::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_PROVENANCE_V0: [&str; 2]
 pub const omena_query::OMENA_WORKSPACE_SESSION_PROTOCOL_VERSION_V0: &str
 pub enum omena_query::OmenaBundlerHostExportKindV0
 pub enum omena_query::OmenaErrorClassV0
