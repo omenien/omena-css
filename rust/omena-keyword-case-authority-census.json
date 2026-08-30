@@ -714,7 +714,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 1487,
+      "line": 1495,
       "function": "hover_layer_name_from_prelude",
       "idiom": "strip-prefix",
       "keyword": "@layer",
@@ -1077,7 +1077,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 725,
+      "line": 742,
       "function": "summarize_style_context_index",
       "idiom": "direct-equality",
       "keyword": "layer",
@@ -1088,7 +1088,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 735,
+      "line": 752,
       "function": "summarize_style_context_index",
       "idiom": "direct-equality",
       "keyword": "scope",
@@ -1099,7 +1099,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 740,
+      "line": 757,
       "function": "summarize_style_context_index",
       "idiom": "direct-equality",
       "keyword": "layer",
@@ -1110,7 +1110,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 750,
+      "line": 767,
       "function": "summarize_style_context_index",
       "idiom": "direct-equality",
       "keyword": "scope",
@@ -1121,7 +1121,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 862,
+      "line": 879,
       "function": "summarize_style_layer_order_from_source",
       "idiom": "contains",
       "keyword": "@layer",
@@ -1132,7 +1132,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1023,
+      "line": 1049,
       "function": "layer_rule_prelude",
       "idiom": "strip-prefix",
       "keyword": "@layer",
@@ -1143,7 +1143,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1783,
+      "line": 1813,
       "function": "style_context_for_cst_offset",
       "idiom": "strip-prefix",
       "keyword": "@layer",
@@ -1165,7 +1165,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/tests.rs",
-      "line": 486,
+      "line": 488,
       "function": "css_modules_cross_file_resolution_is_semantic_layer_owned",
       "idiom": "direct-equality",
       "keyword": "composes",
@@ -2121,7 +2121,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:2aee96e938c49bead5e6db31570a60e7ab904a685075b873b0e6bd5172aec3b0",
+  "siteDigest": "sha256:64b097c3bf153bf4add675d387ad44e2c601e1f8aafc49aa5a5b81dbfee3c2f3",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [

@@ -124,7 +124,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 1480,
+      "line": 1488,
       "idiom": "brace-list-search",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -133,7 +133,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 4466,
+      "line": 4474,
       "idiom": "brace-find",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -142,7 +142,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 4522,
+      "line": 4530,
       "idiom": "brace-find",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -151,7 +151,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 4608,
+      "line": 4616,
       "idiom": "brace-contains",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -286,7 +286,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1812,
+      "line": 1842,
       "idiom": "brace-list-search",
       "family": "semantic-model",
       "disposition": "named-exempt",
@@ -295,7 +295,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1818,
+      "line": 1848,
       "idiom": "brace-find",
       "family": "semantic-model",
       "disposition": "named-exempt",
@@ -1302,7 +1302,7 @@
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
     }
   ],
-  "siteDigest": "sha256:c56ee583007f2f7c72921099d4b3931c43fa1ef0e0e8b86a4d2df2fa8382bf49",
+  "siteDigest": "sha256:29597df32caa39411f653daf8ac7786373b1cb772604cc5a39421ecf6e4a28b6",
   "classSelectorScanner": {
     "policy": "decrease-only",
     "baselineSiteCount": 3,
@@ -1319,7 +1319,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1720,
+        "line": 1750,
         "idiom": "class-dot-byte-walk",
         "family": "semantic-model",
         "disposition": "named-exempt",
@@ -1328,7 +1328,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1724,
+        "line": 1754,
         "idiom": "class-dot-byte-walk",
         "family": "semantic-model",
         "disposition": "named-exempt",
@@ -1336,7 +1336,7 @@
         "reason": "Semantic-model source scanning remains a named consumer follow-up."
       }
     ],
-    "siteDigest": "sha256:5a001af197a5217ffccf47c2a224d2fff0912a57f884a67f68191f710271a6e0"
+    "siteDigest": "sha256:4fbdf56643b2396de95d0bda012be9e6cceacd7edd604f41f6454471a17dd044"
   },
   "selectorAuthority": {
     "policy": "single-cst-projected-authority",
