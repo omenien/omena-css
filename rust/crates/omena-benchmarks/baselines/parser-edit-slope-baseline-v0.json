@@ -5,23 +5,23 @@
   "profiles": [
     {
       "id": "github-actions-ubuntu-x64",
-      "generatedAtUtc": "2026-08-30T03:16:29.000Z",
-      "omenaGitSha": "bdb84a6b32d6b49c3e668d5787d73a88c565e0a6",
+      "generatedAtUtc": "2026-08-30T10:08:20Z",
+      "omenaGitSha": "6c84c827e7b2854cbaa63e093f1ee2e83f5a6623",
       "executionEnvironment": "github-actions:ubuntu-latest:x64",
       "statistic": "minimum-across-paths-of-median-across-edit-shape-batch-medians",
-      "spreadStatistic": "maximum-of-observed-edit-shape-median-range-and-between-run-range",
+      "spreadStatistic": "maximum-of-within-run-median-absolute-deviation-and-between-run-range",
       "provenance": {
         "kind": "github-actions-artifact",
-        "runId": "33289886104"
+        "runId": "33305399382"
       },
-      "observedMaximumSpreadRatio": 0.17325984594294208,
-      "allowedRegressionRatio": 0.52,
+      "observedMaximumSpreadRatio": 0.026807806722455446,
+      "allowedRegressionRatio": 0.081,
       "reentryRegressionRatio": 2,
       "requiredConsecutiveRunCount": 2,
       "requiredIndependentSourceCount": 2,
       "machine": {
         "runnerClass": "github-hosted",
-        "cpuModel": "GitHub-hosted x64 pool recorded by run 33289886104",
+        "cpuModel": "GitHub-hosted x64 pool recorded by run 33305399382",
         "cores": 2,
         "os": "Linux github-actions-ubuntu-latest",
         "arch": "x64"
@@ -37,9 +37,9 @@
           "sourceSha256": "e9702b58c036ade265d90cbe01efa8688581871115619650ce06eb1d49df8a5e",
           "sourceBytes": 515,
           "parkEligible": true,
-          "measuredMinimumPathMedianNanoseconds": 40689,
-          "observedSpreadNanoseconds": 649,
-          "allowedMinimumPathMedianNanoseconds": 61848
+          "measuredMinimumPathMedianNanoseconds": 40344,
+          "observedSpreadNanoseconds": 373,
+          "allowedMinimumPathMedianNanoseconds": 43612
         },
         {
           "corpusId": "tailwind-preflight",
@@ -51,9 +51,9 @@
           "sourceSha256": "ace8310eed6dc5568a56fc16e1d695cf58da7528d81d66d81649e93cce644df6",
           "sourceBytes": 8489,
           "parkEligible": true,
-          "measuredMinimumPathMedianNanoseconds": 285219,
-          "observedSpreadNanoseconds": 49417,
-          "allowedMinimumPathMedianNanoseconds": 433533
+          "measuredMinimumPathMedianNanoseconds": 287752,
+          "observedSpreadNanoseconds": 7714,
+          "allowedMinimumPathMedianNanoseconds": 311060
         },
         {
           "corpusId": "tailwind-index",
@@ -65,9 +65,9 @@
           "sourceSha256": "175f88737ecb7e033059eac4a3b22a3b5f971d5a05d9fd50811610a0714633b2",
           "sourceBytes": 29786,
           "parkEligible": true,
-          "measuredMinimumPathMedianNanoseconds": 1116538,
-          "observedSpreadNanoseconds": 39127,
-          "allowedMinimumPathMedianNanoseconds": 1697138
+          "measuredMinimumPathMedianNanoseconds": 1110225,
+          "observedSpreadNanoseconds": 17894,
+          "allowedMinimumPathMedianNanoseconds": 1200154
         },
         {
           "corpusId": "fumadocs-distribution-style",
@@ -79,9 +79,9 @@
           "sourceSha256": "765821c9236ec61778b7e8b29f662dd9bf9c5c7a5ac667bf0adbf74fd0140d4d",
           "sourceBytes": 105923,
           "parkEligible": false,
-          "measuredMinimumPathMedianNanoseconds": 7701304,
-          "observedSpreadNanoseconds": 86254,
-          "allowedMinimumPathMedianNanoseconds": 11705983
+          "measuredMinimumPathMedianNanoseconds": 7815180,
+          "observedSpreadNanoseconds": 79081,
+          "allowedMinimumPathMedianNanoseconds": 8448210
         },
         {
           "corpusId": "openbridge-distribution-style",
@@ -93,9 +93,9 @@
           "sourceSha256": "b0fa72f204e8d6354c3a534a4a5df8d83d4373421fcbdf2a90db50ad8f3e7a0e",
           "sourceBytes": 680488,
           "parkEligible": false,
-          "measuredMinimumPathMedianNanoseconds": 27616545,
-          "observedSpreadNanoseconds": 441918,
-          "allowedMinimumPathMedianNanoseconds": 41977149
+          "measuredMinimumPathMedianNanoseconds": 27671755,
+          "observedSpreadNanoseconds": 410417,
+          "allowedMinimumPathMedianNanoseconds": 29913168
         }
       ]
     },

@@ -356,10 +356,18 @@ function validateExecutionEnvironmentBindingWithoutSelftest(
 export function runParserEditSlopeGate(): void {
   const manifest = JSON.parse(readFileSync(MANIFEST_PATH, "utf8")) as CorpusManifest;
   validateManifest(manifest);
-  materializeCorpora(manifest);
-  const gitSha = commandOutput("git", ["rev-parse", "HEAD"]);
   assert.ok(existsSync(BASELINE_PATH), `missing parser-edit baseline: ${BASELINE_PATH}`);
   const baseline = JSON.parse(readFileSync(BASELINE_PATH, "utf8")) as ParserEditBaseline;
+  const hostedReportPath = process.argv
+    .find((argument) => argument.startsWith("--write-hosted-report="))
+    ?.slice("--write-hosted-report=".length);
+  if (hostedReportPath !== undefined) {
+    writeHostedBaselineFromReport(hostedReportPath, manifest, baseline);
+    return;
+  }
+
+  materializeCorpora(manifest);
+  const gitSha = commandOutput("git", ["rev-parse", "HEAD"]);
   const execution = resolveExecutionEnvironment();
   validateExecutionEnvironmentBinding(baseline, execution);
   const run = spawnSync(
@@ -453,6 +461,110 @@ export function runParserEditSlopeGate(): void {
       },
     }),
   );
+}
+
+function writeHostedBaselineFromReport(
+  reportPath: string,
+  manifest: CorpusManifest,
+  baseline: ParserEditBaseline,
+): void {
+  const runId = requiredArgument("--hosted-run-id=");
+  const generatedAtUtc = requiredArgument("--hosted-generated-at=");
+  assert.match(runId, /^\d+$/u);
+  assert.match(generatedAtUtc, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u);
+  const report = JSON.parse(readFileSync(reportPath, "utf8")) as ParserEditReport;
+  validateReport(report, manifest);
+  assert.equal(report.baselineProfileId, "github-actions-ubuntu-x64");
+  assert.equal(report.executionEnvironment, "github-actions:ubuntu-latest:x64");
+  assert.match(report.measurementPin, /^[0-9a-f]{40}$/u);
+  const previous = selectedBaselineProfile(baseline, report.baselineProfileId);
+  assert.equal(previous.machine.runnerClass, "github-hosted");
+  assert.equal(previous.machine.arch, "x64");
+
+  const pins = report.bandBudgetComparisons.map((comparison, index) => {
+    const summary = report.summaries[index]!;
+    const measuredMinimumPathMedianNanoseconds = Math.min(
+      ...comparison.comparisonRunMinimumPathMedianNanoseconds,
+    );
+    const betweenRunRange =
+      Math.max(...comparison.comparisonRunMinimumPathMedianNanoseconds) -
+      measuredMinimumPathMedianNanoseconds;
+    return {
+      corpusId: summary.corpusId,
+      band: summary.band,
+      sourceProject: summary.sourceProject,
+      sourceKind: summary.sourceKind,
+      sourceUrl: summary.sourceUrl,
+      sourceVersion: summary.sourceVersion,
+      sourceSha256: summary.sourceSha256,
+      sourceBytes: summary.sourceBytes,
+      parkEligible: summary.parkEligible,
+      measuredMinimumPathMedianNanoseconds,
+      observedSpreadNanoseconds: Math.max(
+        summary.minimumPathObservedSpreadNanoseconds,
+        betweenRunRange,
+      ),
+      allowedMinimumPathMedianNanoseconds: 0,
+    };
+  });
+  const observedMaximumSpreadRatio = Math.max(
+    ...pins.map((pin) => pin.observedSpreadNanoseconds / pin.measuredMinimumPathMedianNanoseconds),
+  );
+  const allowedRegressionRatio = Math.ceil(observedMaximumSpreadRatio * 3 * 1_000) / 1_000;
+  assert.ok(allowedRegressionRatio > 0 && allowedRegressionRatio < 1);
+  for (const pin of pins) {
+    pin.allowedMinimumPathMedianNanoseconds = Math.ceil(
+      pin.measuredMinimumPathMedianNanoseconds * (1 + allowedRegressionRatio),
+    );
+  }
+  const profile: ParserEditBaselineProfile = {
+    id: report.baselineProfileId,
+    generatedAtUtc,
+    omenaGitSha: report.measurementPin,
+    executionEnvironment: report.executionEnvironment,
+    statistic: EXPECTED_STATISTIC,
+    spreadStatistic: EXPECTED_SPREAD_STATISTIC,
+    provenance: { kind: "github-actions-artifact", runId },
+    observedMaximumSpreadRatio,
+    allowedRegressionRatio,
+    reentryRegressionRatio: 2,
+    requiredConsecutiveRunCount: 2,
+    requiredIndependentSourceCount: 2,
+    machine: {
+      ...previous.machine,
+      cpuModel: `GitHub-hosted x64 pool recorded by run ${runId}`,
+    },
+    pins,
+  };
+  const updated: ParserEditBaseline = {
+    ...baseline,
+    profiles: [
+      ...baseline.profiles.filter((candidate) => candidate.id !== profile.id),
+      profile,
+    ].toSorted((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0)),
+  };
+  writeFileSync(BASELINE_PATH, `${JSON.stringify(updated, null, 2)}\n`);
+  console.log(
+    JSON.stringify({
+      schemaVersion: "0",
+      product: "rust.parser-edit-slope-hosted-baseline-writer",
+      reportPath,
+      baselinePath: BASELINE_PATH,
+      baselineProfileId: profile.id,
+      measurementPin: profile.omenaGitSha,
+      runId,
+      comparisonRunCount: report.comparisonRunCount,
+      sampleCount: report.samples.length,
+      observedMaximumSpreadRatio,
+      allowedRegressionRatio,
+    }),
+  );
+}
+
+function requiredArgument(prefix: string): string {
+  const value = process.argv.find((argument) => argument.startsWith(prefix))?.slice(prefix.length);
+  assert.ok(value, `missing required ${prefix}<value> argument`);
+  return value;
 }
 
 function validateManifest(manifest: CorpusManifest): void {
