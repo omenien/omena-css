@@ -683,6 +683,24 @@ describe("scan surface falsifiers", () => {
         process.platform === "win32" ? "junction" : "dir",
       );
       await expect(buildEvidenceScanSurfaceManifest(worktree)).resolves.toBeDefined();
+      const manifestPath = "rust/evidence-scan-surfaces.json";
+      const manifestSource = readFileSync(path.join(worktree, manifestPath), "utf8");
+      writeFileSync(path.join(worktree, manifestPath), `${manifestSource}\n`);
+      execFileSync("git", ["add", manifestPath], { cwd: worktree });
+      execFileSync(
+        "git",
+        [
+          "-c",
+          "user.name=Evidence Test",
+          "-c",
+          "user.email=evidence@example.invalid",
+          "commit",
+          "-q",
+          "-m",
+          "anchor evidence authority",
+        ],
+        { cwd: worktree },
+      );
       const predicatePath = "packages/check-orchestrator/src/evidence/predicates/personal-docs.ts";
       const predicateSource = readFileSync(path.join(worktree, predicatePath), "utf8");
       expect(predicateSource).toContain('candidate === ".personal_docs"');
