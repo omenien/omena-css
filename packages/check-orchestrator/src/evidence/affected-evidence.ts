@@ -14,7 +14,8 @@ export interface BuildEvidenceAffectedPlanInput {
   readonly changedPaths: readonly string[];
   readonly scanManifest: EvidenceScanSurfaceManifestV0;
   readonly writerRegistry: EvidenceWriterRegistryV0;
-  readonly expectedScannerPaths?: readonly string[];
+  readonly expectedScannerPaths: readonly string[];
+  readonly knownGateIds: readonly string[];
   readonly forceNarrowSufficiencyForTest?: boolean;
 }
 
@@ -45,6 +46,7 @@ export interface EvidenceAffectedPlanV0 {
 const EVIDENCE_GLOBAL_INPUTS = new Set([
   "rust/evidence-scan-surfaces.json",
   "rust/evidence-writer-registry.json",
+  "packages/check-orchestrator/src/affected.ts",
   "packages/check-orchestrator/src/evidence/scan-surface.ts",
   "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
   "packages/check-orchestrator/src/evidence/scan-surface-registry.ts",
@@ -59,8 +61,19 @@ export function buildEvidenceAffectedPlan(
   const pathPlane = buildAffectedCheckPlan(changedPaths);
   const manifestRows = input.scanManifest.scanners.filter((row) => row.disposition !== "RETIRED");
   const knownScannerPaths = new Set(manifestRows.map((row) => row.scannerPath));
-  const missingScannerPaths = (input.expectedScannerPaths ?? [])
+  const missingScannerPaths = input.expectedScannerPaths
     .filter((scannerPath) => !knownScannerPaths.has(scannerPath))
+    .toSorted();
+  const knownGateIds = new Set(input.knownGateIds);
+  const declaredGateIds = [
+    ...manifestRows.flatMap((row) => ("gateIds" in row ? row.gateIds : [])),
+    ...input.writerRegistry.artifacts.flatMap((row) => [
+      ...row.writerGateIds,
+      ...row.consumerGateIds,
+    ]),
+  ];
+  const unknownGateIds = [...new Set(declaredGateIds)]
+    .filter((gateId) => !knownGateIds.has(gateId))
     .toSorted();
   const globalSurfaceChange = changedPaths.some(
     (candidate) =>
@@ -68,9 +81,12 @@ export function buildEvidenceAffectedPlan(
       candidate.startsWith("scripts/surfaces/") ||
       candidate.startsWith("packages/check-orchestrator/src/evidence/predicates/"),
   );
-  const fallbackReasons = missingScannerPaths.map(
-    (scannerPath) => `detected scanner lacks a surface row: ${scannerPath}`,
-  );
+  const fallbackReasons = [
+    ...missingScannerPaths.map(
+      (scannerPath) => `detected scanner lacks a surface row: ${scannerPath}`,
+    ),
+    ...unknownGateIds.map((gateId) => `evidence manifest references unknown gate: ${gateId}`),
+  ];
   const fallbackToFullEvidence = fallbackReasons.length > 0;
 
   const affectedScannerPaths = new Set<string>();
@@ -178,6 +194,7 @@ function closeAffectedArtifacts(
       full ||
       changedPaths.includes(row.artifactPath) ||
       row.writerScripts.some((writerScript) => changedPaths.includes(writerScript)) ||
+      row.inputPaths.some((inputPath) => changedPaths.includes(inputPath)) ||
       row.inputScannerPaths.some((scannerPath) => affectedScannerPaths.has(scannerPath))
     ) {
       affected.add(row.artifactPath);

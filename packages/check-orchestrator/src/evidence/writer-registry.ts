@@ -63,6 +63,7 @@ export interface EvidenceArtifactRowV0 {
   readonly requiredEnvironmentKeys?: readonly string[];
   readonly procedure?: readonly string[];
   readonly disposition?: "reviewer-retire-proposal";
+  readonly inputPaths: readonly string[];
   readonly inputScannerPaths: readonly string[];
   readonly inputArtifactPaths: readonly string[];
   readonly writerGateIds: readonly string[];
@@ -94,6 +95,7 @@ export function renderEvidenceWriterRegistry(registry: EvidenceWriterRegistryV0)
 }
 
 export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterRegistryV0 {
+  const repositoryPaths = resolveScanSurface(REPOSITORY_REFERENCE_SURFACE, { repoRoot }).paths;
   const rootArtifacts = [
     ...new Set([
       ...resolveScanSurface(ROOT_RUST_ARTIFACT_SURFACE, { repoRoot }).paths.filter(
@@ -105,10 +107,24 @@ export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterReg
   const scriptPaths = resolveScanSurface(SCRIPT_SOURCE_SURFACE, { repoRoot }).paths.filter(
     (candidate) => /\.(?:[cm]?js|ts)$/u.test(candidate),
   );
+  const rootWriterScripts = [
+    ...new Set(
+      rootArtifacts.flatMap((artifactPath) =>
+        findArtifactWriterScripts(repoRoot, artifactPath, scriptPaths),
+      ),
+    ),
+  ];
+  const siblingArtifacts = repositoryPaths.filter(
+    (candidate) =>
+      candidate.endsWith(".json") &&
+      !rootArtifacts.includes(candidate) &&
+      findArtifactWriterScripts(repoRoot, candidate, rootWriterScripts).length > 0,
+  );
+  const artifactPaths = [...new Set([...rootArtifacts, ...siblingArtifacts])].toSorted();
   const referencePathsByArtifact = repositoryReferencePathsByArtifact(
     repoRoot,
-    rootArtifacts,
-    resolveScanSurface(REPOSITORY_REFERENCE_SURFACE, { repoRoot }).paths,
+    artifactPaths,
+    repositoryPaths,
   );
   const packageScripts = readPackageScripts(repoRoot);
   const checkManifest = loadCheckManifest(repoRoot);
@@ -122,16 +138,32 @@ export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterReg
         : [[row.scannerPath, "gateIds" in row ? row.gateIds : []] as const],
     ),
   );
+  const writerScriptsByArtifact = new Map(
+    artifactPaths.map((artifactPath) => [
+      artifactPath,
+      findArtifactWriterScripts(repoRoot, artifactPath, scriptPaths),
+    ]),
+  );
+  const writerOutputPathsByScript = new Map<string, string[]>();
+  for (const [artifactPath, writerScripts] of writerScriptsByArtifact) {
+    for (const writerScript of writerScripts) {
+      writerOutputPathsByScript.set(writerScript, [
+        ...(writerOutputPathsByScript.get(writerScript) ?? []),
+        artifactPath,
+      ]);
+    }
+  }
+  const repositoryPathSet = new Set(repositoryPaths);
+  const artifactPathSet = new Set(artifactPaths);
 
-  const artifacts = rootArtifacts.map((artifactPath) => {
-    const writerScripts = findArtifactWriterScripts(repoRoot, artifactPath, scriptPaths);
+  const artifacts = artifactPaths.map((artifactPath) => {
+    const writerScripts = writerScriptsByArtifact.get(artifactPath) ?? [];
     const updateCommands = Object.entries(packageScripts)
-      .filter(
-        ([scriptName, command]) =>
-          scriptName.startsWith("update:") &&
-          writerScripts.some((writerScript) => command.includes(writerScript)),
-      )
-      .map(([scriptName, command]) => ({ scriptName, command }))
+      .flatMap(([scriptName, command]) => {
+        if (!scriptName.startsWith("update:")) return [];
+        const writerScript = writerScripts.find((candidate) => command.includes(candidate));
+        return writerScript ? [{ scriptName, command, writerScript }] : [];
+      })
       .toSorted((left, right) => compareText(left.scriptName, right.scriptName));
     const references = referencePathsByArtifact.get(artifactPath) ?? [];
     return classifyArtifact({
@@ -142,24 +174,40 @@ export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterReg
       references,
       scannerGateIds,
       checkManifest,
+      repositoryPathSet,
+      artifactPathSet,
+      writerOutputPathsByScript,
     });
   });
-  return {
+  const registry = {
     schemaVersion: "0",
     generatedBy: "pnpm omena-check evidence-writers --write",
     artifacts,
     notPreviewableInputs: declaredNotPreviewableInputs(),
-  };
+  } satisfies EvidenceWriterRegistryV0;
+  for (const input of registry.notPreviewableInputs) {
+    if (!existsSync(path.join(repoRoot, input.ownerId))) {
+      throw new Error(`not-previewable owner module is missing: ${input.ownerId}`);
+    }
+  }
+  return registry;
 }
 
 function classifyArtifact(input: {
   readonly repoRoot: string;
   readonly artifactPath: string;
   readonly writerScripts: readonly string[];
-  readonly updateCommands: readonly { readonly scriptName: string; readonly command: string }[];
+  readonly updateCommands: readonly {
+    readonly scriptName: string;
+    readonly command: string;
+    readonly writerScript: string;
+  }[];
   readonly references: readonly string[];
   readonly scannerGateIds: ReadonlyMap<string, readonly string[]>;
   readonly checkManifest: ReturnType<typeof loadCheckManifest>;
+  readonly repositoryPathSet: ReadonlySet<string>;
+  readonly artifactPathSet: ReadonlySet<string>;
+  readonly writerOutputPathsByScript: ReadonlyMap<string, readonly string[]>;
 }): EvidenceArtifactRowV0 {
   const { artifactPath, writerScripts, updateCommands, references, scannerGateIds, checkManifest } =
     input;
@@ -181,7 +229,7 @@ function classifyArtifact(input: {
   const writeCommand = specialCommand
     ? specialCommand
     : classification === "W1"
-      ? commandSegmentForWriter(updateCommand?.command ?? "", writerScripts[0] ?? "")
+      ? commandSegmentForWriter(updateCommand?.command ?? "", updateCommand?.writerScript ?? "")
       : classification === "W2"
         ? selfWriterCommand(artifactPath, writerScripts[0]!, writerFlag)
         : undefined;
@@ -193,8 +241,28 @@ function classifyArtifact(input: {
           "OMENA_TOKEN_IDENTITY_MKN",
           "OMENA_TOKEN_IDENTITY_DOCUSAURUS",
         ]
-      : undefined;
-  const inputArtifactPaths = artifactDependencies(artifactPath);
+      : artifactPath === "rust/omena-published-crate-surface-register.json"
+        ? ["OMENA_PUBLISHED_CRATE_REGISTRY_STATE"]
+        : undefined;
+  const writerOutputPaths = new Set(
+    writerScripts.flatMap(
+      (writerScript) => input.writerOutputPathsByScript.get(writerScript) ?? [],
+    ),
+  );
+  const literalInputs = literalRepositoryInputs(
+    input.repoRoot,
+    writerScripts,
+    input.repositoryPathSet,
+  ).filter((candidate) => !writerOutputPaths.has(candidate));
+  const inputArtifactPaths = [
+    ...new Set([
+      ...artifactDependencies(artifactPath),
+      ...literalInputs.filter((candidate) => input.artifactPathSet.has(candidate)),
+    ]),
+  ].toSorted();
+  const inputPaths = literalInputs
+    .filter((candidate) => !input.artifactPathSet.has(candidate))
+    .toSorted();
   const inputScannerPaths =
     artifactPath === EVIDENCE_WRITER_REGISTRY_PATH
       ? [...scannerGateIds.keys()].toSorted()
@@ -234,6 +302,7 @@ function classifyArtifact(input: {
       ? { procedure: manualProcedure ?? genericHandAuthoredProcedure(artifactPath) }
       : {}),
     ...(classification === "W4" ? { disposition: "reviewer-retire-proposal" as const } : {}),
+    inputPaths,
     inputScannerPaths,
     inputArtifactPaths,
     writerGateIds,
@@ -242,17 +311,70 @@ function classifyArtifact(input: {
   };
 }
 
+function literalRepositoryInputs(
+  repoRoot: string,
+  writerScripts: readonly string[],
+  repositoryPathSet: ReadonlySet<string>,
+): readonly string[] {
+  const inputs = new Set<string>();
+  for (const writerScript of writerScripts) {
+    const source = readFileSync(path.join(repoRoot, writerScript), "utf8");
+    const sourceFile = ts.createSourceFile(writerScript, source, ts.ScriptTarget.Latest, true);
+    const staticPaths = collectStaticPathVariables(repoRoot, sourceFile);
+    for (const value of staticPaths.values()) {
+      const candidate = normalizeRepositoryPath(repoRoot, value);
+      if (repositoryPathSet.has(candidate)) inputs.add(candidate);
+    }
+    const visit = (node: tsTypes.Node): void => {
+      if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+        const candidate = normalizeRepositoryPath(repoRoot, node.text);
+        if (repositoryPathSet.has(candidate)) inputs.add(candidate);
+      }
+      if (ts.isCallExpression(node)) {
+        const value = staticPathExpressionValue(node, sourceFile, staticPaths, repoRoot);
+        if (value !== null) {
+          const candidate = normalizeRepositoryPath(repoRoot, value);
+          if (repositoryPathSet.has(candidate)) inputs.add(candidate);
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+  }
+  return [...inputs].toSorted();
+}
+
 function findArtifactWriterScripts(
   repoRoot: string,
   artifactPath: string,
   scriptPaths: readonly string[],
 ): readonly string[] {
   const basename = path.posix.basename(artifactPath);
+  const requireExactPath = path.posix.dirname(artifactPath) !== "rust";
   const writers: string[] = [];
   for (const scriptPath of scriptPaths) {
     const source = readFileSync(path.join(repoRoot, scriptPath), "utf8");
     if (!source.includes(basename)) continue;
     const sourceFile = ts.createSourceFile(scriptPath, source, ts.ScriptTarget.Latest, true);
+    const staticPathVariables = collectStaticPathVariables(repoRoot, sourceFile);
+    if (requireExactPath) {
+      let writesExactArtifact = false;
+      const findExactWrite = (node: tsTypes.Node): void => {
+        if (ts.isCallExpression(node) && callName(node.expression) === "writeFileSync") {
+          const firstArgument = node.arguments[0];
+          const resolved = firstArgument
+            ? staticPathExpressionValue(firstArgument, sourceFile, staticPathVariables, repoRoot)
+            : null;
+          if (resolved && normalizeRepositoryPath(repoRoot, resolved) === artifactPath) {
+            writesExactArtifact = true;
+          }
+        }
+        if (!writesExactArtifact) ts.forEachChild(node, findExactWrite);
+      };
+      findExactWrite(sourceFile);
+      if (writesExactArtifact) writers.push(scriptPath);
+      continue;
+    }
     const pathVariables = new Set<string>();
     let changed = true;
     while (changed) {
@@ -302,6 +424,68 @@ function findArtifactWriterScripts(
   return writers.toSorted();
 }
 
+function collectStaticPathVariables(
+  repoRoot: string,
+  sourceFile: tsTypes.SourceFile,
+): ReadonlyMap<string, string> {
+  const values = new Map<string, string>();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const visit = (node: tsTypes.Node): void => {
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.initializer &&
+        !values.has(node.name.text)
+      ) {
+        const value = staticPathExpressionValue(node.initializer, sourceFile, values, repoRoot);
+        if (value !== null) {
+          values.set(node.name.text, value);
+          changed = true;
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+  }
+  return values;
+}
+
+function staticPathExpressionValue(
+  expression: tsTypes.Expression,
+  sourceFile: tsTypes.SourceFile,
+  values: ReadonlyMap<string, string>,
+  repoRoot: string,
+): string | null {
+  if (ts.isStringLiteral(expression) || ts.isNoSubstitutionTemplateLiteral(expression)) {
+    return expression.text;
+  }
+  if (ts.isIdentifier(expression)) return values.get(expression.text) ?? null;
+  if (!ts.isCallExpression(expression)) return null;
+  const calleeText = expression.expression.getText(sourceFile);
+  if (calleeText === "process.cwd" && expression.arguments.length === 0) return repoRoot;
+  const name = callName(expression.expression);
+  if (name !== "join" && name !== "resolve") return null;
+  const evaluatedParts = expression.arguments.map((argument) =>
+    staticPathExpressionValue(argument, sourceFile, values, repoRoot),
+  );
+  if (evaluatedParts.some((value) => value === null)) return null;
+  const parts = evaluatedParts as string[];
+  return name === "join" ? path.join(...parts) : path.resolve(repoRoot, ...parts);
+}
+
+function normalizeRepositoryPath(repoRoot: string, value: string): string {
+  const relative = path.isAbsolute(value) ? path.relative(repoRoot, value) : value;
+  return relative.replaceAll("\\", "/").replace(/^\.\//u, "");
+}
+
+function callName(expression: tsTypes.LeftHandSideExpression): string | null {
+  if (ts.isIdentifier(expression)) return expression.text;
+  if (ts.isPropertyAccessExpression(expression)) return expression.name.text;
+  return null;
+}
+
 function expressionUsesIdentifier(
   expression: tsTypes.Expression,
   identifiers: ReadonlySet<string>,
@@ -343,6 +527,16 @@ function selfWriterCommand(
       "--identity-manifest",
       "docusaurus=${OMENA_TOKEN_IDENTITY_DOCUSAURUS}",
       "--write",
+    ];
+  }
+  if (artifactPath === "rust/omena-published-crate-surface-register.json") {
+    return [
+      "node",
+      "--import",
+      "tsx",
+      `./${writerScript}`,
+      "--initialize-from",
+      "${OMENA_PUBLISHED_CRATE_REGISTRY_STATE}",
     ];
   }
   return ["node", "--import", "tsx", `./${writerScript}`, ...(writerFlag ? [writerFlag] : [])];
@@ -460,32 +654,32 @@ function artifactDependencies(artifactPath: string): readonly string[] {
 function declaredNotPreviewableInputs(): readonly NotPreviewableInputV0[] {
   return [
     {
-      ownerId: "rust/omena-diff-test-dialect-seed",
+      ownerId: "scripts/check-rust-omena-diff-test-dialect-seed.ts",
       kind: "calendar-time",
       detail: "reviewAfter expiration is evaluated from the wall calendar",
     },
     {
-      ownerId: "rust/omena-diff-test-external-corpus-differential",
+      ownerId: "scripts/check-rust-omena-diff-test-external-corpus-differential.ts",
       kind: "calendar-time",
       detail: "reviewAfter expiration is evaluated from the wall calendar",
     },
     {
-      ownerId: "rust/omena-diff-test-wpt-expectations",
+      ownerId: "scripts/check-rust-omena-diff-test-wpt-expectations.ts",
       kind: "calendar-time",
       detail: "reviewAfter expiration is evaluated from the wall calendar",
     },
     {
-      ownerId: "rust/omena-diff-test-wpt-promotion",
+      ownerId: "scripts/check-rust-omena-diff-test-wpt-promotion.ts",
       kind: "calendar-time",
       detail: "reviewAfter expiration is evaluated from the wall calendar",
     },
     {
-      ownerId: "rust/omena-diff-test-wpt-seed",
+      ownerId: "scripts/check-rust-omena-diff-test-wpt-seed.ts",
       kind: "calendar-time",
       detail: "reviewAfter expiration is evaluated from the wall calendar",
     },
     {
-      ownerId: "rust/omena-identifier-authority-mutations",
+      ownerId: "scripts/check-rust-omena-identifier-authority-census.selftest.mjs",
       kind: "environment",
       detail:
         "partition mutation job depends on OMENA_IDENTIFIER_AUTHORITY_MUTATION_PARTITION_COUNT and INDEX",
@@ -496,12 +690,17 @@ function declaredNotPreviewableInputs(): readonly NotPreviewableInputV0[] {
       detail: "checker-spawn falsifiers inject process environment keys",
     },
     {
-      ownerId: "rust/product-surface-boundary-reviews.json",
+      ownerId: "scripts/check-rust-published-crate-surface-register.ts",
+      kind: "environment",
+      detail: "initialization requires an operator-supplied measured registry state path",
+    },
+    {
+      ownerId: "scripts/check-rust-omena-crate-boundary-reviews.ts",
       kind: "git-history",
       detail: "rev-list commit distance requires commit then measure then hand-edit then commit",
     },
     {
-      ownerId: "evidence-writer-wrapper",
+      ownerId: "packages/check-orchestrator/src/evidence/writer-runner.ts",
       kind: "concurrent-worktree",
       detail: "persistent mid-run input skew is rejected; ABA is outside the claim",
     },
@@ -517,12 +716,12 @@ function declaredNotPreviewableInputs(): readonly NotPreviewableInputV0[] {
         "the declared writer requires operator-supplied external corpus and identity-manifest paths",
     },
     {
-      ownerId: "rust/lint-finding-census",
+      ownerId: "scripts/oss-corpus-farm.ts",
       kind: "built-binary",
       detail: "--omena-bin and OMENA_LINT_CENSUS_BINARY supply compiled bytes",
     },
     {
-      ownerId: "evidence-writers-using-oxfmt",
+      ownerId: "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
       kind: "toolchain-bytes",
       detail: "formatter output depends on the pnpm-lock-pinned oxfmt binary",
     },
@@ -556,11 +755,58 @@ function validateEvidenceWriterRegistry(registry: EvidenceWriterRegistryV0): voi
     if ((row.classification === "W1" || row.classification === "W2") && !row.writeCommand) {
       throw new Error(`writeable evidence artifact lacks a declared command: ${row.artifactPath}`);
     }
+    if (
+      (row.classification === "W1" || row.classification === "W2") &&
+      row.inputPaths.length === 0 &&
+      row.inputScannerPaths.length === 0 &&
+      row.inputArtifactPaths.length === 0 &&
+      (row.requiredEnvironmentKeys?.length ?? 0) === 0
+    ) {
+      throw new Error(
+        `writeable evidence artifact has an unexplained empty input set: ${row.artifactPath}`,
+      );
+    }
+    if (
+      row.artifactPath === "rust/omena-published-crate-surface-register.json" &&
+      (!row.writeCommand?.includes("--initialize-from") ||
+        !row.writeCommand.includes("${OMENA_PUBLISHED_CRATE_REGISTRY_STATE}") ||
+        !row.requiredEnvironmentKeys?.includes("OMENA_PUBLISHED_CRATE_REGISTRY_STATE"))
+    ) {
+      throw new Error(
+        "published-crate surface register writer must bind a measured registry-state input",
+      );
+    }
+  }
+  const artifactPathSet = new Set(paths);
+  for (const row of registry.artifacts) {
+    for (const dependency of row.inputArtifactPaths) {
+      if (!artifactPathSet.has(dependency)) {
+        throw new Error(
+          `evidence artifact ${row.artifactPath} references unknown input artifact ${dependency}`,
+        );
+      }
+    }
+  }
+  const ownerIds = registry.notPreviewableInputs.map((entry) => entry.ownerId);
+  for (const ownerId of ownerIds) {
+    if (!isRepositoryModulePath(ownerId)) {
+      throw new Error(`not-previewable owner must be a repository module path: ${ownerId}`);
+    }
   }
   const kinds = new Set(registry.notPreviewableInputs.map((entry) => entry.kind));
   for (const kind of NOT_PREVIEWABLE_INPUT_KINDS) {
     if (!kinds.has(kind)) throw new Error(`not-previewable input kind is missing: ${kind}`);
   }
+}
+
+function isRepositoryModulePath(value: string): boolean {
+  return (
+    value.length > 0 &&
+    !path.posix.isAbsolute(value) &&
+    !value.startsWith("../") &&
+    value.includes("/") &&
+    path.posix.extname(value).length > 0
+  );
 }
 
 export function writerRegistryDigest(registry: EvidenceWriterRegistryV0): string {

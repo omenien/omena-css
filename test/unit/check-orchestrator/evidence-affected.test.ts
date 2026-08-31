@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
   existsSync,
   mkdtempSync,
@@ -12,10 +12,18 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  AFFECTED_PATH_RULE_MODULE_PATH,
+  AFFECTED_PATH_RULES,
+} from "../../../packages/check-orchestrator/src/affected";
+import {
   buildEvidenceAffectedPlan,
   orderAffectedArtifacts,
 } from "../../../packages/check-orchestrator/src/evidence/affected-evidence";
-import { assertSurfaceNarrowingReason } from "../../../packages/check-orchestrator/src/evidence/scan-surface-registry";
+import {
+  assertSurfaceNarrowingReason,
+  evidenceScanSurfaceFreshnessDiagnostics,
+  resolveEvidenceHistoricalAuthorityRef,
+} from "../../../packages/check-orchestrator/src/evidence/scan-surface-registry";
 import {
   analyzeScannerSource,
   findUnroutedScannerCallSites,
@@ -39,7 +47,13 @@ import {
 } from "../../../packages/check-orchestrator/src/evidence/preview-budget";
 import type { EvidenceScanSurfaceManifestV0 } from "../../../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import {
+  loadCommittedEvidenceScanSurfaceManifest,
+  renderEvidenceScanSurfaceManifest,
+  sha256Text,
+} from "../../../packages/check-orchestrator/src/evidence/scan-surface-manifest";
+import {
   buildEvidenceWriterRegistry,
+  renderEvidenceWriterRegistry,
   type EvidenceArtifactRowV0,
   type EvidenceWriterRegistryV0,
 } from "../../../packages/check-orchestrator/src/evidence/writer-registry";
@@ -57,28 +71,37 @@ const predicateModules = {
   "test-only-rust": { modulePath: "p/test.ts", sha256: "e".repeat(64) },
 } as const;
 
+const knownGateIds = [
+  "docs/check",
+  "external/check",
+  "rust/check",
+  "rust/consume",
+  "rust/write",
+] as const;
+
+function expectedScannerPaths(manifest = scannerManifest()): readonly string[] {
+  return manifest.scanners
+    .filter((row) => row.disposition !== "RETIRED")
+    .map((row) => row.scannerPath);
+}
+
 function scannerManifest(): EvidenceScanSurfaceManifestV0 {
   return {
     schemaVersion: "0",
     generatedBy: "pnpm omena-check evidence-surfaces --write",
     detector: { fileCount: 3, patternSha256: "f".repeat(64) },
     resolverSha256: "0".repeat(64),
+    predicateAuthority: {
+      modulePath: "packages/check-orchestrator/src/evidence/predicates/index.ts",
+      sha256: "9".repeat(64),
+    },
     predicateModules,
+    pathPlaneAuthority: {
+      modulePath: AFFECTED_PATH_RULE_MODULE_PATH,
+      sha256: "8".repeat(64),
+      rules: AFFECTED_PATH_RULES,
+    },
     scanners: [
-      {
-        scannerPath: "scripts/check-rust.ts",
-        disposition: "MIGRATED",
-        surfaceModulePath: "scripts/surfaces/check-rust.surface.ts",
-        surfaceModuleSha256: "1".repeat(64),
-        spec: defineScanSurface({
-          scannerPath: "scripts/check-rust.ts",
-          mode: "workingTree",
-          pathspecs: ["rust/**"],
-          includeUntracked: false,
-          excludes: [],
-        }),
-        gateIds: ["rust/check"],
-      },
       {
         scannerPath: "scripts/check-docs.ts",
         disposition: "MIGRATED",
@@ -101,6 +124,20 @@ function scannerManifest(): EvidenceScanSurfaceManifestV0 {
         evidenceNeedle: "checkoutRoot",
         gateIds: ["external/check"],
       },
+      {
+        scannerPath: "scripts/check-rust.ts",
+        disposition: "MIGRATED",
+        surfaceModulePath: "scripts/surfaces/check-rust.surface.ts",
+        surfaceModuleSha256: "1".repeat(64),
+        spec: defineScanSurface({
+          scannerPath: "scripts/check-rust.ts",
+          mode: "workingTree",
+          pathspecs: ["rust/**"],
+          includeUntracked: false,
+          excludes: [],
+        }),
+        gateIds: ["rust/check"],
+      },
     ],
   };
 }
@@ -115,6 +152,7 @@ function artifact(
     writerNodeKind: "normal",
     writerScripts: [],
     writeCommand: ["node", `${artifactPath}.writer.mjs`],
+    inputPaths: [],
     inputScannerPaths: [],
     inputArtifactPaths: [],
     writerGateIds: [],
@@ -148,17 +186,17 @@ function writerRegistry(): EvidenceWriterRegistryV0 {
       }),
     ],
     notPreviewableInputs: [
-      { ownerId: "clock-gate", kind: "calendar-time", detail: "wall clock" },
-      { ownerId: "env-gate", kind: "environment", detail: "environment" },
-      { ownerId: "history-gate", kind: "git-history", detail: "history" },
-      { ownerId: "writer", kind: "concurrent-worktree", detail: "skew" },
+      { ownerId: "scripts/clock.ts", kind: "calendar-time", detail: "wall clock" },
+      { ownerId: "scripts/env.ts", kind: "environment", detail: "environment" },
+      { ownerId: "scripts/history.ts", kind: "git-history", detail: "history" },
+      { ownerId: "scripts/writer.ts", kind: "concurrent-worktree", detail: "skew" },
       {
-        ownerId: "external-gate",
+        ownerId: "scripts/external.ts",
         kind: "network-or-external-checkout",
         detail: "external",
       },
-      { ownerId: "binary-gate", kind: "built-binary", detail: "binary" },
-      { ownerId: "tool-gate", kind: "toolchain-bytes", detail: "tool" },
+      { ownerId: "scripts/binary.ts", kind: "built-binary", detail: "binary" },
+      { ownerId: "scripts/tool.ts", kind: "toolchain-bytes", detail: "tool" },
     ],
   };
 }
@@ -169,6 +207,8 @@ describe("evidence affected closure", () => {
       changedPaths: ["rust/crates/omena-query/src/lib.rs"],
       scanManifest: scannerManifest(),
       writerRegistry: writerRegistry(),
+      expectedScannerPaths: expectedScannerPaths(),
+      knownGateIds,
     });
     expect(plan.affectedScannerPaths).toEqual([
       "scripts/check-external.ts",
@@ -196,6 +236,7 @@ describe("evidence affected closure", () => {
       scanManifest: scannerManifest(),
       writerRegistry: writerRegistry(),
       expectedScannerPaths: ["scripts/check-rust.ts", "scripts/new-scanner.ts"],
+      knownGateIds,
     });
     expect(plan.fallbackToFullEvidence).toBe(true);
     expect(plan.affectedArtifactPaths).toEqual([
@@ -207,11 +248,36 @@ describe("evidence affected closure", () => {
     expect(plan.evidenceRefreshSufficientAlone).toBe(false);
   });
 
+  it("fails closed when an evidence row names a gate outside the live gate universe", () => {
+    const registry = writerRegistry();
+    const plan = buildEvidenceAffectedPlan({
+      changedPaths: ["rust/crates/omena-query/src/lib.rs"],
+      scanManifest: scannerManifest(),
+      writerRegistry: {
+        ...registry,
+        artifacts: registry.artifacts.map((row) =>
+          row.artifactPath === "rust/a.json"
+            ? { ...row, writerGateIds: ["brand-new/unknown-gate"] }
+            : row,
+        ),
+      },
+      expectedScannerPaths: expectedScannerPaths(),
+      knownGateIds,
+    });
+    expect(plan.fallbackToFullEvidence).toBe(true);
+    expect(plan.fallbackReasons).toContain(
+      "evidence manifest references unknown gate: brand-new/unknown-gate",
+    );
+    expect(plan.evidenceRefreshSufficientAlone).toBe(false);
+  });
+
   it("enforces FULL path-plane implication while retaining a legitimate narrow control", () => {
     const full = buildEvidenceAffectedPlan({
       changedPaths: ["package.json"],
       scanManifest: scannerManifest(),
       writerRegistry: writerRegistry(),
+      expectedScannerPaths: expectedScannerPaths(),
+      knownGateIds,
     });
     expect(full.pathPlane.requiresFullCi).toBe(true);
     expect(full.evidenceRefreshSufficientAlone).toBe(false);
@@ -220,6 +286,8 @@ describe("evidence affected closure", () => {
         changedPaths: ["package.json"],
         scanManifest: scannerManifest(),
         writerRegistry: writerRegistry(),
+        expectedScannerPaths: expectedScannerPaths(),
+        knownGateIds,
         forceNarrowSufficiencyForTest: true,
       }),
     ).toThrow(/requires FULL CI/u);
@@ -228,6 +296,8 @@ describe("evidence affected closure", () => {
       changedPaths: ["rust/crates/omena-query/src/lib.rs"],
       scanManifest: scannerManifest(),
       writerRegistry: writerRegistry(),
+      expectedScannerPaths: expectedScannerPaths(),
+      knownGateIds,
     });
     expect(narrow.pathPlane.requiresFullCi).toBe(false);
     expect(narrow.evidenceRefreshSufficientAlone).toBe(true);
@@ -268,6 +338,8 @@ describe("evidence affected closure", () => {
               : 0,
         ),
       },
+      expectedScannerPaths: expectedScannerPaths(),
+      knownGateIds,
     });
     expect(plan.affectedArtifactPaths).toEqual([
       "rust/a.json",
@@ -290,10 +362,196 @@ describe("scan surface falsifiers", () => {
     expect(
       findUnroutedScannerCallSites(
         "scripts/check.ts",
-        "const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url); evidenceScanSurface.readdirSync(root);",
+        'import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest"; const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url); evidenceScanSurface.readdirSync(root);',
       ),
     ).toEqual([]);
   });
+
+  it("binds filesystem aliases and computed access while rejecting a scan-surface look-alike", () => {
+    expect(
+      findUnroutedScannerCallSites(
+        "scripts/aliased.ts",
+        'import { readdirSync as enumerate } from "node:fs"; enumerate(root);',
+      ),
+    ).toHaveLength(1);
+    expect(
+      findUnroutedScannerCallSites(
+        "scripts/computed.ts",
+        'import * as fs from "node:fs"; fs["readdirSync"](root);',
+      ),
+    ).toHaveLength(1);
+    expect(
+      findUnroutedScannerCallSites(
+        "scripts/look-alike.ts",
+        "const scanSurface = { readdirSync() { return []; } }; scanSurface.readdirSync(root);",
+      ),
+    ).toHaveLength(1);
+    expect(
+      findUnroutedScannerCallSites(
+        "scripts/ordinary.ts",
+        "const collection = { read() { return []; } }; collection.read(root);",
+      ),
+    ).toEqual([]);
+    expect(
+      findUnroutedScannerCallSites(
+        "scripts/forged-type.ts",
+        "function scan(scanSurface: ReturnType<typeof resolveScanSurfaceForScanner>) { scanSurface.readdirSync(root); }",
+      ),
+    ).toHaveLength(1);
+    expect(
+      findUnroutedScannerCallSites(
+        "scripts/typed-control.ts",
+        'import { resolveScanSurfaceForScanner as resolveSurface } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest"; function scan(surface: ReturnType<typeof resolveSurface>) { surface["readdirSync"](root); }',
+      ),
+    ).toEqual([]);
+  });
+
+  it("digest-binds the predicate behavior map and owner-bearing affected rules", () => {
+    const baseline = scannerManifest();
+    const rendered = renderEvidenceScanSurfaceManifest(baseline);
+    expect(rendered).toContain('"predicateAuthority"');
+    expect(rendered).toContain('"pathPlaneAuthority"');
+    expect(
+      renderEvidenceScanSurfaceManifest({
+        ...baseline,
+        predicateAuthority: { ...baseline.predicateAuthority!, sha256: "7".repeat(64) },
+      }),
+    ).not.toBe(rendered);
+    expect(() =>
+      renderEvidenceScanSurfaceManifest({
+        ...baseline,
+        pathPlaneAuthority: { ...baseline.pathPlaneAuthority!, rules: [] },
+      }),
+    ).toThrow(/rules must be non-empty/u);
+    expect(() =>
+      renderEvidenceScanSurfaceManifest({
+        ...baseline,
+        pathPlaneAuthority: {
+          ...baseline.pathPlaneAuthority!,
+          rules: [
+            {
+              ...baseline.pathPlaneAuthority!.rules[0]!,
+              ownerModulePath: "not-a-module-label",
+            },
+          ],
+        },
+      }),
+    ).toThrow(/non-module owner/u);
+  });
+
+  it("pins live authority bytes and rejects a stale predicate-dispatch digest", () => {
+    const repoRoot = path.resolve(import.meta.dirname, "../../..");
+    const live = JSON.parse(
+      readFileSync(path.join(repoRoot, "rust/evidence-scan-surfaces.json"), "utf8"),
+    ) as EvidenceScanSurfaceManifestV0;
+    const predicateSource = readFileSync(
+      path.join(repoRoot, "packages/check-orchestrator/src/evidence/predicates/index.ts"),
+      "utf8",
+    );
+    expect(live.predicateAuthority?.sha256).toBe(sha256Text(predicateSource));
+    expect(live.pathPlaneAuthority?.rules).toEqual(AFFECTED_PATH_RULES);
+    expect(evidenceScanSurfaceFreshnessDiagnostics(repoRoot, live)).toEqual([]);
+    expect(
+      evidenceScanSurfaceFreshnessDiagnostics(repoRoot, {
+        ...live,
+        predicateAuthority: { ...live.predicateAuthority!, sha256: "0".repeat(64) },
+      }),
+    ).toContain(
+      "predicate dispatch digest is stale: packages/check-orchestrator/src/evidence/predicates/index.ts",
+    );
+  });
+
+  it("keeps a coherent committed narrowing RED against the verified parent authority", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-evidence-history-"));
+    const manifestPath = path.join(root, "rust/evidence-scan-surfaces.json");
+    const resolverPath = path.join(
+      root,
+      "packages/check-orchestrator/src/evidence/scan-surface.ts",
+    );
+    const surfaceModulePath = path.join(root, "scripts/surfaces/history.surface.ts");
+    mkdirSync(path.dirname(manifestPath), { recursive: true });
+    mkdirSync(path.dirname(resolverPath), { recursive: true });
+    mkdirSync(path.dirname(surfaceModulePath), { recursive: true });
+    mkdirSync(path.join(root, ".changeset"), { recursive: true });
+    mkdirSync(path.join(root, "rust"), { recursive: true });
+    writeFileSync(surfaceModulePath, "export default {};\n");
+    writeFileSync(path.join(root, ".changeset/README.md"), "history control\n");
+    writeFileSync(path.join(root, "rust/input.rs"), "// input\n");
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    execFileSync("git", ["config", "user.name", "Evidence Test"], { cwd: root });
+    execFileSync("git", ["config", "user.email", "evidence@example.invalid"], { cwd: root });
+    const commitAuthority = (
+      resolverSource: string,
+      spec: ReturnType<typeof defineScanSurface>,
+      message: string,
+    ): string => {
+      writeFileSync(resolverPath, resolverSource);
+      writeFileSync(
+        manifestPath,
+        `${JSON.stringify({
+          schemaVersion: "0",
+          generatedBy: "pnpm omena-check evidence-surfaces --write",
+          detector: { fileCount: 0, patternSha256: "0".repeat(64) },
+          resolverSha256: sha256Text(resolverSource),
+          predicateModules: {},
+          scanners: [
+            {
+              scannerPath: "scripts/history.ts",
+              disposition: "MIGRATED",
+              surfaceModulePath: "scripts/surfaces/history.surface.ts",
+              surfaceModuleSha256: sha256Text("export default {};\n"),
+              spec,
+              gateIds: [],
+            },
+          ],
+        })}\n`,
+      );
+      execFileSync("git", ["add", "."], { cwd: root });
+      execFileSync("git", ["commit", "-q", "-m", message], { cwd: root });
+      return execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
+    };
+    const oldSpec = defineScanSurface({
+      scannerPath: "scripts/history.ts",
+      mode: "workingTree",
+      pathspecs: ["**"],
+      includeUntracked: false,
+      excludes: [],
+    });
+    const newSpec = defineScanSurface({
+      scannerPath: "scripts/history.ts",
+      mode: "workingTree",
+      pathspecs: ["rust/**"],
+      includeUntracked: false,
+      excludes: [],
+    });
+    const oldAuthority = commitAuthority(
+      "export const authority = 'old';\n",
+      oldSpec,
+      "old authority",
+    );
+    const candidate = commitAuthority(
+      "export const authority = 'candidate';\n",
+      newSpec,
+      "candidate",
+    );
+    expect(candidate).not.toBe(oldAuthority);
+    const resolvedAuthority = resolveEvidenceHistoricalAuthorityRef(root);
+    expect(resolvedAuthority).toBe(oldAuthority);
+    const oldManifest = loadCommittedEvidenceScanSurfaceManifest(root, resolvedAuthority);
+    const newManifest = JSON.parse(
+      readFileSync(manifestPath, "utf8"),
+    ) as EvidenceScanSurfaceManifestV0;
+    const oldRow = oldManifest?.scanners[0];
+    const newRow = newManifest.scanners[0];
+    expect(oldRow?.disposition).toBe("MIGRATED");
+    expect(newRow?.disposition).toBe("MIGRATED");
+    if (oldRow?.disposition !== "MIGRATED" || newRow?.disposition !== "MIGRATED") {
+      throw new Error("history fixture lost its migrated rows");
+    }
+    expect(() => assertSurfaceNarrowingReason(root, oldRow.spec, newRow.spec)).toThrow(
+      /first removed path \.changeset\/README\.md/u,
+    );
+  }, 10_000);
 
   it("pins every detector token and does not manufacture a scanner from ordinary source", () => {
     for (const token of [
@@ -423,6 +681,103 @@ describe("writer registry portability", () => {
       expect(
         registry.artifacts.some((row) => row.artifactPath === "rust/evidence-writer-registry.json"),
       ).toBe(true);
+      const linkedBaseline = registry.artifacts.find(
+        (row) => row.artifactPath === "rust/omena-linked-emission-byte-differential-baseline.json",
+      );
+      const linkedCensus = registry.artifacts.find(
+        (row) =>
+          row.artifactPath ===
+          "rust/crates/omena-diff-test/oss-corpus-farm/linked-emission-coverage-census.json",
+      );
+      expect(linkedCensus?.writeCommand).toEqual(linkedBaseline?.writeCommand);
+      const published = registry.artifacts.find(
+        (row) => row.artifactPath === "rust/omena-published-crate-surface-register.json",
+      );
+      expect(published?.writeCommand).toContain("--initialize-from");
+      expect(published?.writeCommand).toContain("${OMENA_PUBLISHED_CRATE_REGISTRY_STATE}");
+      expect(published?.requiredEnvironmentKeys).toContain("OMENA_PUBLISHED_CRATE_REGISTRY_STATE");
+      const ffi = registry.artifacts.find(
+        (row) => row.artifactPath === "rust/omena-ffi-boundary-typing-census.json",
+      );
+      expect(ffi?.inputPaths).toEqual([
+        "rust/crates/omena-napi/src/lib.rs",
+        "rust/crates/omena-napi/src/sdk_workspace.rs",
+        "rust/crates/omena-wasm/src/lib.rs",
+        "rust/crates/omena-wasm/src/sdk_workspace.rs",
+      ]);
+      const parityPath = "rust/omena-cross-surface-parity-golden.json";
+      const sdkErrorPath = "rust/omena-sdk-error-mapping-census.json";
+      expect(
+        registry.artifacts.find((row) => row.artifactPath === parityPath)?.inputArtifactPaths,
+      ).toContain(sdkErrorPath);
+      expect(
+        orderAffectedArtifacts(registry.artifacts, new Set([parityPath, sdkErrorPath])),
+      ).toEqual([sdkErrorPath, parityPath]);
+      const liveScanManifest = JSON.parse(
+        readFileSync(
+          path.join(
+            path.resolve(import.meta.dirname, "../../.."),
+            "rust/evidence-scan-surfaces.json",
+          ),
+          "utf8",
+        ),
+      ) as EvidenceScanSurfaceManifestV0;
+      const liveKnownGateIds = [
+        ...new Set([
+          ...registry.artifacts.flatMap((row) => [...row.writerGateIds, ...row.consumerGateIds]),
+          ...liveScanManifest.scanners.flatMap((row) => ("gateIds" in row ? row.gateIds : [])),
+        ]),
+      ];
+      const ffiPlan = buildEvidenceAffectedPlan({
+        changedPaths: ["rust/crates/omena-napi/src/lib.rs"],
+        scanManifest: liveScanManifest,
+        writerRegistry: registry,
+        expectedScannerPaths: liveScanManifest.scanners
+          .filter((row) => row.disposition !== "RETIRED")
+          .map((row) => row.scannerPath),
+        knownGateIds: liveKnownGateIds,
+      });
+      expect(ffiPlan.affectedArtifactPaths).toContain("rust/omena-ffi-boundary-typing-census.json");
+      expect(ffiPlan.gateIds).toContain("rust/omena-ffi-boundary-typing-census");
+      expect(() =>
+        renderEvidenceWriterRegistry({
+          ...registry,
+          artifacts: registry.artifacts.map((row) =>
+            row.artifactPath === "rust/omena-published-crate-surface-register.json"
+              ? {
+                  ...row,
+                  writeCommand: [
+                    "node",
+                    "./scripts/check-rust-published-crate-surface-register.ts",
+                  ],
+                }
+              : row,
+          ),
+        }),
+      ).toThrow(/must bind a measured registry-state input/u);
+      expect(() =>
+        renderEvidenceWriterRegistry({
+          ...registry,
+          notPreviewableInputs: registry.notPreviewableInputs.map((entry, index) =>
+            index === 0 ? { ...entry, ownerId: "calendar-gate" } : entry,
+          ),
+        }),
+      ).toThrow(/repository module path/u);
+      expect(() =>
+        renderEvidenceWriterRegistry({
+          ...registry,
+          artifacts: registry.artifacts.map((row) =>
+            row.artifactPath === "rust/omena-ffi-boundary-typing-census.json"
+              ? {
+                  ...row,
+                  inputPaths: [],
+                  inputScannerPaths: [],
+                  inputArtifactPaths: [],
+                }
+              : row,
+          ),
+        }),
+      ).toThrow(/unexplained empty input set/u);
     } finally {
       if (originalPath === undefined) delete process.env.PATH;
       else process.env.PATH = originalPath;
@@ -452,31 +807,36 @@ describe("digest-pinned writer wrapper", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "omena-writer-pin-"));
     writeFileSync(path.join(root, "input.txt"), "before");
     writeFileSync(path.join(root, "output.txt"), "old");
+    writeFileSync(path.join(root, "sibling.txt"), "old-sibling");
     const command = [
       process.execPath,
       "-e",
-      "setTimeout(() => require('fs').writeFileSync('output.txt', 'new'), 80)",
+      "setTimeout(() => { const fs = require('fs'); fs.writeFileSync('output.txt', 'new'); fs.writeFileSync('sibling.txt', 'new-sibling'); }, 80)",
     ];
     execFileSync(command[0]!, command.slice(1), { cwd: root });
     const manuallyWritten = readFileSync(path.join(root, "output.txt"));
+    const manuallyWrittenSibling = readFileSync(path.join(root, "sibling.txt"));
     writeFileSync(path.join(root, "output.txt"), "old");
+    writeFileSync(path.join(root, "sibling.txt"), "old-sibling");
     await expect(
       runDigestPinnedWriter({
         repoRoot: root,
         command,
         inputPaths: ["input.txt"],
-        outputPaths: ["output.txt"],
+        outputPaths: ["output.txt", "sibling.txt"],
       }),
     ).resolves.toMatchObject({ exitCode: 0 });
     expect(readFileSync(path.join(root, "output.txt"))).toEqual(manuallyWritten);
+    expect(readFileSync(path.join(root, "sibling.txt"))).toEqual(manuallyWrittenSibling);
 
     writeFileSync(path.join(root, "output.txt"), "old");
+    writeFileSync(path.join(root, "sibling.txt"), "old-sibling");
     await expect(
       runDigestPinnedWriter({
         repoRoot: root,
         command,
         inputPaths: ["input.txt"],
-        outputPaths: ["output.txt"],
+        outputPaths: ["output.txt", "sibling.txt"],
         onStartedForTest: async () => {
           await new Promise((resolve) => setTimeout(resolve, 20));
           writeFileSync(path.join(root, "input.txt"), "changed");
@@ -484,6 +844,7 @@ describe("digest-pinned writer wrapper", () => {
       }),
     ).rejects.toThrow(/concurrent-skew/u);
     expect(readFileSync(path.join(root, "output.txt"), "utf8")).toBe("old");
+    expect(readFileSync(path.join(root, "sibling.txt"), "utf8")).toBe("old-sibling");
   });
 });
 
@@ -535,6 +896,8 @@ describe("pre-push evidence budget", () => {
     );
     expect(plan.ranPrefix.map((entry) => entry.gateId)).toEqual(["a", "b"]);
     expect(plan.estimatedRunMs).toBe(40_000);
+    expect(plan.pricedSkippedMs).toBe(30_000);
+    expect(plan.unboundedSkippedCount).toBe(1);
     expect(plan.skipped).toEqual([
       { gateId: "large", p95Ms: 30_000 },
       { gateId: "unmeasured", p95Ms: null },
@@ -546,12 +909,41 @@ describe("pre-push evidence budget", () => {
       "node writer.mjs --write-any-future-form",
       "node writer.mjs --update-census",
       "node writer.mjs --update-snapshots",
+      "node writer.mjs --write=true",
+      "node writer.mjs --write:path",
+      "node writer.mjs --update=snapshot",
     ]) {
       expect(isEvidencePreviewCheckGate(gate("mutation", command)), command).toBe(false);
     }
     expect(plan.budgetMs).toBe(EVIDENCE_PREVIEW_BUDGET_MS);
     expect(EVIDENCE_PREVIEW_EMPTY_BUDGET_MS).toBe(5_000);
+    expect(() => buildEvidencePreviewBudgetPlan(["unknown"], manifest, ledger)).toThrow(
+      /unknown gate/u,
+    );
   });
+
+  it("rejects mixed write and preview CLI mode before any writer executes", () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--import",
+        "tsx",
+        "./packages/check-orchestrator/src/cli/main.ts",
+        "affected",
+        "--evidence",
+        "--write",
+        "--preview",
+        "--base=HEAD",
+      ],
+      {
+        cwd: path.resolve(import.meta.dirname, "../../.."),
+        encoding: "utf8",
+        env: process.env,
+      },
+    );
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("--write and --preview are separate modes");
+  }, 10_000);
 
   it("blocks on the first failing selected gate", async () => {
     const plan = buildEvidencePreviewBudgetPlan(["a", "b"], manifest, ledger);

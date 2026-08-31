@@ -22,7 +22,22 @@ const EXEC_FAMILY_CALLEES = new Set([
   "run",
   "git",
 ]);
-const MODULE_SCANNER_NAMES = new Set(["fast-glob", "globby"]);
+const MODULE_SCANNER_NAMES = new Set(["fast-glob", "globby", "glob"]);
+const FILESYSTEM_MODULE_NAMES = new Set(["node:fs", "fs", "node:fs/promises", "fs/promises"]);
+const CHILD_PROCESS_MODULE_NAMES = new Set(["node:child_process", "child_process"]);
+const SURFACE_RESOLVER_EXPORT = "resolveScanSurfaceForScanner";
+
+interface ScannerBindings {
+  readonly directEnumerationBindings: ReadonlySet<string>;
+  readonly filesystemModuleBindings: ReadonlySet<string>;
+  readonly enumerationModuleBindings: ReadonlySet<string>;
+  readonly childProcessBindings: ReadonlySet<string>;
+  readonly childProcessModuleBindings: ReadonlySet<string>;
+  readonly resolverBindings: ReadonlySet<string>;
+  readonly surfaceFactoryBindings: ReadonlySet<string>;
+  readonly surfaceObjectBindings: ReadonlySet<string>;
+  readonly typedSurfaceParameterBindings: ReadonlySet<string>;
+}
 
 export type ScannerCallSiteLayer = "layer-1" | "layer-2a" | "layer-2b" | "tertiary";
 
@@ -67,33 +82,14 @@ export function analyzeScannerSource(scannerPath: string, sourceText: string): S
     true,
     scannerPath.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
-  const moduleAliases = new Set<string>();
+  const bindings = scannerBindings(sourceFile);
   const callSites: ScannerCallSite[] = [];
   const tertiaryExecFamilySites: ScannerCallSite[] = [];
 
-  for (const statement of sourceFile.statements) {
-    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
-      continue;
-    }
-    if (!MODULE_SCANNER_NAMES.has(statement.moduleSpecifier.text)) continue;
-    const importClause = statement.importClause;
-    if (importClause?.name) moduleAliases.add(importClause.name.text);
-    const bindings = importClause?.namedBindings;
-    if (bindings && ts.isNamespaceImport(bindings)) moduleAliases.add(bindings.name.text);
-    if (bindings && ts.isNamedImports(bindings)) {
-      for (const element of bindings.elements) moduleAliases.add(element.name.text);
-    }
-  }
-
   const visit = (node: tsTypes.Node): void => {
     if (ts.isCallExpression(node)) {
-      const callee = callExpressionName(node.expression);
-      if (callee && LAYER_ONE_CALLEES.has(callee)) {
-        callSites.push(siteFor(sourceFile, node, "layer-1"));
-      }
-      if (usesModuleAlias(node.expression, moduleAliases)) {
-        callSites.push(siteFor(sourceFile, node, "layer-2b"));
-      }
+      const layer = enumerationCallLayer(node.expression, bindings);
+      if (layer) callSites.push(siteFor(sourceFile, node, layer));
     }
     if (ts.isStringLiteral(node) && node.text === "ls-files") {
       callSites.push(siteFor(sourceFile, node, "layer-2a"));
@@ -103,8 +99,7 @@ export function analyzeScannerSource(scannerPath: string, sourceText: string): S
       node.getText(sourceFile).includes("ls-files")
     ) {
       const enclosingCall = enclosingArgumentCall(node);
-      const callee = enclosingCall ? callExpressionName(enclosingCall.expression) : null;
-      if (callee && EXEC_FAMILY_CALLEES.has(callee)) {
+      if (enclosingCall && isExecFamilyExpression(enclosingCall.expression, bindings)) {
         tertiaryExecFamilySites.push(siteFor(sourceFile, node, "tertiary"));
       }
     }
@@ -138,29 +133,32 @@ export function findUnroutedScannerCallSites(
     true,
     scannerPath.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
-  const moduleAliases = scannerModuleAliases(sourceFile);
-  const helperRoutes = routedTrackedProductionSourceHelpers(sourceFile);
+  const bindings = scannerBindings(sourceFile);
+  const helperRoutes = routedTrackedProductionSourceHelpers(sourceFile, bindings);
   const diagnostics: ScannerRoutingDiagnostic[] = [];
   const visit = (node: tsTypes.Node): void => {
     if (ts.isCallExpression(node)) {
       const callee = callExpressionName(node.expression);
+      const layer = enumerationCallLayer(node.expression, bindings);
       if (
-        callee &&
-        LAYER_ONE_CALLEES.has(callee) &&
-        !isSurfaceRoutedExpression(node.expression) &&
+        layer &&
+        !isSurfaceRoutedExpression(node.expression, bindings) &&
         !(callee === "trackedProductionSources" && helperRoutes.has(callee))
       ) {
-        diagnostics.push(routingDiagnostic(sourceFile, node, `direct ${callee} call`));
-      }
-      if (usesModuleAlias(node.expression, moduleAliases)) {
         diagnostics.push(
-          routingDiagnostic(sourceFile, node, "module glob call bypasses resolveScanSurface"),
+          routingDiagnostic(
+            sourceFile,
+            node,
+            layer === "layer-2b"
+              ? "module glob call bypasses resolveScanSurface"
+              : `direct ${callee ?? "enumeration"} call`,
+          ),
         );
       }
     }
     if (ts.isStringLiteral(node) && node.text === "ls-files") {
       const enclosingCall = enclosingArgumentCall(node);
-      if (!enclosingCall || !isSurfaceRoutedExpression(enclosingCall.expression)) {
+      if (!enclosingCall || !isSurfaceRoutedExpression(enclosingCall.expression, bindings)) {
         diagnostics.push(
           routingDiagnostic(sourceFile, node, "git ls-files token bypasses resolveScanSurface"),
         );
@@ -171,8 +169,7 @@ export function findUnroutedScannerCallSites(
       node.getText(sourceFile).includes("ls-files")
     ) {
       const enclosingCall = enclosingArgumentCall(node);
-      const callee = enclosingCall ? callExpressionName(enclosingCall.expression) : null;
-      if (callee && EXEC_FAMILY_CALLEES.has(callee)) {
+      if (enclosingCall && isExecFamilyExpression(enclosingCall.expression, bindings)) {
         diagnostics.push(
           routingDiagnostic(sourceFile, node, "exec-family template git enumeration residue"),
         );
@@ -184,32 +181,154 @@ export function findUnroutedScannerCallSites(
   return diagnostics;
 }
 
-function scannerModuleAliases(sourceFile: tsTypes.SourceFile): ReadonlySet<string> {
-  const aliases = new Set<string>();
+function scannerBindings(sourceFile: tsTypes.SourceFile): ScannerBindings {
+  const directEnumerationBindings = new Set<string>();
+  const filesystemModuleBindings = new Set<string>();
+  const enumerationModuleBindings = new Set<string>();
+  const childProcessBindings = new Set<string>();
+  const childProcessModuleBindings = new Set<string>();
+  const resolverBindings = new Set<string>();
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
       continue;
     }
-    if (!MODULE_SCANNER_NAMES.has(statement.moduleSpecifier.text)) continue;
+    const moduleName = statement.moduleSpecifier.text;
     const importClause = statement.importClause;
-    if (importClause?.name) aliases.add(importClause.name.text);
-    const bindings = importClause?.namedBindings;
-    if (bindings && ts.isNamespaceImport(bindings)) aliases.add(bindings.name.text);
-    if (bindings && ts.isNamedImports(bindings)) {
-      for (const element of bindings.elements) aliases.add(element.name.text);
+    if (importClause?.name) {
+      if (MODULE_SCANNER_NAMES.has(moduleName)) {
+        enumerationModuleBindings.add(importClause.name.text);
+      }
+      if (FILESYSTEM_MODULE_NAMES.has(moduleName)) {
+        filesystemModuleBindings.add(importClause.name.text);
+      }
+      if (CHILD_PROCESS_MODULE_NAMES.has(moduleName)) {
+        childProcessModuleBindings.add(importClause.name.text);
+      }
+    }
+    const namedBindings = importClause?.namedBindings;
+    if (namedBindings && ts.isNamespaceImport(namedBindings)) {
+      if (MODULE_SCANNER_NAMES.has(moduleName)) {
+        enumerationModuleBindings.add(namedBindings.name.text);
+      }
+      if (FILESYSTEM_MODULE_NAMES.has(moduleName)) {
+        filesystemModuleBindings.add(namedBindings.name.text);
+      }
+      if (CHILD_PROCESS_MODULE_NAMES.has(moduleName)) {
+        childProcessModuleBindings.add(namedBindings.name.text);
+      }
+    }
+    if (namedBindings && ts.isNamedImports(namedBindings)) {
+      for (const element of namedBindings.elements) {
+        const importedName = element.propertyName?.text ?? element.name.text;
+        const localName = element.name.text;
+        if (FILESYSTEM_MODULE_NAMES.has(moduleName) && LAYER_ONE_CALLEES.has(importedName)) {
+          directEnumerationBindings.add(localName);
+        }
+        if (MODULE_SCANNER_NAMES.has(moduleName)) {
+          enumerationModuleBindings.add(localName);
+        }
+        if (CHILD_PROCESS_MODULE_NAMES.has(moduleName) && EXEC_FAMILY_CALLEES.has(importedName)) {
+          childProcessBindings.add(localName);
+        }
+        if (isSurfaceResolverModule(moduleName) && importedName === SURFACE_RESOLVER_EXPORT) {
+          resolverBindings.add(localName);
+        }
+      }
     }
   }
-  return aliases;
+
+  const surfaceFactoryBindings = new Set<string>();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const inspectFactory = (node: tsTypes.Node): void => {
+      if (
+        ts.isFunctionDeclaration(node) &&
+        node.name &&
+        node.body &&
+        functionReturnsSurface(node.body, resolverBindings, surfaceFactoryBindings) &&
+        !surfaceFactoryBindings.has(node.name.text)
+      ) {
+        surfaceFactoryBindings.add(node.name.text);
+        changed = true;
+      }
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.initializer &&
+        (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer)) &&
+        functionLikeReturnsSurface(node.initializer, resolverBindings, surfaceFactoryBindings) &&
+        !surfaceFactoryBindings.has(node.name.text)
+      ) {
+        surfaceFactoryBindings.add(node.name.text);
+        changed = true;
+      }
+      ts.forEachChild(node, inspectFactory);
+    };
+    inspectFactory(sourceFile);
+  }
+
+  const surfaceObjectBindings = new Set<string>();
+  changed = true;
+  while (changed) {
+    changed = false;
+    const inspectSurfaceObject = (node: tsTypes.Node): void => {
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.initializer &&
+        expressionProducesSurface(
+          node.initializer,
+          resolverBindings,
+          surfaceFactoryBindings,
+          surfaceObjectBindings,
+        ) &&
+        !surfaceObjectBindings.has(node.name.text)
+      ) {
+        surfaceObjectBindings.add(node.name.text);
+        changed = true;
+      }
+      ts.forEachChild(node, inspectSurfaceObject);
+    };
+    inspectSurfaceObject(sourceFile);
+  }
+
+  const typedSurfaceParameterBindings = new Set<string>();
+  const inspectParameters = (node: tsTypes.Node): void => {
+    if (ts.isParameter(node) && ts.isIdentifier(node.name) && node.type) {
+      const typeText = node.type.getText(sourceFile);
+      if ([...resolverBindings].some((binding) => typeText.includes(binding))) {
+        typedSurfaceParameterBindings.add(node.name.text);
+      }
+    }
+    ts.forEachChild(node, inspectParameters);
+  };
+  inspectParameters(sourceFile);
+
+  return {
+    directEnumerationBindings,
+    filesystemModuleBindings,
+    enumerationModuleBindings,
+    childProcessBindings,
+    childProcessModuleBindings,
+    resolverBindings,
+    surfaceFactoryBindings,
+    surfaceObjectBindings,
+    typedSurfaceParameterBindings,
+  };
 }
 
-function routedTrackedProductionSourceHelpers(sourceFile: tsTypes.SourceFile): ReadonlySet<string> {
+function routedTrackedProductionSourceHelpers(
+  sourceFile: tsTypes.SourceFile,
+  bindings: ScannerBindings,
+): ReadonlySet<string> {
   const routed = new Set<string>();
   const visit = (node: tsTypes.Node): void => {
     if (
       ts.isFunctionDeclaration(node) &&
       node.name?.text === "trackedProductionSources" &&
       node.body &&
-      node.body.getText(sourceFile).includes("evidenceScanSurface.")
+      nodeContainsRoutedEnumeration(node.body, bindings)
     ) {
       routed.add(node.name.text);
     }
@@ -219,16 +338,132 @@ function routedTrackedProductionSourceHelpers(sourceFile: tsTypes.SourceFile): R
   return routed;
 }
 
-function isSurfaceRoutedExpression(expression: tsTypes.LeftHandSideExpression): boolean {
-  if (ts.isPropertyAccessExpression(expression)) {
-    let root: tsTypes.Expression = expression.expression;
-    while (ts.isPropertyAccessExpression(root)) root = root.expression;
-    if (ts.isCallExpression(root)) {
-      return callExpressionName(root.expression) === "resolveScanSurfaceForScanner";
-    }
-    return ts.isIdentifier(root) && /scanSurface$/iu.test(root.text);
+function isSurfaceRoutedExpression(
+  expression: tsTypes.LeftHandSideExpression,
+  bindings: ScannerBindings,
+): boolean {
+  const root = expressionRoot(expression);
+  if (ts.isCallExpression(root)) {
+    const factory = callExpressionName(root.expression);
+    return (
+      factory !== null &&
+      (bindings.resolverBindings.has(factory) || bindings.surfaceFactoryBindings.has(factory))
+    );
   }
-  return false;
+  return (
+    ts.isIdentifier(root) &&
+    (bindings.surfaceObjectBindings.has(root.text) ||
+      bindings.typedSurfaceParameterBindings.has(root.text))
+  );
+}
+
+function enumerationCallLayer(
+  expression: tsTypes.LeftHandSideExpression,
+  bindings: ScannerBindings,
+): Extract<ScannerCallSiteLayer, "layer-1" | "layer-2b"> | null {
+  if (usesModuleAlias(expression, bindings.enumerationModuleBindings)) return "layer-2b";
+  const callee = callExpressionName(expression);
+  if (
+    (callee && LAYER_ONE_CALLEES.has(callee)) ||
+    (ts.isIdentifier(expression) && bindings.directEnumerationBindings.has(expression.text)) ||
+    (callee &&
+      LAYER_ONE_CALLEES.has(callee) &&
+      usesModuleAlias(expression, bindings.filesystemModuleBindings))
+  ) {
+    return "layer-1";
+  }
+  return null;
+}
+
+function isExecFamilyExpression(
+  expression: tsTypes.LeftHandSideExpression,
+  bindings: ScannerBindings,
+): boolean {
+  const callee = callExpressionName(expression);
+  if (ts.isIdentifier(expression) && bindings.childProcessBindings.has(expression.text))
+    return true;
+  if (usesModuleAlias(expression, bindings.childProcessModuleBindings)) return true;
+  return callee !== null && EXEC_FAMILY_CALLEES.has(callee);
+}
+
+function isSurfaceResolverModule(moduleName: string): boolean {
+  return /(?:^|\/)scan-surface-manifest(?:\.ts)?$/u.test(moduleName);
+}
+
+function functionReturnsSurface(
+  body: tsTypes.Block,
+  resolverBindings: ReadonlySet<string>,
+  factoryBindings: ReadonlySet<string>,
+): boolean {
+  let returnsSurface = false;
+  const visit = (node: tsTypes.Node): void => {
+    if (
+      node !== body &&
+      (ts.isFunctionDeclaration(node) ||
+        ts.isFunctionExpression(node) ||
+        ts.isArrowFunction(node) ||
+        ts.isMethodDeclaration(node))
+    ) {
+      return;
+    }
+    if (
+      ts.isReturnStatement(node) &&
+      node.expression &&
+      expressionProducesSurface(node.expression, resolverBindings, factoryBindings, new Set())
+    ) {
+      returnsSurface = true;
+      return;
+    }
+    if (!returnsSurface) ts.forEachChild(node, visit);
+  };
+  visit(body);
+  return returnsSurface;
+}
+
+function functionLikeReturnsSurface(
+  node: tsTypes.ArrowFunction | tsTypes.FunctionExpression,
+  resolverBindings: ReadonlySet<string>,
+  factoryBindings: ReadonlySet<string>,
+): boolean {
+  return ts.isBlock(node.body)
+    ? functionReturnsSurface(node.body, resolverBindings, factoryBindings)
+    : expressionProducesSurface(node.body, resolverBindings, factoryBindings, new Set());
+}
+
+function expressionProducesSurface(
+  expression: tsTypes.Expression,
+  resolverBindings: ReadonlySet<string>,
+  factoryBindings: ReadonlySet<string>,
+  surfaceBindings: ReadonlySet<string>,
+): boolean {
+  if (ts.isIdentifier(expression)) return surfaceBindings.has(expression.text);
+  if (!ts.isCallExpression(expression)) return false;
+  const factory = callExpressionName(expression.expression);
+  return factory !== null && (resolverBindings.has(factory) || factoryBindings.has(factory));
+}
+
+function nodeContainsRoutedEnumeration(node: tsTypes.Node, bindings: ScannerBindings): boolean {
+  let found = false;
+  const visit = (candidate: tsTypes.Node): void => {
+    if (
+      ts.isCallExpression(candidate) &&
+      enumerationCallLayer(candidate.expression, bindings) &&
+      isSurfaceRoutedExpression(candidate.expression, bindings)
+    ) {
+      found = true;
+      return;
+    }
+    if (ts.isStringLiteral(candidate) && candidate.text === "ls-files") {
+      const enclosingCall = enclosingArgumentCall(candidate);
+      if (enclosingCall && isSurfaceRoutedExpression(enclosingCall.expression, bindings)) {
+        found = true;
+        return;
+      }
+    }
+    if (!found) ts.forEachChild(candidate, visit);
+  };
+  visit(node);
+  return found;
 }
 
 function routingDiagnostic(
@@ -261,20 +496,31 @@ function enclosingArgumentCall(node: tsTypes.Node): tsTypes.CallExpression | nul
 function callExpressionName(expression: tsTypes.LeftHandSideExpression): string | null {
   if (ts.isIdentifier(expression)) return expression.text;
   if (ts.isPropertyAccessExpression(expression)) return expression.name.text;
+  if (
+    ts.isElementAccessExpression(expression) &&
+    expression.argumentExpression &&
+    (ts.isStringLiteral(expression.argumentExpression) ||
+      ts.isNoSubstitutionTemplateLiteral(expression.argumentExpression))
+  ) {
+    return expression.argumentExpression.text;
+  }
   return null;
+}
+
+function expressionRoot(expression: tsTypes.LeftHandSideExpression): tsTypes.Expression {
+  let current: tsTypes.Expression = expression;
+  while (ts.isPropertyAccessExpression(current) || ts.isElementAccessExpression(current)) {
+    current = current.expression;
+  }
+  return current;
 }
 
 function usesModuleAlias(
   expression: tsTypes.LeftHandSideExpression,
   aliases: ReadonlySet<string>,
 ): boolean {
-  if (ts.isIdentifier(expression)) return aliases.has(expression.text);
-  if (ts.isPropertyAccessExpression(expression)) {
-    let current: tsTypes.Expression = expression.expression;
-    while (ts.isPropertyAccessExpression(current)) current = current.expression;
-    return ts.isIdentifier(current) && aliases.has(current.text);
-  }
-  return false;
+  const root = expressionRoot(expression);
+  return ts.isIdentifier(root) && aliases.has(root.text);
 }
 
 function siteFor(

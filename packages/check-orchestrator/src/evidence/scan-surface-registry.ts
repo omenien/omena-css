@@ -1,11 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { compilerApi as ts } from "../../../../server/engine-core-ts/src/ts-facade";
 import type tsTypes from "../../../../server/engine-core-ts/src/ts-facade";
 import type { CheckManifest } from "../manifest/types";
+import { AFFECTED_PATH_RULE_MODULE_PATH, AFFECTED_PATH_RULES } from "../affected";
 import { SCAN_SURFACE_PREDICATE_MODULE_PATHS } from "./predicates/index";
 import {
   detectScannerFiles,
@@ -13,6 +14,7 @@ import {
   SCANNER_DETECTION_PATTERN,
 } from "./scanner-analysis";
 import {
+  EVIDENCE_SCAN_SURFACE_MANIFEST_PATH,
   loadCommittedEvidenceScanSurfaceManifest,
   setEvidenceScanSurfaceBootstrapSpecs,
   sha256Text,
@@ -30,6 +32,8 @@ import {
 
 const SURFACE_MODULE_IMPORT = "../../packages/check-orchestrator/src/evidence/scan-surface";
 const RESOLVER_MODULE_PATH = "packages/check-orchestrator/src/evidence/scan-surface.ts";
+const PREDICATE_AUTHORITY_MODULE_PATH =
+  "packages/check-orchestrator/src/evidence/predicates/index.ts";
 const SURFACE_MODULES_SURFACE = defineScanSurface({
   scannerPath: "packages/check-orchestrator/src/evidence/scan-surface-registry.ts",
   mode: "index",
@@ -44,10 +48,70 @@ interface LoadedSurfaceDeclaration {
   readonly declaration: ScanSurfaceDeclaration;
 }
 
+export function evidenceScanSurfaceFreshnessDiagnostics(
+  repoRoot: string,
+  manifest: EvidenceScanSurfaceManifestV0,
+): readonly string[] {
+  const diagnostics: string[] = [];
+  if (manifest.detector.patternSha256 !== sha256Text(SCANNER_DETECTION_PATTERN.source)) {
+    diagnostics.push("scanner detector predicate digest is stale");
+  }
+  const authorities = [
+    { label: "resolver", modulePath: RESOLVER_MODULE_PATH, sha256: manifest.resolverSha256 },
+    ...(manifest.predicateAuthority
+      ? [{ label: "predicate dispatch", ...manifest.predicateAuthority }]
+      : []),
+    ...Object.entries(manifest.predicateModules).map(([predicateId, authority]) => ({
+      label: `predicate ${predicateId}`,
+      ...authority,
+    })),
+    ...(manifest.pathPlaneAuthority
+      ? [
+          {
+            label: "affected path plane",
+            modulePath: manifest.pathPlaneAuthority.modulePath,
+            sha256: manifest.pathPlaneAuthority.sha256,
+          },
+        ]
+      : []),
+    ...manifest.scanners.flatMap((row) =>
+      row.disposition === "MIGRATED"
+        ? [
+            {
+              label: `surface ${row.scannerPath}`,
+              modulePath: row.surfaceModulePath,
+              sha256: row.surfaceModuleSha256,
+            },
+          ]
+        : [],
+    ),
+  ];
+  if (!manifest.predicateAuthority) diagnostics.push("predicate dispatch authority is absent");
+  if (!manifest.pathPlaneAuthority) diagnostics.push("affected path-plane authority is absent");
+  for (const authority of authorities) {
+    const absolutePath = path.join(repoRoot, authority.modulePath);
+    if (!existsSync(absolutePath)) {
+      diagnostics.push(`${authority.label} module is missing: ${authority.modulePath}`);
+      continue;
+    }
+    if (sha256Text(readFileSync(absolutePath, "utf8")) !== authority.sha256) {
+      diagnostics.push(`${authority.label} digest is stale: ${authority.modulePath}`);
+    }
+  }
+  if (
+    manifest.pathPlaneAuthority &&
+    JSON.stringify(manifest.pathPlaneAuthority.rules) !== JSON.stringify(AFFECTED_PATH_RULES)
+  ) {
+    diagnostics.push("affected path-plane rule declarations are stale");
+  }
+  return diagnostics;
+}
+
 export async function buildEvidenceScanSurfaceManifest(
   repoRoot: string,
 ): Promise<EvidenceScanSurfaceManifestV0> {
   const declarations = await loadSurfaceDeclarations(repoRoot);
+  const historicalAuthorityRef = resolveEvidenceHistoricalAuthorityRef(repoRoot);
   const declarationByScanner = new Map<string, LoadedSurfaceDeclaration>();
   for (const loaded of declarations) {
     const scannerPath = scannerPathForDeclaration(loaded.declaration);
@@ -80,11 +144,15 @@ export async function buildEvidenceScanSurfaceManifest(
   } finally {
     setEvidenceScanSurfaceBootstrapSpecs(null);
   }
-  const oldManifest = loadCommittedEvidenceScanSurfaceManifest(repoRoot);
-  const deletedPaths = currentDeletedPaths(repoRoot);
+  const oldManifest = loadCommittedEvidenceScanSurfaceManifest(repoRoot, historicalAuthorityRef);
+  const deletedPaths = currentDeletedPaths(repoRoot, historicalAuthorityRef);
   const resolverSha256 = sha256Text(
     readFileSync(path.join(repoRoot, RESOLVER_MODULE_PATH), "utf8"),
   );
+  const predicateAuthority = {
+    modulePath: PREDICATE_AUTHORITY_MODULE_PATH,
+    sha256: sha256Text(readFileSync(path.join(repoRoot, PREDICATE_AUTHORITY_MODULE_PATH), "utf8")),
+  };
   const predicateModules = Object.fromEntries(
     Object.entries(SCAN_SURFACE_PREDICATE_MODULE_PATHS).map(([predicateId, modulePath]) => [
       predicateId,
@@ -94,6 +162,18 @@ export async function buildEvidenceScanSurfaceManifest(
       },
     ]),
   ) as EvidenceScanSurfaceManifestV0["predicateModules"];
+  for (const rule of AFFECTED_PATH_RULES) {
+    if (!existsSync(path.join(repoRoot, rule.ownerModulePath))) {
+      throw new Error(
+        `affected path rule ${rule.ruleId} owner is missing: ${rule.ownerModulePath}`,
+      );
+    }
+  }
+  const pathPlaneAuthority = {
+    modulePath: AFFECTED_PATH_RULE_MODULE_PATH,
+    sha256: sha256Text(readFileSync(path.join(repoRoot, AFFECTED_PATH_RULE_MODULE_PATH), "utf8")),
+    rules: AFFECTED_PATH_RULES,
+  };
 
   const rows: EvidenceScannerManifestRowV0[] = [];
   for (const detection of detections) {
@@ -214,13 +294,91 @@ export async function buildEvidenceScanSurfaceManifest(
       patternSha256: sha256Text(SCANNER_DETECTION_PATTERN.source),
     },
     resolverSha256,
+    predicateAuthority,
     predicateModules,
+    pathPlaneAuthority,
     scanners: rows.toSorted((left, right) => compareText(left.scannerPath, right.scannerPath)),
   };
   enforceManifestContinuity(oldManifest, manifest);
   enforceDetectorRatchet(oldManifest, manifest);
-  await enforceSurfaceNarrowing(repoRoot, oldManifest, manifest);
+  await enforceSurfaceNarrowing(repoRoot, historicalAuthorityRef, oldManifest, manifest);
   return manifest;
+}
+
+export function resolveEvidenceHistoricalAuthorityRef(repoRoot: string): string {
+  const status = spawnSync("git", ["status", "--porcelain", "--untracked-files=normal"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    shell: false,
+  });
+  if ((status.status ?? 1) !== 0) {
+    throw new Error(`cannot inspect evidence history worktree: ${String(status.stderr).trim()}`);
+  }
+  if (String(status.stdout).trim().length > 0) return resolveGitRef(repoRoot, "HEAD");
+
+  const lastManifestCommit = spawnSync(
+    "git",
+    ["log", "-1", "--format=%H", "--", EVIDENCE_SCAN_SURFACE_MANIFEST_PATH],
+    { cwd: repoRoot, encoding: "utf8", shell: false },
+  );
+  const manifestCommit = String(lastManifestCommit.stdout).trim();
+  if ((lastManifestCommit.status ?? 1) !== 0 || !/^[0-9a-f]{40}$/u.test(manifestCommit)) {
+    throw new Error("cannot locate the committed evidence scan-surface authority");
+  }
+  const ancestors = spawnSync("git", ["rev-list", "--first-parent", `${manifestCommit}^`], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    shell: false,
+  });
+  if ((ancestors.status ?? 1) !== 0) {
+    throw new Error(`cannot enumerate evidence history: ${String(ancestors.stderr).trim()}`);
+  }
+  for (const ref of String(ancestors.stdout).split(/\r?\n/u).filter(Boolean)) {
+    if (historicalManifestAuthorityMatches(repoRoot, ref)) return ref;
+  }
+  throw new Error(
+    `no verified parent authority exists before evidence manifest commit ${manifestCommit}`,
+  );
+}
+
+function historicalManifestAuthorityMatches(repoRoot: string, ref: string): boolean {
+  const manifest = loadCommittedEvidenceScanSurfaceManifest(repoRoot, ref);
+  if (!manifest) return false;
+  const authorities = [
+    { modulePath: RESOLVER_MODULE_PATH, sha256: manifest.resolverSha256 },
+    ...(manifest.predicateAuthority ? [manifest.predicateAuthority] : []),
+    ...Object.values(manifest.predicateModules),
+    ...(manifest.pathPlaneAuthority
+      ? [
+          {
+            modulePath: manifest.pathPlaneAuthority.modulePath,
+            sha256: manifest.pathPlaneAuthority.sha256,
+          },
+        ]
+      : []),
+    ...manifest.scanners.flatMap((row) =>
+      row.disposition === "MIGRATED"
+        ? [{ modulePath: row.surfaceModulePath, sha256: row.surfaceModuleSha256 }]
+        : [],
+    ),
+  ];
+  return authorities.every(({ modulePath, sha256 }) => {
+    const source = historicalSourceOrNull(repoRoot, ref, modulePath);
+    return source !== null && sha256Text(source) === sha256;
+  });
+}
+
+function resolveGitRef(repoRoot: string, ref: string): string {
+  const resolved = spawnSync("git", ["rev-parse", "--verify", `${ref}^{commit}`], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    shell: false,
+  });
+  const sha = String(resolved.stdout).trim();
+  if ((resolved.status ?? 1) !== 0 || !/^[0-9a-f]{40}$/u.test(sha)) {
+    throw new Error(`cannot resolve evidence history ref ${ref}`);
+  }
+  return sha;
 }
 
 async function loadSurfaceDeclarations(
@@ -304,12 +462,19 @@ function requireResolverRouting(repoRoot: string, scannerPath: string): void {
   }
 }
 
-function currentDeletedPaths(repoRoot: string): ReadonlySet<string> {
-  const result = spawnSync("git", ["diff", "--name-only", "--diff-filter=D", "HEAD"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    shell: false,
-  });
+function currentDeletedPaths(
+  repoRoot: string,
+  historicalAuthorityRef: string,
+): ReadonlySet<string> {
+  const result = spawnSync(
+    "git",
+    ["diff", "--name-only", "--diff-filter=D", historicalAuthorityRef, "--"],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      shell: false,
+    },
+  );
   if ((result.status ?? 1) !== 0) throw new Error(String(result.stderr).trim());
   return new Set(String(result.stdout).split(/\r?\n/u).filter(Boolean));
 }
@@ -369,6 +534,7 @@ function enforceManifestContinuity(
 
 async function enforceSurfaceNarrowing(
   repoRoot: string,
+  historicalAuthorityRef: string,
   oldManifest: EvidenceScanSurfaceManifestV0 | null,
   newManifest: EvidenceScanSurfaceManifestV0,
 ): Promise<void> {
@@ -379,9 +545,12 @@ async function enforceSurfaceNarrowing(
       .map((row) => [row.scannerPath, row]),
   );
   const resolverChanged = oldManifest.resolverSha256 !== newManifest.resolverSha256;
-  const historicalResolver = resolverChanged
-    ? await loadHistoricalScanSurfaceResolver(repoRoot, oldManifest)
-    : null;
+  const predicateAuthorityChanged =
+    oldManifest.predicateAuthority?.sha256 !== newManifest.predicateAuthority?.sha256;
+  const historicalResolver =
+    resolverChanged || predicateAuthorityChanged
+      ? await loadHistoricalScanSurfaceResolver(repoRoot, historicalAuthorityRef, oldManifest)
+      : null;
   for (const row of newManifest.scanners) {
     if (row.disposition !== "MIGRATED") continue;
     const oldRow = oldMigrated.get(row.renamedFrom ?? row.scannerPath);
@@ -394,10 +563,22 @@ async function enforceSurfaceNarrowing(
     );
     const specChanged = JSON.stringify(oldRow.spec) !== JSON.stringify(row.spec);
     const moduleChanged = oldRow.surfaceModuleSha256 !== row.surfaceModuleSha256;
-    if (!resolverChanged && !predicateChanged && !specChanged && !moduleChanged) continue;
+    if (
+      !resolverChanged &&
+      !predicateAuthorityChanged &&
+      !predicateChanged &&
+      !specChanged &&
+      !moduleChanged
+    )
+      continue;
     const oldPredicateOverrides = historicalResolver
       ? {}
-      : await loadHistoricalPredicateOverrides(repoRoot, oldManifest, relevantPredicateIds);
+      : await loadHistoricalPredicateOverrides(
+          repoRoot,
+          historicalAuthorityRef,
+          oldManifest,
+          relevantPredicateIds,
+        );
     let oldPaths: readonly string[];
     try {
       oldPaths = historicalResolver
@@ -428,11 +609,25 @@ type HistoricalResolveScanSurface = typeof resolveScanSurface;
 
 async function loadHistoricalScanSurfaceResolver(
   repoRoot: string,
+  historicalAuthorityRef: string,
   oldManifest: EvidenceScanSurfaceManifestV0,
 ): Promise<HistoricalResolveScanSurface> {
-  const resolverSource = historicalSource(repoRoot, RESOLVER_MODULE_PATH);
+  const resolverSource = historicalSource(repoRoot, historicalAuthorityRef, RESOLVER_MODULE_PATH);
   if (sha256Text(resolverSource) !== oldManifest.resolverSha256) {
     throw new Error("old scan surface resolver bytes do not match the committed manifest digest");
+  }
+  const predicateAuthoritySource = historicalSource(
+    repoRoot,
+    historicalAuthorityRef,
+    PREDICATE_AUTHORITY_MODULE_PATH,
+  );
+  if (
+    oldManifest.predicateAuthority &&
+    sha256Text(predicateAuthoritySource) !== oldManifest.predicateAuthority.sha256
+  ) {
+    throw new Error(
+      "old scan surface predicate authority bytes do not match the committed manifest digest",
+    );
   }
   const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), "omena-old-scan-surface-"));
   try {
@@ -440,13 +635,13 @@ async function loadHistoricalScanSurfaceResolver(
     mkdirSync(predicateDirectory, { recursive: true });
     writeFileSync(path.join(temporaryRoot, "scan-surface.ts"), resolverSource);
     for (const sourcePath of [
-      "packages/check-orchestrator/src/evidence/predicates/index.ts",
+      PREDICATE_AUTHORITY_MODULE_PATH,
       "packages/check-orchestrator/src/evidence/predicates/types.ts",
       ...Object.values(oldManifest.predicateModules).map((entry) => entry.modulePath),
     ]) {
       writeFileSync(
         path.join(predicateDirectory, path.posix.basename(sourcePath)),
-        historicalSource(repoRoot, sourcePath),
+        historicalSource(repoRoot, historicalAuthorityRef, sourcePath),
       );
     }
     const moduleUrl = `${pathToFileURL(path.join(temporaryRoot, "scan-surface.ts")).href}?sha256=${oldManifest.resolverSha256}`;
@@ -464,20 +659,27 @@ async function loadHistoricalScanSurfaceResolver(
   }
 }
 
-function historicalSource(repoRoot: string, sourcePath: string): string {
-  const shown = spawnSync("git", ["show", `HEAD:${sourcePath}`], {
+function historicalSource(repoRoot: string, ref: string, sourcePath: string): string {
+  const source = historicalSourceOrNull(repoRoot, ref, sourcePath);
+  if (source === null) {
+    throw new Error(`historical source is unavailable at ${ref}: ${sourcePath}`);
+  }
+  return source;
+}
+
+function historicalSourceOrNull(repoRoot: string, ref: string, sourcePath: string): string | null {
+  const shown = spawnSync("git", ["show", `${ref}:${sourcePath}`], {
     cwd: repoRoot,
     encoding: "utf8",
     shell: false,
   });
-  if ((shown.status ?? 1) !== 0) {
-    throw new Error(`historical source is unavailable at HEAD: ${sourcePath}`);
-  }
+  if ((shown.status ?? 1) !== 0) return null;
   return String(shown.stdout);
 }
 
 async function loadHistoricalPredicateOverrides(
   repoRoot: string,
+  historicalAuthorityRef: string,
   oldManifest: EvidenceScanSurfaceManifestV0,
   predicateIds: readonly NamedScanPredicateId[],
 ): Promise<Partial<Readonly<Record<NamedScanPredicateId, (candidate: string) => boolean>>>> {
@@ -487,7 +689,7 @@ async function loadHistoricalPredicateOverrides(
     if (!oldModule) {
       throw new Error(`old predicate ${predicateId} is absent; narrowing comparison escalates`);
     }
-    const shown = spawnSync("git", ["show", `HEAD:${oldModule.modulePath}`], {
+    const shown = spawnSync("git", ["show", `${historicalAuthorityRef}:${oldModule.modulePath}`], {
       cwd: repoRoot,
       encoding: "utf8",
       shell: false,

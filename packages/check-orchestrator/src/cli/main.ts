@@ -1,5 +1,8 @@
 import { resolveScanSurfaceForScanner } from "../evidence/scan-surface-manifest";
-import { buildEvidenceScanSurfaceManifest } from "../evidence/scan-surface-registry";
+import {
+  buildEvidenceScanSurfaceManifest,
+  evidenceScanSurfaceFreshnessDiagnostics,
+} from "../evidence/scan-surface-registry";
 import {
   evidenceScanSurfaceManifestPath,
   renderEvidenceScanSurfaceManifest,
@@ -14,6 +17,7 @@ import { buildEvidenceAffectedPlan } from "../evidence/affected-evidence";
 import { resolveEvidenceWriterCommand, runDigestPinnedWriter } from "../evidence/writer-runner";
 import { loadEvidenceScanSurfaceManifest } from "../evidence/scan-surface-manifest";
 import { resolveScanSurface } from "../evidence/scan-surface";
+import { detectScannerFiles } from "../evidence/scanner-analysis";
 import {
   buildEvidencePreviewBudgetPlan,
   EVIDENCE_PREVIEW_EMPTY_BUDGET_MS,
@@ -177,6 +181,9 @@ async function printAffectedEvidence(
   changedPaths: readonly string[],
 ): Promise<void> {
   if (parsed.check && parsed.write) fail("Use either --check or --write, not both.");
+  if (parsed.write && parsed.preview) {
+    fail("Evidence --write and --preview are separate modes; run them as separate commands.");
+  }
   const scanManifest = loadEvidenceScanSurfaceManifest(manifest.rootDir);
   const writerRegistry = loadEvidenceWriterRegistry(manifest.rootDir);
   if (!scanManifest) {
@@ -187,7 +194,32 @@ async function printAffectedEvidence(
   if (!writerRegistry) {
     fail("Evidence writer registry is absent; run `pnpm omena-check evidence-writers --write`.");
   }
-  const plan = buildEvidenceAffectedPlan({ changedPaths, scanManifest, writerRegistry });
+  const freshnessDiagnostics = evidenceScanSurfaceFreshnessDiagnostics(
+    manifest.rootDir,
+    scanManifest,
+  );
+  if (freshnessDiagnostics.length > 0) {
+    fail(
+      `Evidence scan surface manifest is stale: ${freshnessDiagnostics[0]}. Run ` +
+        "`pnpm omena-check evidence-surfaces --write`.",
+    );
+  }
+  const detectorRow = scanManifest.scanners.find(
+    (row) => row.scannerPath === "packages/check-orchestrator/src/evidence/scanner-analysis.ts",
+  );
+  if (!detectorRow || detectorRow.disposition !== "MIGRATED") {
+    fail("Evidence scanner universe has no migrated detector surface.");
+  }
+  const expectedScannerPaths = detectScannerFiles(manifest.rootDir, detectorRow.spec).map(
+    (entry) => entry.scannerPath,
+  );
+  const plan = buildEvidenceAffectedPlan({
+    changedPaths,
+    scanManifest,
+    writerRegistry,
+    expectedScannerPaths,
+    knownGateIds: manifest.gates.map((gate) => gate.id),
+  });
   if (parsed.write)
     await runAffectedEvidenceWriters(plan.writerOrder, scanManifest, writerRegistry);
   let preview:
@@ -207,7 +239,14 @@ async function printAffectedEvidence(
     if (!ledger) fail("ci-cost-ledger.json is absent; evidence preview cannot price gates.");
     const budget = buildEvidencePreviewBudgetPlan(plan.gateIds, manifest, ledger);
     const receipts = await executeEvidencePreviewBudget(budget, async (gateId) =>
-      executeGate(resolveTarget(gateId), [], new Set<string>(), new Set<string>()),
+      executeGate(
+        resolveTarget(gateId),
+        [],
+        new Set<string>(),
+        new Set<string>(),
+        null,
+        parsed.json,
+      ),
     );
     preview = { budget, receipts };
     if (changedPaths.length === 0 && performance.now() > EVIDENCE_PREVIEW_EMPTY_BUDGET_MS) {
@@ -255,6 +294,9 @@ async function printAffectedEvidence(
     console.log(
       `  PREVIEW ran estimate=${preview.budget.estimatedRunMs}ms measured=${preview.receipts.reduce((sum, receipt) => sum + receipt.elapsedMs, 0)}ms`,
     );
+    console.log(
+      `  PREVIEW skipped priced=${preview.budget.pricedSkippedMs}ms unbounded=${preview.budget.unboundedSkippedCount}`,
+    );
     for (const entry of preview.budget.skipped) {
       console.log(
         `  PREVIEW-SKIPPED ${entry.gateId} p95=${entry.p95Ms === null ? "unbounded" : `${entry.p95Ms}ms`}`,
@@ -296,6 +338,7 @@ async function runAffectedEvidenceWriters(
     const inputPaths = new Set<string>(["package.json", "pnpm-lock.yaml"]);
     for (const commandRow of commandRows) {
       for (const writerScript of commandRow.writerScripts) inputPaths.add(writerScript);
+      for (const inputPath of commandRow.inputPaths) inputPaths.add(inputPath);
       for (const inputArtifactPath of commandRow.inputArtifactPaths) {
         if (inputArtifactPath !== commandRow.artifactPath) inputPaths.add(inputArtifactPath);
       }
@@ -872,6 +915,7 @@ async function executeGate(
   stack: Set<string>,
   completed: Set<string>,
   parentDeadlineMs: number | null = null,
+  captureOutput = false,
 ): Promise<number> {
   const deadlineMs = gateDeadlineMs(parentDeadlineMs, gate.timeoutMinutes);
   const executionKey = gateExecutionKey(gate, extraArgs);
@@ -898,11 +942,14 @@ async function executeGate(
       }
       // Direct sequences preserve shell `&&` semantics without spawning a shell.
       // oxlint-disable-next-line eslint/no-await-in-loop
-      const result = await runLiveCommand(command, {
+      const commandOptions = {
         cwd: manifest.rootDir,
         env: { ...process.env, ...command.envOverrides },
         ...(command.timeoutMs !== undefined ? { timeoutMs: command.timeoutMs } : {}),
-      });
+      };
+      const result = captureOutput
+        ? await runCapturedCommand(command, { ...commandOptions, maxOutputBytes: 1024 * 1024 })
+        : await runLiveCommand(command, commandOptions);
       if (result.error) {
         console.error(`Failed to start "${command.display[0]}": ${result.error.message}`);
       }
@@ -912,7 +959,18 @@ async function executeGate(
         );
       }
       const status = result.code ?? 1;
-      if (status !== 0) return status;
+      if (status !== 0) {
+        const capturedOutput =
+          captureOutput && "output" in result && typeof result.output === "string"
+            ? result.output
+            : "";
+        if (capturedOutput.trim().length > 0) {
+          process.stderr.write(
+            capturedOutput.endsWith("\n") ? capturedOutput : `${capturedOutput}\n`,
+          );
+        }
+        return status;
+      }
     }
     completed.add(executionKey);
     return 0;
@@ -938,6 +996,7 @@ async function executeGate(
       stack,
       completed,
       deadlineMs,
+      captureOutput,
     );
     if (status !== 0) {
       stack.delete(gate.id);
@@ -1492,6 +1551,7 @@ function printHelp(): void {
   pnpm omena-check probe [profile] [--dry|--json]
   pnpm omena-check affected [--base=<git-ref>] [--json]
   pnpm omena-check affected --evidence [--base=<git-ref>] [--check|--write] [--preview] [--json]
+    --write and --preview are separate modes; --preview --json captures child gate output
 `);
 }
 

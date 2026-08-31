@@ -12,6 +12,8 @@ export interface EvidencePreviewEntryV0 {
 export interface EvidencePreviewBudgetPlanV0 {
   readonly budgetMs: 60_000;
   readonly estimatedRunMs: number;
+  readonly pricedSkippedMs: number;
+  readonly unboundedSkippedCount: number;
   readonly ranPrefix: readonly EvidencePreviewEntryV0[];
   readonly skipped: readonly EvidencePreviewEntryV0[];
   readonly omittedWriteModeGateIds: readonly string[];
@@ -28,7 +30,7 @@ export function buildEvidencePreviewBudgetPlan(
   const candidates: EvidencePreviewEntryV0[] = [];
   for (const gateId of [...new Set(gateIds)].toSorted()) {
     const gate = gateById.get(gateId);
-    if (!gate) continue;
+    if (!gate) throw new Error(`evidence preview references unknown gate: ${gateId}`);
     if (!isEvidencePreviewCheckGate(gate)) {
       omittedWriteModeGateIds.push(gateId);
       continue;
@@ -56,9 +58,13 @@ export function buildEvidencePreviewBudgetPlan(
       `evidence preview estimated prefix ${estimatedRunMs}ms exceeds ${EVIDENCE_PREVIEW_BUDGET_MS}ms`,
     );
   }
+  const pricedSkippedMs = skipped.reduce((sum, entry) => sum + (entry.p95Ms ?? 0), 0);
+  const unboundedSkippedCount = skipped.filter((entry) => entry.p95Ms === null).length;
   return {
     budgetMs: EVIDENCE_PREVIEW_BUDGET_MS,
     estimatedRunMs,
+    pricedSkippedMs,
+    unboundedSkippedCount,
     ranPrefix,
     skipped,
     omittedWriteModeGateIds: omittedWriteModeGateIds.toSorted(),
@@ -67,7 +73,9 @@ export function buildEvidencePreviewBudgetPlan(
 
 export function isEvidencePreviewCheckGate(gate: CheckGate): boolean {
   if (gate.scriptName.startsWith("update:")) return false;
-  return !/(?:^|\s)--(?:write(?:-[a-z0-9-]+)?|update(?:-[a-z0-9-]+)?)(?:\s|$)/u.test(gate.command);
+  return !/(?:^|\s)--(?:write(?:-[a-z0-9-]+)?|update(?:-[a-z0-9-]+)?)(?=$|[\s=:])/u.test(
+    gate.command,
+  );
 }
 
 export async function executeEvidencePreviewBudget(

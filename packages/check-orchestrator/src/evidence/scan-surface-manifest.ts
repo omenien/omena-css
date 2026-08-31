@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { AffectedPathRuleDeclarationV0 } from "../affected.ts";
 import { resolveScanSurface, type ResolvedScanSurface } from "./scan-surface.ts";
 import type {
   NamedScanPredicateId,
@@ -22,9 +23,15 @@ export interface EvidenceScanSurfaceManifestV0 {
     readonly patternSha256: string;
   };
   readonly resolverSha256: string;
+  readonly predicateAuthority?: { readonly modulePath: string; readonly sha256: string };
   readonly predicateModules: Readonly<
     Record<NamedScanPredicateId, { readonly modulePath: string; readonly sha256: string }>
   >;
+  readonly pathPlaneAuthority?: {
+    readonly modulePath: string;
+    readonly sha256: string;
+    readonly rules: readonly AffectedPathRuleDeclarationV0[];
+  };
   readonly scanners: readonly EvidenceScannerManifestRowV0[];
 }
 
@@ -79,21 +86,25 @@ export function loadEvidenceScanSurfaceManifest(
   const manifestPath = evidenceScanSurfaceManifestPath(repoRoot);
   if (!existsSync(manifestPath)) return null;
   const parsed = JSON.parse(readFileSync(manifestPath, "utf8")) as EvidenceScanSurfaceManifestV0;
-  validateEvidenceScanSurfaceManifest(parsed);
+  // v0 readers accept the pre-authority shape so the official writer can perform
+  // the one-way migration. Freshly rendered manifests remain strict below, and
+  // --check compares every generated authority digest and declaration byte.
+  validateEvidenceScanSurfaceManifest(parsed, true);
   return parsed;
 }
 
 export function loadCommittedEvidenceScanSurfaceManifest(
   repoRoot: string,
+  ref = "HEAD",
 ): EvidenceScanSurfaceManifestV0 | null {
-  const shown = spawnSync("git", ["show", `HEAD:${EVIDENCE_SCAN_SURFACE_MANIFEST_PATH}`], {
+  const shown = spawnSync("git", ["show", `${ref}:${EVIDENCE_SCAN_SURFACE_MANIFEST_PATH}`], {
     cwd: repoRoot,
     encoding: "utf8",
     shell: false,
   });
   if ((shown.status ?? 1) !== 0) return null;
   const parsed = JSON.parse(String(shown.stdout)) as EvidenceScanSurfaceManifestV0;
-  validateEvidenceScanSurfaceManifest(parsed);
+  validateEvidenceScanSurfaceManifest(parsed, true);
   return parsed;
 }
 
@@ -153,7 +164,7 @@ function findEvidenceRepoRoot(scannerFile: string): string {
 }
 
 export function renderEvidenceScanSurfaceManifest(manifest: EvidenceScanSurfaceManifestV0): string {
-  validateEvidenceScanSurfaceManifest(manifest);
+  validateEvidenceScanSurfaceManifest(manifest, false);
   return formatEvidenceJsonArtifact(manifest, EVIDENCE_SCAN_SURFACE_MANIFEST_PATH);
 }
 
@@ -183,10 +194,40 @@ export function sha256Text(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function validateEvidenceScanSurfaceManifest(manifest: EvidenceScanSurfaceManifestV0): void {
+function validateEvidenceScanSurfaceManifest(
+  manifest: EvidenceScanSurfaceManifestV0,
+  allowLegacyAuthorityFields: boolean,
+): void {
   if (manifest.schemaVersion !== "0") {
     throw new Error(`unsupported evidence scan surface schema ${String(manifest.schemaVersion)}`);
   }
+  if (!manifest.predicateAuthority && allowLegacyAuthorityFields) {
+    // The first authority-bound regeneration must still be able to replay the committed v0 shape.
+  } else if (!isRepositoryModulePath(manifest.predicateAuthority?.modulePath)) {
+    throw new Error("evidence predicate authority must name a repository module path");
+  }
+  if (!manifest.pathPlaneAuthority && allowLegacyAuthorityFields)
+    return validateScannerRows(manifest);
+  if (!isRepositoryModulePath(manifest.pathPlaneAuthority?.modulePath)) {
+    throw new Error("affected path-plane authority must name a repository module path");
+  }
+  const ruleIds = manifest.pathPlaneAuthority.rules.map((row) => row.ruleId);
+  if (
+    ruleIds.length === 0 ||
+    new Set(ruleIds).size !== ruleIds.length ||
+    manifest.pathPlaneAuthority.rules.some((rule, index) => rule.priority !== index)
+  ) {
+    throw new Error("affected path-plane rules must be non-empty, unique, and priority-ordered");
+  }
+  for (const rule of manifest.pathPlaneAuthority.rules) {
+    if (!isRepositoryModulePath(rule.ownerModulePath)) {
+      throw new Error(`affected path rule ${rule.ruleId} has a non-module owner`);
+    }
+  }
+  validateScannerRows(manifest);
+}
+
+function validateScannerRows(manifest: EvidenceScanSurfaceManifestV0): void {
   const paths = manifest.scanners.map((row) => row.scannerPath);
   const sorted = [...paths].toSorted();
   if (
@@ -203,4 +244,15 @@ function validateEvidenceScanSurfaceManifest(manifest: EvidenceScanSurfaceManife
       throw new Error(`scanner/spec path mismatch for ${row.scannerPath}`);
     }
   }
+}
+
+function isRepositoryModulePath(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    !value.startsWith("/") &&
+    !value.startsWith("../") &&
+    value.includes("/") &&
+    path.posix.extname(value).length > 0
+  );
 }

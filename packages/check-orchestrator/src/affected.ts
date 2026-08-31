@@ -14,6 +14,23 @@ export interface AffectedCheckPlan {
   readonly reasons: readonly AffectedCheckReason[];
 }
 
+export interface AffectedPathRuleMatcherV0 {
+  readonly exactPaths?: readonly string[];
+  readonly prefixes?: readonly string[];
+  readonly suffixes?: readonly string[];
+  readonly fallback?: true;
+}
+
+export interface AffectedPathRuleDeclarationV0 {
+  readonly priority: number;
+  readonly ruleId: string;
+  readonly ownerModulePath: string;
+  readonly profiles: readonly CiProbeProfileId[];
+  readonly reason: string;
+  readonly requiresFullCi: boolean;
+  readonly matcher: AffectedPathRuleMatcherV0;
+}
+
 const PROFILE_ORDER: readonly CiProbeProfileId[] = [
   "orchestrator",
   "rust-cli",
@@ -23,19 +40,107 @@ const PROFILE_ORDER: readonly CiProbeProfileId[] = [
   "verify",
 ];
 
-const CLI_SUPPORT_PATHS = [
-  "scripts/check-rust-omena-cli-",
-  ".github/workflows/release-cli.yml",
-] as const;
+export const AFFECTED_PATH_RULE_MODULE_PATH = "packages/check-orchestrator/src/affected.ts";
 
-const PERFORMANCE_PATH_MARKERS = [
-  "rust/crates/omena-benchmarks/",
-  "rust/crates/omena-streaming-ifds/",
-  "scripts/check-rust-z5-perf-",
-  "scripts/check-rust-demand-sliced-monotone-fact-propagation-",
-  "scripts/check-rust-benchmark-",
-  "benchmark-artifacts/",
-] as const;
+export const AFFECTED_PATH_RULES = [
+  {
+    priority: 0,
+    ruleId: "orchestrator-implementation",
+    ownerModulePath: AFFECTED_PATH_RULE_MODULE_PATH,
+    profiles: ["orchestrator"],
+    reason: "check-orchestrator implementation changed",
+    requiresFullCi: false,
+    matcher: { prefixes: ["packages/check-orchestrator/", "test/unit/check-orchestrator/"] },
+  },
+  {
+    priority: 1,
+    ruleId: "workspace-workflow-topology",
+    ownerModulePath: AFFECTED_PATH_RULE_MODULE_PATH,
+    profiles: ["orchestrator"],
+    reason: "workspace or workflow topology changed",
+    requiresFullCi: true,
+    matcher: {
+      exactPaths: ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"],
+      prefixes: [".github/actions/", ".github/workflows/"],
+    },
+  },
+  {
+    priority: 2,
+    ruleId: "rust-cli-product",
+    ownerModulePath: AFFECTED_PATH_RULE_MODULE_PATH,
+    profiles: ["rust-cli"],
+    reason: "Rust CLI product path changed",
+    requiresFullCi: false,
+    matcher: {
+      prefixes: [
+        "rust/crates/omena-cli/",
+        "scripts/check-rust-omena-cli-",
+        ".github/workflows/release-cli.yml",
+      ],
+    },
+  },
+  {
+    priority: 3,
+    ruleId: "rust-performance",
+    ownerModulePath: AFFECTED_PATH_RULE_MODULE_PATH,
+    profiles: ["rust-workspace", "linux-benchmark"],
+    reason: "performance-sensitive Rust path changed",
+    requiresFullCi: false,
+    matcher: {
+      prefixes: [
+        "rust/crates/omena-benchmarks/",
+        "rust/crates/omena-streaming-ifds/",
+        "scripts/check-rust-z5-perf-",
+        "scripts/check-rust-demand-sliced-monotone-fact-propagation-",
+        "scripts/check-rust-benchmark-",
+        "benchmark-artifacts/",
+      ],
+    },
+  },
+  {
+    priority: 4,
+    ruleId: "rust-workspace",
+    ownerModulePath: AFFECTED_PATH_RULE_MODULE_PATH,
+    profiles: ["rust-workspace"],
+    reason: "Rust workspace path changed",
+    requiresFullCi: false,
+    matcher: { prefixes: ["rust/"] },
+  },
+  {
+    priority: 5,
+    ruleId: "typescript-product-integration",
+    ownerModulePath: AFFECTED_PATH_RULE_MODULE_PATH,
+    profiles: ["verify"],
+    reason: "TypeScript or product integration path changed",
+    requiresFullCi: false,
+    matcher: {
+      prefixes: ["client/", "server/", "shared/", "test/", "examples/", "scripts/"],
+      suffixes: [".ts", ".tsx", ".js", ".mjs", ".cjs"],
+    },
+  },
+  {
+    priority: 6,
+    ruleId: "public-documentation",
+    ownerModulePath: AFFECTED_PATH_RULE_MODULE_PATH,
+    profiles: ["orchestrator"],
+    reason: "public documentation changed",
+    requiresFullCi: false,
+    matcher: {
+      exactPaths: ["README.md", "CHANGELOG.md"],
+      prefixes: ["docs/", "apps/docs/"],
+      suffixes: [".md"],
+    },
+  },
+  {
+    priority: 7,
+    ruleId: "unclassified-full-ci",
+    ownerModulePath: AFFECTED_PATH_RULE_MODULE_PATH,
+    profiles: [],
+    reason: "unclassified path requires the complete CI graph",
+    requiresFullCi: true,
+    matcher: { fallback: true },
+  },
+] as const satisfies readonly AffectedPathRuleDeclarationV0[];
 
 export function buildAffectedCheckPlan(changedPaths: readonly string[]): AffectedCheckPlan {
   const normalizedPaths = [...new Set(changedPaths.map(normalizePath).filter(Boolean))].toSorted();
@@ -53,87 +158,17 @@ export function buildAffectedCheckPlan(changedPaths: readonly string[]): Affecte
 }
 
 function classifyChangedPath(changedPath: string): AffectedCheckReason {
-  if (
-    changedPath.startsWith("packages/check-orchestrator/") ||
-    changedPath.startsWith("test/unit/check-orchestrator/")
-  ) {
-    return makeAffectedReason(
-      changedPath,
-      ["orchestrator"],
-      "check-orchestrator implementation changed",
-    );
-  }
+  const rule = AFFECTED_PATH_RULES.find((candidate) => affectedRuleMatches(candidate, changedPath));
+  if (!rule) throw new Error(`affected path has no owned classification: ${changedPath}`);
+  return makeAffectedReason(changedPath, rule.profiles, rule.reason, rule.requiresFullCi);
+}
 
-  if (
-    changedPath === "package.json" ||
-    changedPath === "pnpm-lock.yaml" ||
-    changedPath === "pnpm-workspace.yaml" ||
-    changedPath.startsWith(".github/actions/") ||
-    changedPath.startsWith(".github/workflows/")
-  ) {
-    return makeAffectedReason(
-      changedPath,
-      ["orchestrator"],
-      "workspace or workflow topology changed",
-      true,
-    );
-  }
-
-  if (
-    changedPath.startsWith("rust/crates/omena-cli/") ||
-    CLI_SUPPORT_PATHS.some((prefix) => changedPath.startsWith(prefix))
-  ) {
-    return makeAffectedReason(changedPath, ["rust-cli"], "Rust CLI product path changed");
-  }
-
-  if (PERFORMANCE_PATH_MARKERS.some((marker) => changedPath.startsWith(marker))) {
-    return makeAffectedReason(
-      changedPath,
-      ["rust-workspace", "linux-benchmark"],
-      "performance-sensitive Rust path changed",
-    );
-  }
-
-  if (changedPath.startsWith("rust/")) {
-    return makeAffectedReason(changedPath, ["rust-workspace"], "Rust workspace path changed");
-  }
-
-  if (
-    changedPath.startsWith("client/") ||
-    changedPath.startsWith("server/") ||
-    changedPath.startsWith("shared/") ||
-    changedPath.startsWith("test/") ||
-    changedPath.startsWith("examples/") ||
-    changedPath.startsWith("scripts/") ||
-    changedPath.endsWith(".ts") ||
-    changedPath.endsWith(".tsx") ||
-    changedPath.endsWith(".js") ||
-    changedPath.endsWith(".mjs") ||
-    changedPath.endsWith(".cjs")
-  ) {
-    return makeAffectedReason(
-      changedPath,
-      ["verify"],
-      "TypeScript or product integration path changed",
-    );
-  }
-
-  if (
-    changedPath.startsWith("docs/") ||
-    changedPath.startsWith("apps/docs/") ||
-    changedPath === "README.md" ||
-    changedPath === "CHANGELOG.md" ||
-    changedPath.endsWith(".md")
-  ) {
-    return makeAffectedReason(changedPath, ["orchestrator"], "public documentation changed");
-  }
-
-  return makeAffectedReason(
-    changedPath,
-    [],
-    "unclassified path requires the complete CI graph",
-    true,
-  );
+function affectedRuleMatches(rule: AffectedPathRuleDeclarationV0, changedPath: string): boolean {
+  const { matcher } = rule;
+  if (matcher.exactPaths?.includes(changedPath)) return true;
+  if (matcher.prefixes?.some((prefix) => changedPath.startsWith(prefix))) return true;
+  if (matcher.suffixes?.some((suffix) => changedPath.endsWith(suffix))) return true;
+  return matcher.fallback === true;
 }
 
 function makeAffectedReason(
