@@ -19,9 +19,8 @@ import { loadEvidenceScanSurfaceManifest } from "../evidence/scan-surface-manife
 import { resolveScanSurface } from "../evidence/scan-surface";
 import { detectScannerFiles } from "../evidence/scanner-analysis";
 import {
-  buildEvidencePreviewBudgetPlan,
   EVIDENCE_PREVIEW_EMPTY_BUDGET_MS,
-  executeEvidencePreviewBudget,
+  runEvidenceAffectedPreview,
 } from "../evidence/preview-budget";
 import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -222,12 +221,7 @@ async function printAffectedEvidence(
   });
   if (parsed.write)
     await runAffectedEvidenceWriters(plan.writerOrder, scanManifest, writerRegistry);
-  let preview:
-    | {
-        readonly budget: ReturnType<typeof buildEvidencePreviewBudgetPlan>;
-        readonly receipts: readonly { readonly gateId: string; readonly elapsedMs: number }[];
-      }
-    | undefined;
+  let preview: Awaited<ReturnType<typeof runEvidenceAffectedPreview>> | undefined;
   if (parsed.preview) {
     if (process.env.OMENA_EVIDENCE_SWEEP === "0") {
       console.log(
@@ -237,23 +231,20 @@ async function printAffectedEvidence(
     }
     const ledger = loadCostLedger(manifest.rootDir);
     if (!ledger) fail("ci-cost-ledger.json is absent; evidence preview cannot price gates.");
-    const budget = buildEvidencePreviewBudgetPlan(
-      plan.gateIds,
+    preview = await runEvidenceAffectedPreview({
+      plan,
       manifest,
       ledger,
-      plan.notPreviewableInputs.flatMap((entry) => entry.gateIds),
-    );
-    const receipts = await executeEvidencePreviewBudget(budget, async (gateId) =>
-      executeGate(
-        resolveTarget(gateId),
-        [],
-        new Set<string>(),
-        new Set<string>(),
-        null,
-        parsed.json,
-      ),
-    );
-    preview = { budget, receipts };
+      executeGate: async (gateId) =>
+        executeGate(
+          resolveTarget(gateId),
+          [],
+          new Set<string>(),
+          new Set<string>(),
+          null,
+          parsed.json,
+        ),
+    });
     if (changedPaths.length === 0 && performance.now() > EVIDENCE_PREVIEW_EMPTY_BUDGET_MS) {
       fail(
         `empty evidence preview exceeded ${EVIDENCE_PREVIEW_EMPTY_BUDGET_MS}ms: ${Math.round(performance.now())}ms`,

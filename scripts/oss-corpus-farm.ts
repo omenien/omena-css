@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { resolveUnmigratedScanRootForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { runCheckerCli } from "../server/checker-cli/src";
+import { formatGeneratedJson } from "./generated-json";
 import { listLocalWorkspaceCorpusFiles } from "./lib/oss-corpus-local-workspace-files";
 
 type Dialect = "css" | "scss" | "less" | "sass";
@@ -439,7 +440,10 @@ void (async () => {
 
   if (args.has("--ranked-set-loss-census") || args.has("--write-ranked-set-loss-census")) {
     const report = runRankedSetLossCensus(manifest);
-    const rendered = `${JSON.stringify(report, null, 2)}\n`;
+    const rendered = await formatGeneratedJson(
+      path.relative(repoRoot, rankedSetLossCensusPath),
+      report,
+    );
     if (args.has("--write-ranked-set-loss-census")) {
       writeFileSync(rankedSetLossCensusPath, rendered);
     } else {
@@ -457,8 +461,14 @@ void (async () => {
   if (args.has("--lint-census") || args.has("--write-lint-census")) {
     const { lintReport, rankedSetLossReport } = runRealWorkspaceCensuses(manifest);
     const reportPathForManifest = resolveFarmPath(manifest.lintCensus.reportPath);
-    const rendered = `${JSON.stringify(lintReport, null, 2)}\n`;
-    const rankedSetLossRendered = `${JSON.stringify(rankedSetLossReport, null, 2)}\n`;
+    const rendered = await formatGeneratedJson(
+      path.relative(repoRoot, reportPathForManifest),
+      lintReport,
+    );
+    const rankedSetLossRendered = await formatGeneratedJson(
+      path.relative(repoRoot, rankedSetLossCensusPath),
+      rankedSetLossReport,
+    );
     if (args.has("--write-lint-census")) {
       writeFileSync(reportPathForManifest, rendered);
       writeFileSync(rankedSetLossCensusPath, rankedSetLossRendered);

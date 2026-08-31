@@ -165,7 +165,7 @@ export function resolveUnmigratedScanRootForScanner(
   return resolveScanSurface(
     defineScanSurface({
       scannerPath,
-      mode: "workingTree",
+      mode: reason === "external-checkout" ? "index" : "workingTree",
       pathspecs: ["**"],
       includeUntracked: false,
       excludes: ["git-metadata"],

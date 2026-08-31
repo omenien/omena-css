@@ -48,6 +48,7 @@ import {
   EVIDENCE_PREVIEW_EMPTY_BUDGET_MS,
   executeEvidencePreviewBudget,
   isEvidencePreviewCheckGate,
+  runEvidenceAffectedPreview,
 } from "../../../packages/check-orchestrator/src/evidence/preview-budget";
 import type { EvidenceScanSurfaceManifestV0 } from "../../../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import {
@@ -65,7 +66,9 @@ import {
   detectNotPreviewableInputSeedsForSource,
   discoverEvidenceArtifactPaths,
   discoverEvidenceWriterOutputAuthority,
+  EVIDENCE_FRESH_REPRODUCTION_EXEMPTIONS,
   EVIDENCE_WRITER_REGISTRY_PATH,
+  gateCommandNamesModuleAsEntry,
   loadEvidenceWriterRegistry,
   renderEvidenceWriterRegistry,
   type EvidenceArtifactRowV0,
@@ -75,12 +78,14 @@ import {
   EVIDENCE_STATIC_WRITE_OUTPUT_AUTHORITY,
   EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH,
   EVIDENCE_WRITER_COMMAND_DECLARATIONS,
+  resolveEvidenceWriterCommandOutputPaths,
 } from "../../../packages/check-orchestrator/src/evidence/writer-command-authority";
 import type {
   CheckGate,
   CheckManifest,
 } from "../../../packages/check-orchestrator/src/manifest/types";
 import type { CostLedger } from "../../../packages/check-orchestrator/src/manifest/cost-ledger";
+import { loadCheckManifest } from "../../../packages/check-orchestrator/src/manifest/index";
 
 const predicateModules = {
   "git-metadata": { modulePath: "p/git.ts", sha256: "a".repeat(64) },
@@ -475,28 +480,46 @@ describe("evidence affected closure", () => {
 
 describe("scan surface falsifiers", () => {
   it("rejects in-repo roots and spot-checks temp and checkout evidence", () => {
-    const repoRoot = mkdtempSync(path.join(os.tmpdir(), "omena-root-guard-repo-"));
+    const repoRoot = path.resolve(import.meta.dirname, "../../..");
     const tempRoot = mkdtempSync(path.join(os.tmpdir(), "omena-root-guard-temp-"));
     const checkoutRoot = mkdtempSync(path.join(os.tmpdir(), "omena-root-guard-checkout-"));
-    mkdirSync(path.join(checkoutRoot, ".git"));
-    expect(assertUnmigratedScanRoot("non-repo-temp-tree", repoRoot, tempRoot)).toBe(
-      realpathSync.native(tempRoot),
-    );
-    expect(assertUnmigratedScanRoot("external-checkout", repoRoot, checkoutRoot)).toBe(
-      realpathSync.native(checkoutRoot),
-    );
-    expect(() => assertUnmigratedScanRoot("non-repo-temp-tree", repoRoot, repoRoot)).toThrow(
-      /must be outside repoRoot/u,
-    );
-    expect(() => assertUnmigratedScanRoot("external-checkout", repoRoot, tempRoot)).toThrow(
-      /lacks \.git/u,
-    );
-    rmSync(repoRoot, { recursive: true, force: true });
-    rmSync(tempRoot, { recursive: true, force: true });
-    rmSync(checkoutRoot, { recursive: true, force: true });
+    try {
+      execFileSync("git", ["init", "-q"], { cwd: checkoutRoot });
+      execFileSync("git", ["config", "user.name", "Evidence Test"], { cwd: checkoutRoot });
+      execFileSync("git", ["config", "user.email", "evidence@example.invalid"], {
+        cwd: checkoutRoot,
+      });
+      writeFileSync(path.join(checkoutRoot, "tracked.css"), ".tracked {}\n");
+      execFileSync("git", ["add", "."], { cwd: checkoutRoot });
+      execFileSync("git", ["commit", "-q", "-m", "external fixture"], {
+        cwd: checkoutRoot,
+      });
+      expect(assertUnmigratedScanRoot("non-repo-temp-tree", repoRoot, tempRoot)).toBe(
+        realpathSync.native(tempRoot),
+      );
+      expect(assertUnmigratedScanRoot("external-checkout", repoRoot, checkoutRoot)).toBe(
+        realpathSync.native(checkoutRoot),
+      );
+      const surface = resolveUnmigratedScanRootForScanner(
+        path.join(repoRoot, "scripts/oss-corpus-farm.ts"),
+        "external-checkout",
+        repoRoot,
+        checkoutRoot,
+      );
+      expect(surface.gitOutput(["ls-files"])).toBe("tracked.css\n");
+      expect(() => assertUnmigratedScanRoot("non-repo-temp-tree", repoRoot, repoRoot)).toThrow(
+        /must be outside repoRoot/u,
+      );
+      expect(() => assertUnmigratedScanRoot("external-checkout", repoRoot, tempRoot)).toThrow(
+        /lacks \.git/u,
+      );
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+      rmSync(checkoutRoot, { recursive: true, force: true });
+    }
   });
 
-  it("keeps sparse external checkout Git readers inside the materialized working tree", () => {
+  it("uses one index authority for all exposed sparse-checkout Git readers", () => {
     const repoRoot = path.resolve(import.meta.dirname, "../../..");
     const checkoutRoot = mkdtempSync(path.join(os.tmpdir(), "omena-sparse-checkout-"));
     try {
@@ -519,25 +542,41 @@ describe("scan surface falsifiers", () => {
       expect(existsSync(path.join(checkoutRoot, ".changeset/README.md"))).toBe(false);
       expect(existsSync(path.join(checkoutRoot, "corpus/input.css"))).toBe(true);
 
-      const surface = resolveUnmigratedScanRootForScanner(
-        path.join(repoRoot, "scripts/oss-corpus-farm.ts"),
-        "external-checkout",
-        repoRoot,
-        checkoutRoot,
-      );
-      expect(surface.gitOutput(["ls-files"])).toBe("corpus/input.css\n");
-      expect(
-        surface.execFileSync("git", ["ls-files", "-z"], {
+      for (const scannerPath of [
+        "scripts/oss-corpus-farm.ts",
+        "scripts/generate-rust-omena-value-grammar-corpus.ts",
+        "scripts/measure-css-module-token-shapes.ts",
+      ]) {
+        const surface = resolveUnmigratedScanRootForScanner(
+          path.join(repoRoot, scannerPath),
+          "external-checkout",
+          repoRoot,
+          checkoutRoot,
+        );
+        expect(surface.spec.mode, scannerPath).toBe("index");
+        expect(surface.gitOutput(["ls-files"]), scannerPath).toBe(
+          ".changeset/README.md\ncorpus/input.css\n",
+        );
+        expect(
+          surface.execFileSync("git", ["ls-files", "-z"], {
+            cwd: checkoutRoot,
+            encoding: "utf8",
+          }),
+          scannerPath,
+        ).toBe(".changeset/README.md\0corpus/input.css\0");
+        const spawned = surface.spawnSync("git", ["ls-files"], {
           cwd: checkoutRoot,
           encoding: "utf8",
-        }),
-      ).toBe("corpus/input.css\0");
-      const spawned = surface.spawnSync("git", ["ls-files"], {
-        cwd: checkoutRoot,
-        encoding: "utf8",
-      });
-      expect(spawned.status).toBe(0);
-      expect(spawned.stdout).toBe("corpus/input.css\n");
+        });
+        expect(spawned.status, scannerPath).toBe(0);
+        expect(spawned.stdout, scannerPath).toBe(".changeset/README.md\ncorpus/input.css\n");
+        writeFileSync(path.join(checkoutRoot, "undeclared.css"), ".undeclared {}\n");
+        expect(
+          () => surface.gitOutput(["ls-files", "--others", "--exclude-standard"]),
+          scannerPath,
+        ).toThrow(/read undeclared path.*undeclared\.css/u);
+        rmSync(path.join(checkoutRoot, "undeclared.css"));
+      }
     } finally {
       rmSync(checkoutRoot, { recursive: true, force: true });
     }
@@ -1228,8 +1267,14 @@ describe("writer registry portability", () => {
     const importedWriterPath = path.join(root, "scripts/write-imported.ts");
     const artifactPath = path.join(root, "rust/crates/example/nested-census.json");
     const textArtifactPath = path.join(root, "rust/crates/example/nested-evidence.txt");
+    const farmManifestPath = path.join(
+      root,
+      "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json",
+    );
     mkdirSync(path.dirname(scriptPath), { recursive: true });
     mkdirSync(path.dirname(artifactPath), { recursive: true });
+    mkdirSync(path.dirname(farmManifestPath), { recursive: true });
+    writeFileSync(farmManifestPath, '{"lintCensus":{"reportPath":"lint-census-report.json"}}\n');
     writeFileSync(artifactPath, '{"schemaVersion":"0"}\n');
     writeFileSync(textArtifactPath, "evidence\n");
     writeFileSync(
@@ -1267,6 +1312,41 @@ describe("writer registry portability", () => {
     rmSync(root, { recursive: true, force: true });
   });
 
+  it("derives a manifest-owned writer output from committed data", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-manifest-writer-"));
+    const manifestPath = "rust/farm/manifest.json";
+    mkdirSync(path.join(root, "rust/farm"), { recursive: true });
+    const declaration = {
+      commandId: "manifest-writer",
+      writeCommand: ["node", "writer.mjs", "--write"],
+      writerScripts: ["writer.mjs"],
+      outputPaths: [],
+      manifestOutputPaths: [
+        {
+          manifestPath,
+          propertyPath: ["census", "reportPath"],
+          baseDirectory: "rust/farm",
+        },
+      ],
+    } as const;
+    try {
+      writeFileSync(path.join(root, manifestPath), '{"census":{"reportPath":"first.json"}}\n');
+      expect(resolveEvidenceWriterCommandOutputPaths(root, declaration)).toEqual([
+        "rust/farm/first.json",
+      ]);
+      writeFileSync(path.join(root, manifestPath), '{"census":{"reportPath":"second.json"}}\n');
+      expect(resolveEvidenceWriterCommandOutputPaths(root, declaration)).toEqual([
+        "rust/farm/second.json",
+      ]);
+      writeFileSync(path.join(root, manifestPath), '{"census":{}}\n');
+      expect(() => resolveEvidenceWriterCommandOutputPaths(root, declaration)).toThrow(
+        /manifest output property is absent/u,
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("builds from the governed index when ripgrep is unavailable", () => {
     const originalPath = process.env.PATH;
     const executableName = process.platform === "win32" ? "git.exe" : "git";
@@ -1288,11 +1368,116 @@ describe("writer registry portability", () => {
         modulePath: EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH,
         declaredCommandCount: EVIDENCE_WRITER_COMMAND_DECLARATIONS.length,
         declaredOutputCount: new Set(
-          EVIDENCE_WRITER_COMMAND_DECLARATIONS.flatMap((row) => row.outputPaths),
+          EVIDENCE_WRITER_COMMAND_DECLARATIONS.flatMap((row) =>
+            resolveEvidenceWriterCommandOutputPaths(repoRoot, row),
+          ),
         ).size,
         declaredStaticWriteOutputCount: EVIDENCE_STATIC_WRITE_OUTPUT_AUTHORITY.length,
       });
       expect(() => assertEvidenceWriterAuthorityCoverage(registry)).not.toThrow();
+      const farmManifestPath = "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json";
+      const farmManifest = JSON.parse(
+        readFileSync(path.join(repoRoot, farmManifestPath), "utf8"),
+      ) as {
+        readonly lintCensus: { readonly reportPath: string };
+      };
+      const lintCensusReportPath = path.posix.join(
+        path.posix.dirname(farmManifestPath),
+        farmManifest.lintCensus.reportPath,
+      );
+      const lintDeclaration = EVIDENCE_WRITER_COMMAND_DECLARATIONS.find(
+        (row) => row.commandId === "external-corpus-lint-census",
+      )!;
+      expect(lintDeclaration.outputPaths).not.toContain(
+        "rust/crates/omena-diff-test/oss-corpus-farm/report.json",
+      );
+      expect(
+        (
+          lintDeclaration as typeof lintDeclaration & {
+            readonly manifestOutputPaths?: readonly {
+              readonly manifestPath: string;
+              readonly propertyPath: readonly string[];
+              readonly baseDirectory: string;
+            }[];
+          }
+        ).manifestOutputPaths,
+      ).toContainEqual({
+        manifestPath: farmManifestPath,
+        propertyPath: ["lintCensus", "reportPath"],
+        baseDirectory: path.posix.dirname(farmManifestPath),
+      });
+      expect(
+        registry.artifacts.find((row) => row.artifactPath === lintCensusReportPath),
+      ).toMatchObject({
+        classification: "W1",
+        writeCommand: lintDeclaration.writeCommand,
+      });
+      const w1Rows = registry.artifacts.filter((row) => row.classification === "W1");
+      expect(w1Rows.length).toBeGreaterThan(1);
+      expect(EVIDENCE_FRESH_REPRODUCTION_EXEMPTIONS).toEqual([]);
+      for (const row of w1Rows) {
+        const freshDispositionCount = [
+          row.freshReproductionRequired === true,
+          typeof (row as EvidenceArtifactRowV0 & { readonly freshReproductionExemption?: string })
+            .freshReproductionExemption === "string",
+        ].filter(Boolean).length;
+        expect(freshDispositionCount, row.artifactPath).toBe(1);
+      }
+      const checkManifest = loadCheckManifest(repoRoot);
+      for (const blindInput of registry.notPreviewableInputs.filter(
+        (entry) => entry.kind === "toolchain-bytes",
+      )) {
+        const artifactRow = registry.artifacts.find(
+          (row) => row.artifactPath === blindInput.ownerId,
+        );
+        expect(artifactRow, blindInput.ownerId).toBeDefined();
+        expect(blindInput.gateIds, blindInput.ownerId).toEqual(
+          artifactRow!.writerGateIds.length > 0
+            ? artifactRow!.writerGateIds
+            : ["tooling/evidence-affected-map"],
+        );
+      }
+      const sharedEntryOwner = "packages/check-orchestrator/src/cli/main.ts";
+      expect(
+        gateCommandNamesModuleAsEntry(
+          `node --import tsx ./${sharedEntryOwner} ci-workflow`,
+          sharedEntryOwner,
+        ),
+      ).toBe(true);
+      expect(
+        gateCommandNamesModuleAsEntry(
+          `node --import tsx ./scripts/other.ts --input ./${sharedEntryOwner}`,
+          sharedEntryOwner,
+        ),
+      ).toBe(false);
+      const sharedEntryBlindInput = registry.notPreviewableInputs.find(
+        (entry) => entry.ownerId === sharedEntryOwner && entry.kind === "environment",
+      );
+      const directEntryGateIds = checkManifest.gates
+        .filter((gate) => gateCommandNamesModuleAsEntry(gate.command, sharedEntryOwner))
+        .map((gate) => gate.id)
+        .toSorted();
+      expect(directEntryGateIds.length).toBeGreaterThan(1);
+      expect(sharedEntryBlindInput?.gateIds).toEqual(["tooling/update/check-inventory"]);
+      expect(sharedEntryBlindInput?.gateIds).not.toContain("tooling/ci-workflow");
+      expect(sharedEntryBlindInput?.gateIds).not.toContain("tooling/ci-cost-ledger");
+      const blindGateIds = new Set(registry.notPreviewableInputs.flatMap((entry) => entry.gateIds));
+      for (const observableConsumerGateId of [
+        "plugin/bundler-product-gate",
+        "rust/product-test-coverage-classguard",
+        "rust/closure-fast-aggregation-complete",
+        "tooling/ci-workflow",
+        "tooling/ci-cost-ledger",
+        "rust/benchmark/ci-reachability",
+        "tooling/orchestrator-inventory",
+        "rust/omena-reactive/public-surface-clean",
+        "rust/domain-claim-census",
+        "rust/omena-value-grammar-differential",
+        "rust/omena-js-bundler-host-no-regex-classmap",
+      ]) {
+        expect(blindGateIds.has(observableConsumerGateId), observableConsumerGateId).toBe(false);
+      }
+      expect(blindGateIds.has("rust/oss-corpus-farm-determinism")).toBe(true);
       const packageScripts = (
         JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8")) as {
           readonly scripts: Readonly<Record<string, string>>;
@@ -1314,7 +1499,11 @@ describe("writer registry portability", () => {
       expect(outputAuthority.rootArtifactPaths.length).toBeGreaterThan(40);
       expect(outputAuthority.writeCallOutputPaths.length).toBeGreaterThan(20);
       expect(outputAuthority.declaredCommandOutputPaths).toHaveLength(
-        new Set(EVIDENCE_WRITER_COMMAND_DECLARATIONS.flatMap((row) => row.outputPaths)).size,
+        new Set(
+          EVIDENCE_WRITER_COMMAND_DECLARATIONS.flatMap((row) =>
+            resolveEvidenceWriterCommandOutputPaths(repoRoot, row),
+          ),
+        ).size,
       );
       const rootArtifactPaths = new Set(outputAuthority.rootArtifactPaths);
       expect(
@@ -1378,7 +1567,7 @@ describe("writer registry portability", () => {
         "rust/crates/omena-syntax/tests/snapshots/public-api.txt",
       );
       for (const declaration of EVIDENCE_WRITER_COMMAND_DECLARATIONS) {
-        for (const outputPath of declaration.outputPaths) {
+        for (const outputPath of resolveEvidenceWriterCommandOutputPaths(repoRoot, declaration)) {
           const row = registry.artifacts.find((candidate) => candidate.artifactPath === outputPath);
           expect(
             [row?.writeCommand, ...(row?.alternateWriteCommands ?? [])].some(
@@ -1544,6 +1733,17 @@ describe("writer registry portability", () => {
           ),
         }),
       ).toThrow(/unexplained empty input set/u);
+      const firstW1Artifact = registry.artifacts.find((row) => row.classification === "W1")!;
+      expect(() =>
+        renderEvidenceWriterRegistry({
+          ...registry,
+          artifacts: registry.artifacts.map((row) =>
+            row.artifactPath === firstW1Artifact.artifactPath
+              ? { ...row, freshReproductionRequired: undefined }
+              : row,
+          ),
+        }),
+      ).toThrow(/must require fresh reproduction or carry one exemption/u);
     } finally {
       if (originalPath === undefined) delete process.env.PATH;
       else process.env.PATH = originalPath;
@@ -1830,6 +2030,31 @@ describe("pre-push evidence budget", () => {
       }),
     ).resolves.toHaveLength(1);
     expect(executed).toEqual(["b"]);
+  });
+
+  it("arms the production affected-preview wiring against a dropped blind-input edge", async () => {
+    const executed: string[] = [];
+    const preview = await runEvidenceAffectedPreview({
+      plan: {
+        gateIds: ["a", "b"],
+        notPreviewableInputs: [{ gateIds: ["a"] }],
+      },
+      manifest,
+      ledger,
+      executeGate: async (gateId) => {
+        executed.push(gateId);
+        return 0;
+      },
+    });
+    expect(preview.budget.notPreviewableSkippedGateIds).toEqual(["a"]);
+    expect(preview.receipts.map((receipt) => receipt.gateId)).toEqual(["b"]);
+    expect(executed).toEqual(["b"]);
+    const productionSource = readFileSync(
+      path.resolve(import.meta.dirname, "../../../packages/check-orchestrator/src/cli/main.ts"),
+      "utf8",
+    );
+    expect(productionSource).toContain("runEvidenceAffectedPreview({");
+    expect(productionSource).toContain("      plan,");
   });
 
   it("rejects mixed write and preview CLI mode before any writer executes", () => {

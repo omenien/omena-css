@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 /**
  * Commands whose output closure is not recoverable from one local static
  * write call alone. This is the reviewable authority for imported path
@@ -12,7 +15,53 @@ export interface EvidenceWriterCommandDeclaration {
   readonly writeCommand: readonly string[];
   readonly writerScripts: readonly string[];
   readonly outputPaths: readonly string[];
+  readonly manifestOutputPaths?: readonly EvidenceWriterManifestOutputDeclaration[];
   readonly inputPaths?: readonly string[];
+}
+
+export interface EvidenceWriterManifestOutputDeclaration {
+  readonly manifestPath: string;
+  readonly propertyPath: readonly string[];
+  readonly baseDirectory: string;
+}
+
+/**
+ * Resolve paths that are deliberately owned by committed manifest data rather
+ * than by a TypeScript string literal. This authority can therefore name an
+ * output even when the static write-call discovery cannot see it.
+ */
+export function resolveEvidenceWriterCommandOutputPaths(
+  repoRoot: string,
+  declaration: EvidenceWriterCommandDeclaration,
+): readonly string[] {
+  const outputPaths = new Set(declaration.outputPaths);
+  for (const manifestOutput of declaration.manifestOutputPaths ?? []) {
+    const manifest = JSON.parse(
+      readFileSync(path.join(repoRoot, manifestOutput.manifestPath), "utf8"),
+    ) as unknown;
+    let value: unknown = manifest;
+    for (const property of manifestOutput.propertyPath) {
+      if (typeof value !== "object" || value === null || !(property in value)) {
+        throw new Error(
+          `evidence writer manifest output property is absent: ${declaration.commandId}:${manifestOutput.manifestPath}:${manifestOutput.propertyPath.join(".")}`,
+        );
+      }
+      value = (value as Readonly<Record<string, unknown>>)[property];
+    }
+    if (typeof value !== "string" || value.length === 0) {
+      throw new Error(
+        `evidence writer manifest output property is not a path: ${declaration.commandId}:${manifestOutput.manifestPath}:${manifestOutput.propertyPath.join(".")}`,
+      );
+    }
+    const outputPath = path.posix.normalize(path.posix.join(manifestOutput.baseDirectory, value));
+    if (path.posix.isAbsolute(outputPath) || outputPath === ".." || outputPath.startsWith("../")) {
+      throw new Error(
+        `evidence writer manifest output escapes the repository: ${declaration.commandId}:${outputPath}`,
+      );
+    }
+    outputPaths.add(outputPath);
+  }
+  return [...outputPaths].toSorted();
 }
 
 /**
@@ -324,10 +373,15 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
       "--write-lint-census",
     ],
     writerScripts: ["scripts/oss-corpus-farm.ts"],
-    outputPaths: [
-      "rust/crates/omena-diff-test/oss-corpus-farm/report.json",
-      "rust/crates/omena-diff-test/oss-corpus-farm/ranked-set-loss-census.json",
+    outputPaths: ["rust/crates/omena-diff-test/oss-corpus-farm/ranked-set-loss-census.json"],
+    manifestOutputPaths: [
+      {
+        manifestPath: "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json",
+        propertyPath: ["lintCensus", "reportPath"],
+        baseDirectory: "rust/crates/omena-diff-test/oss-corpus-farm",
+      },
     ],
+    inputPaths: ["rust/crates/omena-diff-test/oss-corpus-farm/manifest.json"],
   },
   {
     commandId: "transform-target-compatibility",

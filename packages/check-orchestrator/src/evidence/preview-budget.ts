@@ -20,6 +20,18 @@ export interface EvidencePreviewBudgetPlanV0 {
   readonly omittedWriteModeGateIds: readonly string[];
 }
 
+export interface EvidenceAffectedPreviewPlanV0 {
+  readonly gateIds: readonly string[];
+  readonly notPreviewableInputs: readonly { readonly gateIds: readonly string[] }[];
+}
+
+export interface RunEvidenceAffectedPreviewInput {
+  readonly plan: EvidenceAffectedPreviewPlanV0;
+  readonly manifest: CheckManifest;
+  readonly ledger: CostLedger;
+  readonly executeGate: (gateId: string) => Promise<number>;
+}
+
 export function buildEvidencePreviewBudgetPlan(
   gateIds: readonly string[],
   manifest: CheckManifest,
@@ -102,6 +114,25 @@ export async function executeEvidencePreviewBudget(
     }
   }
   return receipts;
+}
+
+/**
+ * The single production bridge from the affected plan into the preview
+ * planner. Keeping the blind-input projection here makes the load-bearing edge
+ * executable with the same plan shape used by the CLI.
+ */
+export async function runEvidenceAffectedPreview(input: RunEvidenceAffectedPreviewInput): Promise<{
+  readonly budget: EvidencePreviewBudgetPlanV0;
+  readonly receipts: readonly { readonly gateId: string; readonly elapsedMs: number }[];
+}> {
+  const budget = buildEvidencePreviewBudgetPlan(
+    input.plan.gateIds,
+    input.manifest,
+    input.ledger,
+    input.plan.notPreviewableInputs.flatMap((entry) => entry.gateIds),
+  );
+  const receipts = await executeEvidencePreviewBudget(budget, input.executeGate);
+  return { budget, receipts };
 }
 
 function compareText(left: string, right: string): number {

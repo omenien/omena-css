@@ -13,6 +13,7 @@ import {
   EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH,
   EVIDENCE_WRITER_COMMAND_DECLARATIONS,
   EVIDENCE_STATIC_WRITE_OUTPUT_AUTHORITY,
+  resolveEvidenceWriterCommandOutputPaths,
   type EvidenceWriterCommandDeclaration,
 } from "./writer-command-authority";
 
@@ -53,6 +54,16 @@ export const NOT_PREVIEWABLE_INPUT_KINDS = [
 export type NotPreviewableInputKind = (typeof NOT_PREVIEWABLE_INPUT_KINDS)[number];
 export type EvidenceArtifactClassification = "W1" | "W2" | "W3" | "W4";
 
+/**
+ * Every W1 recipe currently supports removed-output reproduction. A future
+ * exception must be named here with a reviewable reason; the generated row
+ * then carries that reason instead of silently losing the fresh-run arm.
+ */
+export const EVIDENCE_FRESH_REPRODUCTION_EXEMPTIONS: readonly {
+  readonly artifactPath: string;
+  readonly reason: string;
+}[] = [];
+
 export interface EvidenceWriterRegistryV0 {
   readonly schemaVersion: "0";
   readonly generatedBy: "pnpm omena-check evidence-writers --write";
@@ -72,6 +83,7 @@ export interface EvidenceArtifactRowV0 {
   readonly classification: EvidenceArtifactClassification;
   readonly writerNodeKind: "normal" | "self-ratchet";
   readonly freshReproductionRequired?: true;
+  readonly freshReproductionExemption?: string;
   readonly writerScripts: readonly string[];
   readonly writeCommand?: readonly string[];
   readonly alternateWriteCommands?: readonly (readonly string[])[];
@@ -144,7 +156,7 @@ export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterReg
           ...(path.posix.dirname(artifactPath) === "rust"
             ? findArtifactWriterScripts(repoRoot, artifactPath, scriptPaths, scriptAnalysisCache)
             : (staticWriterScriptsByOutput.get(artifactPath) ?? [])),
-          ...declaredCommandsForOutput(artifactPath).flatMap((row) => row.writerScripts),
+          ...declaredCommandsForOutput(repoRoot, artifactPath).flatMap((row) => row.writerScripts),
         ]),
       ].toSorted(),
     ]),
@@ -208,7 +220,9 @@ export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterReg
         .digest("hex"),
       declaredCommandCount: EVIDENCE_WRITER_COMMAND_DECLARATIONS.length,
       declaredOutputCount: new Set(
-        EVIDENCE_WRITER_COMMAND_DECLARATIONS.flatMap((row) => row.outputPaths),
+        EVIDENCE_WRITER_COMMAND_DECLARATIONS.flatMap((row) =>
+          resolveEvidenceWriterCommandOutputPaths(repoRoot, row),
+        ),
       ).size,
       declaredStaticWriteOutputCount: EVIDENCE_STATIC_WRITE_OUTPUT_AUTHORITY.length,
     },
@@ -222,7 +236,7 @@ export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterReg
     }),
   } satisfies EvidenceWriterRegistryV0;
   assertUpdateCommandWriterCoverage(packageScripts, registry.artifacts);
-  assertEvidenceWriterAuthorityCoverage(registry);
+  assertEvidenceWriterAuthorityCoverage(registry, EVIDENCE_WRITER_COMMAND_DECLARATIONS, repoRoot);
   assertEvidenceWriterOutputAuthorityCoverage(registry, {
     rootArtifactPaths: discovery.rootArtifactPaths,
     writeCallOutputPaths: discovery.writeCallOutputPaths,
@@ -304,7 +318,11 @@ function discoverEvidenceArtifacts(repoRoot: string): EvidenceArtifactDiscovery 
   );
   const trackedWriterOutputs = [...staticWriterScriptsByOutput.keys()].toSorted();
   const declaredCommandOutputPaths = [
-    ...new Set(EVIDENCE_WRITER_COMMAND_DECLARATIONS.flatMap((row) => row.outputPaths)),
+    ...new Set(
+      EVIDENCE_WRITER_COMMAND_DECLARATIONS.flatMap((row) =>
+        resolveEvidenceWriterCommandOutputPaths(repoRoot, row),
+      ),
+    ),
   ].toSorted();
   return {
     repositoryPaths,
@@ -470,7 +488,7 @@ function classifyArtifact(input: {
 }): EvidenceArtifactRowV0 {
   const { artifactPath, writerScripts, updateCommands, references, scannerGateIds, checkManifest } =
     input;
-  const declaredCommands = declaredCommandsForOutput(artifactPath);
+  const declaredCommands = declaredCommandsForOutput(input.repoRoot, artifactPath);
   const declaredCommand = declaredCommands[0];
   const specialCommand = declaredCommand?.writeCommand ?? specialWriterCommand(artifactPath);
   const manualProcedure = handAuthoredProcedure(artifactPath);
@@ -540,13 +558,15 @@ function classifyArtifact(input: {
         ? ["packages/check-orchestrator/src/evidence/scanner-analysis.ts"]
         : writerScripts.filter((script) => scannerGateIds.has(script));
   const writerGateIds = [
-    ...new Set([
-      ...writerScripts.flatMap((script) => scannerGateIds.get(script) ?? []),
-      ...(artifactPath === "rust/evidence-scan-surfaces.json"
-        ? ["tooling/evidence-scan-surfaces"]
-        : []),
-      ...(artifactPath === EVIDENCE_WRITER_REGISTRY_PATH ? ["tooling/evidence-affected-map"] : []),
-    ]),
+    ...new Set(
+      checkManifest.gates
+        .filter((gate) =>
+          [writeCommand, ...declaredCommands.slice(1).map((row) => row.writeCommand)]
+            .filter((command): command is readonly string[] => command !== undefined)
+            .some((command) => gateRunsWriterCommand(gate.command, command)),
+        )
+        .map((gate) => gate.id),
+    ),
   ].toSorted();
   const consumerPaths = references
     .filter(
@@ -560,14 +580,21 @@ function classifyArtifact(input: {
         .map((gate) => gate.id),
     ),
   ].toSorted();
+  const freshReproductionExemption = EVIDENCE_FRESH_REPRODUCTION_EXEMPTIONS.find(
+    (entry) => entry.artifactPath === artifactPath,
+  )?.reason;
   return {
     artifactPath,
     classification,
     writerNodeKind:
       artifactPath === "rust/omena-identifier-authority-census.json" ? "self-ratchet" : "normal",
-    ...(artifactPath === "rust/omena-published-crate-surface-register.json"
-      ? { freshReproductionRequired: true as const }
-      : {}),
+    ...(classification === "W1"
+      ? freshReproductionExemption
+        ? { freshReproductionExemption }
+        : { freshReproductionRequired: true as const }
+      : artifactPath === "rust/omena-published-crate-surface-register.json"
+        ? { freshReproductionRequired: true as const }
+        : {}),
     writerScripts,
     ...(writeCommand ? { writeCommand } : {}),
     ...(declaredCommands.length > 1
@@ -588,23 +615,38 @@ function classifyArtifact(input: {
 }
 
 function declaredCommandsForOutput(
+  repoRoot: string,
   artifactPath: string,
 ): readonly EvidenceWriterCommandDeclaration[] {
   return EVIDENCE_WRITER_COMMAND_DECLARATIONS.filter((row) =>
-    row.outputPaths.some((outputPath) => outputPath === artifactPath),
+    resolveEvidenceWriterCommandOutputPaths(repoRoot, row).some(
+      (outputPath) => outputPath === artifactPath,
+    ),
   );
+}
+
+function gateRunsWriterCommand(gateCommand: string, writerCommand: readonly string[]): boolean {
+  const normalizedGate = gateCommand.replaceAll("./", "").replace(/\s+/gu, " ").trim();
+  const normalizedWriter = writerCommand
+    .join(" ")
+    .replaceAll("./", "")
+    .replace(/\s+/gu, " ")
+    .trim();
+  return normalizedGate.split(/\s*&&\s*/u).some((segment) => segment === normalizedWriter);
 }
 
 export function assertEvidenceWriterAuthorityCoverage(
   registry: EvidenceWriterRegistryV0,
   declarations: readonly EvidenceWriterCommandDeclaration[] = EVIDENCE_WRITER_COMMAND_DECLARATIONS,
+  repoRoot = process.cwd(),
 ): void {
   const rowsByPath = new Map(registry.artifacts.map((row) => [row.artifactPath, row]));
   for (const declaration of declarations) {
-    if (declaration.outputPaths.length === 0) {
+    const declarationOutputPaths = resolveEvidenceWriterCommandOutputPaths(repoRoot, declaration);
+    if (declarationOutputPaths.length === 0) {
       throw new Error(`evidence writer command declares no outputs: ${declaration.commandId}`);
     }
-    for (const outputPath of declaration.outputPaths) {
+    for (const outputPath of declarationOutputPaths) {
       const row = rowsByPath.get(outputPath);
       if (!row) {
         throw new Error(
@@ -1581,6 +1623,44 @@ function splitCommandWords(command: string): readonly string[] {
   );
 }
 
+export function gateCommandNamesModuleAsEntry(command: string, modulePath: string): boolean {
+  return command.split(/\s*&&\s*/u).some((segment) => {
+    const words = [...splitCommandWords(segment)];
+    while (words[0]?.includes("=") && !words[0]?.startsWith("--")) words.shift();
+    if (words[0] === "env") {
+      words.shift();
+      while (words[0]?.includes("=") && !words[0]?.startsWith("--")) words.shift();
+    }
+    if (words[0] === "pnpm") {
+      words.shift();
+      if ((words[0] as string | undefined) === "exec") words.shift();
+    }
+    const executable = path.posix.basename(words.shift() ?? "");
+    if (executable === "node") {
+      while (words.length > 0) {
+        const word = words.shift()!;
+        if (["--import", "--loader", "--require", "-r"].includes(word)) {
+          words.shift();
+          continue;
+        }
+        if (word.startsWith("--import=") || word.startsWith("--loader=")) continue;
+        if (word.startsWith("-")) continue;
+        return normalizeCommandModulePath(word) === modulePath;
+      }
+      return false;
+    }
+    if (executable === "tsx") {
+      const entry = words.find((word) => !word.startsWith("-"));
+      return entry !== undefined && normalizeCommandModulePath(entry) === modulePath;
+    }
+    return false;
+  });
+}
+
+function normalizeCommandModulePath(value: string): string {
+  return value.replace(/^\.\//u, "").replaceAll("\\", "/");
+}
+
 function repositoryReferencePathsByArtifact(
   repoRoot: string,
   artifactPaths: readonly string[],
@@ -1745,8 +1825,8 @@ function deriveNotPreviewableInputs(input: {
     .map((seed) => {
       const gateIds = gateIdsForNotPreviewableOwner(
         seed.ownerId,
+        seed.kind,
         input.artifacts,
-        input.scanManifest,
         input.checkManifest,
       );
       if (gateIds.length === 0) {
@@ -2125,28 +2205,45 @@ function hasCallExpressionAncestor(node: tsTypes.Node): boolean {
 
 function gateIdsForNotPreviewableOwner(
   ownerId: string,
+  kind: NotPreviewableInputKind,
   artifacts: readonly EvidenceArtifactRowV0[],
-  scanManifest: NonNullable<ReturnType<typeof loadEvidenceScanSurfaceManifest>>,
   checkManifest: ReturnType<typeof loadCheckManifest>,
 ): readonly string[] {
-  const gateIds = new Set<string>();
+  const directEntryGateIds = new Set<string>();
   for (const gate of checkManifest.gates) {
-    if (gate.command.includes(ownerId) || gate.command.includes(`./${ownerId}`)) {
-      gateIds.add(gate.id);
+    if (gateCommandNamesModuleAsEntry(gate.command, ownerId)) {
+      directEntryGateIds.add(gate.id);
     }
   }
-  for (const row of scanManifest.scanners) {
-    if (row.disposition !== "RETIRED" && row.scannerPath === ownerId && "gateIds" in row) {
-      for (const gateId of row.gateIds) gateIds.add(gateId);
-    }
+
+  const artifactOwner = artifacts.find((row) => row.artifactPath === ownerId);
+  if (artifactOwner && artifactOwner.writerGateIds.length > 0) {
+    return [...artifactOwner.writerGateIds].toSorted();
   }
-  for (const row of artifacts) {
-    if (row.artifactPath === ownerId) {
-      for (const gateId of [...row.writerGateIds, ...row.consumerGateIds]) gateIds.add(gateId);
-    } else if (row.writerScripts.includes(ownerId)) {
-      for (const gateId of row.writerGateIds) gateIds.add(gateId);
-    }
+
+  const writerGateIds = new Set(
+    artifacts
+      .filter((row) => row.writerScripts.includes(ownerId))
+      .flatMap((row) => row.writerGateIds),
+  );
+  if (kind === "toolchain-bytes" || kind === "concurrent-worktree") {
+    if (writerGateIds.size > 0) return [...writerGateIds].toSorted();
+    if (directEntryGateIds.size > 0) return [...directEntryGateIds].toSorted();
+  } else if (
+    directEntryGateIds.size === 1 ||
+    (ownerId.startsWith("scripts/") && directEntryGateIds.size > 0)
+  ) {
+    // A marker in a shared CLI module blinds only commands that name that
+    // module as their unambiguous executable entrypoint. A multiplexed module
+    // cannot attribute one function-local marker to every sibling command;
+    // a dedicated script, by contrast, executes its module body for every
+    // command that names it.
+    return [...directEntryGateIds].toSorted();
+  } else if (writerGateIds.size > 0) {
+    return [...writerGateIds].toSorted();
   }
+
+  const gateIds = new Set<string>();
   if (
     gateIds.size === 0 &&
     checkManifest.gates.some((gate) => gate.id === "tooling/evidence-affected-map")
@@ -2193,6 +2290,14 @@ function validateEvidenceWriterRegistry(registry: EvidenceWriterRegistryV0): voi
   for (const row of registry.artifacts) {
     if ((row.classification === "W1" || row.classification === "W2") && !row.writeCommand) {
       throw new Error(`writeable evidence artifact lacks a declared command: ${row.artifactPath}`);
+    }
+    if (
+      row.classification === "W1" &&
+      (row.freshReproductionRequired === true) === Boolean(row.freshReproductionExemption)
+    ) {
+      throw new Error(
+        `W1 evidence artifact must require fresh reproduction or carry one exemption: ${row.artifactPath}`,
+      );
     }
     if (
       (row.classification === "W1" || row.classification === "W2") &&
