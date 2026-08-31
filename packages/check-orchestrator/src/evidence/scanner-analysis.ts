@@ -96,7 +96,12 @@ export function analyzeScannerSource(scannerPath: string, sourceText: string): S
   const visit = (node: tsTypes.Node): void => {
     if (ts.isCallExpression(node)) {
       const layer = enumerationCallLayer(node.expression, bindings);
-      if (layer) callSites.push(siteFor(sourceFile, node, layer));
+      if (layer && (layer !== "layer-1" || !expressionHasLayerOneToken(node.expression))) {
+        callSites.push(siteFor(sourceFile, node, layer));
+      }
+    }
+    if (ts.isIdentifier(node) && layerOneTokenReferenceExpression(node)) {
+      callSites.push(siteFor(sourceFile, node, "layer-1"));
     }
     if (ts.isStringLiteral(node) && node.text === "ls-files") {
       callSites.push(siteFor(sourceFile, node, "layer-2a"));
@@ -159,6 +164,22 @@ export function findUnroutedScannerCallSites(
             layer === "layer-2b"
               ? "module glob call bypasses resolveScanSurface"
               : `direct ${callee ?? "enumeration"} call`,
+          ),
+        );
+      }
+    }
+    if (ts.isIdentifier(node)) {
+      const referenceExpression = layerOneTokenReferenceExpression(node);
+      if (
+        referenceExpression &&
+        !isEnumerationCalleeReference(referenceExpression, bindings) &&
+        !isSurfaceRoutedExpression(referenceExpression, bindings)
+      ) {
+        diagnostics.push(
+          routingDiagnostic(
+            sourceFile,
+            node,
+            `direct ${node.text} token bypasses resolveScanSurface`,
           ),
         );
       }
@@ -559,6 +580,52 @@ function enumerationCallLayer(
     return "layer-1";
   }
   return null;
+}
+
+function expressionHasLayerOneToken(expression: tsTypes.Node): boolean {
+  let found = false;
+  const visit = (node: tsTypes.Node): void => {
+    if (ts.isIdentifier(node) && layerOneTokenReferenceExpression(node)) {
+      found = true;
+      return;
+    }
+    if (!found) ts.forEachChild(node, visit);
+  };
+  visit(expression);
+  return found;
+}
+
+function layerOneTokenReferenceExpression(
+  identifier: tsTypes.Identifier,
+): tsTypes.LeftHandSideExpression | null {
+  if (!LAYER_ONE_CALLEES.has(identifier.text)) return null;
+  const parent = identifier.parent;
+  if (ts.isPropertyAccessExpression(parent) && parent.name === identifier) return parent;
+  if (
+    ts.isImportSpecifier(parent) ||
+    parent.kind === ts.SyntaxKind.MethodSignature ||
+    parent.kind === ts.SyntaxKind.PropertySignature ||
+    ts.isVariableDeclaration(parent) ||
+    ts.isParameter(parent) ||
+    (ts.isFunctionDeclaration(parent) && parent.name === identifier) ||
+    (ts.isFunctionExpression(parent) && parent.name === identifier) ||
+    (ts.isMethodDeclaration(parent) && parent.name === identifier)
+  ) {
+    return null;
+  }
+  return identifier;
+}
+
+function isEnumerationCalleeReference(
+  expression: tsTypes.LeftHandSideExpression,
+  bindings: ScannerBindings,
+): boolean {
+  const parent = expression.parent;
+  return (
+    ts.isCallExpression(parent) &&
+    parent.expression === expression &&
+    enumerationCallLayer(parent.expression, bindings) === "layer-1"
+  );
 }
 
 function isExecFamilyExpression(

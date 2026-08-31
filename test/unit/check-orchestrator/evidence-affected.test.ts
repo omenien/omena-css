@@ -412,6 +412,64 @@ describe("evidence affected closure", () => {
 });
 
 describe("scan surface falsifiers", () => {
+  it("keeps layer-1 load-bearing for value aliases and callback references", () => {
+    for (const [fixturePath, source] of [
+      [
+        "scripts/callback-enumerator.ts",
+        'import fs from "node:fs"; const entries = roots.flatMap(fs.readdirSync);',
+      ],
+      [
+        "scripts/value-alias-enumerator.ts",
+        'import fs from "node:fs"; const listDirectory = fs.readdirSync;',
+      ],
+    ] as const) {
+      const detection = analyzeScannerSource(fixturePath, source);
+      expect(
+        detection.callSites.some((site) => site.layer === "layer-1"),
+        fixturePath,
+      ).toBe(true);
+      expect(findUnroutedScannerCallSites(fixturePath, source), fixturePath).not.toEqual([]);
+    }
+
+    const routedCallback =
+      'import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest"; const surface = resolveScanSurfaceForScanner(import.meta.url); const entries = roots.flatMap(surface.readdirSync);';
+    expect(findUnroutedScannerCallSites("scripts/routed-callback.ts", routedCallback)).toEqual([]);
+  });
+
+  it("keeps a real enumerator from disappearing through the production FALSE-POSITIVE path", async () => {
+    const repoRoot = path.resolve(import.meta.dirname, "../../..");
+    const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), "omena-false-positive-surface-"));
+    const worktree = path.join(temporaryRoot, "repo");
+    execFileSync("git", ["worktree", "add", "--detach", worktree, "HEAD"], {
+      cwd: repoRoot,
+      stdio: "ignore",
+    });
+    try {
+      symlinkSync(
+        path.join(repoRoot, "node_modules"),
+        path.join(temporaryRoot, "node_modules"),
+        process.platform === "win32" ? "junction" : "dir",
+      );
+      writeFileSync(
+        path.join(worktree, "scripts/false-positive-enumerator-probe.ts"),
+        'import fs from "node:fs";\nexport const entries = ["rust", "docs", "server", "packages"].flatMap(fs.readdirSync);\n',
+      );
+      writeFileSync(
+        path.join(worktree, "scripts/surfaces/scripts-false-positive-enumerator-probe.surface.ts"),
+        'import { falsePositiveScanSurface } from "../../packages/check-orchestrator/src/evidence/scan-surface";\nexport default falsePositiveScanSurface({ scannerPath: "scripts/false-positive-enumerator-probe.ts", rationale: "probe" });\n',
+      );
+      await expect(buildEvidenceScanSurfaceManifest(worktree)).rejects.toThrow(
+        /FALSE-POSITIVE scanner scripts\/false-positive-enumerator-probe\.ts has [1-9][0-9]* call sites/u,
+      );
+    } finally {
+      execFileSync("git", ["worktree", "remove", "--force", worktree], {
+        cwd: repoRoot,
+        stdio: "ignore",
+      });
+      rmSync(temporaryRoot, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it("rejects a direct enumeration beside the resolver and accepts the routed control", () => {
     expect(findUnroutedScannerCallSites("scripts/check.ts", "readdirSync(root);")).toHaveLength(1);
     expect(
