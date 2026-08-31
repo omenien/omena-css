@@ -1310,7 +1310,11 @@ function evaluateStaticIdentifier(
     if (ts.isVariableDeclaration(parent) && parent.initializer) {
       return evaluateStaticDataExpression(parent.initializer, context);
     }
-    if (ts.isImportSpecifier(parent)) {
+    if (parent.kind === ts.SyntaxKind.ImportSpecifier) {
+      const importSpecifier = parent as typeof parent & {
+        readonly propertyName?: { readonly text: string };
+        readonly name: { readonly text: string };
+      };
       const importDeclaration = enclosingImportDeclaration(parent);
       if (!importDeclaration || !ts.isStringLiteral(importDeclaration.moduleSpecifier)) return [];
       const importedModule = resolveLocalImportedModulePath(
@@ -1321,7 +1325,7 @@ function evaluateStaticIdentifier(
       if (!importedModule) return [];
       const importedAnalysis = context.analysisCache.get(importedModule);
       if (!importedAnalysis) return [];
-      const importedName = parent.propertyName?.text ?? parent.name.text;
+      const importedName = importSpecifier.propertyName?.text ?? importSpecifier.name.text;
       const exportedDeclaration = findTopLevelVariableDeclaration(
         importedAnalysis.sourceFile,
         importedName,
@@ -1400,7 +1404,7 @@ function bindStaticIterationValues(
     loopValues.set(bindingName, iterationValues);
     return;
   }
-  if (ts.isArrayBindingPattern(bindingName)) {
+  if (bindingName.kind === ts.SyntaxKind.ArrayBindingPattern) {
     for (let index = 0; index < bindingName.elements.length; index += 1) {
       const element = bindingName.elements[index];
       if (!element || ts.isOmittedExpression(element)) continue;
@@ -2032,7 +2036,7 @@ function exportedFunctionInvokesOxfmt(
     if (
       ts.isExportDeclaration(statement) &&
       statement.exportClause &&
-      ts.isNamedExports(statement.exportClause)
+      statement.exportClause.kind === ts.SyntaxKind.NamedExports
     ) {
       for (const element of statement.exportClause.elements) {
         exportedBindings.set(element.name.text, element.propertyName?.text ?? element.name.text);
@@ -2096,10 +2100,11 @@ function importedOxfmtBindings(sourceFile: tsTypes.SourceFile): ReadonlySet<stri
 }
 
 function hasExportModifier(node: tsTypes.Node): boolean {
-  return ts.canHaveModifiers(node)
-    ? (ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) ??
-        false)
-    : false;
+  let exported = false;
+  ts.forEachChild(node, (child) => {
+    if (child.kind === ts.SyntaxKind.ExportKeyword) exported = true;
+  });
+  return exported;
 }
 
 function hasCallExpressionAncestor(node: tsTypes.Node): boolean {

@@ -605,7 +605,7 @@ function layerOneTokenReferenceExpression(
   const parent = identifier.parent;
   if (ts.isPropertyAccessExpression(parent) && parent.name === identifier) return parent;
   if (
-    ts.isImportSpecifier(parent) ||
+    parent.kind === ts.SyntaxKind.ImportSpecifier ||
     parent.kind === ts.SyntaxKind.MethodSignature ||
     parent.kind === ts.SyntaxKind.PropertySignature ||
     ts.isVariableDeclaration(parent) ||
