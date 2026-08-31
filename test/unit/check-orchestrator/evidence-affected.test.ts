@@ -6,7 +6,6 @@ import {
   readFileSync,
   rmSync,
   symlinkSync,
-  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import os from "node:os";
