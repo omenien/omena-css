@@ -2,11 +2,7 @@
   "schemaVersion": "0",
   "product": "omena-published-crate-surface-register",
   "domainAuthority": "rust.publish-train-closure.canonicalPublishOrder",
-  "dispositions": [
-    "snapshotGated",
-    "trainSemverOnly",
-    "noRustConsumerSurface"
-  ],
+  "dispositions": ["snapshotGated", "trainSemverOnly", "noRustConsumerSurface"],
   "rows": [
     {
       "crate": "omena-evidence-graph",
