@@ -236,6 +236,10 @@ function initializeRegister(registryStatePath: string): void {
     rows,
   };
   writeFileSync(registerPath, `${JSON.stringify(output, null, 2)}\n`);
+  execFileSync("pnpm", ["exec", "oxfmt", registerPath], {
+    cwd: repoRoot,
+    stdio: "ignore",
+  });
 }
 
 function readPublishTrainClosure(): PublishTrainClosure {
