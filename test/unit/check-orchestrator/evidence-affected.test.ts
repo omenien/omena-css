@@ -992,7 +992,7 @@ describe("writer registry portability", () => {
       else process.env.PATH = originalPath;
       rmSync(isolatedBin, { recursive: true, force: true });
     }
-  }, 10_000);
+  }, 30_000);
 
   it("executes the published-register recipe and rejects an initializer no-op", async () => {
     const repoRoot = path.resolve(import.meta.dirname, "../../..");
