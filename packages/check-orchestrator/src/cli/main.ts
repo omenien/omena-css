@@ -256,7 +256,9 @@ async function printAffectedEvidence(
       `  PREVIEW ran estimate=${preview.budget.estimatedRunMs}ms measured=${preview.receipts.reduce((sum, receipt) => sum + receipt.elapsedMs, 0)}ms`,
     );
     for (const entry of preview.budget.skipped) {
-      console.log(`  PREVIEW-SKIPPED ${entry.gateId} p95=${entry.p95Ms ?? "unbounded"}ms`);
+      console.log(
+        `  PREVIEW-SKIPPED ${entry.gateId} p95=${entry.p95Ms === null ? "unbounded" : `${entry.p95Ms}ms`}`,
+      );
     }
     for (const gateId of preview.budget.omittedWriteModeGateIds) {
       console.log(`  PREVIEW-OMITTED-WRITE-MODE ${gateId}`);
