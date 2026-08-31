@@ -1126,10 +1126,10 @@ describe("scan surface falsifiers", () => {
 describe("writer registry portability", () => {
   it("derives every detectable non-previewable class from source markers", () => {
     const detected = detectNotPreviewableInputSeedsForSource(
-      "scripts/check-derived-inputs.ts",
+      "scripts/check-rust-omena-diff-test-derived-inputs.ts",
       [
         'const reviewAfter = "2099-01-01";',
-        "const injected = process.env.OMENA_TEST_INPUT;",
+        'const environmentKey = "OMENA_TEST_INPUT"; const injected = process.env[environmentKey];',
         'run("git", ["rev-list", "--count", "HEAD"]);',
         "const beforeInputDigests = digestInputs();",
         "const afterInputDigests = digestInputs();",

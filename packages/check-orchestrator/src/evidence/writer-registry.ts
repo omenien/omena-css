@@ -1765,14 +1765,17 @@ export function detectNotPreviewableInputSeedsForSource(
   if (sourcePath === "packages/check-orchestrator/src/evidence/writer-registry.ts") return [];
   const sourceFile = ts.createSourceFile(sourcePath, source, ts.ScriptTarget.Latest, true);
   const seeds: NotPreviewableInputSeed[] = [];
-  if (sourceContainsIdentifier(sourceFile, new Set(["reviewAfter", "review_after"]))) {
+  if (
+    sourcePath.startsWith("scripts/check-rust-omena-diff-test-") &&
+    sourceContainsIdentifier(sourceFile, new Set(["reviewAfter", "review_after"]))
+  ) {
     seeds.push({
       ownerId: sourcePath,
       kind: "calendar-time",
       detail: "reviewAfter policy is evaluated from calendar state",
     });
   }
-  if (sourceReadsProcessEnvironment(sourceFile)) {
+  if (sourceReadsDynamicProcessEnvironment(sourceFile)) {
     seeds.push({
       ownerId: sourcePath,
       kind: "environment",
@@ -1837,20 +1840,18 @@ function sourceContainsIdentifier(
   return found;
 }
 
-function sourceReadsProcessEnvironment(sourceFile: tsTypes.SourceFile): boolean {
+function sourceReadsDynamicProcessEnvironment(sourceFile: tsTypes.SourceFile): boolean {
   let found = false;
   const visit = (node: tsTypes.Node): void => {
     if (
-      (ts.isPropertyAccessExpression(node) &&
-        ts.isIdentifier(node.expression) &&
-        node.expression.text === "process" &&
-        node.name.text === "env") ||
-      (ts.isElementAccessExpression(node) &&
-        ts.isIdentifier(node.expression) &&
-        node.expression.text === "process" &&
-        node.argumentExpression &&
-        ts.isStringLiteral(node.argumentExpression) &&
-        node.argumentExpression.text === "env")
+      ts.isElementAccessExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      ts.isIdentifier(node.expression.expression) &&
+      node.expression.expression.text === "process" &&
+      node.expression.name.text === "env" &&
+      node.argumentExpression !== undefined &&
+      !ts.isStringLiteral(node.argumentExpression) &&
+      !ts.isNoSubstitutionTemplateLiteral(node.argumentExpression)
     ) {
       found = true;
       return;
@@ -2124,26 +2125,8 @@ function gateIdsForNotPreviewableOwner(
   checkManifest: ReturnType<typeof loadCheckManifest>,
 ): readonly string[] {
   const gateIds = new Set<string>();
-  const relatedPaths = new Set([ownerId]);
-  for (const row of artifacts) {
-    if (
-      row.artifactPath === ownerId ||
-      row.writerScripts.includes(ownerId) ||
-      row.inputPaths.includes(ownerId) ||
-      row.inputScannerPaths.includes(ownerId) ||
-      row.consumerPaths.includes(ownerId)
-    ) {
-      for (const candidate of [
-        ...row.writerScripts,
-        ...row.inputScannerPaths,
-        ...row.consumerPaths,
-      ]) {
-        relatedPaths.add(candidate);
-      }
-    }
-  }
   for (const gate of checkManifest.gates) {
-    if ([...relatedPaths].some((candidate) => gate.command.includes(candidate))) {
+    if (gate.command.includes(ownerId) || gate.command.includes(`./${ownerId}`)) {
       gateIds.add(gate.id);
     }
   }
@@ -2153,16 +2136,11 @@ function gateIdsForNotPreviewableOwner(
     }
   }
   for (const row of artifacts) {
-    if (
-      row.artifactPath !== ownerId &&
-      !row.writerScripts.includes(ownerId) &&
-      !row.inputPaths.includes(ownerId) &&
-      !row.inputScannerPaths.includes(ownerId) &&
-      !row.consumerPaths.includes(ownerId)
-    ) {
-      continue;
+    if (row.artifactPath === ownerId) {
+      for (const gateId of [...row.writerGateIds, ...row.consumerGateIds]) gateIds.add(gateId);
+    } else if (row.writerScripts.includes(ownerId)) {
+      for (const gateId of row.writerGateIds) gateIds.add(gateId);
     }
-    for (const gateId of [...row.writerGateIds, ...row.consumerGateIds]) gateIds.add(gateId);
   }
   if (
     gateIds.size === 0 &&
