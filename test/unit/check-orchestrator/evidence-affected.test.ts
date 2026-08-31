@@ -23,6 +23,7 @@ import {
 import {
   assertHistoricalSurfaceNarrowing,
   assertSurfaceNarrowingReason,
+  buildEvidenceScanSurfaceManifest,
   evidenceScanSurfaceFreshnessDiagnostics,
   resolveEvidenceHistoricalAuthorityRef,
 } from "../../../packages/check-orchestrator/src/evidence/scan-surface-registry";
@@ -54,12 +55,22 @@ import {
   sha256Text,
 } from "../../../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import {
+  assertEvidenceWriterAuthorityCoverage,
+  assertEvidenceWriterOutputAuthorityCoverage,
+  assertUpdateCommandWriterCoverage,
   buildEvidenceWriterRegistry,
   discoverEvidenceArtifactPaths,
+  discoverEvidenceWriterOutputAuthority,
+  EVIDENCE_WRITER_REGISTRY_PATH,
+  loadEvidenceWriterRegistry,
   renderEvidenceWriterRegistry,
   type EvidenceArtifactRowV0,
   type EvidenceWriterRegistryV0,
 } from "../../../packages/check-orchestrator/src/evidence/writer-registry";
+import {
+  EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH,
+  EVIDENCE_WRITER_COMMAND_DECLARATIONS,
+} from "../../../packages/check-orchestrator/src/evidence/writer-command-authority";
 import type {
   CheckGate,
   CheckManifest,
@@ -169,6 +180,12 @@ function writerRegistry(): EvidenceWriterRegistryV0 {
   return {
     schemaVersion: "0",
     generatedBy: "pnpm omena-check evidence-writers --write",
+    commandAuthority: {
+      modulePath: EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH,
+      sha256: "a".repeat(64),
+      declaredCommandCount: 1,
+      declaredOutputCount: 1,
+    },
     artifacts: [
       artifact("rust/a.json", {
         inputScannerPaths: ["scripts/check-rust.ts"],
@@ -356,6 +373,42 @@ describe("evidence affected closure", () => {
       "rust/first.json",
       "rust/second.json",
     ]);
+
+    const aggregateCommand = ["node", "aggregate.mjs", "--write"];
+    const focusedCommand = ["node", "focused.mjs", "--write"];
+    const alternateRegistry = {
+      ...registry,
+      artifacts: [
+        ...registry.artifacts,
+        artifact("rust/aggregate.json", { writeCommand: aggregateCommand }),
+        artifact("rust/focused.json", {
+          writeCommand: focusedCommand,
+          alternateWriteCommands: [aggregateCommand],
+        }),
+      ].toSorted((left, right) =>
+        left.artifactPath < right.artifactPath
+          ? -1
+          : left.artifactPath > right.artifactPath
+            ? 1
+            : 0,
+      ),
+    } satisfies EvidenceWriterRegistryV0;
+    const aggregatePlan = buildEvidenceAffectedPlan({
+      changedPaths: ["rust/aggregate.json"],
+      scanManifest: scannerManifest(),
+      writerRegistry: alternateRegistry,
+      expectedScannerPaths: expectedScannerPaths(),
+      knownGateIds,
+    });
+    expect(aggregatePlan.affectedArtifactPaths).toContain("rust/focused.json");
+    const focusedPlan = buildEvidenceAffectedPlan({
+      changedPaths: ["rust/focused.json"],
+      scanManifest: scannerManifest(),
+      writerRegistry: alternateRegistry,
+      expectedScannerPaths: expectedScannerPaths(),
+      knownGateIds,
+    });
+    expect(focusedPlan.affectedArtifactPaths).not.toContain("rust/aggregate.json");
   });
 });
 
@@ -435,6 +488,36 @@ describe("scan surface falsifiers", () => {
       findUnroutedScannerCallSites(
         "scripts/factory-control.ts",
         'import { resolveScanSurfaceForScanner as resolveSurface } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest"; function makeSurface() { return resolveSurface(import.meta.url); } const surface = makeSurface(); surface.readdirSync(root);',
+      ),
+    ).toEqual([]);
+    for (const [fixturePath, source] of [
+      [
+        "scripts/loop-resolver-shadow.ts",
+        'import { resolveScanSurfaceForScanner as resolveSurface } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest"; const surface = resolveSurface(import.meta.url); for (const resolveSurface of fakeFactories) { const local = resolveSurface(); local.readdirSync(root); }',
+      ],
+      [
+        "scripts/loop-surface-shadow.ts",
+        'import { resolveScanSurfaceForScanner as resolveSurface } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest"; const surface = resolveSurface(import.meta.url); for (const surface of fakeSurfaces) { surface.readdirSync(root); }',
+      ],
+      [
+        "scripts/catch-surface-shadow.ts",
+        'import { resolveScanSurfaceForScanner as resolveSurface } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest"; const surface = resolveSurface(import.meta.url); try { throw fakeSurface; } catch (surface) { surface.readdirSync(root); }',
+      ],
+      [
+        "scripts/destructured-surface-shadow.ts",
+        'import { resolveScanSurfaceForScanner as resolveSurface } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest"; const surface = resolveSurface(import.meta.url); function scan({ surface }: { surface: any }) { surface.readdirSync(root); }',
+      ],
+      [
+        "scripts/nested-array-shadow.ts",
+        'import { resolveScanSurfaceForScanner as resolveSurface } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest"; const surface = resolveSurface(import.meta.url); const [{ surface: nestedSurface = surface }] = fakeSurfaces; nestedSurface.readdirSync(root);',
+      ],
+    ] as const) {
+      expect(findUnroutedScannerCallSites(fixturePath, source), fixturePath).toHaveLength(1);
+    }
+    expect(
+      findUnroutedScannerCallSites(
+        "scripts/destructured-control.ts",
+        'import { resolveScanSurfaceForScanner as resolveSurface } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest"; function scan({ input }: { input: string }) { const surface = resolveSurface(import.meta.url); surface.readdirSync(input); }',
       ),
     ).toEqual([]);
   });
@@ -585,6 +668,47 @@ describe("scan surface falsifiers", () => {
       /first removed path \.changeset\/README\.md/u,
     );
   }, 10_000);
+
+  it("keeps coherent predicate narrowing wired through the production manifest builder", async () => {
+    const repoRoot = path.resolve(import.meta.dirname, "../../..");
+    const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), "omena-production-narrowing-"));
+    const worktree = path.join(temporaryRoot, "repo");
+    execFileSync("git", ["worktree", "add", "--detach", worktree, "HEAD"], {
+      cwd: repoRoot,
+      stdio: "ignore",
+    });
+    try {
+      symlinkSync(
+        path.join(repoRoot, "node_modules"),
+        path.join(worktree, "node_modules"),
+        process.platform === "win32" ? "junction" : "dir",
+      );
+      await expect(buildEvidenceScanSurfaceManifest(worktree)).resolves.toBeDefined();
+      const predicatePath = "packages/check-orchestrator/src/evidence/predicates/personal-docs.ts";
+      const predicateSource = readFileSync(path.join(worktree, predicatePath), "utf8");
+      expect(predicateSource).toContain('candidate === ".personal_docs"');
+      writeFileSync(
+        path.join(worktree, predicatePath),
+        predicateSource.replace(
+          'candidate === ".personal_docs"',
+          'candidate === ".personal_docs" || candidate === "docs" || candidate.startsWith("docs/")',
+        ),
+      );
+      execFileSync("git", ["add", predicatePath], { cwd: worktree });
+      execFileSync("git", ["commit", "-q", "-m", "narrow evidence predicate"], {
+        cwd: worktree,
+      });
+      await expect(buildEvidenceScanSurfaceManifest(worktree)).rejects.toThrow(
+        /narrowed without a new reason.*docs\//u,
+      );
+    } finally {
+      execFileSync("git", ["worktree", "remove", "--force", worktree], {
+        cwd: repoRoot,
+        stdio: "ignore",
+      });
+      rmSync(temporaryRoot, { recursive: true, force: true });
+    }
+  }, 60_000);
 
   it("keeps a coherent committed predicate behavior narrowing RED until a new reason is present", async () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "omena-predicate-history-"));
@@ -822,23 +946,45 @@ describe("writer registry portability", () => {
   it("discovers a tracked nested-only JSON writer without a root artifact seed", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "omena-nested-writer-"));
     const scriptPath = path.join(root, "scripts/write-nested.ts");
+    const importedPathModule = path.join(root, "scripts/nested-output.ts");
+    const importedWriterPath = path.join(root, "scripts/write-imported.ts");
     const artifactPath = path.join(root, "rust/crates/example/nested-census.json");
+    const textArtifactPath = path.join(root, "rust/crates/example/nested-evidence.txt");
     mkdirSync(path.dirname(scriptPath), { recursive: true });
     mkdirSync(path.dirname(artifactPath), { recursive: true });
     writeFileSync(artifactPath, '{"schemaVersion":"0"}\n');
+    writeFileSync(textArtifactPath, "evidence\n");
     writeFileSync(
       scriptPath,
       'import { writeFileSync } from "node:fs"; import path from "node:path"; const output = path.join(process.cwd(), "rust", "crates", "example", "nested-census.json"); writeFileSync(output, "{}\\n");\n',
     );
+    writeFileSync(
+      importedPathModule,
+      'export const NESTED_OUTPUT = "rust/crates/example/nested-evidence.txt";\n',
+    );
+    writeFileSync(
+      importedWriterPath,
+      'import { writeFileSync } from "node:fs"; import path from "node:path"; import { NESTED_OUTPUT } from "./nested-output"; const output = path.join(process.cwd(), NESTED_OUTPUT); writeFileSync(output, "evidence\\n");\n',
+    );
     execFileSync("git", ["init", "-q"], { cwd: root });
     execFileSync("git", ["add", "."], { cwd: root });
     expect(discoverEvidenceArtifactPaths(root)).toContain("rust/crates/example/nested-census.json");
+    expect(discoverEvidenceArtifactPaths(root)).toContain(
+      "rust/crates/example/nested-evidence.txt",
+    );
     writeFileSync(
       scriptPath,
       'import path from "node:path"; const output = path.join(process.cwd(), "rust", "crates", "example", "nested-census.json"); process.stdout.write(output);\n',
     );
     expect(discoverEvidenceArtifactPaths(root)).not.toContain(
       "rust/crates/example/nested-census.json",
+    );
+    writeFileSync(
+      importedWriterPath,
+      'import { NESTED_OUTPUT } from "./nested-output"; process.stdout.write(NESTED_OUTPUT);\n',
+    );
+    expect(discoverEvidenceArtifactPaths(root)).not.toContain(
+      "rust/crates/example/nested-evidence.txt",
     );
     rmSync(root, { recursive: true, force: true });
   });
@@ -860,6 +1006,93 @@ describe("writer registry portability", () => {
       expect(registry.artifacts.map((row) => row.artifactPath)).toEqual(
         discoverEvidenceArtifactPaths(repoRoot),
       );
+      expect(registry.commandAuthority).toMatchObject({
+        modulePath: EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH,
+        declaredCommandCount: EVIDENCE_WRITER_COMMAND_DECLARATIONS.length,
+        declaredOutputCount: new Set(
+          EVIDENCE_WRITER_COMMAND_DECLARATIONS.flatMap((row) => row.outputPaths),
+        ).size,
+      });
+      expect(() => assertEvidenceWriterAuthorityCoverage(registry)).not.toThrow();
+      const packageScripts = (
+        JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8")) as {
+          readonly scripts: Readonly<Record<string, string>>;
+        }
+      ).scripts;
+      expect(() =>
+        assertUpdateCommandWriterCoverage(packageScripts, registry.artifacts),
+      ).not.toThrow();
+      expect(() =>
+        assertUpdateCommandWriterCoverage(
+          {
+            ...packageScripts,
+            "update:unregistered-output": "node ./scripts/unregistered-writer.mjs --write",
+          },
+          registry.artifacts,
+        ),
+      ).toThrow(/no total writer-output authority/u);
+      const outputAuthority = discoverEvidenceWriterOutputAuthority(repoRoot);
+      expect(outputAuthority.rootArtifactPaths.length).toBeGreaterThan(40);
+      expect(outputAuthority.writeCallOutputPaths.length).toBeGreaterThan(20);
+      expect(outputAuthority.declaredCommandOutputPaths).toHaveLength(
+        new Set(EVIDENCE_WRITER_COMMAND_DECLARATIONS.flatMap((row) => row.outputPaths)).size,
+      );
+      expect(() =>
+        assertEvidenceWriterOutputAuthorityCoverage(registry, outputAuthority),
+      ).not.toThrow();
+      const grammarDeclaration = EVIDENCE_WRITER_COMMAND_DECLARATIONS.find(
+        (row) => row.commandId === "spec-audit-webref-grammar",
+      )!;
+      expect(grammarDeclaration.outputPaths).toEqual([
+        "rust/crates/omena-spec-audit/data/webref-grammar.json",
+        "rust/crates/omena-spec-audit/data/webref-registry-delta.json",
+      ]);
+      const lineIndexDeclaration = EVIDENCE_WRITER_COMMAND_DECLARATIONS.find(
+        (row) => row.commandId === "syntax-line-index-authority",
+      )!;
+      expect(lineIndexDeclaration.outputPaths).toContain(
+        "rust/crates/omena-syntax/tests/snapshots/public-api.txt",
+      );
+      for (const declaration of EVIDENCE_WRITER_COMMAND_DECLARATIONS) {
+        for (const outputPath of declaration.outputPaths) {
+          const row = registry.artifacts.find((candidate) => candidate.artifactPath === outputPath);
+          expect(
+            [row?.writeCommand, ...(row?.alternateWriteCommands ?? [])].some(
+              (command) => JSON.stringify(command) === JSON.stringify(declaration.writeCommand),
+            ),
+            `${declaration.commandId}:${outputPath}`,
+          ).toBe(true);
+        }
+      }
+      expect(() =>
+        assertEvidenceWriterAuthorityCoverage({
+          ...registry,
+          artifacts: registry.artifacts.filter(
+            (row) => row.artifactPath !== "rust/crates/omena-spec-audit/data/webref-grammar.json",
+          ),
+        }),
+      ).toThrow(/authority output is absent/u);
+      expect(() =>
+        assertEvidenceWriterOutputAuthorityCoverage(
+          {
+            ...registry,
+            artifacts: registry.artifacts.filter(
+              (row) => row.artifactPath !== outputAuthority.rootArtifactPaths[0],
+            ),
+          },
+          outputAuthority,
+        ),
+      ).toThrow(/output is absent from registry/u);
+      expect(() =>
+        assertEvidenceWriterAuthorityCoverage({
+          ...registry,
+          artifacts: registry.artifacts.map((row) =>
+            row.artifactPath === "rust/crates/omena-syntax/tests/snapshots/public-api.txt"
+              ? { ...row, writeCommand: ["node", "wrong-writer.mjs"] }
+              : row,
+          ),
+        }),
+      ).toThrow(/authority command drifted/u);
       expect(
         registry.artifacts.filter((row) => !["W1", "W2", "W3", "W4"].includes(row.classification)),
       ).toEqual([]);
@@ -994,7 +1227,7 @@ describe("writer registry portability", () => {
     }
   }, 30_000);
 
-  it("executes the published-register recipe and rejects an initializer no-op", async () => {
+  it("executes the declared published-register recipe from a fresh output and rejects redirection", async () => {
     const repoRoot = path.resolve(import.meta.dirname, "../../..");
     const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), "omena-writer-reproduction-"));
     const worktree = path.join(temporaryRoot, "repo");
@@ -1009,7 +1242,20 @@ describe("writer registry portability", () => {
         process.platform === "win32" ? "junction" : "dir",
       );
       const outputPath = "rust/omena-published-crate-surface-register.json";
-      const scriptPath = "scripts/check-rust-published-crate-surface-register.ts";
+      // The detached worktree starts at HEAD while this test also runs during a
+      // pre-commit evidence refresh. Copy the candidate bytes whose recipe is
+      // under test rather than silently exercising the previous commit.
+      writeFileSync(path.join(worktree, outputPath), readFileSync(path.join(repoRoot, outputPath)));
+      writeFileSync(
+        path.join(worktree, EVIDENCE_WRITER_REGISTRY_PATH),
+        readFileSync(path.join(repoRoot, EVIDENCE_WRITER_REGISTRY_PATH)),
+      );
+      const registry = loadEvidenceWriterRegistry(worktree);
+      expect(registry).not.toBeNull();
+      const publishedRow = registry!.artifacts.find((row) => row.artifactPath === outputPath);
+      expect(publishedRow?.writeCommand).toBeDefined();
+      expect(publishedRow?.freshReproductionRequired).toBe(true);
+      const scriptPath = publishedRow!.writerScripts[0]!;
       const baselineBytes = readFileSync(path.join(worktree, outputPath));
       const baseline = JSON.parse(baselineBytes.toString("utf8")) as {
         readonly rows: readonly {
@@ -1029,49 +1275,70 @@ describe("writer registry portability", () => {
             .map((row) => row.crate),
         })}\n`,
       );
-      const command = [
-        process.execPath,
-        "--import",
-        "tsx",
-        `./${scriptPath}`,
-        "--initialize-from",
-        statePath,
-      ];
-      unlinkSync(path.join(worktree, outputPath));
+      const command = resolveEvidenceWriterCommand(
+        publishedRow!.writeCommand!,
+        publishedRow!.requiredEnvironmentKeys ?? [],
+        { OMENA_PUBLISHED_CRATE_REGISTRY_STATE: statePath },
+      );
       await expect(
         runDigestPinnedWriter({
           repoRoot: worktree,
           command,
-          inputPaths: [scriptPath, statePath],
+          inputPaths: [EVIDENCE_WRITER_REGISTRY_PATH, scriptPath, statePath],
           outputPaths: [outputPath],
+          requireFreshReproduction: true,
         }),
       ).resolves.toMatchObject({ exitCode: 0 });
       const freshlyGenerated = readFileSync(path.join(worktree, outputPath));
       expect(freshlyGenerated.length).toBeGreaterThan(0);
-      unlinkSync(path.join(worktree, outputPath));
       await expect(
         runDigestPinnedWriter({
           repoRoot: worktree,
           command,
-          inputPaths: [scriptPath, statePath],
+          inputPaths: [EVIDENCE_WRITER_REGISTRY_PATH, scriptPath, statePath],
           outputPaths: [outputPath],
+          requireFreshReproduction: true,
         }),
       ).resolves.toMatchObject({ exitCode: 0 });
       expect(readFileSync(path.join(worktree, outputPath))).toEqual(freshlyGenerated);
 
-      const source = readFileSync(path.join(worktree, scriptPath), "utf8");
-      expect(source).toContain("  initializeRegister(initializeFrom);\n");
+      const wrongRegistry = {
+        ...registry!,
+        artifacts: registry!.artifacts.map((row) =>
+          row.artifactPath === outputPath
+            ? {
+                ...row,
+                writeCommand: [
+                  "node",
+                  "--import",
+                  "tsx",
+                  "./scripts/check-rust-publish-train-closure.ts",
+                  "--initialize-from",
+                  "${OMENA_PUBLISHED_CRATE_REGISTRY_STATE}",
+                ],
+              }
+            : row,
+        ),
+      } satisfies EvidenceWriterRegistryV0;
       writeFileSync(
-        path.join(worktree, scriptPath),
-        source.replace("  initializeRegister(initializeFrom);\n", ""),
+        path.join(worktree, EVIDENCE_WRITER_REGISTRY_PATH),
+        renderEvidenceWriterRegistry(wrongRegistry),
       );
-      unlinkSync(path.join(worktree, outputPath));
+      const redirected = loadEvidenceWriterRegistry(worktree)!.artifacts.find(
+        (row) => row.artifactPath === outputPath,
+      )!;
+      const redirectedCommand = resolveEvidenceWriterCommand(
+        redirected.writeCommand!,
+        redirected.requiredEnvironmentKeys ?? [],
+        { OMENA_PUBLISHED_CRATE_REGISTRY_STATE: statePath },
+      );
       await expect(
         runDigestPinnedWriter({
           repoRoot: worktree,
-          command,
-          inputPaths: [scriptPath, statePath],
+          command: redirectedCommand,
+          inputPaths: [EVIDENCE_WRITER_REGISTRY_PATH, ...redirected.writerScripts, statePath],
           outputPaths: [outputPath],
+          requireFreshReproduction: true,
         }),
       ).rejects.toThrow(/successful no-op/u);
     } finally {

@@ -323,10 +323,15 @@ async function runAffectedEvidenceWriters(
     const row = artifactByPath.get(artifactPath);
     if (!row || row.classification === "W3" || row.classification === "W4") continue;
     if (!row.writeCommand) throw new Error(`writeable artifact lacks a command: ${artifactPath}`);
+    const rowCommandKeys = [row.writeCommand, ...(row.alternateWriteCommands ?? [])].map(
+      (command) => JSON.stringify(command),
+    );
+    if (rowCommandKeys.some((candidate) => completedCommands.has(candidate))) continue;
     const commandKey = JSON.stringify(row.writeCommand);
-    if (completedCommands.has(commandKey)) continue;
-    const commandRows = writerRegistry.artifacts.filter(
-      (candidate) => JSON.stringify(candidate.writeCommand) === commandKey,
+    const commandRows = writerRegistry.artifacts.filter((candidate) =>
+      [candidate.writeCommand, ...(candidate.alternateWriteCommands ?? [])]
+        .filter((command): command is readonly string[] => command !== undefined)
+        .some((command) => JSON.stringify(command) === commandKey),
     );
     const requiredEnvironmentKeys = [
       ...new Set(commandRows.flatMap((candidate) => candidate.requiredEnvironmentKeys ?? [])),
@@ -360,6 +365,9 @@ async function runAffectedEvidenceWriters(
       command: resolvedWriteCommand,
       inputPaths: [...inputPaths],
       outputPaths: commandRows.map((candidate) => candidate.artifactPath),
+      requireFreshReproduction: commandRows.some(
+        (candidate) => candidate.freshReproductionRequired === true,
+      ),
     });
     completedCommands.add(commandKey);
   }

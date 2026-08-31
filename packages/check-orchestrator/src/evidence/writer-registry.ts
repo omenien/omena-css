@@ -9,6 +9,11 @@ import {
   loadEvidenceScanSurfaceManifest,
 } from "./scan-surface-manifest";
 import { defineScanSurface, resolveScanSurface } from "./scan-surface";
+import {
+  EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH,
+  EVIDENCE_WRITER_COMMAND_DECLARATIONS,
+  type EvidenceWriterCommandDeclaration,
+} from "./writer-command-authority";
 
 export const EVIDENCE_WRITER_REGISTRY_PATH = "rust/evidence-writer-registry.json";
 
@@ -19,10 +24,10 @@ const ROOT_RUST_ARTIFACT_SURFACE = defineScanSurface({
   includeUntracked: true,
   excludes: [],
 });
-const SCRIPT_SOURCE_SURFACE = defineScanSurface({
+const WRITER_SOURCE_SURFACE = defineScanSurface({
   scannerPath: "packages/check-orchestrator/src/evidence/writer-registry.ts",
   mode: "index",
-  pathspecs: ["scripts/**"],
+  pathspecs: ["scripts/**", "packages/check-orchestrator/src/**"],
   includeUntracked: true,
   excludes: [],
 });
@@ -50,6 +55,12 @@ export type EvidenceArtifactClassification = "W1" | "W2" | "W3" | "W4";
 export interface EvidenceWriterRegistryV0 {
   readonly schemaVersion: "0";
   readonly generatedBy: "pnpm omena-check evidence-writers --write";
+  readonly commandAuthority: {
+    readonly modulePath: typeof EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH;
+    readonly sha256: string;
+    readonly declaredCommandCount: number;
+    readonly declaredOutputCount: number;
+  };
   readonly artifacts: readonly EvidenceArtifactRowV0[];
   readonly notPreviewableInputs: readonly NotPreviewableInputV0[];
 }
@@ -58,8 +69,10 @@ export interface EvidenceArtifactRowV0 {
   readonly artifactPath: string;
   readonly classification: EvidenceArtifactClassification;
   readonly writerNodeKind: "normal" | "self-ratchet";
+  readonly freshReproductionRequired?: true;
   readonly writerScripts: readonly string[];
   readonly writeCommand?: readonly string[];
+  readonly alternateWriteCommands?: readonly (readonly string[])[];
   readonly requiredEnvironmentKeys?: readonly string[];
   readonly procedure?: readonly string[];
   readonly disposition?: "reviewer-retire-proposal";
@@ -96,7 +109,13 @@ export function renderEvidenceWriterRegistry(registry: EvidenceWriterRegistryV0)
 
 export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterRegistryV0 {
   const discovery = discoverEvidenceArtifacts(repoRoot);
-  const { repositoryPaths, scriptPaths, artifactPaths, scriptAnalysisCache } = discovery;
+  const {
+    repositoryPaths,
+    scriptPaths,
+    artifactPaths,
+    scriptAnalysisCache,
+    staticWriterScriptsByOutput,
+  } = discovery;
   const referencePathsByArtifact = repositoryReferencePathsByArtifact(
     repoRoot,
     artifactPaths,
@@ -117,7 +136,14 @@ export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterReg
   const directWriterScriptsByArtifact = new Map(
     artifactPaths.map((artifactPath) => [
       artifactPath,
-      findArtifactWriterScripts(repoRoot, artifactPath, scriptPaths, scriptAnalysisCache),
+      [
+        ...new Set([
+          ...(path.posix.dirname(artifactPath) === "rust"
+            ? findArtifactWriterScripts(repoRoot, artifactPath, scriptPaths, scriptAnalysisCache)
+            : (staticWriterScriptsByOutput.get(artifactPath) ?? [])),
+          ...declaredCommandsForOutput(artifactPath).flatMap((row) => row.writerScripts),
+        ]),
+      ].toSorted(),
     ]),
   );
   const updateCommandValues = Object.entries(packageScripts)
@@ -172,9 +198,26 @@ export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterReg
   const registry = {
     schemaVersion: "0",
     generatedBy: "pnpm omena-check evidence-writers --write",
+    commandAuthority: {
+      modulePath: EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH,
+      sha256: createHash("sha256")
+        .update(readFileSync(path.join(repoRoot, EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH)))
+        .digest("hex"),
+      declaredCommandCount: EVIDENCE_WRITER_COMMAND_DECLARATIONS.length,
+      declaredOutputCount: new Set(
+        EVIDENCE_WRITER_COMMAND_DECLARATIONS.flatMap((row) => row.outputPaths),
+      ).size,
+    },
     artifacts,
     notPreviewableInputs: declaredNotPreviewableInputs(),
   } satisfies EvidenceWriterRegistryV0;
+  assertUpdateCommandWriterCoverage(packageScripts, registry.artifacts);
+  assertEvidenceWriterAuthorityCoverage(registry);
+  assertEvidenceWriterOutputAuthorityCoverage(registry, {
+    rootArtifactPaths: discovery.rootArtifactPaths,
+    writeCallOutputPaths: discovery.writeCallOutputPaths,
+    declaredCommandOutputPaths: discovery.declaredCommandOutputPaths,
+  });
   for (const input of registry.notPreviewableInputs) {
     if (!existsSync(path.join(repoRoot, input.ownerId))) {
       throw new Error(`not-previewable owner module is missing: ${input.ownerId}`);
@@ -187,25 +230,52 @@ export function discoverEvidenceArtifactPaths(repoRoot: string): readonly string
   return discoverEvidenceArtifacts(repoRoot).artifactPaths;
 }
 
+export interface EvidenceWriterOutputAuthority {
+  readonly rootArtifactPaths: readonly string[];
+  readonly writeCallOutputPaths: readonly string[];
+  readonly declaredCommandOutputPaths: readonly string[];
+}
+
+export function discoverEvidenceWriterOutputAuthority(
+  repoRoot: string,
+): EvidenceWriterOutputAuthority {
+  const discovery = discoverEvidenceArtifacts(repoRoot);
+  return {
+    rootArtifactPaths: discovery.rootArtifactPaths,
+    writeCallOutputPaths: discovery.writeCallOutputPaths,
+    declaredCommandOutputPaths: discovery.declaredCommandOutputPaths,
+  };
+}
+
 interface WriterScriptAnalysis {
   readonly source: string;
   readonly sourceFile: tsTypes.SourceFile;
   readonly staticPathVariables: ReadonlyMap<string, string>;
+  readonly lexical: StaticPathLexicalIndex;
+  readonly lexicalStaticPathValues: ReadonlyMap<tsTypes.Identifier, string>;
+}
+
+interface StaticPathLexicalIndex {
+  readonly declarationFor: (identifier: tsTypes.Identifier) => tsTypes.Identifier | null;
 }
 
 interface EvidenceArtifactDiscovery {
   readonly repositoryPaths: readonly string[];
   readonly scriptPaths: readonly string[];
   readonly artifactPaths: readonly string[];
+  readonly rootArtifactPaths: readonly string[];
+  readonly writeCallOutputPaths: readonly string[];
+  readonly declaredCommandOutputPaths: readonly string[];
+  readonly staticWriterScriptsByOutput: ReadonlyMap<string, readonly string[]>;
   readonly scriptAnalysisCache: Map<string, WriterScriptAnalysis>;
 }
 
 function discoverEvidenceArtifacts(repoRoot: string): EvidenceArtifactDiscovery {
   const repositoryPaths = resolveScanSurface(REPOSITORY_REFERENCE_SURFACE, { repoRoot }).paths;
-  const scriptPaths = resolveScanSurface(SCRIPT_SOURCE_SURFACE, { repoRoot }).paths.filter(
+  const scriptPaths = resolveScanSurface(WRITER_SOURCE_SURFACE, { repoRoot }).paths.filter(
     (candidate) => /\.(?:[cm]?js|ts)$/u.test(candidate),
   );
-  const scriptAnalysisCache = new Map<string, WriterScriptAnalysis>();
+  const scriptAnalysisCache = buildWriterScriptAnalysisCache(repoRoot, scriptPaths);
   const rootArtifacts = [
     ...new Set([
       ...resolveScanSurface(ROOT_RUST_ARTIFACT_SURFACE, { repoRoot }).paths.filter(
@@ -214,17 +284,132 @@ function discoverEvidenceArtifacts(repoRoot: string): EvidenceArtifactDiscovery 
       EVIDENCE_WRITER_REGISTRY_PATH,
     ]),
   ];
-  const trackedWriterOutputs = repositoryPaths.filter(
-    (candidate) =>
-      candidate.endsWith(".json") &&
-      findArtifactWriterScripts(repoRoot, candidate, scriptPaths, scriptAnalysisCache).length > 0,
+  const staticWriterScriptsByOutput = discoverTrackedStaticWriteOutputs(
+    repoRoot,
+    repositoryPaths,
+    scriptAnalysisCache,
   );
+  const trackedWriterOutputs = [...staticWriterScriptsByOutput.keys()].toSorted();
+  const declaredCommandOutputPaths = [
+    ...new Set(EVIDENCE_WRITER_COMMAND_DECLARATIONS.flatMap((row) => row.outputPaths)),
+  ].toSorted();
   return {
     repositoryPaths,
     scriptPaths,
-    artifactPaths: [...new Set([...rootArtifacts, ...trackedWriterOutputs])].toSorted(),
+    artifactPaths: [
+      ...new Set([...rootArtifacts, ...trackedWriterOutputs, ...declaredCommandOutputPaths]),
+    ].toSorted(),
+    rootArtifactPaths: rootArtifacts.toSorted(),
+    writeCallOutputPaths: trackedWriterOutputs.toSorted(),
+    declaredCommandOutputPaths,
+    staticWriterScriptsByOutput,
     scriptAnalysisCache,
   };
+}
+
+function buildWriterScriptAnalysisCache(
+  repoRoot: string,
+  scriptPaths: readonly string[],
+): Map<string, WriterScriptAnalysis> {
+  const cache = new Map<string, WriterScriptAnalysis>();
+  for (const scriptPath of scriptPaths) {
+    const source = readFileSync(path.join(repoRoot, scriptPath), "utf8");
+    const sourceFile = ts.createSourceFile(scriptPath, source, ts.ScriptTarget.Latest, true);
+    const lexical = buildStaticPathLexicalIndex(sourceFile);
+    cache.set(scriptPath, {
+      source,
+      sourceFile,
+      staticPathVariables: collectStaticPathVariables(repoRoot, sourceFile),
+      lexical,
+      lexicalStaticPathValues: collectLexicalStaticPathValues(repoRoot, sourceFile, lexical),
+    });
+  }
+  const scriptPathSet = new Set(scriptPaths);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [scriptPath, analysis] of cache) {
+      const importedValues = new Map<string, string>();
+      for (const statement of analysis.sourceFile.statements) {
+        if (
+          !ts.isImportDeclaration(statement) ||
+          !ts.isStringLiteral(statement.moduleSpecifier) ||
+          !statement.importClause?.namedBindings ||
+          !ts.isNamedImports(statement.importClause.namedBindings)
+        ) {
+          continue;
+        }
+        const importedModule = resolveLocalImportedModulePath(
+          scriptPath,
+          statement.moduleSpecifier.text,
+          scriptPathSet,
+        );
+        if (!importedModule) continue;
+        const importedAnalysis = cache.get(importedModule);
+        if (!importedAnalysis) continue;
+        for (const element of statement.importClause.namedBindings.elements) {
+          const importedName = element.propertyName?.text ?? element.name.text;
+          const value = importedAnalysis.staticPathVariables.get(importedName);
+          if (value !== undefined) importedValues.set(element.name.text, value);
+        }
+      }
+      const nextValues = collectStaticPathVariables(repoRoot, analysis.sourceFile, importedValues);
+      const nextLexicalValues = collectLexicalStaticPathValues(
+        repoRoot,
+        analysis.sourceFile,
+        analysis.lexical,
+        importedValues,
+      );
+      if (
+        nextValues.size !== analysis.staticPathVariables.size ||
+        [...nextValues].some(([name, value]) => analysis.staticPathVariables.get(name) !== value) ||
+        nextLexicalValues.size !== analysis.lexicalStaticPathValues.size ||
+        [...nextLexicalValues].some(
+          ([identifier, value]) => analysis.lexicalStaticPathValues.get(identifier) !== value,
+        )
+      ) {
+        cache.set(scriptPath, {
+          ...analysis,
+          staticPathVariables: nextValues,
+          lexicalStaticPathValues: nextLexicalValues,
+        });
+        changed = true;
+      }
+    }
+  }
+  return cache;
+}
+
+function discoverTrackedStaticWriteOutputs(
+  repoRoot: string,
+  repositoryPaths: readonly string[],
+  analysisCache: ReadonlyMap<string, WriterScriptAnalysis>,
+): ReadonlyMap<string, readonly string[]> {
+  const repositoryPathSet = new Set(repositoryPaths);
+  const writersByOutput = new Map<string, string[]>();
+  for (const [scriptPath, analysis] of analysisCache) {
+    const visit = (node: tsTypes.Node): void => {
+      if (ts.isCallExpression(node) && isFileWriteCall(node.expression)) {
+        const firstArgument = node.arguments[0];
+        const resolved = firstArgument
+          ? lexicalStaticPathExpressionValue(firstArgument, analysis, repoRoot)
+          : null;
+        if (resolved) {
+          const candidate = normalizeRepositoryPath(repoRoot, resolved);
+          if (repositoryPathSet.has(candidate)) {
+            writersByOutput.set(candidate, [...(writersByOutput.get(candidate) ?? []), scriptPath]);
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(analysis.sourceFile);
+  }
+  return new Map(
+    [...writersByOutput]
+      .toSorted(([left], [right]) => compareText(left, right))
+      .map(([outputPath, writerScripts]) => [outputPath, [...new Set(writerScripts)].toSorted()]),
+  );
 }
 
 function classifyArtifact(input: {
@@ -245,14 +430,16 @@ function classifyArtifact(input: {
 }): EvidenceArtifactRowV0 {
   const { artifactPath, writerScripts, updateCommands, references, scannerGateIds, checkManifest } =
     input;
-  const specialCommand = specialWriterCommand(artifactPath);
+  const declaredCommands = declaredCommandsForOutput(artifactPath);
+  const declaredCommand = declaredCommands[0];
+  const specialCommand = declaredCommand?.writeCommand ?? specialWriterCommand(artifactPath);
   const manualProcedure = handAuthoredProcedure(artifactPath);
   const writerFlag =
     writerScripts.length === 1
       ? writerFlagForSource(readFileSync(path.join(input.repoRoot, writerScripts[0]!), "utf8"))
       : null;
   const classification: EvidenceArtifactClassification =
-    specialCommand || updateCommands.length > 0
+    declaredCommand || specialCommand || updateCommands.length > 0
       ? "W1"
       : writerScripts.length > 0
         ? "W2"
@@ -293,7 +480,8 @@ function classifyArtifact(input: {
     writerScripts,
     input.repositoryPathSet,
   );
-  const allInputs = [...new Set([...literalInputs, ...moduleInputs])].filter(
+  const declaredInputs = declaredCommands.flatMap((row) => row.inputPaths ?? []);
+  const allInputs = [...new Set([...literalInputs, ...moduleInputs, ...declaredInputs])].filter(
     (candidate) => !writerOutputPaths.has(candidate) && !writerScripts.includes(candidate),
   );
   const inputArtifactPaths = [
@@ -337,8 +525,14 @@ function classifyArtifact(input: {
     classification,
     writerNodeKind:
       artifactPath === "rust/omena-identifier-authority-census.json" ? "self-ratchet" : "normal",
+    ...(artifactPath === "rust/omena-published-crate-surface-register.json"
+      ? { freshReproductionRequired: true as const }
+      : {}),
     writerScripts,
     ...(writeCommand ? { writeCommand } : {}),
+    ...(declaredCommands.length > 1
+      ? { alternateWriteCommands: declaredCommands.slice(1).map((row) => row.writeCommand) }
+      : {}),
     ...(requiredEnvironmentKeys ? { requiredEnvironmentKeys } : {}),
     ...(classification === "W3"
       ? { procedure: manualProcedure ?? genericHandAuthoredProcedure(artifactPath) }
@@ -351,6 +545,93 @@ function classifyArtifact(input: {
     consumerPaths,
     consumerGateIds,
   };
+}
+
+function declaredCommandsForOutput(
+  artifactPath: string,
+): readonly EvidenceWriterCommandDeclaration[] {
+  return EVIDENCE_WRITER_COMMAND_DECLARATIONS.filter((row) =>
+    row.outputPaths.some((outputPath) => outputPath === artifactPath),
+  );
+}
+
+export function assertEvidenceWriterAuthorityCoverage(
+  registry: EvidenceWriterRegistryV0,
+  declarations: readonly EvidenceWriterCommandDeclaration[] = EVIDENCE_WRITER_COMMAND_DECLARATIONS,
+): void {
+  const rowsByPath = new Map(registry.artifacts.map((row) => [row.artifactPath, row]));
+  for (const declaration of declarations) {
+    if (declaration.outputPaths.length === 0) {
+      throw new Error(`evidence writer command declares no outputs: ${declaration.commandId}`);
+    }
+    for (const outputPath of declaration.outputPaths) {
+      const row = rowsByPath.get(outputPath);
+      if (!row) {
+        throw new Error(
+          `evidence writer authority output is absent from registry: ${declaration.commandId}:${outputPath}`,
+        );
+      }
+      const declaredRecipeIsRecorded = [
+        row.writeCommand,
+        ...(row.alternateWriteCommands ?? []),
+      ].some((command) => JSON.stringify(command) === JSON.stringify(declaration.writeCommand));
+      if (!declaredRecipeIsRecorded) {
+        throw new Error(
+          `evidence writer authority command drifted: ${declaration.commandId}:${outputPath}`,
+        );
+      }
+      for (const writerScript of declaration.writerScripts) {
+        if (!row.writerScripts.includes(writerScript)) {
+          throw new Error(
+            `evidence writer authority source is absent: ${declaration.commandId}:${writerScript}`,
+          );
+        }
+      }
+      for (const inputPath of declaration.inputPaths ?? []) {
+        if (![...row.inputPaths, ...row.inputArtifactPaths].includes(inputPath)) {
+          throw new Error(
+            `evidence writer authority input is absent: ${declaration.commandId}:${inputPath}`,
+          );
+        }
+      }
+    }
+  }
+}
+
+export function assertEvidenceWriterOutputAuthorityCoverage(
+  registry: EvidenceWriterRegistryV0,
+  authority: EvidenceWriterOutputAuthority,
+): void {
+  const registryPaths = new Set(registry.artifacts.map((row) => row.artifactPath));
+  for (const [authorityKind, outputPaths] of Object.entries(authority)) {
+    for (const outputPath of outputPaths) {
+      if (!registryPaths.has(outputPath)) {
+        throw new Error(`evidence ${authorityKind} output is absent from registry: ${outputPath}`);
+      }
+    }
+  }
+}
+
+export function assertUpdateCommandWriterCoverage(
+  packageScripts: Readonly<Record<string, string>>,
+  artifacts: readonly EvidenceArtifactRowV0[],
+): void {
+  const recordedCommands = new Set(
+    artifacts
+      .flatMap((row) => [row.writeCommand, ...(row.alternateWriteCommands ?? [])])
+      .filter((command): command is readonly string[] => command !== undefined)
+      .map((command) => JSON.stringify(command)),
+  );
+  for (const [scriptName, command] of Object.entries(packageScripts)) {
+    if (!scriptName.startsWith("update:")) continue;
+    for (const segment of command.split(/\s*&&\s*/u)) {
+      const words = splitCommandWords(segment);
+      const normalized = words[0]?.includes("=") ? ["env", ...words] : words;
+      if (!recordedCommands.has(JSON.stringify(normalized))) {
+        throw new Error(`update command has no total writer-output authority: ${scriptName}`);
+      }
+    }
+  }
 }
 
 function localWriterModuleInputs(
@@ -441,22 +722,30 @@ function localImportedModulePaths(
       continue;
     }
     const specifier = statement.moduleSpecifier.text;
-    if (!specifier.startsWith(".")) continue;
-    const base = path.posix.normalize(path.posix.join(path.posix.dirname(modulePath), specifier));
-    for (const candidate of [
-      base,
-      `${base}.ts`,
-      `${base}.tsx`,
-      `${base}.mjs`,
-      `${base}.js`,
-      `${base}/index.ts`,
-    ]) {
-      if (!repositoryPathSet.has(candidate)) continue;
-      imports.add(candidate);
-      break;
-    }
+    const importedModule = resolveLocalImportedModulePath(modulePath, specifier, repositoryPathSet);
+    if (importedModule) imports.add(importedModule);
   }
   return [...imports].toSorted();
+}
+
+function resolveLocalImportedModulePath(
+  modulePath: string,
+  specifier: string,
+  repositoryPathSet: ReadonlySet<string>,
+): string | null {
+  if (!specifier.startsWith(".")) return null;
+  const base = path.posix.normalize(path.posix.join(path.posix.dirname(modulePath), specifier));
+  for (const candidate of [
+    base,
+    `${base}.ts`,
+    `${base}.tsx`,
+    `${base}.mjs`,
+    `${base}.js`,
+    `${base}/index.ts`,
+  ]) {
+    if (repositoryPathSet.has(candidate)) return candidate;
+  }
+  return null;
 }
 
 function literalRepositoryInputs(
@@ -506,22 +795,24 @@ function findArtifactWriterScripts(
     if (!analysis) {
       const source = readFileSync(path.join(repoRoot, scriptPath), "utf8");
       const sourceFile = ts.createSourceFile(scriptPath, source, ts.ScriptTarget.Latest, true);
+      const lexical = buildStaticPathLexicalIndex(sourceFile);
       analysis = {
         source,
         sourceFile,
         staticPathVariables: collectStaticPathVariables(repoRoot, sourceFile),
+        lexical,
+        lexicalStaticPathValues: collectLexicalStaticPathValues(repoRoot, sourceFile, lexical),
       };
       analysisCache.set(scriptPath, analysis);
     }
-    const { source, sourceFile, staticPathVariables } = analysis;
-    if (!source.includes(basename)) continue;
+    const { source, sourceFile } = analysis;
     if (requireExactPath) {
       let writesExactArtifact = false;
       const findExactWrite = (node: tsTypes.Node): void => {
-        if (ts.isCallExpression(node) && callName(node.expression) === "writeFileSync") {
+        if (ts.isCallExpression(node) && isFileWriteCall(node.expression)) {
           const firstArgument = node.arguments[0];
           const resolved = firstArgument
-            ? staticPathExpressionValue(firstArgument, sourceFile, staticPathVariables, repoRoot)
+            ? lexicalStaticPathExpressionValue(firstArgument, analysis!, repoRoot)
             : null;
           if (resolved && normalizeRepositoryPath(repoRoot, resolved) === artifactPath) {
             writesExactArtifact = true;
@@ -533,6 +824,7 @@ function findArtifactWriterScripts(
       if (writesExactArtifact) writers.push(scriptPath);
       continue;
     }
+    if (!source.includes(basename)) continue;
     const pathVariables = new Set<string>();
     let changed = true;
     while (changed) {
@@ -582,11 +874,218 @@ function findArtifactWriterScripts(
   return writers.toSorted();
 }
 
+interface StaticPathLexicalScope {
+  readonly parent: StaticPathLexicalScope | null;
+  readonly bindings: ReadonlyMap<string, tsTypes.Identifier>;
+}
+
+function buildStaticPathLexicalIndex(sourceFile: tsTypes.SourceFile): StaticPathLexicalIndex {
+  const resolved = new Map<tsTypes.Identifier, tsTypes.Identifier | null>();
+  const declarations = new Set<tsTypes.Identifier>();
+  const createScope = (
+    node: tsTypes.Node,
+    parent: StaticPathLexicalScope | null,
+  ): StaticPathLexicalScope => {
+    const bindings = collectStaticPathScopeBindings(node);
+    for (const declaration of bindings.values()) declarations.add(declaration);
+    return { parent, bindings };
+  };
+  const rootScope = createScope(sourceFile, null);
+  const visit = (node: tsTypes.Node, inheritedScope: StaticPathLexicalScope): void => {
+    const scope =
+      node === sourceFile
+        ? rootScope
+        : isStaticPathScopeNode(node)
+          ? createScope(node, inheritedScope)
+          : inheritedScope;
+    if (ts.isIdentifier(node)) {
+      if (declarations.has(node)) {
+        resolved.set(node, node);
+      } else {
+        let current: StaticPathLexicalScope | null = scope;
+        let declaration: tsTypes.Identifier | null = null;
+        while (current && !declaration) {
+          declaration = current.bindings.get(node.text) ?? null;
+          current = current.parent;
+        }
+        resolved.set(node, declaration);
+      }
+    }
+    ts.forEachChild(node, (child) => visit(child, scope));
+  };
+  visit(sourceFile, rootScope);
+  return { declarationFor: (identifier) => resolved.get(identifier) ?? null };
+}
+
+function isStaticPathScopeNode(node: tsTypes.Node): boolean {
+  return (
+    ts.isBlock(node) ||
+    ts.isFunctionDeclaration(node) ||
+    ts.isFunctionExpression(node) ||
+    ts.isArrowFunction(node) ||
+    ts.isMethodDeclaration(node) ||
+    ts.isCatchClause(node) ||
+    ts.isForStatement(node) ||
+    ts.isForInStatement(node) ||
+    ts.isForOfStatement(node)
+  );
+}
+
+function collectStaticPathScopeBindings(
+  node: tsTypes.Node,
+): ReadonlyMap<string, tsTypes.Identifier> {
+  const bindings = new Map<string, tsTypes.Identifier>();
+  const add = (identifier: tsTypes.Identifier | undefined): void => {
+    if (identifier) bindings.set(identifier.text, identifier);
+  };
+  const addBindingName = (name: tsTypes.BindingName): void => {
+    if (ts.isIdentifier(name)) {
+      add(name);
+      return;
+    }
+    for (const element of name.elements) {
+      if (!ts.isOmittedExpression(element)) addBindingName(element.name);
+    }
+  };
+  if (
+    ts.isFunctionDeclaration(node) ||
+    ts.isFunctionExpression(node) ||
+    ts.isArrowFunction(node) ||
+    ts.isMethodDeclaration(node)
+  ) {
+    if ("name" in node && node.name && ts.isIdentifier(node.name)) add(node.name);
+    for (const parameter of node.parameters) addBindingName(parameter.name);
+    return bindings;
+  }
+  if (ts.isCatchClause(node)) {
+    if (node.variableDeclaration) addBindingName(node.variableDeclaration.name);
+    return bindings;
+  }
+  if (ts.isForStatement(node) || ts.isForInStatement(node) || ts.isForOfStatement(node)) {
+    if (node.initializer && ts.isVariableDeclarationList(node.initializer)) {
+      for (const declaration of node.initializer.declarations) addBindingName(declaration.name);
+    }
+    return bindings;
+  }
+  if (!ts.isSourceFile(node) && !ts.isBlock(node)) return bindings;
+  for (const statement of node.statements) {
+    if (ts.isImportDeclaration(statement)) {
+      add(statement.importClause?.name);
+      const namedBindings = statement.importClause?.namedBindings;
+      if (namedBindings && ts.isNamespaceImport(namedBindings)) add(namedBindings.name);
+      if (namedBindings && ts.isNamedImports(namedBindings)) {
+        for (const element of namedBindings.elements) add(element.name);
+      }
+      continue;
+    }
+    if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        addBindingName(declaration.name);
+      }
+      continue;
+    }
+    if (ts.isFunctionDeclaration(statement) && statement.name) {
+      add(statement.name);
+      continue;
+    }
+    if (ts.isClassDeclaration(statement) && statement.name) add(statement.name);
+  }
+  return bindings;
+}
+
+function collectLexicalStaticPathValues(
+  repoRoot: string,
+  sourceFile: tsTypes.SourceFile,
+  lexical: StaticPathLexicalIndex,
+  importedValues: ReadonlyMap<string, string> = new Map(),
+): ReadonlyMap<tsTypes.Identifier, string> {
+  const values = new Map<tsTypes.Identifier, string>();
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement) || !statement.importClause?.namedBindings) continue;
+    const namedBindings = statement.importClause.namedBindings;
+    if (!ts.isNamedImports(namedBindings)) continue;
+    for (const element of namedBindings.elements) {
+      const value = importedValues.get(element.name.text);
+      if (value !== undefined) values.set(element.name, value);
+    }
+  }
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const visit = (node: tsTypes.Node): void => {
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.initializer &&
+        !values.has(node.name)
+      ) {
+        const value = lexicalStaticPathExpressionValue(
+          node.initializer,
+          { sourceFile, lexical, lexicalStaticPathValues: values },
+          repoRoot,
+        );
+        if (value !== null) {
+          values.set(node.name, value);
+          changed = true;
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+  }
+  return values;
+}
+
+function lexicalStaticPathExpressionValue(
+  expression: tsTypes.Expression,
+  analysis: Pick<WriterScriptAnalysis, "sourceFile" | "lexical" | "lexicalStaticPathValues">,
+  repoRoot: string,
+): string | null {
+  const { sourceFile, lexical, lexicalStaticPathValues } = analysis;
+  if (ts.isStringLiteral(expression) || ts.isNoSubstitutionTemplateLiteral(expression)) {
+    return expression.text;
+  }
+  if (ts.isIdentifier(expression)) {
+    const declaration = lexical.declarationFor(expression);
+    return declaration ? (lexicalStaticPathValues.get(declaration) ?? null) : null;
+  }
+  if (ts.isPropertyAccessExpression(expression)) {
+    if (
+      expression.expression.getText(sourceFile) === "import.meta" &&
+      expression.name.text === "dirname"
+    ) {
+      return path.dirname(path.join(repoRoot, sourceFile.fileName));
+    }
+  }
+  if (!ts.isCallExpression(expression)) return null;
+  const calleeText = expression.expression.getText(sourceFile);
+  if (calleeText === "process.cwd" && expression.arguments.length === 0) return repoRoot;
+  const name = callName(expression.expression);
+  if (
+    name === "fileURLToPath" &&
+    expression.arguments[0]?.getText(sourceFile) === "import.meta.url"
+  ) {
+    return path.join(repoRoot, sourceFile.fileName);
+  }
+  if (name === "dirname" && expression.arguments.length === 1) {
+    const value = lexicalStaticPathExpressionValue(expression.arguments[0]!, analysis, repoRoot);
+    return value === null ? null : path.dirname(value);
+  }
+  if (name !== "join" && name !== "resolve") return null;
+  const evaluatedParts = expression.arguments.map((argument) =>
+    lexicalStaticPathExpressionValue(argument, analysis, repoRoot),
+  );
+  if (evaluatedParts.some((value) => value === null)) return null;
+  const parts = evaluatedParts as string[];
+  return name === "join" ? path.join(...parts) : path.resolve(repoRoot, ...parts);
+}
+
 function collectStaticPathVariables(
   repoRoot: string,
   sourceFile: tsTypes.SourceFile,
+  seedValues: ReadonlyMap<string, string> = new Map(),
 ): ReadonlyMap<string, string> {
-  const values = new Map<string, string>();
+  const values = new Map(seedValues);
   let changed = true;
   while (changed) {
     changed = false;
@@ -620,10 +1119,26 @@ function staticPathExpressionValue(
     return expression.text;
   }
   if (ts.isIdentifier(expression)) return values.get(expression.text) ?? null;
+  if (ts.isPropertyAccessExpression(expression)) {
+    const expressionText = expression.expression.getText(sourceFile);
+    if (expressionText === "import.meta" && expression.name.text === "dirname") {
+      return path.dirname(path.join(repoRoot, sourceFile.fileName));
+    }
+  }
   if (!ts.isCallExpression(expression)) return null;
   const calleeText = expression.expression.getText(sourceFile);
   if (calleeText === "process.cwd" && expression.arguments.length === 0) return repoRoot;
   const name = callName(expression.expression);
+  if (
+    name === "fileURLToPath" &&
+    expression.arguments[0]?.getText(sourceFile) === "import.meta.url"
+  ) {
+    return path.join(repoRoot, sourceFile.fileName);
+  }
+  if (name === "dirname" && expression.arguments.length === 1) {
+    const value = staticPathExpressionValue(expression.arguments[0]!, sourceFile, values, repoRoot);
+    return value === null ? null : path.dirname(value);
+  }
   if (name !== "join" && name !== "resolve") return null;
   const evaluatedParts = expression.arguments.map((argument) =>
     staticPathExpressionValue(argument, sourceFile, values, repoRoot),
@@ -642,6 +1157,11 @@ function callName(expression: tsTypes.LeftHandSideExpression): string | null {
   if (ts.isIdentifier(expression)) return expression.text;
   if (ts.isPropertyAccessExpression(expression)) return expression.name.text;
   return null;
+}
+
+function isFileWriteCall(expression: tsTypes.LeftHandSideExpression): boolean {
+  const name = callName(expression);
+  return name === "writeFileSync" || name === "writeFile";
 }
 
 function expressionUsesIdentifier(
@@ -898,6 +1418,14 @@ function validateEvidenceWriterRegistry(registry: EvidenceWriterRegistryV0): voi
     throw new Error(
       `unsupported evidence writer registry schema ${String(registry.schemaVersion)}`,
     );
+  }
+  if (
+    registry.commandAuthority?.modulePath !== EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH ||
+    !/^[0-9a-f]{64}$/u.test(registry.commandAuthority.sha256) ||
+    registry.commandAuthority.declaredCommandCount < 1 ||
+    registry.commandAuthority.declaredOutputCount < 1
+  ) {
+    throw new Error("evidence writer command authority is missing or invalid");
   }
   const paths = registry.artifacts.map((row) => row.artifactPath);
   if (

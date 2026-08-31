@@ -204,14 +204,16 @@ function closeAffectedArtifacts(
   while (changed) {
     changed = false;
     for (const row of artifacts) {
-      const writerCommandKey = row.writeCommand ? JSON.stringify(row.writeCommand) : null;
+      const writerCommandKeys = [row.writeCommand, ...(row.alternateWriteCommands ?? [])]
+        .filter((command): command is readonly string[] => command !== undefined)
+        .map((command) => JSON.stringify(command));
       const sharesAffectedWriter =
-        writerCommandKey !== null &&
+        writerCommandKeys.length > 0 &&
         artifacts.some(
           (candidate) =>
             affected.has(candidate.artifactPath) &&
             candidate.writeCommand !== undefined &&
-            JSON.stringify(candidate.writeCommand) === writerCommandKey,
+            writerCommandKeys.includes(JSON.stringify(candidate.writeCommand)),
         );
       if (
         !affected.has(row.artifactPath) &&

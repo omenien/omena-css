@@ -301,7 +301,17 @@ export async function buildEvidenceScanSurfaceManifest(
   };
   enforceManifestContinuity(oldManifest, manifest);
   enforceDetectorRatchet(oldManifest, manifest);
-  await assertHistoricalSurfaceNarrowing(repoRoot, historicalAuthorityRef, oldManifest, manifest);
+  const currentPredicateOverrides = await loadCurrentPredicateOverrides(
+    repoRoot,
+    Object.keys(predicateModules) as NamedScanPredicateId[],
+  );
+  await assertHistoricalSurfaceNarrowing(
+    repoRoot,
+    historicalAuthorityRef,
+    oldManifest,
+    manifest,
+    currentPredicateOverrides,
+  );
   return manifest;
 }
 
@@ -739,6 +749,36 @@ async function loadHistoricalPredicateOverrides(
     const imported = (await import(moduleUrl)) as { readonly default?: unknown };
     if (typeof imported.default !== "function") {
       throw new Error(`historical predicate ${predicateId} has no default function`);
+    }
+    overrides[predicateId] = imported.default as (candidate: string) => boolean;
+  }
+  return overrides;
+}
+
+async function loadCurrentPredicateOverrides(
+  repoRoot: string,
+  predicateIds: readonly NamedScanPredicateId[],
+): Promise<Partial<Readonly<Record<NamedScanPredicateId, (candidate: string) => boolean>>>> {
+  const overrides: Partial<Record<NamedScanPredicateId, (candidate: string) => boolean>> = {};
+  for (const predicateId of predicateIds) {
+    const modulePath = SCAN_SURFACE_PREDICATE_MODULE_PATHS[predicateId];
+    const source = readFileSync(path.join(repoRoot, modulePath), "utf8");
+    const sourceFile = ts.createSourceFile(modulePath, source, ts.ScriptTarget.Latest, true);
+    const runtimeImport = sourceFile.statements.find(
+      (statement) => ts.isImportDeclaration(statement) && !statement.importClause?.isTypeOnly,
+    );
+    if (runtimeImport) {
+      throw new Error(`predicate ${predicateId} has a runtime import; behavior cannot be isolated`);
+    }
+    const digest = sha256Text(source);
+    const javascript = ts.transpileModule(source, {
+      compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+      fileName: modulePath,
+    }).outputText;
+    const moduleUrl = `data:text/javascript;base64,${Buffer.from(javascript).toString("base64")}#${digest}`;
+    const imported = (await import(moduleUrl)) as { readonly default?: unknown };
+    if (typeof imported.default !== "function") {
+      throw new Error(`predicate ${predicateId} has no default function`);
     }
     overrides[predicateId] = imported.default as (candidate: string) => boolean;
   }

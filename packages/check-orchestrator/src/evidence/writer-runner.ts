@@ -8,6 +8,12 @@ export interface DigestPinnedWriterInput {
   readonly command: readonly string[];
   readonly inputPaths: readonly string[];
   readonly outputPaths: readonly string[];
+  /**
+   * Remove every declared output before invocation and require the writer to
+   * reproduce the exact committed bytes. This distinguishes a real writer
+   * recipe from a successful command that merely leaves old evidence in place.
+   */
+  readonly requireFreshReproduction?: boolean;
   readonly onStartedForTest?: () => void | Promise<void>;
 }
 
@@ -56,6 +62,18 @@ export async function runDigestPinnedWriter(
   if (!executable) throw new Error("evidence writer command is empty");
   const inputsBefore = digestPaths(input.repoRoot, input.inputPaths);
   const outputsBefore = snapshotOutputs(input.repoRoot, input.outputPaths);
+  if (input.requireFreshReproduction) {
+    const absentBaseline = outputsBefore.find((snapshot) => snapshot.bytes === null);
+    if (absentBaseline) {
+      throw new Error(
+        `fresh evidence reproduction requires committed baseline bytes: ${absentBaseline.outputPath}`,
+      );
+    }
+    for (const snapshot of outputsBefore) {
+      const absolutePath = path.join(input.repoRoot, snapshot.outputPath);
+      if (existsSync(absolutePath)) unlinkSync(absolutePath);
+    }
+  }
   const child = spawn(executable, args, {
     cwd: input.repoRoot,
     env: process.env,
@@ -63,10 +81,16 @@ export async function runDigestPinnedWriter(
     stdio: "inherit",
   });
   await input.onStartedForTest?.();
-  const exitCode = await new Promise<number>((resolve, reject) => {
-    child.once("error", reject);
-    child.once("close", (code) => resolve(code ?? 1));
-  });
+  let exitCode: number;
+  try {
+    exitCode = await new Promise<number>((resolve, reject) => {
+      child.once("error", reject);
+      child.once("close", (code) => resolve(code ?? 1));
+    });
+  } catch (error) {
+    restoreOutputs(input.repoRoot, outputsBefore);
+    throw error;
+  }
   if (exitCode !== 0) {
     restoreOutputs(input.repoRoot, outputsBefore);
     throw new Error(`evidence writer exited ${exitCode}: ${input.command.join(" ")}`);
@@ -89,6 +113,19 @@ export async function runDigestPinnedWriter(
     throw new Error(
       `evidence writer successful no-op: declared output was not reproduced: ${missingOutput}`,
     );
+  }
+  if (input.requireFreshReproduction) {
+    const divergentOutput = outputsBefore.find(
+      (snapshot) =>
+        snapshot.bytes !== null &&
+        !readFileSync(path.join(input.repoRoot, snapshot.outputPath)).equals(snapshot.bytes),
+    );
+    if (divergentOutput) {
+      restoreOutputs(input.repoRoot, outputsBefore);
+      throw new Error(
+        `evidence writer fresh reproduction diverged from committed bytes: ${divergentOutput.outputPath}`,
+      );
+    }
   }
   return { command: [...input.command], outputPaths: [...input.outputPaths], exitCode };
 }

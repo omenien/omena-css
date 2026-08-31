@@ -385,7 +385,11 @@ function isLexicalScopeNode(node: tsTypes.Node): boolean {
     ts.isFunctionDeclaration(node) ||
     ts.isFunctionExpression(node) ||
     ts.isArrowFunction(node) ||
-    ts.isMethodDeclaration(node)
+    ts.isMethodDeclaration(node) ||
+    ts.isCatchClause(node) ||
+    ts.isForStatement(node) ||
+    ts.isForInStatement(node) ||
+    ts.isForOfStatement(node)
   );
 }
 
@@ -393,6 +397,15 @@ function collectScopeBindings(node: tsTypes.Node): ReadonlyMap<string, tsTypes.I
   const bindings = new Map<string, tsTypes.Identifier>();
   const add = (identifier: tsTypes.Identifier | undefined): void => {
     if (identifier) bindings.set(identifier.text, identifier);
+  };
+  const addBindingName = (name: tsTypes.BindingName): void => {
+    if (ts.isIdentifier(name)) {
+      add(name);
+      return;
+    }
+    for (const element of name.elements) {
+      if (!ts.isOmittedExpression(element)) addBindingName(element.name);
+    }
   };
   if (
     ts.isFunctionDeclaration(node) ||
@@ -402,7 +415,18 @@ function collectScopeBindings(node: tsTypes.Node): ReadonlyMap<string, tsTypes.I
   ) {
     if ("name" in node && node.name && ts.isIdentifier(node.name)) add(node.name);
     for (const parameter of node.parameters) {
-      if (ts.isIdentifier(parameter.name)) add(parameter.name);
+      addBindingName(parameter.name);
+    }
+    return bindings;
+  }
+  if (ts.isCatchClause(node)) {
+    if (node.variableDeclaration) addBindingName(node.variableDeclaration.name);
+    return bindings;
+  }
+  if (ts.isForStatement(node) || ts.isForInStatement(node) || ts.isForOfStatement(node)) {
+    const initializer = node.initializer;
+    if (initializer && ts.isVariableDeclarationList(initializer)) {
+      for (const declaration of initializer.declarations) addBindingName(declaration.name);
     }
     return bindings;
   }
@@ -419,7 +443,7 @@ function collectScopeBindings(node: tsTypes.Node): ReadonlyMap<string, tsTypes.I
     }
     if (ts.isVariableStatement(statement)) {
       for (const declaration of statement.declarationList.declarations) {
-        if (ts.isIdentifier(declaration.name)) add(declaration.name);
+        addBindingName(declaration.name);
       }
       continue;
     }
