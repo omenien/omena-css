@@ -55,12 +55,6 @@ interface BundleSplitManifest {
 const splitManifestFileName = "omena.bundle-split.manifest.json";
 const repoRoot = resolve(import.meta.dirname, "..");
 const workspace = mkdtempSync(join(tmpdir(), "omena-cli-bundle-origin-"));
-const workspaceSurface = resolveUnmigratedScanRootForScanner(
-  import.meta.url,
-  "non-repo-temp-tree",
-  repoRoot,
-  workspace,
-);
 
 try {
   const themeDir = join(workspace, "theme");
@@ -233,6 +227,12 @@ function assertSplitOutputs(
   tokensSource: string,
   baseSource: string,
 ): void {
+  const workspaceSurface = resolveUnmigratedScanRootForScanner(
+    import.meta.url,
+    "non-repo-temp-tree",
+    repoRoot,
+    workspace,
+  );
   const files = workspaceSurface.readdirSync(splitDir);
   const cssFiles = files.filter((file) => file.endsWith(".css"));
   const mapFiles = files.filter((file) => file.endsWith(".css.map"));

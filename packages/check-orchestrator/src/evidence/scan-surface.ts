@@ -247,7 +247,7 @@ export function resolveScanSurface(
   options: ResolveScanSurfaceOptions,
 ): ResolvedScanSurface {
   validateScanSurfaceSpec(spec);
-  const repoRoot = path.resolve(options.repoRoot);
+  const repoRoot = realpathSync.native(path.resolve(options.repoRoot));
   const excludePredicates = options.excludePredicates ?? {};
   const resolved =
     spec.mode === "index"
@@ -419,7 +419,7 @@ function createSurfaceReaders(
           readonly recursive?: boolean;
         },
   ): string[] | Dirent<string>[] {
-    const absoluteDirectory = path.resolve(directory);
+    const absoluteDirectory = realpathSync.native(path.resolve(directory));
     const relativeDirectory = normalizeRepoPath(path.relative(repoRoot, absoluteDirectory));
     if (
       relativeDirectory === ".." ||
