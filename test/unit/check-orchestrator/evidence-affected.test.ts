@@ -67,6 +67,7 @@ import {
   type EvidenceWriterRegistryV0,
 } from "../../../packages/check-orchestrator/src/evidence/writer-registry";
 import {
+  EVIDENCE_STATIC_WRITE_OUTPUT_AUTHORITY,
   EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH,
   EVIDENCE_WRITER_COMMAND_DECLARATIONS,
 } from "../../../packages/check-orchestrator/src/evidence/writer-command-authority";
@@ -1098,6 +1099,7 @@ describe("writer registry portability", () => {
         declaredOutputCount: new Set(
           EVIDENCE_WRITER_COMMAND_DECLARATIONS.flatMap((row) => row.outputPaths),
         ).size,
+        declaredStaticWriteOutputCount: EVIDENCE_STATIC_WRITE_OUTPUT_AUTHORITY.length,
       });
       expect(() => assertEvidenceWriterAuthorityCoverage(registry)).not.toThrow();
       const packageScripts = (
@@ -1123,9 +1125,54 @@ describe("writer registry portability", () => {
       expect(outputAuthority.declaredCommandOutputPaths).toHaveLength(
         new Set(EVIDENCE_WRITER_COMMAND_DECLARATIONS.flatMap((row) => row.outputPaths)).size,
       );
+      const rootArtifactPaths = new Set(outputAuthority.rootArtifactPaths);
+      expect(
+        outputAuthority.writeCallOutputPaths
+          .filter((outputPath) => !rootArtifactPaths.has(outputPath))
+          .toSorted(),
+      ).toEqual([...EVIDENCE_STATIC_WRITE_OUTPUT_AUTHORITY].toSorted());
       expect(() =>
         assertEvidenceWriterOutputAuthorityCoverage(registry, outputAuthority),
       ).not.toThrow();
+      expect(() =>
+        assertEvidenceWriterOutputAuthorityCoverage(registry, {
+          ...outputAuthority,
+          staticWriteOutputPaths: outputAuthority.staticWriteOutputPaths.filter(
+            (outputPath) => outputPath !== "docs/reference/crates.md",
+          ),
+        }),
+      ).toThrow(/static write output has no independent authority/u);
+      expect(() =>
+        assertEvidenceWriterOutputAuthorityCoverage(registry, {
+          ...outputAuthority,
+          writeCallOutputPaths: outputAuthority.writeCallOutputPaths.filter(
+            (outputPath) =>
+              outputPath !== "server/engine-core-ts/src/contracts/engine-v2-input-idl.generated.ts",
+          ),
+        }),
+      ).toThrow(/independent static write output was not discovered/u);
+      const idlDeclaration = EVIDENCE_WRITER_COMMAND_DECLARATIONS.find(
+        (row) => row.commandId === "engine-v2-contract-idl-generated",
+      )!;
+      expect(idlDeclaration.outputPaths).toHaveLength(18);
+      expect(
+        idlDeclaration.outputPaths.every((outputPath) =>
+          outputAuthority.writeCallOutputPaths.includes(outputPath),
+        ),
+      ).toBe(true);
+      const parityV1Declaration = EVIDENCE_WRITER_COMMAND_DECLARATIONS.find(
+        (row) => row.commandId === "contract-parity-v1-goldens",
+      )!;
+      const parityV2Declaration = EVIDENCE_WRITER_COMMAND_DECLARATIONS.find(
+        (row) => row.commandId === "contract-parity-v2-goldens",
+      )!;
+      expect(parityV1Declaration.outputPaths).toHaveLength(7);
+      expect(parityV2Declaration.outputPaths).toHaveLength(6);
+      expect(
+        [...parityV1Declaration.outputPaths, ...parityV2Declaration.outputPaths].every(
+          (outputPath) => outputAuthority.writeCallOutputPaths.includes(outputPath),
+        ),
+      ).toBe(true);
       const grammarDeclaration = EVIDENCE_WRITER_COMMAND_DECLARATIONS.find(
         (row) => row.commandId === "spec-audit-webref-grammar",
       )!;

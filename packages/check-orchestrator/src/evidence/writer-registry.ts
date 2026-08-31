@@ -12,6 +12,7 @@ import { defineScanSurface, resolveScanSurface } from "./scan-surface";
 import {
   EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH,
   EVIDENCE_WRITER_COMMAND_DECLARATIONS,
+  EVIDENCE_STATIC_WRITE_OUTPUT_AUTHORITY,
   type EvidenceWriterCommandDeclaration,
 } from "./writer-command-authority";
 
@@ -60,6 +61,7 @@ export interface EvidenceWriterRegistryV0 {
     readonly sha256: string;
     readonly declaredCommandCount: number;
     readonly declaredOutputCount: number;
+    readonly declaredStaticWriteOutputCount: number;
   };
   readonly artifacts: readonly EvidenceArtifactRowV0[];
   readonly notPreviewableInputs: readonly NotPreviewableInputV0[];
@@ -207,6 +209,7 @@ export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterReg
       declaredOutputCount: new Set(
         EVIDENCE_WRITER_COMMAND_DECLARATIONS.flatMap((row) => row.outputPaths),
       ).size,
+      declaredStaticWriteOutputCount: EVIDENCE_STATIC_WRITE_OUTPUT_AUTHORITY.length,
     },
     artifacts,
     notPreviewableInputs: declaredNotPreviewableInputs(),
@@ -217,6 +220,7 @@ export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterReg
     rootArtifactPaths: discovery.rootArtifactPaths,
     writeCallOutputPaths: discovery.writeCallOutputPaths,
     declaredCommandOutputPaths: discovery.declaredCommandOutputPaths,
+    staticWriteOutputPaths: EVIDENCE_STATIC_WRITE_OUTPUT_AUTHORITY,
   });
   for (const input of registry.notPreviewableInputs) {
     if (!existsSync(path.join(repoRoot, input.ownerId))) {
@@ -234,6 +238,7 @@ export interface EvidenceWriterOutputAuthority {
   readonly rootArtifactPaths: readonly string[];
   readonly writeCallOutputPaths: readonly string[];
   readonly declaredCommandOutputPaths: readonly string[];
+  readonly staticWriteOutputPaths: readonly string[];
 }
 
 export function discoverEvidenceWriterOutputAuthority(
@@ -244,6 +249,7 @@ export function discoverEvidenceWriterOutputAuthority(
     rootArtifactPaths: discovery.rootArtifactPaths,
     writeCallOutputPaths: discovery.writeCallOutputPaths,
     declaredCommandOutputPaths: discovery.declaredCommandOutputPaths,
+    staticWriteOutputPaths: EVIDENCE_STATIC_WRITE_OUTPUT_AUTHORITY,
   };
 }
 
@@ -388,20 +394,47 @@ function discoverTrackedStaticWriteOutputs(
   const repositoryPathSet = new Set(repositoryPaths);
   const writersByOutput = new Map<string, string[]>();
   for (const [scriptPath, analysis] of analysisCache) {
-    const visit = (node: tsTypes.Node): void => {
+    const visit = (
+      node: tsTypes.Node,
+      loopValues: ReadonlyMap<tsTypes.Identifier, readonly StaticDataValue[]> = new Map(),
+    ): void => {
       if (ts.isCallExpression(node) && isFileWriteCall(node.expression)) {
         const firstArgument = node.arguments[0];
-        const resolved = firstArgument
-          ? lexicalStaticPathExpressionValue(firstArgument, analysis, repoRoot)
-          : null;
-        if (resolved) {
+        const resolvedValues = firstArgument
+          ? lexicalStaticPathExpressionValues(firstArgument, {
+              repoRoot,
+              scriptPath,
+              analysis,
+              analysisCache,
+              loopValues,
+            })
+          : [];
+        for (const resolved of resolvedValues) {
           const candidate = normalizeRepositoryPath(repoRoot, resolved);
           if (repositoryPathSet.has(candidate)) {
             writersByOutput.set(candidate, [...(writersByOutput.get(candidate) ?? []), scriptPath]);
           }
         }
       }
-      ts.forEachChild(node, visit);
+      if (ts.isForOfStatement(node) && ts.isVariableDeclarationList(node.initializer)) {
+        const iterationValues = staticIterationValues(
+          evaluateStaticDataExpression(node.expression, {
+            repoRoot,
+            scriptPath,
+            analysis,
+            analysisCache,
+            loopValues,
+            resolving: new Set(),
+          }),
+        );
+        const nestedLoopValues = new Map(loopValues);
+        for (const declaration of node.initializer.declarations) {
+          bindStaticIterationValues(declaration.name, iterationValues, nestedLoopValues);
+        }
+        visit(node.statement, nestedLoopValues);
+        return;
+      }
+      ts.forEachChild(node, (child) => visit(child, loopValues));
     };
     visit(analysis.sourceFile);
   }
@@ -608,6 +641,21 @@ export function assertEvidenceWriterOutputAuthorityCoverage(
       if (!registryPaths.has(outputPath)) {
         throw new Error(`evidence ${authorityKind} output is absent from registry: ${outputPath}`);
       }
+    }
+  }
+  const rootPaths = new Set(authority.rootArtifactPaths);
+  const discoveredNonRootWrites = authority.writeCallOutputPaths
+    .filter((outputPath) => !rootPaths.has(outputPath))
+    .toSorted();
+  const independentStaticWrites = [...new Set(authority.staticWriteOutputPaths)].toSorted();
+  for (const outputPath of discoveredNonRootWrites) {
+    if (!independentStaticWrites.includes(outputPath)) {
+      throw new Error(`static write output has no independent authority: ${outputPath}`);
+    }
+  }
+  for (const outputPath of independentStaticWrites) {
+    if (!discoveredNonRootWrites.includes(outputPath)) {
+      throw new Error(`independent static write output was not discovered: ${outputPath}`);
     }
   }
 }
@@ -1080,6 +1128,299 @@ function lexicalStaticPathExpressionValue(
   return name === "join" ? path.join(...parts) : path.resolve(repoRoot, ...parts);
 }
 
+interface StaticDataArray {
+  readonly kind: "array";
+  readonly items: readonly StaticDataValue[];
+}
+
+interface StaticDataObject {
+  readonly kind: "object";
+  readonly properties: ReadonlyMap<string, readonly StaticDataValue[]>;
+}
+
+interface StaticDataMap {
+  readonly kind: "map";
+  readonly entries: readonly {
+    readonly key: StaticDataValue;
+    readonly value: StaticDataValue;
+  }[];
+}
+
+interface StaticDataUnknown {
+  readonly kind: "unknown";
+}
+
+type StaticDataValue =
+  | string
+  | StaticDataArray
+  | StaticDataObject
+  | StaticDataMap
+  | StaticDataUnknown;
+
+const STATIC_DATA_UNKNOWN: StaticDataUnknown = { kind: "unknown" };
+
+interface StaticDataEvaluationContext {
+  readonly repoRoot: string;
+  readonly scriptPath: string;
+  readonly analysis: WriterScriptAnalysis;
+  readonly analysisCache: ReadonlyMap<string, WriterScriptAnalysis>;
+  readonly loopValues: ReadonlyMap<tsTypes.Identifier, readonly StaticDataValue[]>;
+  readonly resolving?: Set<string>;
+}
+
+function lexicalStaticPathExpressionValues(
+  expression: tsTypes.Expression,
+  context: StaticDataEvaluationContext,
+): readonly string[] {
+  const values = evaluateStaticDataExpression(expression, {
+    ...context,
+    resolving: context.resolving ?? new Set(),
+  }).filter((value): value is string => typeof value === "string");
+  if (values.length > 0) return [...new Set(values)].toSorted();
+  const scalar = lexicalStaticPathExpressionValue(expression, context.analysis, context.repoRoot);
+  return scalar === null ? [] : [scalar];
+}
+
+function evaluateStaticDataExpression(
+  expression: tsTypes.Expression,
+  context: Required<StaticDataEvaluationContext>,
+): readonly StaticDataValue[] {
+  const unwrapped = unwrapStaticDataExpression(expression);
+  if (ts.isStringLiteral(unwrapped) || ts.isNoSubstitutionTemplateLiteral(unwrapped)) {
+    return [unwrapped.text];
+  }
+  if (ts.isTemplateExpression(unwrapped)) {
+    let prefixes = [unwrapped.head.text];
+    for (const span of unwrapped.templateSpans) {
+      const replacements = evaluateStaticDataExpression(span.expression, context).filter(
+        (value): value is string => typeof value === "string",
+      );
+      if (replacements.length === 0) return [];
+      prefixes = prefixes.flatMap((prefix) =>
+        replacements.map((replacement) => `${prefix}${replacement}${span.literal.text}`),
+      );
+    }
+    return prefixes;
+  }
+  if (ts.isIdentifier(unwrapped)) return evaluateStaticIdentifier(unwrapped, context);
+  if (ts.isArrayLiteralExpression(unwrapped)) {
+    return [
+      {
+        kind: "array",
+        items: unwrapped.elements.map(
+          (element) => evaluateStaticDataExpression(element, context)[0] ?? STATIC_DATA_UNKNOWN,
+        ),
+      },
+    ];
+  }
+  if (ts.isObjectLiteralExpression(unwrapped)) {
+    const properties = new Map<string, readonly StaticDataValue[]>();
+    for (const property of unwrapped.properties) {
+      if (!ts.isPropertyAssignment(property)) continue;
+      const name = staticPropertyName(property.name);
+      if (name !== null)
+        properties.set(name, evaluateStaticDataExpression(property.initializer, context));
+    }
+    return [{ kind: "object", properties }];
+  }
+  if (ts.isNewExpression(unwrapped) && callName(unwrapped.expression) === "Map") {
+    const iterable = unwrapped.arguments?.[0];
+    if (!iterable) return [];
+    const arrays = evaluateStaticDataExpression(iterable, context).filter(
+      (value): value is StaticDataArray => typeof value !== "string" && value.kind === "array",
+    );
+    return arrays.map((array) => ({
+      kind: "map" as const,
+      entries: array.items.flatMap((item) =>
+        typeof item !== "string" && item.kind === "array" && item.items.length >= 2
+          ? [{ key: item.items[0]!, value: item.items[1]! }]
+          : [],
+      ),
+    }));
+  }
+  if (ts.isPropertyAccessExpression(unwrapped)) {
+    if (
+      unwrapped.expression.getText(context.analysis.sourceFile) === "import.meta" &&
+      unwrapped.name.text === "dirname"
+    ) {
+      return [path.dirname(path.join(context.repoRoot, context.scriptPath))];
+    }
+    return evaluateStaticDataExpression(unwrapped.expression, context).flatMap((value) =>
+      typeof value !== "string" && value.kind === "object"
+        ? (value.properties.get(unwrapped.name.text) ?? [])
+        : [],
+    );
+  }
+  if (!ts.isCallExpression(unwrapped)) return [];
+  const calleeText = unwrapped.expression.getText(context.analysis.sourceFile);
+  if (calleeText === "process.cwd" && unwrapped.arguments.length === 0) return [context.repoRoot];
+  const name = callName(unwrapped.expression);
+  if (
+    name === "fileURLToPath" &&
+    unwrapped.arguments[0]?.getText(context.analysis.sourceFile) === "import.meta.url"
+  ) {
+    return [path.join(context.repoRoot, context.scriptPath)];
+  }
+  if (name === "dirname" && unwrapped.arguments.length === 1) {
+    return evaluateStaticDataExpression(unwrapped.arguments[0]!, context)
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => path.dirname(value));
+  }
+  if (name?.startsWith("selectContractParity") && unwrapped.arguments[0]) {
+    return evaluateStaticDataExpression(unwrapped.arguments[0], context);
+  }
+  if (name !== "join" && name !== "resolve") return [];
+  let combinations: string[][] = [[]];
+  for (const argument of unwrapped.arguments) {
+    const parts = evaluateStaticDataExpression(argument, context).filter(
+      (value): value is string => typeof value === "string",
+    );
+    if (parts.length === 0) return [];
+    combinations = combinations.flatMap((combination) =>
+      parts.map((part) => [...combination, part]),
+    );
+  }
+  return combinations.map((parts) =>
+    name === "join" ? path.join(...parts) : path.resolve(context.repoRoot, ...parts),
+  );
+}
+
+function evaluateStaticIdentifier(
+  identifier: tsTypes.Identifier,
+  context: Required<StaticDataEvaluationContext>,
+): readonly StaticDataValue[] {
+  const declaration = context.analysis.lexical.declarationFor(identifier);
+  if (!declaration) return [];
+  const loopValue = context.loopValues.get(declaration);
+  if (loopValue) return loopValue;
+  const scalar = context.analysis.lexicalStaticPathValues.get(declaration);
+  if (scalar !== undefined) return [scalar];
+  const key = `${context.scriptPath}:${declaration.pos}:${declaration.end}`;
+  if (context.resolving.has(key)) return [];
+  context.resolving.add(key);
+  try {
+    const parent = declaration.parent;
+    if (ts.isVariableDeclaration(parent) && parent.initializer) {
+      return evaluateStaticDataExpression(parent.initializer, context);
+    }
+    if (ts.isImportSpecifier(parent)) {
+      const importDeclaration = enclosingImportDeclaration(parent);
+      if (!importDeclaration || !ts.isStringLiteral(importDeclaration.moduleSpecifier)) return [];
+      const importedModule = resolveLocalImportedModulePath(
+        context.scriptPath,
+        importDeclaration.moduleSpecifier.text,
+        new Set(context.analysisCache.keys()),
+      );
+      if (!importedModule) return [];
+      const importedAnalysis = context.analysisCache.get(importedModule);
+      if (!importedAnalysis) return [];
+      const importedName = parent.propertyName?.text ?? parent.name.text;
+      const exportedDeclaration = findTopLevelVariableDeclaration(
+        importedAnalysis.sourceFile,
+        importedName,
+      );
+      if (!exportedDeclaration?.initializer) return [];
+      return evaluateStaticDataExpression(exportedDeclaration.initializer, {
+        ...context,
+        scriptPath: importedModule,
+        analysis: importedAnalysis,
+        loopValues: new Map(),
+      });
+    }
+    return [];
+  } finally {
+    context.resolving.delete(key);
+  }
+}
+
+function unwrapStaticDataExpression(expression: tsTypes.Expression): tsTypes.Expression {
+  let current = expression;
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isSatisfiesExpression(current)
+  ) {
+    current = current.expression;
+  }
+  return current;
+}
+
+function staticPropertyName(name: tsTypes.PropertyName): string | null {
+  return ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)
+    ? name.text
+    : null;
+}
+
+function enclosingImportDeclaration(node: tsTypes.Node): tsTypes.ImportDeclaration | null {
+  let current: tsTypes.Node | undefined = node;
+  while (current && !ts.isSourceFile(current)) {
+    if (ts.isImportDeclaration(current)) return current;
+    current = current.parent;
+  }
+  return null;
+}
+
+function findTopLevelVariableDeclaration(
+  sourceFile: tsTypes.SourceFile,
+  name: string,
+): tsTypes.VariableDeclaration | null {
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (ts.isIdentifier(declaration.name) && declaration.name.text === name) return declaration;
+    }
+  }
+  return null;
+}
+
+function staticIterationValues(values: readonly StaticDataValue[]): readonly StaticDataValue[] {
+  return values.flatMap((value) => {
+    if (typeof value === "string" || value.kind === "unknown" || value.kind === "object") return [];
+    if (value.kind === "array") return value.items;
+    return value.entries.map((entry) => ({
+      kind: "array" as const,
+      items: [entry.key, entry.value],
+    }));
+  });
+}
+
+function bindStaticIterationValues(
+  bindingName: tsTypes.BindingName,
+  iterationValues: readonly StaticDataValue[],
+  loopValues: Map<tsTypes.Identifier, readonly StaticDataValue[]>,
+): void {
+  if (ts.isIdentifier(bindingName)) {
+    loopValues.set(bindingName, iterationValues);
+    return;
+  }
+  if (ts.isArrayBindingPattern(bindingName)) {
+    for (let index = 0; index < bindingName.elements.length; index += 1) {
+      const element = bindingName.elements[index];
+      if (!element || ts.isOmittedExpression(element)) continue;
+      const nestedValues = iterationValues.flatMap((value) =>
+        typeof value !== "string" && value.kind === "array" && value.items[index]
+          ? [value.items[index]!]
+          : [],
+      );
+      bindStaticIterationValues(element.name, nestedValues, loopValues);
+    }
+    return;
+  }
+  for (const element of bindingName.elements) {
+    const propertyName = element.propertyName ? staticPropertyName(element.propertyName) : null;
+    const key = propertyName ?? (ts.isIdentifier(element.name) ? element.name.text : null);
+    const nestedValues =
+      key === null
+        ? []
+        : iterationValues.flatMap((value) =>
+            typeof value !== "string" && value.kind === "object"
+              ? (value.properties.get(key) ?? [])
+              : [],
+          );
+    bindStaticIterationValues(element.name, nestedValues, loopValues);
+  }
+}
+
 function collectStaticPathVariables(
   repoRoot: string,
   sourceFile: tsTypes.SourceFile,
@@ -1423,7 +1764,8 @@ function validateEvidenceWriterRegistry(registry: EvidenceWriterRegistryV0): voi
     registry.commandAuthority?.modulePath !== EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH ||
     !/^[0-9a-f]{64}$/u.test(registry.commandAuthority.sha256) ||
     registry.commandAuthority.declaredCommandCount < 1 ||
-    registry.commandAuthority.declaredOutputCount < 1
+    registry.commandAuthority.declaredOutputCount < 1 ||
+    registry.commandAuthority.declaredStaticWriteOutputCount < 1
   ) {
     throw new Error("evidence writer command authority is missing or invalid");
   }

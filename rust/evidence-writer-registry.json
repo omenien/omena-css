@@ -3,9 +3,10 @@
   "generatedBy": "pnpm omena-check evidence-writers --write",
   "commandAuthority": {
     "modulePath": "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
-    "sha256": "db0f501b36a19a152058dee41cdbd9d6cf196593b5369bab2c56cac109a7db06",
-    "declaredCommandCount": 21,
-    "declaredOutputCount": 44
+    "sha256": "d4997a147d2fcdfab8c7e8bba3603574b8902c4b1400018ce156960afd13cc07",
+    "declaredCommandCount": 23,
+    "declaredOutputCount": 68,
+    "declaredStaticWriteOutputCount": 67
   },
   "artifacts": [
     {
@@ -392,15 +393,18 @@
         "docs/concepts/semantic-analysis.md",
         "docs/project/architecture.md",
         "docs/reference/README.md",
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "scripts/check-docs-reference-surface.ts",
         "scripts/check-docs-site-contracts.ts",
-        "scripts/check-rust-crate-documentation.ts"
+        "scripts/check-rust-crate-documentation.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
       "consumerGateIds": [
         "docs/reference-surface",
         "docs/reference-surface:update",
         "docs/site-contracts",
-        "rust/crate-documentation"
+        "rust/crate-documentation",
+        "tooling/evidence-affected-map"
       ]
     },
     {
@@ -894,6 +898,51 @@
       ]
     },
     {
+      "artifactPath": "packages/css-build-adapter/bundler-host-contract.generated.d.ts",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/generate-engine-v2-contract-idl.ts",
+        "--write"
+      ],
+      "inputPaths": [
+        "contracts/engine-napi/main.tsp",
+        "contracts/engine-sdk-workflow/main.tsp",
+        "contracts/engine-v2/main.tsp",
+        "contracts/external-corpus-envelope/main.tsp",
+        "contracts/parse-tree/main.tsp",
+        "contracts/property-metadata/main.tsp",
+        "package.json",
+        "scripts/property-metadata-registry.ts"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "scripts/check-js-bundler-host-no-regex-classmap.ts",
+        "scripts/check-js-bundler-host-plugin-kind.ts",
+        "scripts/check-rust-omena-query-bundle-execution-scope.ts",
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "consumerGateIds": [
+        "contract/engine-v2-contract-idl-generated",
+        "contract/external-corpus-envelope-contract-idl-generated",
+        "rust/omena-cascade/property-metadata",
+        "rust/omena-js-bundler-host-no-regex-classmap",
+        "rust/omena-js-bundler-host-plugin-kind",
+        "rust/omena-query/bundle-execution-scope"
+      ]
+    },
+    {
       "artifactPath": "packages/css-build-adapter/interface-member-snapshot.json",
       "classification": "W2",
       "writerNodeKind": "normal",
@@ -915,7 +964,10 @@
       "inputScannerPaths": ["scripts/check-rust-contract-shape-census.ts"],
       "inputArtifactPaths": [],
       "writerGateIds": ["rust/contract-shape-census"],
-      "consumerPaths": ["scripts/check-rust-contract-shape-census.ts"],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "scripts/check-rust-contract-shape-census.ts"
+      ],
       "consumerGateIds": ["rust/contract-shape-census"]
     },
     {
@@ -943,6 +995,7 @@
       ],
       "writerGateIds": [],
       "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-abstract-value/src/value_grammar.rs",
         "scripts/check-rust-omena-value-grammar-differential.ts"
       ],
@@ -973,6 +1026,7 @@
       ],
       "writerGateIds": [],
       "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-abstract-value/src/value_grammar.rs",
         "scripts/check-rust-omena-value-grammar-differential.ts"
       ],
@@ -997,6 +1051,7 @@
       "inputArtifactPaths": ["rust/crates/omena-spec-audit/data/webref-grammar.json"],
       "writerGateIds": ["rust/omena-value-grammar-corpus:update"],
       "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "scripts/check-rust-omena-value-grammar-differential.ts",
         "scripts/generate-rust-omena-value-grammar-corpus.ts"
       ],
@@ -1031,6 +1086,7 @@
       "inputArtifactPaths": [],
       "writerGateIds": [],
       "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-benchmarks/src/bin/parser_edit_trace_slope_profile.rs",
         "scripts/lib/parser-edit-slope-gate.ts",
         "test/unit/check-orchestrator/evidence-affected.test.ts"
@@ -1054,6 +1110,7 @@
       "inputArtifactPaths": ["rust/crates/omena-diff-test/wpt-corpus/manifest.json"],
       "writerGateIds": [],
       "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-diff-test/wpt-corpus/SCHEMA.md",
         "scripts/check-rust-omena-diff-test-wpt-perf.ts"
       ],
@@ -1084,6 +1141,7 @@
       "consumerPaths": [
         ".github/workflows/benchmark-regression.yml",
         "docs/performance.md",
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "scripts/check-rust-z5-perf-gate-baseline.ts"
       ],
       "consumerGateIds": [
@@ -1278,10 +1336,52 @@
       "writerGateIds": [],
       "consumerPaths": [
         ".oxfmtrc.json",
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-cascade-proof/src/discharge_ledger.rs",
         "scripts/check-rust-discharge-ledger.ts"
       ],
       "consumerGateIds": ["rust/discharge-ledger", "rust/discharge-ledger:update"]
+    },
+    {
+      "artifactPath": "rust/crates/omena-cascade/src/property_metadata_idl_generated.rs",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/generate-engine-v2-contract-idl.ts",
+        "--write"
+      ],
+      "inputPaths": [
+        "contracts/engine-napi/main.tsp",
+        "contracts/engine-sdk-workflow/main.tsp",
+        "contracts/engine-v2/main.tsp",
+        "contracts/external-corpus-envelope/main.tsp",
+        "contracts/parse-tree/main.tsp",
+        "contracts/property-metadata/main.tsp",
+        "package.json",
+        "scripts/property-metadata-registry.ts"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "rust/omena-response-surface-split-census.json",
+        "scripts/check-rust-omena-cascade-property-metadata.ts",
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "consumerGateIds": [
+        "contract/engine-v2-contract-idl-generated",
+        "contract/external-corpus-envelope-contract-idl-generated",
+        "rust/omena-cascade/property-metadata"
+      ]
     },
     {
       "artifactPath": "rust/crates/omena-cascade/tests/snapshots/public-api.txt",
@@ -1523,6 +1623,7 @@
       "inputArtifactPaths": [],
       "writerGateIds": ["rust/omena-cli-json-output-census"],
       "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "scripts/check-rust-omena-cli-json-output-census.ts",
         "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
@@ -1599,6 +1700,7 @@
       "inputArtifactPaths": [],
       "writerGateIds": [],
       "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
         "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
@@ -1742,6 +1844,7 @@
       "inputArtifactPaths": [],
       "writerGateIds": ["rust/omena-diff-test-sass-spec-conformance-corpus"],
       "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "scripts/check-rust-omena-diff-test-sass-spec-upstream-scale.ts",
         "scripts/generate-sass-spec-conformance-corpus.ts"
       ],
@@ -1768,6 +1871,7 @@
       "inputArtifactPaths": ["rust/crates/omena-diff-test/sass-spec-corpus/conformance-smoke.json"],
       "writerGateIds": [],
       "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-diff-test/src/lib.rs",
         "scripts/check-rust-omena-diff-test-sass-spec-conformance-oracle.ts"
       ],
@@ -1792,6 +1896,7 @@
       "inputArtifactPaths": [],
       "writerGateIds": ["rust/omena-diff-test-sass-spec-conformance-corpus"],
       "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-diff-test/sass-spec-corpus/conformance-smoke-manifest.json",
         "rust/crates/omena-diff-test/src/lib.rs",
         "rust/crates/omena-diff-test/src/sif_generator_equivalence.rs",
@@ -1818,6 +1923,7 @@
       "inputArtifactPaths": [],
       "writerGateIds": ["rust/omena-diff-test-sass-spec-import"],
       "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-diff-test/src/lib.rs",
         "scripts/check-rust-omena-diff-test-sass-spec-upstream-scale.ts",
         "scripts/generate-sass-spec-corpus.ts"
@@ -1845,6 +1951,7 @@
       "inputArtifactPaths": ["rust/crates/omena-diff-test/sass-spec-corpus/imported-smoke.json"],
       "writerGateIds": [],
       "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-diff-test/src/lib.rs",
         "scripts/check-rust-omena-diff-test-sass-spec-oracle.ts"
       ],
@@ -1864,6 +1971,7 @@
       "inputArtifactPaths": [],
       "writerGateIds": ["rust/omena-diff-test-sass-spec-import"],
       "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-diff-test/sass-spec-corpus/expectation-bucket-ledger.toml",
         "rust/crates/omena-diff-test/sass-spec-corpus/imported-smoke-manifest.json",
         "rust/crates/omena-diff-test/src/lib.rs",
@@ -1902,6 +2010,7 @@
         "rust/omena-diff-test-sass-spec-upstream-scale:update"
       ],
       "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-diff-test/src/lib.rs",
         "scripts/check-rust-omena-diff-test-sass-spec-scale.ts",
         "scripts/check-rust-omena-diff-test-sass-spec-upstream-scale.ts"
@@ -1911,6 +2020,46 @@
         "rust/omena-diff-test-sass-spec-upstream-scale",
         "rust/omena-diff-test-sass-spec-upstream-scale-fetch",
         "rust/omena-diff-test-sass-spec-upstream-scale:update"
+      ]
+    },
+    {
+      "artifactPath": "rust/crates/omena-diff-test/src/external_corpus_envelope_idl_generated.rs",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/generate-engine-v2-contract-idl.ts",
+        "--write"
+      ],
+      "inputPaths": [
+        "contracts/engine-napi/main.tsp",
+        "contracts/engine-sdk-workflow/main.tsp",
+        "contracts/engine-v2/main.tsp",
+        "contracts/external-corpus-envelope/main.tsp",
+        "contracts/parse-tree/main.tsp",
+        "contracts/property-metadata/main.tsp",
+        "package.json",
+        "scripts/property-metadata-registry.ts"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "package.json",
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "consumerGateIds": [
+        "contract/engine-v2-contract-idl-generated",
+        "contract/external-corpus-envelope-contract-idl-generated",
+        "rust/omena-cascade/property-metadata"
       ]
     },
     {
@@ -1934,6 +2083,7 @@
         "rust/omena-diff-test-wpt-extractor"
       ],
       "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-diff-test/wpt-corpus/SCHEMA.md",
         "rust/crates/omena-diff-test/wpt-corpus/manifest.json",
         "scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts",
@@ -1967,6 +2117,7 @@
         "rust/omena-diff-test-wpt-extractor"
       ],
       "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-diff-test/wpt-corpus/SCHEMA.md",
         "rust/crates/omena-diff-test/wpt-corpus/manifest.json",
         "scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts",
@@ -2007,6 +2158,7 @@
         ".changeset/README.md",
         "docs/releases/PROCESS.md",
         "docs/releases/README.md",
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-abstract-value/examples/value_grammar_evidence.rs",
         "rust/crates/omena-abstract-value/tests/fixtures/value-grammar-real-declarations.json",
         "rust/crates/omena-cli/src/build.rs",
@@ -2100,6 +2252,134 @@
       ]
     },
     {
+      "artifactPath": "rust/crates/omena-engine-input-producers/src/engine_contract_v2_idl_generated.rs",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/generate-engine-v2-contract-idl.ts",
+        "--write"
+      ],
+      "inputPaths": [
+        "contracts/engine-napi/main.tsp",
+        "contracts/engine-sdk-workflow/main.tsp",
+        "contracts/engine-v2/main.tsp",
+        "contracts/external-corpus-envelope/main.tsp",
+        "contracts/parse-tree/main.tsp",
+        "contracts/property-metadata/main.tsp",
+        "package.json",
+        "scripts/property-metadata-registry.ts"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "rust/omena-response-surface-split-census.json",
+        "scripts/check-engine-v2-contract-idl-decisions.ts",
+        "scripts/check-engine-v2-contract-idl-toolchain.ts",
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "consumerGateIds": [
+        "contract/engine-v2-contract-idl-decisions",
+        "contract/engine-v2-contract-idl-generated",
+        "contract/engine-v2-contract-idl-toolchain",
+        "contract/external-corpus-envelope-contract-idl-generated",
+        "rust/omena-cascade/property-metadata"
+      ]
+    },
+    {
+      "artifactPath": "rust/crates/omena-napi/src/engine_napi_contract_idl_generated.rs",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/generate-engine-v2-contract-idl.ts",
+        "--write"
+      ],
+      "inputPaths": [
+        "contracts/engine-napi/main.tsp",
+        "contracts/engine-sdk-workflow/main.tsp",
+        "contracts/engine-v2/main.tsp",
+        "contracts/external-corpus-envelope/main.tsp",
+        "contracts/parse-tree/main.tsp",
+        "contracts/property-metadata/main.tsp",
+        "package.json",
+        "scripts/property-metadata-registry.ts"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "rust/omena-sdk-error-mapping-census.json",
+        "scripts/check-rust-omena-sdk-error-mapping-census.ts",
+        "scripts/check-rust-ranked-set-loss-census.ts",
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "consumerGateIds": [
+        "contract/engine-v2-contract-idl-generated",
+        "contract/external-corpus-envelope-contract-idl-generated",
+        "rust/omena-cascade/property-metadata",
+        "rust/omena-sdk-error-mapping-census",
+        "rust/ranked-set-loss-census"
+      ]
+    },
+    {
+      "artifactPath": "rust/crates/omena-parser/src/parse_tree_contract_idl_generated.rs",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/generate-engine-v2-contract-idl.ts",
+        "--write"
+      ],
+      "inputPaths": [
+        "contracts/engine-napi/main.tsp",
+        "contracts/engine-sdk-workflow/main.tsp",
+        "contracts/engine-v2/main.tsp",
+        "contracts/external-corpus-envelope/main.tsp",
+        "contracts/parse-tree/main.tsp",
+        "contracts/property-metadata/main.tsp",
+        "package.json",
+        "scripts/property-metadata-registry.ts"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "rust/omena-response-surface-split-census.json",
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "consumerGateIds": [
+        "contract/engine-v2-contract-idl-generated",
+        "contract/external-corpus-envelope-contract-idl-generated",
+        "rust/omena-cascade/property-metadata"
+      ]
+    },
+    {
       "artifactPath": "rust/crates/omena-query-transform-runner/plugin-abi-stability-contract.json",
       "classification": "W2",
       "writerNodeKind": "normal",
@@ -2122,7 +2402,10 @@
         "rust/crates/omena-query-transform-runner/plugin-consumption-law-census.json"
       ],
       "writerGateIds": [],
-      "consumerPaths": ["scripts/check-rust-omena-plugin-abi-stability.ts"],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "scripts/check-rust-omena-plugin-abi-stability.ts"
+      ],
       "consumerGateIds": ["rust/omena-plugin-abi-stability"]
     },
     {
@@ -2145,6 +2428,7 @@
       "inputArtifactPaths": [],
       "writerGateIds": ["rust/omena-plugin-consumption-law"],
       "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-query-transform-runner/plugin-abi-stability-contract.json",
         "scripts/check-rust-omena-plugin-abi-stability.ts",
         "scripts/check-rust-omena-plugin-consumption-law.ts"
@@ -2209,6 +2493,51 @@
         "rust/omena-reactive/public-surface:update",
         "rust/published-crate-surface-register",
         "tooling/evidence-affected-map"
+      ]
+    },
+    {
+      "artifactPath": "rust/crates/omena-query/src/sdk_workflow_contract_idl_generated.rs",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/generate-engine-v2-contract-idl.ts",
+        "--write"
+      ],
+      "inputPaths": [
+        "contracts/engine-napi/main.tsp",
+        "contracts/engine-sdk-workflow/main.tsp",
+        "contracts/engine-v2/main.tsp",
+        "contracts/external-corpus-envelope/main.tsp",
+        "contracts/parse-tree/main.tsp",
+        "contracts/property-metadata/main.tsp",
+        "package.json",
+        "scripts/property-metadata-registry.ts"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "scripts/check-js-bundler-host-no-regex-classmap.ts",
+        "scripts/check-rust-omena-response-surface-split-census.ts",
+        "scripts/check-rust-omena-sdk-workflow-parity.ts",
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "consumerGateIds": [
+        "contract/engine-v2-contract-idl-generated",
+        "contract/external-corpus-envelope-contract-idl-generated",
+        "rust/omena-cascade/property-metadata",
+        "rust/omena-cross-surface-parity-full",
+        "rust/omena-js-bundler-host-no-regex-classmap",
+        "rust/omena-response-surface-split-census"
       ]
     },
     {
@@ -2449,6 +2778,7 @@
       ],
       "writerGateIds": [],
       "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-diff-test/wpt-corpus/SCHEMA.md",
         "scripts/check-rust-omena-diff-test-wpt-promotion.ts",
         "scripts/generate-rust-omena-conformance-dashboard.ts"
@@ -2531,7 +2861,10 @@
         "rust/crates/omena-abstract-value/tests/fixtures/value-grammar-real-declarations.json"
       ],
       "writerGateIds": [],
-      "consumerPaths": ["scripts/check-rust-omena-value-grammar-differential.ts"],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "scripts/check-rust-omena-value-grammar-differential.ts"
+      ],
       "consumerGateIds": ["rust/omena-value-grammar-differential"]
     },
     {
@@ -2556,6 +2889,7 @@
       "inputArtifactPaths": [],
       "writerGateIds": [],
       "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-spec-audit/data/omena-coverage-gap.json",
         "scripts/coverage-gap-report.ts"
       ],
@@ -4249,11 +4583,10 @@
       "inputPaths": [
         "contracts/engine-sdk-workflow/main.tsp",
         "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
-        "rust/Cargo.toml",
-        "rust/crates/omena-query/src/sdk_workflow_contract_idl_generated.rs"
+        "rust/Cargo.toml"
       ],
       "inputScannerPaths": ["scripts/check-rust-omena-response-surface-split-census.ts"],
-      "inputArtifactPaths": [],
+      "inputArtifactPaths": ["rust/crates/omena-query/src/sdk_workflow_contract_idl_generated.rs"],
       "writerGateIds": ["rust/omena-response-surface-split-census"],
       "consumerPaths": [
         "rust/omena-domain-claim-rename-map.json",
@@ -4339,7 +4672,6 @@
         "rust/crates/omena-lsp-server/src/bin/omena-lsp-server.rs",
         "rust/crates/omena-lsp-server/src/boundary.rs",
         "rust/crates/omena-lsp-server/src/sdk_workflow.rs",
-        "rust/crates/omena-napi/src/engine_napi_contract_idl_generated.rs",
         "rust/crates/omena-napi/src/lib.rs",
         "rust/crates/omena-napi/src/sdk_workspace.rs",
         "rust/crates/omena-query/src/sdk_error.rs",
@@ -4347,7 +4679,7 @@
         "rust/crates/omena-wasm/src/sdk_workspace.rs"
       ],
       "inputScannerPaths": [],
-      "inputArtifactPaths": [],
+      "inputArtifactPaths": ["rust/crates/omena-napi/src/engine_napi_contract_idl_generated.rs"],
       "writerGateIds": [],
       "consumerPaths": [
         "rust/omena-sdk-program-api-residuals.json",
@@ -4395,11 +4727,10 @@
       "inputPaths": [
         "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
         "rust/Cargo.toml",
-        "rust/crates/omena-query/src/sdk_workflow_contract_idl_generated.rs",
         "scripts/lib/native-rust-toolchain.ts"
       ],
       "inputScannerPaths": ["scripts/check-rust-omena-sdk-workflow-parity.ts"],
-      "inputArtifactPaths": [],
+      "inputArtifactPaths": ["rust/crates/omena-query/src/sdk_workflow_contract_idl_generated.rs"],
       "writerGateIds": ["rust/omena-cross-surface-parity-full"],
       "consumerPaths": [
         "ARCHITECTURE.md",
@@ -4602,6 +4933,664 @@
         "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
       "consumerGateIds": ["rust/product-surface-boundary-reviews", "tooling/evidence-affected-map"]
+    },
+    {
+      "artifactPath": "server/engine-core-ts/src/contracts/engine-napi-boundary-idl.generated.ts",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/generate-engine-v2-contract-idl.ts",
+        "--write"
+      ],
+      "inputPaths": [
+        "contracts/engine-napi/main.tsp",
+        "contracts/engine-sdk-workflow/main.tsp",
+        "contracts/engine-v2/main.tsp",
+        "contracts/external-corpus-envelope/main.tsp",
+        "contracts/parse-tree/main.tsp",
+        "contracts/property-metadata/main.tsp",
+        "package.json",
+        "scripts/property-metadata-registry.ts"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "consumerGateIds": [
+        "contract/engine-v2-contract-idl-generated",
+        "contract/external-corpus-envelope-contract-idl-generated",
+        "rust/omena-cascade/property-metadata"
+      ]
+    },
+    {
+      "artifactPath": "server/engine-core-ts/src/contracts/engine-sdk-workflow-idl.generated.ts",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/generate-engine-v2-contract-idl.ts",
+        "--write"
+      ],
+      "inputPaths": [
+        "contracts/engine-napi/main.tsp",
+        "contracts/engine-sdk-workflow/main.tsp",
+        "contracts/engine-v2/main.tsp",
+        "contracts/external-corpus-envelope/main.tsp",
+        "contracts/parse-tree/main.tsp",
+        "contracts/property-metadata/main.tsp",
+        "package.json",
+        "scripts/property-metadata-registry.ts"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "scripts/check-js-bundler-host-no-regex-classmap.ts",
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "consumerGateIds": [
+        "contract/engine-v2-contract-idl-generated",
+        "contract/external-corpus-envelope-contract-idl-generated",
+        "rust/omena-cascade/property-metadata",
+        "rust/omena-js-bundler-host-no-regex-classmap"
+      ]
+    },
+    {
+      "artifactPath": "server/engine-core-ts/src/contracts/engine-v2-input-idl.generated.ts",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/generate-engine-v2-contract-idl.ts",
+        "--write"
+      ],
+      "inputPaths": [
+        "contracts/engine-napi/main.tsp",
+        "contracts/engine-sdk-workflow/main.tsp",
+        "contracts/engine-v2/main.tsp",
+        "contracts/external-corpus-envelope/main.tsp",
+        "contracts/parse-tree/main.tsp",
+        "contracts/property-metadata/main.tsp",
+        "package.json",
+        "scripts/property-metadata-registry.ts"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "scripts/check-engine-v2-contract-idl-decisions.ts",
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
+      ],
+      "consumerGateIds": [
+        "contract/engine-v2-contract-idl-decisions",
+        "contract/engine-v2-contract-idl-generated",
+        "contract/external-corpus-envelope-contract-idl-generated",
+        "rust/omena-cascade/property-metadata",
+        "tooling/evidence-affected-map"
+      ]
+    },
+    {
+      "artifactPath": "server/engine-core-ts/src/contracts/engine-v2-output-idl.generated.ts",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/generate-engine-v2-contract-idl.ts",
+        "--write"
+      ],
+      "inputPaths": [
+        "contracts/engine-napi/main.tsp",
+        "contracts/engine-sdk-workflow/main.tsp",
+        "contracts/engine-v2/main.tsp",
+        "contracts/external-corpus-envelope/main.tsp",
+        "contracts/parse-tree/main.tsp",
+        "contracts/property-metadata/main.tsp",
+        "package.json",
+        "scripts/property-metadata-registry.ts"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "consumerGateIds": [
+        "contract/engine-v2-contract-idl-generated",
+        "contract/external-corpus-envelope-contract-idl-generated",
+        "rust/omena-cascade/property-metadata"
+      ]
+    },
+    {
+      "artifactPath": "server/engine-core-ts/src/contracts/external-corpus-envelope-idl.generated.ts",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/generate-engine-v2-contract-idl.ts",
+        "--write"
+      ],
+      "inputPaths": [
+        "contracts/engine-napi/main.tsp",
+        "contracts/engine-sdk-workflow/main.tsp",
+        "contracts/engine-v2/main.tsp",
+        "contracts/external-corpus-envelope/main.tsp",
+        "contracts/parse-tree/main.tsp",
+        "contracts/property-metadata/main.tsp",
+        "package.json",
+        "scripts/property-metadata-registry.ts"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "package.json",
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "consumerGateIds": [
+        "contract/engine-v2-contract-idl-generated",
+        "contract/external-corpus-envelope-contract-idl-generated",
+        "rust/omena-cascade/property-metadata"
+      ]
+    },
+    {
+      "artifactPath": "server/engine-core-ts/src/contracts/parse-tree-idl.generated.ts",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/generate-engine-v2-contract-idl.ts",
+        "--write"
+      ],
+      "inputPaths": [
+        "contracts/engine-napi/main.tsp",
+        "contracts/engine-sdk-workflow/main.tsp",
+        "contracts/engine-v2/main.tsp",
+        "contracts/external-corpus-envelope/main.tsp",
+        "contracts/parse-tree/main.tsp",
+        "contracts/property-metadata/main.tsp",
+        "package.json",
+        "scripts/property-metadata-registry.ts"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "consumerGateIds": [
+        "contract/engine-v2-contract-idl-generated",
+        "contract/external-corpus-envelope-contract-idl-generated",
+        "rust/omena-cascade/property-metadata"
+      ]
+    },
+    {
+      "artifactPath": "server/engine-core-ts/src/contracts/property-metadata-idl.generated.ts",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/generate-engine-v2-contract-idl.ts",
+        "--write"
+      ],
+      "inputPaths": [
+        "contracts/engine-napi/main.tsp",
+        "contracts/engine-sdk-workflow/main.tsp",
+        "contracts/engine-v2/main.tsp",
+        "contracts/external-corpus-envelope/main.tsp",
+        "contracts/parse-tree/main.tsp",
+        "contracts/property-metadata/main.tsp",
+        "package.json",
+        "scripts/property-metadata-registry.ts"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "scripts/check-rust-omena-cascade-property-metadata.ts",
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "consumerGateIds": [
+        "contract/engine-v2-contract-idl-generated",
+        "contract/external-corpus-envelope-contract-idl-generated",
+        "rust/omena-cascade/property-metadata"
+      ]
+    },
+    {
+      "artifactPath": "server/engine-host-node/src/code-action-query-idl.generated.ts",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/generate-engine-v2-contract-idl.ts",
+        "--write"
+      ],
+      "inputPaths": [
+        "contracts/engine-napi/main.tsp",
+        "contracts/engine-sdk-workflow/main.tsp",
+        "contracts/engine-v2/main.tsp",
+        "contracts/external-corpus-envelope/main.tsp",
+        "contracts/parse-tree/main.tsp",
+        "contracts/property-metadata/main.tsp",
+        "package.json",
+        "scripts/property-metadata-registry.ts"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "consumerGateIds": [
+        "contract/engine-v2-contract-idl-generated",
+        "contract/external-corpus-envelope-contract-idl-generated",
+        "rust/omena-cascade/property-metadata"
+      ]
+    },
+    {
+      "artifactPath": "server/engine-host-node/src/engine-output-v2-idl.generated.ts",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/generate-engine-v2-contract-idl.ts",
+        "--write"
+      ],
+      "inputPaths": [
+        "contracts/engine-napi/main.tsp",
+        "contracts/engine-sdk-workflow/main.tsp",
+        "contracts/engine-v2/main.tsp",
+        "contracts/external-corpus-envelope/main.tsp",
+        "contracts/parse-tree/main.tsp",
+        "contracts/property-metadata/main.tsp",
+        "package.json",
+        "scripts/property-metadata-registry.ts"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "consumerGateIds": [
+        "contract/engine-v2-contract-idl-generated",
+        "contract/external-corpus-envelope-contract-idl-generated",
+        "rust/omena-cascade/property-metadata"
+      ]
+    },
+    {
+      "artifactPath": "server/engine-host-node/src/engine-query-v2-idl.generated.ts",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/generate-engine-v2-contract-idl.ts",
+        "--write"
+      ],
+      "inputPaths": [
+        "contracts/engine-napi/main.tsp",
+        "contracts/engine-sdk-workflow/main.tsp",
+        "contracts/engine-v2/main.tsp",
+        "contracts/external-corpus-envelope/main.tsp",
+        "contracts/parse-tree/main.tsp",
+        "contracts/property-metadata/main.tsp",
+        "package.json",
+        "scripts/property-metadata-registry.ts"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "consumerGateIds": [
+        "contract/engine-v2-contract-idl-generated",
+        "contract/external-corpus-envelope-contract-idl-generated",
+        "rust/omena-cascade/property-metadata"
+      ]
+    },
+    {
+      "artifactPath": "server/engine-host-node/src/query-diagnostics-idl.generated.ts",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/generate-engine-v2-contract-idl.ts",
+        "--write"
+      ],
+      "inputPaths": [
+        "contracts/engine-napi/main.tsp",
+        "contracts/engine-sdk-workflow/main.tsp",
+        "contracts/engine-v2/main.tsp",
+        "contracts/external-corpus-envelope/main.tsp",
+        "contracts/parse-tree/main.tsp",
+        "contracts/property-metadata/main.tsp",
+        "package.json",
+        "scripts/property-metadata-registry.ts"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "scripts/check-diagnostics-single-family-egress.ts",
+        "scripts/engine-v2-contract-idl-files.ts",
+        "scripts/generate-engine-v2-contract-idl.ts"
+      ],
+      "consumerGateIds": [
+        "contract/engine-v2-contract-idl-generated",
+        "contract/external-corpus-envelope-contract-idl-generated",
+        "editor/diagnostics-single-family-egress",
+        "rust/omena-cascade/property-metadata"
+      ]
+    },
+    {
+      "artifactPath": "test/_fixtures/contract-parity-v2/source-char-inclusion-parity-v2.json",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/contract-parity-corpus-v2.ts",
+        "scripts/contract-parity-golden-corpus-v2.ts",
+        "scripts/contract-parity-v2-fixture-selection.ts",
+        "scripts/update-contract-parity-v2-golden.ts"
+      ],
+      "writeCommand": ["node", "--import", "tsx", "./scripts/update-contract-parity-v2-golden.ts"],
+      "inputPaths": [
+        "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
+        "scripts/contract-parity-corpus-v1.ts",
+        "scripts/contract-parity-runtime.ts",
+        "test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss",
+        "test/_fixtures/contract-parity/SourceCharInclusionParity.tsx",
+        "test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+        "test/_fixtures/contract-parity/SourceCompositeParity.tsx",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.tsx",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixParity.tsx",
+        "test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss",
+        "test/_fixtures/contract-parity/SourceUnicodeLengthParity.tsx",
+        "test/_fixtures/contract-parity/TypeFactParity.module.scss",
+        "test/_fixtures/contract-parity/TypeFactParity.tsx"
+      ],
+      "inputScannerPaths": ["scripts/contract-parity-v2-fixture-selection.ts"],
+      "inputArtifactPaths": [
+        "server/engine-core-ts/src/contracts/engine-v2-input-idl.generated.ts"
+      ],
+      "writerGateIds": [],
+      "consumerPaths": ["packages/check-orchestrator/src/evidence/writer-command-authority.ts"],
+      "consumerGateIds": []
+    },
+    {
+      "artifactPath": "test/_fixtures/contract-parity-v2/source-composite-parity-v2.json",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/contract-parity-corpus-v2.ts",
+        "scripts/contract-parity-golden-corpus-v2.ts",
+        "scripts/contract-parity-v2-fixture-selection.ts",
+        "scripts/update-contract-parity-v2-golden.ts"
+      ],
+      "writeCommand": ["node", "--import", "tsx", "./scripts/update-contract-parity-v2-golden.ts"],
+      "inputPaths": [
+        "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
+        "scripts/contract-parity-corpus-v1.ts",
+        "scripts/contract-parity-runtime.ts",
+        "test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss",
+        "test/_fixtures/contract-parity/SourceCharInclusionParity.tsx",
+        "test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+        "test/_fixtures/contract-parity/SourceCompositeParity.tsx",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.tsx",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixParity.tsx",
+        "test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss",
+        "test/_fixtures/contract-parity/SourceUnicodeLengthParity.tsx",
+        "test/_fixtures/contract-parity/TypeFactParity.module.scss",
+        "test/_fixtures/contract-parity/TypeFactParity.tsx"
+      ],
+      "inputScannerPaths": ["scripts/contract-parity-v2-fixture-selection.ts"],
+      "inputArtifactPaths": [
+        "server/engine-core-ts/src/contracts/engine-v2-input-idl.generated.ts"
+      ],
+      "writerGateIds": [],
+      "consumerPaths": ["packages/check-orchestrator/src/evidence/writer-command-authority.ts"],
+      "consumerGateIds": []
+    },
+    {
+      "artifactPath": "test/_fixtures/contract-parity-v2/source-prefix-suffix-overlap-parity-v2.json",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/contract-parity-corpus-v2.ts",
+        "scripts/contract-parity-golden-corpus-v2.ts",
+        "scripts/contract-parity-v2-fixture-selection.ts",
+        "scripts/update-contract-parity-v2-golden.ts"
+      ],
+      "writeCommand": ["node", "--import", "tsx", "./scripts/update-contract-parity-v2-golden.ts"],
+      "inputPaths": [
+        "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
+        "scripts/contract-parity-corpus-v1.ts",
+        "scripts/contract-parity-runtime.ts",
+        "test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss",
+        "test/_fixtures/contract-parity/SourceCharInclusionParity.tsx",
+        "test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+        "test/_fixtures/contract-parity/SourceCompositeParity.tsx",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.tsx",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixParity.tsx",
+        "test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss",
+        "test/_fixtures/contract-parity/SourceUnicodeLengthParity.tsx",
+        "test/_fixtures/contract-parity/TypeFactParity.module.scss",
+        "test/_fixtures/contract-parity/TypeFactParity.tsx"
+      ],
+      "inputScannerPaths": ["scripts/contract-parity-v2-fixture-selection.ts"],
+      "inputArtifactPaths": [
+        "server/engine-core-ts/src/contracts/engine-v2-input-idl.generated.ts"
+      ],
+      "writerGateIds": [],
+      "consumerPaths": ["packages/check-orchestrator/src/evidence/writer-command-authority.ts"],
+      "consumerGateIds": []
+    },
+    {
+      "artifactPath": "test/_fixtures/contract-parity-v2/source-prefix-suffix-parity-v2.json",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/contract-parity-corpus-v2.ts",
+        "scripts/contract-parity-golden-corpus-v2.ts",
+        "scripts/contract-parity-v2-fixture-selection.ts",
+        "scripts/update-contract-parity-v2-golden.ts"
+      ],
+      "writeCommand": ["node", "--import", "tsx", "./scripts/update-contract-parity-v2-golden.ts"],
+      "inputPaths": [
+        "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
+        "scripts/contract-parity-corpus-v1.ts",
+        "scripts/contract-parity-runtime.ts",
+        "test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss",
+        "test/_fixtures/contract-parity/SourceCharInclusionParity.tsx",
+        "test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+        "test/_fixtures/contract-parity/SourceCompositeParity.tsx",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.tsx",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixParity.tsx",
+        "test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss",
+        "test/_fixtures/contract-parity/SourceUnicodeLengthParity.tsx",
+        "test/_fixtures/contract-parity/TypeFactParity.module.scss",
+        "test/_fixtures/contract-parity/TypeFactParity.tsx"
+      ],
+      "inputScannerPaths": ["scripts/contract-parity-v2-fixture-selection.ts"],
+      "inputArtifactPaths": [
+        "server/engine-core-ts/src/contracts/engine-v2-input-idl.generated.ts"
+      ],
+      "writerGateIds": [],
+      "consumerPaths": ["packages/check-orchestrator/src/evidence/writer-command-authority.ts"],
+      "consumerGateIds": []
+    },
+    {
+      "artifactPath": "test/_fixtures/contract-parity-v2/source-unicode-length-parity-v2.json",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/contract-parity-corpus-v2.ts",
+        "scripts/contract-parity-golden-corpus-v2.ts",
+        "scripts/contract-parity-v2-fixture-selection.ts",
+        "scripts/update-contract-parity-v2-golden.ts"
+      ],
+      "writeCommand": ["node", "--import", "tsx", "./scripts/update-contract-parity-v2-golden.ts"],
+      "inputPaths": [
+        "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
+        "scripts/contract-parity-corpus-v1.ts",
+        "scripts/contract-parity-runtime.ts",
+        "test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss",
+        "test/_fixtures/contract-parity/SourceCharInclusionParity.tsx",
+        "test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+        "test/_fixtures/contract-parity/SourceCompositeParity.tsx",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.tsx",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixParity.tsx",
+        "test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss",
+        "test/_fixtures/contract-parity/SourceUnicodeLengthParity.tsx",
+        "test/_fixtures/contract-parity/TypeFactParity.module.scss",
+        "test/_fixtures/contract-parity/TypeFactParity.tsx"
+      ],
+      "inputScannerPaths": ["scripts/contract-parity-v2-fixture-selection.ts"],
+      "inputArtifactPaths": [
+        "server/engine-core-ts/src/contracts/engine-v2-input-idl.generated.ts"
+      ],
+      "writerGateIds": [],
+      "consumerPaths": ["packages/check-orchestrator/src/evidence/writer-command-authority.ts"],
+      "consumerGateIds": []
+    },
+    {
+      "artifactPath": "test/_fixtures/contract-parity-v2/type-fact-parity-v2.json",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [
+        "scripts/contract-parity-corpus-v2.ts",
+        "scripts/contract-parity-golden-corpus-v2.ts",
+        "scripts/contract-parity-v2-fixture-selection.ts",
+        "scripts/update-contract-parity-v2-golden.ts"
+      ],
+      "writeCommand": ["node", "--import", "tsx", "./scripts/update-contract-parity-v2-golden.ts"],
+      "inputPaths": [
+        "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
+        "scripts/contract-parity-corpus-v1.ts",
+        "scripts/contract-parity-runtime.ts",
+        "test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss",
+        "test/_fixtures/contract-parity/SourceCharInclusionParity.tsx",
+        "test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+        "test/_fixtures/contract-parity/SourceCompositeParity.tsx",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.tsx",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
+        "test/_fixtures/contract-parity/SourcePrefixSuffixParity.tsx",
+        "test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss",
+        "test/_fixtures/contract-parity/SourceUnicodeLengthParity.tsx",
+        "test/_fixtures/contract-parity/TypeFactParity.module.scss",
+        "test/_fixtures/contract-parity/TypeFactParity.tsx"
+      ],
+      "inputScannerPaths": ["scripts/contract-parity-v2-fixture-selection.ts"],
+      "inputArtifactPaths": [
+        "server/engine-core-ts/src/contracts/engine-v2-input-idl.generated.ts"
+      ],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "rust/crates/omena-engine-input-producers/tests/engine_contract_v2_idl_generated.rs"
+      ],
+      "consumerGateIds": []
     },
     {
       "artifactPath": "test/_fixtures/contract-parity/source-flow-parity.json",
