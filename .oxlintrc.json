@@ -28,6 +28,13 @@
     {
       "files": ["rolldown.config.ts", "vitest.config.ts", "*.config.ts"],
       "rules": { "import/no-default-export": "off" }
+    },
+    {
+      "files": [
+        "scripts/surfaces/*.surface.ts",
+        "packages/check-orchestrator/src/evidence/predicates/*.ts"
+      ],
+      "rules": { "import/no-default-export": "off" }
     }
   ],
   "ignorePatterns": [
