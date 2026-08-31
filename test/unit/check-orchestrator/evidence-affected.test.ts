@@ -53,6 +53,7 @@ import type { EvidenceScanSurfaceManifestV0 } from "../../../packages/check-orch
 import {
   loadCommittedEvidenceScanSurfaceManifest,
   renderEvidenceScanSurfaceManifest,
+  resolveUnmigratedScanRootForScanner,
   sha256Text,
 } from "../../../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import {
@@ -493,6 +494,53 @@ describe("scan surface falsifiers", () => {
     rmSync(repoRoot, { recursive: true, force: true });
     rmSync(tempRoot, { recursive: true, force: true });
     rmSync(checkoutRoot, { recursive: true, force: true });
+  });
+
+  it("keeps sparse external checkout Git readers inside the materialized working tree", () => {
+    const repoRoot = path.resolve(import.meta.dirname, "../../..");
+    const checkoutRoot = mkdtempSync(path.join(os.tmpdir(), "omena-sparse-checkout-"));
+    try {
+      execFileSync("git", ["init", "-q"], { cwd: checkoutRoot });
+      execFileSync("git", ["config", "user.name", "Evidence Test"], { cwd: checkoutRoot });
+      execFileSync("git", ["config", "user.email", "evidence@example.invalid"], {
+        cwd: checkoutRoot,
+      });
+      mkdirSync(path.join(checkoutRoot, ".changeset"));
+      mkdirSync(path.join(checkoutRoot, "corpus"));
+      writeFileSync(path.join(checkoutRoot, ".changeset/README.md"), "index only\n");
+      writeFileSync(path.join(checkoutRoot, "corpus/input.css"), ".visible {}\n");
+      execFileSync("git", ["add", "."], { cwd: checkoutRoot });
+      execFileSync("git", ["commit", "-q", "-m", "sparse fixture"], { cwd: checkoutRoot });
+      execFileSync("git", ["sparse-checkout", "init", "--no-cone"], { cwd: checkoutRoot });
+      execFileSync("git", ["sparse-checkout", "set", "/corpus/input.css"], {
+        cwd: checkoutRoot,
+      });
+
+      expect(existsSync(path.join(checkoutRoot, ".changeset/README.md"))).toBe(false);
+      expect(existsSync(path.join(checkoutRoot, "corpus/input.css"))).toBe(true);
+
+      const surface = resolveUnmigratedScanRootForScanner(
+        path.join(repoRoot, "scripts/oss-corpus-farm.ts"),
+        "external-checkout",
+        repoRoot,
+        checkoutRoot,
+      );
+      expect(surface.gitOutput(["ls-files"])).toBe("corpus/input.css\n");
+      expect(
+        surface.execFileSync("git", ["ls-files", "-z"], {
+          cwd: checkoutRoot,
+          encoding: "utf8",
+        }),
+      ).toBe("corpus/input.css\0");
+      const spawned = surface.spawnSync("git", ["ls-files"], {
+        cwd: checkoutRoot,
+        encoding: "utf8",
+      });
+      expect(spawned.status).toBe(0);
+      expect(spawned.stdout).toBe("corpus/input.css\n");
+    } finally {
+      rmSync(checkoutRoot, { recursive: true, force: true });
+    }
   });
 
   it("recognizes only the governed external-root resolver as routed", () => {

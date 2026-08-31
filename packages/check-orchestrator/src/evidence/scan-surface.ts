@@ -475,16 +475,7 @@ function createSurfaceReaders(
     if ((result.status ?? 1) !== 0) {
       throw new Error(String(result.stderr).trim() || `git ${args.join(" ")} failed`);
     }
-    const output = String(result.stdout);
-    const delimiter = args.includes("-z") ? "\0" : /\r?\n/u;
-    const observed = output.split(delimiter).map(normalizeRepoPath).filter(Boolean);
-    const outside = observed.find((candidate) => !allowedPathSet.has(candidate));
-    if (outside) {
-      throw new Error(
-        `scan surface ${spec.scannerPath} read undeclared path through git ls-files: ${outside}`,
-      );
-    }
-    return output;
+    return boundGitOutput(args, String(result.stdout));
   }
 
   function execFileSync(
@@ -494,8 +485,7 @@ function createSurfaceReaders(
   ): string {
     requireGitLsFiles(command, args);
     const output = nodeExecFileSync(command, args, { ...options, cwd: repoRoot });
-    verifyGitOutput(args, output);
-    return output;
+    return boundGitOutput(args, output);
   }
 
   function spawnSync(
@@ -505,7 +495,14 @@ function createSurfaceReaders(
   ): SpawnSyncReturns<string> {
     requireGitLsFiles(command, args);
     const result = nodeSpawnSync(command, args, { ...options, cwd: repoRoot });
-    if ((result.status ?? 1) === 0) verifyGitOutput(args, result.stdout);
+    if ((result.status ?? 1) === 0) {
+      const stdout = boundGitOutput(args, result.stdout);
+      return {
+        ...result,
+        stdout,
+        output: [result.output[0] ?? null, stdout, result.output[2] ?? null],
+      };
+    }
     return result;
   }
 
@@ -517,18 +514,29 @@ function createSurfaceReaders(
     }
   }
 
-  function verifyGitOutput(args: readonly string[], output: string): void {
-    const delimiter = args.includes("-z") ? "\0" : /\r?\n/u;
-    const outside = output
-      .split(delimiter)
-      .map(normalizeRepoPath)
-      .filter(Boolean)
-      .find((candidate) => !allowedPathSet.has(candidate));
-    if (outside) {
+  function boundGitOutput(args: readonly string[], output: string): string {
+    const nullDelimited = args.includes("-z");
+    const delimiter = nullDelimited ? "\0" : "\n";
+    const hadTrailingDelimiter = nullDelimited ? output.endsWith("\0") : /(?:\r?\n)$/u.test(output);
+    const bounded: string[] = [];
+    for (const rawCandidate of output.split(nullDelimited ? "\0" : /\r?\n/u).filter(Boolean)) {
+      const candidate = normalizeRepoPath(rawCandidate);
+      if (allowedPathSet.has(candidate)) {
+        bounded.push(rawCandidate);
+        continue;
+      }
+      // A sparse index and an ordinary deletion both retain tracked paths that a working-tree
+      // surface intentionally cannot observe. Hide those index-only entries, but keep failing
+      // closed when Git exposes an existing path outside the declared surface.
+      if (spec.mode === "workingTree" && !existsSync(path.join(repoRoot, candidate))) {
+        continue;
+      }
       throw new Error(
-        `scan surface ${spec.scannerPath} read undeclared path through git ls-files: ${outside}`,
+        `scan surface ${spec.scannerPath} read undeclared path through git ls-files: ${candidate}`,
       );
     }
+    if (bounded.length === 0) return "";
+    return `${bounded.join(delimiter)}${hadTrailingDelimiter ? delimiter : ""}`;
   }
 
   function globSync(

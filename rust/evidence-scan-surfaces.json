@@ -5,7 +5,7 @@
     "fileCount": 97,
     "patternSha256": "3d142b359e06a0b85d1d9713cda4a6405e573a53f1eafb8d95f01ca3d4ddcf0d"
   },
-  "resolverSha256": "129f116578c3ee47d7335e12dd6251515aac4acc4de8dfc5a087e26f672f8e50",
+  "resolverSha256": "96ff29a3b9af567b042806d6ae5d2694ae2529ba06365b1bbb1c026fb8445e8a",
   "predicateAuthority": {
     "modulePath": "packages/check-orchestrator/src/evidence/predicates/index.ts",
     "sha256": "f668e12d600b8ce6669543a284d07c50e02037d65c308b71a18e409389717489"
