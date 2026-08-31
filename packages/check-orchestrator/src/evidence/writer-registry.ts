@@ -19,6 +19,10 @@ import {
 } from "./writer-command-authority";
 
 export const EVIDENCE_WRITER_REGISTRY_PATH = "rust/evidence-writer-registry.json";
+const WPT_TIER_ZERO_OUTPUT_PATHS = new Set([
+  "rust/crates/omena-diff-test/wpt-corpus/extracted/tier-zero-coverage.json",
+  "rust/crates/omena-diff-test/wpt-corpus/extracted/tier-zero-tuples.json",
+]);
 
 const ROOT_RUST_ARTIFACT_SURFACE = defineScanSurface({
   scannerPath: "packages/check-orchestrator/src/evidence/writer-registry.ts",
@@ -56,9 +60,9 @@ export type NotPreviewableInputKind = (typeof NOT_PREVIEWABLE_INPUT_KINDS)[numbe
 export type EvidenceArtifactClassification = "W1" | "W2" | "W3" | "W4";
 
 /**
- * Every W1 recipe currently supports removed-output reproduction. A future
- * exception must be named here with a reviewable reason; the generated row
- * then carries that reason instead of silently losing the fresh-run arm.
+ * Every writable recipe is reproduced with its output removed unless the
+ * writer must read that output as an input. Such exceptions are named here
+ * with a reviewable reason and projected onto the generated registry row.
  */
 const DOCUMENTATION_REFERENCE_SELF_INPUT_PATHS = [
   "docs/reference/README.md",
@@ -83,6 +87,28 @@ export const EVIDENCE_FRESH_REPRODUCTION_EXEMPTIONS: readonly {
     reason:
       "the reproducibility recipe replays job metadata from committed sourceRunIds and preserves gate samples whose GitHub summary artifacts may have expired",
   },
+  {
+    artifactPath: "packages/css-build-adapter/interface-member-snapshot.json",
+    kind: "reads-own-output",
+    reason:
+      "the adapter reproduction mode validates current declarations against the committed approval baseline before canonically rewriting those approved bytes",
+  },
+  {
+    artifactPath:
+      "rust/crates/omena-abstract-value/tests/fixtures/value-grammar-real-declarations.json",
+    kind: "reads-own-output",
+    reason:
+      "the corpus writer preserves reviewer-authored adjudication, reason, owner, specification URL, and non-comparability fields from matching committed cases",
+  },
+  ...[
+    "rust/crates/omena-abstract-value/data/closed-world-builtin-token-profiles.json",
+    "rust/crates/omena-abstract-value/data/closed-world-keyword-closure-certificate.json",
+  ].map((artifactPath) => ({
+    artifactPath,
+    kind: "reads-own-output" as const,
+    reason:
+      "the shared differential writer compiles omena-abstract-value, whose value-grammar module includes this generated JSON before the command recomputes and rewrites it",
+  })),
   {
     artifactPath: "rust/evidence-writer-registry.json",
     kind: "reads-own-output",
@@ -677,7 +703,10 @@ function classifyArtifact(input: {
   const manualProcedure = handAuthoredProcedure(artifactPath);
   const writerFlag =
     writerScripts.length === 1
-      ? writerFlagForSource(readFileSync(path.join(input.repoRoot, writerScripts[0]!), "utf8"))
+      ? writerFlagForSource(
+          readFileSync(path.join(input.repoRoot, writerScripts[0]!), "utf8"),
+          artifactPath,
+        )
       : null;
   const classification: EvidenceArtifactClassification =
     declaredCommand || specialCommand || updateCommands.length > 0
@@ -695,8 +724,9 @@ function classifyArtifact(input: {
       : classification === "W2"
         ? selfWriterCommand(artifactPath, writerScripts[0]!, writerFlag)
         : undefined;
-  const requiredEnvironmentKeys =
-    artifactPath === "rust/omena-css-module-token-shape-measurement.json"
+  const requiredEnvironmentKeys = WPT_TIER_ZERO_OUTPUT_PATHS.has(artifactPath)
+    ? ["OMENA_WPT_ROOT"]
+    : artifactPath === "rust/omena-css-module-token-shape-measurement.json"
       ? [
           "OMENA_TOKEN_CORPUS_ROOT",
           "OMENA_TOKEN_IDENTITY_REACT_TS_CSS",
@@ -774,16 +804,15 @@ function classifyArtifact(input: {
     classification,
     writerNodeKind:
       artifactPath === "rust/omena-identifier-authority-census.json" ? "self-ratchet" : "normal",
-    ...(classification === "W1"
-      ? freshReproductionExemption
-        ? {
-            freshReproductionExemption: {
-              kind: freshReproductionExemption.kind,
-              reason: freshReproductionExemption.reason,
-            },
-          }
-        : { freshReproductionRequired: true as const }
-      : artifactPath === "rust/omena-published-crate-surface-register.json"
+    ...(freshReproductionExemption
+      ? {
+          freshReproductionExemption: {
+            kind: freshReproductionExemption.kind,
+            reason: freshReproductionExemption.reason,
+          },
+        }
+      : classification === "W1" ||
+          artifactPath === "rust/omena-published-crate-surface-register.json"
         ? { freshReproductionRequired: true as const }
         : {}),
     writerScripts,
@@ -1887,8 +1916,24 @@ function repositoryReferencePathsByArtifact(
   );
 }
 
-function writerFlagForSource(source: string): string | null {
-  for (const flag of ["--write", "--write-serde", "--update-census"] as const) {
+function writerFlagForSource(source: string, artifactPath: string): string | null {
+  const preferredFlag =
+    artifactPath === "packages/css-build-adapter/interface-member-snapshot.json"
+      ? "--reproduce-adapter"
+      : null;
+  if (
+    preferredFlag &&
+    (source.includes(`"${preferredFlag}"`) || source.includes(`'${preferredFlag}'`))
+  ) {
+    return preferredFlag;
+  }
+  for (const flag of [
+    "--write",
+    "--write-serde",
+    "--reproduce-adapter",
+    "--write-adapter",
+    "--update-census",
+  ] as const) {
     if (source.includes(`"${flag}"`) || source.includes(`'${flag}'`)) return flag;
   }
   return null;
@@ -2078,7 +2123,10 @@ export function detectNotPreviewableInputSeedsForSource(
   }
   if (
     sourceContainsCalledStringLiteral(sourceFile, new Set(["clone", "fetch"])) ||
-    sourceContainsArgumentFlagUse(sourceFile, new Set(["--corpus-root", "--identity-manifest"]))
+    sourceContainsArgumentFlagUse(
+      sourceFile,
+      new Set(["--corpus-root", "--identity-manifest", "--wpt-root"]),
+    )
   ) {
     seeds.push({
       ownerId: sourcePath,

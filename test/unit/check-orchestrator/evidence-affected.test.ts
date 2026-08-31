@@ -1298,6 +1298,17 @@ describe("writer registry portability", () => {
     expect(detectNotPreviewableInputSeedsForSource("scripts/plain.ts", "const value = 1;")).toEqual(
       [],
     );
+    expect(
+      detectNotPreviewableInputSeedsForSource(
+        "scripts/external.ts",
+        'const root = readArgument("--wpt-root");',
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        kind: "network-or-external-checkout",
+        ownerId: "scripts/external.ts",
+      }),
+    ]);
   });
 
   it("adds a toolchain marker when a writer gains a formatter call", () => {
@@ -1585,6 +1596,25 @@ describe("writer registry portability", () => {
             kind: "reads-own-output",
           }),
           expect.objectContaining({
+            artifactPath: "packages/css-build-adapter/interface-member-snapshot.json",
+            kind: "reads-own-output",
+          }),
+          expect.objectContaining({
+            artifactPath:
+              "rust/crates/omena-abstract-value/tests/fixtures/value-grammar-real-declarations.json",
+            kind: "reads-own-output",
+          }),
+          expect.objectContaining({
+            artifactPath:
+              "rust/crates/omena-abstract-value/data/closed-world-builtin-token-profiles.json",
+            kind: "reads-own-output",
+          }),
+          expect.objectContaining({
+            artifactPath:
+              "rust/crates/omena-abstract-value/data/closed-world-keyword-closure-certificate.json",
+            kind: "reads-own-output",
+          }),
+          expect.objectContaining({
             artifactPath: "rust/crates/omena-cli/README.md",
             kind: "reads-own-output",
           }),
@@ -1617,6 +1647,32 @@ describe("writer registry portability", () => {
           "--reuse-source-runs",
         ],
       });
+      expect(
+        registry.artifacts.find(
+          (row) => row.artifactPath === "packages/css-build-adapter/interface-member-snapshot.json",
+        ),
+      ).toMatchObject({
+        classification: "W2",
+        freshReproductionExemption: { kind: "reads-own-output" },
+        writeCommand: [
+          "node",
+          "--import",
+          "tsx",
+          "./scripts/check-rust-contract-shape-census.ts",
+          "--reproduce-adapter",
+        ],
+      });
+      expect(
+        registry.artifacts.find(
+          (row) => row.artifactPath === "rust/omena-rust-serde-field-contracts.json",
+        )?.writeCommand,
+      ).toEqual([
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-contract-shape-census.ts",
+        "--write-serde",
+      ]);
       for (const row of w1Rows) {
         const freshDispositionCount = [
           row.freshReproductionRequired === true,
@@ -1858,6 +1914,19 @@ describe("writer registry portability", () => {
       expect(published?.writeCommand).toContain("--initialize-from");
       expect(published?.writeCommand).toContain("${OMENA_PUBLISHED_CRATE_REGISTRY_STATE}");
       expect(published?.requiredEnvironmentKeys).toContain("OMENA_PUBLISHED_CRATE_REGISTRY_STATE");
+      const wptExtraction = registry.artifacts.find(
+        (row) =>
+          row.artifactPath ===
+          "rust/crates/omena-diff-test/wpt-corpus/extracted/tier-zero-tuples.json",
+      );
+      expect(wptExtraction?.writeCommand).toEqual([
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts",
+        "--write",
+      ]);
+      expect(wptExtraction?.requiredEnvironmentKeys).toEqual(["OMENA_WPT_ROOT"]);
       const ffi = registry.artifacts.find(
         (row) => row.artifactPath === "rust/omena-ffi-boundary-typing-census.json",
       );

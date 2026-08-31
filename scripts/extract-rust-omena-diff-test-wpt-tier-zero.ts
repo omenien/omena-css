@@ -103,7 +103,7 @@ const tuplesPath = path.join(extractedRoot, "tier-zero-tuples.json");
 const coveragePath = path.join(extractedRoot, "tier-zero-coverage.json");
 const sourcePin = "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b";
 
-const wptRoot = readArgument("--wpt-root");
+const wptRoot = readArgument("--wpt-root") ?? process.env.OMENA_WPT_ROOT;
 const write = process.argv.includes("--write");
 const check = process.argv.includes("--check");
 const selfTest = process.argv.includes("--self-test");

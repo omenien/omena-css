@@ -1,4 +1,7 @@
-import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
+import {
+  formatEvidenceJsonArtifact,
+  resolveScanSurfaceForScanner,
+} from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { execFileSync } from "node:child_process";
 import { strict as assert } from "node:assert";
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -87,7 +90,12 @@ const adapterSnapshotPath = path.join(
 );
 const writeSerde = process.argv.includes("--write-serde");
 const writeAdapter = process.argv.includes("--write-adapter");
+const reproduceAdapter = process.argv.includes("--reproduce-adapter");
 const initializeAdapter = process.argv.includes("--initialize-adapter");
+assert.ok(
+  [writeAdapter, reproduceAdapter, initializeAdapter].filter(Boolean).length <= 1,
+  "adapter snapshot modes are mutually exclusive",
+);
 const acceptedMembers = readArgs("--accept-member");
 const acceptedClasses = readArgs("--accept-class") as AdapterChangeClass[];
 const adapterChangeClasses: readonly AdapterChangeClass[] = [
@@ -222,6 +230,12 @@ if (initializeAdapter) {
         .map((change) => `- ${change.key}: ${change.class}: ${change.detail}`)
         .join("\n")}`,
     );
+  } else if (reproduceAdapter) {
+    // Additive optional members intentionally do not advance this approved
+    // compatibility baseline. Reproduction therefore validates the current
+    // declaration against that policy and canonically rewrites the approved
+    // snapshot bytes instead of silently accepting the newer member set.
+    writeFileSync(adapterSnapshotPath, formatEvidenceJsonArtifact(expected, adapterSnapshotPath));
   }
 }
 

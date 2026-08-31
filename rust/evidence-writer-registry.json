@@ -977,13 +977,17 @@
       "artifactPath": "packages/css-build-adapter/interface-member-snapshot.json",
       "classification": "W2",
       "writerNodeKind": "normal",
+      "freshReproductionExemption": {
+        "kind": "reads-own-output",
+        "reason": "the adapter reproduction mode validates current declarations against the committed approval baseline before canonically rewriting those approved bytes"
+      },
       "writerScripts": ["scripts/check-rust-contract-shape-census.ts"],
       "writeCommand": [
         "node",
         "--import",
         "tsx",
         "./scripts/check-rust-contract-shape-census.ts",
-        "--write-serde"
+        "--reproduce-adapter"
       ],
       "inputPaths": [
         "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
@@ -997,14 +1001,19 @@
       "writerGateIds": [],
       "consumerPaths": [
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
-        "scripts/check-rust-contract-shape-census.ts"
+        "scripts/check-rust-contract-shape-census.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
-      "consumerGateIds": ["rust/contract-shape-census"]
+      "consumerGateIds": ["rust/contract-shape-census", "tooling/evidence-affected-map"]
     },
     {
       "artifactPath": "rust/crates/omena-abstract-value/data/closed-world-builtin-token-profiles.json",
       "classification": "W2",
       "writerNodeKind": "normal",
+      "freshReproductionExemption": {
+        "kind": "reads-own-output",
+        "reason": "the shared differential writer compiles omena-abstract-value, whose value-grammar module includes this generated JSON before the command recomputes and rewrites it"
+      },
       "writerScripts": ["scripts/check-rust-omena-value-grammar-differential.ts"],
       "writeCommand": [
         "node",
@@ -1028,14 +1037,19 @@
       "consumerPaths": [
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "scripts/check-rust-omena-value-grammar-differential.ts"
+        "scripts/check-rust-omena-value-grammar-differential.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
-      "consumerGateIds": ["rust/omena-value-grammar-differential"]
+      "consumerGateIds": ["rust/omena-value-grammar-differential", "tooling/evidence-affected-map"]
     },
     {
       "artifactPath": "rust/crates/omena-abstract-value/data/closed-world-keyword-closure-certificate.json",
       "classification": "W2",
       "writerNodeKind": "normal",
+      "freshReproductionExemption": {
+        "kind": "reads-own-output",
+        "reason": "the shared differential writer compiles omena-abstract-value, whose value-grammar module includes this generated JSON before the command recomputes and rewrites it"
+      },
       "writerScripts": ["scripts/check-rust-omena-value-grammar-differential.ts"],
       "writeCommand": [
         "node",
@@ -1059,15 +1073,19 @@
       "consumerPaths": [
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-abstract-value/src/value_grammar.rs",
-        "scripts/check-rust-omena-value-grammar-differential.ts"
+        "scripts/check-rust-omena-value-grammar-differential.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
-      "consumerGateIds": ["rust/omena-value-grammar-differential"]
+      "consumerGateIds": ["rust/omena-value-grammar-differential", "tooling/evidence-affected-map"]
     },
     {
       "artifactPath": "rust/crates/omena-abstract-value/tests/fixtures/value-grammar-real-declarations.json",
       "classification": "W1",
       "writerNodeKind": "normal",
-      "freshReproductionRequired": true,
+      "freshReproductionExemption": {
+        "kind": "reads-own-output",
+        "reason": "the corpus writer preserves reviewer-authored adjudication, reason, owner, specification URL, and non-comparability fields from matching committed cases"
+      },
       "writerScripts": ["scripts/generate-rust-omena-value-grammar-corpus.ts"],
       "writeCommand": [
         "node",
@@ -1086,11 +1104,13 @@
       "consumerPaths": [
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "scripts/check-rust-omena-value-grammar-differential.ts",
-        "scripts/generate-rust-omena-value-grammar-corpus.ts"
+        "scripts/generate-rust-omena-value-grammar-corpus.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
       "consumerGateIds": [
         "rust/omena-value-grammar-corpus:update",
-        "rust/omena-value-grammar-differential"
+        "rust/omena-value-grammar-differential",
+        "tooling/evidence-affected-map"
       ]
     },
     {
@@ -2171,6 +2191,7 @@
         "./scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts",
         "--write"
       ],
+      "requiredEnvironmentKeys": ["OMENA_WPT_ROOT"],
       "inputPaths": [
         "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
         "scripts/generated-json.ts",
@@ -2206,6 +2227,7 @@
         "./scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts",
         "--write"
       ],
+      "requiredEnvironmentKeys": ["OMENA_WPT_ROOT"],
       "inputPaths": [
         "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
         "scripts/generated-json.ts",
@@ -2219,13 +2241,15 @@
         "rust/crates/omena-diff-test/wpt-corpus/SCHEMA.md",
         "rust/crates/omena-diff-test/wpt-corpus/manifest.json",
         "scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts",
-        "scripts/generate-rust-omena-diff-test-wpt-corpus.ts"
+        "scripts/generate-rust-omena-diff-test-wpt-corpus.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
       "consumerGateIds": [
         "rust/omena-diff-test-wpt-extraction-source",
         "rust/omena-diff-test-wpt-extraction:update",
         "rust/omena-diff-test-wpt-extractor",
-        "rust/omena-diff-test-wpt-generator"
+        "rust/omena-diff-test-wpt-generator",
+        "tooling/evidence-affected-map"
       ]
     },
     {
@@ -3629,7 +3653,13 @@
         "docs/reference/personas.md",
         "docs/sdk.md",
         "docs/vscode-extension.md",
+        "packages/css-build-adapter/interface-member-snapshot.json",
+        "rust/crates/omena-abstract-value/data/closed-world-builtin-token-profiles.json",
+        "rust/crates/omena-abstract-value/data/closed-world-keyword-closure-certificate.json",
+        "rust/crates/omena-abstract-value/tests/fixtures/value-grammar-real-declarations.json",
         "rust/crates/omena-cli/README.md",
+        "rust/crates/omena-diff-test/wpt-corpus/extracted/tier-zero-coverage.json",
+        "rust/crates/omena-diff-test/wpt-corpus/extracted/tier-zero-tuples.json",
         "rust/evidence-scan-surfaces.json",
         "rust/omena-css-module-token-shape-measurement.json",
         "rust/omena-domain-claim-census.json",
@@ -4764,8 +4794,11 @@
       "inputScannerPaths": ["scripts/check-rust-contract-shape-census.ts"],
       "inputArtifactPaths": [],
       "writerGateIds": [],
-      "consumerPaths": ["scripts/check-rust-contract-shape-census.ts"],
-      "consumerGateIds": ["rust/contract-shape-census"]
+      "consumerPaths": [
+        "scripts/check-rust-contract-shape-census.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
+      ],
+      "consumerGateIds": ["rust/contract-shape-census", "tooling/evidence-affected-map"]
     },
     {
       "artifactPath": "rust/omena-sdk-error-mapping-census.json",
@@ -6014,6 +6047,18 @@
       "gateIds": ["tooling/update/check-inventory"]
     },
     {
+      "ownerId": "rust/crates/omena-diff-test/wpt-corpus/extracted/tier-zero-coverage.json",
+      "kind": "environment",
+      "detail": "writer command requires OMENA_WPT_ROOT",
+      "gateIds": ["rust/omena-diff-test-wpt-extraction:update"]
+    },
+    {
+      "ownerId": "rust/crates/omena-diff-test/wpt-corpus/extracted/tier-zero-tuples.json",
+      "kind": "environment",
+      "detail": "writer command requires OMENA_WPT_ROOT",
+      "gateIds": ["rust/omena-diff-test-wpt-extraction:update"]
+    },
+    {
       "ownerId": "rust/omena-css-module-token-shape-measurement.json",
       "kind": "environment",
       "detail": "writer command requires OMENA_TOKEN_CORPUS_ROOT, OMENA_TOKEN_IDENTITY_REACT_TS_CSS, OMENA_TOKEN_IDENTITY_MKN, OMENA_TOKEN_IDENTITY_DOCUSAURUS",
@@ -6060,6 +6105,16 @@
         "rust/omena-diff-test-sass-spec-upstream-scale",
         "rust/omena-diff-test-sass-spec-upstream-scale-fetch",
         "rust/omena-diff-test-sass-spec-upstream-scale:update"
+      ]
+    },
+    {
+      "ownerId": "scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts",
+      "kind": "network-or-external-checkout",
+      "detail": "network checkout or operator-supplied external corpus bytes are read",
+      "gateIds": [
+        "rust/omena-diff-test-wpt-extraction-source",
+        "rust/omena-diff-test-wpt-extraction:update",
+        "rust/omena-diff-test-wpt-extractor"
       ]
     },
     {
@@ -6121,6 +6176,12 @@
       "kind": "toolchain-bytes",
       "detail": "formatter bytes from scripts/generate-engine-v2-contract-idl.ts",
       "gateIds": ["contract/external-corpus-envelope-contract-idl-generated"]
+    },
+    {
+      "ownerId": "packages/css-build-adapter/interface-member-snapshot.json",
+      "kind": "toolchain-bytes",
+      "detail": "formatter bytes from packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
+      "gateIds": ["tooling/evidence-affected-map"]
     },
     {
       "ownerId": "rust/crates/omena-abstract-value/data/closed-world-builtin-token-profiles.json",
@@ -6408,6 +6469,12 @@
       "ownerId": "rust/omena-response-surface-split-census.json",
       "kind": "toolchain-bytes",
       "detail": "formatter bytes from scripts/check-rust-omena-response-surface-split-census.ts",
+      "gateIds": ["tooling/evidence-affected-map"]
+    },
+    {
+      "ownerId": "rust/omena-rust-serde-field-contracts.json",
+      "kind": "toolchain-bytes",
+      "detail": "formatter bytes from packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
       "gateIds": ["tooling/evidence-affected-map"]
     },
     {
