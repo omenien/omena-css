@@ -8,8 +8,6 @@ import { loadGatePolicy } from "./gate-policy";
 import { BUNDLE_SHARDS, bundleShardNames } from "./shards";
 import type { CheckCiTier, CheckDiagnostic, CheckGate } from "./types";
 
-const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
-
 const PNPM_SCRIPT_REF = /\bpnpm\s+(?:run\s+)?([A-Za-z0-9:_-]+)/g;
 const OMENA_CHECK_TARGET_REF =
   /\bpnpm\s+(?:run\s+)?omena-check\s+(run|bundle)\s+([A-Za-z0-9:_@/.-]+)/g;
@@ -21,6 +19,10 @@ const OMENA_CHECK_MATRIX_TARGET_INVOCATION =
 const NODE_SCRIPT_REF = /\bnode\b[^|;&\n]*?\.\/(scripts\/[A-Za-z0-9_./-]+\.ts)\b/g;
 const WORKFLOW_CI_TIER_ANNOTATION = /^\s*#\s*omena-ci-tier:\s*([A-Za-z0-9_-]+)\s*$/;
 const WORKFLOW_REQUIRED_ANNOTATION = /^\s*#\s*omena-ci-required:\s*(true|false)\s*$/;
+
+function workflowScanSurface(rootDir: string) {
+  return resolveScanSurfaceForScanner(import.meta.url, undefined, rootDir);
+}
 
 const CI_REACHABILITY_ESCAPE_HATCH_FALLBACK = Object.freeze({
   maxGateCount: 156,
@@ -892,6 +894,7 @@ export function findWorkflowBypassDiagnostics(
 
   const gatesByScriptName = new Map(gates.map((gate) => [gate.scriptName, gate]));
   const diagnostics: CheckDiagnostic[] = [];
+  const evidenceScanSurface = workflowScanSurface(rootDir);
 
   for (const fileName of evidenceScanSurface.readdirSync(workflowsDir).toSorted()) {
     if (!fileName.endsWith(".yml") && !fileName.endsWith(".yaml")) continue;
@@ -1004,6 +1007,7 @@ export function findScheduledWorkflowEscalationDiagnostics(
   if (!existsSync(workflowsDir)) return [];
 
   const diagnostics: CheckDiagnostic[] = [];
+  const evidenceScanSurface = workflowScanSurface(rootDir);
   for (const fileName of evidenceScanSurface.readdirSync(workflowsDir).toSorted()) {
     if (!fileName.endsWith(".yml") && !fileName.endsWith(".yaml")) continue;
 
@@ -1711,6 +1715,7 @@ function buildReachableGateIdsByTier(
   const reachable = new Map<CheckCiTier, Set<string>>();
   if (!existsSync(workflowsDir)) return reachable;
 
+  const evidenceScanSurface = workflowScanSurface(rootDir);
   for (const fileName of evidenceScanSurface.readdirSync(workflowsDir).toSorted()) {
     if (!fileName.endsWith(".yml") && !fileName.endsWith(".yaml")) continue;
 
@@ -1952,6 +1957,7 @@ export function collectWorkflowLifecycleView(
   const triggers: WorkflowTriggerFacts[] = [];
   if (!existsSync(workflowsDir)) return { jobs, triggers };
 
+  const evidenceScanSurface = workflowScanSurface(rootDir);
   for (const fileName of evidenceScanSurface.readdirSync(workflowsDir).toSorted()) {
     if (!fileName.endsWith(".yml") && !fileName.endsWith(".yaml")) continue;
     const lines = readFileSync(path.join(workflowsDir, fileName), "utf8").split(/\r?\n/);

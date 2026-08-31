@@ -3,8 +3,6 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import type { CheckDiagnostic, CheckGate } from "./types";
 
-const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
-
 const PNPM_COMMAND_REF = /\bpnpm\s+(?:run\s+)?([A-Za-z0-9:_-]+)/g;
 const OMENA_CHECK_TARGET_REF =
   /\bpnpm\s+(?:run\s+)?omena-check\s+(run|bundle)\s+([A-Za-z0-9:_@/.-]+)/g;
@@ -165,12 +163,13 @@ function collectDocumentedReferences(rootDir: string): DocumentedReferences {
     scriptRefs: [],
     targetRefs: [],
   };
+  const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url, undefined, rootDir);
 
   for (const root of DOCUMENTED_COMMAND_ROOTS) {
     const absolutePath = path.join(rootDir, root);
     if (!existsSync(absolutePath)) continue;
     if (statSync(absolutePath).isDirectory()) {
-      collectMarkdownCommands(rootDir, absolutePath, refs);
+      collectMarkdownCommands(rootDir, absolutePath, refs, evidenceScanSurface);
       continue;
     }
     collectFileCommands(rootDir, absolutePath, refs);
@@ -188,11 +187,12 @@ function collectMarkdownCommands(
   rootDir: string,
   directory: string,
   refs: MutableDocumentedReferences,
+  evidenceScanSurface: ReturnType<typeof resolveScanSurfaceForScanner>,
 ): void {
   for (const entry of evidenceScanSurface.readdirSync(directory, { withFileTypes: true })) {
     if (entry.isDirectory()) {
       if (IGNORED_DIRECTORIES.has(entry.name)) continue;
-      collectMarkdownCommands(rootDir, path.join(directory, entry.name), refs);
+      collectMarkdownCommands(rootDir, path.join(directory, entry.name), refs, evidenceScanSurface);
       continue;
     }
     if (entry.isFile() && entry.name.endsWith(".md")) {
