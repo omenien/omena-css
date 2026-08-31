@@ -423,11 +423,13 @@ function collectScopeBindings(node: tsTypes.Node): ReadonlyMap<string, tsTypes.I
       }
       continue;
     }
-    if (
-      (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
-      statement.name
-    ) {
+    if (ts.isFunctionDeclaration(statement) && statement.name) {
       add(statement.name);
+      continue;
+    }
+    if (statement.kind === ts.SyntaxKind.ClassDeclaration) {
+      const name = (statement as tsTypes.Node & { readonly name?: tsTypes.Node }).name;
+      if (name && ts.isIdentifier(name)) add(name);
     }
   }
   return bindings;
@@ -449,8 +451,11 @@ function isCanonicalSurfaceParameterType(
   }
   const argument = unwrapped.typeArguments[0];
   if (!argument || argument.kind !== ts.SyntaxKind.TypeQuery) return false;
-  const queried = (argument as tsTypes.TypeQueryNode).exprName;
-  if (!ts.isIdentifier(queried)) return false;
+  let queried: tsTypes.Identifier | null = null;
+  ts.forEachChild(argument, (child) => {
+    if (queried === null && ts.isIdentifier(child)) queried = child;
+  });
+  if (queried === null) return false;
   const declaration = lexical.declarationFor(queried);
   return Boolean(declaration && resolverBindings.has(declaration));
 }
