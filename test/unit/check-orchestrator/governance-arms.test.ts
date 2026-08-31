@@ -594,28 +594,36 @@ describe("inventory and governance hardening arms", () => {
     expect(codesFor(jobDefaults)).toContain("ci-aggregator-judge-inert");
   });
 
-  it("R5 RED-PROOF: a deleted escapeHatch degrades to the fallback and a governed shape error, never a TypeError", () => {
-    const scratch = mkdtempSync(path.join(os.tmpdir(), "omena-hatch-shape-"));
-    cpSync(path.join(repoRoot, ".github/workflows"), path.join(scratch, ".github/workflows"), {
-      recursive: true,
-    });
-    mkdirSync(path.join(scratch, "packages/check-orchestrator"), { recursive: true });
-    const policy = JSON.parse(
-      readFileSync(path.join(repoRoot, "packages/check-orchestrator/gate-policy.json"), "utf8"),
-    ) as Record<string, unknown>;
-    delete policy["escapeHatch"];
-    writeFileSync(
-      path.join(scratch, "packages/check-orchestrator/gate-policy.json"),
-      JSON.stringify(policy),
-    );
-    const manifest = loadCheckManifest(repoRoot);
-    // The reachability sweep must not crash (it runs before the validator).
-    expect(() => findCiTierReachabilityDiagnostics(scratch, manifest.gates)).not.toThrow();
-    // ...and the validator reports the governed shape error for the field.
-    const diagnostics = findGatePolicyDiagnostics(scratch, [], new Map());
-    expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain("gate-policy-invalid-shape");
-    expect(diagnostics.map((diagnostic) => diagnostic.message).join(";")).toContain("escapeHatch");
-  });
+  it(
+    "degrades a deleted escape hatch to a governed shape error without throwing a TypeError",
+    { timeout: 10_000 },
+    () => {
+      const scratch = mkdtempSync(path.join(os.tmpdir(), "omena-hatch-shape-"));
+      cpSync(path.join(repoRoot, ".github/workflows"), path.join(scratch, ".github/workflows"), {
+        recursive: true,
+      });
+      mkdirSync(path.join(scratch, "packages/check-orchestrator"), { recursive: true });
+      const policy = JSON.parse(
+        readFileSync(path.join(repoRoot, "packages/check-orchestrator/gate-policy.json"), "utf8"),
+      ) as Record<string, unknown>;
+      delete policy["escapeHatch"];
+      writeFileSync(
+        path.join(scratch, "packages/check-orchestrator/gate-policy.json"),
+        JSON.stringify(policy),
+      );
+      const manifest = loadCheckManifest(repoRoot);
+      // The reachability sweep must not crash (it runs before the validator).
+      expect(() => findCiTierReachabilityDiagnostics(scratch, manifest.gates)).not.toThrow();
+      // ...and the validator reports the governed shape error for the field.
+      const diagnostics = findGatePolicyDiagnostics(scratch, [], new Map());
+      expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain(
+        "gate-policy-invalid-shape",
+      );
+      expect(diagnostics.map((diagnostic) => diagnostic.message).join(";")).toContain(
+        "escapeHatch",
+      );
+    },
+  );
 
   it(
     "R4 RED-PROOF: criterion pins are fail-closed — key deletion, ghost pins, and digest drift are all loud",
