@@ -137,15 +137,16 @@
       "scannerPath": "scripts/check-docs-reference-surface.ts",
       "disposition": "MIGRATED",
       "surfaceModulePath": "scripts/surfaces/scripts-check-docs-reference-surface.surface.ts",
-      "surfaceModuleSha256": "8ab8939195486a2ca3287177caad22b9f8989e238a7e1f54d118926554ab9065",
+      "surfaceModuleSha256": "10f08ab9e145ffbf18e6c3829bc8d7fecda90d1706cf225e63d59145c365e73f",
       "spec": {
         "scannerPath": "scripts/check-docs-reference-surface.ts",
-        "mode": "workingTree",
+        "mode": "index",
         "pathspecs": ["**"],
-        "includeUntracked": false,
-        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+        "includeUntracked": true,
+        "excludes": ["git-metadata", "personal-docs", "rust-build-output"]
       },
-      "gateIds": ["docs/reference-surface", "docs/reference-surface:update"]
+      "gateIds": ["docs/reference-surface", "docs/reference-surface:update"],
+      "narrowingReason": "match the scanner's tracked-plus-nonignored index contract; ignored worktree-only files were never scanner inputs"
     },
     {
       "scannerPath": "scripts/check-docs-site-contracts.ts",
