@@ -6,7 +6,10 @@ export default unmigratedScanSurface({
   inRepoSpec: {
     scannerPath: "scripts/check-rust-omena-diff-test-sass-spec-upstream-scale.ts",
     mode: "workingTree",
-    pathspecs: ["rust/crates/omena-diff-test/sass-spec-corpus/**/*.hrx"],
+    pathspecs: [
+      "rust/crates/omena-diff-test/fixtures/sass-spec-conformance/**/*.hrx",
+      "rust/crates/omena-diff-test/fixtures/sass-spec-import/**/*.hrx",
+    ],
     includeUntracked: false,
     excludes: ["git-metadata"],
   },

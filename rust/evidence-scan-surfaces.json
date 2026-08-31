@@ -780,11 +780,14 @@
       "effectiveSurface": "**",
       "reason": "external-checkout",
       "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-diff-test-sass-spec-upstream-scale.surface.ts",
-      "surfaceModuleSha256": "7c92550c40cf16436b5d75064b5025079358eea9fd89cec5a52be6b9024b974b",
+      "surfaceModuleSha256": "a344dd746ad1d7eb2f2b6c4b45b97adb6dfb60640a068d19eb3b57afadaacb43",
       "inRepoSpec": {
         "scannerPath": "scripts/check-rust-omena-diff-test-sass-spec-upstream-scale.ts",
         "mode": "workingTree",
-        "pathspecs": ["rust/crates/omena-diff-test/sass-spec-corpus/**/*.hrx"],
+        "pathspecs": [
+          "rust/crates/omena-diff-test/fixtures/sass-spec-conformance/**/*.hrx",
+          "rust/crates/omena-diff-test/fixtures/sass-spec-import/**/*.hrx"
+        ],
         "includeUntracked": false,
         "excludes": ["git-metadata"]
       },
