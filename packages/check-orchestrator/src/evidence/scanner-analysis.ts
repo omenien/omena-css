@@ -421,13 +421,15 @@ function functionReturnsSurface(
 }
 
 function functionLikeReturnsSurface(
-  node: tsTypes.ArrowFunction | tsTypes.FunctionExpression,
+  node: tsTypes.FunctionLikeDeclaration,
   resolverBindings: ReadonlySet<string>,
   factoryBindings: ReadonlySet<string>,
 ): boolean {
-  return ts.isBlock(node.body)
-    ? functionReturnsSurface(node.body, resolverBindings, factoryBindings)
-    : expressionProducesSurface(node.body, resolverBindings, factoryBindings, new Set());
+  const body = node.body;
+  if (!body) return false;
+  return ts.isBlock(body)
+    ? functionReturnsSurface(body, resolverBindings, factoryBindings)
+    : expressionProducesSurface(body, resolverBindings, factoryBindings, new Set());
 }
 
 function expressionProducesSurface(
