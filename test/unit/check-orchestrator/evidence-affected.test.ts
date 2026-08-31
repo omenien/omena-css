@@ -1255,6 +1255,12 @@ describe("writer registry portability", () => {
       const publishedRow = registry!.artifacts.find((row) => row.artifactPath === outputPath);
       expect(publishedRow?.writeCommand).toBeDefined();
       expect(publishedRow?.freshReproductionRequired).toBe(true);
+      const productionSweepSource = readFileSync(
+        path.join(repoRoot, "packages/check-orchestrator/src/cli/main.ts"),
+        "utf8",
+      );
+      expect(productionSweepSource).toContain("requireFreshReproduction: commandRows.some(");
+      expect(productionSweepSource).toContain("candidate.freshReproductionRequired === true");
       const scriptPath = publishedRow!.writerScripts[0]!;
       const baselineBytes = readFileSync(path.join(worktree, outputPath));
       const baseline = JSON.parse(baselineBytes.toString("utf8")) as {
