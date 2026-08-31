@@ -89,6 +89,13 @@
       "reentry": "an unannotated equality assertion is added or removed from the contract census"
     },
     {
+      "file": "scripts/check-rust-contract-shape-census.ts",
+      "syntax": "assert.ok",
+      "expectedCount": 1,
+      "owner": "contract shape census",
+      "reentry": "the mutually exclusive adapter reproduction modes guard is added, removed, or converted to a disclosed linked-emission assertion"
+    },
+    {
       "file": "scripts/check-rust-omena-query-bundle-execution-scope.ts",
       "syntax": "assert.deepEqual",
       "expectedCount": 12,
