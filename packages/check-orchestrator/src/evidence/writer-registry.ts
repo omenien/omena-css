@@ -114,10 +114,24 @@ export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterReg
         : [[row.scannerPath, "gateIds" in row ? row.gateIds : []] as const],
     ),
   );
-  const writerScriptsByArtifact = new Map(
+  const directWriterScriptsByArtifact = new Map(
     artifactPaths.map((artifactPath) => [
       artifactPath,
       findArtifactWriterScripts(repoRoot, artifactPath, scriptPaths, scriptAnalysisCache),
+    ]),
+  );
+  const updateCommandValues = Object.entries(packageScripts)
+    .filter(([scriptName]) => scriptName.startsWith("update:"))
+    .map(([, command]) => command);
+  const scriptImportersByModule = buildScriptImporters(repoRoot, scriptPaths);
+  const writerScriptsByArtifact = new Map(
+    [...directWriterScriptsByArtifact].map(([artifactPath, directWriterScripts]) => [
+      artifactPath,
+      expandWriterScriptsWithEntrypoints(
+        directWriterScripts,
+        scriptImportersByModule,
+        updateCommandValues,
+      ),
     ]),
   );
   const writerOutputPathsByScript = new Map<string, string[]>();
@@ -280,7 +294,7 @@ function classifyArtifact(input: {
     input.repositoryPathSet,
   );
   const allInputs = [...new Set([...literalInputs, ...moduleInputs])].filter(
-    (candidate) => !writerOutputPaths.has(candidate),
+    (candidate) => !writerOutputPaths.has(candidate) && !writerScripts.includes(candidate),
   );
   const inputArtifactPaths = [
     ...new Set([
@@ -373,6 +387,76 @@ function localWriterModuleInputs(
     }
   }
   return [...inputs].toSorted();
+}
+
+function expandWriterScriptsWithEntrypoints(
+  directWriterScripts: readonly string[],
+  importersByModule: ReadonlyMap<string, readonly string[]>,
+  updateCommands: readonly string[],
+): readonly string[] {
+  const reachable = new Set(directWriterScripts);
+  const queue = [...directWriterScripts];
+  while (queue.length > 0) {
+    const writerModule = queue.shift()!;
+    for (const importer of importersByModule.get(writerModule) ?? []) {
+      if (reachable.has(importer)) continue;
+      reachable.add(importer);
+      queue.push(importer);
+    }
+  }
+  const commandEntrypoints = [...reachable].filter((candidate) =>
+    updateCommands.some((command) => command.includes(candidate)),
+  );
+  if (commandEntrypoints.length === 0) return directWriterScripts;
+  return [...reachable].toSorted();
+}
+
+function buildScriptImporters(
+  repoRoot: string,
+  scriptPaths: readonly string[],
+): ReadonlyMap<string, readonly string[]> {
+  const scriptPathSet = new Set(scriptPaths);
+  const importersByModule = new Map<string, string[]>();
+  for (const scriptPath of scriptPaths) {
+    for (const importedModule of localImportedModulePaths(repoRoot, scriptPath, scriptPathSet)) {
+      importersByModule.set(importedModule, [
+        ...(importersByModule.get(importedModule) ?? []),
+        scriptPath,
+      ]);
+    }
+  }
+  return importersByModule;
+}
+
+function localImportedModulePaths(
+  repoRoot: string,
+  modulePath: string,
+  repositoryPathSet: ReadonlySet<string>,
+): readonly string[] {
+  const source = readFileSync(path.join(repoRoot, modulePath), "utf8");
+  const sourceFile = ts.createSourceFile(modulePath, source, ts.ScriptTarget.Latest, true);
+  const imports = new Set<string>();
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
+      continue;
+    }
+    const specifier = statement.moduleSpecifier.text;
+    if (!specifier.startsWith(".")) continue;
+    const base = path.posix.normalize(path.posix.join(path.posix.dirname(modulePath), specifier));
+    for (const candidate of [
+      base,
+      `${base}.ts`,
+      `${base}.tsx`,
+      `${base}.mjs`,
+      `${base}.js`,
+      `${base}/index.ts`,
+    ]) {
+      if (!repositoryPathSet.has(candidate)) continue;
+      imports.add(candidate);
+      break;
+    }
+  }
+  return [...imports].toSorted();
 }
 
 function literalRepositoryInputs(

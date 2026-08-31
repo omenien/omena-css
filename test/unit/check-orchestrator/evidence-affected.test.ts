@@ -855,7 +855,14 @@ describe("writer registry portability", () => {
     symlinkSync(gitExecutable!, path.join(isolatedBin, executableName));
     process.env.PATH = isolatedBin;
     try {
-      const registry = buildEvidenceWriterRegistry(path.resolve(import.meta.dirname, "../../.."));
+      const repoRoot = path.resolve(import.meta.dirname, "../../..");
+      const registry = buildEvidenceWriterRegistry(repoRoot);
+      expect(registry.artifacts.map((row) => row.artifactPath)).toEqual(
+        discoverEvidenceArtifactPaths(repoRoot),
+      );
+      expect(
+        registry.artifacts.filter((row) => !["W1", "W2", "W3", "W4"].includes(row.classification)),
+      ).toEqual([]);
       expect(
         registry.artifacts.some((row) => row.artifactPath === "rust/evidence-writer-registry.json"),
       ).toBe(true);
@@ -882,6 +889,22 @@ describe("writer registry portability", () => {
         "./scripts/check-rust-omena-cli-json-output-census.ts",
         "--write",
       ]);
+      const parserEditSlope = registry.artifacts.find(
+        (row) =>
+          row.artifactPath ===
+          "rust/crates/omena-benchmarks/baselines/parser-edit-slope-baseline-v0.json",
+      );
+      expect(parserEditSlope?.writerScripts).toEqual([
+        "scripts/check-rust-z5-perf-gate-baseline.ts",
+        "scripts/lib/parser-edit-slope-gate.ts",
+      ]);
+      expect(parserEditSlope?.writeCommand).toEqual([
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-z5-perf-gate-baseline.ts",
+        "--write",
+      ]);
       const published = registry.artifacts.find(
         (row) => row.artifactPath === "rust/omena-published-crate-surface-register.json",
       );
@@ -906,13 +929,7 @@ describe("writer registry portability", () => {
         orderAffectedArtifacts(registry.artifacts, new Set([parityPath, sdkErrorPath])),
       ).toEqual([sdkErrorPath, parityPath]);
       const liveScanManifest = JSON.parse(
-        readFileSync(
-          path.join(
-            path.resolve(import.meta.dirname, "../../.."),
-            "rust/evidence-scan-surfaces.json",
-          ),
-          "utf8",
-        ),
+        readFileSync(path.join(repoRoot, "rust/evidence-scan-surfaces.json"), "utf8"),
       ) as EvidenceScanSurfaceManifestV0;
       const liveKnownGateIds = [
         ...new Set([
