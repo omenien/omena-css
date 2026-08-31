@@ -1,7 +1,7 @@
 {
   "schemaVersion": "0",
   "product": "omena-sdk.cross-surface-parity",
-  "captureCommit": "f04a9dfa1a829b569d8dd659081d346b7f671486",
+  "captureCommit": "f38bfcd06e161eb282ee941ac94671496a09f667",
   "fixtures": [
     {
       "id": "basic.module",
