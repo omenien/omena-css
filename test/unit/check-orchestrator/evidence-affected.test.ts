@@ -129,7 +129,7 @@ function createDetachedFixtureWorktree(prefix: string): {
 function attachFixtureNodeModules(repoRoot: string, worktree: string): void {
   symlinkSync(
     path.join(repoRoot, "node_modules"),
-    path.join(worktree, "node_modules"),
+    path.join(path.dirname(worktree), "node_modules"),
     process.platform === "win32" ? "junction" : "dir",
   );
 }
