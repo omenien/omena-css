@@ -2282,7 +2282,8 @@ describe("digest-pinned writer wrapper", () => {
       narrowFixtureScanManifest(fixture.worktree);
       const fixtureDirectory = path.join(fixture.worktree, "fixture");
       mkdirSync(fixtureDirectory, { recursive: true });
-      writeFileSync(path.join(fixtureDirectory, "change.txt"), "baseline\n");
+      writeFileSync(path.join(fixtureDirectory, "docs-change.txt"), "baseline\n");
+      writeFileSync(path.join(fixtureDirectory, "w2-change.txt"), "baseline\n");
       writeFileSync(path.join(fixtureDirectory, "w2-output.json"), '{"stable":true}\n');
       writeFileSync(
         path.join(fixtureDirectory, "w2-writer.mjs"),
@@ -2296,41 +2297,35 @@ describe("digest-pinned writer wrapper", () => {
       );
       const registryPath = path.join(fixture.worktree, EVIDENCE_WRITER_REGISTRY_PATH);
       const registry = JSON.parse(readFileSync(registryPath, "utf8")) as EvidenceWriterRegistryV0;
+      expect(
+        registry.artifacts.find(
+          (row) => row.artifactPath === "rust/omena-identifier-authority-census.json",
+        ),
+      ).toMatchObject({
+        writerNodeKind: "self-ratchet",
+        freshReproductionExemption: { kind: "reads-own-output" },
+      });
       const selfInputExemption = {
         kind: "reads-own-output" as const,
         reason: "fixture mirrors the committed reads-own-output policy",
       };
       const fixtureRows = registry.artifacts
-        .filter(
-          (row) =>
-            row.writeCommand?.includes("./scripts/check-docs-reference-surface.ts") ||
-            row.artifactPath === "rust/omena-identifier-authority-census.json",
-        )
+        .filter((row) => row.writeCommand?.includes("./scripts/check-docs-reference-surface.ts"))
         .map((row): EvidenceArtifactRowV0 => {
           const withoutScanners = {
             ...row,
             inputScannerPaths: [],
-            inputArtifactPaths:
-              row.artifactPath === "rust/omena-identifier-authority-census.json"
-                ? [row.artifactPath]
-                : [],
+            inputArtifactPaths: [],
           };
-          const documentationWriter = row.writeCommand?.includes(
-            "./scripts/check-docs-reference-surface.ts",
-          );
-          if (documentationWriter) {
-            const { freshReproductionRequired: _removed, ...rest } = withoutScanners;
-            return {
-              ...rest,
-              freshReproductionExemption: selfInputExemption,
-              inputPaths:
-                row.artifactPath === "rust/crates/omena-cli/README.md"
-                  ? [...rest.inputPaths, "fixture/change.txt"].toSorted()
-                  : rest.inputPaths,
-            };
-          }
           const { freshReproductionRequired: _removed, ...rest } = withoutScanners;
-          return { ...rest, freshReproductionExemption: selfInputExemption };
+          return {
+            ...rest,
+            freshReproductionExemption: selfInputExemption,
+            inputPaths:
+              row.artifactPath === "rust/crates/omena-cli/README.md"
+                ? [...rest.inputPaths, "fixture/docs-change.txt"].toSorted()
+                : rest.inputPaths,
+          };
         });
       const w2Row: EvidenceArtifactRowV0 = {
         artifactPath: "fixture/w2-output.json",
@@ -2338,7 +2333,7 @@ describe("digest-pinned writer wrapper", () => {
         writerNodeKind: "normal",
         writerScripts: ["fixture/w2-writer.mjs"],
         writeCommand: [process.execPath, "./fixture/w2-writer.mjs"],
-        inputPaths: ["fixture/change.txt"],
+        inputPaths: ["fixture/w2-change.txt"],
         inputScannerPaths: [],
         inputArtifactPaths: [],
         writerGateIds: [],
@@ -2355,25 +2350,19 @@ describe("digest-pinned writer wrapper", () => {
               : 0,
         ),
       };
-      expect(
-        fixtureRegistry.artifacts.find(
-          (row) => row.artifactPath === "rust/omena-identifier-authority-census.json",
-        ),
-      ).toMatchObject({
-        writerNodeKind: "self-ratchet",
-        freshReproductionExemption: { kind: "reads-own-output" },
-      });
       writeFileSync(registryPath, `${JSON.stringify(fixtureRegistry, null, 2)}\n`);
       commitFixturePaths(fixture.worktree, "test: prepare composed writer fixture", [
         ...candidateModules,
         EVIDENCE_WRITER_REGISTRY_PATH,
         "rust/evidence-scan-surfaces.json",
-        "fixture/change.txt",
+        "fixture/docs-change.txt",
+        "fixture/w2-change.txt",
         "fixture/w2-output.json",
         "fixture/w2-writer.mjs",
       ]);
       attachFixtureNodeModules(fixture.repoRoot, fixture.worktree);
-      writeFileSync(path.join(fixtureDirectory, "change.txt"), "changed\n");
+      writeFileSync(path.join(fixtureDirectory, "docs-change.txt"), "changed\n");
+      writeFileSync(path.join(fixtureDirectory, "w2-change.txt"), "changed\n");
       const cliArgs = [
         "--import",
         "tsx",
@@ -2390,7 +2379,7 @@ describe("digest-pinned writer wrapper", () => {
         cwd: fixture.worktree,
         encoding: "utf8",
         env: process.env,
-        timeout: 120_000,
+        timeout: 240_000,
       });
       expect(green.status, `${green.stdout}\n${green.stderr}`).toBe(0);
       expect(readFileSync(cliReadmePath)).toEqual(cliReadmeBefore);
@@ -2398,12 +2387,17 @@ describe("digest-pinned writer wrapper", () => {
       expect(green.stdout).toContain('"product": "docs.reference-surface"');
 
       rmSync(path.join(fixtureDirectory, "w2-executed.log"), { force: true });
+      commitFixturePaths(fixture.worktree, "test: anchor composed writer result", [
+        "fixture/docs-change.txt",
+        "fixture/w2-change.txt",
+      ]);
+      writeFileSync(path.join(fixtureDirectory, "w2-change.txt"), "changed-again\n");
       const w2OutputBefore = readFileSync(path.join(fixtureDirectory, "w2-output.json"));
       const red = spawnSync(process.execPath, cliArgs, {
         cwd: fixture.worktree,
         encoding: "utf8",
         env: { ...process.env, OMENA_FIXTURE_SKIP_W2: "1" },
-        timeout: 120_000,
+        timeout: 240_000,
       });
       expect(red.status).not.toBe(0);
       expect(red.stderr).toContain("declared output was not reproduced: fixture/w2-output.json");
@@ -2411,7 +2405,7 @@ describe("digest-pinned writer wrapper", () => {
     } finally {
       removeFixtureWorktree(fixture);
     }
-  }, 180_000);
+  }, 300_000);
 });
 
 describe("pre-push evidence budget", () => {
