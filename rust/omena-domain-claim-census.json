@@ -90,11 +90,11 @@
       "deletedTrackedFileCount": 0,
       "fileListSha256": "587d3d828d0e6a6b278dc3208e691ce5f0f10b4143c47072663033062ba71614"
     },
-    "occurrenceCount": 1857,
+    "occurrenceCount": 1860,
     "dispositionCounts": {
       "claim": 63,
       "compat": 923,
-      "identityEscalation": 541,
+      "identityEscalation": 544,
       "governanceData": 330
     },
     "families": [
@@ -118,12 +118,12 @@
       },
       {
         "familyId": "f03",
-        "occurrenceCount": 549,
+        "occurrenceCount": 552,
         "claimCount": 6,
         "compatCount": 247,
-        "identityEscalationCount": 217,
+        "identityEscalationCount": 220,
         "governanceDataCount": 79,
-        "siteSetSha256": "a6ee5bf2db31c36f4a315e7ae1cc8c38c34841515a21c41d1a7f6e44741b8292"
+        "siteSetSha256": "23099135e8c76571f534e559d61dde84efc6975469b9fc77937e137768046cf7"
       },
       {
         "familyId": "f04",
@@ -153,7 +153,7 @@
         "siteSetSha256": "c13f49c351534c5dfd6105494d8aebca052952d6d91a7b1d1a6474a2f72b4ca8"
       }
     ],
-    "siteSetSha256": "a1147103df01e5070cd6033022293f3cd0b453a0098d7919a24e422172b23600",
+    "siteSetSha256": "497b54dcfad267eb2a94dfd2ea37d49f738db5568836d8c346643a862275907d",
     "claimSiteSetSha256": "aab6c2be24a2ab33a35fa96e78af5644cbe661016fcb3bab80162f8e4d37b6a8",
     "compatDeclarationSetSha256": "c0244e16276ed50a5ba34e3ac4baf38841dc7af7b355cf08bdff605de63d1dc9",
     "identityCrateSetSha256": "301477ffa6f128519a55a9aa55d336d35400f48ae4fd73cd66b4d2fcc60ae772",

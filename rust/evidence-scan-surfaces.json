@@ -6,6 +6,10 @@
     "patternSha256": "3d142b359e06a0b85d1d9713cda4a6405e573a53f1eafb8d95f01ca3d4ddcf0d"
   },
   "resolverSha256": "6a7b8b312e7f46df711e11d7ede96959ab1d9170b0b087ac8dd370c327669fe4",
+  "predicateAuthority": {
+    "modulePath": "packages/check-orchestrator/src/evidence/predicates/index.ts",
+    "sha256": "f668e12d600b8ce6669543a284d07c50e02037d65c308b71a18e409389717489"
+  },
   "predicateModules": {
     "git-metadata": {
       "modulePath": "packages/check-orchestrator/src/evidence/predicates/git-metadata.ts",
@@ -27,6 +31,115 @@
       "modulePath": "packages/check-orchestrator/src/evidence/predicates/test-only-rust.ts",
       "sha256": "a8be3f3f30fc2644735ebe273ea9bca20d9462405b910b4246a0cf3e738a47ac"
     }
+  },
+  "pathPlaneAuthority": {
+    "modulePath": "packages/check-orchestrator/src/affected.ts",
+    "sha256": "96c8b3b523a7238fae2cb3ed58bf8b5e00513ce26c60407d87fe79edd6c298ed",
+    "rules": [
+      {
+        "priority": 0,
+        "ruleId": "orchestrator-implementation",
+        "ownerModulePath": "packages/check-orchestrator/src/affected.ts",
+        "profiles": ["orchestrator"],
+        "reason": "check-orchestrator implementation changed",
+        "requiresFullCi": false,
+        "matcher": {
+          "prefixes": ["packages/check-orchestrator/", "test/unit/check-orchestrator/"]
+        }
+      },
+      {
+        "priority": 1,
+        "ruleId": "workspace-workflow-topology",
+        "ownerModulePath": "packages/check-orchestrator/src/affected.ts",
+        "profiles": ["orchestrator"],
+        "reason": "workspace or workflow topology changed",
+        "requiresFullCi": true,
+        "matcher": {
+          "exactPaths": ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"],
+          "prefixes": [".github/actions/", ".github/workflows/"]
+        }
+      },
+      {
+        "priority": 2,
+        "ruleId": "rust-cli-product",
+        "ownerModulePath": "packages/check-orchestrator/src/affected.ts",
+        "profiles": ["rust-cli"],
+        "reason": "Rust CLI product path changed",
+        "requiresFullCi": false,
+        "matcher": {
+          "prefixes": [
+            "rust/crates/omena-cli/",
+            "scripts/check-rust-omena-cli-",
+            ".github/workflows/release-cli.yml"
+          ]
+        }
+      },
+      {
+        "priority": 3,
+        "ruleId": "rust-performance",
+        "ownerModulePath": "packages/check-orchestrator/src/affected.ts",
+        "profiles": ["rust-workspace", "linux-benchmark"],
+        "reason": "performance-sensitive Rust path changed",
+        "requiresFullCi": false,
+        "matcher": {
+          "prefixes": [
+            "rust/crates/omena-benchmarks/",
+            "rust/crates/omena-streaming-ifds/",
+            "scripts/check-rust-z5-perf-",
+            "scripts/check-rust-demand-sliced-monotone-fact-propagation-",
+            "scripts/check-rust-benchmark-",
+            "benchmark-artifacts/"
+          ]
+        }
+      },
+      {
+        "priority": 4,
+        "ruleId": "rust-workspace",
+        "ownerModulePath": "packages/check-orchestrator/src/affected.ts",
+        "profiles": ["rust-workspace"],
+        "reason": "Rust workspace path changed",
+        "requiresFullCi": false,
+        "matcher": {
+          "prefixes": ["rust/"]
+        }
+      },
+      {
+        "priority": 5,
+        "ruleId": "typescript-product-integration",
+        "ownerModulePath": "packages/check-orchestrator/src/affected.ts",
+        "profiles": ["verify"],
+        "reason": "TypeScript or product integration path changed",
+        "requiresFullCi": false,
+        "matcher": {
+          "prefixes": ["client/", "server/", "shared/", "test/", "examples/", "scripts/"],
+          "suffixes": [".ts", ".tsx", ".js", ".mjs", ".cjs"]
+        }
+      },
+      {
+        "priority": 6,
+        "ruleId": "public-documentation",
+        "ownerModulePath": "packages/check-orchestrator/src/affected.ts",
+        "profiles": ["orchestrator"],
+        "reason": "public documentation changed",
+        "requiresFullCi": false,
+        "matcher": {
+          "exactPaths": ["README.md", "CHANGELOG.md"],
+          "prefixes": ["docs/", "apps/docs/"],
+          "suffixes": [".md"]
+        }
+      },
+      {
+        "priority": 7,
+        "ruleId": "unclassified-full-ci",
+        "ownerModulePath": "packages/check-orchestrator/src/affected.ts",
+        "profiles": [],
+        "reason": "unclassified path requires the complete CI graph",
+        "requiresFullCi": true,
+        "matcher": {
+          "fallback": true
+        }
+      }
+    ]
   },
   "scanners": [
     {
