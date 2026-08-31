@@ -3,5 +3,4 @@ import { unmigratedScanSurface } from "../../packages/check-orchestrator/src/evi
 export default unmigratedScanSurface({
   scannerPath: "scripts/check-rust-omena-cli-bundle-origin-chain.ts",
   reason: "non-repo-temp-tree",
-  evidenceNeedle: "mkdtempSync",
 });

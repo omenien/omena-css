@@ -4,7 +4,12 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AffectedPathRuleDeclarationV0 } from "../affected.ts";
-import { resolveScanSurface, type ResolvedScanSurface } from "./scan-surface.ts";
+import {
+  assertUnmigratedScanRoot,
+  defineScanSurface,
+  resolveScanSurface,
+  type ResolvedScanSurface,
+} from "./scan-surface.ts";
 import type {
   NamedScanPredicateId,
   ScanSurfaceSpec,
@@ -57,7 +62,9 @@ export interface UnmigratedEvidenceScannerRowV0 {
   readonly disposition: "UNMIGRATED";
   readonly effectiveSurface: "**";
   readonly reason: UnmigratedScanReason;
-  readonly evidenceNeedle: string;
+  readonly surfaceModulePath: string;
+  readonly surfaceModuleSha256: string;
+  readonly inRepoSpec?: ScanSurfaceSpec;
   readonly gateIds: readonly string[];
 }
 
@@ -126,10 +133,45 @@ export function resolveScanSurfaceForScanner(
     );
   }
   const row = manifest.scanners.find((candidate) => candidate.scannerPath === scannerPath);
-  if (!row || row.disposition !== "MIGRATED") {
+  if (!row) {
     throw new Error(`scanner ${scannerPath} has no migrated scan surface`);
   }
-  return resolveScanSurface(row.spec, { repoRoot: scanRoot });
+  if (row.disposition === "MIGRATED") return resolveScanSurface(row.spec, { repoRoot: scanRoot });
+  if (row.disposition !== "UNMIGRATED" || !row.inRepoSpec) {
+    throw new Error(`scanner ${scannerPath} has no migrated in-repo scan surface`);
+  }
+  if (path.resolve(scanRoot) !== path.resolve(repoRoot)) {
+    throw new Error(`scanner ${scannerPath} must use its guarded resolver outside repoRoot`);
+  }
+  return resolveScanSurface(row.inRepoSpec, { repoRoot });
+}
+
+export function resolveUnmigratedScanRootForScanner(
+  scannerFile: string,
+  reason: UnmigratedScanReason,
+  repoRoot: string,
+  scanRoot: string,
+): ResolvedScanSurface {
+  const absoluteScannerPath = scannerFile.startsWith("file:")
+    ? fileURLToPath(scannerFile)
+    : path.resolve(scannerFile);
+  const scannerPath = path.relative(repoRoot, absoluteScannerPath).replaceAll("\\", "/");
+  const manifest = loadEvidenceScanSurfaceManifest(repoRoot);
+  const row = manifest?.scanners.find((candidate) => candidate.scannerPath === scannerPath);
+  if (!row || row.disposition !== "UNMIGRATED" || row.reason !== reason) {
+    throw new Error(`scanner ${scannerPath} has no matching guarded ${reason} scan root`);
+  }
+  const canonicalScanRoot = assertUnmigratedScanRoot(reason, repoRoot, scanRoot);
+  return resolveScanSurface(
+    defineScanSurface({
+      scannerPath,
+      mode: "workingTree",
+      pathspecs: ["**"],
+      includeUntracked: false,
+      excludes: ["git-metadata"],
+    }),
+    { repoRoot: canonicalScanRoot },
+  );
 }
 
 export function setEvidenceScanSurfaceBootstrapSpecs(
@@ -207,7 +249,7 @@ function validateEvidenceScanSurfaceManifest(
     throw new Error("evidence predicate authority must name a repository module path");
   }
   if (!manifest.pathPlaneAuthority && allowLegacyAuthorityFields)
-    return validateScannerRows(manifest);
+    return validateScannerRows(manifest, allowLegacyAuthorityFields);
   if (!isRepositoryModulePath(manifest.pathPlaneAuthority?.modulePath)) {
     throw new Error("affected path-plane authority must name a repository module path");
   }
@@ -224,10 +266,13 @@ function validateEvidenceScanSurfaceManifest(
       throw new Error(`affected path rule ${rule.ruleId} has a non-module owner`);
     }
   }
-  validateScannerRows(manifest);
+  validateScannerRows(manifest, allowLegacyAuthorityFields);
 }
 
-function validateScannerRows(manifest: EvidenceScanSurfaceManifestV0): void {
+function validateScannerRows(
+  manifest: EvidenceScanSurfaceManifestV0,
+  allowLegacyAuthorityFields: boolean,
+): void {
   const paths = manifest.scanners.map((row) => row.scannerPath);
   const sorted = [...paths].toSorted();
   if (
@@ -237,8 +282,18 @@ function validateScannerRows(manifest: EvidenceScanSurfaceManifestV0): void {
     throw new Error("evidence scan surface scanner rows must be unique and sorted");
   }
   for (const row of manifest.scanners) {
-    if (row.disposition === "UNMIGRATED" && row.effectiveSurface !== "**") {
-      throw new Error(`unmigrated scanner ${row.scannerPath} must retain effective surface **`);
+    if (row.disposition === "UNMIGRATED") {
+      if (row.effectiveSurface !== "**") {
+        throw new Error(`unmigrated scanner ${row.scannerPath} must retain effective surface **`);
+      }
+      if (
+        !allowLegacyAuthorityFields &&
+        (!row.surfaceModulePath ||
+          !/^[0-9a-f]{64}$/u.test(row.surfaceModuleSha256) ||
+          (row.inRepoSpec && row.inRepoSpec.scannerPath !== row.scannerPath))
+      ) {
+        throw new Error(`unmigrated scanner ${row.scannerPath} lacks guarded root authority`);
+      }
     }
     if (row.disposition === "MIGRATED" && row.spec.scannerPath !== row.scannerPath) {
       throw new Error(`scanner/spec path mismatch for ${row.scannerPath}`);

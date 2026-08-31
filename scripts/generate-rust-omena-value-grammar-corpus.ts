@@ -9,6 +9,7 @@ import { parse as postcssParse, type Root } from "postcss";
 import lessSyntax from "postcss-less";
 import scssSyntax from "postcss-scss";
 
+import { resolveUnmigratedScanRootForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { formatGeneratedJson } from "./generated-json";
 
 type Dialect = "css" | "scss" | "less";
@@ -122,8 +123,14 @@ async function main(): Promise<void> {
         sha256(`${group.repository}\0${group.pin}`).slice(0, 16),
       );
       checkoutPinnedSource(group, checkoutDir);
+      const checkoutSurface = resolveUnmigratedScanRootForScanner(
+        import.meta.url,
+        "external-checkout",
+        repoRoot,
+        checkoutDir,
+      );
       for (const fixture of group.fixtures) {
-        for (const relativePath of selectedStyleFiles(checkoutDir, fixture)) {
+        for (const relativePath of selectedStyleFiles(checkoutDir, fixture, checkoutSurface)) {
           scannedFileCount += 1;
           const absolutePath = path.join(checkoutDir, relativePath);
           const source = readFileSync(absolutePath, "utf8");
@@ -249,9 +256,14 @@ function checkoutPinnedSource(
   assert.equal(run("git", ["-C", checkoutDir, "rev-parse", "HEAD"]), sha);
 }
 
-function selectedStyleFiles(checkoutDir: string, fixture: PinnedFarmEntryV0): string[] {
+function selectedStyleFiles(
+  checkoutDir: string,
+  fixture: PinnedFarmEntryV0,
+  surface: ReturnType<typeof resolveUnmigratedScanRootForScanner>,
+): string[] {
   const extension = `.${fixture.dialect}`;
-  return run("git", ["-C", checkoutDir, "ls-files", "--", ...fixture.source.sparsePaths])
+  return surface
+    .gitOutput(["ls-files", "--", ...fixture.source.sparsePaths])
     .split(/\r?\n/u)
     .filter(Boolean)
     .filter((relativePath) => relativePath.toLowerCase().endsWith(extension))

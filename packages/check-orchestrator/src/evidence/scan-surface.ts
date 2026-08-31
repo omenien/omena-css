@@ -6,7 +6,8 @@ import {
   type SpawnSyncReturns,
 } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readdirSync, statSync, type Dirent } from "node:fs";
+import { existsSync, readdirSync, realpathSync, statSync, type Dirent } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { SCAN_SURFACE_EXCLUDE_PREDICATES } from "./predicates/index.ts";
 
@@ -51,7 +52,7 @@ export interface UnmigratedScanSurfaceDeclaration {
   readonly disposition: "UNMIGRATED";
   readonly scannerPath: string;
   readonly reason: UnmigratedScanReason;
-  readonly evidenceNeedle: string;
+  readonly inRepoSpec?: ScanSurfaceSpec;
 }
 
 export interface FalsePositiveScanSurfaceDeclaration {
@@ -147,10 +148,48 @@ export function unmigratedScanSurface(
   if (!UNMIGRATED_SCAN_REASONS.includes(declaration.reason)) {
     throw new Error(`unsupported unmigrated scan reason: ${declaration.reason}`);
   }
-  if (!declaration.evidenceNeedle) {
-    throw new Error(`unmigrated scanner ${declaration.scannerPath} needs an evidence needle`);
+  if (declaration.inRepoSpec) {
+    validateScanSurfaceSpec(declaration.inRepoSpec);
+    if (declaration.inRepoSpec.scannerPath !== declaration.scannerPath) {
+      throw new Error(`unmigrated in-repo surface path mismatch: ${declaration.scannerPath}`);
+    }
   }
   return { disposition: "UNMIGRATED", ...declaration };
+}
+
+export function assertUnmigratedScanRoot(
+  reason: UnmigratedScanReason,
+  repoRoot: string,
+  scanRoot: string,
+): string {
+  if (!UNMIGRATED_SCAN_REASONS.includes(reason)) {
+    throw new Error(`unsupported unmigrated scan reason: ${reason}`);
+  }
+  const canonicalRepoRoot = realpathSync.native(repoRoot);
+  const canonicalScanRoot = realpathSync.native(scanRoot);
+  if (isPathWithin(canonicalRepoRoot, canonicalScanRoot)) {
+    throw new Error(`unmigrated ${reason} root must be outside repoRoot: ${canonicalScanRoot}`);
+  }
+  if (reason === "non-repo-temp-tree") {
+    const canonicalTempRoot = realpathSync.native(tmpdir());
+    if (!isPathWithin(canonicalTempRoot, canonicalScanRoot)) {
+      throw new Error(`unmigrated temp root is outside the system temp tree: ${canonicalScanRoot}`);
+    }
+  } else if (reason === "external-checkout") {
+    if (!existsSync(path.join(canonicalScanRoot, ".git"))) {
+      throw new Error(`unmigrated external checkout root lacks .git: ${canonicalScanRoot}`);
+    }
+  } else if (!canonicalScanRoot.split(path.sep).includes("node_modules")) {
+    throw new Error(
+      `unmigrated packaged tree root is not inside node_modules: ${canonicalScanRoot}`,
+    );
+  }
+  return canonicalScanRoot;
+}
+
+function isPathWithin(parent: string, candidate: string): boolean {
+  const relative = path.relative(parent, candidate);
+  return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== "..");
 }
 
 export function falsePositiveScanSurface(

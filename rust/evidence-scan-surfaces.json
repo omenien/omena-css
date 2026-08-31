@@ -2,10 +2,10 @@
   "schemaVersion": "0",
   "generatedBy": "pnpm omena-check evidence-surfaces --write",
   "detector": {
-    "fileCount": 96,
+    "fileCount": 97,
     "patternSha256": "3d142b359e06a0b85d1d9713cda4a6405e573a53f1eafb8d95f01ca3d4ddcf0d"
   },
-  "resolverSha256": "6a7b8b312e7f46df711e11d7ede96959ab1d9170b0b087ac8dd370c327669fe4",
+  "resolverSha256": "6b0e94bbde6e24090b47dc5dce6a142174882443aa162b387923411390e8acf7",
   "predicateAuthority": {
     "modulePath": "packages/check-orchestrator/src/evidence/predicates/index.ts",
     "sha256": "f668e12d600b8ce6669543a284d07c50e02037d65c308b71a18e409389717489"
@@ -319,10 +319,16 @@
     },
     {
       "scannerPath": "scripts/check-engine-v2-contract-idl-fixtures.ts",
-      "disposition": "UNMIGRATED",
-      "effectiveSurface": "**",
-      "reason": "non-repo-temp-tree",
-      "evidenceNeedle": "mkdtempSync",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-engine-v2-contract-idl-fixtures.surface.ts",
+      "surfaceModuleSha256": "01472a8ebd79e395273b44c0977b927f5c54cab25d37b1e8943bd5f5fb911f59",
+      "spec": {
+        "scannerPath": "scripts/check-engine-v2-contract-idl-fixtures.ts",
+        "mode": "workingTree",
+        "pathspecs": ["**/*.json"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata"]
+      },
       "gateIds": ["contract/engine-v2-contract-idl-fixtures"]
     },
     {
@@ -680,7 +686,8 @@
       "disposition": "UNMIGRATED",
       "effectiveSurface": "**",
       "reason": "non-repo-temp-tree",
-      "evidenceNeedle": "mkdtempSync",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-cli-bundle-origin-chain.surface.ts",
+      "surfaceModuleSha256": "bc483bf03349a2e85f0715c9e63b4accb097cea24b4bca1129ea820d26707512",
       "gateIds": ["rust/omena-cli-bundle-origin-chain"]
     },
     {
@@ -772,7 +779,15 @@
       "disposition": "UNMIGRATED",
       "effectiveSurface": "**",
       "reason": "external-checkout",
-      "evidenceNeedle": "OMENA_SASS_SPEC_UPSTREAM_ROOT",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-diff-test-sass-spec-upstream-scale.surface.ts",
+      "surfaceModuleSha256": "7c92550c40cf16436b5d75064b5025079358eea9fd89cec5a52be6b9024b974b",
+      "inRepoSpec": {
+        "scannerPath": "scripts/check-rust-omena-diff-test-sass-spec-upstream-scale.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/crates/omena-diff-test/sass-spec-corpus/**/*.hrx"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata"]
+      },
       "gateIds": [
         "rust/omena-diff-test-sass-spec-upstream-scale",
         "rust/omena-diff-test-sass-spec-upstream-scale-fetch",
@@ -1352,7 +1367,8 @@
       "disposition": "UNMIGRATED",
       "effectiveSurface": "**",
       "reason": "external-checkout",
-      "evidenceNeedle": "--wpt-root",
+      "surfaceModulePath": "scripts/surfaces/scripts-extract-rust-omena-diff-test-wpt-tier-zero.surface.ts",
+      "surfaceModuleSha256": "0b4faab49ef836161a900bdb17e7262426ab05217886e193dade2342c93e2730",
       "gateIds": [
         "rust/omena-diff-test-wpt-extraction-source",
         "rust/omena-diff-test-wpt-extraction:update",
@@ -1364,7 +1380,8 @@
       "disposition": "UNMIGRATED",
       "effectiveSurface": "**",
       "reason": "external-checkout",
-      "evidenceNeedle": "checkoutDir",
+      "surfaceModulePath": "scripts/surfaces/scripts-generate-rust-omena-value-grammar-corpus.surface.ts",
+      "surfaceModuleSha256": "29ab210c6259294024e97f3b856a0f9e25390b26d7a49a9f4edc3c8510275782",
       "gateIds": ["rust/omena-value-grammar-corpus:update"]
     },
     {
@@ -1396,11 +1413,33 @@
       "gateIds": ["rust/omena-diff-test-sass-spec-import"]
     },
     {
+      "scannerPath": "scripts/lib/oss-corpus-local-workspace-files.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-lib-oss-corpus-local-workspace-files.surface.ts",
+      "surfaceModuleSha256": "a2f316b153d102250a7bb92b852065cc91c8134468e579de867ee6d407044cd4",
+      "spec": {
+        "scannerPath": "scripts/lib/oss-corpus-local-workspace-files.ts",
+        "mode": "workingTree",
+        "pathspecs": ["**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "node-modules", "rust-build-output"]
+      },
+      "gateIds": []
+    },
+    {
       "scannerPath": "scripts/measure-css-module-token-shapes.ts",
       "disposition": "UNMIGRATED",
       "effectiveSurface": "**",
       "reason": "external-checkout",
-      "evidenceNeedle": "args.corpusRoot",
+      "surfaceModulePath": "scripts/surfaces/scripts-measure-css-module-token-shapes.surface.ts",
+      "surfaceModuleSha256": "66e72587f24bb53afe6e96e68ed618344576f08a513740569f979794e664a162",
+      "inRepoSpec": {
+        "scannerPath": "scripts/measure-css-module-token-shapes.ts",
+        "mode": "index",
+        "pathspecs": ["*.module.css", "*.module.scss", "*.module.sass", "*.module.less"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "rust-build-output", "test-only-rust"]
+      },
       "gateIds": []
     },
     {
@@ -1436,7 +1475,8 @@
       "disposition": "UNMIGRATED",
       "effectiveSurface": "**",
       "reason": "external-checkout",
-      "evidenceNeedle": "pinned-repository",
+      "surfaceModulePath": "scripts/surfaces/scripts-oss-corpus-farm.surface.ts",
+      "surfaceModuleSha256": "efe54769c0df3310a24fecce78ba5b28b7dfa63f393782c78f22604c17b05a14",
       "gateIds": [
         "rust/lint-finding-census",
         "rust/lint-finding-census:update",
@@ -1461,10 +1501,16 @@
     },
     {
       "scannerPath": "scripts/rename-selector.ts",
-      "disposition": "UNMIGRATED",
-      "effectiveSurface": "**",
-      "reason": "external-checkout",
-      "evidenceNeedle": "--root",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-rename-selector.surface.ts",
+      "surfaceModuleSha256": "9fb2d00cad765e6f92996cdb594f7ceaba0730458d34019723600cfc14b4a04f",
+      "spec": {
+        "scannerPath": "scripts/rename-selector.ts",
+        "mode": "workingTree",
+        "pathspecs": ["**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "node-modules", "rust-build-output"]
+      },
       "gateIds": []
     },
     {

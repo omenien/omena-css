@@ -1,8 +1,12 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import {
+  resolveScanSurfaceForScanner,
+  resolveUnmigratedScanRootForScanner,
+} from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 
 interface ExternalCorpusEnvelopeV1 {
   readonly source: {
@@ -58,6 +62,7 @@ const manifestPath = path.join(corpusRoot, "imported-smoke-manifest.json");
 const artifactPath = path.join(corpusRoot, "upstream-scale.json");
 
 const conformanceManifestPath = path.join(corpusRoot, "conformance-smoke-manifest.json");
+const inRepoSurface = resolveScanSurfaceForScanner(import.meta.url, repoRoot);
 
 const manifest = readJson<ExternalCorpusEnvelopeV1>(manifestPath);
 assert.equal(manifest.source.kind, "pinned-repository");
@@ -88,7 +93,7 @@ if (!fetchMode) {
   );
   assert.equal(
     currentArtifact.conformanceSourceArchiveCount,
-    countHrxArchives(conformanceRoot),
+    countHrxArchives(conformanceRoot, inRepoSurface),
     "conformance archive count must match the committed conformance fixture root",
   );
   printSummary(currentArtifact, "check");
@@ -96,17 +101,29 @@ if (!fetchMode) {
 }
 
 const checkoutRoot = checkoutSassSpec(manifest);
+const checkoutSurface = resolveUnmigratedScanRootForScanner(
+  import.meta.url,
+  "external-checkout",
+  repoRoot,
+  checkoutRoot,
+);
 try {
   const sparsePathArchiveCounts = manifest.source.sparsePaths.map((sparsePath) => ({
     sparsePath,
-    archiveCount: countHrxArchives(path.join(checkoutRoot, sparsePath)),
+    archiveCount: countHrxArchives(path.join(checkoutRoot, sparsePath), checkoutSurface),
   }));
   const importedArchiveMatches = compareSourceArchives(
     path.join(repoRoot, manifest.generation.selectionPath),
     manifest,
     checkoutRoot,
+    inRepoSurface,
   );
-  const conformanceArchiveMatches = compareSourceArchives(conformanceRoot, manifest, checkoutRoot);
+  const conformanceArchiveMatches = compareSourceArchives(
+    conformanceRoot,
+    manifest,
+    checkoutRoot,
+    inRepoSurface,
+  );
   const artifact: SassSpecUpstreamScaleArtifactV0 = {
     schemaVersion: "0",
     product: "omena-diff-test.sass-spec-upstream-scale",
@@ -185,13 +202,16 @@ function sourceSha(pin: string): string {
   return match[1];
 }
 
-function countHrxArchives(root: string): number {
+function countHrxArchives(
+  root: string,
+  surface: ReturnType<typeof resolveScanSurfaceForScanner>,
+): number {
   assert.ok(existsSync(root), `sparse path root must exist: ${root}`);
   let count = 0;
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
+  for (const entry of surface.readdirSync(root, { withFileTypes: true })) {
     const entryPath = path.join(root, entry.name);
     if (entry.isDirectory()) {
-      count += countHrxArchives(entryPath);
+      count += countHrxArchives(entryPath, surface);
     } else if (entry.isFile() && entry.name.endsWith(".hrx")) {
       count += 1;
     }
@@ -247,13 +267,14 @@ function compareSourceArchives(
   selectionRoot: string,
   manifest: ExternalCorpusEnvelopeV1,
   checkoutRoot: string,
+  surface: ReturnType<typeof resolveScanSurfaceForScanner>,
 ): {
   readonly archiveCount: number;
   readonly byteMatchCount: number;
   readonly allByteMatched: boolean;
 } {
   assert.ok(existsSync(selectionRoot), `sass-spec source root must exist: ${selectionRoot}`);
-  const archivePaths = findHrxArchives(selectionRoot);
+  const archivePaths = findHrxArchives(selectionRoot, surface);
   let byteMatchCount = 0;
   for (const archivePath of archivePaths) {
     const upstreamPath = path.relative(selectionRoot, archivePath).split(path.sep).join("/");
@@ -276,12 +297,16 @@ function compareSourceArchives(
   };
 }
 
-function findHrxArchives(root: string): readonly string[] {
-  return readdirSync(root, { withFileTypes: true })
+function findHrxArchives(
+  root: string,
+  surface: ReturnType<typeof resolveScanSurfaceForScanner>,
+): readonly string[] {
+  return surface
+    .readdirSync(root, { withFileTypes: true })
     .flatMap((entry) => {
       const entryPath = path.join(root, entry.name);
       if (entry.isDirectory()) {
-        return findHrxArchives(entryPath);
+        return findHrxArchives(entryPath, surface);
       }
       return entry.isFile() && entry.name.endsWith(".hrx") ? [entryPath] : [];
     })

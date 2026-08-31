@@ -1,8 +1,9 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { resolveUnmigratedScanRootForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { parseOmenaCliResponse } from "./lib/omena-cli-response";
 
 interface SourceMapV3 {
@@ -52,7 +53,14 @@ interface BundleSplitManifest {
 }
 
 const splitManifestFileName = "omena.bundle-split.manifest.json";
+const repoRoot = resolve(import.meta.dirname, "..");
 const workspace = mkdtempSync(join(tmpdir(), "omena-cli-bundle-origin-"));
+const workspaceSurface = resolveUnmigratedScanRootForScanner(
+  import.meta.url,
+  "non-repo-temp-tree",
+  repoRoot,
+  workspace,
+);
 
 try {
   const themeDir = join(workspace, "theme");
@@ -225,7 +233,7 @@ function assertSplitOutputs(
   tokensSource: string,
   baseSource: string,
 ): void {
-  const files = readdirSync(splitDir);
+  const files = workspaceSurface.readdirSync(splitDir);
   const cssFiles = files.filter((file) => file.endsWith(".css"));
   const mapFiles = files.filter((file) => file.endsWith(".css.map"));
   const manifest = JSON.parse(

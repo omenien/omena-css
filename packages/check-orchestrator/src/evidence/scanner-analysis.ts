@@ -25,7 +25,10 @@ const EXEC_FAMILY_CALLEES = new Set([
 const MODULE_SCANNER_NAMES = new Set(["fast-glob", "globby", "glob"]);
 const FILESYSTEM_MODULE_NAMES = new Set(["node:fs", "fs", "node:fs/promises", "fs/promises"]);
 const CHILD_PROCESS_MODULE_NAMES = new Set(["node:child_process", "child_process"]);
-const SURFACE_RESOLVER_EXPORT = "resolveScanSurfaceForScanner";
+const SURFACE_RESOLVER_EXPORTS = new Set([
+  "resolveScanSurfaceForScanner",
+  "resolveUnmigratedScanRootForScanner",
+]);
 const SURFACE_RESOLVER_MODULE_PATH =
   "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts";
 
@@ -260,7 +263,7 @@ function scannerBindings(sourceFile: tsTypes.SourceFile, scannerPath: string): S
         }
         if (
           isCanonicalSurfaceResolverModule(scannerPath, moduleName) &&
-          importedName === SURFACE_RESOLVER_EXPORT
+          SURFACE_RESOLVER_EXPORTS.has(importedName)
         ) {
           resolverBindings.add(element.name);
         }

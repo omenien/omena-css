@@ -5,7 +5,6 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -13,7 +12,9 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { resolveUnmigratedScanRootForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { runCheckerCli } from "../server/checker-cli/src";
+import { listLocalWorkspaceCorpusFiles } from "./lib/oss-corpus-local-workspace-files";
 
 type Dialect = "css" | "scss" | "less" | "sass";
 type ExpectationKind =
@@ -1244,22 +1245,7 @@ function workspaceContentDigest(workspaceRoot: string): string {
 }
 
 function listWorkspaceCorpusFiles(root: string): string[] {
-  const files: string[] = [];
-  const visit = (directory: string): void => {
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      if ([".cache", ".git", "node_modules", "target", "dist", "out"].includes(entry.name)) {
-        continue;
-      }
-      const entryPath = path.join(directory, entry.name);
-      if (entry.isDirectory()) {
-        visit(entryPath);
-      } else if (/\.(?:css|scss|sass|less|jsx?|tsx?|json|toml)$/u.test(entry.name)) {
-        files.push(entryPath);
-      }
-    }
-  };
-  visit(root);
-  return files.sort((left, right) => left.localeCompare(right, "en"));
+  return listLocalWorkspaceCorpusFiles(repoRoot, root);
 }
 
 function resolveOmenaBinary(): string {
@@ -1943,8 +1929,14 @@ function listLoadedFiles(root: string): string[] {
 }
 
 function listTrackedFiles(root: string): string[] {
-  const result = run("git", ["-C", root, "ls-files"]);
-  return result.stdout
+  const surface = resolveUnmigratedScanRootForScanner(
+    import.meta.url,
+    "external-checkout",
+    repoRoot,
+    root,
+  );
+  return surface
+    .gitOutput(["ls-files"])
     .split(/\r?\n/u)
     .filter(Boolean)
     .map((filePath) => path.join(root, filePath))

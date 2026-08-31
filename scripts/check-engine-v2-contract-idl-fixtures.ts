@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020";
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "omena-engine-v2-idl-fixtures-"));
@@ -35,7 +36,10 @@ execFileSync(
 );
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
-for (const fileName of fs.readdirSync(schemaDir).filter((name) => name.endsWith(".json"))) {
+const schemaSurface = resolveScanSurfaceForScanner(import.meta.url, repoRoot, schemaDir);
+for (const fileName of schemaSurface
+  .readdirSync(schemaDir)
+  .filter((name) => name.endsWith(".json"))) {
   const schema = JSON.parse(fs.readFileSync(path.join(schemaDir, fileName), "utf8")) as unknown;
   ajv.addSchema(schema, fileName);
 }
@@ -44,7 +48,8 @@ const validateInput = requiredValidator("EngineInputV2.json");
 const validateOutput = requiredValidator("EngineOutputV2.json");
 const validateCodeActionPlan = requiredValidator("OmenaQueryCodeActionPlanV0.json");
 
-const fixtureFiles = fs
+const fixtureSurface = resolveScanSurfaceForScanner(import.meta.url, repoRoot);
+const fixtureFiles = fixtureSurface
   .readdirSync(fixtureDir)
   .filter((fileName) => fileName.endsWith(".json"))
   .toSorted();

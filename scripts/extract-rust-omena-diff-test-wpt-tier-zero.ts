@@ -1,12 +1,13 @@
 import { strict as assert } from "node:assert";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { parse } from "parse5";
 import type { DefaultTreeAdapterTypes } from "parse5";
 
 import ts from "../server/engine-core-ts/src/ts-facade";
+import { resolveUnmigratedScanRootForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { formatGeneratedJson } from "./generated-json";
 
 type StaticValue = string | readonly string[] | Readonly<Record<string, string>>;
@@ -125,7 +126,13 @@ async function main(): Promise<void> {
     assert.ok(write || check, "choose --write or --check");
     const actualPin = readWptPin(wptRoot);
     assert.equal(actualPin, sourcePin, "WPT checkout must match the committed extraction pin");
-    const result = extractCorpus(wptRoot);
+    const surface = resolveUnmigratedScanRootForScanner(
+      import.meta.url,
+      "external-checkout",
+      repoRoot,
+      wptRoot,
+    );
+    const result = extractCorpus(wptRoot, surface);
     const tupleArtifact = {
       schemaVersion: "0",
       product: "omena-diff-test.wpt-tier-zero-tuples",
@@ -180,14 +187,19 @@ async function main(): Promise<void> {
   }
 }
 
-function extractCorpus(root: string): ExtractionResultV0 {
+function extractCorpus(
+  root: string,
+  surface: ReturnType<typeof resolveUnmigratedScanRootForScanner>,
+): ExtractionResultV0 {
   const tuples: TierZeroTupleV0[] = [];
   const coverage: ModuleCoverageV0[] = [];
   const skippedCalls: SkippedCallV0[] = [];
 
   for (const module of modules) {
     const moduleRoot = path.join(root, module.wptPath);
-    const htmlFiles = collectFiles(moduleRoot).filter((filePath) => /\.html?$/u.test(filePath));
+    const htmlFiles = collectFiles(moduleRoot, surface).filter((filePath) =>
+      /\.html?$/u.test(filePath),
+    );
     let eligibleTierZeroFileCount = 0;
     let nonTierZeroFileCount = 0;
     let excludedTentativeFileCount = 0;
@@ -624,12 +636,15 @@ function visitHtmlNode(
   if ("content" in node) visitHtmlNode(node.content, visitor);
 }
 
-function collectFiles(root: string): string[] {
+function collectFiles(
+  root: string,
+  surface: ReturnType<typeof resolveUnmigratedScanRootForScanner>,
+): string[] {
   if (!statSync(root).isDirectory()) return [];
   const files: string[] = [];
-  for (const entry of readdirSync(root).sort()) {
+  for (const entry of surface.readdirSync(root).sort()) {
     const filePath = path.join(root, entry);
-    if (statSync(filePath).isDirectory()) files.push(...collectFiles(filePath));
+    if (statSync(filePath).isDirectory()) files.push(...collectFiles(filePath, surface));
     else files.push(filePath);
   }
   return files;

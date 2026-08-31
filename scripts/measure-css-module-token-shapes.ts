@@ -5,6 +5,10 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
+import {
+  resolveScanSurfaceForScanner,
+  resolveUnmigratedScanRootForScanner,
+} from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { formatGeneratedJson } from "./generated-json";
 
 interface Definition {
@@ -39,6 +43,13 @@ type ShapeName =
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outputPath = path.join(repoRoot, "rust/omena-css-module-token-shape-measurement.json");
 const args = parseArgs(process.argv.slice(2));
+const inRepoSurface = resolveScanSurfaceForScanner(import.meta.url, repoRoot);
+const corpusSurface = resolveUnmigratedScanRootForScanner(
+  import.meta.url,
+  "external-checkout",
+  repoRoot,
+  args.corpusRoot,
+);
 const emitterSourceRevision = run("git", ["rev-parse", "HEAD"]).trim();
 const emitterSourceStatus = run("git", [
   "status",
@@ -65,7 +76,8 @@ const corpusRepository = run("git", ["-C", args.corpusRoot, "remote", "get-url",
 const identityCorpora = args.identityManifests.map(({ label, manifestPath }) =>
   measureManifestProvenance(label, manifestPath),
 );
-const corpusFiles = run("git", ["-C", args.corpusRoot, "ls-files", "-z", "*.module.css"])
+const corpusFiles = corpusSurface
+  .gitOutput(["ls-files", "-z", "*.module.css"])
   .split("\0")
   .filter(Boolean)
   .toSorted();
@@ -358,14 +370,15 @@ function differenceCount(left: readonly string[], right: readonly string[]): num
 }
 
 function collectTrackedWorkspaceDefinitions(): Definition[] {
-  const files = run("git", [
-    "ls-files",
-    "-z",
-    "*.module.css",
-    "*.module.scss",
-    "*.module.sass",
-    "*.module.less",
-  ])
+  const files = inRepoSurface
+    .gitOutput([
+      "ls-files",
+      "-z",
+      "*.module.css",
+      "*.module.scss",
+      "*.module.sass",
+      "*.module.less",
+    ])
     .split("\0")
     .filter(Boolean);
   return files.flatMap((relativePath) => {
@@ -382,14 +395,15 @@ function collectTrackedWorkspaceDefinitions(): Definition[] {
 }
 
 function collectTrackedWorkspaceModulePaths(): string[] {
-  return run("git", [
-    "ls-files",
-    "-z",
-    "*.module.css",
-    "*.module.scss",
-    "*.module.sass",
-    "*.module.less",
-  ])
+  return inRepoSurface
+    .gitOutput([
+      "ls-files",
+      "-z",
+      "*.module.css",
+      "*.module.scss",
+      "*.module.sass",
+      "*.module.less",
+    ])
     .split("\0")
     .filter(Boolean)
     .map((relativePath) => `in-repo/${relativePath}`);

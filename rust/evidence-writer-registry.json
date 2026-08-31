@@ -1044,6 +1044,7 @@
         "./scripts/generate-rust-omena-value-grammar-corpus.ts"
       ],
       "inputPaths": [
+        "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
         "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json",
         "scripts/generated-json.ts"
       ],
@@ -1642,6 +1643,7 @@
         "--write-baseline"
       ],
       "inputPaths": [
+        "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
         "rust/Cargo.toml",
         "rust/crates/omena-cascade/data/cascade-key-axis-order.json",
         "rust/crates/omena-cli/src/diagnostics.rs",
@@ -1650,6 +1652,7 @@
         "rust/crates/omena-diff-test/regressions/manifest.json",
         "rust/crates/omena-query/src/style/diagnostics/mod.rs",
         "rust/crates/omena-query/src/style/salsa_memo.rs",
+        "scripts/lib/oss-corpus-local-workspace-files.ts",
         "server/checker-cli/src/index.ts"
       ],
       "inputScannerPaths": ["scripts/oss-corpus-farm.ts"],
@@ -1723,6 +1726,7 @@
         "--write-lint-census"
       ],
       "inputPaths": [
+        "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
         "rust/Cargo.toml",
         "rust/crates/omena-cascade/data/cascade-key-axis-order.json",
         "rust/crates/omena-cli/src/diagnostics.rs",
@@ -1731,6 +1735,7 @@
         "rust/crates/omena-diff-test/regressions/manifest.json",
         "rust/crates/omena-query/src/style/diagnostics/mod.rs",
         "rust/crates/omena-query/src/style/salsa_memo.rs",
+        "scripts/lib/oss-corpus-local-workspace-files.ts",
         "server/checker-cli/src/index.ts"
       ],
       "inputScannerPaths": ["scripts/oss-corpus-farm.ts"],
@@ -1773,6 +1778,7 @@
         ["node", "--import", "tsx", "./scripts/oss-corpus-farm.ts", "--write-lint-census"]
       ],
       "inputPaths": [
+        "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
         "rust/Cargo.toml",
         "rust/crates/omena-cascade/data/cascade-key-axis-order.json",
         "rust/crates/omena-cli/src/diagnostics.rs",
@@ -1781,6 +1787,7 @@
         "rust/crates/omena-diff-test/regressions/manifest.json",
         "rust/crates/omena-query/src/style/diagnostics/mod.rs",
         "rust/crates/omena-query/src/style/salsa_memo.rs",
+        "scripts/lib/oss-corpus-local-workspace-files.ts",
         "server/checker-cli/src/index.ts"
       ],
       "inputScannerPaths": ["scripts/oss-corpus-farm.ts"],
@@ -1998,7 +2005,7 @@
         "./scripts/check-rust-omena-diff-test-sass-spec-upstream-scale.ts",
         "--write"
       ],
-      "inputPaths": [],
+      "inputPaths": ["packages/check-orchestrator/src/evidence/scan-surface-manifest.ts"],
       "inputScannerPaths": ["scripts/check-rust-omena-diff-test-sass-spec-upstream-scale.ts"],
       "inputArtifactPaths": [
         "rust/crates/omena-diff-test/sass-spec-corpus/conformance-smoke-manifest.json",
@@ -2074,7 +2081,11 @@
         "./scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts",
         "--write"
       ],
-      "inputPaths": ["scripts/generated-json.ts", "server/engine-core-ts/src/ts-facade.ts"],
+      "inputPaths": [
+        "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
+        "scripts/generated-json.ts",
+        "server/engine-core-ts/src/ts-facade.ts"
+      ],
       "inputScannerPaths": ["scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts"],
       "inputArtifactPaths": [],
       "writerGateIds": [
@@ -2108,7 +2119,11 @@
         "./scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts",
         "--write"
       ],
-      "inputPaths": ["scripts/generated-json.ts", "server/engine-core-ts/src/ts-facade.ts"],
+      "inputPaths": [
+        "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
+        "scripts/generated-json.ts",
+        "server/engine-core-ts/src/ts-facade.ts"
+      ],
       "inputScannerPaths": ["scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts"],
       "inputArtifactPaths": [],
       "writerGateIds": [
@@ -3491,6 +3506,7 @@
         "scripts/generate-rust-omena-value-grammar-corpus.ts",
         "scripts/generate-sass-spec-conformance-corpus.ts",
         "scripts/generate-sass-spec-corpus.ts",
+        "scripts/lib/oss-corpus-local-workspace-files.ts",
         "scripts/measure-css-module-token-shapes.ts",
         "scripts/measure-rust-omena-diagnostic-transition-attribution.ts",
         "scripts/merge-engine-shadow-runner-artifacts.mjs",
@@ -3703,6 +3719,7 @@
         "OMENA_TOKEN_IDENTITY_DOCUSAURUS"
       ],
       "inputPaths": [
+        "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
         "rust/Cargo.lock",
         "rust/Cargo.toml",
         "rust/crates/omena-cli/src/modules.rs",

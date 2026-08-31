@@ -217,17 +217,16 @@ export async function buildEvidenceScanSurfaceManifest(
       }
       case "UNMIGRATED": {
         const source = readFileSync(path.join(repoRoot, detection.scannerPath), "utf8");
-        if (!source.includes(declaration.evidenceNeedle)) {
-          throw new Error(
-            `unmigrated scanner ${detection.scannerPath} lacks evidence needle ${declaration.evidenceNeedle}`,
-          );
-        }
+        requireResolverRouting(repoRoot, detection.scannerPath);
+        requireUnmigratedRootGuard(detection.scannerPath, source, declaration.reason);
         rows.push({
           scannerPath: detection.scannerPath,
           disposition: "UNMIGRATED",
           effectiveSurface: "**",
           reason: declaration.reason,
-          evidenceNeedle: declaration.evidenceNeedle,
+          surfaceModulePath: loaded.modulePath,
+          surfaceModuleSha256: loaded.moduleSha256,
+          ...(declaration.inRepoSpec ? { inRepoSpec: declaration.inRepoSpec } : {}),
           gateIds,
         });
         break;
@@ -461,13 +460,58 @@ function scannerPathForDeclaration(declaration: ScanSurfaceDeclaration): string 
 
 function requireResolverRouting(repoRoot: string, scannerPath: string): void {
   const source = readFileSync(path.join(repoRoot, scannerPath), "utf8");
-  if (!source.includes("resolveScanSurface")) {
-    throw new Error(`migrated scanner does not route through resolveScanSurface: ${scannerPath}`);
+  if (
+    !source.includes("resolveScanSurface") &&
+    !source.includes("resolveUnmigratedScanRootForScanner")
+  ) {
+    throw new Error(`scanner does not route through a governed scan resolver: ${scannerPath}`);
   }
   const diagnostics = findUnroutedScannerCallSites(scannerPath, source);
   if (diagnostics.length > 0) {
     throw new Error(
       `migrated scanner has an undeclared enumeration entry point: ${scannerPath}:${diagnostics[0]?.line} ${diagnostics[0]?.message}`,
+    );
+  }
+}
+
+function requireUnmigratedRootGuard(scannerPath: string, source: string, reason: string): void {
+  const sourceFile = ts.createSourceFile(scannerPath, source, ts.ScriptTarget.Latest, true);
+  const guardBindings = new Set<string>();
+  for (const statement of sourceFile.statements) {
+    if (
+      !ts.isImportDeclaration(statement) ||
+      !statement.importClause?.namedBindings ||
+      !ts.isNamedImports(statement.importClause.namedBindings)
+    ) {
+      continue;
+    }
+    for (const element of statement.importClause.namedBindings.elements) {
+      if (
+        (element.propertyName?.text ?? element.name.text) === "resolveUnmigratedScanRootForScanner"
+      ) {
+        guardBindings.add(element.name.text);
+      }
+    }
+  }
+  let matchingGuard = false;
+  const visit = (node: tsTypes.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      guardBindings.has(node.expression.text) &&
+      node.arguments.length === 4 &&
+      ts.isStringLiteral(node.arguments[1]!) &&
+      node.arguments[1]!.text === reason
+    ) {
+      matchingGuard = true;
+      return;
+    }
+    if (!matchingGuard) ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  if (!matchingGuard) {
+    throw new Error(
+      `unmigrated scanner ${scannerPath} lacks a matching runtime root guard for ${reason}`,
     );
   }
 }

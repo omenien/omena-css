@@ -1,18 +1,11 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  realpathSync,
-  rmSync,
-  statSync,
-} from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAllStyleExtensions } from "../server/engine-core-ts/src/core/scss/lang-registry";
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import {
   SELECTED_QUERY_RUNNER_COMMANDS,
   resolveSelectedQueryBackendKind,
@@ -20,6 +13,7 @@ import {
 } from "../server/engine-host-node/src/selected-query-backend";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(scriptDir, "..");
 
 interface ParsedArgs {
   readonly workspaceRoot: string;
@@ -167,7 +161,6 @@ function runMigrationPlan(parsed: ParsedArgs): MigrationPlanEnvelope {
   const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), "omena-rename-migration-plan-"));
   const planPath = path.join(temporaryRoot, "plan.json");
   try {
-    const repoRoot = path.resolve(scriptDir, "..");
     const args = [
       "run",
       "--quiet",
@@ -318,9 +311,10 @@ function collectWorkspaceSources(workspaceRoot: string): {
 }
 
 function listWorkspaceFiles(root: string): readonly string[] {
+  const surface = resolveScanSurfaceForScanner(import.meta.url, repoRoot, root);
   const files: string[] = [];
   const walk = (dirPath: string): void => {
-    for (const entry of readdirSync(dirPath)) {
+    for (const entry of surface.readdirSync(dirPath)) {
       const entryPath = path.join(dirPath, entry);
       const relativePath = path.relative(root, entryPath);
       const stat = statSync(entryPath);

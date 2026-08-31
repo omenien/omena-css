@@ -4,6 +4,7 @@ import {
   mkdtempSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -32,6 +33,7 @@ import {
   SCANNER_DETECTION_PATTERN,
 } from "../../../packages/check-orchestrator/src/evidence/scanner-analysis";
 import {
+  assertUnmigratedScanRoot,
   defineScanSurface,
   resolveScanSurface,
   scanSurfaceMatchesPath,
@@ -137,7 +139,8 @@ function scannerManifest(): EvidenceScanSurfaceManifestV0 {
         disposition: "UNMIGRATED",
         effectiveSurface: "**",
         reason: "external-checkout",
-        evidenceNeedle: "checkoutRoot",
+        surfaceModulePath: "scripts/surfaces/check-external.surface.ts",
+        surfaceModuleSha256: "3".repeat(64),
         gateIds: ["external/check"],
       },
       {
@@ -470,6 +473,40 @@ describe("evidence affected closure", () => {
 });
 
 describe("scan surface falsifiers", () => {
+  it("rejects in-repo roots and spot-checks temp and checkout evidence", () => {
+    const repoRoot = mkdtempSync(path.join(os.tmpdir(), "omena-root-guard-repo-"));
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), "omena-root-guard-temp-"));
+    const checkoutRoot = mkdtempSync(path.join(os.tmpdir(), "omena-root-guard-checkout-"));
+    mkdirSync(path.join(checkoutRoot, ".git"));
+    expect(assertUnmigratedScanRoot("non-repo-temp-tree", repoRoot, tempRoot)).toBe(
+      realpathSync.native(tempRoot),
+    );
+    expect(assertUnmigratedScanRoot("external-checkout", repoRoot, checkoutRoot)).toBe(
+      realpathSync.native(checkoutRoot),
+    );
+    expect(() => assertUnmigratedScanRoot("non-repo-temp-tree", repoRoot, repoRoot)).toThrow(
+      /must be outside repoRoot/u,
+    );
+    expect(() => assertUnmigratedScanRoot("external-checkout", repoRoot, tempRoot)).toThrow(
+      /lacks \.git/u,
+    );
+    rmSync(repoRoot, { recursive: true, force: true });
+    rmSync(tempRoot, { recursive: true, force: true });
+    rmSync(checkoutRoot, { recursive: true, force: true });
+  });
+
+  it("recognizes only the governed external-root resolver as routed", () => {
+    const source =
+      'import { resolveUnmigratedScanRootForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest"; const surface = resolveUnmigratedScanRootForScanner(import.meta.url, "external-checkout", repoRoot, checkoutRoot); surface.readdirSync(checkoutRoot);';
+    expect(findUnroutedScannerCallSites("scripts/external.ts", source)).toEqual([]);
+    expect(
+      findUnroutedScannerCallSites(
+        "scripts/external.ts",
+        'import { readdirSync } from "node:fs"; readdirSync(checkoutRoot);',
+      ),
+    ).toHaveLength(1);
+  });
+
   it("keeps layer-1 load-bearing for value aliases and callback references", () => {
     for (const [fixturePath, source] of [
       [
