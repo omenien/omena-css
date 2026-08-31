@@ -1,7 +1,10 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 interface SassSpecImportScaleChunkReportV0 {
   readonly chunkId: string;
@@ -287,7 +290,7 @@ console.log(
 
 function countHrxArchives(root: string): number {
   let count = 0;
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
+  for (const entry of evidenceScanSurface.readdirSync(root, { withFileTypes: true })) {
     const entryPath = path.join(root, entry.name);
     if (entry.isDirectory()) {
       count += countHrxArchives(entryPath);
@@ -300,7 +303,7 @@ function countHrxArchives(root: string): number {
 
 function recursiveRustFiles(root: string): string[] {
   const files: string[] = [];
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
+  for (const entry of evidenceScanSurface.readdirSync(root, { withFileTypes: true })) {
     const entryPath = path.join(root, entry.name);
     if (entry.isDirectory()) {
       files.push(...recursiveRustFiles(entryPath));

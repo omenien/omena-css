@@ -1,8 +1,11 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 interface SurfaceContractV0 {
   readonly schemaVersion: "0";
@@ -310,7 +313,7 @@ function assertDefaultExecutionScopeSignature(source: string, functionName: stri
 }
 
 function gitFiles(glob: string): string[] {
-  const result = spawnSync("git", ["ls-files", glob], {
+  const result = evidenceScanSurface.spawnSync("git", ["ls-files", glob], {
     cwd: repoRoot,
     encoding: "utf8",
   });

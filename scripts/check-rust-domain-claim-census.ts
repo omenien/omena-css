@@ -1,8 +1,11 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 type FamilyId = "f01" | "f02" | "f03" | "f04" | "f05" | "f06";
 type Disposition = "claim" | "compat" | "identityEscalation" | "governanceData";
@@ -338,8 +341,13 @@ process.stdout.write(
 );
 
 function readWorkingTreeDomain(): TextDomain {
-  const tracked = git(["ls-files", "-z"]).split("\0").filter(Boolean).toSorted();
-  const untracked = git(["ls-files", "--others", "--exclude-standard", "-z"])
+  const tracked = evidenceScanSurface
+    .gitOutput(["ls-files", "-z"])
+    .split("\0")
+    .filter(Boolean)
+    .toSorted();
+  const untracked = evidenceScanSurface
+    .gitOutput(["ls-files", "--others", "--exclude-standard", "-z"])
     .split("\0")
     .filter(Boolean)
     .toSorted();

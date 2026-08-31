@@ -1,3 +1,4 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -5,6 +6,8 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertRustCfgTestMaskContract, maskRustCfgTestItems } from "./lib/rust-cfg-test-mask";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 assertRustCfgTestMaskContract();
 
@@ -942,7 +945,7 @@ function scanClassSelectorScannerSites(): RawScanSite[] {
 }
 
 function trackedRustSources(pathspec: string): string[] {
-  const result = spawnSync("git", ["ls-files", pathspec], {
+  const result = evidenceScanSurface.spawnSync("git", ["ls-files", pathspec], {
     cwd: repoRoot,
     encoding: "utf8",
   });
@@ -961,7 +964,7 @@ function trackedRustSources(pathspec: string): string[] {
 function trackedProductSources(
   pathspecs: readonly string[],
 ): { relativePath: string; source: string }[] {
-  const result = spawnSync("git", ["ls-files", "--", ...pathspecs], {
+  const result = evidenceScanSurface.spawnSync("git", ["ls-files", "--", ...pathspecs], {
     cwd: repoRoot,
     encoding: "utf8",
   });

@@ -1,9 +1,12 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readRustPackageMetadata } from "./rust-package-metadata";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 interface LspBoundarySummary {
   readonly thinClientEndpoint: {
@@ -177,7 +180,7 @@ function readLspBoundary(): LspBoundarySummary {
 function walkFiles(directory: string, predicate: (file: string) => boolean): string[] {
   if (!existsSync(directory)) return [];
   const files: string[] = [];
-  for (const entry of readdirSync(directory)) {
+  for (const entry of evidenceScanSurface.readdirSync(directory)) {
     const absolutePath = path.join(directory, entry);
     if (statSync(absolutePath).isDirectory()) files.push(...walkFiles(absolutePath, predicate));
     else if (predicate(absolutePath)) files.push(absolutePath);

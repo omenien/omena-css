@@ -222,6 +222,8 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
       scriptName === "check:cme-checker-testkit-archetypes" ||
       scriptName === "check:ci-workflow" ||
       scriptName === "check:ci-cost-ledger" ||
+      scriptName === "check:evidence-scan-surfaces" ||
+      scriptName === "check:evidence-affected-map" ||
       scriptName === "check:orchestrator-doctor" ||
       scriptName === "check:orchestrator-inventory" ||
       scriptName === "check:tool-pin-coherence" ||

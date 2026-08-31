@@ -1,7 +1,10 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 type SassDialectV0 = "scss" | "sass";
 type ExternalCorpusExpectationKindV1 =
@@ -387,7 +390,8 @@ function findFiles(root: string, extension: string): readonly string[] {
   if (!existsSync(root)) {
     return [];
   }
-  const entries = readdirSync(root)
+  const entries = evidenceScanSurface
+    .readdirSync(root)
     .map((entry) => path.join(root, entry))
     .toSorted();
   return entries.flatMap((entry) => {

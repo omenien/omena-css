@@ -1,0 +1,1283 @@
+{
+  "schemaVersion": "0",
+  "generatedBy": "pnpm omena-check evidence-writers --write",
+  "artifacts": [
+    {
+      "artifactPath": "rust/evidence-scan-surfaces.json",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "writeCommand": ["pnpm", "omena-check", "evidence-surfaces", "--write"],
+      "inputScannerPaths": ["packages/check-orchestrator/src/evidence/scanner-analysis.ts"],
+      "inputArtifactPaths": [],
+      "writerGateIds": ["tooling/evidence-scan-surfaces"],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/affected-evidence.ts",
+        "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts"
+      ],
+      "consumerGateIds": []
+    },
+    {
+      "artifactPath": "rust/evidence-writer-registry.json",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "writeCommand": ["pnpm", "omena-check", "evidence-writers", "--write"],
+      "inputScannerPaths": [
+        "packages/check-orchestrator/src/cli/main.ts",
+        "packages/check-orchestrator/src/evidence/scan-surface.ts",
+        "packages/check-orchestrator/src/evidence/scanner-analysis.ts",
+        "packages/check-orchestrator/src/manifest/documented-commands.ts",
+        "packages/check-orchestrator/src/manifest/workflows.ts",
+        "scripts/check-backend-typecheck-smoke.ts",
+        "scripts/check-diagnostics-single-family-egress.ts",
+        "scripts/check-docs-reference-surface.ts",
+        "scripts/check-docs-site-contracts.ts",
+        "scripts/check-docs-site-smoke.mjs",
+        "scripts/check-docs-version-governance.ts",
+        "scripts/check-docs-version-strings.ts",
+        "scripts/check-engine-v2-contract-idl-fixtures.ts",
+        "scripts/check-gate-falsifier-disclosure.ts",
+        "scripts/check-js-bundler-host-no-regex-classmap.ts",
+        "scripts/check-js-bundler-host-plugin-kind.ts",
+        "scripts/check-linked-emission-default-surfaces.ts",
+        "scripts/check-packaged-engine-shadow-runner-matrix.mjs",
+        "scripts/check-packaged-omena-lsp-server-type-fact-protocol.ts",
+        "scripts/check-packaged-selected-query-default.ts",
+        "scripts/check-packaged-tsgo-binary.mjs",
+        "scripts/check-plugin-bundler-product-gate.mjs",
+        "scripts/check-provider-host-routing-boundary.ts",
+        "scripts/check-rust-benchmark-ci-reachability.ts",
+        "scripts/check-rust-contract-shape-census.ts",
+        "scripts/check-rust-core-layer-hygiene.ts",
+        "scripts/check-rust-cst-typed-egress-closure.ts",
+        "scripts/check-rust-demand-sliced-monotone-fact-propagation-relocation-gate.ts",
+        "scripts/check-rust-domain-claim-census.ts",
+        "scripts/check-rust-evidence-graph-single-authority.ts",
+        "scripts/check-rust-frame-refresh-runtime-disposition.ts",
+        "scripts/check-rust-guarded-cascade-winner-closure.ts",
+        "scripts/check-rust-line-index-authority.ts",
+        "scripts/check-rust-m4-gamma-readiness.ts",
+        "scripts/check-rust-no-split-repo-residue.ts",
+        "scripts/check-rust-omena-bundler-closed-world-authority.ts",
+        "scripts/check-rust-omena-cascade-layer-rank-construction.ts",
+        "scripts/check-rust-omena-cascade-property-metadata.ts",
+        "scripts/check-rust-omena-cli-bundle-origin-chain.ts",
+        "scripts/check-rust-omena-cli-json-output-census.ts",
+        "scripts/check-rust-omena-closed-world-admission-tier.ts",
+        "scripts/check-rust-omena-crate-boundary-reviews.ts",
+        "scripts/check-rust-omena-cross-surface-parity.ts",
+        "scripts/check-rust-omena-css-rustdoc-coverage.ts",
+        "scripts/check-rust-omena-diff-test-sass-spec-scale.ts",
+        "scripts/check-rust-omena-diff-test-sass-spec-upstream-scale.ts",
+        "scripts/check-rust-omena-diff-test-wpt-expectations.ts",
+        "scripts/check-rust-omena-fact-precision-census.ts",
+        "scripts/check-rust-omena-identifier-authority-census.ts",
+        "scripts/check-rust-omena-keyword-case-authority-census.ts",
+        "scripts/check-rust-omena-literal-evidence-census.ts",
+        "scripts/check-rust-omena-lsp-server-boundary.ts",
+        "scripts/check-rust-omena-lsp-server-parser-consumer.ts",
+        "scripts/check-rust-omena-lsp-server-query-read-boundary.ts",
+        "scripts/check-rust-omena-lsp-server-tide-sole-authority.ts",
+        "scripts/check-rust-omena-module-qualified-product-path.ts",
+        "scripts/check-rust-omena-plugin-consumption-law.ts",
+        "scripts/check-rust-omena-precision-witness-census.ts",
+        "scripts/check-rust-omena-query-bundle-execution-scope.ts",
+        "scripts/check-rust-omena-query-cascade-input-authority.ts",
+        "scripts/check-rust-omena-query-consumer-facade.ts",
+        "scripts/check-rust-omena-query-public-surface.ts",
+        "scripts/check-rust-omena-resolver-identity-index-callers.ts",
+        "scripts/check-rust-omena-resolver-runner-boundary.ts",
+        "scripts/check-rust-omena-response-surface-split-census.ts",
+        "scripts/check-rust-omena-sdk-workflow-parity.ts",
+        "scripts/check-rust-omena-sif-shard-trust-census.ts",
+        "scripts/check-rust-omena-source-type-fact-shape-census.ts",
+        "scripts/check-rust-omena-style-resolution-authority.ts",
+        "scripts/check-rust-omena-syntax-authority-raw-scan-census.ts",
+        "scripts/check-rust-omena-syntax-extraction-decision.ts",
+        "scripts/check-rust-omena-syntax-parser-cst-equivalence.ts",
+        "scripts/check-rust-omena-top-provenance-census.ts",
+        "scripts/check-rust-omena-verification-targets.ts",
+        "scripts/check-rust-omena-wpt-attribution.ts",
+        "scripts/check-rust-omena-write-safety.ts",
+        "scripts/check-rust-precision-floor.ts",
+        "scripts/check-rust-proof-kernel.ts",
+        "scripts/check-rust-ranked-set-loss-census.ts",
+        "scripts/check-rust-selected-query-workspace.ts",
+        "scripts/check-rust-sif-attestation-feature.ts",
+        "scripts/check-rust-source-frontend-parity-ledger.ts",
+        "scripts/check-ts7-ts-api-surface-lock.ts",
+        "scripts/contract-parity-v2-fixture-selection.ts",
+        "scripts/coverage-gap-report.ts",
+        "scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts",
+        "scripts/generate-rust-omena-value-grammar-corpus.ts",
+        "scripts/generate-sass-spec-conformance-corpus.ts",
+        "scripts/generate-sass-spec-corpus.ts",
+        "scripts/measure-css-module-token-shapes.ts",
+        "scripts/measure-rust-omena-diagnostic-transition-attribution.ts",
+        "scripts/merge-engine-shadow-runner-artifacts.mjs",
+        "scripts/oss-corpus-farm.ts",
+        "scripts/prepare-tsgo-binary.mjs",
+        "scripts/rename-selector.ts",
+        "scripts/restore-native-binary-permissions.mjs"
+      ],
+      "inputArtifactPaths": ["rust/evidence-scan-surfaces.json"],
+      "writerGateIds": ["tooling/evidence-affected-map"],
+      "consumerPaths": ["packages/check-orchestrator/src/evidence/affected-evidence.ts"],
+      "consumerGateIds": []
+    },
+    {
+      "artifactPath": "rust/feature-resolved-product-reachability.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/feature-resolved-product-reachability.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": ["scripts/check-rust-feature-resolved-product-reachability.ts"],
+      "consumerGateIds": ["rust/feature-resolved-product-reachability"]
+    },
+    {
+      "artifactPath": "rust/frame-refresh-runtime-disposition.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/frame-refresh-runtime-disposition.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": ["scripts/check-rust-frame-refresh-runtime-disposition.ts"],
+      "consumerGateIds": ["rust/frame-refresh-runtime-disposition"]
+    },
+    {
+      "artifactPath": "rust/omena-bundler-host-residual-ledger.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-bundler-host-residual-ledger.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": ["scripts/check-js-bundler-host-plugin-kind.ts"],
+      "consumerGateIds": ["rust/omena-js-bundler-host-plugin-kind"]
+    },
+    {
+      "artifactPath": "rust/omena-cascade-layer-rank-construction-census.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-cascade-layer-rank-construction-census.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": ["scripts/check-rust-omena-cascade-layer-rank-construction.ts"],
+      "consumerGateIds": ["rust/omena-cascade/layer-rank-construction"]
+    },
+    {
+      "artifactPath": "rust/omena-cross-surface-parity-golden.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-omena-cross-surface-parity.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omena-cross-surface-parity.ts",
+        "--write"
+      ],
+      "inputScannerPaths": ["scripts/check-rust-omena-cross-surface-parity.ts"],
+      "inputArtifactPaths": [],
+      "writerGateIds": ["rust/omena-cross-surface-parity", "rust/omena-cross-surface-parity-full"],
+      "consumerPaths": ["scripts/check-rust-omena-cross-surface-parity.ts"],
+      "consumerGateIds": ["rust/omena-cross-surface-parity", "rust/omena-cross-surface-parity-full"]
+    },
+    {
+      "artifactPath": "rust/omena-css-identifier-safety-cases.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-css-identifier-safety-cases.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "rust/crates/omena-bridge/src/source_syntax/tests.rs",
+        "rust/crates/omena-lsp-server/src/source_type_facts.rs"
+      ],
+      "consumerGateIds": []
+    },
+    {
+      "artifactPath": "rust/omena-css-module-token-literal-policy.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-css-module-token-literal-policy.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "rust/crates/omena-napi/src/lib.rs",
+        "rust/crates/omena-wasm/src/lib.rs",
+        "scripts/check-docs-reference-surface.ts"
+      ],
+      "consumerGateIds": ["docs/reference-surface", "docs/reference-surface:update"]
+    },
+    {
+      "artifactPath": "rust/omena-css-module-token-shape-measurement.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/measure-css-module-token-shapes.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "scripts/measure-css-module-token-shapes.ts",
+        "--corpus-root",
+        "${OMENA_TOKEN_CORPUS_ROOT}",
+        "--identity-manifest",
+        "react-ts-css=${OMENA_TOKEN_IDENTITY_REACT_TS_CSS}",
+        "--identity-manifest",
+        "mkn=${OMENA_TOKEN_IDENTITY_MKN}",
+        "--identity-manifest",
+        "docusaurus=${OMENA_TOKEN_IDENTITY_DOCUSAURUS}",
+        "--write"
+      ],
+      "requiredEnvironmentKeys": [
+        "OMENA_TOKEN_CORPUS_ROOT",
+        "OMENA_TOKEN_IDENTITY_REACT_TS_CSS",
+        "OMENA_TOKEN_IDENTITY_MKN",
+        "OMENA_TOKEN_IDENTITY_DOCUSAURUS"
+      ],
+      "inputScannerPaths": ["scripts/measure-css-module-token-shapes.ts"],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": ["scripts/measure-css-module-token-shapes.ts"],
+      "consumerGateIds": []
+    },
+    {
+      "artifactPath": "rust/omena-custom-property-diagnostic-census.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-custom-property-diagnostic-census.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "scripts/check-rust-omena-custom-property-fixed-point-formalization.ts",
+        "scripts/measure-rust-omena-diagnostic-transition-attribution.ts"
+      ],
+      "consumerGateIds": ["rust/omena-custom-property-fixed-point-formalization"]
+    },
+    {
+      "artifactPath": "rust/omena-custom-property-fixed-point-gap-register.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-custom-property-fixed-point-gap-register.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "docs/concepts/custom-property-bounded-substitution.md",
+        "scripts/check-rust-omena-custom-property-fixed-point-formalization.ts"
+      ],
+      "consumerGateIds": ["rust/omena-custom-property-fixed-point-formalization"]
+    },
+    {
+      "artifactPath": "rust/omena-debt-ledger.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-debt-ledger.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        ".github/CODEOWNERS",
+        "scripts/check-rust-omena-cli-verb-census.ts",
+        "scripts/check-rust-omena-config-schema-census.ts",
+        "scripts/check-rust-omena-debt-clock.ts",
+        "scripts/lib/query-consumer-family.ts"
+      ],
+      "consumerGateIds": [
+        "rust/omena-cli-verb-census",
+        "rust/omena-config-schema-census",
+        "rust/omena-debt-clock"
+      ]
+    },
+    {
+      "artifactPath": "rust/omena-domain-claim-census.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-domain-claim-census.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-domain-claim-census.ts",
+        "--write"
+      ],
+      "inputScannerPaths": ["scripts/check-rust-domain-claim-census.ts"],
+      "inputArtifactPaths": ["rust/omena-response-surface-split-census.json"],
+      "writerGateIds": ["rust/domain-claim-census"],
+      "consumerPaths": ["scripts/check-rust-domain-claim-census.ts"],
+      "consumerGateIds": ["rust/domain-claim-census"]
+    },
+    {
+      "artifactPath": "rust/omena-domain-claim-rename-map.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rename map",
+        "run domain claim census",
+        "review diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "scripts/check-rust-domain-claim-census.ts",
+        "scripts/check-rust-omena-query-dead-reexports.ts"
+      ],
+      "consumerGateIds": [
+        "rust/domain-claim-census",
+        "rust/omena-query/dead-reexport-removal-measurement",
+        "rust/omena-query/dead-reexports"
+      ]
+    },
+    {
+      "artifactPath": "rust/omena-emission-order-residual-ledger.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-emission-order-residual-ledger.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": ["scripts/check-rust-omena-bundler-emission-order-contract.ts"],
+      "consumerGateIds": ["rust/omena-bundler/emission-order-contract"]
+    },
+    {
+      "artifactPath": "rust/omena-fact-precision-production-census.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-omena-fact-precision-census.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omena-fact-precision-census.ts",
+        "--write"
+      ],
+      "inputScannerPaths": ["scripts/check-rust-omena-fact-precision-census.ts"],
+      "inputArtifactPaths": [],
+      "writerGateIds": ["rust/omena-fact-precision-census"],
+      "consumerPaths": ["scripts/check-rust-omena-fact-precision-census.ts"],
+      "consumerGateIds": ["rust/omena-fact-precision-census"]
+    },
+    {
+      "artifactPath": "rust/omena-ffi-boundary-typing-census.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-omena-ffi-boundary-typing-census.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omena-ffi-boundary-typing-census.ts",
+        "--write"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": ["scripts/check-rust-omena-ffi-boundary-typing-census.ts"],
+      "consumerGateIds": ["rust/omena-ffi-boundary-typing-census"]
+    },
+    {
+      "artifactPath": "rust/omena-identifier-authority-census.json",
+      "classification": "W1",
+      "writerNodeKind": "self-ratchet",
+      "writerScripts": ["scripts/check-rust-omena-identifier-authority-census.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omena-identifier-authority-census.ts",
+        "--write"
+      ],
+      "inputScannerPaths": ["scripts/check-rust-omena-identifier-authority-census.ts"],
+      "inputArtifactPaths": [
+        "rust/omena-identifier-authority-census.json",
+        "rust/omena-syntax-authority-raw-scan-census.json"
+      ],
+      "writerGateIds": [
+        "rust/omena-syntax-authority-raw-scan-census",
+        "rust/omena-syntax-authority-raw-scan-census:update"
+      ],
+      "consumerPaths": [
+        "rust/omena-domain-claim-rename-map.json",
+        "scripts/check-rust-omena-identifier-authority-census.selftest.mjs",
+        "scripts/check-rust-omena-identifier-authority-census.ts",
+        "scripts/lib/rust-semver-intent.ts"
+      ],
+      "consumerGateIds": [
+        "rust/omena-identifier-authority-matrix",
+        "rust/omena-identifier-authority-mutations",
+        "rust/omena-syntax-authority-raw-scan-census",
+        "rust/omena-syntax-authority-raw-scan-census:update"
+      ]
+    },
+    {
+      "artifactPath": "rust/omena-identifier-authority-seal-decision.json",
+      "classification": "W4",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "disposition": "reviewer-retire-proposal",
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [],
+      "consumerGateIds": []
+    },
+    {
+      "artifactPath": "rust/omena-identifier-authority-sites.json",
+      "classification": "W4",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "disposition": "reviewer-retire-proposal",
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [],
+      "consumerGateIds": []
+    },
+    {
+      "artifactPath": "rust/omena-keyword-case-authority-census.json",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-omena-keyword-case-authority-census.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omena-keyword-case-authority-census.ts",
+        "--write"
+      ],
+      "inputScannerPaths": ["scripts/check-rust-omena-keyword-case-authority-census.ts"],
+      "inputArtifactPaths": [],
+      "writerGateIds": [
+        "rust/omena-keyword-case-authority-census",
+        "rust/omena-keyword-case-authority-census:update"
+      ],
+      "consumerPaths": ["scripts/check-rust-omena-keyword-case-authority-census.ts"],
+      "consumerGateIds": [
+        "rust/omena-keyword-case-authority-census",
+        "rust/omena-keyword-case-authority-census:update"
+      ]
+    },
+    {
+      "artifactPath": "rust/omena-linked-emission-byte-differential-baseline.json",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
+        "--update-census"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": ["scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts"],
+      "consumerGateIds": [
+        "rust/omena-bundler/linked-emission-byte-differential",
+        "rust/omena-linked-emission-coverage-census:update"
+      ]
+    },
+    {
+      "artifactPath": "rust/omena-linked-emission-default-surfaces.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-linked-emission-default-surfaces.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "scripts/check-docs-version-governance.ts",
+        "scripts/check-linked-emission-default-surfaces.ts"
+      ],
+      "consumerGateIds": [
+        "docs/version-governance",
+        "rust/omena-bundler/linked-emission-default-surfaces"
+      ]
+    },
+    {
+      "artifactPath": "rust/omena-linked-emission-falsifier-evidence.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-gate-falsifier-disclosure.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-gate-falsifier-disclosure.ts",
+        "--write"
+      ],
+      "inputScannerPaths": ["scripts/check-gate-falsifier-disclosure.ts"],
+      "inputArtifactPaths": [],
+      "writerGateIds": ["rust/omena-bundler/linked-emission-falsifier-disclosure"],
+      "consumerPaths": ["scripts/check-gate-falsifier-disclosure.ts"],
+      "consumerGateIds": ["rust/omena-bundler/linked-emission-falsifier-disclosure"]
+    },
+    {
+      "artifactPath": "rust/omena-linked-emission-instrument-domain.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-linked-emission-instrument-domain.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": ["scripts/check-gate-falsifier-disclosure.ts"],
+      "consumerGateIds": ["rust/omena-bundler/linked-emission-falsifier-disclosure"]
+    },
+    {
+      "artifactPath": "rust/omena-linked-emission-instrument-map.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-gate-falsifier-disclosure.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-gate-falsifier-disclosure.ts",
+        "--write"
+      ],
+      "inputScannerPaths": ["scripts/check-gate-falsifier-disclosure.ts"],
+      "inputArtifactPaths": [],
+      "writerGateIds": ["rust/omena-bundler/linked-emission-falsifier-disclosure"],
+      "consumerPaths": ["scripts/check-gate-falsifier-disclosure.ts"],
+      "consumerGateIds": ["rust/omena-bundler/linked-emission-falsifier-disclosure"]
+    },
+    {
+      "artifactPath": "rust/omena-linked-emission-legacy-removal-ledger.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-linked-emission-legacy-removal-ledger.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": ["rust/omena-linked-emission-default-surfaces.json"],
+      "consumerGateIds": []
+    },
+    {
+      "artifactPath": "rust/omena-literal-evidence-census.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-omena-literal-evidence-census.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omena-literal-evidence-census.ts",
+        "--write"
+      ],
+      "inputScannerPaths": ["scripts/check-rust-omena-literal-evidence-census.ts"],
+      "inputArtifactPaths": [],
+      "writerGateIds": ["rust/omena-literal-evidence-census"],
+      "consumerPaths": ["scripts/check-rust-omena-literal-evidence-census.ts"],
+      "consumerGateIds": ["rust/omena-literal-evidence-census"]
+    },
+    {
+      "artifactPath": "rust/omena-minify-differential-report.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-omena-query-transform-differential.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omena-query-transform-differential.ts",
+        "--write"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": ["scripts/check-rust-omena-query-transform-differential.ts"],
+      "consumerGateIds": ["rust/omena-query/transform-differential"]
+    },
+    {
+      "artifactPath": "rust/omena-module-qualified-product-path-census.json",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-omena-module-qualified-product-path.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omena-module-qualified-product-path.ts",
+        "--write"
+      ],
+      "inputScannerPaths": ["scripts/check-rust-omena-module-qualified-product-path.ts"],
+      "inputArtifactPaths": [],
+      "writerGateIds": [
+        "rust/omena-module-qualified-product-path-census:update",
+        "rust/omena-query/module-qualified-product-path"
+      ],
+      "consumerPaths": ["scripts/check-rust-omena-module-qualified-product-path.ts"],
+      "consumerGateIds": [
+        "rust/omena-module-qualified-product-path-census:update",
+        "rust/omena-query/module-qualified-product-path"
+      ]
+    },
+    {
+      "artifactPath": "rust/omena-omenad-substrate-inventory.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-omenad-substrate-inventory.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omenad-substrate-inventory.ts",
+        "--write"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": ["scripts/check-rust-omenad-substrate-inventory.ts"],
+      "consumerGateIds": ["rust/omenad-substrate-inventory"]
+    },
+    {
+      "artifactPath": "rust/omena-precision-calibration-report.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-precision-calibration-report.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "rust/crates/omena-query/src/style/transform.rs",
+        "rust/crates/omena-query/src/tests/consumer_reachability.rs"
+      ],
+      "consumerGateIds": []
+    },
+    {
+      "artifactPath": "rust/omena-precision-witness-census.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-omena-precision-witness-census.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omena-precision-witness-census.ts",
+        "--write"
+      ],
+      "inputScannerPaths": ["scripts/check-rust-omena-precision-witness-census.ts"],
+      "inputArtifactPaths": [],
+      "writerGateIds": ["rust/omena-precision-witness-census"],
+      "consumerPaths": ["scripts/check-rust-omena-precision-witness-census.ts"],
+      "consumerGateIds": ["rust/omena-precision-witness-census"]
+    },
+    {
+      "artifactPath": "rust/omena-product-path-matrix.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit path matrix",
+        "run product path matrix gate",
+        "review diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "ARCHITECTURE.md",
+        "scripts/check-docs-reference-surface.ts",
+        "scripts/check-rust-crate-documentation.ts",
+        "scripts/check-rust-omena-debt-clock.ts",
+        "scripts/check-rust-omena-identifier-authority-census.ts",
+        "scripts/check-rust-omena-syntax-authority-raw-scan-census.ts",
+        "scripts/check-rust-product-path-matrix.ts"
+      ],
+      "consumerGateIds": [
+        "docs/reference-surface",
+        "docs/reference-surface:update",
+        "rust/crate-documentation",
+        "rust/omena-debt-clock",
+        "rust/omena-syntax-authority-raw-scan-census",
+        "rust/omena-syntax-authority-raw-scan-census:update",
+        "rust/product-path-matrix"
+      ]
+    },
+    {
+      "artifactPath": "rust/omena-proof-kernel-self-produced-evidence-census.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-proof-kernel-self-produced-census.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-proof-kernel-self-produced-census.ts",
+        "--write"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": ["scripts/check-rust-proof-kernel-self-produced-census.ts"],
+      "consumerGateIds": ["rust/proof-kernel-self-produced-census"]
+    },
+    {
+      "artifactPath": "rust/omena-published-crate-surface-register.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-published-crate-surface-register.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-published-crate-surface-register.ts"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "scripts/check-rust-omena-cascade-layer-rank-construction.ts",
+        "scripts/check-rust-published-crate-surface-register.ts"
+      ],
+      "consumerGateIds": [
+        "rust/omena-cascade/layer-rank-construction",
+        "rust/published-crate-surface-register"
+      ]
+    },
+    {
+      "artifactPath": "rust/omena-published-release-baselines.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-published-release-baselines.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": ["docs/releases/PROCESS.md", "scripts/lib/rust-semver-intent.ts"],
+      "consumerGateIds": []
+    },
+    {
+      "artifactPath": "rust/omena-query-dead-reexport-experiment.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-query-dead-reexport-experiment.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "rust/omena-domain-claim-rename-map.json",
+        "scripts/check-rust-omena-query-dead-reexports.ts"
+      ],
+      "consumerGateIds": [
+        "rust/omena-query/dead-reexport-removal-measurement",
+        "rust/omena-query/dead-reexports"
+      ]
+    },
+    {
+      "artifactPath": "rust/omena-query-default-warning-dispositions.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-query-default-warning-dispositions.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": ["scripts/check-rust-omena-query-visibility-experiment.ts"],
+      "consumerGateIds": ["rust/omena-query/visibility-experiment"]
+    },
+    {
+      "artifactPath": "rust/omena-query-visibility-experiment.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-query-visibility-experiment.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "rust/omena-domain-claim-rename-map.json",
+        "scripts/check-rust-omena-query-visibility-experiment.ts"
+      ],
+      "consumerGateIds": ["rust/omena-query/visibility-experiment"]
+    },
+    {
+      "artifactPath": "rust/omena-resolver-identity-index-caller-census.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-omena-resolver-identity-index-callers.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omena-resolver-identity-index-callers.ts",
+        "--write"
+      ],
+      "inputScannerPaths": ["scripts/check-rust-omena-resolver-identity-index-callers.ts"],
+      "inputArtifactPaths": [],
+      "writerGateIds": ["rust/omena-resolver/identity-index-callers"],
+      "consumerPaths": ["scripts/check-rust-omena-resolver-identity-index-callers.ts"],
+      "consumerGateIds": ["rust/omena-resolver/identity-index-callers"]
+    },
+    {
+      "artifactPath": "rust/omena-response-surface-split-census.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-omena-response-surface-split-census.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omena-response-surface-split-census.ts",
+        "--write"
+      ],
+      "inputScannerPaths": ["scripts/check-rust-omena-response-surface-split-census.ts"],
+      "inputArtifactPaths": [],
+      "writerGateIds": ["rust/omena-response-surface-split-census"],
+      "consumerPaths": [
+        "rust/omena-domain-claim-rename-map.json",
+        "scripts/check-rust-domain-claim-census.ts",
+        "scripts/check-rust-omena-response-surface-split-census.ts"
+      ],
+      "consumerGateIds": ["rust/domain-claim-census", "rust/omena-response-surface-split-census"]
+    },
+    {
+      "artifactPath": "rust/omena-rust-semver-intent.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-rust-semver-intent.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "scripts/check-rust-domain-claim-census.ts",
+        "scripts/check-rust-frame-refresh-runtime-disposition.ts",
+        "scripts/check-rust-omena-query-visibility-experiment.ts",
+        "scripts/check-rust-sif-attestation-feature.ts",
+        "scripts/lib/rust-semver-intent.ts",
+        "scripts/release-notes.ts"
+      ],
+      "consumerGateIds": [
+        "release/check/release-notes",
+        "release/release/notes",
+        "rust/domain-claim-census",
+        "rust/frame-refresh-runtime-disposition",
+        "rust/omena-query/visibility-experiment",
+        "rust/sif-attestation-feature"
+      ]
+    },
+    {
+      "artifactPath": "rust/omena-rust-serde-field-contracts.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-contract-shape-census.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-contract-shape-census.ts",
+        "--write-serde"
+      ],
+      "inputScannerPaths": ["scripts/check-rust-contract-shape-census.ts"],
+      "inputArtifactPaths": [],
+      "writerGateIds": ["rust/contract-shape-census"],
+      "consumerPaths": ["scripts/check-rust-contract-shape-census.ts"],
+      "consumerGateIds": ["rust/contract-shape-census"]
+    },
+    {
+      "artifactPath": "rust/omena-sdk-error-mapping-census.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-omena-sdk-error-mapping-census.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omena-sdk-error-mapping-census.ts",
+        "--write"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "rust/omena-sdk-program-api-residuals.json",
+        "scripts/check-rust-omena-cross-surface-parity.ts",
+        "scripts/check-rust-omena-sdk-error-mapping-census.ts"
+      ],
+      "consumerGateIds": [
+        "rust/omena-cross-surface-parity",
+        "rust/omena-cross-surface-parity-full",
+        "rust/omena-sdk-error-mapping-census"
+      ]
+    },
+    {
+      "artifactPath": "rust/omena-sdk-program-api-residuals.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-sdk-program-api-residuals.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": ["scripts/check-rust-omena-cross-surface-parity.ts"],
+      "consumerGateIds": ["rust/omena-cross-surface-parity", "rust/omena-cross-surface-parity-full"]
+    },
+    {
+      "artifactPath": "rust/omena-sdk-workflow-parity-matrix.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-omena-sdk-workflow-parity.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omena-sdk-workflow-parity.ts",
+        "--write"
+      ],
+      "inputScannerPaths": ["scripts/check-rust-omena-sdk-workflow-parity.ts"],
+      "inputArtifactPaths": [],
+      "writerGateIds": ["rust/omena-cross-surface-parity-full"],
+      "consumerPaths": [
+        "ARCHITECTURE.md",
+        "rust/omena-sdk-program-api-residuals.json",
+        "scripts/check-docs-reference-surface.ts",
+        "scripts/check-rust-omena-sdk-workflow-parity.ts"
+      ],
+      "consumerGateIds": [
+        "docs/reference-surface",
+        "docs/reference-surface:update",
+        "rust/omena-cross-surface-parity-full"
+      ]
+    },
+    {
+      "artifactPath": "rust/omena-source-frontend-parity-ledger.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-source-frontend-parity-ledger.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": ["scripts/check-rust-source-frontend-parity-ledger.ts"],
+      "consumerGateIds": ["rust/source-frontend/parity-ledger"]
+    },
+    {
+      "artifactPath": "rust/omena-source-type-fact-shape-census.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-omena-source-type-fact-shape-census.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omena-source-type-fact-shape-census.ts",
+        "--write"
+      ],
+      "inputScannerPaths": ["scripts/check-rust-omena-source-type-fact-shape-census.ts"],
+      "inputArtifactPaths": [],
+      "writerGateIds": ["rust/omena-source-type-fact-shape-census"],
+      "consumerPaths": ["scripts/check-rust-omena-source-type-fact-shape-census.ts"],
+      "consumerGateIds": ["rust/omena-source-type-fact-shape-census"]
+    },
+    {
+      "artifactPath": "rust/omena-style-resolution-authority-census.json",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-omena-style-resolution-authority.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omena-style-resolution-authority.ts",
+        "--write"
+      ],
+      "inputScannerPaths": ["scripts/check-rust-omena-style-resolution-authority.ts"],
+      "inputArtifactPaths": [],
+      "writerGateIds": [
+        "rust/omena-style-resolution-authority",
+        "rust/omena-style-resolution-authority:update"
+      ],
+      "consumerPaths": ["scripts/check-rust-omena-style-resolution-authority.ts"],
+      "consumerGateIds": [
+        "rust/omena-style-resolution-authority",
+        "rust/omena-style-resolution-authority:update"
+      ]
+    },
+    {
+      "artifactPath": "rust/omena-syntax-authority-raw-scan-census.json",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-omena-syntax-authority-raw-scan-census.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omena-syntax-authority-raw-scan-census.ts",
+        "--write"
+      ],
+      "inputScannerPaths": ["scripts/check-rust-omena-syntax-authority-raw-scan-census.ts"],
+      "inputArtifactPaths": [],
+      "writerGateIds": [
+        "rust/omena-syntax-authority-raw-scan-census",
+        "rust/omena-syntax-authority-raw-scan-census:update"
+      ],
+      "consumerPaths": ["scripts/check-rust-omena-syntax-authority-raw-scan-census.ts"],
+      "consumerGateIds": [
+        "rust/omena-syntax-authority-raw-scan-census",
+        "rust/omena-syntax-authority-raw-scan-census:update"
+      ]
+    },
+    {
+      "artifactPath": "rust/omena-top-provenance-census.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-omena-top-provenance-census.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omena-top-provenance-census.ts",
+        "--write"
+      ],
+      "inputScannerPaths": ["scripts/check-rust-omena-top-provenance-census.ts"],
+      "inputArtifactPaths": [],
+      "writerGateIds": ["rust/omena-top-provenance-census"],
+      "consumerPaths": ["scripts/check-rust-omena-top-provenance-census.ts"],
+      "consumerGateIds": ["rust/omena-top-provenance-census"]
+    },
+    {
+      "artifactPath": "rust/omena-two-tier-identity-inventory.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-two-tier-identity-contract.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-two-tier-identity-contract.ts",
+        "--write"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "rust/omena-two-tier-identity-contract.md",
+        "scripts/check-rust-two-tier-identity-contract.ts"
+      ],
+      "consumerGateIds": ["rust/two-tier-identity-contract"]
+    },
+    {
+      "artifactPath": "rust/product-surface-boundary-reviews.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "commit the source change",
+        "run --measure and hand-edit the measured review row",
+        "commit the refreshed evidence"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "CONTRIBUTING.md",
+        "packages/check-orchestrator/src/evidence/affected-evidence.ts",
+        "scripts/check-rust-omena-crate-boundary-reviews.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
+      ],
+      "consumerGateIds": ["rust/product-surface-boundary-reviews", "tooling/evidence-affected-map"]
+    }
+  ],
+  "notPreviewableInputs": [
+    {
+      "ownerId": "rust/omena-diff-test-dialect-seed",
+      "kind": "calendar-time",
+      "detail": "reviewAfter expiration is evaluated from the wall calendar"
+    },
+    {
+      "ownerId": "rust/omena-diff-test-external-corpus-differential",
+      "kind": "calendar-time",
+      "detail": "reviewAfter expiration is evaluated from the wall calendar"
+    },
+    {
+      "ownerId": "rust/omena-diff-test-wpt-expectations",
+      "kind": "calendar-time",
+      "detail": "reviewAfter expiration is evaluated from the wall calendar"
+    },
+    {
+      "ownerId": "rust/omena-diff-test-wpt-promotion",
+      "kind": "calendar-time",
+      "detail": "reviewAfter expiration is evaluated from the wall calendar"
+    },
+    {
+      "ownerId": "rust/omena-diff-test-wpt-seed",
+      "kind": "calendar-time",
+      "detail": "reviewAfter expiration is evaluated from the wall calendar"
+    },
+    {
+      "ownerId": "rust/omena-identifier-authority-mutations",
+      "kind": "environment",
+      "detail": "partition mutation job depends on OMENA_IDENTIFIER_AUTHORITY_MUTATION_PARTITION_COUNT and INDEX"
+    },
+    {
+      "ownerId": "scripts/check-rust-omena-identifier-authority-census.selftest.mjs",
+      "kind": "environment",
+      "detail": "checker-spawn falsifiers inject process environment keys"
+    },
+    {
+      "ownerId": "rust/product-surface-boundary-reviews.json",
+      "kind": "git-history",
+      "detail": "rev-list commit distance requires commit then measure then hand-edit then commit"
+    },
+    {
+      "ownerId": "evidence-writer-wrapper",
+      "kind": "concurrent-worktree",
+      "detail": "persistent mid-run input skew is rejected; ABA is outside the claim"
+    },
+    {
+      "ownerId": "scripts/oss-corpus-farm.ts",
+      "kind": "network-or-external-checkout",
+      "detail": "pinned external corpus fetch and checkout are not predicted from a local diff"
+    },
+    {
+      "ownerId": "scripts/measure-css-module-token-shapes.ts",
+      "kind": "network-or-external-checkout",
+      "detail": "the declared writer requires operator-supplied external corpus and identity-manifest paths"
+    },
+    {
+      "ownerId": "rust/lint-finding-census",
+      "kind": "built-binary",
+      "detail": "--omena-bin and OMENA_LINT_CENSUS_BINARY supply compiled bytes"
+    },
+    {
+      "ownerId": "evidence-writers-using-oxfmt",
+      "kind": "toolchain-bytes",
+      "detail": "formatter output depends on the pnpm-lock-pinned oxfmt binary"
+    }
+  ]
+}

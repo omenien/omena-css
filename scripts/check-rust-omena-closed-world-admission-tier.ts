@@ -1,8 +1,11 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const repositoryRoot = process.cwd();
 const rustRoot = `${repositoryRoot}/rust`;
@@ -994,7 +997,7 @@ function scanArmClaims(pattern: string): string[] {
   const matches: string[] = [];
   const forbiddenPattern = new RegExp(pattern, "u");
   const scanDirectory = (directory: string): void => {
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    for (const entry of evidenceScanSurface.readdirSync(directory, { withFileTypes: true })) {
       if (entry.isDirectory()) {
         if (entry.name !== "target") scanDirectory(join(directory, entry.name));
       } else if (entry.isFile()) {

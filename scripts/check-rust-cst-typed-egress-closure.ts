@@ -1,6 +1,9 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import assert from "node:assert/strict";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const repoRoot = process.cwd();
 const cratesRoot = path.join(repoRoot, "rust", "crates");
@@ -25,7 +28,8 @@ function shippedDependencyNames(crateName: string): string[] {
     .filter((name): name is string => Boolean(name));
 }
 
-const crateNames = readdirSync(cratesRoot, { withFileTypes: true })
+const crateNames = evidenceScanSurface
+  .readdirSync(cratesRoot, { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
   .toSorted();

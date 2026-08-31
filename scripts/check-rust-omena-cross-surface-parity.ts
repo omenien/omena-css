@@ -1,3 +1,4 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { strict as assert } from "node:assert";
@@ -7,6 +8,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { nativeRustBuildEnv } from "./lib/native-rust-toolchain";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 type Surface = "napi" | "wasm" | "cli";
 
@@ -199,7 +202,7 @@ process.stdout.write(
 
 function loadFixtures(): Fixture[] {
   if (process.env.OMENA_CROSS_SURFACE_PARITY_TEST_EMPTY_CORPUS === "1") return [];
-  return fs
+  return evidenceScanSurface
     .readdirSync(fixtureDir)
     .filter((name) => [".css", ".scss", ".less"].includes(path.extname(name)))
     .toSorted()

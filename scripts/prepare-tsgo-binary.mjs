@@ -1,7 +1,10 @@
 #!/usr/bin/env node
-import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest.ts";
+import { chmodSync, cpSync, existsSync, mkdirSync, statSync } from "node:fs";
 import module from "node:module";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const requireFromRepo = module.createRequire(path.join(repoRoot, "package.json"));
@@ -36,7 +39,7 @@ if (!existsSync(sourceBinaryPath)) {
 }
 
 mkdirSync(outputDir, { recursive: true });
-for (const entry of readdirSync(sourceLibDir, { withFileTypes: true })) {
+for (const entry of evidenceScanSurface.readdirSync(sourceLibDir, { withFileTypes: true })) {
   cpSync(path.join(sourceLibDir, entry.name), path.join(outputDir, entry.name), {
     recursive: true,
   });

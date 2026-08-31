@@ -20,6 +20,7 @@ pnpm omena-check doctor
 pnpm omena-check surface
 pnpm omena-check inventory --check
 pnpm omena-check affected --base=origin/master
+pnpm omena-check affected --evidence --check --base=origin/master
 pnpm omena-check probe
 ```
 
@@ -105,3 +106,39 @@ The remote helper does not include uncommitted files and does not wait unless
 full push workflow, and dispatches the allowlisted `CI Probe` workflow. Group
 coherent local commits and run the complete CI graph once at the final boundary
 instead of using full `master` pushes as an interactive debugger.
+
+## Evidence affected preview
+
+`affected --evidence` extends the same path plan with the generated scanner
+surface and evidence-writer registries. Check mode lists affected scanners,
+artifact writers in dependency order, excluded scanners, hand-authored or orphan
+artifacts marked `NOT-REFRESHED`, and every non-path input marked
+`NOT-PREVIEWABLE`. If the ordinary path plane requires full CI, the evidence
+result is always labelled `INSUFFICIENT-ALONE`; it never turns a full-CI decision
+into a narrow claim.
+
+The pre-push hook adds `--preview`. It runs only check-mode gates, cheapest
+ledger-priced gates first, up to a fixed 60-second estimated budget. Unpriced or
+over-budget gates are printed in the skipped list and remain for CI. A selected
+gate failure blocks the push. `OMENA_EVIDENCE_SWEEP=0` skips only this preview;
+`LEFTHOOK=0` remains the documented whole-hook emergency override.
+
+Writers are opt-in and never run from pre-push:
+
+```sh
+pnpm omena-check evidence-surfaces --check
+pnpm omena-check evidence-writers --check
+pnpm omena-check affected --evidence --write --base=origin/master
+```
+
+Write mode invokes generated and self-writing artifacts in declared DAG order
+with input digests checked again after each writer exits. Hand-authored and
+orphan artifacts are printed as `NOT-REFRESHED` with their procedure or review
+disposition. Calendar time, environment, git history, concurrent worktree
+mutation, external checkout/network state, built binaries, and toolchain bytes
+are explicitly outside diff-preview authority and are never reported green.
+The token-shape measurement writer therefore requires
+`OMENA_TOKEN_CORPUS_ROOT`, `OMENA_TOKEN_IDENTITY_REACT_TS_CSS`,
+`OMENA_TOKEN_IDENTITY_MKN`, and `OMENA_TOKEN_IDENTITY_DOCUSAURUS`; absent inputs
+produce a typed `NOT-PREVIEWABLE` refusal instead of replaying stale temporary
+paths.

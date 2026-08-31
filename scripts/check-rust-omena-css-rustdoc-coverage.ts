@@ -1,6 +1,9 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const REPO_ROOT = process.cwd();
 const RUST_MANIFEST = path.join(REPO_ROOT, "rust", "Cargo.toml");
@@ -107,7 +110,7 @@ function collectPublicItems(crateName: string): PublicItem[] {
 }
 
 function collectRustFiles(dir: string): string[] {
-  return readdirSync(dir).flatMap((entry) => {
+  return evidenceScanSurface.readdirSync(dir).flatMap((entry) => {
     const filePath = path.join(dir, entry);
     const stats = statSync(filePath);
     if (stats.isDirectory()) return collectRustFiles(filePath);

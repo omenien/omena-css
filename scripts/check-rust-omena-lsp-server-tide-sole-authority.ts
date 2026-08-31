@@ -1,7 +1,10 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 interface TideAuthorityContract {
   readonly schemaVersion: string;
@@ -65,7 +68,8 @@ console.log(
 );
 
 function collectRustSources(directory: string): string[] {
-  return readdirSync(directory)
+  return evidenceScanSurface
+    .readdirSync(directory)
     .flatMap((entry) => {
       const candidate = path.join(directory, entry);
       return statSync(candidate).isDirectory() ? collectRustSources(candidate) : [candidate];

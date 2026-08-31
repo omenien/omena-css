@@ -1,7 +1,10 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const repoRoot = process.cwd();
 const args = new Set(process.argv.slice(2));
@@ -18,10 +21,11 @@ const firstWitnessPath = "rust/crates/omena-cascade/src/first_witness.rs";
 let firstWitness = fs.readFileSync(path.join(repoRoot, firstWitnessPath), "utf8");
 const atRuleCall = ["VariableOrderRegistrationV0::at_rule_", "nesting_dfs("].join("");
 const siteCall = ["VariableOrderRegistrationV0::site_", "first_appearance("].join("");
-const trackedRustSources = execFileSync("git", ["ls-files", "-z", "--", "*.rs"], {
-  cwd: repoRoot,
-  encoding: "utf8",
-})
+const trackedRustSources = evidenceScanSurface
+  .execFileSync("git", ["ls-files", "-z", "--", "*.rs"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  })
   .split("\0")
   .filter(Boolean)
   .filter(isProductionRustSource);
@@ -65,10 +69,11 @@ assert.ok(
   "site ordering sibling domain must remain explicitly named",
 );
 
-const trackedSources = execFileSync("git", ["ls-files", "-z"], {
-  cwd: repoRoot,
-  encoding: "utf8",
-})
+const trackedSources = evidenceScanSurface
+  .execFileSync("git", ["ls-files", "-z"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  })
   .split("\0")
   .filter(Boolean)
   .filter(isHonestClaimSurface);

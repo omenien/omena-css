@@ -1,6 +1,9 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { strict as assert } from "node:assert";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const RUNNER_PATH = path.join(process.cwd(), "rust/crates/engine-shadow-runner/src/main.rs");
 const QUERY_SRC_DIR = path.join(process.cwd(), "rust/crates/omena-query/src");
@@ -176,7 +179,8 @@ function readBraceBody(source: string, bodyStart: number): string {
 }
 
 function readRustSourceDirectory(directory: string): string {
-  return readdirSync(directory)
+  return evidenceScanSurface
+    .readdirSync(directory)
     .filter((entry) => entry.endsWith(".rs"))
     .toSorted()
     .map((entry) => readFileSync(path.join(directory, entry), "utf8"))

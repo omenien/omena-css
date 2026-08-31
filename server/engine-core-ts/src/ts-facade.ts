@@ -12,6 +12,10 @@ import ts from "typescript";
 // oxlint-disable-next-line import/no-default-export -- Preserve existing compiler API call-site shape behind the seam.
 export default ts;
 
+// Named form keeps ESM-only tooling on the governed compiler seam without
+// relying on CommonJS default-import interop at runtime.
+export const compilerApi = ts;
+
 export function nodeStart(node: ts.Node, sourceFile?: ts.SourceFile): number {
   return node.getStart(sourceFile);
 }

@@ -1,3 +1,4 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -6,6 +7,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { nativeRustBuildEnv } from "./lib/native-rust-toolchain";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 type Surface = "napi" | "wasm" | "cli" | "lsp";
 type Workflow = "snapshot" | "query" | "diagnostics" | "build" | "explain";
@@ -534,7 +537,7 @@ function assertGeneratedResponseAuthority(): void {
 }
 
 function listRustSources(root: string): string[] {
-  return fs.readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+  return evidenceScanSurface.readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
     const entryPath = path.join(root, entry.name);
     if (entry.isDirectory()) return listRustSources(entryPath);
     return entry.isFile() && entry.name.endsWith(".rs") ? [entryPath] : [];

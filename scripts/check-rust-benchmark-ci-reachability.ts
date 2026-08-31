@@ -1,5 +1,6 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import {
@@ -7,6 +8,8 @@ import {
   loadCheckManifest,
   resolveGateTarget,
 } from "../packages/check-orchestrator/src";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const OMENA_CHECK_TARGET_REF =
   /\bpnpm\s+(?:run\s+)?omena-check\s+(run|bundle)\s+([A-Za-z0-9:_@/.-]+)/g;
@@ -276,7 +279,7 @@ function collectWorkflowReachableGateIds(): Set<string> {
   const ids = new Set<string>();
   if (!existsSync(workflowsDir)) return ids;
 
-  for (const fileName of readdirSync(workflowsDir).toSorted()) {
+  for (const fileName of evidenceScanSurface.readdirSync(workflowsDir).toSorted()) {
     if (!fileName.endsWith(".yml") && !fileName.endsWith(".yaml")) continue;
     const workflowText = read(path.join(".github", "workflows", fileName));
     const targets = Array.from(workflowText.matchAll(OMENA_CHECK_TARGET_REF), (match) => match[2]);

@@ -1,7 +1,10 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 type Availability = "available" | "not-yet" | "skipped";
 type Scope = "userWorkspace" | "engineSelf";
@@ -73,7 +76,8 @@ for (const target of manifest.targets) {
 }
 
 const scriptsDirectory = path.join(repoRoot, "scripts");
-const scannedEngineScripts = readdirSync(scriptsDirectory)
+const scannedEngineScripts = evidenceScanSurface
+  .readdirSync(scriptsDirectory)
   .filter((fileName) => fileName.startsWith("check-rust-") && fileName.endsWith(".ts"))
   .map((fileName) => `scripts/${fileName}`)
   .filter((relativePath) => read(relativePath).includes(engineScopeMarker))

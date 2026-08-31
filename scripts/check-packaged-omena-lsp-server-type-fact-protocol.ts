@@ -1,10 +1,15 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
+
 const repoRoot = process.cwd();
-const vsixFiles = readdirSync(repoRoot).filter((file) => file.endsWith(".vsix"));
+const vsixFiles = evidenceScanSurface
+  .readdirSync(repoRoot)
+  .filter((file) => file.endsWith(".vsix"));
 if (vsixFiles.length !== 1) {
   throw new Error(`Expected exactly one VSIX in ${repoRoot}, found ${vsixFiles.length}`);
 }

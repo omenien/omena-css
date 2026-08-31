@@ -1,9 +1,12 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { loadDerivedPropertyMetadataRows } from "./property-metadata-registry";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const generatedRustPath = "rust/crates/omena-cascade/src/property_metadata_idl_generated.rs";
@@ -239,7 +242,7 @@ function collectPropertyMetadataCallers(): Array<{
 }
 
 function rustSourcePaths(directory: string): string[] {
-  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+  return evidenceScanSurface.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const entryPath = path.join(directory, entry.name);
     if (entry.isDirectory()) return rustSourcePaths(entryPath);
     return entry.isFile() && entry.name.endsWith(".rs") ? [entryPath] : [];

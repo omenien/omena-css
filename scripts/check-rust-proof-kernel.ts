@@ -1,7 +1,10 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const repoRoot = process.cwd();
 const catalogCratePath = path.join("rust/crates", ["omena", ["law", "vere"].join("")].join("-"));
@@ -616,11 +619,12 @@ function escapeRegExp(value: string): string {
 }
 
 function trackedRustSourceFiles(): readonly RustSourceFile[] {
-  const sourcePaths = execFileSync("git", ["ls-files", ":(glob)rust/crates/**/*.rs"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    maxBuffer: 64 * 1024 * 1024,
-  })
+  const sourcePaths = evidenceScanSurface
+    .execFileSync("git", ["ls-files", ":(glob)rust/crates/**/*.rs"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    })
     .trim()
     .split("\n")
     .filter(Boolean);

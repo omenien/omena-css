@@ -1,6 +1,9 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import fs from "node:fs";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const read = (relativePath: string) => fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
@@ -187,7 +190,7 @@ process.stdout.write(
 
 function packageSourceFiles(root: string): string[] {
   const files: string[] = [];
-  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+  for (const entry of evidenceScanSurface.readdirSync(root, { withFileTypes: true })) {
     if (entry.name === "node_modules" || entry.name === "dist") continue;
     const filePath = path.join(root, entry.name);
     if (entry.isDirectory()) {

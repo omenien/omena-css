@@ -15,3 +15,5 @@ pre-push:
     ts-format:
       glob: "*.{ts,tsx,mts,cts,js,mjs,cjs}"
       run: pnpm exec oxfmt --check .
+    evidence-affected-preview:
+      run: pnpm omena-check affected --evidence --check --preview

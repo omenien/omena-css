@@ -1,9 +1,12 @@
 #!/usr/bin/env node
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 import { assertRustCfgTestMaskContract, maskRustCfgTestItems } from "./lib/rust-cfg-test-mask";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 assertRustCfgTestMaskContract();
 
@@ -34,11 +37,12 @@ assert.match(
 
 const rustPaths = [
   ...new Set(
-    execFileSync(
-      "git",
-      ["ls-files", `:(glob)${querySourceRoot}/*.rs`, `:(glob)${querySourceRoot}/**/*.rs`],
-      { encoding: "utf8" },
-    )
+    evidenceScanSurface
+      .execFileSync(
+        "git",
+        ["ls-files", `:(glob)${querySourceRoot}/*.rs`, `:(glob)${querySourceRoot}/**/*.rs`],
+        { encoding: "utf8" },
+      )
       .trim()
       .split("\n")
       .filter(Boolean),

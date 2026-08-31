@@ -1,8 +1,11 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 interface ChangesetConfig {
   readonly ignore: readonly string[];
@@ -144,7 +147,8 @@ function readWorkspaceVersion(): string {
 
 function readPrivatePackageNames(): string[] {
   const packagesRoot = path.join(repoRoot, "packages");
-  return readdirSync(packagesRoot, { withFileTypes: true })
+  return evidenceScanSurface
+    .readdirSync(packagesRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => path.join("packages", entry.name, "package.json"))
     .filter((manifestPath) => existsSync(path.join(repoRoot, manifestPath)))

@@ -1,7 +1,10 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 interface MigratedFamily {
   readonly family: string;
@@ -49,7 +52,8 @@ function read(relativePath: string): string {
 
 function listRustFiles(relativeDir: string): string[] {
   const absoluteDir = path.join(repoRoot, relativeDir);
-  return readdirSync(absoluteDir)
+  return evidenceScanSurface
+    .readdirSync(absoluteDir)
     .flatMap((entry) => {
       const relativePath = path.join(relativeDir, entry);
       const absolutePath = path.join(repoRoot, relativePath);
@@ -63,7 +67,8 @@ function listRustFiles(relativeDir: string): string[] {
 
 function listFiles(relativeDir: string): string[] {
   const absoluteDir = path.join(repoRoot, relativeDir);
-  return readdirSync(absoluteDir)
+  return evidenceScanSurface
+    .readdirSync(absoluteDir)
     .flatMap((entry) => {
       const relativePath = path.join(relativeDir, entry);
       const absolutePath = path.join(repoRoot, relativePath);

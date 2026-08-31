@@ -1,3 +1,4 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -9,16 +10,19 @@ import {
   rustProductTestCargoInvocations,
 } from "./lib/rust-product-test-plan";
 
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const injectDefaultOn = process.argv.includes("--inject-default-on");
 const injectSilentSkip = process.argv.includes("--inject-silent-skip");
 const injectSecondOwner = process.argv.includes("--inject-second-owner");
 const injectUndeclaredRefusal = process.argv.includes("--inject-undeclared-refusal");
 
-const cargoManifestPaths = execFileSync("git", ["ls-files", "rust/**/Cargo.toml"], {
-  cwd: repoRoot,
-  encoding: "utf8",
-})
+const cargoManifestPaths = evidenceScanSurface
+  .execFileSync("git", ["ls-files", "rust/**/Cargo.toml"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  })
   .trim()
   .split("\n")
   .filter(Boolean);

@@ -1,8 +1,11 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 interface SymbolPopulation {
   readonly totalOccurrences: number;
@@ -343,7 +346,7 @@ function countCharacter(value: string, character: string): number {
 
 function rustSourceFiles(root: string): RustSourceFile[] {
   const files: RustSourceFile[] = [];
-  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+  for (const entry of evidenceScanSurface.readdirSync(root, { withFileTypes: true })) {
     if (entry.name === "target") {
       continue;
     }

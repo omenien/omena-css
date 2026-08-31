@@ -1,9 +1,12 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { spawnSync } from "node:child_process";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { strict as assert } from "node:assert";
 import { buildServerCapabilities } from "../server/lsp-server/src/server-capabilities";
 import { readRustPackageMetadata } from "./rust-package-metadata";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 interface RustOmenaLspServerBoundarySummary {
   readonly schemaVersion: string;
@@ -823,7 +826,7 @@ function assertLspServerHasNoNetworkSurface(root: string): void {
 }
 
 function collectFiles(root: string, extension: string): string[] {
-  const entries = readdirSync(root);
+  const entries = evidenceScanSurface.readdirSync(root);
   const files: string[] = [];
   for (const entry of entries) {
     const absolutePath = path.join(root, entry);

@@ -1,8 +1,11 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import ts from "../server/engine-core-ts/src/ts-facade";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 type SourceEntry = { readonly relativePath: string; source: string };
 type MergeSite = { readonly relativePath: string; readonly offset: number; readonly kind: string };
@@ -207,7 +210,7 @@ process.stdout.write(
 );
 
 function gitTrackedFiles(): string[] {
-  const result = spawnSync("git", ["ls-files", "-z"], {
+  const result = evidenceScanSurface.spawnSync("git", ["ls-files", "-z"], {
     cwd: repoRoot,
     encoding: "utf8",
   });

@@ -17,6 +17,7 @@
     "JsxAttribute",
     "LeftHandSideExpression",
     "LineAndCharacter",
+    "ModuleKind",
     "NoSubstitutionTemplateLiteral",
     "Node",
     "ObjectLiteralExpression",
@@ -58,6 +59,7 @@
     "isDoStatement",
     "isElementAccessExpression",
     "isExportAssignment",
+    "isExportDeclaration",
     "isExpression",
     "isExpressionStatement",
     "isForStatement",
@@ -67,6 +69,7 @@
     "isIdentifier",
     "isIfStatement",
     "isImportDeclaration",
+    "isImportEqualsDeclaration",
     "isJsxAttribute",
     "isJsxExpression",
     "isLabeledStatement",
@@ -92,6 +95,7 @@
     "isShorthandPropertyAssignment",
     "isSourceFile",
     "isSpreadElement",
+    "isStatement",
     "isStringLiteral",
     "isSwitchStatement",
     "isTaggedTemplateExpression",
@@ -104,6 +108,7 @@
     "isVariableDeclaration",
     "isVariableStatement",
     "isWhileStatement",
-    "sys"
+    "sys",
+    "transpileModule"
   ]
 }

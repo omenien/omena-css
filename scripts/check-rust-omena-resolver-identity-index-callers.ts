@@ -1,3 +1,4 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -6,6 +7,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { assertRustCfgTestMaskContract, maskRustCfgTestItems } from "./lib/rust-cfg-test-mask";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 assertRustCfgTestMaskContract();
 
@@ -191,16 +194,17 @@ function loadTrackedRustSources(
   includeFreshBuildPerEdge: boolean,
   ref: string | undefined,
 ): RustSource[] {
-  const result = spawnSync(
-    "git",
+  const result =
     ref === undefined
-      ? ["ls-files", "rust/crates", "rust/fuzz", "tools"]
-      : ["ls-tree", "-r", "--name-only", ref, "--", "rust/crates", "rust/fuzz", "tools"],
-    {
-      cwd: repoRoot,
-      encoding: "utf8",
-    },
-  );
+      ? evidenceScanSurface.spawnSync("git", ["ls-files", "rust/crates", "rust/fuzz", "tools"], {
+          cwd: repoRoot,
+          encoding: "utf8",
+        })
+      : spawnSync(
+          "git",
+          ["ls-tree", "-r", "--name-only", ref, "--", "rust/crates", "rust/fuzz", "tools"],
+          { cwd: repoRoot, encoding: "utf8" },
+        );
   assert.equal(
     result.status,
     0,

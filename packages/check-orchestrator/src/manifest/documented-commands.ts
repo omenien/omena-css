@@ -1,6 +1,9 @@
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { resolveScanSurfaceForScanner } from "../evidence/scan-surface-manifest";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import type { CheckDiagnostic, CheckGate } from "./types";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const PNPM_COMMAND_REF = /\bpnpm\s+(?:run\s+)?([A-Za-z0-9:_-]+)/g;
 const OMENA_CHECK_TARGET_REF =
@@ -186,7 +189,7 @@ function collectMarkdownCommands(
   directory: string,
   refs: MutableDocumentedReferences,
 ): void {
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+  for (const entry of evidenceScanSurface.readdirSync(directory, { withFileTypes: true })) {
     if (entry.isDirectory()) {
       if (IGNORED_DIRECTORIES.has(entry.name)) continue;
       collectMarkdownCommands(rootDir, path.join(directory, entry.name), refs);

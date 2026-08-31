@@ -1,13 +1,15 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import fg from "fast-glob";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 type BackendTypecheckVariant = "typescript-current" | "tsgo";
 
 const variant = readVariant();
 const fixtureRoot = path.resolve(process.cwd(), "test/_fixtures/backend-typecheck-smoke");
-const fixtureTsconfigs = fg
-  .sync("*/tsconfig.json", {
+const fixtureTsconfigs = evidenceScanSurface
+  .globSync("*/tsconfig.json", {
     cwd: fixtureRoot,
     absolute: true,
     onlyFiles: true,

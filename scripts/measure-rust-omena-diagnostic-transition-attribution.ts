@@ -1,3 +1,4 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -155,6 +156,11 @@ function ensureCommitAvailable(pin: string): void {
 }
 
 function installMeasurementProbe(worktreeRoot: string): void {
+  const trackedStylePaths = resolveScanSurfaceForScanner(import.meta.url, repoRoot, worktreeRoot)
+    .gitOutput(["ls-files", "--", "*.css", "*.scss", "*.less"])
+    .split(/\r?\n/u)
+    .filter(Boolean)
+    .toSorted(byteCompare);
   const probePath = path.join(
     worktreeRoot,
     "rust/crates/omena-query/tests/diagnostic_transition_attribution_probe.rs",
@@ -165,7 +171,7 @@ function installMeasurementProbe(worktreeRoot: string): void {
     summarize_omena_query_style_diagnostics_for_file,
     summarize_omena_query_style_hover_candidates,
 };
-use std::{collections::BTreeSet, fs, path::PathBuf, process::Command};
+use std::{collections::BTreeSet, fs, path::PathBuf};
 
 #[test]
 fn prints_invalid_property_value_locations() {
@@ -173,16 +179,8 @@ fn prints_invalid_property_value_locations() {
         .join("../../..")
         .canonicalize()
         .expect("repository root");
-    let tracked = Command::new("git")
-        .args(["ls-files", "--", "*.css", "*.scss", "*.less"])
-        .current_dir(&repo_root)
-        .output()
-        .expect("git ls-files for tracked style diagnostics corpus");
-    assert!(tracked.status.success());
-
-    let paths = String::from_utf8(tracked.stdout).expect("tracked paths are UTF-8");
     let mut locations = BTreeSet::<String>::new();
-    for relative_path in paths.lines() {
+    for relative_path in ${JSON.stringify(trackedStylePaths)} {
         if relative_path.split('/').any(|component| {
             matches!(
                 component,

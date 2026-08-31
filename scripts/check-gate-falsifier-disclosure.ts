@@ -1,8 +1,11 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 type DefectClass = "shaking" | "liveness" | "placement" | "accounting" | "structuralEntailment";
 
@@ -151,10 +154,11 @@ function assertionSyntax(line: string): string | undefined {
 }
 
 function trackedRustTestNames(): ReadonlySet<string> {
-  const files = execFileSync("git", ["ls-files", "rust/crates"], {
-    cwd: repositoryRoot,
-    encoding: "utf8",
-  })
+  const files = evidenceScanSurface
+    .execFileSync("git", ["ls-files", "rust/crates"], {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+    })
     .split(/\r?\n/u)
     .filter((file) => file.endsWith(".rs"));
   const names = new Set<string>();

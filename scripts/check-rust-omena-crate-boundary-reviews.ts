@@ -1,8 +1,11 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { execFileSync, spawnSync } from "node:child_process";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 type Decision = "promote" | "retain" | "revisit";
 
@@ -264,7 +267,7 @@ function checkerCliConsumers(): readonly string[] {
 function countSourceLines(root: string): number {
   if (statSync(root).isFile()) return lineCount(root);
   let count = 0;
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
+  for (const entry of evidenceScanSurface.readdirSync(root, { withFileTypes: true })) {
     const candidate = path.join(root, entry.name);
     if (entry.isDirectory()) {
       count += countSourceLines(candidate);

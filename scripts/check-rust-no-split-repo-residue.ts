@@ -1,7 +1,10 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 /**
  * rust/no-split-repo-residue
@@ -94,7 +97,7 @@ function referencesGitConsumer(text: string): boolean {
 
 // (1) No retired generator/subtree/git-consumer script under scripts/.
 const retiredScripts = existsSync(scriptsDir)
-  ? readdirSync(scriptsDir).filter(isRetiredScriptName).toSorted()
+  ? evidenceScanSurface.readdirSync(scriptsDir).filter(isRetiredScriptName).toSorted()
   : [];
 assert.equal(
   retiredScripts.length,
@@ -136,9 +139,9 @@ for (const [name, command] of Object.entries(scripts)) {
   }
 }
 if (existsSync(scriptsDir)) {
-  for (const entry of readdirSync(scriptsDir, { withFileTypes: true }).toSorted((left, right) =>
-    left.name.localeCompare(right.name),
-  )) {
+  for (const entry of evidenceScanSurface
+    .readdirSync(scriptsDir, { withFileTypes: true })
+    .toSorted((left, right) => left.name.localeCompare(right.name))) {
     if (!entry.isFile()) {
       continue;
     }

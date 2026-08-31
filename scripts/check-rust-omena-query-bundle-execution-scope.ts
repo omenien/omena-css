@@ -1,7 +1,10 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const transformPath = "rust/crates/omena-query/src/style/transform.rs";
 const queryTypesPath = "rust/crates/omena-query/src/types.rs";
@@ -89,7 +92,8 @@ const bundleModuleWireKeySample = asWireKeySample(
   "bundle-module-execution-wire-keys.json",
 );
 const foldContract = asObject(JSON.parse(readFileSync(foldContractPath, "utf8")));
-const executionWireKeySamples = readdirSync(executionWireFixtureDirectory)
+const executionWireKeySamples = evidenceScanSurface
+  .readdirSync(executionWireFixtureDirectory)
   .filter((fileName) => fileName.endsWith(".json"))
   .toSorted()
   .map((fileName) =>

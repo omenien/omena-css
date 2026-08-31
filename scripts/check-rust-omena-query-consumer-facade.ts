@@ -1,6 +1,9 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 type ConsumerCrate = {
   readonly crateName: string;
@@ -285,7 +288,7 @@ console.log(
 );
 
 function listRustSourceFiles(directory: string): string[] {
-  return readdirSync(directory).flatMap((entry) => {
+  return evidenceScanSurface.readdirSync(directory).flatMap((entry) => {
     const path = join(directory, entry);
     if (statSync(path).isDirectory()) {
       return listRustSourceFiles(path);

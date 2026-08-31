@@ -1,3 +1,4 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -5,6 +6,8 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertRustCfgTestMaskContract, maskRustCfgTestItems } from "./lib/rust-cfg-test-mask";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const deleteInventoryBuildCfgMask =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_DELETE_INVENTORY_BUILD_CFG_MASK === "1";
@@ -4711,7 +4714,7 @@ function validateGeneratedFixtureManifest(manifest: GeneratedFixtureManifest): v
 }
 
 function derivedEscapeAxisFromWorkspaceManifests(): readonly AuthoredEscapeId[] {
-  const manifestResult = spawnSync(
+  const manifestResult = evidenceScanSurface.spawnSync(
     "git",
     ["ls-files", "rust/Cargo.toml", "rust/crates/*/Cargo.toml"],
     {
@@ -8029,7 +8032,7 @@ function discoverAuthoredIdentityCarrierAudit(
       impls.set(implementation[2], typeImpls);
     }
   }
-  const testResult = spawnSync("git", ["ls-files", "rust/crates/**/*.rs"], {
+  const testResult = evidenceScanSurface.spawnSync("git", ["ls-files", "rust/crates/**/*.rs"], {
     cwd: repoRoot,
     encoding: "utf8",
   });
@@ -9237,7 +9240,7 @@ function stableSiteKey(
 }
 
 function trackedProductionSources(): string[] {
-  const result = spawnSync("git", ["ls-files", "rust/crates/**/*.rs"], {
+  const result = evidenceScanSurface.spawnSync("git", ["ls-files", "rust/crates/**/*.rs"], {
     cwd: repoRoot,
     encoding: "utf8",
   });
@@ -10059,10 +10062,14 @@ function authoredEscapeCannotSee(
     checkerPath,
     '.filter((sourcePath) => sourcePath.includes("/src/"))',
   );
-  const binaryResult = spawnSync("git", ["ls-files", "rust/crates/**/src/bin/*.rs"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
+  const binaryResult = evidenceScanSurface.spawnSync(
+    "git",
+    ["ls-files", "rust/crates/**/src/bin/*.rs"],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+    },
+  );
   assert.equal(binaryResult.status, 0, "failed to enumerate excluded Rust binaries");
   const binaries = binaryResult.stdout
     .split(/\r?\n/u)

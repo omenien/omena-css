@@ -1,6 +1,8 @@
-import { readdirSync } from "node:fs";
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import path from "node:path";
 import type { ContractParityEntryV2 } from "./contract-parity-corpus-v2";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 export function selectContractParityV2Entries(
   corpus: readonly ContractParityEntryV2[],
@@ -41,7 +43,8 @@ export function assertContractParityV2FixtureSet(
   corpus: readonly ContractParityEntryV2[],
 ): void {
   const expected = corpus.map((entry) => entry.label).toSorted();
-  const actual = readdirSync(fixturesRoot)
+  const actual = evidenceScanSurface
+    .readdirSync(fixturesRoot)
     .filter((fileName) => path.extname(fileName) === ".json")
     .map((fileName) => path.basename(fileName, ".json"))
     .toSorted();

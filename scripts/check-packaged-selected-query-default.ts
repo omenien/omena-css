@@ -1,5 +1,5 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { execFileSync } from "node:child_process";
-import { readdirSync } from "node:fs";
 import path from "node:path";
 import {
   isPackagedExtensionRuntime,
@@ -20,8 +20,12 @@ import {
   resolveOmenaLspServerPath,
 } from "../client/src/lsp-server-runtime-config";
 
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
+
 const repoRoot = process.cwd();
-const vsixFiles = readdirSync(repoRoot).filter((file) => file.endsWith(".vsix"));
+const vsixFiles = evidenceScanSurface
+  .readdirSync(repoRoot)
+  .filter((file) => file.endsWith(".vsix"));
 if (vsixFiles.length !== 1) {
   throw new Error(`Expected exactly one VSIX in ${repoRoot}, found ${vsixFiles.length}`);
 }

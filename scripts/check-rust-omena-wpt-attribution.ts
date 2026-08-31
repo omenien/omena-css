@@ -1,6 +1,9 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const repoRoot = process.cwd();
 const corpusRoot = path.join(repoRoot, "rust/crates/omena-diff-test/wpt-corpus");
@@ -88,7 +91,7 @@ function hasNoticeBoundary(startDirectory: string, stopDirectory: string): boole
 
 function collectFiles(root: string): string[] {
   const files: string[] = [];
-  for (const entry of readdirSync(root)) {
+  for (const entry of evidenceScanSurface.readdirSync(root)) {
     const filePath = path.join(root, entry);
     if (statSync(filePath).isDirectory()) {
       files.push(...collectFiles(filePath));

@@ -1,8 +1,11 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { formatGeneratedJson } from "./generated-json";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 export const COVERAGE_GAP_REPORT_PATH = "rust/crates/omena-spec-audit/data/omena-coverage-gap.json";
 export const WEBREF_GRAMMAR_PATH = "rust/crates/omena-spec-audit/data/webref-grammar.json";
@@ -1048,7 +1051,7 @@ function extractStaticCssFunctionSpecPairs(source: string): readonly string[] {
 
 function readRustSourcesRecursively(directory: string): readonly string[] {
   const sources: string[] = [];
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+  for (const entry of evidenceScanSurface.readdirSync(directory, { withFileTypes: true })) {
     const fullPath = path.join(directory, entry.name);
     if (entry.isDirectory()) {
       sources.push(...readRustSourcesRecursively(fullPath));

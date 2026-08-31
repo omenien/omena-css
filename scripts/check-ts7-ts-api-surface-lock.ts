@@ -1,6 +1,9 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 interface TsApiSurfaceAllowlist {
   readonly allowedTsSymbols: readonly string[];
@@ -19,6 +22,7 @@ const directTypeScriptImportPattern =
   /(?:from\s+["']typescript["']|import\s*\(\s*["']typescript["']\s*\)|require\s*\(\s*["']typescript["']\s*\))/;
 const facadeImportPattern =
   /import\s+(?:type\s+)?([A-Za-z_$][\w$]*)(?:\s*,\s*\{[^}]*\})?\s+from\s+["'][^"']*ts-facade["']/g;
+const facadeCompilerApiImportPattern = /import\s*\{([^}]*)\}\s*from\s*["'][^"']*ts-facade["']/g;
 const lossyMethodPattern =
   /\.(?:getStart|getEnd|getText)\s*\(|getLineAndCharacterOfPosition\s*\(|getPositionOfLineAndCharacter\s*\(/;
 
@@ -47,7 +51,10 @@ function main(): void {
       }
     }
 
-    for (const localName of collectFacadeDefaultImports(source)) {
+    for (const localName of [
+      ...collectFacadeDefaultImports(source),
+      ...collectFacadeCompilerApiImports(source),
+    ]) {
       for (const symbol of collectTsSymbols(source, localName)) {
         usedSymbols.add(symbol);
       }
@@ -88,7 +95,7 @@ function readAllowlist(): TsApiSurfaceAllowlist {
 
 function collectTsFiles(root: string): string[] {
   if (!existsSync(root)) return [];
-  const entries = readdirSync(root, { withFileTypes: true });
+  const entries = evidenceScanSurface.readdirSync(root, { withFileTypes: true });
   const files: string[] = [];
 
   for (const entry of entries) {
@@ -110,6 +117,17 @@ function collectFacadeDefaultImports(source: string): readonly string[] {
   const imports: string[] = [];
   for (const match of source.matchAll(facadeImportPattern)) {
     imports.push(match[1]!);
+  }
+  return imports;
+}
+
+function collectFacadeCompilerApiImports(source: string): readonly string[] {
+  const imports: string[] = [];
+  for (const match of source.matchAll(facadeCompilerApiImportPattern)) {
+    for (const binding of match[1]!.split(",")) {
+      const compilerApi = /^\s*compilerApi(?:\s+as\s+([A-Za-z_$][\w$]*))?\s*$/u.exec(binding);
+      if (compilerApi) imports.push(compilerApi[1] ?? "compilerApi");
+    }
   }
   return imports;
 }

@@ -1,7 +1,10 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 interface CssModuleTokenRotationContractV1 {
   readonly schemaVersion: "1";
@@ -337,7 +340,8 @@ process.stdout.write(
 );
 
 function collectPages(directory: string): string[] {
-  return readdirSync(directory, { withFileTypes: true })
+  return evidenceScanSurface
+    .readdirSync(directory, { withFileTypes: true })
     .flatMap((entry) => {
       const absolutePath = path.join(directory, entry.name);
       if (entry.isDirectory()) return collectPages(absolutePath);
@@ -347,7 +351,8 @@ function collectPages(directory: string): string[] {
 }
 
 function collectNamedFiles(directory: string, filename: string): string[] {
-  return readdirSync(directory, { withFileTypes: true })
+  return evidenceScanSurface
+    .readdirSync(directory, { withFileTypes: true })
     .flatMap((entry) => {
       const absolutePath = path.join(directory, entry.name);
       if (entry.isDirectory()) return collectNamedFiles(absolutePath, filename);
@@ -422,7 +427,8 @@ function verifyNavigationMetadata(metaPath: string) {
   assert.ok(Array.isArray(metadata.pages), `${relativePath} must declare a pages array`);
 
   const declaredPages = metadata.pages.filter((entry) => !entry.startsWith("---")).toSorted();
-  const availablePages = readdirSync(directory, { withFileTypes: true })
+  const availablePages = evidenceScanSurface
+    .readdirSync(directory, { withFileTypes: true })
     .flatMap((entry) => {
       if (entry.isDirectory()) {
         return existsSync(path.join(directory, entry.name, "meta.json")) ? [entry.name] : [];

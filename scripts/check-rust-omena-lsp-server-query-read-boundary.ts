@@ -1,6 +1,9 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 interface ReadViewFunction {
   readonly file: string;
@@ -141,7 +144,7 @@ console.log(
 );
 
 function rustFiles(directory: string): string[] {
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+  return evidenceScanSurface.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const absolutePath = path.join(directory, entry.name);
     if (entry.isDirectory()) return rustFiles(absolutePath);
     if (entry.isFile() && entry.name.endsWith(".rs") && statSync(absolutePath).isFile()) {

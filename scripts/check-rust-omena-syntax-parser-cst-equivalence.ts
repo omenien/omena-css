@@ -1,5 +1,8 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
+import { readFileSync } from "node:fs";
 import { strict as assert } from "node:assert";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const syntaxSource = readFileSync("rust/crates/omena-syntax/src/lib.rs", "utf8");
 
@@ -8,7 +11,8 @@ const syntaxSource = readFileSync("rust/crates/omena-syntax/src/lib.rs", "utf8")
 // equivalence assertions track the symbols by content, not by file location —
 // otherwise an internal module split silently drifts this gate stale.
 const parserSrcDir = "rust/crates/omena-parser/src";
-const parserSource = readdirSync(parserSrcDir, { recursive: true })
+const parserSource = evidenceScanSurface
+  .readdirSync(parserSrcDir, { recursive: true })
   .filter((entry): entry is string => typeof entry === "string" && entry.endsWith(".rs"))
   .map((entry) => readFileSync(`${parserSrcDir}/${entry}`, "utf8"))
   .join("\n");

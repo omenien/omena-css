@@ -1,8 +1,11 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const BOUNDARY_PRODUCT = "omena-diff-test.boundary";
 const SLOPE_PRODUCT = "omena-benchmarks.z5-perf-complexity-slope";
@@ -613,7 +616,8 @@ function rustSources(): { readonly file: string; readonly text: string }[] {
 }
 
 function collectRustFiles(directory: string): string[] {
-  return readdirSync(directory)
+  return evidenceScanSurface
+    .readdirSync(directory)
     .flatMap((entry) => {
       const path = join(directory, entry);
       const relativePath = relative(process.cwd(), path).split(sep).join("/");

@@ -1,5 +1,8 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const lspManifest = read("rust/crates/omena-lsp-server/Cargo.toml");
 const lspDependencies = readTomlTable(lspManifest, "dependencies");
@@ -83,7 +86,8 @@ const querySourcePaths = [
   "rust/crates/omena-query/src/style.rs",
   "rust/crates/omena-query/src/style/stylesheet_evaluation.rs",
   "rust/crates/omena-query/src/style/transform.rs",
-  ...readdirSync("rust/crates/omena-query/src/style/diagnostics")
+  ...evidenceScanSurface
+    .readdirSync("rust/crates/omena-query/src/style/diagnostics")
     .filter((entry) => entry.endsWith(".rs"))
     .map((entry) => `rust/crates/omena-query/src/style/diagnostics/${entry}`),
 ] as const;

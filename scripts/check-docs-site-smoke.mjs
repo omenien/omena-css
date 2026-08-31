@@ -1,7 +1,10 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest.ts";
 import { strict as assert } from "node:assert";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const docsRoot = path.join(repoRoot, "docs");
@@ -220,7 +223,7 @@ function normalizeBasePath(basePath) {
 
 function collect(directory, filePattern) {
   if (!existsSync(directory)) return [];
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+  return evidenceScanSurface.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const absolutePath = path.join(directory, entry.name);
     if (entry.isDirectory()) return collect(absolutePath, filePattern);
     return filePattern.test(absolutePath.replaceAll(path.sep, "/")) ? [absolutePath] : [];

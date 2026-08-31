@@ -1,5 +1,8 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const packageJson = readFileSync("package.json", "utf8");
 const syntaxSource = readFileSync("rust/crates/omena-syntax/src/lib.rs", "utf8");
@@ -9,7 +12,8 @@ const syntaxSource = readFileSync("rust/crates/omena-syntax/src/lib.rs", "utf8")
 // assertions track symbols by content, not by file location — and so the
 // "no local SyntaxKind enum" guard also covers submodules, not just lib.rs.
 const parserSrcDir = "rust/crates/omena-parser/src";
-const parserSource = readdirSync(parserSrcDir, { recursive: true })
+const parserSource = evidenceScanSurface
+  .readdirSync(parserSrcDir, { recursive: true })
   .filter((entry): entry is string => typeof entry === "string" && entry.endsWith(".rs"))
   .map((entry) => readFileSync(`${parserSrcDir}/${entry}`, "utf8"))
   .join("\n");

@@ -1,7 +1,10 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cratesRoot = path.join(repoRoot, "rust/crates");
@@ -217,7 +220,7 @@ function projectionCoreForbiddenReferenceOccurrences(source: string): SourceOccu
 }
 
 function rustSourceFiles(root: string): string[] {
-  const entries = readdirSync(root).sort();
+  const entries = evidenceScanSurface.readdirSync(root).sort();
   const files: string[] = [];
   for (const entry of entries) {
     const absolutePath = path.join(root, entry);

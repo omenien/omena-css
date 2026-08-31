@@ -1,7 +1,10 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 type WriteClassification = "artifact" | "bookkeeping" | "source-mutation-gate";
 
@@ -500,7 +503,7 @@ function sourceFiles(roots: readonly string[], extensions: readonly string[]): s
 
 function walk(relativeRoot: string): string[] {
   const absoluteRoot = path.join(repoRoot, relativeRoot);
-  return readdirSync(absoluteRoot, { withFileTypes: true }).flatMap((entry) => {
+  return evidenceScanSurface.readdirSync(absoluteRoot, { withFileTypes: true }).flatMap((entry) => {
     const relativePath = path.posix.join(relativeRoot, entry.name);
     return entry.isDirectory() ? walk(relativePath) : [relativePath];
   });

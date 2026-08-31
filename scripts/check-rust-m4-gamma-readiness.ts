@@ -1,5 +1,8 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 function read(path: string): string {
   return readFileSync(path, "utf8");
@@ -16,7 +19,7 @@ function assertIncludes(source: string, needle: string, message: string): void {
 }
 
 function rustFilesUnder(directory: string): string[] {
-  return readdirSync(directory).flatMap((entry) => {
+  return evidenceScanSurface.readdirSync(directory).flatMap((entry) => {
     const path = `${directory}/${entry}`;
     return statSync(path).isDirectory()
       ? rustFilesUnder(path)

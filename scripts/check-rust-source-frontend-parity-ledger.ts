@@ -1,8 +1,11 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import ts from "../server/engine-core-ts/src/ts-facade";
 import { resolveSourceFrontendBackendKind } from "../server/engine-host-node/src/source-frontend-analysis-provider";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const repoRoot = process.cwd();
 const ledgerPath = path.join(repoRoot, "rust/omena-source-frontend-parity-ledger.json");
@@ -983,7 +986,7 @@ function assertTsSourceFrontendOracleIsNotProductPath(): void {
 
 function listRepoFiles(relativeDir: string): readonly string[] {
   const absoluteDir = path.join(repoRoot, relativeDir);
-  return readdirSync(absoluteDir).flatMap((entry) => {
+  return evidenceScanSurface.readdirSync(absoluteDir).flatMap((entry) => {
     const relativePath = path.join(relativeDir, entry);
     const absolutePath = path.join(repoRoot, relativePath);
     const stats = statSync(absolutePath);

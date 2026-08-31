@@ -1,7 +1,10 @@
 #!/usr/bin/env node
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest.ts";
 import assert from "node:assert/strict";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const repoRoot = process.cwd();
 const evidencePath = path.join(repoRoot, "docs", "bundler-product-gate.json");
@@ -961,7 +964,7 @@ function findRepoFilesByExtensions(rootDir, extensions) {
 }
 
 function walkRepoFiles(dir, fileName, files) {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+  for (const entry of evidenceScanSurface.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
       if (shouldSkipScanDir(entry.name)) continue;
       walkRepoFiles(path.join(dir, entry.name), fileName, files);
@@ -974,7 +977,7 @@ function walkRepoFiles(dir, fileName, files) {
 }
 
 function walkRepoFilesByExtension(dir, extension, files) {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+  for (const entry of evidenceScanSurface.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
       if (shouldSkipScanDir(entry.name)) continue;
       walkRepoFilesByExtension(path.join(dir, entry.name), extension, files);

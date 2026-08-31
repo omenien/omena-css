@@ -597,7 +597,9 @@
     "release:verify": "pnpm omena-check bundle release/release/verify",
     "release:publish": "./scripts/publish-extension.sh",
     "check:ci-workflow": "node --import tsx ./packages/check-orchestrator/src/cli/main.ts ci-workflow",
-    "check:ci-cost-ledger": "node --import tsx ./packages/check-orchestrator/src/cli/main.ts cost-ledger"
+    "check:ci-cost-ledger": "node --import tsx ./packages/check-orchestrator/src/cli/main.ts cost-ledger",
+    "check:evidence-scan-surfaces": "pnpm omena-check evidence-surfaces --check",
+    "check:evidence-affected-map": "pnpm omena-check evidence-writers --check && pnpm exec vitest run test/unit/check-orchestrator/evidence-affected.test.ts"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^1.0.0",

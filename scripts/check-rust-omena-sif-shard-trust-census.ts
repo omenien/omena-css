@@ -1,7 +1,10 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 type CensusRole = "artifact-input" | "trust-writer" | "shard-writer" | "consumer";
 
@@ -127,10 +130,11 @@ const expectedKeys = [
   "consumer|lsp-seed-pair-shard-consumer|rust/crates/omena-lsp-server/src/external_sif_loader.rs|resolve_bridge_external_sifs_for_sources",
 ].toSorted();
 
-const trackedRustSources = execFileSync("git", ["ls-files", "-z", "--", "*.rs"], {
-  cwd: repoRoot,
-  encoding: "utf8",
-})
+const trackedRustSources = evidenceScanSurface
+  .execFileSync("git", ["ls-files", "-z", "--", "*.rs"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  })
   .split("\0")
   .filter(Boolean)
   .filter(isProductionRustSource);

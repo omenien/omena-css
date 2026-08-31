@@ -40,6 +40,8 @@ jobs:
       - run: pnpm omena-check run tooling/orchestrator-inventory --summary
       - run: pnpm omena-check run tooling/ci-workflow --summary
       - run: pnpm omena-check run tooling/ci-cost-ledger --summary
+      - run: pnpm omena-check run tooling/evidence-scan-surfaces --summary
+      - run: pnpm omena-check run tooling/evidence-affected-map --summary
       - run: pnpm omena-check run rust/release-semver-intent-contract --summary
       - id: closure-fast-shards
         run: echo "matrix=$(pnpm --silent omena-check shards rust/closure-fast --json)" >> "$GITHUB_OUTPUT"

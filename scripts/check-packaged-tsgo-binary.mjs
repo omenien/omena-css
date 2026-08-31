@@ -1,7 +1,10 @@
 #!/usr/bin/env node
-import { chmodSync, existsSync, readdirSync, statSync } from "node:fs";
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest.ts";
+import { chmodSync, existsSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const binRoot = path.join(repoRoot, "dist", "bin");
@@ -23,7 +26,8 @@ if (!existsSync(binRoot)) {
   throw new Error(`Missing packaged binary directory: ${binRoot}`);
 }
 
-const targetDirs = readdirSync(binRoot, { withFileTypes: true })
+const targetDirs = evidenceScanSurface
+  .readdirSync(binRoot, { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
   .toSorted();

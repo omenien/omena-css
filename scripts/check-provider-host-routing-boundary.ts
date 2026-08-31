@@ -1,5 +1,8 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
+import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 interface SourceEdge {
   readonly kind: "import" | "export";
@@ -51,7 +54,7 @@ function main() {
 
 function listProviderSourceFiles(dirPath: string): string[] {
   const files: string[] = [];
-  for (const entry of readdirSync(dirPath)) {
+  for (const entry of evidenceScanSurface.readdirSync(dirPath)) {
     const entryPath = path.join(dirPath, entry);
     const stat = statSync(entryPath);
     if (stat.isDirectory()) {

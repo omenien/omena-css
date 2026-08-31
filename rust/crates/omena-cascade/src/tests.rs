@@ -4159,6 +4159,51 @@ fn flat_environment_resolution_omits_dependency_graph_and_trace_work() {
     );
 }
 
+// Forty local control triplets plus hosted receipts on three distinct CI days
+// had a maximum exponent of 1.1122. Ceil to 1.12 and add a fixed 0.05
+// host-noise margin. This assertion strengthens the normalized bound without
+// changing that existing threshold.
+const MAX_FLAT_CONTROL_GROWTH_EXPONENT: f64 = 1.17;
+
+fn three_point_log_log_slope(input_counts: [usize; 3], values: [f64; 3]) -> f64 {
+    let input_logs = input_counts.map(|count| (count as f64).ln());
+    let input_log_mean = input_logs.iter().sum::<f64>() / input_logs.len() as f64;
+    let input_variance = input_logs
+        .iter()
+        .map(|value| (value - input_log_mean).powi(2))
+        .sum::<f64>();
+    let value_logs = values.map(f64::ln);
+    let value_log_mean = value_logs.iter().sum::<f64>() / value_logs.len() as f64;
+    let covariance = input_logs
+        .iter()
+        .zip(value_logs)
+        .map(|(input, value)| (input - input_log_mean) * (value - value_log_mean))
+        .sum::<f64>();
+    covariance / input_variance
+}
+
+fn assert_flat_control_growth_bound(growth_exponent: f64) {
+    assert!(
+        growth_exponent <= MAX_FLAT_CONTROL_GROWTH_EXPONENT,
+        "flat-control log-log growth exponent {growth_exponent:.3} exceeded the {MAX_FLAT_CONTROL_GROWTH_EXPONENT:.2} control-growth ceiling"
+    );
+}
+
+#[test]
+fn flat_control_growth_bound_rejects_superlinear_control_without_rejecting_linear_control() {
+    const COUNTS: [usize; 3] = [1_200, 2_200, 4_000];
+    let linear = three_point_log_log_slope(COUNTS, COUNTS.map(|count| count as f64));
+    assert_flat_control_growth_bound(linear);
+
+    let superlinear =
+        three_point_log_log_slope(COUNTS, COUNTS.map(|count| (count as f64).powf(1.30)));
+    let rejected = std::panic::catch_unwind(|| assert_flat_control_growth_bound(superlinear));
+    assert!(
+        rejected.is_err(),
+        "the injected super-linear flat control must be rejected"
+    );
+}
+
 #[test]
 #[ignore = "explicit release-mode performance receipt"]
 fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_budget() {
@@ -4276,24 +4321,14 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
         )
     }
 
+    fn three_size_slope(values: [f64; 3]) -> f64 {
+        three_point_log_log_slope(BINDING_COUNTS, values)
+    }
+
     fn normalized_three_size_slope(measurements: &[(u128, u128, f64, usize, usize); 3]) -> f64 {
-        let input_logs = BINDING_COUNTS.map(|count| (count as f64).ln());
-        let input_log_mean = input_logs.iter().sum::<f64>() / input_logs.len() as f64;
-        let input_variance = input_logs
-            .iter()
-            .map(|value| (value - input_log_mean).powi(2))
-            .sum::<f64>();
-        let normalized_cost_logs: [f64; 3] = std::array::from_fn(|size_index| {
-            (measurements[size_index].2 * BINDING_COUNTS[size_index] as f64).ln()
-        });
-        let cost_log_mean =
-            normalized_cost_logs.iter().sum::<f64>() / normalized_cost_logs.len() as f64;
-        let covariance = input_logs
-            .iter()
-            .zip(normalized_cost_logs)
-            .map(|(input, cost)| (input - input_log_mean) * (cost - cost_log_mean))
-            .sum::<f64>();
-        covariance / input_variance
+        three_size_slope(std::array::from_fn(|size_index| {
+            measurements[size_index].2 * BINDING_COUNTS[size_index] as f64
+        }))
     }
 
     fn measure_path(
@@ -4348,14 +4383,17 @@ fn variable_environment_resolution_and_summary_stay_within_linear_growth_noise_b
         let control_batch_invocations: [usize; 3] =
             std::array::from_fn(|index| measurements[index].4);
         let growth_exponent = normalized_three_size_slope(&measurements);
+        let flat_control_growth_exponent =
+            three_size_slope(control_medians.map(|value| value as f64));
         println!(
-            "shape={shape} path={path} bindings={BINDING_COUNTS:?} targetSampleBatchNs={TARGET_SAMPLE_BATCH_NS} sizeOrderPassCount={} measuredBatchInvocations={measured_batch_invocations:?} flatControlBatchInvocations={control_batch_invocations:?} measuredMedianNs={measured_medians:?} flatControlMedianNs={control_medians:?} pairedMedianRatios={paired_median_ratios:.3?} medianNormalizedLogLogGrowthExponent={growth_exponent:.3} maximumLinearGrowthExponent={MAX_LINEAR_GROWTH_EXPONENT:.2}",
+            "shape={shape} path={path} bindings={BINDING_COUNTS:?} targetSampleBatchNs={TARGET_SAMPLE_BATCH_NS} sizeOrderPassCount={} measuredBatchInvocations={measured_batch_invocations:?} flatControlBatchInvocations={control_batch_invocations:?} measuredMedianNs={measured_medians:?} flatControlMedianNs={control_medians:?} pairedMedianRatios={paired_median_ratios:.3?} medianNormalizedLogLogGrowthExponent={growth_exponent:.3} maximumLinearGrowthExponent={MAX_LINEAR_GROWTH_EXPONENT:.2} flatControlGrowthExponent={flat_control_growth_exponent:.3} maximumFlatControlGrowthExponent={MAX_FLAT_CONTROL_GROWTH_EXPONENT:.2}",
             SIZE_ORDER_PASSES.len()
         );
         assert!(
             growth_exponent <= MAX_LINEAR_GROWTH_EXPONENT,
             "{shape} {path} median flat-control-normalized log-log growth exponent {growth_exponent:.3} exceeded the {MAX_LINEAR_GROWTH_EXPONENT:.2} linear-growth ceiling"
         );
+        assert_flat_control_growth_bound(flat_control_growth_exponent);
     }
 
     for (shape, build) in [

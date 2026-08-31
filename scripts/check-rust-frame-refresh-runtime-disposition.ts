@@ -1,8 +1,11 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packageJson = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8")) as {
@@ -15,11 +18,11 @@ const injectRuntime = process.argv.includes("--inject-runtime");
 const injectPublicCache = process.argv.includes("--inject-public-cache");
 const injectGateRetarget = process.argv.includes("--inject-gate-retarget");
 
-const rustSources = execFileSync(
-  "git",
-  ["ls-files", "rust/crates/*/src/*.rs", "rust/crates/*/src/**/*.rs"],
-  { cwd: repoRoot, encoding: "utf8" },
-)
+const rustSources = evidenceScanSurface
+  .execFileSync("git", ["ls-files", "rust/crates/*/src/*.rs", "rust/crates/*/src/**/*.rs"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  })
   .trim()
   .split("\n")
   .filter(Boolean)

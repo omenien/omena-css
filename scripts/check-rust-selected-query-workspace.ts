@@ -1,5 +1,5 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -240,10 +240,11 @@ function resolveTrackedWorkspaceCheckFiles(root: string): {
   readonly sourceFilePaths: readonly string[];
   readonly styleFilePaths: readonly string[];
 } {
-  const output = execFileSync("git", ["ls-files", "-z"], {
-    cwd: root,
-    encoding: "utf8",
-  });
+  const output = resolveScanSurfaceForScanner(import.meta.url, root).execFileSync(
+    "git",
+    ["ls-files", "-z"],
+    { cwd: root, encoding: "utf8" },
+  );
   const filePaths = output
     .split("\0")
     .filter(Boolean)

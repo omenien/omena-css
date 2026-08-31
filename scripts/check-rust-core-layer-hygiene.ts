@@ -1,6 +1,9 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 /**
  * rust/core-layer-hygiene
@@ -131,7 +134,8 @@ for (const moduleName of [
 }
 
 const queryModules = new Set(
-  readdirSync(path.join(root, queryDiagnosticsDirPath))
+  evidenceScanSurface
+    .readdirSync(path.join(root, queryDiagnosticsDirPath))
     .filter((entry) => entry.endsWith(".rs"))
     .map((entry) => entry.replace(/\.rs$/u, "")),
 );
@@ -432,7 +436,8 @@ function assertWorkspaceLintInheritance(): WorkspaceLintInheritanceSummary {
     "rust/Cargo.toml must declare [workspace.lints.clippy]",
   );
 
-  const crateManifestPaths = readdirSync(path.join(root, rustCratesDirPath))
+  const crateManifestPaths = evidenceScanSurface
+    .readdirSync(path.join(root, rustCratesDirPath))
     .filter((entry) => statSync(path.join(root, rustCratesDirPath, entry)).isDirectory())
     .map((entry) => `${rustCratesDirPath}/${entry}/Cargo.toml`)
     .filter((relativePath) => existsSync(path.join(root, relativePath)))
@@ -501,7 +506,7 @@ function assertNoProcessGlobalTestAtomicCounters(): ProcessGlobalTestAtomicCount
 
 function rustFilesUnder(relativeDir: string): readonly string[] {
   const absoluteDir = path.join(root, relativeDir);
-  const entries = readdirSync(absoluteDir).toSorted();
+  const entries = evidenceScanSurface.readdirSync(absoluteDir).toSorted();
   const files: string[] = [];
   for (const entry of entries) {
     const absoluteEntry = path.join(absoluteDir, entry);

@@ -1,6 +1,9 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 type ConstructionPartition =
   | "declaration-shape"
@@ -196,7 +199,7 @@ process.stdout.write(
 
 function collectRustSources(root: string): string[] {
   const result: string[] = [];
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
+  for (const entry of evidenceScanSurface.readdirSync(root, { withFileTypes: true })) {
     const absolutePath = path.join(root, entry.name);
     if (entry.isDirectory()) {
       result.push(...collectRustSources(absolutePath));

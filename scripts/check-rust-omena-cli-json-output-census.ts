@@ -1,6 +1,9 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import fs from "node:fs";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 interface JsonOutputSite {
   readonly siteId: string;
@@ -110,7 +113,7 @@ function enclosingMethod(source: string, index: number): string {
 }
 
 function listRustSources(directory: string): string[] {
-  return fs
+  return evidenceScanSurface
     .readdirSync(directory, { withFileTypes: true })
     .flatMap((entry) => {
       const absolute = path.join(directory, entry.name);

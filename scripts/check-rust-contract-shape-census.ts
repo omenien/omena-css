@@ -1,7 +1,10 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { execFileSync } from "node:child_process";
 import { strict as assert } from "node:assert";
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 interface PublishTrainClosure {
   readonly canonicalPublishOrder: readonly string[];
@@ -835,7 +838,7 @@ function countCharacter(source: string, character: string): number {
 
 function listRustSources(directory: string): string[] {
   if (!existsSync(directory)) return [];
-  return readdirSync(directory).flatMap((entry) => {
+  return evidenceScanSurface.readdirSync(directory).flatMap((entry) => {
     const absolute = path.join(directory, entry);
     const stats = statSync(absolute);
     if (stats.isDirectory()) return listRustSources(absolute);

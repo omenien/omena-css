@@ -1,3 +1,4 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
 import {
@@ -5,7 +6,6 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
-  readdirSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -14,6 +14,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CONTRIBUTOR_RECIPE_TARGETS } from "../packages/check-orchestrator/src/manifest/documented-commands";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 type ProductVerbStatus = "stub" | "reserved-alias" | "wired";
 
@@ -428,7 +430,8 @@ function verifyArchitectureCodemap(): number {
 function derivePersonas(): PersonaManifest["presets"] {
   const manifest = readJson<PersonaManifest>("rust/crates/omena-cli/persona-presets.json");
   const presetDirectory = path.join(repoRoot, "rust/crates/omena-cli/persona-presets");
-  const fileIds = readdirSync(presetDirectory)
+  const fileIds = evidenceScanSurface
+    .readdirSync(presetDirectory)
     .filter((filename) => filename.endsWith(".toml"))
     .map((filename) => filename.slice(0, -".toml".length))
     .toSorted();
@@ -945,7 +948,8 @@ function verifyReadmeLinkMap(): number {
 }
 
 function verifyCheckScriptReachability(): void {
-  const checkScripts = readdirSync(path.join(repoRoot, "scripts"))
+  const checkScripts = evidenceScanSurface
+    .readdirSync(path.join(repoRoot, "scripts"))
     .filter((filename) => /^check-.*\.(?:ts|mjs)$/u.test(filename))
     .toSorted();
   const referenceFiles = [
@@ -993,7 +997,7 @@ function verifyCssModuleTokenLiteralPolicy(): {
   assert.equal(policy.product, "omena-css-module-token-literal-policy");
   assert.equal(policy.scope, "internal-test-inventory-only");
 
-  const listed = spawnSync(
+  const listed = evidenceScanSurface.spawnSync(
     "git",
     ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
     {
@@ -1281,7 +1285,7 @@ function flattenObject(
 function walkFiles(directory: string, predicate: (file: string) => boolean): string[] {
   if (!existsSync(directory)) return [];
   const files: string[] = [];
-  for (const entry of readdirSync(directory)) {
+  for (const entry of evidenceScanSurface.readdirSync(directory)) {
     const absolutePath = path.join(directory, entry);
     if (statSync(absolutePath).isDirectory()) files.push(...walkFiles(absolutePath, predicate));
     else if (predicate(absolutePath)) files.push(absolutePath);

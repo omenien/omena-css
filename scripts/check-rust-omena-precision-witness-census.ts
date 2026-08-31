@@ -1,6 +1,9 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import fs from "node:fs";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 interface WitnessBasisSite {
   readonly sourcePath: string;
@@ -120,7 +123,7 @@ function compareSites(left: WitnessBasisSite, right: WitnessBasisSite): number {
 
 function rustSourcePaths(root: string): string[] {
   const paths: string[] = [];
-  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+  for (const entry of evidenceScanSurface.readdirSync(root, { withFileTypes: true })) {
     const entryPath = path.join(root, entry.name);
     if (entry.isDirectory()) {
       paths.push(...rustSourcePaths(entryPath));

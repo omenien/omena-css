@@ -1,11 +1,14 @@
+import { resolveScanSurfaceForScanner } from "../evidence/scan-surface-manifest";
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { buildCheckPlan } from "./plan";
 import { loadGatePolicy } from "./gate-policy";
 import { BUNDLE_SHARDS, bundleShardNames } from "./shards";
 import type { CheckCiTier, CheckDiagnostic, CheckGate } from "./types";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const PNPM_SCRIPT_REF = /\bpnpm\s+(?:run\s+)?([A-Za-z0-9:_-]+)/g;
 const OMENA_CHECK_TARGET_REF =
@@ -890,7 +893,7 @@ export function findWorkflowBypassDiagnostics(
   const gatesByScriptName = new Map(gates.map((gate) => [gate.scriptName, gate]));
   const diagnostics: CheckDiagnostic[] = [];
 
-  for (const fileName of readdirSync(workflowsDir).toSorted()) {
+  for (const fileName of evidenceScanSurface.readdirSync(workflowsDir).toSorted()) {
     if (!fileName.endsWith(".yml") && !fileName.endsWith(".yaml")) continue;
 
     const workflowPath = path.join(workflowsDir, fileName);
@@ -1001,7 +1004,7 @@ export function findScheduledWorkflowEscalationDiagnostics(
   if (!existsSync(workflowsDir)) return [];
 
   const diagnostics: CheckDiagnostic[] = [];
-  for (const fileName of readdirSync(workflowsDir).toSorted()) {
+  for (const fileName of evidenceScanSurface.readdirSync(workflowsDir).toSorted()) {
     if (!fileName.endsWith(".yml") && !fileName.endsWith(".yaml")) continue;
 
     const workflowPath = path.join(workflowsDir, fileName);
@@ -1708,7 +1711,7 @@ function buildReachableGateIdsByTier(
   const reachable = new Map<CheckCiTier, Set<string>>();
   if (!existsSync(workflowsDir)) return reachable;
 
-  for (const fileName of readdirSync(workflowsDir).toSorted()) {
+  for (const fileName of evidenceScanSurface.readdirSync(workflowsDir).toSorted()) {
     if (!fileName.endsWith(".yml") && !fileName.endsWith(".yaml")) continue;
 
     const workflowPath = path.join(workflowsDir, fileName);
@@ -1949,7 +1952,7 @@ export function collectWorkflowLifecycleView(
   const triggers: WorkflowTriggerFacts[] = [];
   if (!existsSync(workflowsDir)) return { jobs, triggers };
 
-  for (const fileName of readdirSync(workflowsDir).toSorted()) {
+  for (const fileName of evidenceScanSurface.readdirSync(workflowsDir).toSorted()) {
     if (!fileName.endsWith(".yml") && !fileName.endsWith(".yaml")) continue;
     const lines = readFileSync(path.join(workflowsDir, fileName), "utf8").split(/\r?\n/);
     const text = lines.join("\n");

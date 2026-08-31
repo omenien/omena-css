@@ -1,6 +1,9 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const ROOT = process.cwd();
 
@@ -720,7 +723,7 @@ function readRepoTextFiles(
   extensions: readonly string[],
 ): readonly { readonly relativePath: string; readonly source: string }[] {
   const absolutePath = path.join(ROOT, relativePath);
-  const entries = readdirSync(absolutePath, { withFileTypes: true });
+  const entries = evidenceScanSurface.readdirSync(absolutePath, { withFileTypes: true });
   return entries.flatMap((entry) => {
     const childPath = path.join(relativePath, entry.name);
     if (entry.isDirectory()) {

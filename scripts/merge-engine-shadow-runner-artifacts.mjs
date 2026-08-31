@@ -1,7 +1,10 @@
 #!/usr/bin/env node
-import { existsSync, mkdirSync, readdirSync } from "node:fs";
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest.ts";
+import { existsSync, mkdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const artifactsRoot = path.join(repoRoot, ".runner-artifacts");
@@ -30,7 +33,7 @@ console.log(`Merged ${archives.length} engine-shadow-runner artifact archive(s).
 
 function findArchives(root) {
   const results = [];
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
+  for (const entry of evidenceScanSurface.readdirSync(root, { withFileTypes: true })) {
     const entryPath = path.join(root, entry.name);
     if (entry.isDirectory()) {
       results.push(...findArchives(entryPath));

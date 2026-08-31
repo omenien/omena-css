@@ -1,0 +1,1371 @@
+{
+  "schemaVersion": "0",
+  "generatedBy": "pnpm omena-check evidence-surfaces --write",
+  "detector": {
+    "fileCount": 96,
+    "patternSha256": "3d142b359e06a0b85d1d9713cda4a6405e573a53f1eafb8d95f01ca3d4ddcf0d"
+  },
+  "resolverSha256": "6a7b8b312e7f46df711e11d7ede96959ab1d9170b0b087ac8dd370c327669fe4",
+  "predicateModules": {
+    "git-metadata": {
+      "modulePath": "packages/check-orchestrator/src/evidence/predicates/git-metadata.ts",
+      "sha256": "5484539ca6c5e4a55179777982fc3f4481601b496131ad34b6878a67823bb7e9"
+    },
+    "node-modules": {
+      "modulePath": "packages/check-orchestrator/src/evidence/predicates/node-modules.ts",
+      "sha256": "48c5828391a66a05f6780198fc552eb0172ebc0014540caccb5b31d4d464c2f2"
+    },
+    "personal-docs": {
+      "modulePath": "packages/check-orchestrator/src/evidence/predicates/personal-docs.ts",
+      "sha256": "5eb3d697a62070705185f94d8a8c39bf34200de7b44d418a5ce0a65919a647cd"
+    },
+    "rust-build-output": {
+      "modulePath": "packages/check-orchestrator/src/evidence/predicates/rust-build-output.ts",
+      "sha256": "265ace1a17bc563b97e5bf488a8018cbd667c760343fdb34b38d18366493abd1"
+    },
+    "test-only-rust": {
+      "modulePath": "packages/check-orchestrator/src/evidence/predicates/test-only-rust.ts",
+      "sha256": "a8be3f3f30fc2644735ebe273ea9bca20d9462405b910b4246a0cf3e738a47ac"
+    }
+  },
+  "scanners": [
+    {
+      "scannerPath": "packages/check-orchestrator/src/cli/main.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/packages-check-orchestrator-src-cli-main.surface.ts",
+      "surfaceModuleSha256": "c7c988c7827e43a46f651fe09408a0b528ec454936a282583b50b2fd735754af",
+      "spec": {
+        "scannerPath": "packages/check-orchestrator/src/cli/main.ts",
+        "mode": "workingTree",
+        "pathspecs": ["**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": [
+        "tooling/ci-cost-ledger",
+        "tooling/ci-workflow",
+        "tooling/omena-check",
+        "tooling/orchestrator-doctor",
+        "tooling/orchestrator-inventory"
+      ]
+    },
+    {
+      "scannerPath": "packages/check-orchestrator/src/evidence/scan-surface.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/packages-check-orchestrator-src-evidence-scan-surface.surface.ts",
+      "surfaceModuleSha256": "50cb2507e36ea83b5c0b4c0031b253282ad06dbfd65f651a455cc41aea9d1331",
+      "spec": {
+        "scannerPath": "packages/check-orchestrator/src/evidence/scan-surface.ts",
+        "mode": "workingTree",
+        "pathspecs": ["**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["tooling/orchestrator-doctor", "tooling/orchestrator-inventory"]
+    },
+    {
+      "scannerPath": "packages/check-orchestrator/src/evidence/scanner-analysis.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/packages-check-orchestrator-src-evidence-scanner-analysis.surface.ts",
+      "surfaceModuleSha256": "2d1bf02deac2cab8b9dfc7e30c15097842f08dd74a1a8ba1b8ad011c66afae3b",
+      "spec": {
+        "scannerPath": "packages/check-orchestrator/src/evidence/scanner-analysis.ts",
+        "mode": "index",
+        "pathspecs": ["scripts/**", "packages/check-orchestrator/src/**"],
+        "includeUntracked": true,
+        "excludes": []
+      },
+      "gateIds": ["tooling/orchestrator-doctor", "tooling/orchestrator-inventory"]
+    },
+    {
+      "scannerPath": "packages/check-orchestrator/src/manifest/documented-commands.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/packages-check-orchestrator-src-manifest-documented-commands.surface.ts",
+      "surfaceModuleSha256": "190510a1bc9e7ca450fcc8f834a5b9761673ee06577e99c8f7c6c815e14a6589",
+      "spec": {
+        "scannerPath": "packages/check-orchestrator/src/manifest/documented-commands.ts",
+        "mode": "workingTree",
+        "pathspecs": ["README.md", "CONTRIBUTING.md", "docs/**", "packages/**", "examples/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["tooling/orchestrator-doctor", "tooling/orchestrator-inventory"]
+    },
+    {
+      "scannerPath": "packages/check-orchestrator/src/manifest/workflows.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/packages-check-orchestrator-src-manifest-workflows.surface.ts",
+      "surfaceModuleSha256": "713d56c1ca3dc262945a418152963dc513fb822726fe357832f41e67b61b2d19",
+      "spec": {
+        "scannerPath": "packages/check-orchestrator/src/manifest/workflows.ts",
+        "mode": "workingTree",
+        "pathspecs": [".github/workflows/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["tooling/orchestrator-doctor", "tooling/orchestrator-inventory"]
+    },
+    {
+      "scannerPath": "scripts/check-backend-typecheck-smoke.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-backend-typecheck-smoke.surface.ts",
+      "surfaceModuleSha256": "a0fcec614d234f720a4c12ad20ee04733f568466bddc01cec5d169b4a90b94c8",
+      "spec": {
+        "scannerPath": "scripts/check-backend-typecheck-smoke.ts",
+        "mode": "workingTree",
+        "pathspecs": ["test/_fixtures/backend-typecheck-smoke/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["workspace/backend-typecheck-smoke"]
+    },
+    {
+      "scannerPath": "scripts/check-diagnostics-single-family-egress.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-diagnostics-single-family-egress.surface.ts",
+      "surfaceModuleSha256": "8e4c2f1753ea4464b0cefe044cdb6c66d7893c0f48d2a832c3085d85f0a7b307",
+      "spec": {
+        "scannerPath": "scripts/check-diagnostics-single-family-egress.ts",
+        "mode": "workingTree",
+        "pathspecs": ["server/**", "packages/**", "rust/**", "scripts/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["editor/diagnostics-single-family-egress"]
+    },
+    {
+      "scannerPath": "scripts/check-docs-reference-surface.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-docs-reference-surface.surface.ts",
+      "surfaceModuleSha256": "8ab8939195486a2ca3287177caad22b9f8989e238a7e1f54d118926554ab9065",
+      "spec": {
+        "scannerPath": "scripts/check-docs-reference-surface.ts",
+        "mode": "workingTree",
+        "pathspecs": ["**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["docs/reference-surface", "docs/reference-surface:update"]
+    },
+    {
+      "scannerPath": "scripts/check-docs-site-contracts.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-docs-site-contracts.surface.ts",
+      "surfaceModuleSha256": "72fa87388904b5787f51746a6e1a96bf1c044600003c90f060fd48390a0bddc6",
+      "spec": {
+        "scannerPath": "scripts/check-docs-site-contracts.ts",
+        "mode": "workingTree",
+        "pathspecs": ["docs/**", "apps/docs/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["docs/site-contracts"]
+    },
+    {
+      "scannerPath": "scripts/check-docs-site-smoke.mjs",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-docs-site-smoke.surface.ts",
+      "surfaceModuleSha256": "dad98d9fc77905db193962830fd5844fe31195b7b320f011a24a962d2410533c",
+      "spec": {
+        "scannerPath": "scripts/check-docs-site-smoke.mjs",
+        "mode": "workingTree",
+        "pathspecs": ["docs/**", "apps/docs/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["docs/smoke"]
+    },
+    {
+      "scannerPath": "scripts/check-docs-version-governance.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-docs-version-governance.surface.ts",
+      "surfaceModuleSha256": "c8ab66b179d688d1f08c68061ab2bc967b4f854df2be2006d7b2c128de86be8c",
+      "spec": {
+        "scannerPath": "scripts/check-docs-version-governance.ts",
+        "mode": "workingTree",
+        "pathspecs": ["packages/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["docs/version-governance"]
+    },
+    {
+      "scannerPath": "scripts/check-docs-version-strings.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-docs-version-strings.surface.ts",
+      "surfaceModuleSha256": "311b2883a319c1fc280593906f45f9cd7733c383d69e068e023d51d561be89a2",
+      "spec": {
+        "scannerPath": "scripts/check-docs-version-strings.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["docs/version-strings"]
+    },
+    {
+      "scannerPath": "scripts/check-engine-v2-contract-idl-fixtures.ts",
+      "disposition": "UNMIGRATED",
+      "effectiveSurface": "**",
+      "reason": "non-repo-temp-tree",
+      "evidenceNeedle": "mkdtempSync",
+      "gateIds": ["contract/engine-v2-contract-idl-fixtures"]
+    },
+    {
+      "scannerPath": "scripts/check-gate-falsifier-disclosure.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-gate-falsifier-disclosure.surface.ts",
+      "surfaceModuleSha256": "b0aae54a1533b3bc9462c78cc450ef7194db5483958872012d8e04bacf51f6d5",
+      "spec": {
+        "scannerPath": "scripts/check-gate-falsifier-disclosure.ts",
+        "mode": "index",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["personal-docs"]
+      },
+      "gateIds": ["rust/omena-bundler/linked-emission-falsifier-disclosure"]
+    },
+    {
+      "scannerPath": "scripts/check-js-bundler-host-no-regex-classmap.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-js-bundler-host-no-regex-classmap.surface.ts",
+      "surfaceModuleSha256": "1a44fac3bf4f1fcd02560218fd7893ffca464590dde67158292debc9f7512b09",
+      "spec": {
+        "scannerPath": "scripts/check-js-bundler-host-no-regex-classmap.ts",
+        "mode": "index",
+        "pathspecs": ["**"],
+        "includeUntracked": false,
+        "excludes": ["personal-docs"]
+      },
+      "gateIds": ["rust/omena-js-bundler-host-no-regex-classmap"]
+    },
+    {
+      "scannerPath": "scripts/check-js-bundler-host-plugin-kind.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-js-bundler-host-plugin-kind.surface.ts",
+      "surfaceModuleSha256": "c35444c5422a4be657d59197c3ab1a7de274b0b75d72459dd8008be59c2c41a4",
+      "spec": {
+        "scannerPath": "scripts/check-js-bundler-host-plugin-kind.ts",
+        "mode": "workingTree",
+        "pathspecs": ["packages/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-js-bundler-host-plugin-kind"]
+    },
+    {
+      "scannerPath": "scripts/check-linked-emission-default-surfaces.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-linked-emission-default-surfaces.surface.ts",
+      "surfaceModuleSha256": "75027e3bf5f0082a49bf250efa75ce56cfbc3809471d93a76a88b4fc3656e672",
+      "spec": {
+        "scannerPath": "scripts/check-linked-emission-default-surfaces.ts",
+        "mode": "index",
+        "pathspecs": ["packages/**", "rust/**"],
+        "includeUntracked": false,
+        "excludes": ["personal-docs"]
+      },
+      "gateIds": ["rust/omena-bundler/linked-emission-default-surfaces"]
+    },
+    {
+      "scannerPath": "scripts/check-packaged-engine-shadow-runner-matrix.mjs",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-packaged-engine-shadow-runner-matrix.surface.ts",
+      "surfaceModuleSha256": "cbd94ffca28206fa947295aea3c39e54ba36644c074d04d118f6adeb5b8e6482",
+      "spec": {
+        "scannerPath": "scripts/check-packaged-engine-shadow-runner-matrix.mjs",
+        "mode": "workingTree",
+        "pathspecs": ["dist/bin/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["release/check/packaged-engine-shadow-runner-matrix"]
+    },
+    {
+      "scannerPath": "scripts/check-packaged-omena-lsp-server-type-fact-protocol.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-packaged-omena-lsp-server-type-fact-protocol.surface.ts",
+      "surfaceModuleSha256": "a8b8bdc8934892ecaf9798535343f855b7e1eb350f169ea029a49ea0e29011f8",
+      "spec": {
+        "scannerPath": "scripts/check-packaged-omena-lsp-server-type-fact-protocol.ts",
+        "mode": "workingTree",
+        "pathspecs": ["*.vsix"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["release/check/packaged-omena-lsp-server-type-fact-protocol"]
+    },
+    {
+      "scannerPath": "scripts/check-packaged-selected-query-default.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-packaged-selected-query-default.surface.ts",
+      "surfaceModuleSha256": "b94117dd0f26dbd2f7af49d994a29389c12131bccdc261e2fa050af782c03144",
+      "spec": {
+        "scannerPath": "scripts/check-packaged-selected-query-default.ts",
+        "mode": "workingTree",
+        "pathspecs": ["*.vsix"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["release/check/packaged-selected-query-default"]
+    },
+    {
+      "scannerPath": "scripts/check-packaged-tsgo-binary.mjs",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-packaged-tsgo-binary.surface.ts",
+      "surfaceModuleSha256": "0b4764bc7da30dbba5c6f85825b4a4922e439c9fc84882534b6263df228f67fd",
+      "spec": {
+        "scannerPath": "scripts/check-packaged-tsgo-binary.mjs",
+        "mode": "workingTree",
+        "pathspecs": ["dist/bin/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["release/check/packaged-tsgo-binary"]
+    },
+    {
+      "scannerPath": "scripts/check-plugin-bundler-product-gate.mjs",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-plugin-bundler-product-gate.surface.ts",
+      "surfaceModuleSha256": "d3afba252d4963c628ac3d2c1954259ffa245c249f65783a9adfe35280864185",
+      "spec": {
+        "scannerPath": "scripts/check-plugin-bundler-product-gate.mjs",
+        "mode": "workingTree",
+        "pathspecs": ["**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["plugin/bundler-product-gate"]
+    },
+    {
+      "scannerPath": "scripts/check-provider-host-routing-boundary.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-provider-host-routing-boundary.surface.ts",
+      "surfaceModuleSha256": "1103d1e7c37c0badc70a6b46a2743d60a2d65553975ca9f1aef525923fbd36cf",
+      "spec": {
+        "scannerPath": "scripts/check-provider-host-routing-boundary.ts",
+        "mode": "workingTree",
+        "pathspecs": ["server/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["editor/provider-host-routing-boundary"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-benchmark-ci-reachability.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-benchmark-ci-reachability.surface.ts",
+      "surfaceModuleSha256": "2dbc8105c54f58f0e6ca854fcaf2fefb24b31b8b916dd87fd03a38613ab2b6e2",
+      "spec": {
+        "scannerPath": "scripts/check-rust-benchmark-ci-reachability.ts",
+        "mode": "workingTree",
+        "pathspecs": [".github/workflows/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/benchmark/ci-reachability"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-contract-shape-census.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-contract-shape-census.surface.ts",
+      "surfaceModuleSha256": "3897de99a23f8dddef64a2f6780c5e9e15ca126ebd7fca0918567b5c3ed3f10f",
+      "spec": {
+        "scannerPath": "scripts/check-rust-contract-shape-census.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**", "packages/css-build-adapter/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/contract-shape-census"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-core-layer-hygiene.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-core-layer-hygiene.surface.ts",
+      "surfaceModuleSha256": "0559a35cb8474243da144e9578d45bbaeafdb12832d91e951f38b6ea35cdf4ce",
+      "spec": {
+        "scannerPath": "scripts/check-rust-core-layer-hygiene.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/core-layer-hygiene"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-cst-typed-egress-closure.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-cst-typed-egress-closure.surface.ts",
+      "surfaceModuleSha256": "1b60b75b51d64c3f836abe4ce9ceb0210be7c7055d166881edaf49bf29f657ef",
+      "spec": {
+        "scannerPath": "scripts/check-rust-cst-typed-egress-closure.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/cst-typed-egress-closure"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-demand-sliced-monotone-fact-propagation-relocation-gate.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-demand-sliced-monotone-fact-propagation-relocation-gate.surface.ts",
+      "surfaceModuleSha256": "dc17c2d68e656e0ba9b479153f3468c5a83aca9ab2162b5e9a79abd70f42ff38",
+      "spec": {
+        "scannerPath": "scripts/check-rust-demand-sliced-monotone-fact-propagation-relocation-gate.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/demand-sliced-monotone-fact-propagation-relocation-gate"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-domain-claim-census.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-domain-claim-census.surface.ts",
+      "surfaceModuleSha256": "ad9b685c6c37a5812aa36df4b921c7f8310fb561953b611665509c145f78b3b0",
+      "spec": {
+        "scannerPath": "scripts/check-rust-domain-claim-census.ts",
+        "mode": "index",
+        "pathspecs": ["**"],
+        "includeUntracked": true,
+        "excludes": ["personal-docs"]
+      },
+      "gateIds": ["rust/domain-claim-census"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-evidence-graph-single-authority.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-evidence-graph-single-authority.surface.ts",
+      "surfaceModuleSha256": "694ec80447de204cf899e8499617c72428993985949c5d192708955265350d22",
+      "spec": {
+        "scannerPath": "scripts/check-rust-evidence-graph-single-authority.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/evidence-graph-single-authority"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-frame-refresh-runtime-disposition.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-frame-refresh-runtime-disposition.surface.ts",
+      "surfaceModuleSha256": "6a9c652842b7829da6a0fb6bcca79499f0c50f0941eaba915191711d8362106f",
+      "spec": {
+        "scannerPath": "scripts/check-rust-frame-refresh-runtime-disposition.ts",
+        "mode": "index",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["personal-docs"]
+      },
+      "gateIds": ["rust/frame-refresh-runtime-disposition"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-guarded-cascade-winner-closure.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-guarded-cascade-winner-closure.surface.ts",
+      "surfaceModuleSha256": "7d780540193ec34c3e9d37847a646face90ca5f4a399b7734639140f8dd7e290",
+      "spec": {
+        "scannerPath": "scripts/check-rust-guarded-cascade-winner-closure.ts",
+        "mode": "index",
+        "pathspecs": ["**"],
+        "includeUntracked": false,
+        "excludes": ["personal-docs"]
+      },
+      "gateIds": ["rust/guarded-cascade-winner-closure"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-line-index-authority.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-line-index-authority.surface.ts",
+      "surfaceModuleSha256": "d8de1bf1ee6fe61ce42bd26f9603b164aa18ef503b60a0fe122265188713a7f3",
+      "spec": {
+        "scannerPath": "scripts/check-rust-line-index-authority.ts",
+        "mode": "index",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["personal-docs"]
+      },
+      "gateIds": ["rust/line-index-authority"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-m4-gamma-readiness.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-m4-gamma-readiness.surface.ts",
+      "surfaceModuleSha256": "84ba3b2de6ff697c5c1e82a9eceb3c4f7caee36bb4487de7a4b8e09034d4ca85",
+      "spec": {
+        "scannerPath": "scripts/check-rust-m4-gamma-readiness.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": []
+    },
+    {
+      "scannerPath": "scripts/check-rust-no-split-repo-residue.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-no-split-repo-residue.surface.ts",
+      "surfaceModuleSha256": "cdef22dd0e535de934418abceebe2e27b5bd40b469b4796fec47fb32c28748bc",
+      "spec": {
+        "scannerPath": "scripts/check-rust-no-split-repo-residue.ts",
+        "mode": "workingTree",
+        "pathspecs": ["scripts/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/no-split-repo-residue"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-bundler-closed-world-authority.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-bundler-closed-world-authority.surface.ts",
+      "surfaceModuleSha256": "2aca74f10d3b90cd72e49fa5df9d11d010fd0959f6cbcef5e8b87306639a6ba4",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-bundler-closed-world-authority.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-bundler/closed-world-authority"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-cascade-layer-rank-construction.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-cascade-layer-rank-construction.surface.ts",
+      "surfaceModuleSha256": "9d1a7ef85c24ded8bc15b95c301fe4907489a8d4fb51def5dd1bc87a9b7791a9",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-cascade-layer-rank-construction.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-cascade/layer-rank-construction"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-cascade-property-metadata.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-cascade-property-metadata.surface.ts",
+      "surfaceModuleSha256": "aee1f983a0b9dafb01b537e47a992b0ec545ead7b0e38e76911c946688d76f30",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-cascade-property-metadata.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-cascade/property-metadata"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-cli-bundle-origin-chain.ts",
+      "disposition": "UNMIGRATED",
+      "effectiveSurface": "**",
+      "reason": "non-repo-temp-tree",
+      "evidenceNeedle": "mkdtempSync",
+      "gateIds": ["rust/omena-cli-bundle-origin-chain"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-cli-json-output-census.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-cli-json-output-census.surface.ts",
+      "surfaceModuleSha256": "d7307d01d1faf4c9c3387339a65a78c433f9600d807dbf63a1a42352c70e0289",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-cli-json-output-census.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-cli-json-output-census"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-closed-world-admission-tier.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-closed-world-admission-tier.surface.ts",
+      "surfaceModuleSha256": "b7984a0166004344b933288c8acfed18c498a2636833a15af2b386c0ba5a7258",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-closed-world-admission-tier.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**", "scripts/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-bundler/closed-world-authority"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-crate-boundary-reviews.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-crate-boundary-reviews.surface.ts",
+      "surfaceModuleSha256": "0d8f86d1cad4d5b193269777375efc0fe5646b624574be0619815934cdd1f306",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-crate-boundary-reviews.ts",
+        "mode": "workingTree",
+        "pathspecs": ["**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/product-surface-boundary-reviews"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-cross-surface-parity.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-cross-surface-parity.surface.ts",
+      "surfaceModuleSha256": "a79fa233c132a1601c0c14adad09288f28355024be44c73b5d8e833671436f5c",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-cross-surface-parity.ts",
+        "mode": "workingTree",
+        "pathspecs": ["test/**", "contracts/**", "packages/**", "rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-cross-surface-parity", "rust/omena-cross-surface-parity-full"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-css-rustdoc-coverage.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-css-rustdoc-coverage.surface.ts",
+      "surfaceModuleSha256": "5f9ce2f2ffa43cd0582187084dbba6a24a4169e0df8649f741a3b3c70f4f1bdc",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-css-rustdoc-coverage.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-css/rustdoc-coverage"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-diff-test-sass-spec-scale.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-diff-test-sass-spec-scale.surface.ts",
+      "surfaceModuleSha256": "070d821acda497370f64edf5e9a1bf737470a2c6bb0fdd35e6e2596165085c55",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-diff-test-sass-spec-scale.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-diff-test-sass-spec-scale"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-diff-test-sass-spec-upstream-scale.ts",
+      "disposition": "UNMIGRATED",
+      "effectiveSurface": "**",
+      "reason": "external-checkout",
+      "evidenceNeedle": "OMENA_SASS_SPEC_UPSTREAM_ROOT",
+      "gateIds": [
+        "rust/omena-diff-test-sass-spec-upstream-scale",
+        "rust/omena-diff-test-sass-spec-upstream-scale-fetch",
+        "rust/omena-diff-test-sass-spec-upstream-scale:update"
+      ]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-diff-test-wpt-expectations.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-diff-test-wpt-expectations.surface.ts",
+      "surfaceModuleSha256": "6038ff9d7f4f3d72f50a63a90372aa8760ae59ee4c92aff679f5ebc6a085f22b",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-diff-test-wpt-expectations.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-diff-test-wpt-expectations"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-fact-precision-census.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-fact-precision-census.surface.ts",
+      "surfaceModuleSha256": "e1ce4c369ca159555fd0aa51ebad223a65e0349783302157b3b224ae22cd1db8",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-fact-precision-census.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-fact-precision-census"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-identifier-authority-census.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-identifier-authority-census.surface.ts",
+      "surfaceModuleSha256": "dbd900b567d93dc926ebac32e130532eb84a1d7b4fd09a4378edd775f7243872",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-identifier-authority-census.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": [
+        "rust/omena-syntax-authority-raw-scan-census",
+        "rust/omena-syntax-authority-raw-scan-census:update"
+      ]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-keyword-case-authority-census.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-keyword-case-authority-census.surface.ts",
+      "surfaceModuleSha256": "7c74a282a2a75af98a0dc1ed6ed38ed61da75fb11a40a894c166d61d28f958ff",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-keyword-case-authority-census.ts",
+        "mode": "index",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["personal-docs"]
+      },
+      "gateIds": [
+        "rust/omena-keyword-case-authority-census",
+        "rust/omena-keyword-case-authority-census:update"
+      ]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-literal-evidence-census.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-literal-evidence-census.surface.ts",
+      "surfaceModuleSha256": "a4f67f711b0e9c8576be3218e59ce60ef7d0bfbf18dfa4e19f8e2b08b2e8c92d",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-literal-evidence-census.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-literal-evidence-census"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-lsp-server-boundary.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-lsp-server-boundary.surface.ts",
+      "surfaceModuleSha256": "219d58785c1e38f52d78108f8184d0713fc1d814de3732d96dcdcdc73807d884",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-lsp-server-boundary.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**", "server/**", "docs/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-lsp-server/boundary"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-lsp-server-parser-consumer.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-lsp-server-parser-consumer.surface.ts",
+      "surfaceModuleSha256": "83cd3649ff4a7202738185ead08388a3d19fba977abd8c0fab9cbdc0e88495f6",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-lsp-server-parser-consumer.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-lsp-server/parser-consumer"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-lsp-server-query-read-boundary.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-lsp-server-query-read-boundary.surface.ts",
+      "surfaceModuleSha256": "56a7c8bf989531aa68992d049f9bed2e981fa0f0a5116c2b2450c0ee7fd711b7",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-lsp-server-query-read-boundary.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-lsp-server/query-read-boundary"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-lsp-server-tide-sole-authority.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-lsp-server-tide-sole-authority.surface.ts",
+      "surfaceModuleSha256": "852564a24ec25fb1f1dbbd061b689c1f9e67891a6db95b60866aa505ec7a58b4",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-lsp-server-tide-sole-authority.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-lsp-server/tide-sole-authority"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-module-qualified-product-path.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-module-qualified-product-path.surface.ts",
+      "surfaceModuleSha256": "469bbaa6277026e2557888016c4b7119b28214e2afcd4d2abcca80ecff6576c7",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-module-qualified-product-path.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": [
+        "rust/omena-module-qualified-product-path-census:update",
+        "rust/omena-query/module-qualified-product-path"
+      ]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-plugin-consumption-law.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-plugin-consumption-law.surface.ts",
+      "surfaceModuleSha256": "8f3585796df13f048e92331852e3f7a94d880fd9d650dd8c41663c5e6424c497",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-plugin-consumption-law.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-plugin-consumption-law"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-precision-witness-census.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-precision-witness-census.surface.ts",
+      "surfaceModuleSha256": "0dbf6e7554b6f2712bde79683027513b3d4a21d5d601ae83165ff2cd13b7123d",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-precision-witness-census.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-precision-witness-census"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-query-bundle-execution-scope.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-query-bundle-execution-scope.surface.ts",
+      "surfaceModuleSha256": "d2759a7c35c796a187ace06f04c092f39e383e3ced38b4ba02215300cb0014c4",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-query-bundle-execution-scope.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-query/bundle-execution-scope"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-query-cascade-input-authority.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-query-cascade-input-authority.surface.ts",
+      "surfaceModuleSha256": "1f02afe56cc513dd2c0cd78d31ed4be5a21b61ca3f8a5e60343780999b176bb1",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-query-cascade-input-authority.ts",
+        "mode": "index",
+        "pathspecs": [
+          ":(glob)rust/crates/omena-query/src/*.rs",
+          ":(glob)rust/crates/omena-query/src/**/*.rs"
+        ],
+        "includeUntracked": false,
+        "excludes": ["personal-docs"]
+      },
+      "gateIds": ["rust/omena-query/cascade-input-authority"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-query-consumer-facade.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-query-consumer-facade.surface.ts",
+      "surfaceModuleSha256": "5c4e10be5bfbd145bca8583d65cd54395eb13717fa16b45c7bfe57a369291113",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-query-consumer-facade.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-query/consumer-facade"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-query-public-surface.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-query-public-surface.surface.ts",
+      "surfaceModuleSha256": "17425232448b586c73f1688a821bc57b1b33ab4f9a1aeb03bfbbe3490890baf5",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-query-public-surface.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**", "scripts/fixtures/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": [
+        "rust/omena-query/public-surface",
+        "rust/omena-query/public-surface-all-features",
+        "rust/omena-query/public-surface:update"
+      ]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-resolver-identity-index-callers.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-resolver-identity-index-callers.surface.ts",
+      "surfaceModuleSha256": "aad4c574d4f19e097c86f15d4670c6bb2486840620d00b86895f9d62182116f2",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-resolver-identity-index-callers.ts",
+        "mode": "index",
+        "pathspecs": ["rust/**", "tools/**"],
+        "includeUntracked": false,
+        "excludes": ["personal-docs"]
+      },
+      "gateIds": ["rust/omena-resolver/identity-index-callers"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-resolver-runner-boundary.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-resolver-runner-boundary.surface.ts",
+      "surfaceModuleSha256": "c0437c302fe8cd2c99978ed14fc830dcf71b9b0f4540995e12d96a06774793c6",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-resolver-runner-boundary.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-resolver/runner-boundary"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-response-surface-split-census.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-response-surface-split-census.surface.ts",
+      "surfaceModuleSha256": "7697ffba9b0e6f7f1de4ed98a51ebfbce44df8f5320da2267ba3568a9653c16f",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-response-surface-split-census.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-response-surface-split-census"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-sdk-workflow-parity.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-sdk-workflow-parity.surface.ts",
+      "surfaceModuleSha256": "5f943593e576aea0e6430720be80c47cb13a3d8c03cf75b49cfe41b384552b1f",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-sdk-workflow-parity.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-cross-surface-parity-full"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-sif-shard-trust-census.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-sif-shard-trust-census.surface.ts",
+      "surfaceModuleSha256": "7e156d010bbea72561ffec733e83050eba0db24adc0bdd02be48e0c60f210749",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-sif-shard-trust-census.ts",
+        "mode": "index",
+        "pathspecs": ["*.rs"],
+        "includeUntracked": false,
+        "excludes": ["personal-docs"]
+      },
+      "gateIds": ["rust/omena-sif/shard-trust-census"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-source-type-fact-shape-census.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-source-type-fact-shape-census.surface.ts",
+      "surfaceModuleSha256": "23a86b14ae6764246a61e426c277685b39f999940d84df6814993aa5f0486252",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-source-type-fact-shape-census.ts",
+        "mode": "workingTree",
+        "pathspecs": ["**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-source-type-fact-shape-census"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-style-resolution-authority.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-style-resolution-authority.surface.ts",
+      "surfaceModuleSha256": "5bc1207042e7d18a4a13ebe2c6675c5aee232beceb574fc737e772bdcb640cde",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-style-resolution-authority.ts",
+        "mode": "index",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["personal-docs"]
+      },
+      "gateIds": [
+        "rust/omena-style-resolution-authority",
+        "rust/omena-style-resolution-authority:update"
+      ]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-syntax-authority-raw-scan-census.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-syntax-authority-raw-scan-census.surface.ts",
+      "surfaceModuleSha256": "9fbaaccd055bdbfc12c212eff3e6d0ecdd899609004b37220bf0e83f5289a306",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-syntax-authority-raw-scan-census.ts",
+        "mode": "index",
+        "pathspecs": ["**"],
+        "includeUntracked": false,
+        "excludes": ["personal-docs"]
+      },
+      "gateIds": [
+        "rust/omena-syntax-authority-raw-scan-census",
+        "rust/omena-syntax-authority-raw-scan-census:update"
+      ]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-syntax-extraction-decision.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-syntax-extraction-decision.surface.ts",
+      "surfaceModuleSha256": "c420b0f6f5af93e86e476d83b63dc8e4d7cc6a4c18e4f52f0468b33fa36228d6",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-syntax-extraction-decision.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-syntax/extraction-decision"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-syntax-parser-cst-equivalence.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-syntax-parser-cst-equivalence.surface.ts",
+      "surfaceModuleSha256": "d7bfe5ff8d3a6ff820e7d43061be57859c4c60fec8526892e38b331fa65d619c",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-syntax-parser-cst-equivalence.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-syntax/boundary"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-top-provenance-census.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-top-provenance-census.surface.ts",
+      "surfaceModuleSha256": "03cdbff134f5c1960eaebed2fe79df181050cf19d26d251e840f8118e6521187",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-top-provenance-census.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-top-provenance-census"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-verification-targets.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-verification-targets.surface.ts",
+      "surfaceModuleSha256": "fbed3e2217a6e0aad355bde9ea27aabc2e5ca8715219aa190f93b99080d94332",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-verification-targets.ts",
+        "mode": "workingTree",
+        "pathspecs": ["scripts/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-verification-targets"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-wpt-attribution.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-wpt-attribution.surface.ts",
+      "surfaceModuleSha256": "816d821aac93675eed1079d0da94853c16be0863b659b6a3bb91feb9cceb7ce2",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-wpt-attribution.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-wpt-attribution"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-omena-write-safety.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-omena-write-safety.surface.ts",
+      "surfaceModuleSha256": "78098d0469ba9c6e6fd1a19fda335ea5581dac10bd792cf6e3da628586772464",
+      "spec": {
+        "scannerPath": "scripts/check-rust-omena-write-safety.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**", "packages/**", "server/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-write-safety"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-precision-floor.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-precision-floor.surface.ts",
+      "surfaceModuleSha256": "8c28da636ef43335f4c0a900ef0afc830e9e4a70fa3f171c42f81a5e3ce7e78d",
+      "spec": {
+        "scannerPath": "scripts/check-rust-precision-floor.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/precision-floor"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-proof-kernel.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-proof-kernel.surface.ts",
+      "surfaceModuleSha256": "4098e26721ca49bc843102703070d276813434e205aded65c5194945661cfb9e",
+      "spec": {
+        "scannerPath": "scripts/check-rust-proof-kernel.ts",
+        "mode": "index",
+        "pathspecs": [":(glob)rust/crates/**/*.rs"],
+        "includeUntracked": false,
+        "excludes": ["personal-docs"]
+      },
+      "gateIds": ["rust/proof-kernel"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-ranked-set-loss-census.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-ranked-set-loss-census.surface.ts",
+      "surfaceModuleSha256": "a66f0d0dfe41c6588a897f1ae172ed50b1d4c451736341e6b0b5edecbd5c29db",
+      "spec": {
+        "scannerPath": "scripts/check-rust-ranked-set-loss-census.ts",
+        "mode": "index",
+        "pathspecs": ["**"],
+        "includeUntracked": true,
+        "excludes": ["personal-docs"]
+      },
+      "gateIds": ["rust/ranked-set-loss-census"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-selected-query-workspace.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-selected-query-workspace.surface.ts",
+      "surfaceModuleSha256": "9c66e05a7b9e1491053ae39ba134f110a5822811a81e8fa97d332130981fcc5e",
+      "spec": {
+        "scannerPath": "scripts/check-rust-selected-query-workspace.ts",
+        "mode": "index",
+        "pathspecs": ["**"],
+        "includeUntracked": false,
+        "excludes": ["personal-docs"]
+      },
+      "gateIds": ["rust/selected-query/workspace"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-sif-attestation-feature.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-sif-attestation-feature.surface.ts",
+      "surfaceModuleSha256": "953338a27bf069a6fa798aa48f481f61abe6c9f49dc1f4f632cc652458248239",
+      "spec": {
+        "scannerPath": "scripts/check-rust-sif-attestation-feature.ts",
+        "mode": "index",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["personal-docs"]
+      },
+      "gateIds": ["rust/sif-attestation-feature"]
+    },
+    {
+      "scannerPath": "scripts/check-rust-source-frontend-parity-ledger.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-source-frontend-parity-ledger.surface.ts",
+      "surfaceModuleSha256": "2a97aef92e3335bf3475e136695a802793026b18a356057ff586ed4d3ade408d",
+      "spec": {
+        "scannerPath": "scripts/check-rust-source-frontend-parity-ledger.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**", "server/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/source-frontend/parity-ledger"]
+    },
+    {
+      "scannerPath": "scripts/check-ts7-ts-api-surface-lock.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-ts7-ts-api-surface-lock.surface.ts",
+      "surfaceModuleSha256": "8b6db0de6743c59d87b12fd47f8122f2ebf5136c63f5ea604aa71f0aaaff83f9",
+      "spec": {
+        "scannerPath": "scripts/check-ts7-ts-api-surface-lock.ts",
+        "mode": "workingTree",
+        "pathspecs": ["server/**", "packages/**", "scripts/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["ts7/ts-api-surface-lock"]
+    },
+    {
+      "scannerPath": "scripts/contract-parity-v2-fixture-selection.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-contract-parity-v2-fixture-selection.surface.ts",
+      "surfaceModuleSha256": "db0adc5fc306a36a41306f65da4e4e6101fb340a00c70e72ebbe20e5db422575",
+      "spec": {
+        "scannerPath": "scripts/contract-parity-v2-fixture-selection.ts",
+        "mode": "workingTree",
+        "pathspecs": ["test/_fixtures/contract-parity-v2/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": []
+    },
+    {
+      "scannerPath": "scripts/coverage-gap-report.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-coverage-gap-report.surface.ts",
+      "surfaceModuleSha256": "39428b4b0b071b4483745045a417fb0642541ef9f0e77d7f5caf2153e4107a20",
+      "spec": {
+        "scannerPath": "scripts/coverage-gap-report.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": []
+    },
+    {
+      "scannerPath": "scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts",
+      "disposition": "UNMIGRATED",
+      "effectiveSurface": "**",
+      "reason": "external-checkout",
+      "evidenceNeedle": "--wpt-root",
+      "gateIds": [
+        "rust/omena-diff-test-wpt-extraction-source",
+        "rust/omena-diff-test-wpt-extraction:update",
+        "rust/omena-diff-test-wpt-extractor"
+      ]
+    },
+    {
+      "scannerPath": "scripts/generate-rust-omena-value-grammar-corpus.ts",
+      "disposition": "UNMIGRATED",
+      "effectiveSurface": "**",
+      "reason": "external-checkout",
+      "evidenceNeedle": "checkoutDir",
+      "gateIds": ["rust/omena-value-grammar-corpus:update"]
+    },
+    {
+      "scannerPath": "scripts/generate-sass-spec-conformance-corpus.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-generate-sass-spec-conformance-corpus.surface.ts",
+      "surfaceModuleSha256": "8a509ef3e879234b0394b885b53a66ff8e5d0ab9ad0a8e9c1f2b0a8fc5e0ece1",
+      "spec": {
+        "scannerPath": "scripts/generate-sass-spec-conformance-corpus.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-diff-test-sass-spec-conformance-corpus"]
+    },
+    {
+      "scannerPath": "scripts/generate-sass-spec-corpus.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-generate-sass-spec-corpus.surface.ts",
+      "surfaceModuleSha256": "ecdaa8fa8ab9ba8f92b97d14c0e16d87a06f423de6f1326b37e9c15cd7ed4a1e",
+      "spec": {
+        "scannerPath": "scripts/generate-sass-spec-corpus.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["rust/omena-diff-test-sass-spec-import"]
+    },
+    {
+      "scannerPath": "scripts/measure-css-module-token-shapes.ts",
+      "disposition": "UNMIGRATED",
+      "effectiveSurface": "**",
+      "reason": "external-checkout",
+      "evidenceNeedle": "args.corpusRoot",
+      "gateIds": []
+    },
+    {
+      "scannerPath": "scripts/measure-rust-omena-diagnostic-transition-attribution.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-measure-rust-omena-diagnostic-transition-attribution.surface.ts",
+      "surfaceModuleSha256": "72adfd84d306ed32a32e39368d4a7a8ca4c40cb22e42ae099caa5ceec8e6504c",
+      "spec": {
+        "scannerPath": "scripts/measure-rust-omena-diagnostic-transition-attribution.ts",
+        "mode": "index",
+        "pathspecs": ["**/*.css", "**/*.scss", "**/*.less"],
+        "includeUntracked": false,
+        "excludes": ["personal-docs"]
+      },
+      "gateIds": []
+    },
+    {
+      "scannerPath": "scripts/merge-engine-shadow-runner-artifacts.mjs",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-merge-engine-shadow-runner-artifacts.surface.ts",
+      "surfaceModuleSha256": "c473ea107561f3d9e8a0aa74e38c04a9b5bb2823bf86376be5dc0f902182949d",
+      "spec": {
+        "scannerPath": "scripts/merge-engine-shadow-runner-artifacts.mjs",
+        "mode": "workingTree",
+        "pathspecs": [".runner-artifacts/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["release/package/prepared", "rust/selected-query/release-default"]
+    },
+    {
+      "scannerPath": "scripts/oss-corpus-farm.ts",
+      "disposition": "UNMIGRATED",
+      "effectiveSurface": "**",
+      "reason": "external-checkout",
+      "evidenceNeedle": "pinned-repository",
+      "gateIds": [
+        "rust/lint-finding-census",
+        "rust/lint-finding-census:update",
+        "rust/oss-corpus-farm",
+        "rust/oss-corpus-farm-determinism",
+        "rust/oss-corpus-farm:update"
+      ]
+    },
+    {
+      "scannerPath": "scripts/prepare-tsgo-binary.mjs",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-prepare-tsgo-binary.surface.ts",
+      "surfaceModuleSha256": "cd3a0f46b9161365ed8d11d66385d646b8bbbed8ad1c7d1b2bd744f236d3bbf5",
+      "spec": {
+        "scannerPath": "scripts/prepare-tsgo-binary.mjs",
+        "mode": "workingTree",
+        "pathspecs": ["node_modules/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "rust-build-output"]
+      },
+      "gateIds": ["core/build/tsgo-binary"]
+    },
+    {
+      "scannerPath": "scripts/rename-selector.ts",
+      "disposition": "UNMIGRATED",
+      "effectiveSurface": "**",
+      "reason": "external-checkout",
+      "evidenceNeedle": "--root",
+      "gateIds": []
+    },
+    {
+      "scannerPath": "scripts/restore-native-binary-permissions.mjs",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-restore-native-binary-permissions.surface.ts",
+      "surfaceModuleSha256": "fde73facf4c1aeec528fd3e2089aab9a1cac6c756c74a6fb4a68b54f3d97f62b",
+      "spec": {
+        "scannerPath": "scripts/restore-native-binary-permissions.mjs",
+        "mode": "workingTree",
+        "pathspecs": ["dist/bin/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["release/package/prepared"]
+    }
+  ]
+}

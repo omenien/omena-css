@@ -1,7 +1,10 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { execFileSync } from "node:child_process";
 import { strict as assert } from "node:assert";
 import fs from "node:fs";
 import path from "node:path";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 interface CargoPackage {
   readonly id: string;
@@ -206,7 +209,7 @@ function scanReachableWorkspaceTypes(): InternalTypeRow[] {
 
 function listRustSources(directory: string): string[] {
   if (!fs.existsSync(directory)) return [];
-  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+  return evidenceScanSurface.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const absolute = path.join(directory, entry.name);
     if (entry.isDirectory()) return listRustSources(absolute);
     return entry.isFile() && entry.name.endsWith(".rs") ? [absolute] : [];

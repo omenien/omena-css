@@ -1,9 +1,12 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runDeclaredRustSemverCheck } from "./lib/rust-semver-intent.ts";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const allFeaturesSnapshot = process.argv.includes("--all-features");
@@ -269,7 +272,7 @@ function scanWildcardReexports(): {
 }
 
 function listRustSourceFiles(root: string): readonly string[] {
-  const entries = readdirSync(root);
+  const entries = evidenceScanSurface.readdirSync(root);
   return entries.flatMap((entry) => {
     const fullPath = path.join(root, entry);
     const stats = statSync(fullPath);

@@ -1,9 +1,12 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 interface PlainResolverCallSite {
   readonly path: string;
@@ -234,7 +237,7 @@ function scanPlainResolverCallSites(): PlainResolverCallSite[] {
 }
 
 function trackedRustSources(): string[] {
-  const result = spawnSync(
+  const result = evidenceScanSurface.spawnSync(
     "git",
     ["ls-files", "rust/crates/omena-query/src", "rust/crates/omena-cli/src"],
     {

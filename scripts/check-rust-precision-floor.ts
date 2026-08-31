@@ -1,7 +1,10 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -11,7 +14,7 @@ function read(relativePath: string): string {
 
 function rustSources(relativeDirectory: string): string[] {
   const directory = path.join(repoRoot, relativeDirectory);
-  return fs
+  return evidenceScanSurface
     .readdirSync(directory, { recursive: true, encoding: "utf8" })
     .filter((entry) => entry.endsWith(".rs"))
     .map((entry) => fs.readFileSync(path.join(directory, entry), "utf8"));

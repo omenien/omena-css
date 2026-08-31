@@ -1,8 +1,11 @@
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 interface FixtureResultV0 {
   readonly name: string;
@@ -2584,10 +2587,14 @@ function readRepositorySource(file: string, sourceRef?: string): string {
 
 function listCurrentTrackedFiles(): readonly string[] {
   if (currentTrackedFiles !== undefined) return currentTrackedFiles;
-  const result = spawnSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
+  const result = evidenceScanSurface.spawnSync(
+    "git",
+    ["ls-files", "--cached", "--others", "--exclude-standard"],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+    },
+  );
   assert.equal(result.status, 0, `git ls-files failed: ${result.stderr}`);
   currentTrackedFiles = result.stdout.split(/\r?\n/u).filter(Boolean);
   return currentTrackedFiles;

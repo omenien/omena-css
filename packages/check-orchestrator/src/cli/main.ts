@@ -1,12 +1,26 @@
-import { spawnSync } from "node:child_process";
+import { resolveScanSurfaceForScanner } from "../evidence/scan-surface-manifest";
+import { buildEvidenceScanSurfaceManifest } from "../evidence/scan-surface-registry";
 import {
-  appendFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  writeFileSync,
-} from "node:fs";
+  evidenceScanSurfaceManifestPath,
+  renderEvidenceScanSurfaceManifest,
+} from "../evidence/scan-surface-manifest";
+import {
+  buildEvidenceWriterRegistry,
+  evidenceWriterRegistryPath,
+  loadEvidenceWriterRegistry,
+  renderEvidenceWriterRegistry,
+} from "../evidence/writer-registry";
+import { buildEvidenceAffectedPlan } from "../evidence/affected-evidence";
+import { resolveEvidenceWriterCommand, runDigestPinnedWriter } from "../evidence/writer-runner";
+import { loadEvidenceScanSurfaceManifest } from "../evidence/scan-surface-manifest";
+import { resolveScanSurface } from "../evidence/scan-surface";
+import {
+  buildEvidencePreviewBudgetPlan,
+  EVIDENCE_PREVIEW_EMPTY_BUDGET_MS,
+  executeEvidencePreviewBudget,
+} from "../evidence/preview-budget";
+import { spawnSync } from "node:child_process";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { buildAffectedCheckPlan } from "../affected";
 import {
@@ -41,6 +55,8 @@ import { pnpmRunCommand } from "./commands";
 import { runCapturedCommand, runLiveCommand, type CapturedCommandResult } from "./execution";
 import { resolveSummaryMemberArgs } from "./summary-args";
 
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
+
 interface ParsedArgs {
   readonly command: string;
   readonly target: string | null;
@@ -49,6 +65,8 @@ interface ParsedArgs {
   readonly check: boolean;
   readonly write: boolean;
   readonly summary: boolean;
+  readonly evidence: boolean;
+  readonly preview: boolean;
   readonly shard: string | null;
   readonly base: string;
   readonly extraArgs: readonly string[];
@@ -79,6 +97,8 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
     check: flags.has("--check"),
     write: flags.has("--write"),
     summary: flags.has("--summary"),
+    evidence: flags.has("--evidence"),
+    preview: flags.has("--preview"),
     shard: shardFlag ? shardFlag.slice("--shard=".length) : null,
     base: baseFlag ? baseFlag.slice("--base=".length) : "origin/master",
     extraArgs,
@@ -123,8 +143,12 @@ async function runProbeCommand(parsed: ParsedArgs): Promise<void> {
   process.exit(await executeGate(gate, [], new Set<string>(), new Set<string>()));
 }
 
-function printAffectedChecks(parsed: ParsedArgs): void {
+async function printAffectedChecks(parsed: ParsedArgs): Promise<void> {
   const changedPaths = collectChangedPaths(parsed.base);
+  if (parsed.evidence) {
+    await printAffectedEvidence(parsed, changedPaths);
+    return;
+  }
   const plan = buildAffectedCheckPlan(changedPaths);
   if (parsed.json) {
     console.log(JSON.stringify({ base: parsed.base, ...plan }, null, 2));
@@ -148,17 +172,170 @@ function printAffectedChecks(parsed: ParsedArgs): void {
   }
 }
 
+async function printAffectedEvidence(
+  parsed: ParsedArgs,
+  changedPaths: readonly string[],
+): Promise<void> {
+  if (parsed.check && parsed.write) fail("Use either --check or --write, not both.");
+  const scanManifest = loadEvidenceScanSurfaceManifest(manifest.rootDir);
+  const writerRegistry = loadEvidenceWriterRegistry(manifest.rootDir);
+  if (!scanManifest) {
+    fail(
+      "Evidence scan surface manifest is absent; run `pnpm omena-check evidence-surfaces --write`.",
+    );
+  }
+  if (!writerRegistry) {
+    fail("Evidence writer registry is absent; run `pnpm omena-check evidence-writers --write`.");
+  }
+  const plan = buildEvidenceAffectedPlan({ changedPaths, scanManifest, writerRegistry });
+  if (parsed.write)
+    await runAffectedEvidenceWriters(plan.writerOrder, scanManifest, writerRegistry);
+  let preview:
+    | {
+        readonly budget: ReturnType<typeof buildEvidencePreviewBudgetPlan>;
+        readonly receipts: readonly { readonly gateId: string; readonly elapsedMs: number }[];
+      }
+    | undefined;
+  if (parsed.preview) {
+    if (process.env.OMENA_EVIDENCE_SWEEP === "0") {
+      console.log(
+        "evidence affected preview: skipped by OMENA_EVIDENCE_SWEEP=0 (LEFTHOOK=0 remains the whole-hook override)",
+      );
+      return;
+    }
+    const ledger = loadCostLedger(manifest.rootDir);
+    if (!ledger) fail("ci-cost-ledger.json is absent; evidence preview cannot price gates.");
+    const budget = buildEvidencePreviewBudgetPlan(plan.gateIds, manifest, ledger);
+    const receipts = await executeEvidencePreviewBudget(budget, async (gateId) =>
+      executeGate(resolveTarget(gateId), [], new Set<string>(), new Set<string>()),
+    );
+    preview = { budget, receipts };
+    if (changedPaths.length === 0 && performance.now() > EVIDENCE_PREVIEW_EMPTY_BUDGET_MS) {
+      fail(
+        `empty evidence preview exceeded ${EVIDENCE_PREVIEW_EMPTY_BUDGET_MS}ms: ${Math.round(performance.now())}ms`,
+      );
+    }
+  }
+  if (parsed.json) {
+    console.log(
+      JSON.stringify(
+        {
+          base: parsed.base,
+          mode: parsed.write ? "write" : "check",
+          ...plan,
+          ...(preview ? { preview } : {}),
+        },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
+  console.log(`Affected evidence against ${parsed.base} (${parsed.write ? "write" : "check"}):`);
+  console.log(
+    `  refresh sufficiency: ${plan.evidenceRefreshSufficientAlone ? "narrow evidence refresh" : "INSUFFICIENT-ALONE"}`,
+  );
+  if (plan.fallbackToFullEvidence) {
+    for (const reason of plan.fallbackReasons) console.log(`  FULL evidence fallback: ${reason}`);
+  }
+  for (const artifactPath of plan.writerOrder) console.log(`  writer-order: ${artifactPath}`);
+  for (const row of plan.notRefreshed) {
+    const instruction = Array.isArray(row.instruction)
+      ? row.instruction.join(" -> ")
+      : row.instruction;
+    console.log(`  NOT-REFRESHED ${row.classification}: ${row.artifactPath}: ${instruction}`);
+  }
+  for (const entry of plan.notPreviewableInputs) {
+    console.log(`  NOT-PREVIEWABLE ${entry.kind}: ${entry.ownerId}: ${entry.detail}`);
+  }
+  for (const entry of plan.commitThenRefresh) {
+    console.log(`  COMMIT-THEN-REFRESH ${entry.artifactPath}: ${entry.steps.join(" -> ")}`);
+  }
+  if (preview) {
+    console.log(
+      `  PREVIEW ran estimate=${preview.budget.estimatedRunMs}ms measured=${preview.receipts.reduce((sum, receipt) => sum + receipt.elapsedMs, 0)}ms`,
+    );
+    for (const entry of preview.budget.skipped) {
+      console.log(`  PREVIEW-SKIPPED ${entry.gateId} p95=${entry.p95Ms ?? "unbounded"}ms`);
+    }
+    for (const gateId of preview.budget.omittedWriteModeGateIds) {
+      console.log(`  PREVIEW-OMITTED-WRITE-MODE ${gateId}`);
+    }
+  }
+  console.log(
+    `  scanners affected=${plan.affectedScannerPaths.length} excluded=${plan.excludedScannerPaths.length} gates=${plan.gateIds.length}`,
+  );
+}
+
+async function runAffectedEvidenceWriters(
+  writerOrder: readonly string[],
+  scanManifest: NonNullable<ReturnType<typeof loadEvidenceScanSurfaceManifest>>,
+  writerRegistry: NonNullable<ReturnType<typeof loadEvidenceWriterRegistry>>,
+): Promise<void> {
+  const artifactByPath = new Map(writerRegistry.artifacts.map((row) => [row.artifactPath, row]));
+  const scannerByPath = new Map(scanManifest.scanners.map((row) => [row.scannerPath, row]));
+  const completedCommands = new Set<string>();
+  for (const artifactPath of writerOrder) {
+    const row = artifactByPath.get(artifactPath);
+    if (!row || row.classification === "W3" || row.classification === "W4") continue;
+    if (!row.writeCommand) throw new Error(`writeable artifact lacks a command: ${artifactPath}`);
+    const commandKey = JSON.stringify(row.writeCommand);
+    if (completedCommands.has(commandKey)) continue;
+    const commandRows = writerRegistry.artifacts.filter(
+      (candidate) => JSON.stringify(candidate.writeCommand) === commandKey,
+    );
+    const requiredEnvironmentKeys = [
+      ...new Set(commandRows.flatMap((candidate) => candidate.requiredEnvironmentKeys ?? [])),
+    ].toSorted();
+    const resolvedWriteCommand = resolveEvidenceWriterCommand(
+      row.writeCommand,
+      requiredEnvironmentKeys,
+    );
+    const inputPaths = new Set<string>(["package.json", "pnpm-lock.yaml"]);
+    for (const commandRow of commandRows) {
+      for (const writerScript of commandRow.writerScripts) inputPaths.add(writerScript);
+      for (const inputArtifactPath of commandRow.inputArtifactPaths) {
+        if (inputArtifactPath !== commandRow.artifactPath) inputPaths.add(inputArtifactPath);
+      }
+      for (const scannerPath of commandRow.inputScannerPaths) {
+        inputPaths.add(scannerPath);
+        const scanner = scannerByPath.get(scannerPath);
+        if (scanner?.disposition === "MIGRATED") {
+          for (const inputPath of resolveScanSurface(scanner.spec, { repoRoot: manifest.rootDir })
+            .paths) {
+            if (!commandRows.some((candidate) => candidate.artifactPath === inputPath)) {
+              inputPaths.add(inputPath);
+            }
+          }
+        }
+      }
+    }
+    await runDigestPinnedWriter({
+      repoRoot: manifest.rootDir,
+      command: resolvedWriteCommand,
+      inputPaths: [...inputPaths],
+      outputPaths: commandRows.map((candidate) => candidate.artifactPath),
+    });
+    completedCommands.add(commandKey);
+  }
+}
+
 function collectChangedPaths(base: string): readonly string[] {
   const paths = new Set<string>();
   for (const args of [
     ["diff", "--name-only", "--diff-filter=ACDMRT", `${base}...HEAD`],
     ["diff", "--name-only", "--diff-filter=ACDMRT"],
     ["diff", "--cached", "--name-only", "--diff-filter=ACDMRT"],
-    ["ls-files", "--others", "--exclude-standard"],
   ]) {
     for (const changedPath of runGitLines(args)) {
       paths.add(changedPath);
     }
+  }
+  for (const changedPath of evidenceScanSurface
+    .gitOutput(["ls-files", "--others", "--exclude-standard"])
+    .split(/\r?\n/u)
+    .filter(Boolean)) {
+    paths.add(changedPath);
   }
   return [...paths].toSorted();
 }
@@ -1083,7 +1260,7 @@ function runCostLedgerCommand(parsed: ParsedArgs): void {
       const stack = [runDir];
       while (stack.length > 0) {
         const dir = stack.pop()!;
-        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        for (const entry of evidenceScanSurface.readdirSync(dir, { withFileTypes: true })) {
           const full = path.join(dir, entry.name);
           if (entry.isDirectory()) stack.push(full);
           else if (/^check-summary-.*\.json$/.test(entry.name)) {
@@ -1236,6 +1413,68 @@ function runInventoryCommand(parsed: ParsedArgs): void {
   console.log(inventory);
 }
 
+async function runEvidenceSurfacesCommand(parsed: ParsedArgs): Promise<void> {
+  if (parsed.check && parsed.write) {
+    fail("Use either --check or --write, not both.");
+  }
+  const expected = renderEvidenceScanSurfaceManifest(
+    await buildEvidenceScanSurfaceManifest(manifest.rootDir),
+  );
+  const manifestPath = evidenceScanSurfaceManifestPath(manifest.rootDir);
+  if (parsed.write) {
+    writeFileSync(manifestPath, expected);
+    console.log("evidence scan surface manifest: written");
+    return;
+  }
+  if (parsed.check) {
+    const current = existsSync(manifestPath) ? readFileSync(manifestPath, "utf8") : "";
+    if (current !== expected) {
+      fail(
+        "Evidence scan surface manifest is out of date. Run `pnpm omena-check evidence-surfaces --write`.",
+      );
+    }
+    console.log("evidence scan surface manifest: ok");
+    return;
+  }
+  const parsedManifest = JSON.parse(expected) as {
+    readonly scanners: readonly { readonly disposition: string }[];
+  };
+  console.log(
+    `evidence scan surfaces: ${parsedManifest.scanners.length} scanner row(s), ` +
+      `${parsedManifest.scanners.filter((row) => row.disposition === "MIGRATED").length} migrated`,
+  );
+}
+
+function runEvidenceWritersCommand(parsed: ParsedArgs): void {
+  if (parsed.check && parsed.write) {
+    fail("Use either --check or --write, not both.");
+  }
+  const registry = buildEvidenceWriterRegistry(manifest.rootDir);
+  const expected = renderEvidenceWriterRegistry(registry);
+  const registryPath = evidenceWriterRegistryPath(manifest.rootDir);
+  if (parsed.write) {
+    writeFileSync(registryPath, expected);
+    console.log("evidence writer registry: written");
+    return;
+  }
+  if (parsed.check) {
+    const current = existsSync(registryPath) ? readFileSync(registryPath, "utf8") : "";
+    if (current !== expected) {
+      fail(
+        "Evidence writer registry is out of date. Run `pnpm omena-check evidence-writers --write`.",
+      );
+    }
+    console.log("evidence writer registry: ok");
+    return;
+  }
+  const counts = Object.groupBy(registry.artifacts, (row) => row.classification);
+  console.log(
+    `evidence writers: ${registry.artifacts.length} artifact row(s), ` +
+      `W1=${counts.W1?.length ?? 0} W2=${counts.W2?.length ?? 0} ` +
+      `W3=${counts.W3?.length ?? 0} W4=${counts.W4?.length ?? 0}`,
+  );
+}
+
 function printHelp(): void {
   console.log(`Usage:
   pnpm omena-check list [--json]
@@ -1246,8 +1485,11 @@ function printHelp(): void {
   pnpm omena-check doctor [--json]
   pnpm omena-check surface [--json]
   pnpm omena-check inventory [--check|--write]
+  pnpm omena-check evidence-surfaces [--check|--write]
+  pnpm omena-check evidence-writers [--check|--write]
   pnpm omena-check probe [profile] [--dry|--json]
   pnpm omena-check affected [--base=<git-ref>] [--json]
+  pnpm omena-check affected --evidence [--base=<git-ref>] [--check|--write] [--preview] [--json]
 `);
 }
 
@@ -1282,6 +1524,12 @@ async function dispatch(): Promise<void> {
     case "inventory":
       runInventoryCommand(parsedArgs);
       break;
+    case "evidence-surfaces":
+      await runEvidenceSurfacesCommand(parsedArgs);
+      break;
+    case "evidence-writers":
+      runEvidenceWritersCommand(parsedArgs);
+      break;
     case "ci-workflow":
       runCiWorkflowCommand(parsedArgs);
       break;
@@ -1295,7 +1543,7 @@ async function dispatch(): Promise<void> {
       await runProbeCommand(parsedArgs);
       break;
     case "affected":
-      printAffectedChecks(parsedArgs);
+      await printAffectedChecks(parsedArgs);
       break;
     case "help":
     case "--help":
