@@ -95,32 +95,8 @@ export function renderEvidenceWriterRegistry(registry: EvidenceWriterRegistryV0)
 }
 
 export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterRegistryV0 {
-  const repositoryPaths = resolveScanSurface(REPOSITORY_REFERENCE_SURFACE, { repoRoot }).paths;
-  const rootArtifacts = [
-    ...new Set([
-      ...resolveScanSurface(ROOT_RUST_ARTIFACT_SURFACE, { repoRoot }).paths.filter(
-        (candidate) => path.posix.dirname(candidate) === "rust" && candidate.endsWith(".json"),
-      ),
-      EVIDENCE_WRITER_REGISTRY_PATH,
-    ]),
-  ].toSorted();
-  const scriptPaths = resolveScanSurface(SCRIPT_SOURCE_SURFACE, { repoRoot }).paths.filter(
-    (candidate) => /\.(?:[cm]?js|ts)$/u.test(candidate),
-  );
-  const rootWriterScripts = [
-    ...new Set(
-      rootArtifacts.flatMap((artifactPath) =>
-        findArtifactWriterScripts(repoRoot, artifactPath, scriptPaths),
-      ),
-    ),
-  ];
-  const siblingArtifacts = repositoryPaths.filter(
-    (candidate) =>
-      candidate.endsWith(".json") &&
-      !rootArtifacts.includes(candidate) &&
-      findArtifactWriterScripts(repoRoot, candidate, rootWriterScripts).length > 0,
-  );
-  const artifactPaths = [...new Set([...rootArtifacts, ...siblingArtifacts])].toSorted();
+  const discovery = discoverEvidenceArtifacts(repoRoot);
+  const { repositoryPaths, scriptPaths, artifactPaths, scriptAnalysisCache } = discovery;
   const referencePathsByArtifact = repositoryReferencePathsByArtifact(
     repoRoot,
     artifactPaths,
@@ -141,7 +117,7 @@ export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterReg
   const writerScriptsByArtifact = new Map(
     artifactPaths.map((artifactPath) => [
       artifactPath,
-      findArtifactWriterScripts(repoRoot, artifactPath, scriptPaths),
+      findArtifactWriterScripts(repoRoot, artifactPath, scriptPaths, scriptAnalysisCache),
     ]),
   );
   const writerOutputPathsByScript = new Map<string, string[]>();
@@ -191,6 +167,50 @@ export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterReg
     }
   }
   return registry;
+}
+
+export function discoverEvidenceArtifactPaths(repoRoot: string): readonly string[] {
+  return discoverEvidenceArtifacts(repoRoot).artifactPaths;
+}
+
+interface WriterScriptAnalysis {
+  readonly source: string;
+  readonly sourceFile: tsTypes.SourceFile;
+  readonly staticPathVariables: ReadonlyMap<string, string>;
+}
+
+interface EvidenceArtifactDiscovery {
+  readonly repositoryPaths: readonly string[];
+  readonly scriptPaths: readonly string[];
+  readonly artifactPaths: readonly string[];
+  readonly scriptAnalysisCache: Map<string, WriterScriptAnalysis>;
+}
+
+function discoverEvidenceArtifacts(repoRoot: string): EvidenceArtifactDiscovery {
+  const repositoryPaths = resolveScanSurface(REPOSITORY_REFERENCE_SURFACE, { repoRoot }).paths;
+  const scriptPaths = resolveScanSurface(SCRIPT_SOURCE_SURFACE, { repoRoot }).paths.filter(
+    (candidate) => /\.(?:[cm]?js|ts)$/u.test(candidate),
+  );
+  const scriptAnalysisCache = new Map<string, WriterScriptAnalysis>();
+  const rootArtifacts = [
+    ...new Set([
+      ...resolveScanSurface(ROOT_RUST_ARTIFACT_SURFACE, { repoRoot }).paths.filter(
+        (candidate) => path.posix.dirname(candidate) === "rust" && candidate.endsWith(".json"),
+      ),
+      EVIDENCE_WRITER_REGISTRY_PATH,
+    ]),
+  ];
+  const trackedWriterOutputs = repositoryPaths.filter(
+    (candidate) =>
+      candidate.endsWith(".json") &&
+      findArtifactWriterScripts(repoRoot, candidate, scriptPaths, scriptAnalysisCache).length > 0,
+  );
+  return {
+    repositoryPaths,
+    scriptPaths,
+    artifactPaths: [...new Set([...rootArtifacts, ...trackedWriterOutputs])].toSorted(),
+    scriptAnalysisCache,
+  };
 }
 
 function classifyArtifact(input: {
@@ -253,14 +273,22 @@ function classifyArtifact(input: {
     input.repoRoot,
     writerScripts,
     input.repositoryPathSet,
-  ).filter((candidate) => !writerOutputPaths.has(candidate));
+  );
+  const moduleInputs = localWriterModuleInputs(
+    input.repoRoot,
+    writerScripts,
+    input.repositoryPathSet,
+  );
+  const allInputs = [...new Set([...literalInputs, ...moduleInputs])].filter(
+    (candidate) => !writerOutputPaths.has(candidate),
+  );
   const inputArtifactPaths = [
     ...new Set([
       ...artifactDependencies(artifactPath),
-      ...literalInputs.filter((candidate) => input.artifactPathSet.has(candidate)),
+      ...allInputs.filter((candidate) => input.artifactPathSet.has(candidate)),
     ]),
   ].toSorted();
-  const inputPaths = literalInputs
+  const inputPaths = allInputs
     .filter((candidate) => !input.artifactPathSet.has(candidate))
     .toSorted();
   const inputScannerPaths =
@@ -311,6 +339,42 @@ function classifyArtifact(input: {
   };
 }
 
+function localWriterModuleInputs(
+  repoRoot: string,
+  writerScripts: readonly string[],
+  repositoryPathSet: ReadonlySet<string>,
+): readonly string[] {
+  const inputs = new Set<string>();
+  for (const writerScript of writerScripts) {
+    const source = readFileSync(path.join(repoRoot, writerScript), "utf8");
+    const sourceFile = ts.createSourceFile(writerScript, source, ts.ScriptTarget.Latest, true);
+    for (const statement of sourceFile.statements) {
+      if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
+        continue;
+      }
+      const specifier = statement.moduleSpecifier.text;
+      if (!specifier.startsWith(".")) continue;
+      const base = path.posix.normalize(
+        path.posix.join(path.posix.dirname(writerScript), specifier),
+      );
+      for (const candidate of [
+        base,
+        `${base}.ts`,
+        `${base}.tsx`,
+        `${base}.mjs`,
+        `${base}.js`,
+        `${base}/index.ts`,
+      ]) {
+        if (repositoryPathSet.has(candidate)) {
+          inputs.add(candidate);
+          break;
+        }
+      }
+    }
+  }
+  return [...inputs].toSorted();
+}
+
 function literalRepositoryInputs(
   repoRoot: string,
   writerScripts: readonly string[],
@@ -348,15 +412,25 @@ function findArtifactWriterScripts(
   repoRoot: string,
   artifactPath: string,
   scriptPaths: readonly string[],
+  analysisCache: Map<string, WriterScriptAnalysis>,
 ): readonly string[] {
   const basename = path.posix.basename(artifactPath);
   const requireExactPath = path.posix.dirname(artifactPath) !== "rust";
   const writers: string[] = [];
   for (const scriptPath of scriptPaths) {
-    const source = readFileSync(path.join(repoRoot, scriptPath), "utf8");
+    let analysis = analysisCache.get(scriptPath);
+    if (!analysis) {
+      const source = readFileSync(path.join(repoRoot, scriptPath), "utf8");
+      const sourceFile = ts.createSourceFile(scriptPath, source, ts.ScriptTarget.Latest, true);
+      analysis = {
+        source,
+        sourceFile,
+        staticPathVariables: collectStaticPathVariables(repoRoot, sourceFile),
+      };
+      analysisCache.set(scriptPath, analysis);
+    }
+    const { source, sourceFile, staticPathVariables } = analysis;
     if (!source.includes(basename)) continue;
-    const sourceFile = ts.createSourceFile(scriptPath, source, ts.ScriptTarget.Latest, true);
-    const staticPathVariables = collectStaticPathVariables(repoRoot, sourceFile);
     if (requireExactPath) {
       let writesExactArtifact = false;
       const findExactWrite = (node: tsTypes.Node): void => {

@@ -6,6 +6,7 @@ import {
   readFileSync,
   rmSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import os from "node:os";
@@ -20,6 +21,7 @@ import {
   orderAffectedArtifacts,
 } from "../../../packages/check-orchestrator/src/evidence/affected-evidence";
 import {
+  assertHistoricalSurfaceNarrowing,
   assertSurfaceNarrowingReason,
   evidenceScanSurfaceFreshnessDiagnostics,
   resolveEvidenceHistoricalAuthorityRef,
@@ -53,6 +55,7 @@ import {
 } from "../../../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import {
   buildEvidenceWriterRegistry,
+  discoverEvidenceArtifactPaths,
   renderEvidenceWriterRegistry,
   type EvidenceArtifactRowV0,
   type EvidenceWriterRegistryV0,
@@ -367,7 +370,7 @@ describe("scan surface falsifiers", () => {
     ).toEqual([]);
   });
 
-  it("binds filesystem aliases and computed access while rejecting a scan-surface look-alike", () => {
+  it("binds canonical lexical symbols while rejecting aliases, shadows, and look-alikes", () => {
     expect(
       findUnroutedScannerCallSites(
         "scripts/aliased.ts",
@@ -402,6 +405,36 @@ describe("scan surface falsifiers", () => {
       findUnroutedScannerCallSites(
         "scripts/typed-control.ts",
         'import { resolveScanSurfaceForScanner as resolveSurface } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest"; function scan(surface: ReturnType<typeof resolveSurface>) { surface["readdirSync"](root); }',
+      ),
+    ).toEqual([]);
+    expect(
+      findUnroutedScannerCallSites(
+        "scripts/fake-relative.ts",
+        'import { resolveScanSurfaceForScanner as resolveSurface } from "./fake/scan-surface-manifest"; const surface = resolveSurface(import.meta.url); surface.readdirSync(root);',
+      ),
+    ).toHaveLength(1);
+    expect(
+      findUnroutedScannerCallSites(
+        "scripts/shadowed.ts",
+        'import { resolveScanSurfaceForScanner as resolveSurface } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest"; const surface = resolveSurface(import.meta.url); function scan(surface: any) { surface.readdirSync(root); } scan(surface);',
+      ),
+    ).toHaveLength(1);
+    expect(
+      findUnroutedScannerCallSites(
+        "scripts/structural-forgery.ts",
+        'import { resolveScanSurfaceForScanner as resolveSurface } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest"; type Decoy = { resolver: typeof resolveSurface; readdirSync(root: string): string[] }; function scan(surface: Decoy) { surface.readdirSync(root); }',
+      ),
+    ).toHaveLength(1);
+    expect(
+      findUnroutedScannerCallSites(
+        "scripts/fake-package.ts",
+        'import { resolveScanSurfaceForScanner as resolveSurface } from "@fake/scan-surface-manifest"; const surface = resolveSurface(import.meta.url); surface.readdirSync(root);',
+      ),
+    ).toHaveLength(1);
+    expect(
+      findUnroutedScannerCallSites(
+        "scripts/factory-control.ts",
+        'import { resolveScanSurfaceForScanner as resolveSurface } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest"; function makeSurface() { return resolveSurface(import.meta.url); } const surface = makeSurface(); surface.readdirSync(root);',
       ),
     ).toEqual([]);
   });
@@ -553,6 +586,127 @@ describe("scan surface falsifiers", () => {
     );
   }, 10_000);
 
+  it("keeps a coherent committed predicate behavior narrowing RED until a new reason is present", async () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-predicate-history-"));
+    const manifestPath = path.join(root, "rust/evidence-scan-surfaces.json");
+    const resolverPath = path.join(
+      root,
+      "packages/check-orchestrator/src/evidence/scan-surface.ts",
+    );
+    const predicateAuthorityPath = path.join(
+      root,
+      "packages/check-orchestrator/src/evidence/predicates/index.ts",
+    );
+    const predicatePath = path.join(
+      root,
+      "packages/check-orchestrator/src/evidence/predicates/personal-docs.ts",
+    );
+    const surfaceModulePath = path.join(root, "scripts/surfaces/history.surface.ts");
+    for (const target of [
+      manifestPath,
+      resolverPath,
+      predicateAuthorityPath,
+      predicatePath,
+      surfaceModulePath,
+    ]) {
+      mkdirSync(path.dirname(target), { recursive: true });
+    }
+    mkdirSync(path.join(root, "docs"), { recursive: true });
+    mkdirSync(path.join(root, "rust"), { recursive: true });
+    writeFileSync(path.join(root, "docs/input.md"), "predicate control\n");
+    writeFileSync(path.join(root, "rust/input.rs"), "// retained\n");
+    const resolverSource = "export const authority = 'resolver';\n";
+    const predicateAuthoritySource = "export const authority = 'predicates';\n";
+    const surfaceSource = "export default {};\n";
+    const oldPredicateSource =
+      "const excludesPersonalDocs = () => false; export default excludesPersonalDocs;\n";
+    const newPredicateSource =
+      'const excludesPersonalDocs = (candidate) => candidate.startsWith("docs/"); export default excludesPersonalDocs;\n';
+    writeFileSync(resolverPath, resolverSource);
+    writeFileSync(predicateAuthorityPath, predicateAuthoritySource);
+    writeFileSync(surfaceModulePath, surfaceSource);
+    const spec = defineScanSurface({
+      scannerPath: "scripts/history.ts",
+      mode: "index",
+      pathspecs: ["**"],
+      includeUntracked: false,
+      excludes: ["personal-docs"],
+    });
+    const manifestFor = (
+      predicateSource: string,
+      narrowingReason?: string,
+    ): EvidenceScanSurfaceManifestV0 =>
+      ({
+        schemaVersion: "0",
+        generatedBy: "pnpm omena-check evidence-surfaces --write",
+        detector: { fileCount: 0, patternSha256: "0".repeat(64) },
+        resolverSha256: sha256Text(resolverSource),
+        predicateAuthority: {
+          modulePath: "packages/check-orchestrator/src/evidence/predicates/index.ts",
+          sha256: sha256Text(predicateAuthoritySource),
+        },
+        predicateModules: {
+          "personal-docs": {
+            modulePath: "packages/check-orchestrator/src/evidence/predicates/personal-docs.ts",
+            sha256: sha256Text(predicateSource),
+          },
+        },
+        scanners: [
+          {
+            scannerPath: "scripts/history.ts",
+            disposition: "MIGRATED",
+            surfaceModulePath: "scripts/surfaces/history.surface.ts",
+            surfaceModuleSha256: sha256Text(surfaceSource),
+            spec,
+            gateIds: [],
+            ...(narrowingReason ? { narrowingReason } : {}),
+          },
+        ],
+      }) as EvidenceScanSurfaceManifestV0;
+
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    execFileSync("git", ["config", "user.name", "Evidence Test"], { cwd: root });
+    execFileSync("git", ["config", "user.email", "evidence@example.invalid"], { cwd: root });
+    writeFileSync(predicatePath, oldPredicateSource);
+    writeFileSync(manifestPath, `${JSON.stringify(manifestFor(oldPredicateSource))}\n`);
+    execFileSync("git", ["add", "."], { cwd: root });
+    execFileSync("git", ["commit", "-q", "-m", "old predicate authority"], { cwd: root });
+    writeFileSync(predicatePath, newPredicateSource);
+    const narrowedManifest = manifestFor(newPredicateSource);
+    writeFileSync(manifestPath, `${JSON.stringify(narrowedManifest)}\n`);
+    execFileSync("git", ["add", "."], { cwd: root });
+    execFileSync("git", ["commit", "-q", "-m", "candidate predicate authority"], {
+      cwd: root,
+    });
+
+    const historicalAuthority = resolveEvidenceHistoricalAuthorityRef(root);
+    const oldManifest = loadCommittedEvidenceScanSurfaceManifest(root, historicalAuthority);
+    expect(oldManifest).not.toBeNull();
+    const imported = (await import(
+      `data:text/javascript;base64,${Buffer.from(newPredicateSource).toString("base64")}`
+    )) as { readonly default: (candidate: string) => boolean };
+    const newPredicates = { "personal-docs": imported.default };
+    await expect(
+      assertHistoricalSurfaceNarrowing(
+        root,
+        historicalAuthority,
+        oldManifest,
+        narrowedManifest,
+        newPredicates,
+      ),
+    ).rejects.toThrow(/first removed path docs\/input\.md/u);
+    await expect(
+      assertHistoricalSurfaceNarrowing(
+        root,
+        historicalAuthority,
+        oldManifest,
+        manifestFor(newPredicateSource, "exclude reviewed documentation inputs"),
+        newPredicates,
+      ),
+    ).resolves.toBeUndefined();
+    rmSync(root, { recursive: true, force: true });
+  }, 10_000);
+
   it("pins every detector token and does not manufacture a scanner from ordinary source", () => {
     for (const token of [
       "ls-files",
@@ -665,6 +819,30 @@ describe("scan surface falsifiers", () => {
 });
 
 describe("writer registry portability", () => {
+  it("discovers a tracked nested-only JSON writer without a root artifact seed", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-nested-writer-"));
+    const scriptPath = path.join(root, "scripts/write-nested.ts");
+    const artifactPath = path.join(root, "rust/crates/example/nested-census.json");
+    mkdirSync(path.dirname(scriptPath), { recursive: true });
+    mkdirSync(path.dirname(artifactPath), { recursive: true });
+    writeFileSync(artifactPath, '{"schemaVersion":"0"}\n');
+    writeFileSync(
+      scriptPath,
+      'import { writeFileSync } from "node:fs"; import path from "node:path"; const output = path.join(process.cwd(), "rust", "crates", "example", "nested-census.json"); writeFileSync(output, "{}\\n");\n',
+    );
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    execFileSync("git", ["add", "."], { cwd: root });
+    expect(discoverEvidenceArtifactPaths(root)).toContain("rust/crates/example/nested-census.json");
+    writeFileSync(
+      scriptPath,
+      'import path from "node:path"; const output = path.join(process.cwd(), "rust", "crates", "example", "nested-census.json"); process.stdout.write(output);\n',
+    );
+    expect(discoverEvidenceArtifactPaths(root)).not.toContain(
+      "rust/crates/example/nested-census.json",
+    );
+    rmSync(root, { recursive: true, force: true });
+  });
+
   it("builds from the governed index when ripgrep is unavailable", () => {
     const originalPath = process.env.PATH;
     const executableName = process.platform === "win32" ? "git.exe" : "git";
@@ -690,6 +868,20 @@ describe("writer registry portability", () => {
           "rust/crates/omena-diff-test/oss-corpus-farm/linked-emission-coverage-census.json",
       );
       expect(linkedCensus?.writeCommand).toEqual(linkedBaseline?.writeCommand);
+      const nestedCliCensus = registry.artifacts.find(
+        (row) => row.artifactPath === "rust/crates/omena-cli/json-output-census.json",
+      );
+      expect(nestedCliCensus?.classification).toBe("W2");
+      expect(nestedCliCensus?.writerScripts).toEqual([
+        "scripts/check-rust-omena-cli-json-output-census.ts",
+      ]);
+      expect(nestedCliCensus?.writeCommand).toEqual([
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omena-cli-json-output-census.ts",
+        "--write",
+      ]);
       const published = registry.artifacts.find(
         (row) => row.artifactPath === "rust/omena-published-crate-surface-register.json",
       );
@@ -784,6 +976,95 @@ describe("writer registry portability", () => {
       rmSync(isolatedBin, { recursive: true, force: true });
     }
   }, 10_000);
+
+  it("executes the published-register recipe and rejects an initializer no-op", async () => {
+    const repoRoot = path.resolve(import.meta.dirname, "../../..");
+    const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), "omena-writer-reproduction-"));
+    const worktree = path.join(temporaryRoot, "repo");
+    execFileSync("git", ["worktree", "add", "--detach", worktree, "HEAD"], {
+      cwd: repoRoot,
+      stdio: "ignore",
+    });
+    try {
+      symlinkSync(
+        path.join(repoRoot, "node_modules"),
+        path.join(worktree, "node_modules"),
+        process.platform === "win32" ? "junction" : "dir",
+      );
+      const outputPath = "rust/omena-published-crate-surface-register.json";
+      const scriptPath = "scripts/check-rust-published-crate-surface-register.ts";
+      const baselineBytes = readFileSync(path.join(worktree, outputPath));
+      const baseline = JSON.parse(baselineBytes.toString("utf8")) as {
+        readonly rows: readonly {
+          readonly crate: string;
+          readonly registryBaselineAtRegistration: "present" | "firstPublish";
+        }[];
+      };
+      const statePath = "published-registry-state.json";
+      writeFileSync(
+        path.join(worktree, statePath),
+        `${JSON.stringify({
+          registered: baseline.rows
+            .filter((row) => row.registryBaselineAtRegistration === "present")
+            .map((row) => row.crate),
+          unregistered: baseline.rows
+            .filter((row) => row.registryBaselineAtRegistration === "firstPublish")
+            .map((row) => row.crate),
+        })}\n`,
+      );
+      const command = [
+        process.execPath,
+        "--import",
+        "tsx",
+        `./${scriptPath}`,
+        "--initialize-from",
+        statePath,
+      ];
+      unlinkSync(path.join(worktree, outputPath));
+      await expect(
+        runDigestPinnedWriter({
+          repoRoot: worktree,
+          command,
+          inputPaths: [scriptPath, statePath],
+          outputPaths: [outputPath],
+        }),
+      ).resolves.toMatchObject({ exitCode: 0 });
+      const freshlyGenerated = readFileSync(path.join(worktree, outputPath));
+      expect(freshlyGenerated.length).toBeGreaterThan(0);
+      unlinkSync(path.join(worktree, outputPath));
+      await expect(
+        runDigestPinnedWriter({
+          repoRoot: worktree,
+          command,
+          inputPaths: [scriptPath, statePath],
+          outputPaths: [outputPath],
+        }),
+      ).resolves.toMatchObject({ exitCode: 0 });
+      expect(readFileSync(path.join(worktree, outputPath))).toEqual(freshlyGenerated);
+
+      const source = readFileSync(path.join(worktree, scriptPath), "utf8");
+      expect(source).toContain("  initializeRegister(initializeFrom);\n");
+      writeFileSync(
+        path.join(worktree, scriptPath),
+        source.replace("  initializeRegister(initializeFrom);\n", ""),
+      );
+      unlinkSync(path.join(worktree, outputPath));
+      await expect(
+        runDigestPinnedWriter({
+          repoRoot: worktree,
+          command,
+          inputPaths: [scriptPath, statePath],
+          outputPaths: [outputPath],
+        }),
+      ).rejects.toThrow(/successful no-op/u);
+    } finally {
+      execFileSync("git", ["worktree", "remove", "--force", worktree], {
+        cwd: repoRoot,
+        stdio: "ignore",
+      });
+      rmSync(temporaryRoot, { recursive: true, force: true });
+    }
+  }, 30_000);
 });
 
 describe("digest-pinned writer wrapper", () => {

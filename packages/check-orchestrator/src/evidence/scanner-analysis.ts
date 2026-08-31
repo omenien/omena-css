@@ -26,17 +26,24 @@ const MODULE_SCANNER_NAMES = new Set(["fast-glob", "globby", "glob"]);
 const FILESYSTEM_MODULE_NAMES = new Set(["node:fs", "fs", "node:fs/promises", "fs/promises"]);
 const CHILD_PROCESS_MODULE_NAMES = new Set(["node:child_process", "child_process"]);
 const SURFACE_RESOLVER_EXPORT = "resolveScanSurfaceForScanner";
+const SURFACE_RESOLVER_MODULE_PATH =
+  "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts";
+
+interface LexicalBindingIndex {
+  readonly declarationFor: (identifier: tsTypes.Identifier) => tsTypes.Identifier | null;
+}
 
 interface ScannerBindings {
-  readonly directEnumerationBindings: ReadonlySet<string>;
-  readonly filesystemModuleBindings: ReadonlySet<string>;
-  readonly enumerationModuleBindings: ReadonlySet<string>;
-  readonly childProcessBindings: ReadonlySet<string>;
-  readonly childProcessModuleBindings: ReadonlySet<string>;
-  readonly resolverBindings: ReadonlySet<string>;
-  readonly surfaceFactoryBindings: ReadonlySet<string>;
-  readonly surfaceObjectBindings: ReadonlySet<string>;
-  readonly typedSurfaceParameterBindings: ReadonlySet<string>;
+  readonly lexical: LexicalBindingIndex;
+  readonly directEnumerationBindings: ReadonlySet<tsTypes.Identifier>;
+  readonly filesystemModuleBindings: ReadonlySet<tsTypes.Identifier>;
+  readonly enumerationModuleBindings: ReadonlySet<tsTypes.Identifier>;
+  readonly childProcessBindings: ReadonlySet<tsTypes.Identifier>;
+  readonly childProcessModuleBindings: ReadonlySet<tsTypes.Identifier>;
+  readonly resolverBindings: ReadonlySet<tsTypes.Identifier>;
+  readonly surfaceFactoryBindings: ReadonlySet<tsTypes.Identifier>;
+  readonly surfaceObjectBindings: ReadonlySet<tsTypes.Identifier>;
+  readonly typedSurfaceParameterBindings: ReadonlySet<tsTypes.Identifier>;
 }
 
 export type ScannerCallSiteLayer = "layer-1" | "layer-2a" | "layer-2b" | "tertiary";
@@ -82,7 +89,7 @@ export function analyzeScannerSource(scannerPath: string, sourceText: string): S
     true,
     scannerPath.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
-  const bindings = scannerBindings(sourceFile);
+  const bindings = scannerBindings(sourceFile, scannerPath);
   const callSites: ScannerCallSite[] = [];
   const tertiaryExecFamilySites: ScannerCallSite[] = [];
 
@@ -133,7 +140,7 @@ export function findUnroutedScannerCallSites(
     true,
     scannerPath.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
-  const bindings = scannerBindings(sourceFile);
+  const bindings = scannerBindings(sourceFile, scannerPath);
   const helperRoutes = routedTrackedProductionSourceHelpers(sourceFile, bindings);
   const diagnostics: ScannerRoutingDiagnostic[] = [];
   const visit = (node: tsTypes.Node): void => {
@@ -181,13 +188,14 @@ export function findUnroutedScannerCallSites(
   return diagnostics;
 }
 
-function scannerBindings(sourceFile: tsTypes.SourceFile): ScannerBindings {
-  const directEnumerationBindings = new Set<string>();
-  const filesystemModuleBindings = new Set<string>();
-  const enumerationModuleBindings = new Set<string>();
-  const childProcessBindings = new Set<string>();
-  const childProcessModuleBindings = new Set<string>();
-  const resolverBindings = new Set<string>();
+function scannerBindings(sourceFile: tsTypes.SourceFile, scannerPath: string): ScannerBindings {
+  const lexical = buildLexicalBindingIndex(sourceFile);
+  const directEnumerationBindings = new Set<tsTypes.Identifier>();
+  const filesystemModuleBindings = new Set<tsTypes.Identifier>();
+  const enumerationModuleBindings = new Set<tsTypes.Identifier>();
+  const childProcessBindings = new Set<tsTypes.Identifier>();
+  const childProcessModuleBindings = new Set<tsTypes.Identifier>();
+  const resolverBindings = new Set<tsTypes.Identifier>();
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
       continue;
@@ -196,48 +204,50 @@ function scannerBindings(sourceFile: tsTypes.SourceFile): ScannerBindings {
     const importClause = statement.importClause;
     if (importClause?.name) {
       if (MODULE_SCANNER_NAMES.has(moduleName)) {
-        enumerationModuleBindings.add(importClause.name.text);
+        enumerationModuleBindings.add(importClause.name);
       }
       if (FILESYSTEM_MODULE_NAMES.has(moduleName)) {
-        filesystemModuleBindings.add(importClause.name.text);
+        filesystemModuleBindings.add(importClause.name);
       }
       if (CHILD_PROCESS_MODULE_NAMES.has(moduleName)) {
-        childProcessModuleBindings.add(importClause.name.text);
+        childProcessModuleBindings.add(importClause.name);
       }
     }
     const namedBindings = importClause?.namedBindings;
     if (namedBindings && ts.isNamespaceImport(namedBindings)) {
       if (MODULE_SCANNER_NAMES.has(moduleName)) {
-        enumerationModuleBindings.add(namedBindings.name.text);
+        enumerationModuleBindings.add(namedBindings.name);
       }
       if (FILESYSTEM_MODULE_NAMES.has(moduleName)) {
-        filesystemModuleBindings.add(namedBindings.name.text);
+        filesystemModuleBindings.add(namedBindings.name);
       }
       if (CHILD_PROCESS_MODULE_NAMES.has(moduleName)) {
-        childProcessModuleBindings.add(namedBindings.name.text);
+        childProcessModuleBindings.add(namedBindings.name);
       }
     }
     if (namedBindings && ts.isNamedImports(namedBindings)) {
       for (const element of namedBindings.elements) {
         const importedName = element.propertyName?.text ?? element.name.text;
-        const localName = element.name.text;
         if (FILESYSTEM_MODULE_NAMES.has(moduleName) && LAYER_ONE_CALLEES.has(importedName)) {
-          directEnumerationBindings.add(localName);
+          directEnumerationBindings.add(element.name);
         }
         if (MODULE_SCANNER_NAMES.has(moduleName)) {
-          enumerationModuleBindings.add(localName);
+          enumerationModuleBindings.add(element.name);
         }
         if (CHILD_PROCESS_MODULE_NAMES.has(moduleName) && EXEC_FAMILY_CALLEES.has(importedName)) {
-          childProcessBindings.add(localName);
+          childProcessBindings.add(element.name);
         }
-        if (isSurfaceResolverModule(moduleName) && importedName === SURFACE_RESOLVER_EXPORT) {
-          resolverBindings.add(localName);
+        if (
+          isCanonicalSurfaceResolverModule(scannerPath, moduleName) &&
+          importedName === SURFACE_RESOLVER_EXPORT
+        ) {
+          resolverBindings.add(element.name);
         }
       }
     }
   }
 
-  const surfaceFactoryBindings = new Set<string>();
+  const surfaceFactoryBindings = new Set<tsTypes.Identifier>();
   let changed = true;
   while (changed) {
     changed = false;
@@ -246,10 +256,10 @@ function scannerBindings(sourceFile: tsTypes.SourceFile): ScannerBindings {
         ts.isFunctionDeclaration(node) &&
         node.name &&
         node.body &&
-        functionReturnsSurface(node.body, resolverBindings, surfaceFactoryBindings) &&
-        !surfaceFactoryBindings.has(node.name.text)
+        functionReturnsSurface(node.body, resolverBindings, surfaceFactoryBindings, lexical) &&
+        !surfaceFactoryBindings.has(node.name)
       ) {
-        surfaceFactoryBindings.add(node.name.text);
+        surfaceFactoryBindings.add(node.name);
         changed = true;
       }
       if (
@@ -257,10 +267,15 @@ function scannerBindings(sourceFile: tsTypes.SourceFile): ScannerBindings {
         ts.isIdentifier(node.name) &&
         node.initializer &&
         (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer)) &&
-        functionLikeReturnsSurface(node.initializer, resolverBindings, surfaceFactoryBindings) &&
-        !surfaceFactoryBindings.has(node.name.text)
+        functionLikeReturnsSurface(
+          node.initializer,
+          resolverBindings,
+          surfaceFactoryBindings,
+          lexical,
+        ) &&
+        !surfaceFactoryBindings.has(node.name)
       ) {
-        surfaceFactoryBindings.add(node.name.text);
+        surfaceFactoryBindings.add(node.name);
         changed = true;
       }
       ts.forEachChild(node, inspectFactory);
@@ -268,7 +283,7 @@ function scannerBindings(sourceFile: tsTypes.SourceFile): ScannerBindings {
     inspectFactory(sourceFile);
   }
 
-  const surfaceObjectBindings = new Set<string>();
+  const surfaceObjectBindings = new Set<tsTypes.Identifier>();
   changed = true;
   while (changed) {
     changed = false;
@@ -282,10 +297,11 @@ function scannerBindings(sourceFile: tsTypes.SourceFile): ScannerBindings {
           resolverBindings,
           surfaceFactoryBindings,
           surfaceObjectBindings,
+          lexical,
         ) &&
-        !surfaceObjectBindings.has(node.name.text)
+        !surfaceObjectBindings.has(node.name)
       ) {
-        surfaceObjectBindings.add(node.name.text);
+        surfaceObjectBindings.add(node.name);
         changed = true;
       }
       ts.forEachChild(node, inspectSurfaceObject);
@@ -293,19 +309,22 @@ function scannerBindings(sourceFile: tsTypes.SourceFile): ScannerBindings {
     inspectSurfaceObject(sourceFile);
   }
 
-  const typedSurfaceParameterBindings = new Set<string>();
+  const typedSurfaceParameterBindings = new Set<tsTypes.Identifier>();
   const inspectParameters = (node: tsTypes.Node): void => {
-    if (ts.isParameter(node) && ts.isIdentifier(node.name) && node.type) {
-      const typeText = node.type.getText(sourceFile);
-      if ([...resolverBindings].some((binding) => typeText.includes(binding))) {
-        typedSurfaceParameterBindings.add(node.name.text);
-      }
+    if (
+      ts.isParameter(node) &&
+      ts.isIdentifier(node.name) &&
+      node.type &&
+      isCanonicalSurfaceParameterType(node.type, resolverBindings, lexical)
+    ) {
+      typedSurfaceParameterBindings.add(node.name);
     }
     ts.forEachChild(node, inspectParameters);
   };
   inspectParameters(sourceFile);
 
   return {
+    lexical,
     directEnumerationBindings,
     filesystemModuleBindings,
     enumerationModuleBindings,
@@ -316,6 +335,140 @@ function scannerBindings(sourceFile: tsTypes.SourceFile): ScannerBindings {
     surfaceObjectBindings,
     typedSurfaceParameterBindings,
   };
+}
+
+interface LexicalScope {
+  readonly parent: LexicalScope | null;
+  readonly bindings: ReadonlyMap<string, tsTypes.Identifier>;
+}
+
+function buildLexicalBindingIndex(sourceFile: tsTypes.SourceFile): LexicalBindingIndex {
+  const resolved = new Map<tsTypes.Identifier, tsTypes.Identifier | null>();
+  const declarationIdentifiers = new Set<tsTypes.Identifier>();
+
+  const createScope = (node: tsTypes.Node, parent: LexicalScope | null): LexicalScope => {
+    const bindings = collectScopeBindings(node);
+    for (const declaration of bindings.values()) declarationIdentifiers.add(declaration);
+    return { parent, bindings };
+  };
+
+  const rootScope = createScope(sourceFile, null);
+  const visit = (node: tsTypes.Node, inheritedScope: LexicalScope): void => {
+    const scope =
+      node === sourceFile
+        ? rootScope
+        : isLexicalScopeNode(node)
+          ? createScope(node, inheritedScope)
+          : inheritedScope;
+    if (ts.isIdentifier(node)) {
+      if (declarationIdentifiers.has(node)) {
+        resolved.set(node, node);
+      } else {
+        let current: LexicalScope | null = scope;
+        let declaration: tsTypes.Identifier | null = null;
+        while (current && !declaration) {
+          declaration = current.bindings.get(node.text) ?? null;
+          current = current.parent;
+        }
+        resolved.set(node, declaration);
+      }
+    }
+    ts.forEachChild(node, (child) => visit(child, scope));
+  };
+  visit(sourceFile, rootScope);
+  return { declarationFor: (identifier) => resolved.get(identifier) ?? null };
+}
+
+function isLexicalScopeNode(node: tsTypes.Node): boolean {
+  return (
+    ts.isBlock(node) ||
+    ts.isFunctionDeclaration(node) ||
+    ts.isFunctionExpression(node) ||
+    ts.isArrowFunction(node) ||
+    ts.isMethodDeclaration(node)
+  );
+}
+
+function collectScopeBindings(node: tsTypes.Node): ReadonlyMap<string, tsTypes.Identifier> {
+  const bindings = new Map<string, tsTypes.Identifier>();
+  const add = (identifier: tsTypes.Identifier | undefined): void => {
+    if (identifier) bindings.set(identifier.text, identifier);
+  };
+  if (
+    ts.isFunctionDeclaration(node) ||
+    ts.isFunctionExpression(node) ||
+    ts.isArrowFunction(node) ||
+    ts.isMethodDeclaration(node)
+  ) {
+    if ("name" in node && node.name && ts.isIdentifier(node.name)) add(node.name);
+    for (const parameter of node.parameters) {
+      if (ts.isIdentifier(parameter.name)) add(parameter.name);
+    }
+    return bindings;
+  }
+  if (!ts.isSourceFile(node) && !ts.isBlock(node)) return bindings;
+  for (const statement of node.statements) {
+    if (ts.isImportDeclaration(statement)) {
+      add(statement.importClause?.name);
+      const namedBindings = statement.importClause?.namedBindings;
+      if (namedBindings && ts.isNamespaceImport(namedBindings)) add(namedBindings.name);
+      if (namedBindings && ts.isNamedImports(namedBindings)) {
+        for (const element of namedBindings.elements) add(element.name);
+      }
+      continue;
+    }
+    if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name)) add(declaration.name);
+      }
+      continue;
+    }
+    if (
+      (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
+      statement.name
+    ) {
+      add(statement.name);
+    }
+  }
+  return bindings;
+}
+
+function isCanonicalSurfaceParameterType(
+  typeNode: tsTypes.TypeNode,
+  resolverBindings: ReadonlySet<tsTypes.Identifier>,
+  lexical: LexicalBindingIndex,
+): boolean {
+  const unwrapped = ts.isParenthesizedTypeNode(typeNode) ? typeNode.type : typeNode;
+  if (
+    !ts.isTypeReferenceNode(unwrapped) ||
+    !ts.isIdentifier(unwrapped.typeName) ||
+    unwrapped.typeName.text !== "ReturnType" ||
+    unwrapped.typeArguments?.length !== 1
+  ) {
+    return false;
+  }
+  const argument = unwrapped.typeArguments[0];
+  if (!argument || argument.kind !== ts.SyntaxKind.TypeQuery) return false;
+  const queried = (argument as tsTypes.TypeQueryNode).exprName;
+  if (!ts.isIdentifier(queried)) return false;
+  const declaration = lexical.declarationFor(queried);
+  return Boolean(declaration && resolverBindings.has(declaration));
+}
+
+function directCalleeBinding(
+  expression: tsTypes.LeftHandSideExpression,
+  lexical: LexicalBindingIndex,
+): tsTypes.Identifier | null {
+  return ts.isIdentifier(expression) ? lexical.declarationFor(expression) : null;
+}
+
+function bindingSetHasUse(
+  bindings: ReadonlySet<tsTypes.Identifier>,
+  identifier: tsTypes.Identifier,
+  lexical: LexicalBindingIndex,
+): boolean {
+  const declaration = lexical.declarationFor(identifier);
+  return Boolean(declaration && bindings.has(declaration));
 }
 
 function routedTrackedProductionSourceHelpers(
@@ -344,16 +497,18 @@ function isSurfaceRoutedExpression(
 ): boolean {
   const root = expressionRoot(expression);
   if (ts.isCallExpression(root)) {
-    const factory = callExpressionName(root.expression);
-    return (
-      factory !== null &&
-      (bindings.resolverBindings.has(factory) || bindings.surfaceFactoryBindings.has(factory))
+    const factory = directCalleeBinding(root.expression, bindings.lexical);
+    return Boolean(
+      factory &&
+      (bindings.resolverBindings.has(factory) || bindings.surfaceFactoryBindings.has(factory)),
     );
   }
-  return (
-    ts.isIdentifier(root) &&
-    (bindings.surfaceObjectBindings.has(root.text) ||
-      bindings.typedSurfaceParameterBindings.has(root.text))
+  if (!ts.isIdentifier(root)) return false;
+  const declaration = bindings.lexical.declarationFor(root);
+  return Boolean(
+    declaration &&
+    (bindings.surfaceObjectBindings.has(declaration) ||
+      bindings.typedSurfaceParameterBindings.has(declaration)),
   );
 }
 
@@ -361,14 +516,16 @@ function enumerationCallLayer(
   expression: tsTypes.LeftHandSideExpression,
   bindings: ScannerBindings,
 ): Extract<ScannerCallSiteLayer, "layer-1" | "layer-2b"> | null {
-  if (usesModuleAlias(expression, bindings.enumerationModuleBindings)) return "layer-2b";
+  if (usesModuleAlias(expression, bindings.enumerationModuleBindings, bindings.lexical))
+    return "layer-2b";
   const callee = callExpressionName(expression);
   if (
     (callee && LAYER_ONE_CALLEES.has(callee)) ||
-    (ts.isIdentifier(expression) && bindings.directEnumerationBindings.has(expression.text)) ||
+    (ts.isIdentifier(expression) &&
+      bindingSetHasUse(bindings.directEnumerationBindings, expression, bindings.lexical)) ||
     (callee &&
       LAYER_ONE_CALLEES.has(callee) &&
-      usesModuleAlias(expression, bindings.filesystemModuleBindings))
+      usesModuleAlias(expression, bindings.filesystemModuleBindings, bindings.lexical))
   ) {
     return "layer-1";
   }
@@ -380,20 +537,30 @@ function isExecFamilyExpression(
   bindings: ScannerBindings,
 ): boolean {
   const callee = callExpressionName(expression);
-  if (ts.isIdentifier(expression) && bindings.childProcessBindings.has(expression.text))
+  if (
+    ts.isIdentifier(expression) &&
+    bindingSetHasUse(bindings.childProcessBindings, expression, bindings.lexical)
+  )
     return true;
-  if (usesModuleAlias(expression, bindings.childProcessModuleBindings)) return true;
+  if (usesModuleAlias(expression, bindings.childProcessModuleBindings, bindings.lexical))
+    return true;
   return callee !== null && EXEC_FAMILY_CALLEES.has(callee);
 }
 
-function isSurfaceResolverModule(moduleName: string): boolean {
-  return /(?:^|\/)scan-surface-manifest(?:\.ts)?$/u.test(moduleName);
+function isCanonicalSurfaceResolverModule(scannerPath: string, moduleName: string): boolean {
+  if (!moduleName.startsWith(".")) return false;
+  const resolved = path.posix.normalize(
+    path.posix.join(path.posix.dirname(scannerPath), moduleName),
+  );
+  const withoutExtension = resolved.replace(/\.(?:[cm]?[jt]sx?)$/u, "");
+  return withoutExtension === SURFACE_RESOLVER_MODULE_PATH.replace(/\.ts$/u, "");
 }
 
 function functionReturnsSurface(
   body: tsTypes.Block,
-  resolverBindings: ReadonlySet<string>,
-  factoryBindings: ReadonlySet<string>,
+  resolverBindings: ReadonlySet<tsTypes.Identifier>,
+  factoryBindings: ReadonlySet<tsTypes.Identifier>,
+  lexical: LexicalBindingIndex,
 ): boolean {
   let returnsSurface = false;
   const visit = (node: tsTypes.Node): void => {
@@ -409,7 +576,13 @@ function functionReturnsSurface(
     if (
       ts.isReturnStatement(node) &&
       node.expression &&
-      expressionProducesSurface(node.expression, resolverBindings, factoryBindings, new Set())
+      expressionProducesSurface(
+        node.expression,
+        resolverBindings,
+        factoryBindings,
+        new Set(),
+        lexical,
+      )
     ) {
       returnsSurface = true;
       return;
@@ -422,26 +595,31 @@ function functionReturnsSurface(
 
 function functionLikeReturnsSurface(
   node: tsTypes.FunctionLikeDeclaration,
-  resolverBindings: ReadonlySet<string>,
-  factoryBindings: ReadonlySet<string>,
+  resolverBindings: ReadonlySet<tsTypes.Identifier>,
+  factoryBindings: ReadonlySet<tsTypes.Identifier>,
+  lexical: LexicalBindingIndex,
 ): boolean {
   const body = node.body;
   if (!body) return false;
   return ts.isBlock(body)
-    ? functionReturnsSurface(body, resolverBindings, factoryBindings)
-    : expressionProducesSurface(body, resolverBindings, factoryBindings, new Set());
+    ? functionReturnsSurface(body, resolverBindings, factoryBindings, lexical)
+    : expressionProducesSurface(body, resolverBindings, factoryBindings, new Set(), lexical);
 }
 
 function expressionProducesSurface(
   expression: tsTypes.Expression,
-  resolverBindings: ReadonlySet<string>,
-  factoryBindings: ReadonlySet<string>,
-  surfaceBindings: ReadonlySet<string>,
+  resolverBindings: ReadonlySet<tsTypes.Identifier>,
+  factoryBindings: ReadonlySet<tsTypes.Identifier>,
+  surfaceBindings: ReadonlySet<tsTypes.Identifier>,
+  lexical: LexicalBindingIndex,
 ): boolean {
-  if (ts.isIdentifier(expression)) return surfaceBindings.has(expression.text);
+  if (ts.isIdentifier(expression)) {
+    const declaration = lexical.declarationFor(expression);
+    return Boolean(declaration && surfaceBindings.has(declaration));
+  }
   if (!ts.isCallExpression(expression)) return false;
-  const factory = callExpressionName(expression.expression);
-  return factory !== null && (resolverBindings.has(factory) || factoryBindings.has(factory));
+  const factory = directCalleeBinding(expression.expression, lexical);
+  return Boolean(factory && (resolverBindings.has(factory) || factoryBindings.has(factory)));
 }
 
 function nodeContainsRoutedEnumeration(node: tsTypes.Node, bindings: ScannerBindings): boolean {
@@ -519,10 +697,11 @@ function expressionRoot(expression: tsTypes.LeftHandSideExpression): tsTypes.Exp
 
 function usesModuleAlias(
   expression: tsTypes.LeftHandSideExpression,
-  aliases: ReadonlySet<string>,
+  aliases: ReadonlySet<tsTypes.Identifier>,
+  lexical: LexicalBindingIndex,
 ): boolean {
   const root = expressionRoot(expression);
-  return ts.isIdentifier(root) && aliases.has(root.text);
+  return ts.isIdentifier(root) && bindingSetHasUse(aliases, root, lexical);
 }
 
 function siteFor(

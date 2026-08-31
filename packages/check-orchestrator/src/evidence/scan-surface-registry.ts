@@ -301,7 +301,7 @@ export async function buildEvidenceScanSurfaceManifest(
   };
   enforceManifestContinuity(oldManifest, manifest);
   enforceDetectorRatchet(oldManifest, manifest);
-  await enforceSurfaceNarrowing(repoRoot, historicalAuthorityRef, oldManifest, manifest);
+  await assertHistoricalSurfaceNarrowing(repoRoot, historicalAuthorityRef, oldManifest, manifest);
   return manifest;
 }
 
@@ -532,11 +532,14 @@ function enforceManifestContinuity(
   }
 }
 
-async function enforceSurfaceNarrowing(
+export async function assertHistoricalSurfaceNarrowing(
   repoRoot: string,
   historicalAuthorityRef: string,
   oldManifest: EvidenceScanSurfaceManifestV0 | null,
   newManifest: EvidenceScanSurfaceManifestV0,
+  newPredicateOverrides: Partial<
+    Readonly<Record<NamedScanPredicateId, (candidate: string) => boolean>>
+  > = {},
 ): Promise<void> {
   if (!oldManifest) return;
   const oldMigrated = new Map(
@@ -592,7 +595,12 @@ async function enforceSurfaceNarrowing(
         `old scan surface resolution failed and requires reviewer escalation for ${row.scannerPath}: ${String(error)}`,
       );
     }
-    const newPathSet = new Set(resolveScanSurface(row.spec, { repoRoot }).paths);
+    const newPathSet = new Set(
+      resolveScanSurface(row.spec, {
+        repoRoot,
+        excludePredicates: newPredicateOverrides,
+      }).paths,
+    );
     const removedPaths = oldPaths.filter((candidate) => !newPathSet.has(candidate));
     if (
       removedPaths.length > 0 &&

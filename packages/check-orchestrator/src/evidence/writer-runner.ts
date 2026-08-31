@@ -81,6 +81,15 @@ export async function runDigestPinnedWriter(
       `evidence writer concurrent-skew: input changed before post-exit acceptance: ${changedInput[0]}`,
     );
   }
+  const missingOutput = [...new Set(input.outputPaths)].find(
+    (outputPath) => !existsSync(path.join(input.repoRoot, outputPath)),
+  );
+  if (missingOutput) {
+    restoreOutputs(input.repoRoot, outputsBefore);
+    throw new Error(
+      `evidence writer successful no-op: declared output was not reproduced: ${missingOutput}`,
+    );
+  }
   return { command: [...input.command], outputPaths: [...input.outputPaths], exitCode };
 }
 
