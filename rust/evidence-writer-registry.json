@@ -3,9 +3,9 @@
   "generatedBy": "pnpm omena-check evidence-writers --write",
   "commandAuthority": {
     "modulePath": "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
-    "sha256": "576c15c25537b0ec7b850391193c1b4ae78d41c6d992d01d3702d71cffeb1536",
-    "declaredCommandCount": 23,
-    "declaredOutputCount": 69,
+    "sha256": "46b420edff4a2982a745a95a20068c413509737a140f050500f2e24860635ac6",
+    "declaredCommandCount": 24,
+    "declaredOutputCount": 70,
     "declaredStaticWriteOutputCount": 67
   },
   "artifacts": [
@@ -83,7 +83,10 @@
       "artifactPath": "docs/reference/README.md",
       "classification": "W1",
       "writerNodeKind": "normal",
-      "freshReproductionRequired": true,
+      "freshReproductionExemption": {
+        "kind": "reads-own-output",
+        "reason": "the documentation writer validates its committed public-document corpus before regenerating the command's full output set"
+      },
       "writerScripts": ["scripts/check-docs-reference-surface.ts"],
       "writeCommand": [
         "node",
@@ -245,7 +248,10 @@
       "artifactPath": "docs/reference/cli.md",
       "classification": "W1",
       "writerNodeKind": "normal",
-      "freshReproductionRequired": true,
+      "freshReproductionExemption": {
+        "kind": "reads-own-output",
+        "reason": "the documentation writer validates its committed public-document corpus before regenerating the command's full output set"
+      },
       "writerScripts": ["scripts/check-docs-reference-surface.ts"],
       "writeCommand": [
         "node",
@@ -312,7 +318,10 @@
       "artifactPath": "docs/reference/configuration.md",
       "classification": "W1",
       "writerNodeKind": "normal",
-      "freshReproductionRequired": true,
+      "freshReproductionExemption": {
+        "kind": "reads-own-output",
+        "reason": "the documentation writer validates its committed public-document corpus before regenerating the command's full output set"
+      },
       "writerScripts": ["scripts/check-docs-reference-surface.ts"],
       "writeCommand": [
         "node",
@@ -409,7 +418,10 @@
       "artifactPath": "docs/reference/editor-settings.md",
       "classification": "W1",
       "writerNodeKind": "normal",
-      "freshReproductionRequired": true,
+      "freshReproductionExemption": {
+        "kind": "reads-own-output",
+        "reason": "the documentation writer validates its committed public-document corpus before regenerating the command's full output set"
+      },
       "writerScripts": ["scripts/check-docs-reference-surface.ts"],
       "writeCommand": [
         "node",
@@ -477,7 +489,10 @@
       "artifactPath": "docs/reference/lsp-capabilities.md",
       "classification": "W1",
       "writerNodeKind": "normal",
-      "freshReproductionRequired": true,
+      "freshReproductionExemption": {
+        "kind": "reads-own-output",
+        "reason": "the documentation writer validates its committed public-document corpus before regenerating the command's full output set"
+      },
       "writerScripts": ["scripts/check-docs-reference-surface.ts"],
       "writeCommand": [
         "node",
@@ -540,7 +555,10 @@
       "artifactPath": "docs/reference/personas.md",
       "classification": "W1",
       "writerNodeKind": "normal",
-      "freshReproductionRequired": true,
+      "freshReproductionExemption": {
+        "kind": "reads-own-output",
+        "reason": "the documentation writer validates its committed public-document corpus before regenerating the command's full output set"
+      },
       "writerScripts": ["scripts/check-docs-reference-surface.ts"],
       "writeCommand": [
         "node",
@@ -603,7 +621,10 @@
       "artifactPath": "docs/sdk.md",
       "classification": "W1",
       "writerNodeKind": "normal",
-      "freshReproductionRequired": true,
+      "freshReproductionExemption": {
+        "kind": "reads-own-output",
+        "reason": "the documentation writer validates its committed public-document corpus before regenerating the command's full output set"
+      },
       "writerScripts": ["scripts/check-docs-reference-surface.ts"],
       "writeCommand": [
         "node",
@@ -676,7 +697,10 @@
       "artifactPath": "docs/vscode-extension.md",
       "classification": "W1",
       "writerNodeKind": "normal",
-      "freshReproductionRequired": true,
+      "freshReproductionExemption": {
+        "kind": "reads-own-output",
+        "reason": "the documentation writer validates its committed public-document corpus before regenerating the command's full output set"
+      },
       "writerScripts": ["scripts/check-docs-reference-surface.ts"],
       "writeCommand": [
         "node",
@@ -733,12 +757,14 @@
         "docs/index.mdx",
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "scripts/check-docs-reference-surface.ts",
-        "scripts/check-docs-version-strings.ts"
+        "scripts/check-docs-version-strings.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
       "consumerGateIds": [
         "docs/reference-surface",
         "docs/reference-surface:update",
-        "docs/version-strings"
+        "docs/version-strings",
+        "tooling/evidence-affected-map"
       ]
     },
     {
@@ -794,12 +820,22 @@
       "artifactPath": "packages/check-orchestrator/ci-cost-ledger.json",
       "classification": "W1",
       "writerNodeKind": "normal",
-      "freshReproductionRequired": true,
+      "freshReproductionExemption": {
+        "kind": "reads-own-output",
+        "reason": "the reproducibility recipe replays job metadata from committed sourceRunIds and preserves gate samples whose GitHub summary artifacts may have expired"
+      },
       "writerScripts": [
         "packages/check-orchestrator/src/cli/main.ts",
         "packages/check-orchestrator/src/manifest/cost-ledger.ts"
       ],
-      "writeCommand": ["pnpm", "omena-check", "cost-ledger", "--write"],
+      "writeCommand": [
+        "pnpm",
+        "omena-check",
+        "cost-ledger",
+        "--write",
+        "--",
+        "--reuse-source-runs"
+      ],
       "inputPaths": [
         "package.json",
         "packages/check-orchestrator/src/affected.ts",
@@ -828,9 +864,15 @@
         "packages/check-orchestrator/src/cli/main.ts",
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "packages/check-orchestrator/src/manifest/cost-ledger.ts",
-        "test/unit/check-orchestrator/cost-ledger.test.ts"
+        "test/unit/check-orchestrator/cost-ledger.test.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
-      "consumerGateIds": ["tooling/ci-cost-ledger", "tooling/ci-workflow", "tooling/omena-check"]
+      "consumerGateIds": [
+        "tooling/ci-cost-ledger",
+        "tooling/ci-workflow",
+        "tooling/evidence-affected-map",
+        "tooling/omena-check"
+      ]
     },
     {
       "artifactPath": "packages/check-orchestrator/ci-workflow.json",
@@ -1257,7 +1299,10 @@
       "classification": "W1",
       "writerNodeKind": "normal",
       "freshReproductionRequired": true,
-      "writerScripts": ["scripts/check-rust-omena-bundler-public-surface.ts"],
+      "writerScripts": [
+        "scripts/check-rust-omena-bundler-public-surface.ts",
+        "scripts/check-rust-published-crate-surface-register.ts"
+      ],
       "writeCommand": [
         "node",
         "--import",
@@ -1265,9 +1310,23 @@
         "./scripts/check-rust-omena-bundler-public-surface.ts",
         "--write"
       ],
-      "inputPaths": ["rust/Cargo.toml", "scripts/lib/rust-semver-intent.ts"],
+      "alternateWriteCommands": [
+        [
+          "node",
+          "--import",
+          "tsx",
+          "./scripts/check-rust-published-crate-surface-register.ts",
+          "--write-snapshots"
+        ]
+      ],
+      "inputPaths": [
+        ".github/workflows/_publish-crate-train.yml",
+        "rust/Cargo.toml",
+        "scripts/check-rust-publish-train-closure.ts",
+        "scripts/lib/rust-semver-intent.ts"
+      ],
       "inputScannerPaths": [],
-      "inputArtifactPaths": [],
+      "inputArtifactPaths": ["rust/omena-published-crate-surface-register.json"],
       "writerGateIds": ["rust/omena-bundler/public-surface:update"],
       "consumerPaths": [
         "docs/governance/version-governance.md",
@@ -1402,7 +1461,7 @@
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": [],
-      "inputArtifactPaths": [],
+      "inputArtifactPaths": ["rust/omena-published-crate-surface-register.json"],
       "writerGateIds": [],
       "consumerPaths": [
         "docs/governance/version-governance.md",
@@ -1447,7 +1506,10 @@
       "artifactPath": "rust/crates/omena-cli/README.md",
       "classification": "W1",
       "writerNodeKind": "normal",
-      "freshReproductionRequired": true,
+      "freshReproductionExemption": {
+        "kind": "reads-own-output",
+        "reason": "the documentation writer validates its committed public-document corpus before regenerating the command's full output set"
+      },
       "writerScripts": ["scripts/check-docs-reference-surface.ts"],
       "writeCommand": [
         "node",
@@ -2496,7 +2558,7 @@
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": [],
-      "inputArtifactPaths": [],
+      "inputArtifactPaths": ["rust/omena-published-crate-surface-register.json"],
       "writerGateIds": [],
       "consumerPaths": [
         "docs/governance/version-governance.md",
@@ -2625,7 +2687,10 @@
       "classification": "W1",
       "writerNodeKind": "normal",
       "freshReproductionRequired": true,
-      "writerScripts": ["scripts/check-rust-omena-query-public-surface.ts"],
+      "writerScripts": [
+        "scripts/check-rust-omena-query-public-surface.ts",
+        "scripts/check-rust-published-crate-surface-register.ts"
+      ],
       "writeCommand": [
         "node",
         "--import",
@@ -2633,15 +2698,26 @@
         "./scripts/check-rust-omena-query-public-surface.ts",
         "--write"
       ],
+      "alternateWriteCommands": [
+        [
+          "node",
+          "--import",
+          "tsx",
+          "./scripts/check-rust-published-crate-surface-register.ts",
+          "--write-snapshots"
+        ]
+      ],
       "inputPaths": [
+        ".github/workflows/_publish-crate-train.yml",
         "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
         "rust/Cargo.toml",
         "rust/crates/omena-query/src/tests.rs",
+        "scripts/check-rust-publish-train-closure.ts",
         "scripts/fixtures/rust-wildcard-reexports.rs",
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": ["scripts/check-rust-omena-query-public-surface.ts"],
-      "inputArtifactPaths": [],
+      "inputArtifactPaths": ["rust/omena-published-crate-surface-register.json"],
       "writerGateIds": ["rust/omena-query/public-surface:update"],
       "consumerPaths": [
         "docs/governance/version-governance.md",
@@ -2747,7 +2823,7 @@
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": [],
-      "inputArtifactPaths": [],
+      "inputArtifactPaths": ["rust/omena-published-crate-surface-register.json"],
       "writerGateIds": ["rust/omena-reactive/public-surface:update"],
       "consumerPaths": [
         "docs/governance/version-governance.md",
@@ -3092,7 +3168,7 @@
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": ["scripts/check-rust-line-index-authority.ts"],
-      "inputArtifactPaths": [],
+      "inputArtifactPaths": ["rust/omena-published-crate-surface-register.json"],
       "writerGateIds": [],
       "consumerPaths": [
         "docs/governance/version-governance.md",
@@ -3263,7 +3339,7 @@
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": [],
-      "inputArtifactPaths": [],
+      "inputArtifactPaths": ["rust/omena-published-crate-surface-register.json"],
       "writerGateIds": [],
       "consumerPaths": [
         "docs/governance/version-governance.md",
@@ -3324,7 +3400,7 @@
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": [],
-      "inputArtifactPaths": [],
+      "inputArtifactPaths": ["rust/omena-published-crate-surface-register.json"],
       "writerGateIds": [],
       "consumerPaths": [
         "docs/governance/version-governance.md",
@@ -3414,7 +3490,10 @@
       "artifactPath": "rust/evidence-writer-registry.json",
       "classification": "W1",
       "writerNodeKind": "normal",
-      "freshReproductionRequired": true,
+      "freshReproductionExemption": {
+        "kind": "reads-own-output",
+        "reason": "the registry builder validates every toolchain-byte owner against the repository path set, including the registry output itself"
+      },
       "writerScripts": [
         "packages/check-orchestrator/src/cli/main.ts",
         "packages/check-orchestrator/src/evidence/writer-registry.ts"
@@ -3542,6 +3621,15 @@
         "scripts/restore-native-binary-permissions.mjs"
       ],
       "inputArtifactPaths": [
+        "docs/reference/README.md",
+        "docs/reference/cli.md",
+        "docs/reference/configuration.md",
+        "docs/reference/editor-settings.md",
+        "docs/reference/lsp-capabilities.md",
+        "docs/reference/personas.md",
+        "docs/sdk.md",
+        "docs/vscode-extension.md",
+        "rust/crates/omena-cli/README.md",
         "rust/evidence-scan-surfaces.json",
         "rust/omena-css-module-token-shape-measurement.json",
         "rust/omena-domain-claim-census.json",
@@ -3958,7 +4046,10 @@
       "artifactPath": "rust/omena-identifier-authority-census.json",
       "classification": "W1",
       "writerNodeKind": "self-ratchet",
-      "freshReproductionRequired": true,
+      "freshReproductionExemption": {
+        "kind": "reads-own-output",
+        "reason": "the identifier census compares discovered sites with its committed shrink-only adoption policy before regeneration"
+      },
       "writerScripts": ["scripts/check-rust-omena-identifier-authority-census.ts"],
       "writeCommand": [
         "node",
@@ -4025,13 +4116,15 @@
         "rust/omena-domain-claim-rename-map.json",
         "scripts/check-rust-omena-identifier-authority-census.selftest.mjs",
         "scripts/check-rust-omena-identifier-authority-census.ts",
-        "scripts/lib/rust-semver-intent.ts"
+        "scripts/lib/rust-semver-intent.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
       "consumerGateIds": [
         "rust/omena-identifier-authority-matrix",
         "rust/omena-identifier-authority-mutations",
         "rust/omena-syntax-authority-raw-scan-census",
-        "rust/omena-syntax-authority-raw-scan-census:update"
+        "rust/omena-syntax-authority-raw-scan-census:update",
+        "tooling/evidence-affected-map"
       ]
     },
     {
@@ -4476,6 +4569,7 @@
       "inputArtifactPaths": [],
       "writerGateIds": [],
       "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "scripts/check-rust-omena-cascade-layer-rank-construction.ts",
         "scripts/check-rust-published-crate-surface-register.ts",
         "test/unit/check-orchestrator/evidence-affected.test.ts"
@@ -6001,25 +6095,25 @@
     {
       "ownerId": ".github/workflows/ci.yml",
       "kind": "toolchain-bytes",
-      "detail": "formatter bytes from packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
+      "detail": "formatter bytes from packages/check-orchestrator/src/evidence/scan-surface-manifest.ts, packages/check-orchestrator/src/manifest/ci-workflow.ts",
       "gateIds": ["tooling/evidence-affected-map"]
     },
     {
       "ownerId": "packages/check-orchestrator/CHECKS.md",
       "kind": "toolchain-bytes",
-      "detail": "formatter bytes from packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
+      "detail": "formatter bytes from packages/check-orchestrator/src/evidence/scan-surface-manifest.ts, packages/check-orchestrator/src/manifest/ci-workflow.ts",
       "gateIds": ["tooling/update/check-inventory"]
     },
     {
       "ownerId": "packages/check-orchestrator/ci-cost-ledger.json",
       "kind": "toolchain-bytes",
-      "detail": "formatter bytes from packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
+      "detail": "formatter bytes from packages/check-orchestrator/src/evidence/scan-surface-manifest.ts, packages/check-orchestrator/src/manifest/ci-workflow.ts",
       "gateIds": ["tooling/evidence-affected-map"]
     },
     {
       "ownerId": "packages/check-orchestrator/ci-workflow.json",
       "kind": "toolchain-bytes",
-      "detail": "formatter bytes from packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
+      "detail": "formatter bytes from packages/check-orchestrator/src/evidence/scan-surface-manifest.ts, packages/check-orchestrator/src/manifest/ci-workflow.ts",
       "gateIds": ["tooling/evidence-affected-map"]
     },
     {
@@ -6045,6 +6139,12 @@
       "kind": "toolchain-bytes",
       "detail": "formatter bytes from scripts/generated-json.ts",
       "gateIds": ["rust/omena-value-grammar-corpus:update"]
+    },
+    {
+      "ownerId": "rust/crates/omena-bundler/tests/snapshots/public-api.txt",
+      "kind": "toolchain-bytes",
+      "detail": "formatter bytes from scripts/check-rust-published-crate-surface-register.ts",
+      "gateIds": ["rust/omena-bundler/public-surface:update"]
     },
     {
       "ownerId": "rust/crates/omena-cascade/src/property_metadata_idl_generated.rs",
@@ -6149,6 +6249,12 @@
       "gateIds": ["contract/external-corpus-envelope-contract-idl-generated"]
     },
     {
+      "ownerId": "rust/crates/omena-query/tests/snapshots/public-api.txt",
+      "kind": "toolchain-bytes",
+      "detail": "formatter bytes from scripts/check-rust-published-crate-surface-register.ts",
+      "gateIds": ["rust/omena-query/public-surface:update"]
+    },
+    {
       "ownerId": "rust/crates/omena-reactive/tests/snapshots/public-api.txt",
       "kind": "toolchain-bytes",
       "detail": "formatter bytes from scripts/check-rust-published-crate-surface-register.ts",
@@ -6223,13 +6329,13 @@
     {
       "ownerId": "rust/evidence-scan-surfaces.json",
       "kind": "toolchain-bytes",
-      "detail": "formatter bytes from packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
+      "detail": "formatter bytes from packages/check-orchestrator/src/evidence/scan-surface-manifest.ts, packages/check-orchestrator/src/manifest/ci-workflow.ts",
       "gateIds": ["tooling/evidence-affected-map"]
     },
     {
       "ownerId": "rust/evidence-writer-registry.json",
       "kind": "toolchain-bytes",
-      "detail": "formatter bytes from packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
+      "detail": "formatter bytes from packages/check-orchestrator/src/evidence/scan-surface-manifest.ts, packages/check-orchestrator/src/manifest/ci-workflow.ts",
       "gateIds": ["tooling/evidence-affected-map"]
     },
     {
@@ -6302,6 +6408,12 @@
       "ownerId": "rust/omena-response-surface-split-census.json",
       "kind": "toolchain-bytes",
       "detail": "formatter bytes from scripts/check-rust-omena-response-surface-split-census.ts",
+      "gateIds": ["tooling/evidence-affected-map"]
+    },
+    {
+      "ownerId": "rust/omena-sdk-workflow-parity-matrix.json",
+      "kind": "toolchain-bytes",
+      "detail": "formatter bytes from scripts/check-rust-omena-sdk-workflow-parity.ts",
       "gateIds": ["tooling/evidence-affected-map"]
     },
     {

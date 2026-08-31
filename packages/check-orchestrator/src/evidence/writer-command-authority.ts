@@ -15,15 +15,95 @@ export interface EvidenceWriterCommandDeclaration {
   readonly writeCommand: readonly string[];
   readonly writerScripts: readonly string[];
   readonly outputPaths: readonly string[];
+  readonly writeExpressions?: readonly string[];
   readonly manifestOutputPaths?: readonly EvidenceWriterManifestOutputDeclaration[];
   readonly inputPaths?: readonly string[];
 }
 
 export interface EvidenceWriterManifestOutputDeclaration {
   readonly manifestPath: string;
-  readonly propertyPath: readonly string[];
   readonly baseDirectory: string;
+  readonly writeExpression: string;
+  readonly propertyPath?: readonly string[];
+  readonly recordCollectionPath?: readonly string[];
+  readonly recordOutputProperty?: string;
+  readonly recordFilter?: {
+    readonly property: string;
+    readonly equals: string;
+  };
 }
+
+export interface EvidenceWriterNonLiteralWriteRefusal {
+  readonly writerScript: string;
+  readonly writeExpression: string;
+  readonly kind: "ephemeral-fixture" | "operator-selected-external-output";
+  readonly reason: string;
+}
+
+/**
+ * A governed writer may use a computed write target only when it is either
+ * resolved to a repository output, bound to committed data above, or refused
+ * here as a non-repository side effect. Exact expression keys keep this list
+ * shrink-only and make a newly shaped computed write fail the authority gate.
+ */
+export const EVIDENCE_WRITER_NON_LITERAL_WRITE_REFUSALS: readonly EvidenceWriterNonLiteralWriteRefusal[] =
+  [
+    {
+      writerScript: "packages/check-orchestrator/src/cli/main.ts",
+      writeExpression: "artifactPath",
+      kind: "operator-selected-external-output",
+      reason: "check summary artifacts are written only to the operator-selected summary directory",
+    },
+    {
+      writerScript: "packages/check-orchestrator/src/evidence/scan-surface-registry.ts",
+      writeExpression: 'path.join(temporaryRoot, "scan-surface.ts")',
+      kind: "ephemeral-fixture",
+      reason: "historical resolver replay is materialized under a fresh operating-system temp root",
+    },
+    {
+      writerScript: "packages/check-orchestrator/src/evidence/scan-surface-registry.ts",
+      writeExpression: "path.join(predicateDirectory, path.posix.basename(sourcePath))",
+      kind: "ephemeral-fixture",
+      reason: "historical predicate replay is materialized under the same fresh temp root",
+    },
+    {
+      writerScript: "scripts/check-docs-reference-surface.ts",
+      writeExpression: 'path.join(fixtureRoot, "src/input.css")',
+      kind: "ephemeral-fixture",
+      reason: "documentation examples are exercised in an operating-system temp fixture",
+    },
+    {
+      writerScript: "scripts/check-docs-reference-surface.ts",
+      writeExpression: 'path.join(fixtureRoot, "omena.toml")',
+      kind: "ephemeral-fixture",
+      reason: "documentation examples are exercised in an operating-system temp fixture",
+    },
+    {
+      writerScript: "scripts/check-docs-reference-surface.ts",
+      writeExpression: "destination",
+      kind: "ephemeral-fixture",
+      reason: "relative extends files are bounded to the documentation example temp root",
+    },
+    {
+      writerScript: "scripts/generate-engine-v2-contract-idl.ts",
+      writeExpression: "tempFile",
+      kind: "ephemeral-fixture",
+      reason: "formatter input is staged in a fresh temp file before committed outputs are written",
+    },
+    {
+      writerScript: "scripts/oss-corpus-farm.ts",
+      writeExpression: 'path.join(fixtureDir, "fixture.omena")',
+      kind: "operator-selected-external-output",
+      reason: "corpus capture fixtures are written below the explicitly selected capture root",
+    },
+    {
+      writerScript: "scripts/oss-corpus-farm.ts",
+      writeExpression: "manifestPathForCapture",
+      kind: "operator-selected-external-output",
+      reason:
+        "the capture manifest accompanies fixtures below the explicitly selected capture root",
+    },
+  ];
 
 /**
  * Resolve paths that are deliberately owned by committed manifest data rather
@@ -39,29 +119,101 @@ export function resolveEvidenceWriterCommandOutputPaths(
     const manifest = JSON.parse(
       readFileSync(path.join(repoRoot, manifestOutput.manifestPath), "utf8"),
     ) as unknown;
-    let value: unknown = manifest;
-    for (const property of manifestOutput.propertyPath) {
-      if (typeof value !== "object" || value === null || !(property in value)) {
+    const scalarMode = manifestOutput.propertyPath !== undefined;
+    const recordMode = manifestOutput.recordCollectionPath !== undefined;
+    if (scalarMode === recordMode) {
+      throw new Error(
+        `evidence writer manifest output must select one data mode: ${declaration.commandId}:${manifestOutput.manifestPath}`,
+      );
+    }
+    if (scalarMode) {
+      const value = resolveManifestProperty(
+        manifest,
+        manifestOutput.propertyPath!,
+        declaration.commandId,
+        manifestOutput.manifestPath,
+      );
+      addManifestOutputPath(outputPaths, declaration.commandId, manifestOutput, value);
+      continue;
+    }
+    if (!manifestOutput.recordOutputProperty || !manifestOutput.recordFilter) {
+      throw new Error(
+        `evidence writer record output selector is incomplete: ${declaration.commandId}:${manifestOutput.manifestPath}`,
+      );
+    }
+    const records = resolveManifestProperty(
+      manifest,
+      manifestOutput.recordCollectionPath!,
+      declaration.commandId,
+      manifestOutput.manifestPath,
+    );
+    if (!Array.isArray(records)) {
+      throw new Error(
+        `evidence writer manifest record collection is not an array: ${declaration.commandId}:${manifestOutput.manifestPath}:${manifestOutput.recordCollectionPath!.join(".")}`,
+      );
+    }
+    for (const [index, record] of records.entries()) {
+      if (typeof record !== "object" || record === null) {
         throw new Error(
-          `evidence writer manifest output property is absent: ${declaration.commandId}:${manifestOutput.manifestPath}:${manifestOutput.propertyPath.join(".")}`,
+          `evidence writer manifest record is not an object: ${declaration.commandId}:${manifestOutput.manifestPath}:${index}`,
         );
       }
-      value = (value as Readonly<Record<string, unknown>>)[property];
-    }
-    if (typeof value !== "string" || value.length === 0) {
-      throw new Error(
-        `evidence writer manifest output property is not a path: ${declaration.commandId}:${manifestOutput.manifestPath}:${manifestOutput.propertyPath.join(".")}`,
+      const fields = record as Readonly<Record<string, unknown>>;
+      if (fields[manifestOutput.recordFilter.property] !== manifestOutput.recordFilter.equals) {
+        continue;
+      }
+      if (!(manifestOutput.recordOutputProperty in fields)) {
+        throw new Error(
+          `evidence writer manifest record output is absent: ${declaration.commandId}:${manifestOutput.manifestPath}:${index}:${manifestOutput.recordOutputProperty}`,
+        );
+      }
+      addManifestOutputPath(
+        outputPaths,
+        declaration.commandId,
+        manifestOutput,
+        fields[manifestOutput.recordOutputProperty],
       );
     }
-    const outputPath = path.posix.normalize(path.posix.join(manifestOutput.baseDirectory, value));
-    if (path.posix.isAbsolute(outputPath) || outputPath === ".." || outputPath.startsWith("../")) {
-      throw new Error(
-        `evidence writer manifest output escapes the repository: ${declaration.commandId}:${outputPath}`,
-      );
-    }
-    outputPaths.add(outputPath);
   }
   return [...outputPaths].toSorted();
+}
+
+function resolveManifestProperty(
+  manifest: unknown,
+  propertyPath: readonly string[],
+  commandId: string,
+  manifestPath: string,
+): unknown {
+  let value = manifest;
+  for (const property of propertyPath) {
+    if (typeof value !== "object" || value === null || !(property in value)) {
+      throw new Error(
+        `evidence writer manifest output property is absent: ${commandId}:${manifestPath}:${propertyPath.join(".")}`,
+      );
+    }
+    value = (value as Readonly<Record<string, unknown>>)[property];
+  }
+  return value;
+}
+
+function addManifestOutputPath(
+  outputPaths: Set<string>,
+  commandId: string,
+  declaration: EvidenceWriterManifestOutputDeclaration,
+  value: unknown,
+): void {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(
+      `evidence writer manifest output property is not a path: ${commandId}:${declaration.manifestPath}`,
+    );
+  }
+  const outputPath = path.posix.normalize(path.posix.join(declaration.baseDirectory, value));
+  if (path.posix.isAbsolute(outputPath) || outputPath === ".." || outputPath.startsWith("../")) {
+    throw new Error(
+      `evidence writer manifest output escapes the repository: ${commandId}:${outputPath}`,
+    );
+  }
+  outputPaths.add(outputPath);
 }
 
 /**
@@ -146,15 +298,17 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
     writeCommand: ["pnpm", "omena-check", "inventory", "--write"],
     writerScripts: ["packages/check-orchestrator/src/cli/main.ts"],
     outputPaths: ["packages/check-orchestrator/CHECKS.md"],
+    writeExpressions: ["inventoryPath"],
   },
   {
     commandId: "orchestrator-cost-ledger",
-    writeCommand: ["pnpm", "omena-check", "cost-ledger", "--write"],
+    writeCommand: ["pnpm", "omena-check", "cost-ledger", "--write", "--", "--reuse-source-runs"],
     writerScripts: [
       "packages/check-orchestrator/src/cli/main.ts",
       "packages/check-orchestrator/src/manifest/cost-ledger.ts",
     ],
     outputPaths: ["packages/check-orchestrator/ci-cost-ledger.json"],
+    writeExpressions: ["costLedgerPath(rootDir)"],
   },
   {
     commandId: "orchestrator-ci-workflow",
@@ -164,6 +318,7 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
       "packages/check-orchestrator/src/manifest/ci-workflow.ts",
     ],
     outputPaths: [".github/workflows/ci.yml"],
+    writeExpressions: ["ciWorkflowPath(rootDir)"],
   },
   {
     commandId: "orchestrator-ci-workflow-registry",
@@ -173,6 +328,7 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
       "packages/check-orchestrator/src/manifest/ci-workflow.ts",
     ],
     outputPaths: ["packages/check-orchestrator/ci-workflow.json"],
+    writeExpressions: ["ciWorkflowRegistryPath(rootDir)", "registryPath"],
   },
   {
     commandId: "evidence-scan-surfaces",
@@ -182,6 +338,7 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
       "packages/check-orchestrator/src/evidence/scan-surface-registry.ts",
     ],
     outputPaths: ["rust/evidence-scan-surfaces.json"],
+    writeExpressions: ["manifestPath"],
   },
   {
     commandId: "evidence-writer-registry",
@@ -191,6 +348,7 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
       "packages/check-orchestrator/src/evidence/writer-registry.ts",
     ],
     outputPaths: ["rust/evidence-writer-registry.json"],
+    writeExpressions: ["registryPath"],
   },
   {
     commandId: "engine-v2-contract-idl-generated",
@@ -283,6 +441,7 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
       "--write",
     ],
     writerScripts: ["scripts/check-rust-omena-query-public-surface.ts"],
+    writeExpressions: ["snapshotPath"],
     outputPaths: [
       "rust/crates/omena-query/tests/snapshots/public-api.txt",
       "rust/crates/omena-query/tests/snapshots/wildcard-reexport-baseline.json",
@@ -311,7 +470,20 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
       "--write",
     ],
     writerScripts: ["scripts/check-rust-omena-reactive-public-surface.ts"],
+    writeExpressions: ["writeTarget"],
     outputPaths: ["rust/crates/omena-reactive/tests/snapshots/public-api.txt"],
+  },
+  {
+    commandId: "bundler-public-surface",
+    writeCommand: [
+      "node",
+      "--import",
+      "tsx",
+      "./scripts/check-rust-omena-bundler-public-surface.ts",
+      "--write",
+    ],
+    writerScripts: ["scripts/check-rust-omena-bundler-public-surface.ts"],
+    outputPaths: ["rust/crates/omena-bundler/tests/snapshots/public-api.txt"],
   },
   {
     commandId: "published-crate-public-surface-snapshots",
@@ -323,14 +495,18 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
       "--write-snapshots",
     ],
     writerScripts: ["scripts/check-rust-published-crate-surface-register.ts"],
-    outputPaths: [
-      "rust/crates/omena-reactive/tests/snapshots/public-api.txt",
-      "rust/crates/omena-syntax/tests/snapshots/public-api.txt",
-      "rust/crates/omena-cascade/tests/snapshots/public-api.txt",
-      "rust/crates/omena-tsgo-client/tests/snapshots/public-api.txt",
-      "rust/crates/omena-query-transform-runner/tests/snapshots/public-api.txt",
-      "rust/crates/omena-wasm/tests/snapshots/public-api.txt",
+    outputPaths: [],
+    manifestOutputPaths: [
+      {
+        manifestPath: "rust/omena-published-crate-surface-register.json",
+        recordCollectionPath: ["rows"],
+        recordOutputProperty: "snapshot",
+        recordFilter: { property: "disposition", equals: "snapshotGated" },
+        baseDirectory: ".",
+        writeExpression: "snapshotPath",
+      },
     ],
+    inputPaths: ["rust/omena-published-crate-surface-register.json"],
   },
   {
     commandId: "documentation-reference-surface",
@@ -342,6 +518,7 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
       "--write",
     ],
     writerScripts: ["scripts/check-docs-reference-surface.ts"],
+    writeExpressions: ["absolutePath"],
     outputPaths: [
       "docs/reference/README.md",
       "docs/reference/cli.md",
@@ -379,6 +556,7 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
         manifestPath: "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json",
         propertyPath: ["lintCensus", "reportPath"],
         baseDirectory: "rust/crates/omena-diff-test/oss-corpus-farm",
+        writeExpression: "reportPathForManifest",
       },
     ],
     inputPaths: ["rust/crates/omena-diff-test/oss-corpus-farm/manifest.json"],
@@ -393,6 +571,7 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
       "--write",
     ],
     writerScripts: ["scripts/generate-rust-omena-transform-target-compat.ts"],
+    writeExpressions: ["path.join(repoRoot, relativePath)"],
     outputPaths: [
       "rust/crates/omena-transform-target/data/browser-thresholds.toml",
       "rust/crates/omena-transform-target/data/pass-feature-bindings.toml",

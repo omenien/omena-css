@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -270,7 +271,16 @@ export function adoptAndWriteRegistry(rootDir: string): CiWorkflowRegistry {
   const registry = adoptCiWorkflow(readFileSync(ciWorkflowPath(rootDir), "utf8"));
   const validation = validateCiWorkflowRegistry(registry);
   assert.deepEqual(validation.errors, [], validation.errors.join("; "));
-  writeFileSync(ciWorkflowRegistryPath(rootDir), `${JSON.stringify(registry, null, 2)}\n`);
+  const registryPath = ciWorkflowRegistryPath(rootDir);
+  writeFileSync(registryPath, `${JSON.stringify(registry, null, 2)}\n`);
+  execFileSync(
+    process.execPath,
+    [path.join(rootDir, "node_modules/oxfmt/bin/oxfmt"), registryPath],
+    {
+      cwd: rootDir,
+      stdio: "ignore",
+    },
+  );
   return registry;
 }
 

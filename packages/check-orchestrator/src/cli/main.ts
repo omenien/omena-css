@@ -367,8 +367,12 @@ async function runAffectedEvidenceWriters(
       inputPaths: [...inputPaths],
       outputPaths: commandRows.map((candidate) => candidate.artifactPath),
       requireFreshReproduction: commandRows.some(
-        (candidate) => candidate.freshReproductionRequired === true,
+        (candidate) =>
+          candidate.freshReproductionRequired === true || candidate.classification === "W2",
       ),
+      freshReproductionExemptOutputPaths: commandRows
+        .filter((candidate) => candidate.freshReproductionExemption?.kind === "reads-own-output")
+        .map((candidate) => candidate.artifactPath),
     });
     completedCommands.add(commandKey);
   }
@@ -1254,6 +1258,11 @@ function runCiWorkflowCommand(parsed: ParsedArgs): void {
 function runCostLedgerCommand(parsed: ParsedArgs): void {
   const rootDir = manifest.rootDir;
   if (parsed.write) {
+    const reuseSourceRuns = parsed.extraArgs.includes("--reuse-source-runs");
+    const reusedLedger = reuseSourceRuns ? loadCostLedger(rootDir) : null;
+    if (reuseSourceRuns && (!reusedLedger || reusedLedger.sourceRunIds.length === 0)) {
+      fail("cost-ledger --reuse-source-runs requires a committed ledger with sourceRunIds");
+    }
     const runLimitArg = parsed.extraArgs.find((arg) => arg.startsWith("--runs="));
     const runLimit = runLimitArg ? Number(runLimitArg.slice("--runs=".length)) : 10;
     const gh = (args: readonly string[]): string => {
@@ -1263,24 +1272,27 @@ function runCostLedgerCommand(parsed: ParsedArgs): void {
       }
       return result.stdout;
     };
-    const runs = JSON.parse(
-      gh([
-        "run",
-        "list",
-        "--workflow",
-        "CI",
-        "--branch",
-        "master",
-        "--status",
-        "success",
-        "--limit",
-        String(runLimit),
-        "--json",
-        "databaseId",
-      ]),
-    ) as readonly { databaseId: number }[];
-    if (runs.length === 0) fail("no successful CI runs found to build the ledger from");
-    const sourceRunIds = runs.map((run) => String(run.databaseId));
+    const sourceRunIds = reusedLedger
+      ? [...reusedLedger.sourceRunIds]
+      : (
+          JSON.parse(
+            gh([
+              "run",
+              "list",
+              "--workflow",
+              "CI",
+              "--branch",
+              "master",
+              "--status",
+              "success",
+              "--limit",
+              String(runLimit),
+              "--json",
+              "databaseId",
+            ]),
+          ) as readonly { databaseId: number }[]
+        ).map((run) => String(run.databaseId));
+    if (sourceRunIds.length === 0) fail("no successful CI runs found to build the ledger from");
 
     const jobWall = new Map<string, number[]>();
     const jobQueue = new Map<string, number[]>();
@@ -1318,57 +1330,63 @@ function runCostLedgerCommand(parsed: ParsedArgs): void {
 
     const gateSamples = new Map<string, number[]>();
     const downloadRoot = path.join(rootDir, ".omena-ci", "cost-ledger-artifacts");
-    for (const runId of sourceRunIds) {
-      const runDir = path.join(downloadRoot, runId);
-      mkdirSync(runDir, { recursive: true });
-      const download = spawnSync(
-        "gh",
-        ["run", "download", runId, "--pattern", "*summary*", "--dir", runDir],
-        { cwd: rootDir, encoding: "utf8" },
-      );
-      if (download.status !== 0) continue; // runs predating S0 carry no summary artifacts
-      const stack = [runDir];
-      while (stack.length > 0) {
-        const dir = stack.pop()!;
-        for (const entry of evidenceScanSurface.readdirSync(dir, { withFileTypes: true })) {
-          const full = path.join(dir, entry.name);
-          if (entry.isDirectory()) stack.push(full);
-          else if (/^check-summary-.*\.json$/.test(entry.name)) {
-            const summary = JSON.parse(readFileSync(full, "utf8")) as {
-              readonly results?: readonly {
-                readonly title: string;
-                readonly durationMs: number;
-                readonly status?: string;
-                readonly timedOut?: boolean;
-              }[];
-            };
-            // Only PASSING, non-timed-out rows may feed the p50/p95 samples —
-            // job rows are already success-filtered at two levels; gate rows
-            // must match (stage-5 lens: a failed-member artifact inside a
-            // green-classified run would silently bias the partition input).
-            for (const row of (summary.results ?? []).filter(
-              (candidate) => candidate.status === "pass" && !candidate.timedOut,
-            )) {
-              (gateSamples.get(row.title) ?? gateSamples.set(row.title, []).get(row.title)!).push(
-                row.durationMs,
-              );
+    if (!reusedLedger) {
+      for (const runId of sourceRunIds) {
+        const runDir = path.join(downloadRoot, runId);
+        mkdirSync(runDir, { recursive: true });
+        const download = spawnSync(
+          "gh",
+          ["run", "download", runId, "--pattern", "*summary*", "--dir", runDir],
+          { cwd: rootDir, encoding: "utf8" },
+        );
+        if (download.status !== 0) continue; // runs predating S0 carry no summary artifacts
+        const stack = [runDir];
+        while (stack.length > 0) {
+          const dir = stack.pop()!;
+          for (const entry of evidenceScanSurface.readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) stack.push(full);
+            else if (/^check-summary-.*\.json$/.test(entry.name)) {
+              const summary = JSON.parse(readFileSync(full, "utf8")) as {
+                readonly results?: readonly {
+                  readonly title: string;
+                  readonly durationMs: number;
+                  readonly status?: string;
+                  readonly timedOut?: boolean;
+                }[];
+              };
+              // Only PASSING, non-timed-out rows may feed the p50/p95 samples —
+              // job rows are already success-filtered at two levels; gate rows
+              // must match (stage-5 lens: a failed-member artifact inside a
+              // green-classified run would silently bias the partition input).
+              for (const row of (summary.results ?? []).filter(
+                (candidate) => candidate.status === "pass" && !candidate.timedOut,
+              )) {
+                (gateSamples.get(row.title) ?? gateSamples.set(row.title, []).get(row.title)!).push(
+                  row.durationMs,
+                );
+              }
             }
           }
         }
       }
     }
 
+    // Completed-run job metadata remains queryable, but summary artifacts can expire.
+    // Reproduction therefore re-derives jobs while retaining the committed, digest-sealed gate samples.
     const ledgerBody = {
-      generatedAt: costLedgerToday(),
+      generatedAt: reusedLedger?.generatedAt ?? costLedgerToday(),
       sourceRunIds,
-      gates: [...gateSamples.entries()]
-        .toSorted(([left], [right]) => left.localeCompare(right))
-        .map(([gateId, samples]) => ({
-          gateId,
-          p50Ms: percentile(samples, 0.5),
-          p95Ms: percentile(samples, 0.95),
-          sampleCount: samples.length,
-        })),
+      gates: reusedLedger
+        ? [...reusedLedger.gates]
+        : [...gateSamples.entries()]
+            .toSorted(([left], [right]) => left.localeCompare(right))
+            .map(([gateId, samples]) => ({
+              gateId,
+              p50Ms: percentile(samples, 0.5),
+              p95Ms: percentile(samples, 0.95),
+              sampleCount: samples.length,
+            })),
       jobs: [...jobWall.entries()]
         .toSorted(([left], [right]) => left.localeCompare(right))
         .map(([jobName, wall]) => ({

@@ -12,6 +12,7 @@ import { defineScanSurface, resolveScanSurface } from "./scan-surface";
 import {
   EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH,
   EVIDENCE_WRITER_COMMAND_DECLARATIONS,
+  EVIDENCE_WRITER_NON_LITERAL_WRITE_REFUSALS,
   EVIDENCE_STATIC_WRITE_OUTPUT_AUTHORITY,
   resolveEvidenceWriterCommandOutputPaths,
   type EvidenceWriterCommandDeclaration,
@@ -59,10 +60,56 @@ export type EvidenceArtifactClassification = "W1" | "W2" | "W3" | "W4";
  * exception must be named here with a reviewable reason; the generated row
  * then carries that reason instead of silently losing the fresh-run arm.
  */
+const DOCUMENTATION_REFERENCE_SELF_INPUT_PATHS = [
+  "docs/reference/README.md",
+  "docs/reference/cli.md",
+  "docs/reference/personas.md",
+  "docs/reference/configuration.md",
+  "docs/reference/editor-settings.md",
+  "docs/reference/lsp-capabilities.md",
+  "rust/crates/omena-cli/README.md",
+  "docs/vscode-extension.md",
+  "docs/sdk.md",
+] as const;
+
 export const EVIDENCE_FRESH_REPRODUCTION_EXEMPTIONS: readonly {
   readonly artifactPath: string;
+  readonly kind: "reads-own-output";
   readonly reason: string;
-}[] = [];
+}[] = [
+  {
+    artifactPath: "packages/check-orchestrator/ci-cost-ledger.json",
+    kind: "reads-own-output",
+    reason:
+      "the reproducibility recipe replays job metadata from committed sourceRunIds and preserves gate samples whose GitHub summary artifacts may have expired",
+  },
+  {
+    artifactPath: "rust/evidence-writer-registry.json",
+    kind: "reads-own-output",
+    reason:
+      "the registry builder validates every toolchain-byte owner against the repository path set, including the registry output itself",
+  },
+  ...DOCUMENTATION_REFERENCE_SELF_INPUT_PATHS.map(
+    (
+      artifactPath,
+    ): {
+      readonly artifactPath: string;
+      readonly kind: "reads-own-output";
+      readonly reason: string;
+    } => ({
+      artifactPath,
+      kind: "reads-own-output",
+      reason:
+        "the documentation writer validates its committed public-document corpus before regenerating the command's full output set",
+    }),
+  ),
+  {
+    artifactPath: "rust/omena-identifier-authority-census.json",
+    kind: "reads-own-output",
+    reason:
+      "the identifier census compares discovered sites with its committed shrink-only adoption policy before regeneration",
+  },
+];
 
 export interface EvidenceWriterRegistryV0 {
   readonly schemaVersion: "0";
@@ -83,7 +130,10 @@ export interface EvidenceArtifactRowV0 {
   readonly classification: EvidenceArtifactClassification;
   readonly writerNodeKind: "normal" | "self-ratchet";
   readonly freshReproductionRequired?: true;
-  readonly freshReproductionExemption?: string;
+  readonly freshReproductionExemption?: {
+    readonly kind: "reads-own-output";
+    readonly reason: string;
+  };
   readonly writerScripts: readonly string[];
   readonly writeCommand?: readonly string[];
   readonly alternateWriteCommands?: readonly (readonly string[])[];
@@ -123,6 +173,7 @@ export function renderEvidenceWriterRegistry(registry: EvidenceWriterRegistryV0)
 }
 
 export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterRegistryV0 {
+  assertGovernedNonLiteralWriteCoverage(repoRoot);
   const discovery = discoverEvidenceArtifacts(repoRoot);
   const {
     repositoryPaths,
@@ -295,6 +346,138 @@ interface EvidenceArtifactDiscovery {
   readonly declaredCommandOutputPaths: readonly string[];
   readonly staticWriterScriptsByOutput: ReadonlyMap<string, readonly string[]>;
   readonly scriptAnalysisCache: Map<string, WriterScriptAnalysis>;
+}
+
+export interface UnclassifiedGovernedNonLiteralWriteSite {
+  readonly writerScript: string;
+  readonly line: number;
+  readonly writeExpression: string;
+}
+
+export function findUnclassifiedGovernedNonLiteralWriteSites(
+  repoRoot: string,
+): readonly UnclassifiedGovernedNonLiteralWriteSite[] {
+  const repositoryPaths = resolveScanSurface(REPOSITORY_REFERENCE_SURFACE, { repoRoot }).paths;
+  const repositoryPathSet = new Set(repositoryPaths);
+  const scriptPaths = resolveScanSurface(WRITER_SOURCE_SURFACE, { repoRoot }).paths.filter(
+    (candidate) => /\.(?:[cm]?js|ts)$/u.test(candidate),
+  );
+  const analysisCache = buildWriterScriptAnalysisCache(repoRoot, scriptPaths);
+  const governedScripts = new Set<string>(
+    EVIDENCE_WRITER_COMMAND_DECLARATIONS.flatMap((declaration) => declaration.writerScripts),
+  );
+  const dataExpressionsByScript = new Map<string, Set<string>>();
+  for (const declaration of EVIDENCE_WRITER_COMMAND_DECLARATIONS as readonly EvidenceWriterCommandDeclaration[]) {
+    for (const writerScript of declaration.writerScripts) {
+      const expressions = dataExpressionsByScript.get(writerScript) ?? new Set<string>();
+      for (const output of declaration.manifestOutputPaths ?? []) {
+        expressions.add(output.writeExpression);
+      }
+      for (const writeExpression of declaration.writeExpressions ?? []) {
+        expressions.add(writeExpression);
+      }
+      dataExpressionsByScript.set(writerScript, expressions);
+    }
+  }
+  const refusalKeys = new Set(
+    EVIDENCE_WRITER_NON_LITERAL_WRITE_REFUSALS.map(
+      (entry) => `${entry.writerScript}\0${entry.writeExpression}`,
+    ),
+  );
+  const unclassified: UnclassifiedGovernedNonLiteralWriteSite[] = [];
+  for (const [scriptPath, analysis] of analysisCache) {
+    if (!governedScripts.has(scriptPath)) continue;
+    const visit = (
+      node: tsTypes.Node,
+      loopValues: ReadonlyMap<tsTypes.Identifier, readonly StaticDataValue[]> = new Map(),
+    ): void => {
+      if (ts.isCallExpression(node) && isFileWriteCall(node.expression)) {
+        const firstArgument = node.arguments[0];
+        if (
+          firstArgument &&
+          !ts.isStringLiteral(firstArgument) &&
+          !ts.isNoSubstitutionTemplateLiteral(firstArgument)
+        ) {
+          const writeExpression = firstArgument.getText(analysis.sourceFile).replace(/\s+/gu, " ");
+          const resolvedRepositoryOutput = lexicalStaticPathExpressionValues(firstArgument, {
+            repoRoot,
+            scriptPath,
+            analysis,
+            analysisCache,
+            loopValues,
+          }).some((resolved) => repositoryPathSet.has(normalizeRepositoryPath(repoRoot, resolved)));
+          const dataDeclared =
+            dataExpressionsByScript.get(scriptPath)?.has(writeExpression) ?? false;
+          const refused = refusalKeys.has(`${scriptPath}\0${writeExpression}`);
+          if (!resolvedRepositoryOutput && !dataDeclared && !refused) {
+            unclassified.push({
+              writerScript: scriptPath,
+              line: analysis.sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1,
+              writeExpression,
+            });
+          }
+        }
+      }
+      if (ts.isForOfStatement(node) && ts.isVariableDeclarationList(node.initializer)) {
+        const iterationValues = staticIterationValues(
+          evaluateStaticDataExpression(node.expression, {
+            repoRoot,
+            scriptPath,
+            analysis,
+            analysisCache,
+            loopValues,
+            resolving: new Set(),
+          }),
+        );
+        const nestedLoopValues = new Map(loopValues);
+        for (const declaration of node.initializer.declarations) {
+          bindStaticIterationValues(declaration.name, iterationValues, nestedLoopValues);
+        }
+        visit(node.statement, nestedLoopValues);
+        return;
+      }
+      ts.forEachChild(node, (child) => visit(child, loopValues));
+    };
+    visit(analysis.sourceFile);
+  }
+  return unclassified.toSorted((left, right) =>
+    compareText(
+      `${left.writerScript}:${String(left.line).padStart(8, "0")}`,
+      `${right.writerScript}:${String(right.line).padStart(8, "0")}`,
+    ),
+  );
+}
+
+export function assertGovernedNonLiteralWriteCoverage(repoRoot: string): void {
+  const unclassified = findUnclassifiedGovernedNonLiteralWriteSites(repoRoot);
+  if (unclassified.length > 0) {
+    const first = unclassified[0]!;
+    throw new Error(
+      `governed non-literal write site has no output declaration or typed refusal: ${first.writerScript}:${first.line}:${first.writeExpression}`,
+    );
+  }
+  const refusalKeys = EVIDENCE_WRITER_NON_LITERAL_WRITE_REFUSALS.map(
+    (entry) => `${entry.writerScript}\0${entry.writeExpression}`,
+  );
+  if (new Set(refusalKeys).size !== refusalKeys.length) {
+    throw new Error("governed non-literal write refusals must be unique");
+  }
+  for (const refusal of EVIDENCE_WRITER_NON_LITERAL_WRITE_REFUSALS) {
+    if (refusal.reason.trim().length === 0) {
+      throw new Error(
+        `governed non-literal write refusal has no reason: ${refusal.writerScript}:${refusal.writeExpression}`,
+      );
+    }
+    const sourcePath = path.join(repoRoot, refusal.writerScript);
+    if (
+      !existsSync(sourcePath) ||
+      !readFileSync(sourcePath, "utf8").includes(refusal.writeExpression)
+    ) {
+      throw new Error(
+        `governed non-literal write refusal is stale: ${refusal.writerScript}:${refusal.writeExpression}`,
+      );
+    }
+  }
 }
 
 function discoverEvidenceArtifacts(repoRoot: string): EvidenceArtifactDiscovery {
@@ -539,8 +722,11 @@ function classifyArtifact(input: {
     input.repositoryPathSet,
   );
   const declaredInputs = declaredCommands.flatMap((row) => row.inputPaths ?? []);
-  const allInputs = [...new Set([...literalInputs, ...moduleInputs, ...declaredInputs])].filter(
-    (candidate) => !writerOutputPaths.has(candidate) && !writerScripts.includes(candidate),
+  const inferredInputs = [...literalInputs, ...moduleInputs].filter(
+    (candidate) => !writerOutputPaths.has(candidate),
+  );
+  const allInputs = [...new Set([...inferredInputs, ...declaredInputs])].filter(
+    (candidate) => !writerScripts.includes(candidate),
   );
   const inputArtifactPaths = [
     ...new Set([
@@ -582,7 +768,7 @@ function classifyArtifact(input: {
   ].toSorted();
   const freshReproductionExemption = EVIDENCE_FRESH_REPRODUCTION_EXEMPTIONS.find(
     (entry) => entry.artifactPath === artifactPath,
-  )?.reason;
+  );
   return {
     artifactPath,
     classification,
@@ -590,7 +776,12 @@ function classifyArtifact(input: {
       artifactPath === "rust/omena-identifier-authority-census.json" ? "self-ratchet" : "normal",
     ...(classification === "W1"
       ? freshReproductionExemption
-        ? { freshReproductionExemption }
+        ? {
+            freshReproductionExemption: {
+              kind: freshReproductionExemption.kind,
+              reason: freshReproductionExemption.reason,
+            },
+          }
         : { freshReproductionRequired: true as const }
       : artifactPath === "rust/omena-published-crate-surface-register.json"
         ? { freshReproductionRequired: true as const }
@@ -2298,6 +2489,13 @@ function validateEvidenceWriterRegistry(registry: EvidenceWriterRegistryV0): voi
       throw new Error(
         `W1 evidence artifact must require fresh reproduction or carry one exemption: ${row.artifactPath}`,
       );
+    }
+    if (
+      row.freshReproductionExemption &&
+      (row.freshReproductionExemption.kind !== "reads-own-output" ||
+        row.freshReproductionExemption.reason.trim().length === 0)
+    ) {
+      throw new Error(`evidence fresh-reproduction exemption is invalid: ${row.artifactPath}`);
     }
     if (
       (row.classification === "W1" || row.classification === "W2") &&

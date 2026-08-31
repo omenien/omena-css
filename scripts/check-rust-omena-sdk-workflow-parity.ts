@@ -162,6 +162,10 @@ assert.deepEqual(
 const expectedMatrix = buildMatrix();
 if (writeMode) {
   fs.writeFileSync(matrixPath, `${JSON.stringify(expectedMatrix, null, 2)}\n`);
+  execFileSync("pnpm", ["exec", "oxfmt", matrixPath], {
+    cwd: repoRoot,
+    stdio: "ignore",
+  });
 } else {
   const matrix = JSON.parse(fs.readFileSync(matrixPath, "utf8")) as ParityMatrix;
   if (process.env.OMENA_SDK_PARITY_TEST_CLAIM_EXTRA_COVERAGE === "1") {

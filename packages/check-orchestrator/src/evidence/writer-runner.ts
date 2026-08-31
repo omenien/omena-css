@@ -14,6 +14,7 @@ export interface DigestPinnedWriterInput {
    * recipe from a successful command that merely leaves old evidence in place.
    */
   readonly requireFreshReproduction?: boolean;
+  readonly freshReproductionExemptOutputPaths?: readonly string[];
   readonly onStartedForTest?: () => void | Promise<void>;
 }
 
@@ -62,6 +63,15 @@ export async function runDigestPinnedWriter(
   if (!executable) throw new Error("evidence writer command is empty");
   const inputsBefore = digestPaths(input.repoRoot, input.inputPaths);
   const outputsBefore = snapshotOutputs(input.repoRoot, input.outputPaths);
+  const exemptOutputPaths = new Set(input.freshReproductionExemptOutputPaths ?? []);
+  const undeclaredExemption = [...exemptOutputPaths].find(
+    (outputPath) => !input.outputPaths.includes(outputPath),
+  );
+  if (undeclaredExemption) {
+    throw new Error(
+      `fresh evidence reproduction exemption is not a declared output: ${undeclaredExemption}`,
+    );
+  }
   if (input.requireFreshReproduction) {
     const absentBaseline = outputsBefore.find((snapshot) => snapshot.bytes === null);
     if (absentBaseline) {
@@ -70,6 +80,7 @@ export async function runDigestPinnedWriter(
       );
     }
     for (const snapshot of outputsBefore) {
+      if (exemptOutputPaths.has(snapshot.outputPath)) continue;
       const absolutePath = path.join(input.repoRoot, snapshot.outputPath);
       if (existsSync(absolutePath)) unlinkSync(absolutePath);
     }
@@ -114,7 +125,7 @@ export async function runDigestPinnedWriter(
       `evidence writer successful no-op: declared output was not reproduced: ${missingOutput}`,
     );
   }
-  if (input.requireFreshReproduction) {
+  if (input.requireFreshReproduction || exemptOutputPaths.size > 0) {
     const divergentOutput = outputsBefore.find(
       (snapshot) =>
         snapshot.bytes !== null &&

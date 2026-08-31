@@ -68,6 +68,7 @@ import {
   discoverEvidenceWriterOutputAuthority,
   EVIDENCE_FRESH_REPRODUCTION_EXEMPTIONS,
   EVIDENCE_WRITER_REGISTRY_PATH,
+  findUnclassifiedGovernedNonLiteralWriteSites,
   gateCommandNamesModuleAsEntry,
   loadEvidenceWriterRegistry,
   renderEvidenceWriterRegistry,
@@ -78,6 +79,7 @@ import {
   EVIDENCE_STATIC_WRITE_OUTPUT_AUTHORITY,
   EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH,
   EVIDENCE_WRITER_COMMAND_DECLARATIONS,
+  EVIDENCE_WRITER_NON_LITERAL_WRITE_REFUSALS,
   resolveEvidenceWriterCommandOutputPaths,
 } from "../../../packages/check-orchestrator/src/evidence/writer-command-authority";
 import type {
@@ -107,6 +109,67 @@ function expectedScannerPaths(manifest = scannerManifest()): readonly string[] {
   return manifest.scanners
     .filter((row) => row.disposition !== "RETIRED")
     .map((row) => row.scannerPath);
+}
+
+function createDetachedFixtureWorktree(prefix: string): {
+  readonly repoRoot: string;
+  readonly temporaryRoot: string;
+  readonly worktree: string;
+} {
+  const repoRoot = path.resolve(import.meta.dirname, "../../..");
+  const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), prefix));
+  const worktree = path.join(temporaryRoot, "repo");
+  execFileSync("git", ["worktree", "add", "--detach", worktree, "HEAD"], {
+    cwd: repoRoot,
+    stdio: "ignore",
+  });
+  return { repoRoot, temporaryRoot, worktree };
+}
+
+function attachFixtureNodeModules(repoRoot: string, worktree: string): void {
+  symlinkSync(
+    path.join(repoRoot, "node_modules"),
+    path.join(worktree, "node_modules"),
+    process.platform === "win32" ? "junction" : "dir",
+  );
+}
+
+function commitFixturePaths(worktree: string, message: string, paths: readonly string[]): void {
+  execFileSync("git", ["add", "--", ...paths], { cwd: worktree, stdio: "ignore" });
+  execFileSync(
+    "git",
+    [
+      "-c",
+      "user.name=Omena Fixture",
+      "-c",
+      "user.email=fixture@omena.invalid",
+      "commit",
+      "-m",
+      message,
+    ],
+    { cwd: worktree, stdio: "ignore" },
+  );
+}
+
+function narrowFixtureScanManifest(worktree: string): void {
+  const manifestPath = path.join(worktree, "rust/evidence-scan-surfaces.json");
+  const scanManifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
+    scanners: Array<Record<string, unknown>>;
+  };
+  scanManifest.scanners = scanManifest.scanners.map((row) => ({ ...row, gateIds: [] }));
+  writeFileSync(manifestPath, `${JSON.stringify(scanManifest, null, 2)}\n`);
+}
+
+function removeFixtureWorktree(fixture: {
+  readonly repoRoot: string;
+  readonly temporaryRoot: string;
+  readonly worktree: string;
+}): void {
+  execFileSync("git", ["worktree", "remove", "--force", fixture.worktree], {
+    cwd: fixture.repoRoot,
+    stdio: "ignore",
+  });
+  rmSync(fixture.temporaryRoot, { recursive: true, force: true });
 }
 
 function scannerManifest(): EvidenceScanSurfaceManifestV0 {
@@ -1274,6 +1337,10 @@ describe("writer registry portability", () => {
     mkdirSync(path.dirname(scriptPath), { recursive: true });
     mkdirSync(path.dirname(artifactPath), { recursive: true });
     mkdirSync(path.dirname(farmManifestPath), { recursive: true });
+    writeFileSync(
+      path.join(root, "rust/omena-published-crate-surface-register.json"),
+      '{"rows":[]}\n',
+    );
     writeFileSync(farmManifestPath, '{"lintCensus":{"reportPath":"lint-census-report.json"}}\n');
     writeFileSync(artifactPath, '{"schemaVersion":"0"}\n');
     writeFileSync(textArtifactPath, "evidence\n");
@@ -1315,6 +1382,7 @@ describe("writer registry portability", () => {
   it("derives a manifest-owned writer output from committed data", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "omena-manifest-writer-"));
     const manifestPath = "rust/farm/manifest.json";
+    const registerPath = "rust/register.json";
     mkdirSync(path.join(root, "rust/farm"), { recursive: true });
     const declaration = {
       commandId: "manifest-writer",
@@ -1326,6 +1394,7 @@ describe("writer registry portability", () => {
           manifestPath,
           propertyPath: ["census", "reportPath"],
           baseDirectory: "rust/farm",
+          writeExpression: "reportPath",
         },
       ],
     } as const;
@@ -1342,10 +1411,78 @@ describe("writer registry portability", () => {
       expect(() => resolveEvidenceWriterCommandOutputPaths(root, declaration)).toThrow(
         /manifest output property is absent/u,
       );
+      const registerDeclaration = {
+        commandId: "register-writer",
+        writeCommand: ["node", "writer.mjs", "--write-snapshots"],
+        writerScripts: ["writer.mjs"],
+        outputPaths: [],
+        manifestOutputPaths: [
+          {
+            manifestPath: registerPath,
+            recordCollectionPath: ["rows"],
+            recordOutputProperty: "snapshot",
+            recordFilter: { property: "disposition", equals: "snapshotGated" },
+            baseDirectory: ".",
+            writeExpression: "snapshotPath",
+          },
+        ],
+      } as const;
+      writeFileSync(
+        path.join(root, registerPath),
+        `${JSON.stringify({
+          rows: [
+            { disposition: "snapshotGated", snapshot: "rust/first.txt" },
+            { disposition: "trainSemverOnly" },
+          ],
+        })}\n`,
+      );
+      expect(resolveEvidenceWriterCommandOutputPaths(root, registerDeclaration)).toEqual([
+        "rust/first.txt",
+      ]);
+      writeFileSync(
+        path.join(root, registerPath),
+        `${JSON.stringify({
+          rows: [
+            { disposition: "snapshotGated", snapshot: "rust/first.txt" },
+            { disposition: "snapshotGated", snapshot: "rust/data-only-probe.txt" },
+          ],
+        })}\n`,
+      );
+      expect(resolveEvidenceWriterCommandOutputPaths(root, registerDeclaration)).toEqual([
+        "rust/data-only-probe.txt",
+        "rust/first.txt",
+      ]);
+      writeFileSync(
+        path.join(root, registerPath),
+        `${JSON.stringify({ rows: [{ disposition: "snapshotGated" }] })}\n`,
+      );
+      expect(() => resolveEvidenceWriterCommandOutputPaths(root, registerDeclaration)).toThrow(
+        /record output is absent/u,
+      );
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it("rejects a newly shaped governed non-literal write without a declaration or refusal", () => {
+    const fixture = createDetachedFixtureWorktree("omena-governed-write-");
+    try {
+      const writerPath = "packages/check-orchestrator/src/cli/main.ts";
+      const absoluteWriterPath = path.join(fixture.worktree, writerPath);
+      writeFileSync(
+        absoluteWriterPath,
+        `${readFileSync(absoluteWriterPath, "utf8")}\nconst ungovernedOutput = process.env.OMENA_UNGOVERNED_OUTPUT;\nif (ungovernedOutput) writeFileSync(ungovernedOutput, "escape\\n");\n`,
+      );
+      expect(findUnclassifiedGovernedNonLiteralWriteSites(fixture.worktree)).toContainEqual(
+        expect.objectContaining({
+          writerScript: writerPath,
+          writeExpression: "ungovernedOutput",
+        }),
+      );
+    } finally {
+      removeFixtureWorktree(fixture);
+    }
+  }, 30_000);
 
   it("builds from the governed index when ripgrep is unavailable", () => {
     const originalPath = process.env.PATH;
@@ -1398,6 +1535,7 @@ describe("writer registry portability", () => {
               readonly manifestPath: string;
               readonly propertyPath: readonly string[];
               readonly baseDirectory: string;
+              readonly writeExpression: string;
             }[];
           }
         ).manifestOutputPaths,
@@ -1405,6 +1543,7 @@ describe("writer registry portability", () => {
         manifestPath: farmManifestPath,
         propertyPath: ["lintCensus", "reportPath"],
         baseDirectory: path.posix.dirname(farmManifestPath),
+        writeExpression: "reportPathForManifest",
       });
       expect(
         registry.artifacts.find((row) => row.artifactPath === lintCensusReportPath),
@@ -1412,14 +1551,76 @@ describe("writer registry portability", () => {
         classification: "W1",
         writeCommand: lintDeclaration.writeCommand,
       });
+      const publishedSnapshotDeclaration = EVIDENCE_WRITER_COMMAND_DECLARATIONS.find(
+        (row) => row.commandId === "published-crate-public-surface-snapshots",
+      )!;
+      const publishedRegister = JSON.parse(
+        readFileSync(
+          path.join(repoRoot, "rust/omena-published-crate-surface-register.json"),
+          "utf8",
+        ),
+      ) as {
+        readonly rows: readonly {
+          readonly disposition: string;
+          readonly snapshot?: string;
+        }[];
+      };
+      expect(publishedSnapshotDeclaration.outputPaths).toEqual([]);
+      expect(
+        resolveEvidenceWriterCommandOutputPaths(repoRoot, publishedSnapshotDeclaration),
+      ).toEqual(
+        publishedRegister.rows
+          .filter((row) => row.disposition === "snapshotGated")
+          .map((row) => row.snapshot!)
+          .toSorted(),
+      );
+      expect(findUnclassifiedGovernedNonLiteralWriteSites(repoRoot)).toEqual([]);
+      expect(EVIDENCE_WRITER_NON_LITERAL_WRITE_REFUSALS.length).toBeGreaterThan(0);
       const w1Rows = registry.artifacts.filter((row) => row.classification === "W1");
       expect(w1Rows.length).toBeGreaterThan(1);
-      expect(EVIDENCE_FRESH_REPRODUCTION_EXEMPTIONS).toEqual([]);
+      expect(EVIDENCE_FRESH_REPRODUCTION_EXEMPTIONS).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            artifactPath: "packages/check-orchestrator/ci-cost-ledger.json",
+            kind: "reads-own-output",
+          }),
+          expect.objectContaining({
+            artifactPath: "rust/crates/omena-cli/README.md",
+            kind: "reads-own-output",
+          }),
+          expect.objectContaining({
+            artifactPath: "docs/vscode-extension.md",
+            kind: "reads-own-output",
+          }),
+          expect.objectContaining({
+            artifactPath: "rust/omena-identifier-authority-census.json",
+            kind: "reads-own-output",
+          }),
+          expect.objectContaining({
+            artifactPath: "rust/evidence-writer-registry.json",
+            kind: "reads-own-output",
+          }),
+        ]),
+      );
+      expect(
+        registry.artifacts.find(
+          (row) => row.artifactPath === "packages/check-orchestrator/ci-cost-ledger.json",
+        ),
+      ).toMatchObject({
+        freshReproductionExemption: { kind: "reads-own-output" },
+        writeCommand: [
+          "pnpm",
+          "omena-check",
+          "cost-ledger",
+          "--write",
+          "--",
+          "--reuse-source-runs",
+        ],
+      });
       for (const row of w1Rows) {
         const freshDispositionCount = [
           row.freshReproductionRequired === true,
-          typeof (row as EvidenceArtifactRowV0 & { readonly freshReproductionExemption?: string })
-            .freshReproductionExemption === "string",
+          row.freshReproductionExemption?.kind === "reads-own-output",
         ].filter(Boolean).length;
         expect(freshDispositionCount, row.artifactPath).toBe(1);
       }
@@ -1941,6 +2142,207 @@ describe("digest-pinned writer wrapper", () => {
     expect(readFileSync(path.join(root, "output.txt"), "utf8")).toBe("old");
     expect(readFileSync(path.join(root, "sibling.txt"), "utf8")).toBe("old-sibling");
   });
+
+  it("preserves declared reads-own-output bytes while freshly reproducing sibling outputs", async () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-writer-self-input-"));
+    try {
+      writeFileSync(path.join(root, "self.txt"), "seed\n");
+      writeFileSync(path.join(root, "sibling.txt"), "sibling\n");
+      const command = [
+        process.execPath,
+        "-e",
+        [
+          'const fs = require("fs");',
+          'const self = fs.readFileSync("self.txt", "utf8");',
+          'fs.writeFileSync("self.txt", self);',
+          'fs.writeFileSync("sibling.txt", "sibling\\n");',
+        ].join(" "),
+      ];
+      await expect(
+        runDigestPinnedWriter({
+          repoRoot: root,
+          command,
+          inputPaths: [],
+          outputPaths: ["self.txt", "sibling.txt"],
+          requireFreshReproduction: true,
+          freshReproductionExemptOutputPaths: ["self.txt"],
+        }),
+      ).resolves.toMatchObject({ exitCode: 0 });
+      expect(readFileSync(path.join(root, "self.txt"), "utf8")).toBe("seed\n");
+      expect(readFileSync(path.join(root, "sibling.txt"), "utf8")).toBe("sibling\n");
+      await expect(
+        runDigestPinnedWriter({
+          repoRoot: root,
+          command: [process.execPath, "-e", "process.exit(9)"],
+          inputPaths: [],
+          outputPaths: ["self.txt", "sibling.txt"],
+          requireFreshReproduction: true,
+          freshReproductionExemptOutputPaths: ["self.txt"],
+        }),
+      ).rejects.toThrow(/exited 9/u);
+      expect(readFileSync(path.join(root, "self.txt"), "utf8")).toBe("seed\n");
+      expect(readFileSync(path.join(root, "sibling.txt"), "utf8")).toBe("sibling\n");
+      await expect(
+        runDigestPinnedWriter({
+          repoRoot: root,
+          command,
+          inputPaths: [],
+          outputPaths: ["self.txt"],
+          requireFreshReproduction: true,
+          freshReproductionExemptOutputPaths: ["undeclared.txt"],
+        }),
+      ).rejects.toThrow(/not a declared output/u);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("runs the composed affected --write lane and makes a missing W2 output RED", () => {
+    const fixture = createDetachedFixtureWorktree("omena-affected-write-");
+    try {
+      const candidateModules = [
+        "packages/check-orchestrator/src/cli/main.ts",
+        "packages/check-orchestrator/src/evidence/writer-runner.ts",
+      ];
+      for (const modulePath of candidateModules) {
+        writeFileSync(
+          path.join(fixture.worktree, modulePath),
+          readFileSync(path.join(fixture.repoRoot, modulePath)),
+        );
+      }
+      narrowFixtureScanManifest(fixture.worktree);
+      const fixtureDirectory = path.join(fixture.worktree, "fixture");
+      mkdirSync(fixtureDirectory, { recursive: true });
+      writeFileSync(path.join(fixtureDirectory, "change.txt"), "baseline\n");
+      writeFileSync(path.join(fixtureDirectory, "w2-output.json"), '{"stable":true}\n');
+      writeFileSync(
+        path.join(fixtureDirectory, "w2-writer.mjs"),
+        [
+          'import { writeFileSync } from "node:fs";',
+          'writeFileSync("fixture/w2-executed.log", "executed\\n");',
+          'if (process.env.OMENA_FIXTURE_SKIP_W2 !== "1") {',
+          '  writeFileSync("fixture/w2-output.json", \'{"stable":true}\\n\');',
+          "}",
+        ].join("\n"),
+      );
+      const registryPath = path.join(fixture.worktree, EVIDENCE_WRITER_REGISTRY_PATH);
+      const registry = JSON.parse(readFileSync(registryPath, "utf8")) as EvidenceWriterRegistryV0;
+      const selfInputExemption = {
+        kind: "reads-own-output" as const,
+        reason: "fixture mirrors the committed reads-own-output policy",
+      };
+      const fixtureRows = registry.artifacts
+        .filter(
+          (row) =>
+            row.writeCommand?.includes("./scripts/check-docs-reference-surface.ts") ||
+            row.artifactPath === "rust/omena-identifier-authority-census.json",
+        )
+        .map((row): EvidenceArtifactRowV0 => {
+          const withoutScanners = {
+            ...row,
+            inputScannerPaths: [],
+            inputArtifactPaths:
+              row.artifactPath === "rust/omena-identifier-authority-census.json"
+                ? [row.artifactPath]
+                : [],
+          };
+          const documentationWriter = row.writeCommand?.includes(
+            "./scripts/check-docs-reference-surface.ts",
+          );
+          if (documentationWriter) {
+            const { freshReproductionRequired: _removed, ...rest } = withoutScanners;
+            return {
+              ...rest,
+              freshReproductionExemption: selfInputExemption,
+              inputPaths:
+                row.artifactPath === "rust/crates/omena-cli/README.md"
+                  ? [...rest.inputPaths, "fixture/change.txt"].toSorted()
+                  : rest.inputPaths,
+            };
+          }
+          const { freshReproductionRequired: _removed, ...rest } = withoutScanners;
+          return { ...rest, freshReproductionExemption: selfInputExemption };
+        });
+      const w2Row: EvidenceArtifactRowV0 = {
+        artifactPath: "fixture/w2-output.json",
+        classification: "W2",
+        writerNodeKind: "normal",
+        writerScripts: ["fixture/w2-writer.mjs"],
+        writeCommand: [process.execPath, "./fixture/w2-writer.mjs"],
+        inputPaths: ["fixture/change.txt"],
+        inputScannerPaths: [],
+        inputArtifactPaths: [],
+        writerGateIds: [],
+        consumerPaths: [],
+        consumerGateIds: [],
+      };
+      const fixtureRegistry: EvidenceWriterRegistryV0 = {
+        ...registry,
+        artifacts: [...fixtureRows, w2Row].toSorted((left, right) =>
+          left.artifactPath < right.artifactPath
+            ? -1
+            : left.artifactPath > right.artifactPath
+              ? 1
+              : 0,
+        ),
+      };
+      expect(
+        fixtureRegistry.artifacts.find(
+          (row) => row.artifactPath === "rust/omena-identifier-authority-census.json",
+        ),
+      ).toMatchObject({
+        writerNodeKind: "self-ratchet",
+        freshReproductionExemption: { kind: "reads-own-output" },
+      });
+      writeFileSync(registryPath, `${JSON.stringify(fixtureRegistry, null, 2)}\n`);
+      commitFixturePaths(fixture.worktree, "test: prepare composed writer fixture", [
+        ...candidateModules,
+        EVIDENCE_WRITER_REGISTRY_PATH,
+        "rust/evidence-scan-surfaces.json",
+        "fixture/change.txt",
+        "fixture/w2-output.json",
+        "fixture/w2-writer.mjs",
+      ]);
+      attachFixtureNodeModules(fixture.repoRoot, fixture.worktree);
+      writeFileSync(path.join(fixtureDirectory, "change.txt"), "changed\n");
+      const cliArgs = [
+        "--import",
+        "tsx",
+        "./packages/check-orchestrator/src/cli/main.ts",
+        "affected",
+        "--evidence",
+        "--write",
+        "--json",
+        "--base=HEAD",
+      ];
+      const cliReadmePath = path.join(fixture.worktree, "rust/crates/omena-cli/README.md");
+      const cliReadmeBefore = readFileSync(cliReadmePath);
+      const green = spawnSync(process.execPath, cliArgs, {
+        cwd: fixture.worktree,
+        encoding: "utf8",
+        env: process.env,
+        timeout: 120_000,
+      });
+      expect(green.status, `${green.stdout}\n${green.stderr}`).toBe(0);
+      expect(readFileSync(cliReadmePath)).toEqual(cliReadmeBefore);
+      expect(existsSync(path.join(fixtureDirectory, "w2-executed.log"))).toBe(true);
+      expect(green.stdout).toContain('"product": "docs.reference-surface"');
+
+      rmSync(path.join(fixtureDirectory, "w2-executed.log"), { force: true });
+      const w2OutputBefore = readFileSync(path.join(fixtureDirectory, "w2-output.json"));
+      const red = spawnSync(process.execPath, cliArgs, {
+        cwd: fixture.worktree,
+        encoding: "utf8",
+        env: { ...process.env, OMENA_FIXTURE_SKIP_W2: "1" },
+        timeout: 120_000,
+      });
+      expect(red.status).not.toBe(0);
+      expect(red.stderr).toContain("declared output was not reproduced: fixture/w2-output.json");
+      expect(readFileSync(path.join(fixtureDirectory, "w2-output.json"))).toEqual(w2OutputBefore);
+    } finally {
+      removeFixtureWorktree(fixture);
+    }
+  }, 180_000);
 });
 
 describe("pre-push evidence budget", () => {
@@ -2056,6 +2458,143 @@ describe("pre-push evidence budget", () => {
     expect(productionSource).toContain("runEvidenceAffectedPreview({");
     expect(productionSource).toContain("      plan,");
   });
+
+  it("spawns the real CLI with one blind-bound and one ordinary gate and kills M2 rebinding", () => {
+    const fixture = createDetachedFixtureWorktree("omena-preview-cli-");
+    try {
+      const mainPath = "packages/check-orchestrator/src/cli/main.ts";
+      writeFileSync(
+        path.join(fixture.worktree, mainPath),
+        readFileSync(path.join(fixture.repoRoot, mainPath)),
+      );
+      narrowFixtureScanManifest(fixture.worktree);
+      const fixtureDirectory = path.join(fixture.worktree, "fixture");
+      mkdirSync(fixtureDirectory, { recursive: true });
+      writeFileSync(path.join(fixtureDirectory, "change.txt"), "baseline\n");
+      writeFileSync(
+        path.join(fixtureDirectory, "blind.mjs"),
+        [
+          'import { writeFileSync } from "node:fs";',
+          'writeFileSync("fixture/blind-executed.log", "blind\\n");',
+          "process.exit(86);",
+        ].join("\n"),
+      );
+      writeFileSync(
+        path.join(fixtureDirectory, "ordinary.mjs"),
+        'import { writeFileSync } from "node:fs"; writeFileSync("fixture/ordinary-executed.log", "ordinary\\n");\n',
+      );
+      const packagePath = path.join(fixture.worktree, "package.json");
+      const packageJson = JSON.parse(readFileSync(packagePath, "utf8")) as {
+        scripts: Record<string, string>;
+      };
+      packageJson.scripts["check:rust-oss-corpus-farm-determinism"] = "node ./fixture/blind.mjs";
+      packageJson.scripts["check:rust-domain-claim-census"] = "node ./fixture/ordinary.mjs";
+      writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+      const registryPath = path.join(fixture.worktree, EVIDENCE_WRITER_REGISTRY_PATH);
+      const registry = JSON.parse(readFileSync(registryPath, "utf8")) as EvidenceWriterRegistryV0;
+      const previewArtifact: EvidenceArtifactRowV0 = {
+        artifactPath: "fixture/preview-artifact.json",
+        classification: "W3",
+        writerNodeKind: "normal",
+        writerScripts: [],
+        procedure: ["fixture-only preview projection"],
+        inputPaths: ["fixture/change.txt"],
+        inputScannerPaths: [],
+        inputArtifactPaths: [],
+        writerGateIds: [],
+        consumerPaths: ["fixture/ordinary.mjs"],
+        consumerGateIds: ["rust/domain-claim-census", "rust/oss-corpus-farm-determinism"],
+      };
+      const fixtureRegistry: EvidenceWriterRegistryV0 = {
+        ...registry,
+        artifacts: [
+          ...registry.artifacts.map((row) => ({ ...row, inputScannerPaths: [] })),
+          previewArtifact,
+        ].toSorted((left, right) =>
+          left.artifactPath < right.artifactPath
+            ? -1
+            : left.artifactPath > right.artifactPath
+              ? 1
+              : 0,
+        ),
+        notPreviewableInputs: [
+          ...registry.notPreviewableInputs,
+          {
+            ownerId: "fixture/blind.mjs",
+            kind: "built-binary",
+            detail: "fixture blind gate must never execute during preview",
+            gateIds: ["rust/oss-corpus-farm-determinism"],
+          },
+        ],
+      };
+      writeFileSync(registryPath, `${JSON.stringify(fixtureRegistry, null, 2)}\n`);
+      commitFixturePaths(fixture.worktree, "test: prepare preview fixture", [
+        mainPath,
+        "package.json",
+        EVIDENCE_WRITER_REGISTRY_PATH,
+        "rust/evidence-scan-surfaces.json",
+        "fixture/blind.mjs",
+        "fixture/change.txt",
+        "fixture/ordinary.mjs",
+      ]);
+      attachFixtureNodeModules(fixture.repoRoot, fixture.worktree);
+      writeFileSync(path.join(fixtureDirectory, "change.txt"), "changed\n");
+      const cliArgs = [
+        "--import",
+        "tsx",
+        `./${mainPath}`,
+        "affected",
+        "--evidence",
+        "--preview",
+        "--json",
+        "--base=HEAD",
+      ];
+      const green = spawnSync(process.execPath, cliArgs, {
+        cwd: fixture.worktree,
+        encoding: "utf8",
+        env: process.env,
+      });
+      expect(green.status, green.stderr).toBe(0);
+      const output = JSON.parse(green.stdout) as {
+        readonly preview: {
+          readonly budget: { readonly notPreviewableSkippedGateIds: readonly string[] };
+          readonly receipts: readonly { readonly gateId: string }[];
+        };
+      };
+      expect(output.preview.budget.notPreviewableSkippedGateIds).toEqual([
+        "rust/oss-corpus-farm-determinism",
+      ]);
+      expect(output.preview.receipts.map((receipt) => receipt.gateId)).toEqual([
+        "rust/domain-claim-census",
+      ]);
+      expect(existsSync(path.join(fixtureDirectory, "ordinary-executed.log"))).toBe(true);
+      expect(existsSync(path.join(fixtureDirectory, "blind-executed.log"))).toBe(false);
+
+      writeFileSync(path.join(fixtureDirectory, "change.txt"), "baseline\n");
+      const productionSource = readFileSync(path.join(fixture.worktree, mainPath), "utf8");
+      const productionEdge =
+        "    preview = await runEvidenceAffectedPreview({\n      plan,\n      manifest,";
+      expect(productionSource).toContain(productionEdge);
+      writeFileSync(
+        path.join(fixture.worktree, mainPath),
+        productionSource.replace(
+          productionEdge,
+          "    preview = await runEvidenceAffectedPreview({\n      plan: { ...plan, notPreviewableInputs: [] },\n      manifest,",
+        ),
+      );
+      commitFixturePaths(fixture.worktree, "test: inject M2 rebinding", [mainPath]);
+      writeFileSync(path.join(fixtureDirectory, "change.txt"), "changed-again\n");
+      const red = spawnSync(process.execPath, cliArgs, {
+        cwd: fixture.worktree,
+        encoding: "utf8",
+        env: process.env,
+      });
+      expect(red.status).not.toBe(0);
+      expect(existsSync(path.join(fixtureDirectory, "blind-executed.log"))).toBe(true);
+    } finally {
+      removeFixtureWorktree(fixture);
+    }
+  }, 60_000);
 
   it("rejects mixed write and preview CLI mode before any writer executes", () => {
     const result = spawnSync(
