@@ -71,6 +71,7 @@ export function buildEvidenceAffectedPlan(
       ...row.writerGateIds,
       ...row.consumerGateIds,
     ]),
+    ...input.writerRegistry.notPreviewableInputs.flatMap((row) => row.gateIds),
   ];
   const unknownGateIds = [...new Set(declaredGateIds)]
     .filter((gateId) => !knownGateIds.has(gateId))
@@ -161,7 +162,12 @@ export function buildEvidenceAffectedPlan(
     writerOrder,
     gateIds: [...gateIds].toSorted(),
     notRefreshed,
-    notPreviewableInputs: changedPaths.length > 0 ? input.writerRegistry.notPreviewableInputs : [],
+    notPreviewableInputs:
+      changedPaths.length > 0
+        ? input.writerRegistry.notPreviewableInputs.filter((entry) =>
+            entry.gateIds.some((gateId) => gateIds.has(gateId)),
+          )
+        : [],
     commitThenRefresh,
   };
 }

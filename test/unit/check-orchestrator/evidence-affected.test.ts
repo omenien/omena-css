@@ -58,6 +58,8 @@ import {
   assertEvidenceWriterOutputAuthorityCoverage,
   assertUpdateCommandWriterCoverage,
   buildEvidenceWriterRegistry,
+  detectFormatterInvokingModules,
+  detectNotPreviewableInputSeedsForSource,
   discoverEvidenceArtifactPaths,
   discoverEvidenceWriterOutputAuthority,
   EVIDENCE_WRITER_REGISTRY_PATH,
@@ -185,6 +187,7 @@ function writerRegistry(): EvidenceWriterRegistryV0 {
       sha256: "a".repeat(64),
       declaredCommandCount: 1,
       declaredOutputCount: 1,
+      declaredStaticWriteOutputCount: 1,
     },
     artifacts: [
       artifact("rust/a.json", {
@@ -206,17 +209,48 @@ function writerRegistry(): EvidenceWriterRegistryV0 {
       }),
     ],
     notPreviewableInputs: [
-      { ownerId: "scripts/clock.ts", kind: "calendar-time", detail: "wall clock" },
-      { ownerId: "scripts/env.ts", kind: "environment", detail: "environment" },
-      { ownerId: "scripts/history.ts", kind: "git-history", detail: "history" },
-      { ownerId: "scripts/writer.ts", kind: "concurrent-worktree", detail: "skew" },
+      {
+        ownerId: "scripts/clock.ts",
+        kind: "calendar-time",
+        detail: "wall clock",
+        gateIds: ["rust/check"],
+      },
+      {
+        ownerId: "scripts/env.ts",
+        kind: "environment",
+        detail: "environment",
+        gateIds: ["rust/write"],
+      },
+      {
+        ownerId: "scripts/history.ts",
+        kind: "git-history",
+        detail: "history",
+        gateIds: ["rust/check"],
+      },
+      {
+        ownerId: "scripts/writer.ts",
+        kind: "concurrent-worktree",
+        detail: "skew",
+        gateIds: ["rust/write"],
+      },
       {
         ownerId: "scripts/external.ts",
         kind: "network-or-external-checkout",
         detail: "external",
+        gateIds: ["external/check"],
       },
-      { ownerId: "scripts/binary.ts", kind: "built-binary", detail: "binary" },
-      { ownerId: "scripts/tool.ts", kind: "toolchain-bytes", detail: "tool" },
+      {
+        ownerId: "scripts/binary.ts",
+        kind: "built-binary",
+        detail: "binary",
+        gateIds: ["external/check"],
+      },
+      {
+        ownerId: "scripts/tool.ts",
+        kind: "toolchain-bytes",
+        detail: "tool",
+        gateIds: ["rust/consume"],
+      },
     ],
   };
 }
@@ -248,6 +282,29 @@ describe("evidence affected closure", () => {
         ],
       },
     ]);
+  });
+
+  it("lists only NOT-PREVIEWABLE owners whose derived gates are in the affected closure", () => {
+    const registry = writerRegistry();
+    const plan = buildEvidenceAffectedPlan({
+      changedPaths: ["rust/crates/omena-query/src/lib.rs"],
+      scanManifest: scannerManifest(),
+      writerRegistry: {
+        ...registry,
+        notPreviewableInputs: registry.notPreviewableInputs.map((entry) =>
+          entry.kind === "toolchain-bytes" ? { ...entry, gateIds: ["docs/check"] } : entry,
+        ),
+      },
+      expectedScannerPaths: expectedScannerPaths(),
+      knownGateIds,
+    });
+    expect(plan.gateIds).not.toContain("docs/check");
+    expect(plan.notPreviewableInputs.map((entry) => entry.kind)).not.toContain("toolchain-bytes");
+    expect(
+      plan.notPreviewableInputs.every((entry) =>
+        entry.gateIds.some((gateId) => plan.gateIds.includes(gateId)),
+      ),
+    ).toBe(true);
   });
 
   it("fails closed when a detected scanner lacks a surface row", () => {
@@ -1030,6 +1087,55 @@ describe("scan surface falsifiers", () => {
 });
 
 describe("writer registry portability", () => {
+  it("derives every detectable non-previewable class from source markers", () => {
+    const detected = detectNotPreviewableInputSeedsForSource(
+      "scripts/check-derived-inputs.ts",
+      [
+        'const reviewAfter = "2099-01-01";',
+        "const injected = process.env.OMENA_TEST_INPUT;",
+        'run("git", ["rev-list", "--count", "HEAD"]);',
+        "const beforeInputDigests = digestInputs();",
+        "const afterInputDigests = digestInputs();",
+        'run("git", ["fetch", "origin"]);',
+        'const binary = readArg("--omena-bin") ?? process.env.OMENA_LINT_CENSUS_BINARY;',
+      ].join("\n"),
+    );
+    expect(detected.map((entry) => entry.kind).toSorted()).toEqual([
+      "built-binary",
+      "calendar-time",
+      "concurrent-worktree",
+      "environment",
+      "git-history",
+      "network-or-external-checkout",
+    ]);
+    expect(detectNotPreviewableInputSeedsForSource("scripts/plain.ts", "const value = 1;")).toEqual(
+      [],
+    );
+  });
+
+  it("adds a toolchain marker when a writer gains a formatter call", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-formatter-input-"));
+    const scriptsDir = path.join(root, "scripts");
+    mkdirSync(scriptsDir, { recursive: true });
+    const writerPath = "scripts/writer.ts";
+    const helperPath = "scripts/formatter-helper.ts";
+    writeFileSync(path.join(root, writerPath), 'writeFileSync("rust/output.json", "{}\\n");\n');
+    writeFileSync(
+      path.join(root, helperPath),
+      'import { format } from "oxfmt"; export async function formatOutput(value: string) { return format(value, "output.json"); }\n',
+    );
+    const repositoryPaths = new Set([writerPath, helperPath]);
+    expect(detectFormatterInvokingModules(root, [writerPath], repositoryPaths)).toEqual([]);
+    writeFileSync(
+      path.join(root, writerPath),
+      'import { formatOutput } from "./formatter-helper"; await formatOutput("{}\\n");\n',
+    );
+    expect(detectFormatterInvokingModules(root, [writerPath], repositoryPaths)).toEqual([
+      helperPath,
+    ]);
+    rmSync(root, { recursive: true, force: true });
+  });
+
   it("discovers a tracked nested-only JSON writer without a root artifact seed", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "omena-nested-writer-"));
     const scriptPath = path.join(root, "scripts/write-nested.ts");
@@ -1607,6 +1713,7 @@ describe("pre-push evidence budget", () => {
       { gateId: "unmeasured", p95Ms: null },
     ]);
     expect(plan.omittedWriteModeGateIds).toEqual(["writer"]);
+    expect(plan.notPreviewableSkippedGateIds).toEqual([]);
     expect(isEvidencePreviewCheckGate(gates.at(-1)!)).toBe(false);
     for (const command of [
       "node writer.mjs --write-snapshots",
@@ -1624,6 +1731,20 @@ describe("pre-push evidence budget", () => {
     expect(() => buildEvidencePreviewBudgetPlan(["unknown"], manifest, ledger)).toThrow(
       /unknown gate/u,
     );
+  });
+
+  it("skips a NOT-PREVIEWABLE gate while retaining an ordinary affected sibling", async () => {
+    const plan = buildEvidencePreviewBudgetPlan(["a", "b"], manifest, ledger, ["a"]);
+    expect(plan.notPreviewableSkippedGateIds).toEqual(["a"]);
+    expect(plan.ranPrefix.map((entry) => entry.gateId)).toEqual(["b"]);
+    const executed: string[] = [];
+    await expect(
+      executeEvidencePreviewBudget(plan, async (gateId) => {
+        executed.push(gateId);
+        return 0;
+      }),
+    ).resolves.toHaveLength(1);
+    expect(executed).toEqual(["b"]);
   });
 
   it("rejects mixed write and preview CLI mode before any writer executes", () => {

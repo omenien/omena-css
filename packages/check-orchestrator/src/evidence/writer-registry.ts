@@ -90,6 +90,7 @@ export interface NotPreviewableInputV0 {
   readonly ownerId: string;
   readonly kind: NotPreviewableInputKind;
   readonly detail: string;
+  readonly gateIds: readonly string[];
 }
 
 export function evidenceWriterRegistryPath(repoRoot: string): string {
@@ -212,7 +213,13 @@ export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterReg
       declaredStaticWriteOutputCount: EVIDENCE_STATIC_WRITE_OUTPUT_AUTHORITY.length,
     },
     artifacts,
-    notPreviewableInputs: declaredNotPreviewableInputs(),
+    notPreviewableInputs: deriveNotPreviewableInputs({
+      repoRoot,
+      artifacts,
+      scanManifest,
+      checkManifest,
+      repositoryPathSet,
+    }),
   } satisfies EvidenceWriterRegistryV0;
   assertUpdateCommandWriterCoverage(packageScripts, registry.artifacts);
   assertEvidenceWriterAuthorityCoverage(registry);
@@ -1670,81 +1677,502 @@ function artifactDependencies(artifactPath: string): readonly string[] {
   }
 }
 
-function declaredNotPreviewableInputs(): readonly NotPreviewableInputV0[] {
-  return [
-    {
-      ownerId: "scripts/check-rust-omena-diff-test-dialect-seed.ts",
-      kind: "calendar-time",
-      detail: "reviewAfter expiration is evaluated from the wall calendar",
-    },
-    {
-      ownerId: "scripts/check-rust-omena-diff-test-external-corpus-differential.ts",
-      kind: "calendar-time",
-      detail: "reviewAfter expiration is evaluated from the wall calendar",
-    },
-    {
-      ownerId: "scripts/check-rust-omena-diff-test-wpt-expectations.ts",
-      kind: "calendar-time",
-      detail: "reviewAfter expiration is evaluated from the wall calendar",
-    },
-    {
-      ownerId: "scripts/check-rust-omena-diff-test-wpt-promotion.ts",
-      kind: "calendar-time",
-      detail: "reviewAfter expiration is evaluated from the wall calendar",
-    },
-    {
-      ownerId: "scripts/check-rust-omena-diff-test-wpt-seed.ts",
-      kind: "calendar-time",
-      detail: "reviewAfter expiration is evaluated from the wall calendar",
-    },
-    {
-      ownerId: "scripts/check-rust-omena-identifier-authority-census.selftest.mjs",
-      kind: "environment",
-      detail:
-        "partition mutation job depends on OMENA_IDENTIFIER_AUTHORITY_MUTATION_PARTITION_COUNT and INDEX",
-    },
-    {
-      ownerId: "scripts/check-rust-omena-identifier-authority-census.selftest.mjs",
-      kind: "environment",
-      detail: "checker-spawn falsifiers inject process environment keys",
-    },
-    {
-      ownerId: "scripts/check-rust-published-crate-surface-register.ts",
-      kind: "environment",
-      detail: "initialization requires an operator-supplied measured registry state path",
-    },
-    {
-      ownerId: "scripts/check-rust-omena-crate-boundary-reviews.ts",
-      kind: "git-history",
-      detail: "rev-list commit distance requires commit then measure then hand-edit then commit",
-    },
-    {
-      ownerId: "packages/check-orchestrator/src/evidence/writer-runner.ts",
-      kind: "concurrent-worktree",
-      detail: "persistent mid-run input skew is rejected; ABA is outside the claim",
-    },
-    {
-      ownerId: "scripts/oss-corpus-farm.ts",
-      kind: "network-or-external-checkout",
-      detail: "pinned external corpus fetch and checkout are not predicted from a local diff",
-    },
-    {
-      ownerId: "scripts/measure-css-module-token-shapes.ts",
-      kind: "network-or-external-checkout",
-      detail:
-        "the declared writer requires operator-supplied external corpus and identity-manifest paths",
-    },
-    {
-      ownerId: "scripts/oss-corpus-farm.ts",
-      kind: "built-binary",
-      detail: "--omena-bin and OMENA_LINT_CENSUS_BINARY supply compiled bytes",
-    },
-    {
-      ownerId: "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
+export type NotPreviewableInputSeed = Omit<NotPreviewableInputV0, "gateIds">;
+
+function deriveNotPreviewableInputs(input: {
+  readonly repoRoot: string;
+  readonly artifacts: readonly EvidenceArtifactRowV0[];
+  readonly scanManifest: NonNullable<ReturnType<typeof loadEvidenceScanSurfaceManifest>>;
+  readonly checkManifest: ReturnType<typeof loadCheckManifest>;
+  readonly repositoryPathSet: ReadonlySet<string>;
+}): readonly NotPreviewableInputV0[] {
+  const seeds: NotPreviewableInputSeed[] = [];
+  const candidateSourcePaths = new Set([
+    ...input.artifacts.flatMap((artifact) => artifact.writerScripts),
+    ...input.scanManifest.scanners.flatMap((row) =>
+      row.disposition === "RETIRED" ? [] : [row.scannerPath],
+    ),
+    "packages/check-orchestrator/src/evidence/writer-runner.ts",
+  ]);
+  for (const sourcePath of input.repositoryPathSet) {
+    if (
+      (sourcePath.startsWith("scripts/") ||
+        sourcePath.startsWith("packages/check-orchestrator/src/")) &&
+      /\.(?:[cm]?js|ts)$/u.test(sourcePath) &&
+      input.checkManifest.gates.some((gate) => gate.command.includes(sourcePath))
+    ) {
+      candidateSourcePaths.add(sourcePath);
+    }
+  }
+  for (const sourcePath of candidateSourcePaths) {
+    if (!/\.(?:[cm]?js|ts)$/u.test(sourcePath) || !input.repositoryPathSet.has(sourcePath)) {
+      continue;
+    }
+    seeds.push(
+      ...detectNotPreviewableInputSeedsForSource(
+        sourcePath,
+        readFileSync(path.join(input.repoRoot, sourcePath), "utf8"),
+      ),
+    );
+  }
+  for (const artifact of input.artifacts) {
+    if (artifact.requiredEnvironmentKeys?.length) {
+      seeds.push({
+        ownerId: artifact.artifactPath,
+        kind: "environment",
+        detail: `writer command requires ${artifact.requiredEnvironmentKeys.join(", ")}`,
+      });
+    }
+    const formatterModules = formatterInvokingModulesForArtifact(
+      input.repoRoot,
+      artifact,
+      input.repositoryPathSet,
+    );
+    if (formatterModules.length === 0) continue;
+    seeds.push({
+      ownerId: artifact.artifactPath,
       kind: "toolchain-bytes",
-      detail: "formatter output depends on the pnpm-lock-pinned oxfmt binary",
-    },
-  ];
+      detail: `formatter bytes from ${formatterModules.join(", ")}`,
+    });
+  }
+  const uniqueSeeds = new Map<string, NotPreviewableInputSeed>();
+  for (const seed of seeds) uniqueSeeds.set(`${seed.kind}\0${seed.ownerId}`, seed);
+  return [...uniqueSeeds.values()]
+    .map((seed) => {
+      const gateIds = gateIdsForNotPreviewableOwner(
+        seed.ownerId,
+        input.artifacts,
+        input.scanManifest,
+        input.checkManifest,
+      );
+      if (gateIds.length === 0) {
+        throw new Error(`not-previewable owner has no derived gate ids: ${seed.ownerId}`);
+      }
+      return { ...seed, gateIds };
+    })
+    .toSorted(
+      (left, right) =>
+        compareText(left.kind, right.kind) ||
+        compareText(left.ownerId, right.ownerId) ||
+        compareText(left.detail, right.detail),
+    );
+}
+
+export function detectNotPreviewableInputSeedsForSource(
+  sourcePath: string,
+  source: string,
+): readonly NotPreviewableInputSeed[] {
+  if (sourcePath === "packages/check-orchestrator/src/evidence/writer-registry.ts") return [];
+  const sourceFile = ts.createSourceFile(sourcePath, source, ts.ScriptTarget.Latest, true);
+  const seeds: NotPreviewableInputSeed[] = [];
+  if (sourceContainsIdentifier(sourceFile, new Set(["reviewAfter", "review_after"]))) {
+    seeds.push({
+      ownerId: sourcePath,
+      kind: "calendar-time",
+      detail: "reviewAfter policy is evaluated from calendar state",
+    });
+  }
+  if (sourceReadsProcessEnvironment(sourceFile)) {
+    seeds.push({
+      ownerId: sourcePath,
+      kind: "environment",
+      detail: "process environment is read by the governed module",
+    });
+  }
+  if (sourceContainsCalledStringLiteral(sourceFile, new Set(["rev-list"]))) {
+    seeds.push({
+      ownerId: sourcePath,
+      kind: "git-history",
+      detail: "git rev-list history is read by the governed module",
+    });
+  }
+  if (
+    (sourceContainsIdentifier(sourceFile, new Set(["beforeInputDigests"])) &&
+      sourceContainsIdentifier(sourceFile, new Set(["afterInputDigests"]))) ||
+    (sourceContainsIdentifier(sourceFile, new Set(["inputsBefore"])) &&
+      sourceContainsIdentifier(sourceFile, new Set(["inputsAfter"])))
+  ) {
+    seeds.push({
+      ownerId: sourcePath,
+      kind: "concurrent-worktree",
+      detail: "writer acceptance depends on persistent mid-run worktree state",
+    });
+  }
+  if (
+    sourceContainsCalledStringLiteral(sourceFile, new Set(["clone", "fetch"])) ||
+    sourceContainsArgumentFlagUse(sourceFile, new Set(["--corpus-root", "--identity-manifest"]))
+  ) {
+    seeds.push({
+      ownerId: sourcePath,
+      kind: "network-or-external-checkout",
+      detail: "network checkout or operator-supplied external corpus bytes are read",
+    });
+  }
+  if (
+    sourceContainsArgumentFlagUse(sourceFile, new Set(["--omena-bin"])) ||
+    sourceContainsIdentifier(sourceFile, new Set(["OMENA_LINT_CENSUS_BINARY"]))
+  ) {
+    seeds.push({
+      ownerId: sourcePath,
+      kind: "built-binary",
+      detail: "an operator-supplied compiled binary is read",
+    });
+  }
+  return seeds;
+}
+
+function sourceContainsIdentifier(
+  sourceFile: tsTypes.SourceFile,
+  names: ReadonlySet<string>,
+): boolean {
+  let found = false;
+  const visit = (node: tsTypes.Node): void => {
+    if (ts.isIdentifier(node) && names.has(node.text)) {
+      found = true;
+      return;
+    }
+    if (!found) ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return found;
+}
+
+function sourceReadsProcessEnvironment(sourceFile: tsTypes.SourceFile): boolean {
+  let found = false;
+  const visit = (node: tsTypes.Node): void => {
+    if (
+      (ts.isPropertyAccessExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === "process" &&
+        node.name.text === "env") ||
+      (ts.isElementAccessExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === "process" &&
+        node.argumentExpression &&
+        ts.isStringLiteral(node.argumentExpression) &&
+        node.argumentExpression.text === "env")
+    ) {
+      found = true;
+      return;
+    }
+    if (!found) ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return found;
+}
+
+function sourceContainsArgumentFlagUse(
+  sourceFile: tsTypes.SourceFile,
+  flags: ReadonlySet<string>,
+): boolean {
+  let found = false;
+  const visit = (node: tsTypes.Node): void => {
+    if (
+      (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) &&
+      flags.has(node.text) &&
+      (ts.isCallExpression(node.parent) ||
+        ts.isBinaryExpression(node.parent) ||
+        hasCallExpressionAncestor(node))
+    ) {
+      found = true;
+      return;
+    }
+    if (!found) ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return found;
+}
+
+function sourceContainsCalledStringLiteral(
+  sourceFile: tsTypes.SourceFile,
+  values: ReadonlySet<string>,
+): boolean {
+  let found = false;
+  const visit = (node: tsTypes.Node): void => {
+    if (
+      (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) &&
+      values.has(node.text) &&
+      hasCallExpressionAncestor(node)
+    ) {
+      found = true;
+      return;
+    }
+    if (!found) ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return found;
+}
+
+function formatterInvokingModulesForArtifact(
+  repoRoot: string,
+  artifact: EvidenceArtifactRowV0,
+  repositoryPathSet: ReadonlySet<string>,
+): readonly string[] {
+  return detectFormatterInvokingModules(repoRoot, artifact.writerScripts, repositoryPathSet);
+}
+
+export function detectFormatterInvokingModules(
+  repoRoot: string,
+  writerScripts: readonly string[],
+  repositoryPathSet: ReadonlySet<string>,
+): readonly string[] {
+  const formatterModules = new Set<string>();
+  for (const writerScript of writerScripts) {
+    if (!/\.(?:[cm]?js|ts)$/u.test(writerScript) || !repositoryPathSet.has(writerScript)) continue;
+    const source = readFileSync(path.join(repoRoot, writerScript), "utf8");
+    if (sourceInvokesOxfmt(writerScript, source)) {
+      formatterModules.add(writerScript);
+      continue;
+    }
+    const sourceFile = ts.createSourceFile(writerScript, source, ts.ScriptTarget.Latest, true);
+    const calledIdentifiers = new Set<string>();
+    const visit = (node: tsTypes.Node): void => {
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+        calledIdentifiers.add(node.expression.text);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+    for (const statement of sourceFile.statements) {
+      if (
+        !ts.isImportDeclaration(statement) ||
+        !ts.isStringLiteral(statement.moduleSpecifier) ||
+        !statement.importClause?.namedBindings ||
+        !ts.isNamedImports(statement.importClause.namedBindings)
+      ) {
+        continue;
+      }
+      const importedModule = resolveLocalImportedModulePath(
+        writerScript,
+        statement.moduleSpecifier.text,
+        repositoryPathSet,
+      );
+      if (!importedModule) continue;
+      const formatterImportIsCalled = statement.importClause.namedBindings.elements.some(
+        (element) => calledIdentifiers.has(element.name.text),
+      );
+      if (formatterImportIsCalled) {
+        const importedSource = readFileSync(path.join(repoRoot, importedModule), "utf8");
+        const formatterExportIsCalled = statement.importClause.namedBindings.elements.some(
+          (element) =>
+            calledIdentifiers.has(element.name.text) &&
+            exportedFunctionInvokesOxfmt(
+              importedModule,
+              importedSource,
+              element.propertyName?.text ?? element.name.text,
+            ),
+        );
+        if (formatterExportIsCalled) formatterModules.add(importedModule);
+      }
+    }
+  }
+  return [...formatterModules].toSorted();
+}
+
+function sourceInvokesOxfmt(scriptPath: string, source: string): boolean {
+  const sourceFile = ts.createSourceFile(scriptPath, source, ts.ScriptTarget.Latest, true);
+  const formatterImports = importedOxfmtBindings(sourceFile);
+  let invokesFormatter = false;
+  const visit = (node: tsTypes.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      formatterImports.has(node.expression.text)
+    ) {
+      invokesFormatter = true;
+      return;
+    }
+    if (
+      (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) &&
+      /(?:^|[/\\])oxfmt(?:$|[/\\])|^oxfmt$/u.test(node.text) &&
+      hasCallExpressionAncestor(node)
+    ) {
+      invokesFormatter = true;
+      return;
+    }
+    if (!invokesFormatter) ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return invokesFormatter;
+}
+
+function exportedFunctionInvokesOxfmt(
+  scriptPath: string,
+  source: string,
+  exportedName: string,
+): boolean {
+  const sourceFile = ts.createSourceFile(scriptPath, source, ts.ScriptTarget.Latest, true);
+  const formatterImports = importedOxfmtBindings(sourceFile);
+  const callableBodies = new Map<string, tsTypes.Node>();
+  const exportedBindings = new Map<string, string>();
+  for (const statement of sourceFile.statements) {
+    if (ts.isFunctionDeclaration(statement) && statement.name && statement.body) {
+      callableBodies.set(statement.name.text, statement.body);
+      if (hasExportModifier(statement))
+        exportedBindings.set(statement.name.text, statement.name.text);
+      continue;
+    }
+    if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (
+          ts.isIdentifier(declaration.name) &&
+          declaration.initializer &&
+          (ts.isArrowFunction(declaration.initializer) ||
+            ts.isFunctionExpression(declaration.initializer))
+        ) {
+          callableBodies.set(declaration.name.text, declaration.initializer.body);
+          if (hasExportModifier(statement)) {
+            exportedBindings.set(declaration.name.text, declaration.name.text);
+          }
+        }
+      }
+      continue;
+    }
+    if (
+      ts.isExportDeclaration(statement) &&
+      statement.exportClause &&
+      ts.isNamedExports(statement.exportClause)
+    ) {
+      for (const element of statement.exportClause.elements) {
+        exportedBindings.set(element.name.text, element.propertyName?.text ?? element.name.text);
+      }
+    }
+  }
+
+  const entry = exportedBindings.get(exportedName);
+  if (!entry) return false;
+  const visited = new Set<string>();
+  const invokesFrom = (functionName: string): boolean => {
+    if (visited.has(functionName)) return false;
+    visited.add(functionName);
+    const body = callableBodies.get(functionName);
+    if (!body) return false;
+    let invokesFormatter = false;
+    const visit = (node: tsTypes.Node): void => {
+      if (invokesFormatter) return;
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+        if (formatterImports.has(node.expression.text) || invokesFrom(node.expression.text)) {
+          invokesFormatter = true;
+          return;
+        }
+      }
+      if (
+        (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) &&
+        /(?:^|[/\\])oxfmt(?:$|[/\\])|^oxfmt$/u.test(node.text) &&
+        hasCallExpressionAncestor(node)
+      ) {
+        invokesFormatter = true;
+        return;
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(body);
+    return invokesFormatter;
+  };
+  return invokesFrom(entry);
+}
+
+function importedOxfmtBindings(sourceFile: tsTypes.SourceFile): ReadonlySet<string> {
+  const bindings = new Set<string>();
+  for (const statement of sourceFile.statements) {
+    if (
+      !ts.isImportDeclaration(statement) ||
+      !ts.isStringLiteral(statement.moduleSpecifier) ||
+      statement.moduleSpecifier.text !== "oxfmt" ||
+      !statement.importClause
+    ) {
+      continue;
+    }
+    if (statement.importClause.name) bindings.add(statement.importClause.name.text);
+    const namedBindings = statement.importClause.namedBindings;
+    if (namedBindings && ts.isNamespaceImport(namedBindings)) {
+      bindings.add(namedBindings.name.text);
+    } else if (namedBindings && ts.isNamedImports(namedBindings)) {
+      for (const element of namedBindings.elements) bindings.add(element.name.text);
+    }
+  }
+  return bindings;
+}
+
+function hasExportModifier(node: tsTypes.Node): boolean {
+  return ts.canHaveModifiers(node)
+    ? (ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) ??
+        false)
+    : false;
+}
+
+function hasCallExpressionAncestor(node: tsTypes.Node): boolean {
+  let current: tsTypes.Node | undefined = node.parent;
+  while (current && !ts.isSourceFile(current)) {
+    if (ts.isCallExpression(current) || ts.isNewExpression(current)) return true;
+    if (
+      ts.isFunctionDeclaration(current) ||
+      ts.isFunctionExpression(current) ||
+      ts.isArrowFunction(current)
+    ) {
+      return false;
+    }
+    current = current.parent;
+  }
+  return false;
+}
+
+function gateIdsForNotPreviewableOwner(
+  ownerId: string,
+  artifacts: readonly EvidenceArtifactRowV0[],
+  scanManifest: NonNullable<ReturnType<typeof loadEvidenceScanSurfaceManifest>>,
+  checkManifest: ReturnType<typeof loadCheckManifest>,
+): readonly string[] {
+  const gateIds = new Set<string>();
+  const relatedPaths = new Set([ownerId]);
+  for (const row of artifacts) {
+    if (
+      row.artifactPath === ownerId ||
+      row.writerScripts.includes(ownerId) ||
+      row.inputPaths.includes(ownerId) ||
+      row.inputScannerPaths.includes(ownerId) ||
+      row.consumerPaths.includes(ownerId)
+    ) {
+      for (const candidate of [
+        ...row.writerScripts,
+        ...row.inputScannerPaths,
+        ...row.consumerPaths,
+      ]) {
+        relatedPaths.add(candidate);
+      }
+    }
+  }
+  for (const gate of checkManifest.gates) {
+    if ([...relatedPaths].some((candidate) => gate.command.includes(candidate))) {
+      gateIds.add(gate.id);
+    }
+  }
+  for (const row of scanManifest.scanners) {
+    if (row.disposition !== "RETIRED" && row.scannerPath === ownerId && "gateIds" in row) {
+      for (const gateId of row.gateIds) gateIds.add(gateId);
+    }
+  }
+  for (const row of artifacts) {
+    if (
+      row.artifactPath !== ownerId &&
+      !row.writerScripts.includes(ownerId) &&
+      !row.inputPaths.includes(ownerId) &&
+      !row.inputScannerPaths.includes(ownerId) &&
+      !row.consumerPaths.includes(ownerId)
+    ) {
+      continue;
+    }
+    for (const gateId of [...row.writerGateIds, ...row.consumerGateIds]) gateIds.add(gateId);
+  }
+  if (
+    gateIds.size === 0 &&
+    checkManifest.gates.some((gate) => gate.id === "tooling/evidence-affected-map")
+  ) {
+    // Standalone W2/tool owners have no product gate. Their only executable
+    // governance boundary is the registry/preview meta-gate itself.
+    gateIds.add("tooling/evidence-affected-map");
+  }
+  return [...gateIds].toSorted();
 }
 
 function readPackageScripts(repoRoot: string): Readonly<Record<string, string>> {
@@ -1816,9 +2244,19 @@ function validateEvidenceWriterRegistry(registry: EvidenceWriterRegistryV0): voi
     }
   }
   const ownerIds = registry.notPreviewableInputs.map((entry) => entry.ownerId);
-  for (const ownerId of ownerIds) {
+  for (const [index, ownerId] of ownerIds.entries()) {
     if (!isRepositoryModulePath(ownerId)) {
       throw new Error(`not-previewable owner must be a repository module path: ${ownerId}`);
+    }
+    const gateIds = registry.notPreviewableInputs[index]!.gateIds;
+    if (
+      gateIds.length === 0 ||
+      new Set(gateIds).size !== gateIds.length ||
+      gateIds.some((gateId, gateIndex) => !gateId || gateId !== [...gateIds].toSorted()[gateIndex])
+    ) {
+      throw new Error(
+        `not-previewable owner gate ids must be non-empty, unique, and sorted: ${ownerId}`,
+      );
     }
   }
   const kinds = new Set(registry.notPreviewableInputs.map((entry) => entry.kind));

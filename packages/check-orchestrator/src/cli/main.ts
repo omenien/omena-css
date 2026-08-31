@@ -237,7 +237,12 @@ async function printAffectedEvidence(
     }
     const ledger = loadCostLedger(manifest.rootDir);
     if (!ledger) fail("ci-cost-ledger.json is absent; evidence preview cannot price gates.");
-    const budget = buildEvidencePreviewBudgetPlan(plan.gateIds, manifest, ledger);
+    const budget = buildEvidencePreviewBudgetPlan(
+      plan.gateIds,
+      manifest,
+      ledger,
+      plan.notPreviewableInputs.flatMap((entry) => entry.gateIds),
+    );
     const receipts = await executeEvidencePreviewBudget(budget, async (gateId) =>
       executeGate(
         resolveTarget(gateId),
@@ -285,7 +290,9 @@ async function printAffectedEvidence(
     console.log(`  NOT-REFRESHED ${row.classification}: ${row.artifactPath}: ${instruction}`);
   }
   for (const entry of plan.notPreviewableInputs) {
-    console.log(`  NOT-PREVIEWABLE ${entry.kind}: ${entry.ownerId}: ${entry.detail}`);
+    console.log(
+      `  NOT-PREVIEWABLE ${entry.kind}: ${entry.ownerId}: gates=${entry.gateIds.join(",")}: ${entry.detail}`,
+    );
   }
   for (const entry of plan.commitThenRefresh) {
     console.log(`  COMMIT-THEN-REFRESH ${entry.artifactPath}: ${entry.steps.join(" -> ")}`);
@@ -301,6 +308,9 @@ async function printAffectedEvidence(
       console.log(
         `  PREVIEW-SKIPPED ${entry.gateId} p95=${entry.p95Ms === null ? "unbounded" : `${entry.p95Ms}ms`}`,
       );
+    }
+    for (const gateId of preview.budget.notPreviewableSkippedGateIds) {
+      console.log(`  NOT-PREVIEWABLE-SKIPPED ${gateId}`);
     }
     for (const gateId of preview.budget.omittedWriteModeGateIds) {
       console.log(`  PREVIEW-OMITTED-WRITE-MODE ${gateId}`);

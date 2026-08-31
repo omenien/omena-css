@@ -16,6 +16,7 @@ export interface EvidencePreviewBudgetPlanV0 {
   readonly unboundedSkippedCount: number;
   readonly ranPrefix: readonly EvidencePreviewEntryV0[];
   readonly skipped: readonly EvidencePreviewEntryV0[];
+  readonly notPreviewableSkippedGateIds: readonly string[];
   readonly omittedWriteModeGateIds: readonly string[];
 }
 
@@ -23,14 +24,21 @@ export function buildEvidencePreviewBudgetPlan(
   gateIds: readonly string[],
   manifest: CheckManifest,
   ledger: CostLedger,
+  notPreviewableGateIds: readonly string[] = [],
 ): EvidencePreviewBudgetPlanV0 {
   const gateById = new Map(manifest.gates.map((gate) => [gate.id, gate]));
   const p95ByGate = new Map(ledger.gates.map((row) => [row.gateId, row.p95Ms]));
+  const notPreviewableGateIdSet = new Set(notPreviewableGateIds);
+  const notPreviewableSkippedGateIds: string[] = [];
   const omittedWriteModeGateIds: string[] = [];
   const candidates: EvidencePreviewEntryV0[] = [];
   for (const gateId of [...new Set(gateIds)].toSorted()) {
     const gate = gateById.get(gateId);
     if (!gate) throw new Error(`evidence preview references unknown gate: ${gateId}`);
+    if (notPreviewableGateIdSet.has(gateId)) {
+      notPreviewableSkippedGateIds.push(gateId);
+      continue;
+    }
     if (!isEvidencePreviewCheckGate(gate)) {
       omittedWriteModeGateIds.push(gateId);
       continue;
@@ -67,6 +75,7 @@ export function buildEvidencePreviewBudgetPlan(
     unboundedSkippedCount,
     ranPrefix,
     skipped,
+    notPreviewableSkippedGateIds: notPreviewableSkippedGateIds.toSorted(),
     omittedWriteModeGateIds: omittedWriteModeGateIds.toSorted(),
   };
 }
