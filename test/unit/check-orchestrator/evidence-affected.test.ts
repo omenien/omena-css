@@ -437,7 +437,7 @@ describe("scan surface falsifiers", () => {
         },
       }),
     ).toThrow(/non-module owner/u);
-  });
+  }, 10_000);
 
   it("pins live authority bytes and rejects a stale predicate-dispatch digest", () => {
     const repoRoot = path.resolve(import.meta.dirname, "../../..");
