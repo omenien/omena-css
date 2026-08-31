@@ -123,8 +123,11 @@
       ],
       "inputArtifactPaths": ["rust/evidence-scan-surfaces.json"],
       "writerGateIds": ["tooling/evidence-affected-map"],
-      "consumerPaths": ["packages/check-orchestrator/src/evidence/affected-evidence.ts"],
-      "consumerGateIds": []
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/affected-evidence.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
+      ],
+      "consumerGateIds": ["tooling/evidence-affected-map"]
     },
     {
       "artifactPath": "rust/feature-resolved-product-reachability.json",
