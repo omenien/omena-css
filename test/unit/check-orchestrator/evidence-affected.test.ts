@@ -679,7 +679,7 @@ describe("scan surface falsifiers", () => {
     try {
       symlinkSync(
         path.join(repoRoot, "node_modules"),
-        path.join(worktree, "node_modules"),
+        path.join(temporaryRoot, "node_modules"),
         process.platform === "win32" ? "junction" : "dir",
       );
       await expect(buildEvidenceScanSurfaceManifest(worktree)).resolves.toBeDefined();
