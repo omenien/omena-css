@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -26,6 +25,13 @@ const SCRIPT_SOURCE_SURFACE = defineScanSurface({
   pathspecs: ["scripts/**"],
   includeUntracked: true,
   excludes: [],
+});
+const REPOSITORY_REFERENCE_SURFACE = defineScanSurface({
+  scannerPath: "packages/check-orchestrator/src/evidence/writer-registry.ts",
+  mode: "index",
+  pathspecs: ["**"],
+  includeUntracked: true,
+  excludes: ["git-metadata", "personal-docs", "node-modules", "rust-build-output"],
 });
 
 export const NOT_PREVIEWABLE_INPUT_KINDS = [
@@ -99,6 +105,11 @@ export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterReg
   const scriptPaths = resolveScanSurface(SCRIPT_SOURCE_SURFACE, { repoRoot }).paths.filter(
     (candidate) => /\.(?:[cm]?js|ts)$/u.test(candidate),
   );
+  const referencePathsByArtifact = repositoryReferencePathsByArtifact(
+    repoRoot,
+    rootArtifacts,
+    resolveScanSurface(REPOSITORY_REFERENCE_SURFACE, { repoRoot }).paths,
+  );
   const packageScripts = readPackageScripts(repoRoot);
   const checkManifest = loadCheckManifest(repoRoot);
   const scanManifest = loadEvidenceScanSurfaceManifest(repoRoot);
@@ -122,7 +133,7 @@ export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterReg
       )
       .map(([scriptName, command]) => ({ scriptName, command }))
       .toSorted((left, right) => compareText(left.scriptName, right.scriptName));
-    const references = repositoryReferencePaths(repoRoot, artifactPath);
+    const references = referencePathsByArtifact.get(artifactPath) ?? [];
     return classifyArtifact({
       repoRoot,
       artifactPath,
@@ -346,36 +357,39 @@ function splitCommandWords(command: string): readonly string[] {
   );
 }
 
-function repositoryReferencePaths(repoRoot: string, artifactPath: string): readonly string[] {
-  const result = spawnSync(
-    "rg",
-    [
-      "-l",
-      "--hidden",
-      "--glob",
-      "!.git/**",
-      "--glob",
-      "!.personal_docs/**",
-      "--fixed-strings",
-      path.posix.basename(artifactPath),
-      ".",
-    ],
-    { cwd: repoRoot, encoding: "utf8", shell: false },
-  );
-  if (result.status !== 0 && result.status !== 1) {
-    throw new Error(String(result.stderr).trim() || `reference scan failed for ${artifactPath}`);
+function repositoryReferencePathsByArtifact(
+  repoRoot: string,
+  artifactPaths: readonly string[],
+  repositoryPaths: readonly string[],
+): ReadonlyMap<string, readonly string[]> {
+  const artifactPathsByBasename = new Map<string, string[]>();
+  const referencesByArtifact = new Map<string, string[]>();
+  for (const artifactPath of artifactPaths) {
+    const basename = path.posix.basename(artifactPath);
+    artifactPathsByBasename.set(basename, [
+      ...(artifactPathsByBasename.get(basename) ?? []),
+      artifactPath,
+    ]);
+    referencesByArtifact.set(artifactPath, []);
   }
-  return String(result.stdout)
-    .split(/\r?\n/u)
-    .map((entry) => entry.replace(/^\.\//u, ""))
-    .filter(
-      (entry) =>
-        entry &&
-        entry !== artifactPath &&
-        entry !== EVIDENCE_WRITER_REGISTRY_PATH &&
-        !entry.startsWith(".personal_docs/"),
-    )
-    .toSorted();
+  for (const candidate of repositoryPaths) {
+    if (candidate === EVIDENCE_WRITER_REGISTRY_PATH || candidate.startsWith(".personal_docs/")) {
+      continue;
+    }
+    const source = readFileSync(path.join(repoRoot, candidate), "utf8");
+    for (const [basename, matchingArtifacts] of artifactPathsByBasename) {
+      if (!source.includes(basename)) continue;
+      for (const artifactPath of matchingArtifacts) {
+        if (candidate !== artifactPath) referencesByArtifact.get(artifactPath)?.push(candidate);
+      }
+    }
+  }
+  return new Map(
+    [...referencesByArtifact].map(([artifactPath, references]) => [
+      artifactPath,
+      references.toSorted(),
+    ]),
+  );
 }
 
 function writerFlagForSource(source: string): string | null {

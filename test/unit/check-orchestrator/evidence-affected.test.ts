@@ -1,5 +1,13 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -30,9 +38,10 @@ import {
   isEvidencePreviewCheckGate,
 } from "../../../packages/check-orchestrator/src/evidence/preview-budget";
 import type { EvidenceScanSurfaceManifestV0 } from "../../../packages/check-orchestrator/src/evidence/scan-surface-manifest";
-import type {
-  EvidenceArtifactRowV0,
-  EvidenceWriterRegistryV0,
+import {
+  buildEvidenceWriterRegistry,
+  type EvidenceArtifactRowV0,
+  type EvidenceWriterRegistryV0,
 } from "../../../packages/check-orchestrator/src/evidence/writer-registry";
 import type {
   CheckGate,
@@ -395,6 +404,31 @@ describe("scan surface falsifiers", () => {
       assertSurfaceNarrowingReason(root, oldSpec, newSpec, "scanner reads Rust only"),
     ).not.toThrow();
   });
+});
+
+describe("writer registry portability", () => {
+  it("builds from the governed index when ripgrep is unavailable", () => {
+    const originalPath = process.env.PATH;
+    const executableName = process.platform === "win32" ? "git.exe" : "git";
+    const gitExecutable = (originalPath ?? "")
+      .split(path.delimiter)
+      .map((directory) => path.join(directory, executableName))
+      .find((candidate) => existsSync(candidate));
+    expect(gitExecutable).toBeTruthy();
+    const isolatedBin = mkdtempSync(path.join(os.tmpdir(), "omena-writer-path-"));
+    symlinkSync(gitExecutable!, path.join(isolatedBin, executableName));
+    process.env.PATH = isolatedBin;
+    try {
+      const registry = buildEvidenceWriterRegistry(path.resolve(import.meta.dirname, "../../.."));
+      expect(
+        registry.artifacts.some((row) => row.artifactPath === "rust/evidence-writer-registry.json"),
+      ).toBe(true);
+    } finally {
+      if (originalPath === undefined) delete process.env.PATH;
+      else process.env.PATH = originalPath;
+      rmSync(isolatedBin, { recursive: true, force: true });
+    }
+  }, 10_000);
 });
 
 describe("digest-pinned writer wrapper", () => {
