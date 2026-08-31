@@ -694,9 +694,20 @@ describe("scan surface falsifiers", () => {
         ),
       );
       execFileSync("git", ["add", predicatePath], { cwd: worktree });
-      execFileSync("git", ["commit", "-q", "-m", "narrow evidence predicate"], {
-        cwd: worktree,
-      });
+      execFileSync(
+        "git",
+        [
+          "-c",
+          "user.name=Evidence Test",
+          "-c",
+          "user.email=evidence@example.invalid",
+          "commit",
+          "-q",
+          "-m",
+          "narrow evidence predicate",
+        ],
+        { cwd: worktree },
+      );
       await expect(buildEvidenceScanSurfaceManifest(worktree)).rejects.toThrow(
         /narrowed without a new reason.*docs\//u,
       );
