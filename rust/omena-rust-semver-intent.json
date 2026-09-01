@@ -645,8 +645,11 @@
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
+              "needles": ["flow: FlowPrecisionV1::SourceSelectorUsage"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/diagnostics/tests/source_usage.rs",
               "needles": [
-                "flow: FlowPrecisionV1::SourceSelectorUsage",
                 "assert_eq!(report.diagnostics[0].precision, FactPrecision::Conservative);",
                 "\"loweringAxis\": \"flow\""
               ]

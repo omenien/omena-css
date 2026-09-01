@@ -63,18 +63,20 @@ interface VisibilityExperiment {
       readonly allFeatures: ReexportReplayPlane;
     };
     readonly currentSurfaceAccounting: {
-      readonly defaultRootNameCount: 566;
-      readonly allFeaturesRootNameCount: 651;
+      readonly defaultRootNameCount: 573;
+      readonly allFeaturesRootNameCount: 658;
       readonly allFeaturesOnlyRootNameCount: 85;
-      readonly defaultRootNameLossFromPickup: 303;
-      readonly allFeaturesRootNameLossFromPickup: 279;
+      readonly defaultRootNameLossFromPickup: 296;
+      readonly allFeaturesRootNameLossFromPickup: 272;
+      readonly postPickupPublicAdditionCount: 7;
+      readonly postPickupPublicAdditionNames: readonly string[];
       readonly compiledVisibilityReductionCount: 276;
       readonly compiledVisibilityNamesAbsentFromPickupDefaultCount: 20;
       readonly defaultOnlyNarrowingCount: 44;
       readonly retiredRefreshSurfaceCount: 3;
       readonly restoredCompatibilityPromiseCount: 3;
-      readonly defaultLossResidueCount: 27;
-      readonly defaultLossResidueEquation: "44 - 20 + 3 = 27";
+      readonly defaultLossResidueCount: 20;
+      readonly defaultLossResidueEquation: "44 - 20 + 3 - 7 = 20";
       readonly compiledVisibilityNamesAbsentFromPickupDefault: readonly string[];
       readonly retiredRefreshSurfaceNames: readonly string[];
     };
@@ -415,7 +417,7 @@ function validateReexportBoundaryReconstruction(candidate: VisibilityExperiment)
   };
   assert.equal(pickupSemverRegister.intents?.length ?? 0, 0);
   assert.equal(reconstruction.pickupEntryGate.semverIntentCount, 0);
-  assert.equal(currentSemverRegister.intents?.length ?? 0, 3);
+  assert.equal(currentSemverRegister.intents?.length ?? 0, 6);
 
   const replay = reconstruction.explicitReexportReplay;
   assert.equal(replay.pickupWildcardReexportCount, 15);
@@ -458,6 +460,17 @@ function validateReexportBoundaryReconstruction(candidate: VisibilityExperiment)
     reconstruction.pickupEntryGate.allFeaturesRootNameCount - currentAllFeaturesRootNames.size,
     accounting.allFeaturesRootNameLossFromPickup,
   );
+  const postPickupPublicAdditionNames = [...currentDefaultRootNames]
+    .filter((name) => !pickupDefaultRootNames.has(name))
+    .toSorted();
+  assert.deepEqual(
+    postPickupPublicAdditionNames,
+    [...accounting.postPickupPublicAdditionNames].toSorted(),
+  );
+  assert.equal(postPickupPublicAdditionNames.length, accounting.postPickupPublicAdditionCount);
+  for (const name of postPickupPublicAdditionNames) {
+    assert.ok(currentAllFeaturesRootNames.has(name), `${name} is not all-features-public`);
+  }
 
   const compiledVisibilityNames = candidate.rows
     .filter((row) => row.outcome === "compiledCrateVisible")
@@ -503,10 +516,11 @@ function validateReexportBoundaryReconstruction(candidate: VisibilityExperiment)
   assert.equal(
     accounting.defaultOnlyNarrowingCount -
       accounting.compiledVisibilityNamesAbsentFromPickupDefaultCount +
-      accounting.retiredRefreshSurfaceCount,
+      accounting.retiredRefreshSurfaceCount -
+      accounting.postPickupPublicAdditionCount,
     accounting.defaultLossResidueCount,
   );
-  assert.equal(accounting.defaultLossResidueEquation, "44 - 20 + 3 = 27");
+  assert.equal(accounting.defaultLossResidueEquation, "44 - 20 + 3 - 7 = 20");
   assert.equal(
     accounting.defaultRootNameLossFromPickup - accounting.compiledVisibilityReductionCount,
     accounting.defaultLossResidueCount,

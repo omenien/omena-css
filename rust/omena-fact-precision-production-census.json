@@ -487,6 +487,21 @@
     },
     {
       "sourcePath": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
+      "owner": "fn summarize_omena_query_css_modules_export_usage",
+      "lexicalContext": "code",
+      "testOnly": false,
+      "variantCounts": {
+        "Exact": 0,
+        "Conservative": 0,
+        "Heuristic": 0,
+        "Unknown": 1
+      },
+      "occurrenceCount": 1,
+      "disposition": "productionOverride",
+      "authority": "an unresolved import or dynamic source-usage path is explicitly skipped rather than inferred"
+    },
+    {
+      "sourcePath": "rust/crates/omena-query/src/style/diagnostics/tests/source_usage.rs",
       "owner": "fn css_modules_interface_export_usage_reprojects_existing_selector_usage",
       "lexicalContext": "code",
       "testOnly": true,
@@ -501,7 +516,7 @@
       "authority": "test-only precision expectation or mutation fixture"
     },
     {
-      "sourcePath": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
+      "sourcePath": "rust/crates/omena-query/src/style/diagnostics/tests/source_usage.rs",
       "owner": "fn css_modules_interface_unresolved_edges_skip_unused_export_claims",
       "lexicalContext": "code",
       "testOnly": true,
@@ -514,21 +529,6 @@
       "occurrenceCount": 1,
       "disposition": "test",
       "authority": "test-only precision expectation or mutation fixture"
-    },
-    {
-      "sourcePath": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-      "owner": "fn summarize_omena_query_css_modules_export_usage",
-      "lexicalContext": "code",
-      "testOnly": false,
-      "variantCounts": {
-        "Exact": 0,
-        "Conservative": 0,
-        "Heuristic": 0,
-        "Unknown": 1
-      },
-      "occurrenceCount": 1,
-      "disposition": "productionOverride",
-      "authority": "an unresolved import or dynamic source-usage path is explicitly skipped rather than inferred"
     },
     {
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",

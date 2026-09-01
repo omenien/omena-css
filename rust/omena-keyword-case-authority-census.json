@@ -923,7 +923,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/tests/expression_domain.rs",
-      "line": 468,
+      "line": 475,
       "function": "engine_input_transform_context_consumes_style_sources_for_workspace_context",
       "idiom": "contains",
       "keyword": "composes",
@@ -2121,7 +2121,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:42c87132dfe5058b2c0f305e58f55536ed5d666b2f638a92173aaf08f5b6c551",
+  "siteDigest": "sha256:7e25479be4f2b609f1f53c7177d7865591ff7f51c8633a03e05933d55d75c071",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
