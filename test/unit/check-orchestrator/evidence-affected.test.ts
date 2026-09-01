@@ -1893,11 +1893,27 @@ describe("writer registry portability", () => {
         "query-public-surface-all-features:rust/crates/omena-query/tests/snapshots/public-api-all-features.txt",
       ]),
     );
-    expect(
-      EVIDENCE_UNRESOLVED_WRITE_WITNESS_LEDGER.map(
-        (entry) => `${entry.commandId}:${entry.outputPath}`,
-      ).toSorted(),
-    ).toEqual(coverage.unresolvedWitnessOutputs);
+    expect(coverage.unresolvedWitnessOutputs).toEqual([
+      "documentation-reference-surface:docs/reference/README.md",
+      "documentation-reference-surface:docs/reference/cli.md",
+      "documentation-reference-surface:docs/reference/configuration.md",
+      "documentation-reference-surface:docs/reference/editor-settings.md",
+      "documentation-reference-surface:docs/reference/lsp-capabilities.md",
+      "documentation-reference-surface:docs/reference/personas.md",
+      "documentation-reference-surface:docs/sdk.md",
+      "documentation-reference-surface:docs/vscode-extension.md",
+      "documentation-reference-surface:rust/crates/omena-cli/README.md",
+      "evidence-scan-surfaces:rust/evidence-scan-surfaces.json",
+      "evidence-writer-registry:rust/evidence-writer-nonliteral-write-census.json",
+      "evidence-writer-registry:rust/evidence-writer-registry.json",
+      "orchestrator-ci-workflow-registry:packages/check-orchestrator/ci-workflow.json",
+      "orchestrator-ci-workflow:.github/workflows/ci.yml",
+      "orchestrator-cost-ledger:packages/check-orchestrator/ci-cost-ledger.json",
+      "orchestrator-inventory:packages/check-orchestrator/CHECKS.md",
+      "transform-target-compatibility:rust/crates/omena-transform-target/data/browser-thresholds.toml",
+      "transform-target-compatibility:rust/crates/omena-transform-target/data/native-stage2-coverage.json",
+      "transform-target-compatibility:rust/crates/omena-transform-target/data/pass-feature-bindings.toml",
+    ]);
     expect(
       EVIDENCE_UNRESOLVED_WRITE_WITNESS_LEDGER.every((entry) => entry.reason.trim().length > 0),
     ).toBe(true);
