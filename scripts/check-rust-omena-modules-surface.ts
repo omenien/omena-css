@@ -57,9 +57,32 @@ assert.ok(
   cliSource.includes("render_omena_query_css_modules_interface_json("),
   "the CLI must consume the query-owned interface renderer",
 );
-assert.ok(
-  cliSource.includes("write_module_artifact("),
-  "modules emit must use its classified artifact writer",
+assertModulesEmitUsesTransactionAuthority(cliSource);
+
+const transactionBypassMutation = replaceRequired(
+  cliSource,
+  "transaction.commit()",
+  "write_module_artifact()",
+  "modules transaction commit",
+);
+assert.throws(
+  () => assertModulesEmitUsesTransactionAuthority(transactionBypassMutation),
+  /modules emit must commit its transaction authority/u,
+  "modules emit bypassing WorkspaceEditTransaction must remain RED",
+);
+
+const transactionPreservingControl = replaceRequired(
+  cliSource,
+  "WorkspaceEditTransaction::new(None, WorkspaceEditSafetyClassV0::EvidenceRequired)",
+  `WorkspaceEditTransaction::new(
+            None,
+            WorkspaceEditSafetyClassV0::EvidenceRequired,
+        )`,
+  "modules transaction constructor",
+);
+assert.doesNotThrow(
+  () => assertModulesEmitUsesTransactionAuthority(transactionPreservingControl),
+  "equivalent transaction formatting must remain GREEN",
 );
 assert.ok(
   dispatchSource.includes("Command::Modules { command } => modules_command(command)"),
@@ -78,6 +101,9 @@ process.stdout.write(
       dedicatedStores: 0,
       productVerbWired: true,
       summaryPlaneView: true,
+      moduleEmitTransactionAuthority: true,
+      moduleEmitTransactionBypassMutation: "red",
+      moduleEmitTransactionPreservingControl: "green",
     },
     null,
     2,
@@ -86,4 +112,48 @@ process.stdout.write(
 
 function read(relativePath: string): string {
   return readFileSync(path.join(repoRoot, relativePath), "utf8");
+}
+
+function assertModulesEmitUsesTransactionAuthority(source: string): void {
+  const body = functionRegion(source, "apply_or_check_module_artifacts", "compile_include_globs");
+  assert.match(
+    body,
+    /WorkspaceEditTransaction::new\(\s*None,\s*WorkspaceEditSafetyClassV0::EvidenceRequired,?\s*\)/u,
+    "modules emit must construct WorkspaceEditTransaction with its evidence-required safety class",
+  );
+  assert.match(
+    body,
+    /transaction\s*=\s*transaction\.expect\(expected\)\.edit\(/u,
+    "modules emit must stage artifacts through its transaction authority",
+  );
+  assert.match(
+    body,
+    /transaction\.commit\(\)/u,
+    "modules emit must commit its transaction authority",
+  );
+  assert.doesNotMatch(
+    body,
+    /\bwrite_module_artifact\s*\(/u,
+    "modules emit must not bypass WorkspaceEditTransaction through the retired artifact writer",
+  );
+}
+
+function functionRegion(source: string, name: string, nextName: string): string {
+  const startMarker = `fn ${name}(`;
+  const endMarker = `\nfn ${nextName}(`;
+  const start = source.indexOf(startMarker);
+  assert.notEqual(start, -1, `missing function: ${name}`);
+  const end = source.indexOf(endMarker, start);
+  assert.notEqual(end, -1, `missing function boundary after ${name}: ${nextName}`);
+  return source.slice(start, end);
+}
+
+function replaceRequired(
+  source: string,
+  needle: string,
+  replacement: string,
+  label: string,
+): string {
+  assert.equal(source.split(needle).length, 2, `${label} must appear exactly once`);
+  return source.replace(needle, replacement);
 }
