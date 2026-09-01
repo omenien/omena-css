@@ -1782,6 +1782,8 @@ function sourceDiagnosticPrecision(
     | "typeOracleProviderUnavailable";
   readonly contextSensitivity: "perSourceReference" | "perTypeFactTarget";
   readonly revisionAxis: "OmenaQuerySourceDiagnosticsForFileV0.input";
+  readonly providerCompleteness: "complete" | "unresolved";
+  readonly worldAssumption: "closed" | "open";
 } {
   return {
     product: "omena-query.analysis-precision",
@@ -1789,6 +1791,8 @@ function sourceDiagnosticPrecision(
     flowSensitivity,
     contextSensitivity,
     revisionAxis: "OmenaQuerySourceDiagnosticsForFileV0.input",
+    providerCompleteness: valueDomain === "unknown" ? "unresolved" : "complete",
+    worldAssumption: valueDomain === "unknown" ? "open" : "closed",
   };
 }
 

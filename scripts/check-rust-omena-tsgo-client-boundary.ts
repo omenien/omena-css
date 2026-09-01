@@ -135,19 +135,42 @@ assert.ok(
   summary.cmeCoupledSurfaces.includes("server/engine-host-node/src/tsgo-type-fact-collector.ts"),
 );
 
-const queryTypeConstants = readFileSync(
+const queryTypes = readFileSync(
   path.join(process.cwd(), "rust/crates/omena-query/src/types.rs"),
   "utf8",
 );
+const evidenceGraphSource = readFileSync(
+  path.join(process.cwd(), "rust/crates/omena-evidence-graph/src/lib.rs"),
+  "utf8",
+);
+const typedUnknownValueDomain = rustEnumVariantSerdeProjection(
+  evidenceGraphSource,
+  "ValueDomainPrecisionV1",
+  "Unknown",
+);
+assert.equal(typedUnknownValueDomain, "unknown");
+assert.equal(summary.providerCapabilities.unknownPrecisionValueDomain, typedUnknownValueDomain);
+assert.doesNotMatch(queryTypes, /\bOMENA_QUERY_TYPE_ORACLE_UNKNOWN_VALUE_DOMAIN\b/u);
 assert.match(
-  queryTypeConstants,
-  new RegExp(
-    `OMENA_QUERY_TYPE_ORACLE_UNKNOWN_VALUE_DOMAIN[^=]*=\\s*"${summary.providerCapabilities.unknownPrecisionValueDomain}"`,
-    "u",
-  ),
+  queryTypes,
+  /fn\s+source_diagnostic_precision_node\([^)]*\)[^{]*\{[\s\S]*?const\s+GRAPH_LOCAL_INPUT_IDENTITY:\s*&str\s*=\s*"sourceDiagnosticPrecisionInput";[\s\S]*?project_omena_query_evidence_node\(\s*"sourceDiagnosticPrecision",\s*GRAPH_LOCAL_INPUT_IDENTITY,/u,
+);
+assert.doesNotMatch(queryTypes, /format!\(\s*"\{:\?\}"\s*,\s*axes\.value_domain\s*\)/u);
+
+const tsgoClientSource = readFileSync(
+  path.join(process.cwd(), "rust/crates/omena-tsgo-client/src/lib.rs"),
+  "utf8",
 );
 assert.match(
-  queryTypeConstants,
+  tsgoClientSource,
+  /unknown_precision_value_domain:\s*ValueDomainPrecisionV1::Unknown/u,
+);
+assert.doesNotMatch(
+  tsgoClientSource,
+  /unknown_precision_value_domain:\s*TSGO_UNKNOWN_PRECISION_VALUE_DOMAIN_V0/u,
+);
+assert.match(
+  queryTypes,
   new RegExp(
     `OMENA_QUERY_TSGO_PROVIDER_UNAVAILABLE_PROVENANCE[^=]*=\\s*"${summary.providerCapabilities.downgradeProvenance.replaceAll(
       ".",
@@ -220,4 +243,40 @@ function readRustBoundarySummary(): OmenaTsgoClientBoundarySummary {
   );
 
   return JSON.parse(result.stdout) as OmenaTsgoClientBoundarySummary;
+}
+
+function rustEnumVariantSerdeProjection(
+  source: string,
+  enumName: string,
+  variantName: string,
+): string {
+  const declaration = new RegExp(`\\bpub\\s+enum\\s+${enumName}\\s*\\{`, "u").exec(source);
+  assert.ok(declaration, `missing public Rust enum ${enumName}`);
+  const openBrace = declaration.index + declaration[0].lastIndexOf("{");
+  let depth = 0;
+  let closeBrace = -1;
+  for (let index = openBrace; index < source.length; index += 1) {
+    if (source[index] === "{") {
+      depth += 1;
+    } else if (source[index] === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        closeBrace = index;
+        break;
+      }
+    }
+  }
+  assert.notEqual(closeBrace, -1, `unterminated Rust enum ${enumName}`);
+  const body = source.slice(openBrace + 1, closeBrace);
+  const variant = new RegExp(
+    `#\\[serde\\(rename\\s*=\\s*"([^"]+)"\\)\\]\\s*${variantName}\\s*,`,
+    "gu",
+  );
+  const projections = [...body.matchAll(variant)].map((match) => match[1]);
+  assert.equal(
+    projections.length,
+    1,
+    `${enumName}::${variantName} must have exactly one serde rename`,
+  );
+  return projections[0];
 }

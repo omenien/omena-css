@@ -17,5 +17,6 @@ workspace = true
 
 [dependencies]
 base64.workspace = true
+omena-evidence-graph = { path = "../omena-evidence-graph", version = "=0.5.0" }
 serde.workspace = true
 serde_json.workspace = true

@@ -221,6 +221,8 @@ assert.deepEqual(
               valueDomain: "unknown",
               flowSensitivity: "typeOracleProviderUnavailable",
               contextSensitivity: "perTypeFactTarget",
+              providerCompleteness: "unresolved",
+              worldAssumption: "open",
               revisionAxis: "OmenaQuerySourceDiagnosticsForFileV0.input",
             },
             pipelineTier: "optimizing",

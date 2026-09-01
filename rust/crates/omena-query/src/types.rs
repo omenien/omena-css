@@ -2884,11 +2884,11 @@ fn populate_omena_query_checker_product_gate_provenance_from_evidence_graph(
 }
 
 fn source_diagnostic_precision_node(axes: AnalysisPrecisionV1) -> EvidenceAnalysisPrecisionV0 {
+    const GRAPH_LOCAL_INPUT_IDENTITY: &str = "sourceDiagnosticPrecisionInput";
     let precision = EvidenceAnalysisPrecisionV0::new("omena-query.analysis-precision", axes);
-    let input_identity = format!("{:?}", axes.value_domain);
     let Some(node) = project_omena_query_evidence_node(
         "sourceDiagnosticPrecision",
-        input_identity.as_str(),
+        GRAPH_LOCAL_INPUT_IDENTITY,
         &[],
         Some(precision.clone()),
     ) else {

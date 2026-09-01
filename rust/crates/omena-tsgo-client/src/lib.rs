@@ -8,6 +8,7 @@ use std::{
 };
 
 use base64::Engine as _;
+use omena_evidence_graph::ValueDomainPrecisionV1;
 use serde::{Deserialize, Serialize};
 
 pub const TSGO_TYPE_FLAGS_UNION: u64 = 134_217_728;
@@ -116,7 +117,7 @@ pub struct ProviderCapabilitiesV0 {
     pub input_contract: &'static str,
     pub output_contract: &'static str,
     pub fallback_discipline: ProviderUnresolvedDisciplineV0,
-    pub unknown_precision_value_domain: &'static str,
+    pub unknown_precision_value_domain: ValueDomainPrecisionV1,
     pub downgrade_provenance: &'static str,
 }
 
@@ -468,7 +469,7 @@ pub fn summarize_omena_tsgo_client_boundary() -> OmenaTsgoClientBoundarySummaryV
             input_contract: "TsgoTypeFactRequestV0",
             output_contract: "TsgoTypeFactResultEntryV0[]",
             fallback_discipline: ProviderUnresolvedDisciplineV0::UnknownNotGuess,
-            unknown_precision_value_domain: TSGO_UNKNOWN_PRECISION_VALUE_DOMAIN_V0,
+            unknown_precision_value_domain: ValueDomainPrecisionV1::Unknown,
             downgrade_provenance: TSGO_UNKNOWN_PRECISION_PROVENANCE_V0,
         },
         lifecycle: TsgoClientLifecycleV0 {
@@ -2059,11 +2060,11 @@ mod tests {
         TSGO_SPAN_TYPE_FACT_REASON_UNION_MEMBER_LIMIT_EXCEEDED_V0, TSGO_TYPE_FLAGS_ANY,
         TSGO_TYPE_FLAGS_UNDEFINED, TSGO_TYPE_FLAGS_UNION, TSGO_TYPE_ORACLE_PROVIDER_ID_V0,
         TSGO_TYPE_ORACLE_PROVIDER_KIND_V0, TSGO_UNKNOWN_PRECISION_PROVENANCE_V0,
-        TSGO_UNKNOWN_PRECISION_VALUE_DOMAIN_V0, TsgoJsonRpcIoErrorV0, TsgoJsonRpcOutboundRequestV0,
-        TsgoJsonRpcProviderErrorV0, TsgoJsonRpcProviderTransportV0, TsgoJsonRpcTypeFactProviderV0,
-        TsgoProcessCommandV0, TsgoProviderRetryPolicyV0, TsgoSpanTypeFactRequestV0,
-        TsgoSpanTypeFactTargetV0, TsgoTypeFactRequestV0, TsgoTypeFactRpcClientV0,
-        TsgoTypeFactTargetV0, TsgoWorkspaceProcessConfigV0, TsgoWorkspaceProcessPoolV0,
+        TsgoJsonRpcIoErrorV0, TsgoJsonRpcOutboundRequestV0, TsgoJsonRpcProviderErrorV0,
+        TsgoJsonRpcProviderTransportV0, TsgoJsonRpcTypeFactProviderV0, TsgoProcessCommandV0,
+        TsgoProviderRetryPolicyV0, TsgoSpanTypeFactRequestV0, TsgoSpanTypeFactTargetV0,
+        TsgoTypeFactRequestV0, TsgoTypeFactRpcClientV0, TsgoTypeFactTargetV0,
+        TsgoWorkspaceProcessConfigV0, TsgoWorkspaceProcessPoolV0, ValueDomainPrecisionV1,
         build_tsgo_api_args, build_tsgo_process_command, drain_tsgo_json_rpc_frames,
         encode_tsgo_json_rpc_message, encode_tsgo_json_rpc_request, exact_span_node_location,
         plan_tsgo_type_fact_collection, read_tsgo_json_rpc_message, reduce_tsgo_type_response,
@@ -2132,12 +2133,26 @@ mod tests {
         );
         assert_eq!(
             summary.provider_capabilities.unknown_precision_value_domain,
-            TSGO_UNKNOWN_PRECISION_VALUE_DOMAIN_V0
+            ValueDomainPrecisionV1::Unknown
         );
         assert_eq!(
             summary.provider_capabilities.downgrade_provenance,
             TSGO_UNKNOWN_PRECISION_PROVENANCE_V0
         );
+    }
+
+    #[test]
+    fn serializes_unknown_precision_from_the_typed_value_domain_authority()
+    -> Result<(), serde_json::Error> {
+        let serialized = serde_json::to_value(summarize_omena_tsgo_client_boundary())?;
+        let typed_unknown = serde_json::to_value(ValueDomainPrecisionV1::Unknown)?;
+
+        assert_eq!(typed_unknown, json!("unknown"));
+        assert_eq!(
+            serialized["providerCapabilities"]["unknownPrecisionValueDomain"],
+            typed_unknown
+        );
+        Ok(())
     }
 
     #[test]
