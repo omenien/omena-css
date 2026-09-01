@@ -116,29 +116,6 @@ pub fn summarize_omena_query_css_modules_export_usage(
         .filter(|edge| edge.resolved_style_path.is_none())
         .map(|edge| edge.from_style_path.as_str())
         .collect::<BTreeSet<_>>();
-    let unresolved_provider_count = unresolved_import_style_paths.len()
-        + source_documents
-            .iter()
-            .filter(|source| source.has_unresolved_style_import)
-            .count();
-    let effective_precision = omena_query_core::fact_precision_from_analysis_precision(
-        &OmenaQueryAnalysisPrecisionV0::new(
-            "omena-query.analysis-precision",
-            AnalysisPrecisionV1 {
-                value_domain: ValueDomainPrecisionV1::StyleModuleResolution,
-                flow: FlowPrecisionV1::SourceSelectorUsage,
-                context: ContextPrecisionV1::PerModuleExport,
-                provider_completeness: ProviderCompletenessV1::from_unresolved_count(
-                    unresolved_provider_count,
-                ),
-                world_assumption: WorldAssumptionV1::from_closed_world(
-                    unresolved_provider_count == 0 && !source_documents.is_empty(),
-                ),
-                revision: RevisionIdentityV1::WorkspaceSnapshot,
-            },
-        ),
-    );
-
     let mut exports = Vec::new();
     let mut skip_reason_counts = BTreeMap::new();
     for entry in &style_fact_entries {
@@ -147,6 +124,24 @@ pub fn summarize_omena_query_css_modules_export_usage(
             source_documents,
             unresolved_import_style_paths.contains(entry.style_path.as_str()),
             shared.as_ref(),
+        );
+        let unresolved_provider_count = skip_reasons.len();
+        let effective_precision = omena_query_core::fact_precision_from_analysis_precision(
+            &OmenaQueryAnalysisPrecisionV0::new(
+                "omena-query.analysis-precision",
+                AnalysisPrecisionV1 {
+                    value_domain: ValueDomainPrecisionV1::StyleModuleResolution,
+                    flow: FlowPrecisionV1::SourceSelectorUsage,
+                    context: ContextPrecisionV1::PerModuleExport,
+                    provider_completeness: ProviderCompletenessV1::from_unresolved_count(
+                        unresolved_provider_count,
+                    ),
+                    world_assumption: WorldAssumptionV1::from_closed_world(
+                        unresolved_provider_count == 0,
+                    ),
+                    revision: RevisionIdentityV1::WorkspaceSnapshot,
+                },
+            ),
         );
         let used_in_module = shared
             .as_ref()
@@ -175,11 +170,7 @@ pub fn summarize_omena_query_css_modules_export_usage(
                 style_path: entry.style_path.clone(),
                 export_name,
                 status,
-                precision: if status == OmenaQueryCssModuleExportUsageStatusV0::Skipped {
-                    FactPrecision::Unknown
-                } else {
-                    effective_precision
-                },
+                precision: effective_precision,
                 skip_reasons: skip_reasons.clone(),
             });
         }

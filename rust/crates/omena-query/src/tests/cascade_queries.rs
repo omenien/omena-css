@@ -164,6 +164,18 @@ fn read_cascade_at_position_analysis_result_carries_revision_aligned_precision()
         first.precision.axes.revision,
         crate::RevisionIdentityV1::EvaluationRuntimeExpressionDomain,
     );
+    assert_eq!(
+        first.precision.axes.provider_completeness,
+        crate::ProviderCompletenessV1::Complete,
+    );
+    assert_eq!(
+        first.precision.axes.world_assumption,
+        crate::WorldAssumptionV1::Closed,
+    );
+    assert_eq!(
+        omena_query_core::fact_precision_from_analysis_precision(&first.precision),
+        crate::FactPrecision::Exact,
+    );
     assert!(
         first
             .provenance
@@ -197,6 +209,36 @@ fn read_cascade_at_position_analysis_result_carries_revision_aligned_precision()
         "OmenaQueryEvaluationRuntimeSummaryV0.expressionDomainRevision"
     );
     assert_eq!(serialized["value"]["status"], "resolved");
+}
+
+#[test]
+fn unresolved_cascade_provider_keeps_the_position_gate_unknown() {
+    let input = sample_input();
+    let mut runtime = OmenaQueryExpressionDomainFlowRuntimeV0::default();
+    let runtime_summary = summarize_omena_query_evaluation_runtime(&input, &mut runtime);
+    let result = read_omena_query_cascade_at_position_analysis_result(
+        "Component.module.css",
+        ".button { color: var(--missing); }",
+        &input,
+        ParserPositionV0 {
+            line: 0,
+            character: 23,
+        },
+        &runtime_summary,
+    )
+    .expect("unresolved cascade position result");
+    assert_eq!(result.value.status, "unresolved");
+    assert_eq!(
+        result.precision.axes.provider_completeness,
+        crate::ProviderCompletenessV1::Unresolved
+    );
+    assert_eq!(
+        result.precision.axes.world_assumption,
+        crate::WorldAssumptionV1::Open
+    );
+    let effective = omena_query_core::fact_precision_from_analysis_precision(&result.precision);
+    assert_eq!(effective, crate::FactPrecision::Unknown);
+    assert!(!effective.satisfies(crate::FactPrecision::Conservative));
 }
 
 #[test]

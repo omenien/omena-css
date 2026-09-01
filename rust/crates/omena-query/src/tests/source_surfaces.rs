@@ -12,6 +12,7 @@ use crate::{
     resolve_omena_query_sass_module_use_sources_for_candidate,
     resolve_omena_query_sass_symbol_declarations, resolve_omena_query_selector_rename_edits,
     resolve_omena_query_source_candidate_selector_names,
+    resolve_omena_query_source_precision_for_source,
     resolve_omena_query_source_provider_candidates,
     resolve_omena_query_style_selector_definitions_for_source_candidate,
     resolve_omena_query_style_uri_for_specifier, summarize_omena_query_sass_module_sources,
@@ -246,6 +247,22 @@ export function App({ suffix }) {
         },
         "missing-module range must select the module specifier without quote delimiters"
     );
+    let missing_module_precision = missing_module
+        .precision
+        .as_ref()
+        .ok_or_else(|| "missing-module must carry precision".to_string())?;
+    assert_eq!(
+        missing_module_precision.axes.provider_completeness,
+        crate::ProviderCompletenessV1::Unresolved
+    );
+    assert_eq!(
+        missing_module_precision.axes.world_assumption,
+        crate::WorldAssumptionV1::Open
+    );
+    assert_eq!(
+        omena_query_core::fact_precision_from_analysis_precision(missing_module_precision),
+        crate::FactPrecision::Unknown
+    );
     assert!(
         diagnostics
             .ready_surfaces
@@ -257,6 +274,29 @@ export function App({ suffix }) {
             .contains(&"checkerProductDiagnosticGate")
     );
     Ok(())
+}
+
+#[test]
+fn source_precision_without_a_real_flow_capture_closes_the_precision_floor() {
+    let reference = resolve_omena_query_source_precision_for_source(
+        "/workspace/NoCapture.tsx",
+        "export const unrelated = 'value';",
+        Some("tsx"),
+        "styles",
+        0,
+    );
+    assert_eq!(reference.top_cause, Some("noFlowCapture"));
+    assert_eq!(
+        reference.precision.axes.provider_completeness,
+        crate::ProviderCompletenessV1::Unresolved
+    );
+    assert_eq!(
+        reference.precision.axes.world_assumption,
+        crate::WorldAssumptionV1::Open
+    );
+    let effective = omena_query_core::fact_precision_from_analysis_precision(&reference.precision);
+    assert_eq!(effective, crate::FactPrecision::Unknown);
+    assert!(!effective.satisfies(crate::FactPrecision::Conservative));
 }
 
 #[test]

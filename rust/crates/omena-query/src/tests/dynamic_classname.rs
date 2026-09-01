@@ -64,7 +64,7 @@ fn dynamic_classname_input(max_context_depth: usize) -> OmenaQueryDynamicClassna
 /// the same diagnostic set and the differential assertion would fail — so this
 /// is not a tautology.
 #[test]
-fn dynamic_classname_m_tier_query_diagnostics_change_with_context_depth() {
+fn dynamic_classname_m_tier_query_diagnostics_change_with_context_depth() -> Result<(), String> {
     let zero_cfa = summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth(
         &dynamic_classname_input(0),
     );
@@ -74,6 +74,29 @@ fn dynamic_classname_m_tier_query_diagnostics_change_with_context_depth() {
 
     assert_eq!(zero_cfa.file_kind, "source");
     assert_eq!(two_cfa.file_kind, "source");
+    assert!(zero_cfa.diagnostics.iter().all(|diagnostic| {
+        diagnostic.precision.as_ref().is_some_and(|precision| {
+            precision.axes.context == crate::ContextPrecisionV1::ContextInsensitive
+        })
+    }));
+    assert!(two_cfa.diagnostics.iter().all(|diagnostic| {
+        diagnostic.precision.as_ref().is_some_and(|precision| {
+            precision.axes.context == crate::ContextPrecisionV1::KLimitedCallSite
+        })
+    }));
+    let two_cfa_wire = serde_json::to_value(&two_cfa).map_err(|error| error.to_string())?;
+    assert_eq!(
+        two_cfa_wire["diagnostics"][0]["precision"]["contextSensitivity"],
+        "k-cfa"
+    );
+    for diagnostic in zero_cfa.diagnostics.iter().chain(&two_cfa.diagnostics) {
+        let precision = diagnostic
+            .precision
+            .as_ref()
+            .ok_or_else(|| "dynamic precision".to_string())?;
+        let effective = omena_query_core::fact_precision_from_analysis_precision(precision);
+        assert!(!effective.satisfies(crate::FactPrecision::Conservative));
+    }
 
     // 0-CFA: the joined root value trips noImpossibleSelector for the universe.
     assert!(
@@ -119,6 +142,7 @@ fn dynamic_classname_m_tier_query_diagnostics_change_with_context_depth() {
         zero_cfa.diagnostic_count,
         two_cfa.diagnostic_count,
     );
+    Ok(())
 }
 
 /// Clear half of the emit+clear pair: when every call site already agrees with

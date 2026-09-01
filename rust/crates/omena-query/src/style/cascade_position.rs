@@ -68,6 +68,7 @@ fn cascade_at_position_analysis_result(
     value: OmenaQueryCascadeAtPositionV0,
     revision: u64,
 ) -> OmenaQueryAnalysisResultV0<OmenaQueryCascadeAtPositionV0> {
+    let unresolved_provider_count = usize::from(value.status == "unresolved");
     OmenaQueryAnalysisResultV0::new(
         value,
         OmenaQueryAnalysisPrecisionV0::new(
@@ -76,8 +77,12 @@ fn cascade_at_position_analysis_result(
                 value_domain: ValueDomainPrecisionV1::CascadeAtPosition,
                 flow: FlowPrecisionV1::PositionScopedCascade,
                 context: ContextPrecisionV1::StyleSemanticGraph,
-                provider_completeness: ProviderCompletenessV1::from_unresolved_count(0),
-                world_assumption: WorldAssumptionV1::from_closed_world(false),
+                provider_completeness: ProviderCompletenessV1::from_unresolved_count(
+                    unresolved_provider_count,
+                ),
+                world_assumption: WorldAssumptionV1::from_closed_world(
+                    unresolved_provider_count == 0,
+                ),
                 revision: RevisionIdentityV1::EvaluationRuntimeExpressionDomain,
             },
         ),

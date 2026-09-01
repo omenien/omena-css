@@ -1391,4 +1391,61 @@ mod tests {
         assert_eq!(round_trip.axes, exact_axes);
         Ok(())
     }
+
+    #[test]
+    fn incremental_precision_derives_provider_and_world_axes_from_engine_input() {
+        let complete_input = selector_certainty_product_input();
+        let mut complete_runtime = OmenaQueryExpressionDomainFlowRuntimeV0::default();
+        let complete = summarize_omena_query_expression_domain_incremental_flow_analysis_result(
+            &complete_input,
+            &mut complete_runtime,
+        );
+        assert_eq!(
+            complete.precision.axes.provider_completeness,
+            ProviderCompletenessV1::Complete
+        );
+        assert_eq!(
+            complete.precision.axes.world_assumption,
+            WorldAssumptionV1::Closed
+        );
+        assert_eq!(
+            complete.precision.axes.flow,
+            FlowPrecisionV1::IncrementalDataflow
+        );
+        assert_eq!(
+            complete.precision.axes.revision,
+            RevisionIdentityV1::ExpressionDomainFlowRuntime
+        );
+
+        let mut unresolved_input = selector_certainty_product_input();
+        unresolved_input.type_facts.clear();
+        let mut unresolved_runtime = OmenaQueryExpressionDomainFlowRuntimeV0::default();
+        let unresolved = summarize_omena_query_expression_domain_incremental_flow_analysis_result(
+            &unresolved_input,
+            &mut unresolved_runtime,
+        );
+        assert_eq!(
+            unresolved.precision.axes.provider_completeness,
+            ProviderCompletenessV1::Unresolved,
+            "a real expression without a type-fact provider must lower completeness"
+        );
+        let unresolved_effective = fact_precision_from_analysis_precision(&unresolved.precision);
+        assert_eq!(unresolved_effective, FactPrecision::Unknown);
+        assert!(!unresolved_effective.satisfies(FactPrecision::Conservative));
+
+        let mut open_world_input = selector_certainty_product_input();
+        open_world_input.styles.clear();
+        let mut open_world_runtime = OmenaQueryExpressionDomainFlowRuntimeV0::default();
+        let open_world = summarize_omena_query_expression_domain_incremental_flow_analysis_result(
+            &open_world_input,
+            &mut open_world_runtime,
+        );
+        assert_eq!(
+            open_world.precision.axes.world_assumption,
+            WorldAssumptionV1::Open,
+            "a real expression whose style provider is absent must keep the world open"
+        );
+        let open_world_effective = fact_precision_from_analysis_precision(&open_world.precision);
+        assert!(!open_world_effective.satisfies(FactPrecision::Conservative));
+    }
 }

@@ -1358,7 +1358,7 @@ fn closed_world_bound_reachability_precision(
         .iter()
         .map(omena_query_core::fact_precision_from_precision_axes)
         .reduce(FactPrecision::bounded_by)
-        .unwrap_or(FactPrecision::Conservative);
+        .unwrap_or(FactPrecision::Unknown);
     if !closed_set_enumeration_candidate || context.reachable_class_names.is_empty() {
         return fallback;
     }
@@ -6941,11 +6941,28 @@ mod closed_set_precision_tests {
             &[open_world_axes],
             true,
         );
+        let empty_context_precision = closed_world_bound_reachability_precision(
+            &TransformExecutionContextV0::default(),
+            &bundle,
+            &[open_world_axes],
+            true,
+        );
+        let empty_input_precision =
+            closed_world_bound_reachability_precision(&context, &bundle, &[], true);
+        let unknown_input_precision = closed_world_bound_reachability_precision(
+            &context,
+            &bundle,
+            &[AnalysisPrecisionV1::unknown()],
+            true,
+        );
 
         assert_eq!(open_world_precision, FactPrecision::Heuristic);
         assert_eq!(closed_world_precision, FactPrecision::Exact);
         assert_eq!(non_enumerated_precision, FactPrecision::Heuristic);
         assert_eq!(missing_member_precision, FactPrecision::Heuristic);
+        assert_eq!(empty_context_precision, FactPrecision::Heuristic);
+        assert_eq!(empty_input_precision, FactPrecision::Unknown);
+        assert_eq!(unknown_input_precision, FactPrecision::Unknown);
 
         let calibration_report: serde_json::Value = serde_json::from_str(include_str!(
             "../../../../omena-precision-calibration-report.json"
@@ -6966,19 +6983,19 @@ mod closed_set_precision_tests {
                 "missingMemberPrecision": missing_member_precision,
                 "precisionLabelDrops": [
                     {
-                        "output": "openWorldPrecision",
+                        "output": "closedSetFiniteReachability.openWorldPrecision",
                         "before": "conservative",
                         "after": "heuristic",
                         "loweringAxis": "worldAssumption",
                     },
                     {
-                        "output": "nonEnumeratedPrecision",
+                        "output": "closedSetFiniteReachability.nonEnumeratedPrecision",
                         "before": "conservative",
                         "after": "heuristic",
                         "loweringAxis": "worldAssumption",
                     },
                     {
-                        "output": "missingMemberPrecision",
+                        "output": "closedSetFiniteReachability.missingMemberPrecision",
                         "before": "conservative",
                         "after": "heuristic",
                         "loweringAxis": "worldAssumption",

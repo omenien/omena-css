@@ -57,7 +57,7 @@ export const App = () => <div className={styles.composed} />;"#
             "authority": "sourceSelectorUsage",
             "currentPrecision": report.diagnostics[0].precision,
             "precisionLabelDrops": [{
-                "output": "unusedModuleExport.precision",
+                "output": "cssModulesUnusedExportFlow.safeGhost.precision",
                 "before": "exact",
                 "after": "conservative",
                 "loweringAxis": "flow",
@@ -139,4 +139,5 @@ export const Safe = () => <div className={styles.safe} />;"#
             && export.export_name == "safe"
             && export.status == OmenaQueryCssModuleExportUsageStatusV0::Used
     }));
+    assert_eq!(report.diagnostics[0].precision, FactPrecision::Conservative);
 }

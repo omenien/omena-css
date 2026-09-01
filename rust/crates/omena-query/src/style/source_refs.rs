@@ -2080,11 +2080,18 @@ fn normalize_path(path: PathBuf) -> PathBuf {
 
 #[cfg(test)]
 mod global_class_fallthrough_label_tests {
-    use super::summarize_omena_query_global_class_fallthrough_diagnostic;
-    use crate::ParserRangeV0;
+    use super::{
+        omena_query_line_index, summarize_omena_query_global_class_fallthrough_diagnostic,
+        summarize_omena_query_unresolved_source_reference_diagnostic,
+    };
+    use crate::{
+        FactPrecision, FlowPrecisionV1, OmenaQuerySourceSelectorReferenceFactV0,
+        OmenaQuerySourceSelectorReferenceMatchKindV0, OmenaQuerySourceSelectorReferenceSurfaceV0,
+        ParserByteSpanV0, ParserRangeV0, ProviderCompletenessV1, WorldAssumptionV1,
+    };
 
     #[test]
-    fn message_shows_decoded_non_ascii_global_filename() {
+    fn message_shows_decoded_non_ascii_global_filename() -> Result<(), String> {
         let diagnostic = summarize_omena_query_global_class_fallthrough_diagnostic(
             "chip",
             "file:///ws/%EC%83%98%ED%94%8C%EB%B0%B0%EB%84%88.css",
@@ -2102,6 +2109,53 @@ mod global_class_fallthrough_label_tests {
             "{}",
             diagnostic.message
         );
+        let precision = diagnostic
+            .precision
+            .ok_or_else(|| "fallthrough precision".to_string())?;
+        assert_eq!(precision.axes.flow, FlowPrecisionV1::GlobalClassUniverse);
+        assert_eq!(precision.axes.world_assumption, WorldAssumptionV1::Open);
+        assert_eq!(
+            omena_query_core::fact_precision_from_analysis_precision(&precision),
+            FactPrecision::Heuristic,
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn empty_resolved_class_domain_derives_unknown_precision() -> Result<(), String> {
+        let source = "empty-${suffix}";
+        let reference = OmenaQuerySourceSelectorReferenceFactV0 {
+            byte_span: ParserByteSpanV0 {
+                start: 0,
+                end: source.len(),
+            },
+            selector_name: None,
+            match_kind: OmenaQuerySourceSelectorReferenceMatchKindV0::Prefix,
+            target_style_uri: Some("file:///workspace/Empty.module.css".to_string()),
+            surface: OmenaQuerySourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex,
+        };
+        let diagnostic = summarize_omena_query_unresolved_source_reference_diagnostic(
+            source,
+            &omena_query_line_index(source),
+            &reference,
+            "empty-",
+            None,
+            &[],
+            0,
+        );
+        assert_eq!(diagnostic.code, "missingResolvedClassDomain");
+        let precision = diagnostic
+            .precision
+            .ok_or_else(|| "empty domain precision".to_string())?;
+        assert_eq!(
+            precision.axes.provider_completeness,
+            ProviderCompletenessV1::Unresolved
+        );
+        assert_eq!(precision.axes.world_assumption, WorldAssumptionV1::Open);
+        let effective = omena_query_core::fact_precision_from_analysis_precision(&precision);
+        assert_eq!(effective, FactPrecision::Unknown);
+        assert!(!effective.satisfies(FactPrecision::Conservative));
+        Ok(())
     }
 }
 

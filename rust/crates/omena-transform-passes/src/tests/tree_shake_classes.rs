@@ -216,6 +216,14 @@ fn tree_shake_precision_floor_consumes_the_full_axis_meet() {
     };
 
     assert_eq!(execute(exact).mutation_count, 1);
+    let imprecise_value_domain = AnalysisPrecisionV1 {
+        value_domain: ValueDomainPrecisionV1::ClassValueFlow,
+        ..exact
+    };
+    assert_eq!(
+        imprecise_value_domain.value_domain,
+        ValueDomainPrecisionV1::ClassValueFlow
+    );
     let unresolved_provider = AnalysisPrecisionV1 {
         provider_completeness: ProviderCompletenessV1::from_unresolved_count(1),
         ..exact
@@ -245,6 +253,7 @@ fn tree_shake_precision_floor_consumes_the_full_axis_meet() {
     };
     assert_eq!(non_dataflow.flow, FlowPrecisionV1::KLimitedCallSiteFlow);
     for lowered in [
+        imprecise_value_domain,
         unresolved_provider,
         open_world,
         stale_revision,
