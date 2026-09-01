@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
-type WriteClassification = "artifact" | "bookkeeping" | "source-mutation-gate";
+type WriteClassification = "artifact" | "bookkeeping" | "transaction-staging";
 
 interface WriteSite {
   readonly path: string;
@@ -45,6 +45,7 @@ interface NonFilesystemWriteSink {
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cliRoot = "rust/crates/omena-cli/src";
 const manifestPath = "rust/crates/omena-cli/write-safety-census.json";
+const transactionModulePath = "rust/crates/omena-cli/src/workspace_edit_transaction.rs";
 const manifest = readJson<WriteSafetyManifest>(manifestPath);
 const fixSafetySource = read("rust/crates/omena-checker/src/fix_safety.rs");
 const writeGateSource = read(manifest.sourceMutationGate.path);
@@ -139,23 +140,54 @@ assert.deepEqual(
   derivedWriteSites.map(siteIdentity).toSorted(),
   "every production filesystem write must have an owned classification",
 );
-assert.equal(
-  manifest.writeSites.filter(({ classification }) => classification === "source-mutation-gate")
-    .length,
-  1,
-  "source mutation must have one filesystem gate",
+const transactionWriteSites = manifest.writeSites.filter(
+  ({ path: sitePath }) => sitePath === transactionModulePath,
 );
 assert.deepEqual(
-  manifest.writeSites.find(({ classification }) => classification === "source-mutation-gate"),
-  {
-    ...manifest.sourceMutationGate,
-    writeCount: 1,
-    classification: "source-mutation-gate",
-    owner: "classified product source edits",
-  },
+  transactionWriteSites,
+  [
+    {
+      path: transactionModulePath,
+      function: "write_staged_product_bytes",
+      writeCount: 2,
+      classification: "transaction-staging",
+      owner: "transaction staged product bytes",
+    },
+    {
+      path: transactionModulePath,
+      function: "write_transaction_journal_file",
+      writeCount: 2,
+      classification: "bookkeeping",
+      owner: "transaction rollback journal sidecar",
+    },
+    {
+      path: transactionModulePath,
+      function: "write_transaction_lock_file",
+      writeCount: 1,
+      classification: "bookkeeping",
+      owner: "transaction concurrency lock sidecar",
+    },
+  ],
+  "transaction primitive owners must remain explicit and purpose-specific",
+);
+assert.equal(
+  manifest.writeSites.filter(({ classification }) => classification === "transaction-staging")
+    .length,
+  1,
+  "transaction staging must have one primitive-owning function",
+);
+assert.equal(
+  manifest.writeSites.some(
+    ({ path: sitePath, function: siteFunction }) =>
+      sitePath === manifest.sourceMutationGate.path &&
+      siteFunction === manifest.sourceMutationGate.function,
+  ),
+  false,
+  "the source authorization gate must not own a direct filesystem primitive",
 );
 
 const productionGateSource = stripCfgTestModules(writeGateSource, manifest.sourceMutationGate.path);
+assertSourceGateRoutesToTransaction(productionGateSource, manifest.sourceMutationGate.function);
 const gateOccurrenceCount = [...productionGateSource.matchAll(/\bapply_write_with_safety\s*\(/gu)]
   .length;
 assert.equal(gateOccurrenceCount, 1, "write gate must have one definition and no hidden self-call");
@@ -169,7 +201,51 @@ const allGateOccurrences = cliProductionSources.reduce(
 assert.equal(
   allGateOccurrences - 1,
   manifest.productSourceWriteCallers,
-  "product source-write caller count must remain explicit until a real consumer lands",
+  "routed source-write caller count must remain explicit",
+);
+
+const disconnectedGateSource = productionGateSource.replace(".commit()", ".disconnected_commit()");
+assert.notEqual(
+  disconnectedGateSource,
+  productionGateSource,
+  "gate disconnection mutation must alter the source",
+);
+assert.throws(
+  () =>
+    assertSourceGateRoutesToTransaction(
+      disconnectedGateSource,
+      manifest.sourceMutationGate.function,
+    ),
+  /must route to WorkspaceEditTransaction::new\(\.\.\.\)\.commit\(\)/u,
+  "disconnecting the source gate from transaction commit must be RED",
+);
+
+const directBypassSource = writeGateSource.replace(
+  "    report.wrote = true;",
+  '    std::fs::write(output_path, content).expect("mutation control");\n    report.wrote = true;',
+);
+assert.notEqual(directBypassSource, writeGateSource, "direct-write mutation must alter the source");
+assert.throws(
+  () =>
+    deriveProductionWriteSites(new Map([[manifest.sourceMutationGate.path, directBypassSource]])),
+  /unclassified production write: .*#apply_write_with_safety/u,
+  "reintroducing a direct product write must be RED",
+);
+
+const transactionSource = read(transactionModulePath);
+const testModuleMarker = "\n#[cfg(test)]\nmod tests {";
+assert.ok(
+  transactionSource.includes(testModuleMarker),
+  "transaction test module marker is missing",
+);
+const unregisteredOwnerSource = transactionSource.replace(
+  testModuleMarker,
+  '\nfn unregistered_transaction_write_authority(path: &std::path::Path) {\n    let _ = std::fs::write(path, b"mutation control");\n}\n\n#[cfg(test)]\nmod tests {',
+);
+assert.throws(
+  () => deriveProductionWriteSites(new Map([[transactionModulePath, unregisteredOwnerSource]])),
+  /unclassified production write: .*#unregistered_transaction_write_authority/u,
+  "an unregistered primitive owner must be RED",
 );
 
 assert.deepEqual(
@@ -210,6 +286,7 @@ process.stdout.write(
       ),
       classifiedFunctionCount: derivedWriteSites.length,
       sourceMutationGateCount: 1,
+      transactionWriteAuthorityCount: transactionWriteSites.length,
       productSourceWriteCallers: manifest.productSourceWriteCallers,
       consumerContractCount: manifest.consumerContracts.length,
       namedWaitCount: manifest.namedWaits.length,
@@ -219,7 +296,9 @@ process.stdout.write(
   )}\n`,
 );
 
-function deriveProductionWriteSites(): WriteSite[] {
+function deriveProductionWriteSites(
+  sourceOverrides: ReadonlyMap<string, string> = new Map(),
+): WriteSite[] {
   const manifestByKey = new Map(
     manifest.writeSites.map((site) => [`${site.path}#${site.function}`, site]),
   );
@@ -230,7 +309,7 @@ function deriveProductionWriteSites(): WriteSite[] {
   );
 
   for (const file of rustSourceFiles(cliRoot)) {
-    const source = stripCfgTestModules(read(file), file);
+    const source = stripCfgTestModules(sourceOverrides.get(file) ?? read(file), file);
     const functions = topLevelFunctions(source);
     for (const match of source.matchAll(productionWritePrimitive)) {
       const offset = match.index ?? -1;
@@ -254,7 +333,10 @@ function deriveProductionWriteSites(): WriteSite[] {
       sink.writeCount,
       `non-filesystem write sink changed: ${key}`,
     );
-    const source = stripCfgTestModules(read(sink.path), sink.path);
+    const source = stripCfgTestModules(
+      sourceOverrides.get(sink.path) ?? read(sink.path),
+      sink.path,
+    );
     const functions = topLevelFunctions(source);
     const index = functions.findIndex(({ name }) => name === sink.function);
     assert.ok(index >= 0, `non-filesystem write sink is missing: ${key}`);
@@ -476,6 +558,30 @@ function matchingBrace(source: string, open: number, label = "source"): number {
     }
   }
   assert.fail(`${label} has an unterminated brace-delimited block`);
+}
+
+function assertSourceGateRoutesToTransaction(source: string, functionName: string): void {
+  const functionSource = topLevelFunctionSource(source, functionName);
+  const constructorOffset = functionSource.indexOf("WorkspaceEditTransaction::new(");
+  const commitOffset = functionSource.indexOf(".commit()", constructorOffset);
+  assert.ok(
+    constructorOffset >= 0 && commitOffset > constructorOffset,
+    `${functionName} must route to WorkspaceEditTransaction::new(...).commit()`,
+  );
+  assert.equal(
+    [...functionSource.matchAll(productionWritePrimitive)].length,
+    0,
+    `${functionName} must authorize transaction commit without a direct filesystem primitive`,
+  );
+}
+
+function topLevelFunctionSource(source: string, functionName: string): string {
+  const functions = topLevelFunctions(source);
+  const index = functions.findIndex(({ name }) => name === functionName);
+  assert.ok(index >= 0, `missing top-level function ${functionName}`);
+  const start = functions[index]!.start;
+  const end = functions[index + 1]?.start ?? source.length;
+  return source.slice(start, end);
 }
 
 function topLevelFunctions(source: string): { name: string; start: number }[] {
