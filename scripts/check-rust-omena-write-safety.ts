@@ -52,7 +52,7 @@ const writeGateSource = read(manifest.sourceMutationGate.path);
 const queryRunnerSource = read("rust/crates/omena-query-transform-runner/src/lib.rs");
 const queryFacadeSource = read("rust/crates/omena-query/src/lib.rs");
 const productionWritePrimitive =
-  /\b(?:std::)?fs::write\s*\(|\bFile::create\s*\(|\bOpenOptions::new\s*\(|\.write_all\s*\(/gu;
+  /\b(?:std::)?fs::(?:write|copy|rename)\s*\(|\b(?:std::fs::)?File::(?:create|options|create_new)\s*\(|\b(?:std::fs::)?OpenOptions::new\s*\(|\.write(?:_all)?\s*\(/gu;
 const nonFilesystemWriteSinks: readonly NonFilesystemWriteSink[] = [
   {
     path: "rust/crates/omena-cli/src/daemon.rs",
@@ -135,6 +135,7 @@ assertNoSemanticSafetyCopies(allRustFiles);
 assertNoTypeScriptSafetyCopies();
 
 const derivedWriteSites = deriveProductionWriteSites();
+assertProductSourcePlaneZero(derivedWriteSites);
 assert.deepEqual(
   manifest.writeSites.map(siteIdentity).toSorted(),
   derivedWriteSites.map(siteIdentity).toSorted(),
@@ -148,22 +149,43 @@ assert.deepEqual(
   [
     {
       path: transactionModulePath,
-      function: "write_staged_product_bytes",
+      function: "prepare_rollback_backup",
       writeCount: 2,
+      classification: "bookkeeping",
+      owner: "transaction rollback backup preparation",
+    },
+    {
+      path: transactionModulePath,
+      function: "rename_all",
+      writeCount: 1,
+      classification: "transaction-staging",
+      owner: "transaction staged product publication",
+    },
+    {
+      path: transactionModulePath,
+      function: "rollback_and_cleanup",
+      writeCount: 1,
+      classification: "bookkeeping",
+      owner: "transaction rollback restoration",
+    },
+    {
+      path: transactionModulePath,
+      function: "write_staged_product_bytes",
+      writeCount: 3,
       classification: "transaction-staging",
       owner: "transaction staged product bytes",
     },
     {
       path: transactionModulePath,
       function: "write_transaction_journal_file",
-      writeCount: 2,
+      writeCount: 3,
       classification: "bookkeeping",
       owner: "transaction rollback journal sidecar",
     },
     {
       path: transactionModulePath,
       function: "write_transaction_lock_file",
-      writeCount: 1,
+      writeCount: 2,
       classification: "bookkeeping",
       owner: "transaction concurrency lock sidecar",
     },
@@ -173,8 +195,8 @@ assert.deepEqual(
 assert.equal(
   manifest.writeSites.filter(({ classification }) => classification === "transaction-staging")
     .length,
-  1,
-  "transaction staging must have one primitive-owning function",
+  2,
+  "transaction staging and publication must have separate primitive owners",
 );
 assert.equal(
   manifest.writeSites.some(
@@ -186,13 +208,13 @@ assert.equal(
   "the source authorization gate must not own a direct filesystem primitive",
 );
 
-const productionGateSource = stripCfgTestModules(writeGateSource, manifest.sourceMutationGate.path);
+const productionGateSource = productionRustSource(writeGateSource);
 assertSourceGateRoutesToTransaction(productionGateSource, manifest.sourceMutationGate.function);
 const gateOccurrenceCount = [...productionGateSource.matchAll(/\bapply_write_with_safety\s*\(/gu)]
   .length;
 assert.equal(gateOccurrenceCount, 1, "write gate must have one definition and no hidden self-call");
 const cliProductionSources = rustSourceFiles(cliRoot).map((file) =>
-  stripCfgTestModules(read(file), file),
+  productionRustSource(read(file)),
 );
 const allGateOccurrences = cliProductionSources.reduce(
   (count, source) => count + [...source.matchAll(/\bapply_write_with_safety\s*\(/gu)].length,
@@ -233,6 +255,33 @@ assert.throws(
 );
 
 const transactionSource = read(transactionModulePath);
+const minifySource = read("rust/crates/omena-cli/src/minify.rs");
+const buildSource = read("rust/crates/omena-cli/src/build.rs");
+assertDestinationKeyedPostconditions(minifySource, buildSource);
+const inputKeyedMinifyMutation = minifySource.replace(
+  /(text_reparse_for_path\(\s*)output(\.as_path\(\)\s*,?\s*\))/u,
+  "$1input$2",
+);
+assert.notEqual(
+  inputKeyedMinifyMutation,
+  minifySource,
+  "minify path-key mutation must alter source",
+);
+assert.throws(
+  () => assertDestinationKeyedPostconditions(inputKeyedMinifyMutation, buildSource),
+  /minify postcondition must be keyed to its destination path/u,
+  "keying the minify postcondition to the input path must be RED",
+);
+const inputKeyedBuildMutation = buildSource.replace(
+  /(style_reparse_for_admitted_output\(\s*)output_path(\.as_path\(\)\s*,)/gu,
+  "$1path$2",
+);
+assert.notEqual(inputKeyedBuildMutation, buildSource, "build path-key mutation must alter source");
+assert.throws(
+  () => assertDestinationKeyedPostconditions(minifySource, inputKeyedBuildMutation),
+  /build postconditions must be keyed to their destination paths/u,
+  "keying either build postcondition to an input path must be RED",
+);
 const testModuleMarker = "\n#[cfg(test)]\nmod tests {";
 assert.ok(
   transactionSource.includes(testModuleMarker),
@@ -246,6 +295,63 @@ assert.throws(
   () => deriveProductionWriteSites(new Map([[transactionModulePath, unregisteredOwnerSource]])),
   /unclassified production write: .*#unregistered_transaction_write_authority/u,
   "an unregistered primitive owner must be RED",
+);
+
+const registeredArtifactMutation = [
+  ...manifest.writeSites,
+  {
+    path: transactionModulePath,
+    function: "unregistered_transaction_write_authority",
+    writeCount: 1,
+    classification: "artifact" as const,
+    owner: "mutation control product bytes",
+  },
+];
+const adoptedArtifactMutationSites = deriveProductionWriteSites(
+  new Map([[transactionModulePath, unregisteredOwnerSource]]),
+  registeredArtifactMutation,
+);
+assert.throws(
+  () => assertProductSourcePlaneZero(adoptedArtifactMutationSites),
+  /product\/source-plane bare artifact writes must be zero/u,
+  "registering a new bare product writer as classification:artifact must remain RED",
+);
+
+const fsCopyBypassSource = transactionSource.replace(
+  testModuleMarker,
+  "\nfn copy_product_bytes(source: &std::path::Path, destination: &std::path::Path) {\n    let _ = std::fs::copy(source, destination);\n}\n\n#[cfg(test)]\nmod tests {",
+);
+assert.throws(
+  () => deriveProductionWriteSites(new Map([[transactionModulePath, fsCopyBypassSource]])),
+  /unclassified production write: .*#copy_product_bytes/u,
+  "an fs::copy product-byte bypass must be RED",
+);
+
+const fileOptionsWriteBypassSource = transactionSource.replace(
+  testModuleMarker,
+  '\nfn options_write_product_bytes(path: &std::path::Path) {\n    use std::io::Write as _;\n    let mut file = std::fs::File::options().write(true).open(path).expect("mutation control");\n    let _ = file.write(b"mutation control");\n}\n\n#[cfg(test)]\nmod tests {',
+);
+assert.throws(
+  () =>
+    deriveProductionWriteSites(new Map([[transactionModulePath, fileOptionsWriteBypassSource]])),
+  /unclassified production write: .*#options_write_product_bytes/u,
+  "a File::options().write() product-byte bypass must be RED",
+);
+
+const productionAfterTestsSource = `${transactionSource}\nstruct PostTestProductionWriter;\nimpl PostTestProductionWriter {\n    fn write_product_bytes_after_tests(path: &std::path::Path) {\n        let _ = std::fs::write(path, b"mutation control");\n    }\n}\n`;
+assert.throws(
+  () => deriveProductionWriteSites(new Map([[transactionModulePath, productionAfterTestsSource]])),
+  /unclassified production write: .*#write_product_bytes_after_tests/u,
+  "a production impl method after cfg(test) must be RED",
+);
+
+const testOnlyWriteSource = `${transactionSource}\n#[cfg(test)]\nmod test_only_write_control {\n    fn write(path: &std::path::Path) {\n        let _ = std::fs::write(path, b"test-only control");\n    }\n}\n`;
+assert.deepEqual(
+  deriveProductionWriteSites(new Map([[transactionModulePath, testOnlyWriteSource]])).map(
+    siteIdentity,
+  ),
+  derivedWriteSites.map(siteIdentity),
+  "a test-only filesystem write must remain outside the production census",
 );
 
 assert.deepEqual(
@@ -298,9 +404,10 @@ process.stdout.write(
 
 function deriveProductionWriteSites(
   sourceOverrides: ReadonlyMap<string, string> = new Map(),
+  registeredWriteSites: readonly WriteSite[] = manifest.writeSites,
 ): WriteSite[] {
   const manifestByKey = new Map(
-    manifest.writeSites.map((site) => [`${site.path}#${site.function}`, site]),
+    registeredWriteSites.map((site) => [`${site.path}#${site.function}`, site]),
   );
   const derived = new Map<string, { path: string; function: string; writeCount: number }>();
   const observedNonFilesystemWrites = new Map<string, number>();
@@ -309,12 +416,13 @@ function deriveProductionWriteSites(
   );
 
   for (const file of rustSourceFiles(cliRoot)) {
-    const source = stripCfgTestModules(sourceOverrides.get(file) ?? read(file), file);
-    const functions = topLevelFunctions(source);
-    for (const match of source.matchAll(productionWritePrimitive)) {
+    const source = productionRustSource(sourceOverrides.get(file) ?? read(file));
+    const structuralSource = maskRustCommentsAndLiterals(source);
+    const functions = namedFunctions(structuralSource);
+    for (const match of structuralSource.matchAll(productionWritePrimitive)) {
       const offset = match.index ?? -1;
-      const owner = functions.findLast(({ start }) => start < offset);
-      assert.ok(owner, `${file} contains fs::write outside a named function`);
+      const owner = functions.findLast(({ start, end }) => start < offset && offset < end);
+      assert.ok(owner, `${file} contains a production write primitive outside a named function`);
       const key = `${file}#${owner.name}`;
       if (nonFilesystemByKey.has(key)) {
         observedNonFilesystemWrites.set(key, (observedNonFilesystemWrites.get(key) ?? 0) + 1);
@@ -333,16 +441,12 @@ function deriveProductionWriteSites(
       sink.writeCount,
       `non-filesystem write sink changed: ${key}`,
     );
-    const source = stripCfgTestModules(
-      sourceOverrides.get(sink.path) ?? read(sink.path),
-      sink.path,
-    );
-    const functions = topLevelFunctions(source);
+    const source = productionRustSource(sourceOverrides.get(sink.path) ?? read(sink.path));
+    const functions = namedFunctions(maskRustCommentsAndLiterals(source));
     const index = functions.findIndex(({ name }) => name === sink.function);
     assert.ok(index >= 0, `non-filesystem write sink is missing: ${key}`);
-    const end = functions[index + 1]?.start ?? source.length;
     assert.ok(
-      source.slice(functions[index]!.start, end).includes(sink.evidence),
+      source.slice(functions[index]!.start, functions[index]!.end).includes(sink.evidence),
       `non-filesystem write sink lost its ${sink.evidence} evidence: ${key}`,
     );
   }
@@ -352,6 +456,28 @@ function deriveProductionWriteSites(
     assert.ok(registered, `unclassified production write: ${site.path}#${site.function}`);
     return { ...site, classification: registered.classification, owner: registered.owner };
   });
+}
+
+function assertProductSourcePlaneZero(writeSites: readonly WriteSite[]): void {
+  assert.equal(
+    writeSites.filter(({ classification }) => classification === "artifact").length,
+    0,
+    "product/source-plane bare artifact writes must be zero",
+  );
+}
+
+function assertDestinationKeyedPostconditions(minify: string, build: string): void {
+  assert.equal(
+    [...minify.matchAll(/text_reparse_for_path\(\s*output\.as_path\(\)\s*,?\s*\)/gu)].length,
+    1,
+    "minify postcondition must be keyed to its destination path",
+  );
+  assert.equal(
+    [...build.matchAll(/style_reparse_for_admitted_output\(\s*output_path\.as_path\(\)\s*,/gu)]
+      .length,
+    2,
+    "build postconditions must be keyed to their destination paths",
+  );
 }
 
 function assertNoSemanticSafetyCopies(files: readonly string[]): void {
@@ -500,16 +626,23 @@ function extractEnumVariants(source: string, name: string): string[] {
   return declaration.variants;
 }
 
-function stripCfgTestModules(source: string, _label: string): string {
-  const marker = /#\[cfg\(test\)\]\s*mod\s+[a-zA-Z0-9_]+\s*\{/gu;
-  const match = marker.exec(source);
-  if (!match) return source;
-  assert.deepEqual(
-    topLevelFunctions(source.slice(match.index + match[0].length)),
-    [],
-    `${_label} must not place production functions after its cfg(test) module`,
-  );
-  return source.slice(0, match.index);
+function productionRustSource(source: string): string {
+  const structural = maskRustCommentsAndLiterals(source);
+  const spans: { start: number; end: number }[] = [];
+  const testModule = /#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*mod\s+[a-zA-Z0-9_]+\s*\{/gu;
+  for (const match of structural.matchAll(testModule)) {
+    const start = match.index ?? 0;
+    const open = start + match[0].lastIndexOf("{");
+    spans.push({ start, end: matchingBrace(structural, open, "cfg(test) module") + 1 });
+  }
+  if (spans.length === 0) return source;
+  const chars = source.split("");
+  for (const { start, end } of spans) {
+    for (let index = start; index < end; index += 1) {
+      if (chars[index] !== "\n" && chars[index] !== "\r") chars[index] = " ";
+    }
+  }
+  return chars.join("");
 }
 
 function matchingBrace(source: string, open: number, label = "source"): number {
@@ -569,25 +702,30 @@ function assertSourceGateRoutesToTransaction(source: string, functionName: strin
     `${functionName} must route to WorkspaceEditTransaction::new(...).commit()`,
   );
   assert.equal(
-    [...functionSource.matchAll(productionWritePrimitive)].length,
+    [...maskRustCommentsAndLiterals(functionSource).matchAll(productionWritePrimitive)].length,
     0,
     `${functionName} must authorize transaction commit without a direct filesystem primitive`,
   );
 }
 
 function topLevelFunctionSource(source: string, functionName: string): string {
-  const functions = topLevelFunctions(source);
+  const functions = namedFunctions(maskRustCommentsAndLiterals(source));
   const index = functions.findIndex(({ name }) => name === functionName);
   assert.ok(index >= 0, `missing top-level function ${functionName}`);
-  const start = functions[index]!.start;
-  const end = functions[index + 1]?.start ?? source.length;
-  return source.slice(start, end);
+  return source.slice(functions[index]!.start, functions[index]!.end);
 }
 
-function topLevelFunctions(source: string): { name: string; start: number }[] {
-  return [...source.matchAll(/^(?:pub(?:\([^)]*\))?\s+)?fn\s+([a-z][a-z0-9_]*)/gmu)].map(
-    (match) => ({ name: match[1]!, start: match.index ?? 0 }),
-  );
+function namedFunctions(source: string): { name: string; start: number; end: number }[] {
+  const functions: { name: string; start: number; end: number }[] = [];
+  const declaration =
+    /^[\t ]*(?:pub(?:\([^)]*\))?\s+)?(?:const\s+)?(?:async\s+)?(?:unsafe\s+)?(?:extern\s+"[^"]+"\s+)?fn\s+([a-z][a-z0-9_]*)[^;{]*\{/gmu;
+  for (const match of source.matchAll(declaration)) {
+    const start = match.index ?? 0;
+    const open = start + match[0].lastIndexOf("{");
+    const end = matchingBrace(source, open, `function ${match[1]}`) + 1;
+    functions.push({ name: match[1]!, start, end });
+  }
+  return functions;
 }
 
 function siteIdentity(site: WriteSite): string {

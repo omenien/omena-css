@@ -657,7 +657,7 @@
       "emitter": "typed-json-envelope-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-cli/src/output.rs",
-      "line": 70,
+      "line": 116,
       "source": "error: OmenaError::new(",
       "errorClass": "internal"
     },

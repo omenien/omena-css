@@ -2,7 +2,7 @@ use omena_query::{
     OmenaParserStyleDialect, OmenaQueryParseTreeNodeV0, OmenaWorkspaceSnapshotIdV0,
     parse_style_document_typed_v0,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     fmt, fs,
@@ -15,7 +15,7 @@ use std::{
 const ABSENT_CONTENT_DIGEST: &str = "absent";
 static NEXT_TRANSACTION_ID: AtomicU64 = AtomicU64::new(0);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) enum WorkspaceEditSafetyClassV0 {
     FormattingOnly,
@@ -229,6 +229,13 @@ impl WorkspaceEditTransaction {
             cleanup_staged(staged.as_slice());
             return Err(error);
         }
+        if let Err(error) =
+            self.verify_journal_precondition(journal_path.as_path(), staged.as_slice())
+        {
+            cleanup_staged(staged.as_slice());
+            let _ = remove_if_exists(journal_path.as_path());
+            return Err(error);
+        }
         let commit_result = self.rename_all(staged.as_mut_slice());
         match commit_result {
             Ok(()) => {
@@ -382,9 +389,24 @@ impl WorkspaceEditTransaction {
         path: &Path,
         staged: &[StagedEditV0],
     ) -> Result<(), WorkspaceEditTransactionErrorV0> {
-        let journal = WorkspaceEditJournalV0 {
-            schema_version: "0",
-            product: "omena-cli.workspace-edit-journal",
+        #[cfg(test)]
+        if self.failpoint == Some(WorkspaceEditFailpointV0::SkipJournalWrite) {
+            return Ok(());
+        }
+        let journal = self.journal_for_staged(staged);
+        let mut encoded = serde_json::to_vec_pretty(&journal).map_err(|error| {
+            WorkspaceEditTransactionErrorV0::JournalSerialization {
+                message: error.to_string(),
+            }
+        })?;
+        encoded.push(b'\n');
+        write_transaction_journal_file(path, encoded.as_slice())
+    }
+
+    fn journal_for_staged(&self, staged: &[StagedEditV0]) -> WorkspaceEditJournalV0 {
+        WorkspaceEditJournalV0 {
+            schema_version: "0".to_string(),
+            product: "omena-cli.workspace-edit-journal".to_string(),
             revision: self.revision,
             safety_class: self.safety_class,
             entries: staged
@@ -396,14 +418,26 @@ impl WorkspaceEditTransaction {
                     destination_existed: edit.destination_existed,
                 })
                 .collect(),
-        };
-        let mut encoded = serde_json::to_vec_pretty(&journal).map_err(|error| {
-            WorkspaceEditTransactionErrorV0::JournalSerialization {
-                message: error.to_string(),
-            }
-        })?;
-        encoded.push(b'\n');
-        write_transaction_journal_file(path, encoded.as_slice())
+        }
+    }
+
+    fn verify_journal_precondition(
+        &self,
+        path: &Path,
+        staged: &[StagedEditV0],
+    ) -> Result<WorkspaceEditJournalV0, WorkspaceEditTransactionErrorV0> {
+        let encoded =
+            fs::read(path).map_err(|error| io_error("read transaction journal", path, error))?;
+        let journal = serde_json::from_slice::<WorkspaceEditJournalV0>(encoded.as_slice())
+            .map_err(
+                |error| WorkspaceEditTransactionErrorV0::JournalDeserialization {
+                    path: path.to_string_lossy().into_owned(),
+                    message: error.to_string(),
+                },
+            )?;
+        let expected = self.journal_for_staged(staged);
+        validate_journal_precondition(&journal, &expected, path)?;
+        Ok(journal)
     }
 
     fn rename_all(
@@ -488,6 +522,14 @@ pub(crate) enum WorkspaceEditTransactionErrorV0 {
     JournalSerialization {
         message: String,
     },
+    JournalDeserialization {
+        path: String,
+        message: String,
+    },
+    JournalPrecondition {
+        path: String,
+        message: String,
+    },
     Io {
         operation: &'static str,
         path: String,
@@ -555,6 +597,14 @@ impl fmt::Display for WorkspaceEditTransactionErrorV0 {
                     "failed to serialize workspace edit journal: {message}"
                 )
             }
+            Self::JournalDeserialization { path, message } => write!(
+                formatter,
+                "failed to parse workspace edit journal {path}: {message}"
+            ),
+            Self::JournalPrecondition { path, message } => write!(
+                formatter,
+                "workspace edit journal precondition failed for {path}: {message}"
+            ),
             Self::Io {
                 operation,
                 path,
@@ -590,23 +640,46 @@ struct StagedEditV0 {
     replacement_moved: bool,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct WorkspaceEditJournalV0 {
-    schema_version: &'static str,
-    product: &'static str,
+    schema_version: String,
+    product: String,
     revision: Option<OmenaWorkspaceSnapshotIdV0>,
     safety_class: WorkspaceEditSafetyClassV0,
     entries: Vec<WorkspaceEditJournalEntryV0>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct WorkspaceEditJournalEntryV0 {
     destination: String,
     stage: String,
     backup: String,
     destination_existed: bool,
+}
+
+fn validate_journal_precondition(
+    actual: &WorkspaceEditJournalV0,
+    expected: &WorkspaceEditJournalV0,
+    path: &Path,
+) -> Result<(), WorkspaceEditTransactionErrorV0> {
+    let failure = if actual.entries.is_empty() {
+        Some("journal entry set is empty".to_string())
+    } else if expected.entries.is_empty() {
+        Some("staged edit set is empty".to_string())
+    } else if actual != expected {
+        Some("journal did not round-trip the staged transaction exactly".to_string())
+    } else {
+        None
+    };
+    match failure {
+        Some(message) => Err(WorkspaceEditTransactionErrorV0::JournalPrecondition {
+            path: path.to_string_lossy().into_owned(),
+            message,
+        }),
+        None => Ok(()),
+    }
 }
 
 struct TransactionLockGuard {
@@ -681,6 +754,7 @@ fn write_transaction_lock_file(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum WorkspaceEditFailpointV0 {
     BeforeRename,
+    SkipJournalWrite,
     AfterRenames(usize),
 }
 
@@ -841,7 +915,11 @@ enum WorkspaceEditTextSyntaxV0 {
 }
 
 fn text_syntax_for_path(path: &Path) -> WorkspaceEditTextSyntaxV0 {
-    match path.extension().and_then(|extension| extension.to_str()) {
+    let extension = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase);
+    match extension.as_deref() {
         Some("css") => WorkspaceEditTextSyntaxV0::Style(OmenaParserStyleDialect::Css),
         Some("scss") => WorkspaceEditTextSyntaxV0::Style(OmenaParserStyleDialect::Scss),
         Some("sass") => WorkspaceEditTextSyntaxV0::Style(OmenaParserStyleDialect::Sass),
@@ -1065,6 +1143,112 @@ mod tests {
         assert_no_transaction_sidecars(&root)?;
         fs::remove_dir_all(root).map_err(|error| error.to_string())?;
         Ok(())
+    }
+
+    #[test]
+    fn mixed_case_style_extensions_require_reparse() -> Result<(), String> {
+        for file_name in ["a.CSS", "a.CsS"] {
+            let root = fixture_root("mixed-case-style");
+            fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+            let path = root.join(file_name);
+            let original = b".original {}\n";
+            fs::write(&path, original).map_err(|error| error.to_string())?;
+            let result =
+                WorkspaceEditTransaction::new(None, WorkspaceEditSafetyClassV0::FormattingOnly)
+                    .expect(ExpectedContentDigestV0::from_bytes(&path, original))
+                    .edit(
+                        FileEditV0::new(&path, b".corrupt {".to_vec()).with_postcondition(
+                            WorkspaceEditPostconditionV0::text_reparse_for_path(path.as_path()),
+                        ),
+                    )
+                    .commit();
+            let Err(error) = result else {
+                fs::remove_dir_all(root).map_err(|error| error.to_string())?;
+                return Err(format!(
+                    "mixed-case stylesheet {file_name} bypassed strict reparsing"
+                ));
+            };
+            assert!(matches!(
+                error,
+                WorkspaceEditTransactionErrorV0::PostconditionFailed {
+                    postcondition: "styleReparse",
+                    ..
+                }
+            ));
+            assert_eq!(
+                fs::read(&path).map_err(|error| error.to_string())?,
+                original
+            );
+            assert_no_transaction_sidecars(&root)?;
+            fs::remove_dir_all(root).map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn missing_journal_is_refused_before_first_rename() -> Result<(), String> {
+        let root = fixture_root("missing-journal");
+        fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+        let path = root.join("app.css");
+        let original = b".original {}\n";
+        fs::write(&path, original).map_err(|error| error.to_string())?;
+        let result = transaction_for_existing(&path, original, b".replacement {}\n")
+            .with_failpoint(WorkspaceEditFailpointV0::SkipJournalWrite)
+            .commit();
+        let Err(error) = result else {
+            fs::remove_dir_all(root).map_err(|error| error.to_string())?;
+            return Err("missing journal did not stop the first rename".to_string());
+        };
+        assert!(error.to_string().contains("read transaction journal"));
+        assert_eq!(
+            fs::read(&path).map_err(|error| error.to_string())?,
+            original
+        );
+        assert_no_transaction_sidecars(&root)?;
+        fs::remove_dir_all(root).map_err(|error| error.to_string())?;
+        Ok(())
+    }
+
+    #[test]
+    fn journal_round_trip_is_present_parseable_and_exact() -> Result<(), String> {
+        let root = fixture_root("journal-round-trip");
+        fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+        let path = root.join("app.css");
+        let original = b".original {}\n";
+        fs::write(&path, original).map_err(|error| error.to_string())?;
+        let transaction = transaction_for_existing(&path, original, b".replacement {}\n");
+        let transaction_id = NEXT_TRANSACTION_ID.fetch_add(1, Ordering::Relaxed);
+        let staged = transaction
+            .stage_edits(transaction_id)
+            .map_err(|error| error.to_string())?;
+        let journal_path = journal_path(&path, transaction_id);
+        transaction
+            .write_journal(journal_path.as_path(), staged.as_slice())
+            .map_err(|error| error.to_string())?;
+        let actual = transaction
+            .verify_journal_precondition(journal_path.as_path(), staged.as_slice())
+            .map_err(|error| error.to_string())?;
+        assert_eq!(actual, transaction.journal_for_staged(staged.as_slice()));
+        cleanup_staged(staged.as_slice());
+        remove_if_exists(journal_path.as_path()).map_err(|error| error.to_string())?;
+        assert_no_transaction_sidecars(&root)?;
+        fs::remove_dir_all(root).map_err(|error| error.to_string())?;
+        Ok(())
+    }
+
+    #[test]
+    fn journal_precondition_rejects_empty_entry_sets() {
+        let empty = WorkspaceEditJournalV0 {
+            schema_version: "0".to_string(),
+            product: "omena-cli.workspace-edit-journal".to_string(),
+            revision: None,
+            safety_class: WorkspaceEditSafetyClassV0::Safe,
+            entries: Vec::new(),
+        };
+        assert!(matches!(
+            validate_journal_precondition(&empty, &empty, Path::new("empty.journal")),
+            Err(WorkspaceEditTransactionErrorV0::JournalPrecondition { .. })
+        ));
     }
 
     #[test]

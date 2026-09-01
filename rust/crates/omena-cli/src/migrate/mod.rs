@@ -38,7 +38,7 @@ use crate::{
     commands::{MigrateCommand, MigrationModeArgs},
     io::{read_package_manifests, read_source_documents, read_style_sources},
     lint::discover_workspace_files,
-    output::{CliOutputMetadataV0, print_json, write_json_artifact},
+    output::{CliOutputMetadataV0, commit_json_artifact, print_json},
     paths::{cli_file_uri_to_path, path_string},
     text_edit::{
         apply_byte_edit, byte_span_for_range_with_line_index, range_for_byte_span_with_line_index,
@@ -51,6 +51,9 @@ use crate::{
         SourceWriteEvidenceV0, SourceWriteModeV0, SourceWriteReportV0, authorize_write_with_safety,
     },
 };
+
+#[cfg(test)]
+use crate::output::write_json_artifact;
 
 const MIGRATION_PLAN_SCHEMA_VERSION: &str = "0";
 const MIGRATION_PLAN_PRODUCT: &str = "omena-cli.migration-plan";
@@ -1039,9 +1042,16 @@ fn run_migration_mode(
 ) -> Result<(), String> {
     match (mode.plan, mode.apply) {
         (Some(plan_path), None) => {
+            let expected_plan_digest = ExpectedContentDigestV0::observe(plan_path.as_path())
+                .map_err(|error| error.to_string())?;
             let plan = build_plan()?;
             validate_migration_plan(&plan)?;
-            write_json_artifact(plan_path.as_path(), &plan)?;
+            commit_json_artifact(
+                plan_path.as_path(),
+                expected_plan_digest,
+                WorkspaceEditSafetyClassV0::PlanFirst,
+                &plan,
+            )?;
             if mode.json {
                 print_json(CliOutputMetadataV0::new("omena-cli.migrate.plan"), &plan)?;
             } else {

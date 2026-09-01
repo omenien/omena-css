@@ -13,8 +13,9 @@ use crate::{
     config::find_omena_config_for_path,
     io::read_source,
     lock::sha256_hex,
-    output::{CliOutputMetadataV0, print_json, write_artifact},
+    output::{CliOutputMetadataV0, commit_text_artifact, print_json},
     paths::path_string,
+    workspace_edit_transaction::{ExpectedContentDigestV0, WorkspaceEditSafetyClassV0},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -75,6 +76,15 @@ pub(super) fn sass_compile(
     output: Option<PathBuf>,
     json: bool,
 ) -> Result<(), String> {
+    let expected_output_digest = if json {
+        None
+    } else {
+        output
+            .as_deref()
+            .map(ExpectedContentDigestV0::observe)
+            .transpose()
+            .map_err(|error| error.to_string())?
+    };
     let execution = build_sass_compile_execution(entry)?;
     let report = execution.report;
     if json {
@@ -86,7 +96,13 @@ pub(super) fn sass_compile(
     } else if report.compiled {
         let css = report.css.as_deref().unwrap_or_default();
         if let Some(output) = output.as_deref() {
-            write_artifact(output, css.as_bytes())?;
+            commit_sass_css_output(
+                output,
+                expected_output_digest.ok_or_else(|| {
+                    "Sass output digest was not captured before analysis".to_string()
+                })?,
+                css.as_bytes(),
+            )?;
             println!("{}; wrote {}", report.authority, path_string(output));
         } else {
             eprintln!("{}", report.authority);
@@ -104,6 +120,19 @@ pub(super) fn sass_compile(
         ));
     }
     Ok(())
+}
+
+fn commit_sass_css_output(
+    output: &Path,
+    expected_output_digest: ExpectedContentDigestV0,
+    css: &[u8],
+) -> Result<(), String> {
+    commit_text_artifact(
+        output,
+        expected_output_digest,
+        WorkspaceEditSafetyClassV0::EvidenceRequired,
+        css,
+    )
 }
 
 pub(crate) fn sass_compile_report(entry: PathBuf) -> Result<SassCompileBridgeReportV0, String> {
@@ -300,6 +329,10 @@ mod tests {
     use super::*;
     use omena_evidence_graph::GuaranteeFamilyV0;
     use omena_query::OmenaQuerySassModuleCrossFileResolutionCapabilitiesV0;
+    use std::{
+        fs,
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     #[test]
     fn compile_report_names_authority_and_carries_one_execution_witness() -> Result<(), String> {
@@ -327,6 +360,39 @@ mod tests {
             GuaranteeFamilyV0::ExternalTool
         );
         assert_eq!(report.external_tool_evidence.provenance.len(), 3);
+        Ok(())
+    }
+
+    #[test]
+    fn sass_css_output_commits_through_the_workspace_transaction() -> Result<(), String> {
+        let id = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|error| error.to_string())?
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "omena-sass-transaction-{}-{id}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+        let output = root.join("compiled.CSS");
+        let expected =
+            ExpectedContentDigestV0::observe(&output).map_err(|error| error.to_string())?;
+        commit_sass_css_output(&output, expected, b".compiled { color: red; }\n")?;
+        assert_eq!(
+            fs::read(&output).map_err(|error| error.to_string())?,
+            b".compiled { color: red; }\n"
+        );
+        let sidecars = fs::read_dir(&root)
+            .map_err(|error| error.to_string())?
+            .filter_map(Result::ok)
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .filter(|name| name.contains(".omena-"))
+            .collect::<Vec<_>>();
+        assert!(
+            sidecars.is_empty(),
+            "orphan transaction sidecars: {sidecars:?}"
+        );
+        fs::remove_dir_all(root).map_err(|error| error.to_string())?;
         Ok(())
     }
 

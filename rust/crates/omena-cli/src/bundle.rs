@@ -20,8 +20,9 @@ use crate::{
         resolve_cli_external_sif_authority,
     },
     io::{read_package_manifests, read_source, read_workspace_sources},
-    output::{write_artifact, write_json_artifact},
+    output::{commit_json_artifact, commit_text_artifact},
     paths::path_string,
+    workspace_edit_transaction::{ExpectedContentDigestV0, WorkspaceEditSafetyClassV0},
 };
 
 pub(crate) struct BundleCommandOptions {
@@ -40,10 +41,26 @@ pub(crate) struct BundlePlanV0 {
 }
 
 pub(crate) fn bundle_command(options: BundleCommandOptions) -> Result<(), String> {
+    let expected_evidence_digest = options
+        .evidence_path
+        .as_deref()
+        .map(ExpectedContentDigestV0::observe)
+        .transpose()
+        .map_err(|error| error.to_string())?;
+    let expected_css_digest = options
+        .css_out
+        .as_deref()
+        .map(ExpectedContentDigestV0::observe)
+        .transpose()
+        .map_err(|error| error.to_string())?;
     let plan = plan_bundle(&options)?;
     if let Some(evidence_path) = options.evidence_path.as_deref() {
-        write_json_artifact(
+        commit_json_artifact(
             evidence_path,
+            expected_evidence_digest.ok_or_else(|| {
+                "bundle evidence digest was not captured before analysis".to_string()
+            })?,
+            WorkspaceEditSafetyClassV0::EvidenceRequired,
             &BundleEvidenceOutputV0 {
                 evidence: &plan.evidence,
                 execution_scope: plan.execution_scope.as_ref(),
@@ -60,7 +77,13 @@ pub(crate) fn bundle_command(options: BundleCommandOptions) -> Result<(), String
     }
 
     if let Some(css_out) = options.css_out.as_deref() {
-        write_artifact(css_out, plan.result.artifact.output_css.as_bytes())?;
+        commit_text_artifact(
+            css_out,
+            expected_css_digest
+                .ok_or_else(|| "bundle CSS digest was not captured before analysis".to_string())?,
+            WorkspaceEditSafetyClassV0::EvidenceRequired,
+            plan.result.artifact.output_css.as_bytes(),
+        )?;
     } else {
         print!("{}", plan.result.artifact.output_css);
     }

@@ -24,6 +24,10 @@ use crate::{
     lint::discover_workspace_files,
     output::{CliOutputMetadataV0, print_json},
     paths::{path_string, style_resolution_workspace_uri_for_path},
+    workspace_edit_transaction::{
+        ExpectedContentDigestV0, FileEditV0, WorkspaceEditPostconditionV0,
+        WorkspaceEditSafetyClassV0, WorkspaceEditTransaction,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -210,6 +214,41 @@ fn build_modules_execution(options: ModulesOptions) -> Result<ModulesExecutionV0
         ));
     }
 
+    let configured_declaration_dir = config.and_then(|config| config.declaration_dir.as_deref());
+    let declaration_dir = options
+        .declaration_dir
+        .as_deref()
+        .or(configured_declaration_dir)
+        .map(|path| resolve_config_path(config_directory, path));
+    let configured_interface_file = config.and_then(|config| config.interface_file.as_deref());
+    let interface_file = options
+        .interface_file
+        .as_deref()
+        .or(configured_interface_file)
+        .map(|path| resolve_config_path(config_directory, path))
+        .unwrap_or_else(|| workspace_root.join("omena.modules.json"));
+    let typed_definitions = config
+        .and_then(|config| config.typed_definitions)
+        .unwrap_or(true);
+    let hash_strategy = config
+        .and_then(|config| config.hash_strategy.clone())
+        .unwrap_or_else(|| "stable".to_string());
+    let artifact_paths = plan_module_artifact_paths(
+        workspace_root.as_path(),
+        declaration_dir.as_deref(),
+        interface_file.as_path(),
+        typed_definitions,
+        module_paths.as_slice(),
+    )?;
+    let expected_artifact_digests = artifact_paths
+        .iter()
+        .map(|path| {
+            ExpectedContentDigestV0::observe(path.as_path())
+                .map(|expected| (path.clone(), expected))
+                .map_err(|error| error.to_string())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
     let style_sources = read_style_sources(module_paths.as_slice())?;
     let source_documents = read_source_documents(files.source_paths.as_slice())?;
     let package_manifests = read_package_manifests(files.package_manifest_paths.as_slice())?;
@@ -245,25 +284,6 @@ fn build_modules_execution(options: ModulesOptions) -> Result<ModulesExecutionV0
         &usage,
     );
 
-    let configured_declaration_dir = config.and_then(|config| config.declaration_dir.as_deref());
-    let declaration_dir = options
-        .declaration_dir
-        .as_deref()
-        .or(configured_declaration_dir)
-        .map(|path| resolve_config_path(config_directory, path));
-    let configured_interface_file = config.and_then(|config| config.interface_file.as_deref());
-    let interface_file = options
-        .interface_file
-        .as_deref()
-        .or(configured_interface_file)
-        .map(|path| resolve_config_path(config_directory, path))
-        .unwrap_or_else(|| workspace_root.join("omena.modules.json"));
-    let typed_definitions = config
-        .and_then(|config| config.typed_definitions)
-        .unwrap_or(true);
-    let hash_strategy = config
-        .and_then(|config| config.hash_strategy.clone())
-        .unwrap_or_else(|| "stable".to_string());
     let plans = plan_module_artifacts(
         workspace_root.as_path(),
         declaration_dir.as_deref(),
@@ -271,7 +291,21 @@ fn build_modules_execution(options: ModulesOptions) -> Result<ModulesExecutionV0
         typed_definitions,
         &bundle,
     )?;
-    let artifacts = apply_or_check_module_artifacts(options.mode, plans.as_slice())?;
+    let planned_paths = plans
+        .iter()
+        .map(|plan| plan.path.clone())
+        .collect::<Vec<_>>();
+    if planned_paths != artifact_paths {
+        return Err(
+            "CSS Modules artifact paths changed after the analysis snapshot was captured"
+                .to_string(),
+        );
+    }
+    let artifacts = apply_or_check_module_artifacts(
+        options.mode,
+        plans.as_slice(),
+        expected_artifact_digests.as_slice(),
+    )?;
     let drift_count = artifacts
         .iter()
         .filter(|artifact| matches!(artifact.status, "missing" | "changed"))
@@ -348,6 +382,34 @@ fn plan_module_artifacts(
     Ok(plans)
 }
 
+fn plan_module_artifact_paths(
+    workspace_root: &Path,
+    declaration_dir: Option<&Path>,
+    interface_file: &Path,
+    typed_definitions: bool,
+    module_paths: &[PathBuf],
+) -> Result<Vec<PathBuf>, String> {
+    let mut paths = Vec::new();
+    if typed_definitions {
+        paths.extend(module_paths.iter().map(|source_path| {
+            declaration_output_path(workspace_root, source_path.as_path(), declaration_dir)
+        }));
+    }
+    paths.push(interface_file.to_path_buf());
+    paths.sort();
+    if let Some(duplicate) = paths
+        .windows(2)
+        .find(|pair| pair[0] == pair[1])
+        .and_then(|pair| pair.first())
+    {
+        return Err(format!(
+            "CSS Modules artifact plan repeats destination {}",
+            path_string(duplicate.as_path())
+        ));
+    }
+    Ok(paths)
+}
+
 fn declaration_output_path(
     workspace_root: &Path,
     source_path: &Path,
@@ -375,8 +437,12 @@ fn declaration_output_path(
 fn apply_or_check_module_artifacts(
     mode: ModulesMode,
     plans: &[ModuleArtifactPlanV0],
+    expected_digests: &[(PathBuf, ExpectedContentDigestV0)],
 ) -> Result<Vec<ModuleArtifactReportV0>, String> {
     let mut reports = Vec::with_capacity(plans.len());
+    let mut transaction =
+        WorkspaceEditTransaction::new(None, WorkspaceEditSafetyClassV0::EvidenceRequired);
+    let mut edit_count = 0usize;
     for plan in plans {
         let existing = fs::read(plan.path.as_path()).ok();
         let matches = existing
@@ -387,7 +453,37 @@ fn apply_or_check_module_artifacts(
             (ModulesMode::Check, false, false) => "missing",
             (ModulesMode::Check, true, false) => "changed",
             (ModulesMode::Emit, _, false) => {
-                write_module_artifact(plan.path.as_path(), plan.content.as_bytes())?;
+                if let Some(parent) = plan.path.parent() {
+                    fs::create_dir_all(parent).map_err(|error| {
+                        format!(
+                            "failed to create module artifact directory {}: {error}",
+                            path_string(parent)
+                        )
+                    })?;
+                }
+                let expected = expected_digests
+                    .iter()
+                    .find(|(path, _)| path == &plan.path)
+                    .map(|(_, expected)| expected.clone())
+                    .ok_or_else(|| {
+                        format!(
+                            "module artifact digest was not captured before analysis: {}",
+                            path_string(plan.path.as_path())
+                        )
+                    })?;
+                let postcondition = if plan.kind == "moduleInterfaceJson" {
+                    WorkspaceEditPostconditionV0::json_reparse()
+                } else {
+                    WorkspaceEditPostconditionV0::text_reparse_for_path(plan.path.as_path())
+                };
+                transaction = transaction.expect(expected).edit(
+                    FileEditV0::new(plan.path.as_path(), plan.content.as_bytes())
+                        .with_postcondition(postcondition)
+                        .with_postcondition(WorkspaceEditPostconditionV0::byte_identity(
+                            plan.content.as_bytes(),
+                        )),
+                );
+                edit_count += 1;
                 "written"
             }
         };
@@ -399,20 +495,10 @@ fn apply_or_check_module_artifacts(
             expected_sha256: sha256_hex(plan.content.as_bytes()),
         });
     }
-    Ok(reports)
-}
-
-fn write_module_artifact(path: &Path, content: &[u8]) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|error| {
-            format!(
-                "failed to create module artifact directory {}: {error}",
-                path_string(parent)
-            )
-        })?;
+    if edit_count > 0 {
+        transaction.commit().map_err(|error| error.to_string())?;
     }
-    fs::write(path, content)
-        .map_err(|error| format!("failed to write {}: {error}", path_string(path)))
+    Ok(reports)
 }
 
 fn compile_include_globs(patterns: &[String]) -> Result<Option<GlobSet>, String> {

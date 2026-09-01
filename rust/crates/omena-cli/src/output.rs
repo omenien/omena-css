@@ -3,7 +3,12 @@ use omena_query::{
     OmenaErrorRecoverabilityV0, OmenaErrorSeverityV0, OmenaSdkErrorEnvelopeV0,
 };
 use serde::Serialize;
-use std::{fs, path::Path};
+use std::path::Path;
+
+use crate::workspace_edit_transaction::{
+    ExpectedContentDigestV0, FileEditV0, WorkspaceEditPostconditionV0, WorkspaceEditSafetyClassV0,
+    WorkspaceEditTransaction,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CliOutputMetadataV0<'a> {
@@ -39,15 +44,56 @@ pub(crate) fn print_json<T: Serialize>(
     Ok(())
 }
 
-pub(crate) fn write_json_artifact<T: Serialize>(path: &Path, value: &T) -> Result<(), String> {
+pub(crate) fn commit_json_artifact<T: Serialize>(
+    path: &Path,
+    expected: ExpectedContentDigestV0,
+    safety_class: WorkspaceEditSafetyClassV0,
+    value: &T,
+) -> Result<(), String> {
     let mut json = serde_json::to_string_pretty(value)
         .map_err(|error| format!("failed to serialize {}: {error}", path.display()))?;
     json.push('\n');
-    write_artifact(path, json.as_bytes())
+    commit_artifact(
+        path,
+        expected,
+        safety_class,
+        json.as_bytes(),
+        WorkspaceEditPostconditionV0::json_reparse(),
+    )
 }
 
-pub(crate) fn write_artifact(path: &Path, content: &[u8]) -> Result<(), String> {
-    fs::write(path, content).map_err(|error| format!("failed to write {}: {error}", path.display()))
+pub(crate) fn commit_text_artifact(
+    path: &Path,
+    expected: ExpectedContentDigestV0,
+    safety_class: WorkspaceEditSafetyClassV0,
+    content: &[u8],
+) -> Result<(), String> {
+    commit_artifact(
+        path,
+        expected,
+        safety_class,
+        content,
+        WorkspaceEditPostconditionV0::text_reparse_for_path(path),
+    )
+}
+
+fn commit_artifact(
+    path: &Path,
+    expected: ExpectedContentDigestV0,
+    safety_class: WorkspaceEditSafetyClassV0,
+    content: &[u8],
+    postcondition: WorkspaceEditPostconditionV0,
+) -> Result<(), String> {
+    WorkspaceEditTransaction::new(None, safety_class)
+        .expect(expected)
+        .edit(
+            FileEditV0::new(path, content)
+                .with_postcondition(postcondition)
+                .with_postcondition(WorkspaceEditPostconditionV0::byte_identity(content)),
+        )
+        .commit()
+        .map(|_| ())
+        .map_err(|error| error.to_string())
 }
 
 fn serialize_json_envelope<T: Serialize>(
@@ -81,6 +127,12 @@ fn serialize_json_error_envelope(product: &str, error: serde_json::Error) -> Str
     serde_json::to_string(&envelope).unwrap_or_else(|_| {
         "{\"error\":{\"class\":\"internal\",\"message\":\"failed to serialize CLI JSON response\",\"context\":{\"code\":\"cli.output.serialize\",\"severity\":\"error\",\"recoverability\":\"retry\"}}}".to_string()
     })
+}
+
+#[cfg(test)]
+pub(crate) fn write_json_artifact<T: Serialize>(path: &Path, value: &T) -> Result<(), String> {
+    let expected = ExpectedContentDigestV0::observe(path).map_err(|error| error.to_string())?;
+    commit_json_artifact(path, expected, WorkspaceEditSafetyClassV0::PlanFirst, value)
 }
 
 #[cfg(test)]

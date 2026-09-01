@@ -10,7 +10,7 @@
     {
       "path": "rust/crates/omena-cli/src/daemon.rs",
       "function": "write_endpoint",
-      "writeCount": 1,
+      "writeCount": 2,
       "classification": "bookkeeping",
       "owner": "workspace daemon endpoint state"
     },
@@ -52,7 +52,7 @@
     {
       "path": "rust/crates/omena-cli/src/lock.rs",
       "function": "publish_immutable_recorded_shard_verdict",
-      "writeCount": 2,
+      "writeCount": 3,
       "classification": "bookkeeping",
       "owner": "recorded SIF trust verdict sidecar"
     },
@@ -60,41 +60,48 @@
       "path": "rust/crates/omena-cli/src/lint.rs",
       "function": "write_ranked_set_loss_capture",
       "writeCount": 1,
-      "classification": "artifact",
+      "classification": "bookkeeping",
       "owner": "ranked-set loss census sidecar"
     },
     {
-      "path": "rust/crates/omena-cli/src/modules.rs",
-      "function": "write_module_artifact",
-      "writeCount": 1,
-      "classification": "artifact",
-      "owner": "CSS Modules interface emission"
+      "path": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+      "function": "prepare_rollback_backup",
+      "writeCount": 2,
+      "classification": "bookkeeping",
+      "owner": "transaction rollback backup preparation"
     },
     {
-      "path": "rust/crates/omena-cli/src/output.rs",
-      "function": "write_artifact",
+      "path": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+      "function": "rename_all",
       "writeCount": 1,
-      "classification": "artifact",
-      "owner": "shared product artifact emission"
+      "classification": "transaction-staging",
+      "owner": "transaction staged product publication"
+    },
+    {
+      "path": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+      "function": "rollback_and_cleanup",
+      "writeCount": 1,
+      "classification": "bookkeeping",
+      "owner": "transaction rollback restoration"
     },
     {
       "path": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
       "function": "write_staged_product_bytes",
-      "writeCount": 2,
+      "writeCount": 3,
       "classification": "transaction-staging",
       "owner": "transaction staged product bytes"
     },
     {
       "path": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
       "function": "write_transaction_journal_file",
-      "writeCount": 2,
+      "writeCount": 3,
       "classification": "bookkeeping",
       "owner": "transaction rollback journal sidecar"
     },
     {
       "path": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
       "function": "write_transaction_lock_file",
-      "writeCount": 1,
+      "writeCount": 2,
       "classification": "bookkeeping",
       "owner": "transaction concurrency lock sidecar"
     }
