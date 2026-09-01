@@ -81,27 +81,37 @@ impl WorkspaceEditPostconditionV0 {
         })
     }
 
-    pub(crate) fn style_reparse_for_path(path: &Path) -> Self {
-        let dialect = match path.extension().and_then(|extension| extension.to_str()) {
-            Some("scss") => OmenaParserStyleDialect::Scss,
-            Some("sass") => OmenaParserStyleDialect::Sass,
-            Some("less") => OmenaParserStyleDialect::Less,
-            _ => OmenaParserStyleDialect::Css,
-        };
-        Self::style_reparse(dialect)
+    pub(crate) fn text_reparse_for_path(path: &Path) -> Self {
+        match text_syntax_for_path(path) {
+            WorkspaceEditTextSyntaxV0::Style(dialect) => Self::style_reparse(dialect),
+            WorkspaceEditTextSyntaxV0::Utf8 => Self::utf8_text(),
+        }
     }
 
     pub(crate) fn style_reparse_for_admitted_output(path: &Path, admitted: &[u8]) -> Self {
-        let dialect = style_dialect_for_path(path);
-        if style_bytes_reparse_cleanly(admitted, dialect) {
-            Self::style_reparse(dialect)
-        } else {
-            Self::new("partialStyleOutputUtf8", |_path, content| {
-                std::str::from_utf8(content)
-                    .map(|_| ())
-                    .map_err(|error| format!("staged partial style output is not UTF-8: {error}"))
-            })
+        match text_syntax_for_path(path) {
+            WorkspaceEditTextSyntaxV0::Style(dialect)
+                if style_bytes_reparse_cleanly(admitted, dialect) =>
+            {
+                Self::style_reparse(dialect)
+            }
+            WorkspaceEditTextSyntaxV0::Style(_) => {
+                Self::new("partialStyleOutputUtf8", |_path, content| {
+                    std::str::from_utf8(content).map(|_| ()).map_err(|error| {
+                        format!("staged partial style output is not UTF-8: {error}")
+                    })
+                })
+            }
+            WorkspaceEditTextSyntaxV0::Utf8 => Self::utf8_text(),
         }
+    }
+
+    pub(crate) fn utf8_text() -> Self {
+        Self::new("utf8Text", |_path, content| {
+            std::str::from_utf8(content)
+                .map(|_| ())
+                .map_err(|error| format!("staged text output is not UTF-8: {error}"))
+        })
     }
 
     pub(crate) fn json_reparse() -> Self {
@@ -821,12 +831,19 @@ fn parse_tree_has_error(node: &OmenaQueryParseTreeNodeV0) -> bool {
         || node.children.iter().any(parse_tree_has_error)
 }
 
-fn style_dialect_for_path(path: &Path) -> OmenaParserStyleDialect {
+enum WorkspaceEditTextSyntaxV0 {
+    Style(OmenaParserStyleDialect),
+    Utf8,
+}
+
+fn text_syntax_for_path(path: &Path) -> WorkspaceEditTextSyntaxV0 {
     match path.extension().and_then(|extension| extension.to_str()) {
-        Some("scss") => OmenaParserStyleDialect::Scss,
-        Some("sass") => OmenaParserStyleDialect::Sass,
-        Some("less") => OmenaParserStyleDialect::Less,
-        _ => OmenaParserStyleDialect::Css,
+        Some("css") => WorkspaceEditTextSyntaxV0::Style(OmenaParserStyleDialect::Css),
+        Some("scss") => WorkspaceEditTextSyntaxV0::Style(OmenaParserStyleDialect::Scss),
+        Some("sass") => WorkspaceEditTextSyntaxV0::Style(OmenaParserStyleDialect::Sass),
+        Some("less") => WorkspaceEditTextSyntaxV0::Style(OmenaParserStyleDialect::Less),
+        Some("js" | "jsx" | "ts" | "tsx") => WorkspaceEditTextSyntaxV0::Utf8,
+        Some(_) | None => WorkspaceEditTextSyntaxV0::Utf8,
     }
 }
 

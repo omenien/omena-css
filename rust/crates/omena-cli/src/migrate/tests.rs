@@ -108,6 +108,81 @@ fn approved_conservative_plan_applies_through_the_shared_gate() -> Result<(), St
 }
 
 #[test]
+fn mixed_style_and_tsx_plan_commits_atomically() -> Result<(), String> {
+    let root = fixture_directory("mixed-style-tsx-commit");
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let style_path = root.join("Button.module.css");
+    let tsx_path = root.join("Button.tsx");
+    let plan_path = root.join("migration.json");
+    let style_source = ".old { color: red; }\n";
+    let tsx_source = "export function Button() { return <div className={styles.old} />; }\n";
+    fs::write(&style_path, style_source).map_err(|error| error.to_string())?;
+    fs::write(&tsx_path, tsx_source).map_err(|error| error.to_string())?;
+    let plan = mixed_style_tsx_plan(
+        &root,
+        &style_path,
+        style_source,
+        "new",
+        &tsx_path,
+        tsx_source,
+        "new",
+    )?;
+    write_json_artifact(&plan_path, &plan)?;
+
+    let report = apply_migration_plan(MigrationCodemodV0::CssModulesRename, &plan_path, false)?;
+    assert_eq!(report.applied_file_count, 2);
+    assert_eq!(report.applied_edit_count, 2);
+    assert_eq!(
+        fs::read_to_string(&style_path).map_err(|error| error.to_string())?,
+        ".new { color: red; }\n"
+    );
+    assert_eq!(
+        fs::read_to_string(&tsx_path).map_err(|error| error.to_string())?,
+        "export function Button() { return <div className={styles.new} />; }\n"
+    );
+    fs::remove_dir_all(root).map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+#[test]
+fn invalid_style_refuses_mixed_style_and_tsx_plan_without_writes() -> Result<(), String> {
+    let root = fixture_directory("mixed-style-tsx-refusal");
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let style_path = root.join("Button.module.css");
+    let tsx_path = root.join("Button.tsx");
+    let plan_path = root.join("migration.json");
+    let style_source = ".old { color: red; }\n";
+    let tsx_source = "export function Button() { return <div className={styles.old} />; }\n";
+    fs::write(&style_path, style_source).map_err(|error| error.to_string())?;
+    fs::write(&tsx_path, tsx_source).map_err(|error| error.to_string())?;
+    let plan = mixed_style_tsx_plan(
+        &root,
+        &style_path,
+        style_source,
+        "{",
+        &tsx_path,
+        tsx_source,
+        "new",
+    )?;
+    write_json_artifact(&plan_path, &plan)?;
+
+    let error = apply_migration_plan(MigrationCodemodV0::CssModulesRename, &plan_path, false)
+        .err()
+        .ok_or_else(|| "invalid staged style unexpectedly committed".to_string())?;
+    assert!(error.contains("styleReparse"), "{error}");
+    assert_eq!(
+        fs::read_to_string(&style_path).map_err(|error| error.to_string())?,
+        style_source
+    );
+    assert_eq!(
+        fs::read_to_string(&tsx_path).map_err(|error| error.to_string())?,
+        tsx_source
+    );
+    fs::remove_dir_all(root).map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+#[test]
 fn css_modules_rename_uses_exact_and_dynamic_workspace_occurrences() -> Result<(), String> {
     let root = fixture_directory("css-modules-rename");
     fs::create_dir_all(root.join("src")).map_err(|error| error.to_string())?;
@@ -579,6 +654,59 @@ fn fixture_plan(
                 supporting: Vec::new(),
             },
         }],
+        Vec::new(),
+        vec![evidence],
+    )
+}
+
+fn mixed_style_tsx_plan(
+    root: &Path,
+    style_path: &Path,
+    style_source: &str,
+    style_replacement: &str,
+    tsx_path: &Path,
+    tsx_source: &str,
+    tsx_replacement: &str,
+) -> Result<MigrationPlanV0, String> {
+    let evidence = MigrationEvidenceV0 {
+        id: "evidence-mixed-selector-occurrences".to_string(),
+        kind: "selectorOccurrenceIndex".to_string(),
+        source: "omena-query".to_string(),
+        detail: "exact selector occurrences across style and source text".to_string(),
+    };
+    let drafts = [
+        (style_path, style_source, style_replacement),
+        (tsx_path, tsx_source, tsx_replacement),
+    ]
+    .into_iter()
+    .map(|(path, source, replacement)| {
+        let start = source.find("old").ok_or_else(|| {
+            format!(
+                "fixture source lacks selector occurrence: {}",
+                path.display()
+            )
+        })?;
+        let end = start + "old".len();
+        Ok(MigrationEditDraftV0 {
+            uri: path.to_string_lossy().into_owned(),
+            range: range_for_byte_span(source, start, end)
+                .ok_or_else(|| format!("fixture range is invalid: {}", path.display()))?,
+            byte_span: ParserByteSpanV0 { start, end },
+            expected_text: "old".to_string(),
+            replacement_text: replacement.to_string(),
+            expected_source_sha256: content_sha256(source.as_bytes()),
+            safety_evidence: safety_input(FixSafetyV0::Safe),
+            evidence: MigrationEditEvidenceV0 {
+                primary: evidence.id.clone(),
+                supporting: Vec::new(),
+            },
+        })
+    })
+    .collect::<Result<Vec<_>, String>>()?;
+    finalize_migration_plan(
+        MigrationCodemodV0::CssModulesRename,
+        root,
+        drafts,
         Vec::new(),
         vec![evidence],
     )

@@ -119,7 +119,7 @@ pub(super) fn apply_lint_fix_requests(
                     ),
                     None,
                     vec![
-                        WorkspaceEditPostconditionV0::style_reparse_for_path(
+                        WorkspaceEditPostconditionV0::text_reparse_for_path(
                             candidate.output_path.as_path(),
                         ),
                         WorkspaceEditPostconditionV0::byte_identity(edited.as_bytes()),
