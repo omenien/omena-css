@@ -5477,7 +5477,7 @@
           "rustName": "unknown_precision_value_domain",
           "serializeKey": "unknownPrecisionValueDomain",
           "deserializeKey": "unknownPrecisionValueDomain",
-          "typeExpression": "&'static str",
+          "typeExpression": "ValueDomainPrecisionV1",
           "optional": false,
           "flatten": false,
           "skipSerializing": false,

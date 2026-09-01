@@ -531,7 +531,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/mod.rs",
-      "line": 474,
+      "line": 477,
       "caller": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_and_source_corpus_completeness",
       "callee": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared",
       "callOrdinal": 0,
@@ -541,7 +541,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/mod.rs",
-      "line": 506,
+      "line": 509,
       "caller": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate",
       "callee": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared",
       "callOrdinal": 0,
@@ -551,7 +551,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/mod.rs",
-      "line": 588,
+      "line": 591,
       "caller": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared",
       "callee": "summarize_omena_query_css_modules_resolution_style_diagnostics_from_entries",
       "callOrdinal": 0,
@@ -561,7 +561,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/mod.rs",
-      "line": 614,
+      "line": 617,
       "caller": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared",
       "callee": "summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace",
       "callOrdinal": 0,
@@ -571,7 +571,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/mod.rs",
-      "line": 630,
+      "line": 633,
       "caller": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared",
       "callee": "summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace",
       "callOrdinal": 1,
@@ -581,7 +581,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/mod.rs",
-      "line": 673,
+      "line": 676,
       "caller": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared",
       "callee": "summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings_from_entries",
       "callOrdinal": 0,
@@ -591,7 +591,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/mod.rs",
-      "line": 816,
+      "line": 819,
       "caller": "summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared",
       "callee": "attach_omena_query_runtime_state_inline_overrides_for_workspace",
       "callOrdinal": 0,
@@ -611,7 +611,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-      "line": 294,
+      "line": 308,
       "caller": "summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings",
       "callee": "summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings_from_entries",
       "callOrdinal": 0,
@@ -621,7 +621,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-      "line": 391,
+      "line": 405,
       "caller": "summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings_from_entries",
       "callee": "collect_omena_query_unused_selector_shared",
       "callOrdinal": 0,
@@ -631,7 +631,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-      "line": 468,
+      "line": 482,
       "caller": "collect_omena_query_source_selector_usage_by_style",
       "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
       "callOrdinal": 0,
@@ -1137,7 +1137,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 648,
+      "line": 652,
       "caller": "summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs",
       "callee": "summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth",
       "callOrdinal": 0,
@@ -1147,7 +1147,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 671,
+      "line": 675,
       "caller": "summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_identity_index",
       "callee": "summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth",
       "callOrdinal": 0,
@@ -1157,7 +1157,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 714,
+      "line": 718,
       "caller": "summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth",
       "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
       "callOrdinal": 0,
@@ -1167,7 +1167,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 812,
+      "line": 818,
       "caller": "summarize_omena_query_source_diagnostics_for_workspace_file_with_context_depth",
       "callee": "summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth",
       "callOrdinal": 0,
@@ -1177,7 +1177,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 1314,
+      "line": 1324,
       "caller": "collect_omena_query_source_selector_reference_candidates",
       "callee": "collect_omena_query_source_selector_references_with_resolution_inputs",
       "callOrdinal": 0,
@@ -1187,7 +1187,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 1340,
+      "line": 1350,
       "caller": "collect_omena_query_source_selector_reference_edit_targets",
       "callee": "collect_omena_query_source_selector_references_with_resolution_inputs",
       "callOrdinal": 0,
@@ -1197,7 +1197,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 1375,
+      "line": 1385,
       "caller": "collect_omena_query_source_selector_references_with_resolution_inputs",
       "callee": "source_selector_reference_index_for_document",
       "callOrdinal": 0,
@@ -1207,7 +1207,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/source_refs.rs",
-      "line": 1464,
+      "line": 1474,
       "caller": "source_selector_reference_index_for_document",
       "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
       "callOrdinal": 0,
@@ -1266,5 +1266,5 @@
     "justifiedNoneCount": 16,
     "violationCount": 0
   },
-  "siteDigest": "sha256:2ee1c842386412fa3e00cb99a194875aa71a2790bdea8eaf2f32a4302d15213a"
+  "siteDigest": "sha256:5fa78ad67f33b02f04c52ef51c82a5c709e3f00ca74a444f2018b59a9a63c6aa"
 }
