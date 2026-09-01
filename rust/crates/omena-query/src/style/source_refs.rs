@@ -505,9 +505,11 @@ fn summarize_omena_query_missing_selector_diagnostic_with_insertion_range(
             "CSS Module selector '.{selector_name}' not found in indexed style tokens."
         ),
         precision: Some(source_diagnostic_precision(
-            "classValueResolution",
-            "sourceSyntaxIndex",
-            "perSourceReference",
+            ValueDomainPrecisionV1::ClassValueResolution,
+            FlowPrecisionV1::SourceSyntaxIndex,
+            ContextPrecisionV1::PerSourceReference,
+            0,
+            true,
         )),
         suggestion: None,
         create_selector: Some(OmenaQueryCreateSelectorActionV0 {
@@ -567,9 +569,11 @@ pub fn summarize_omena_query_global_class_fallthrough_diagnostic(
             "'.{selector_name}' is not exported by the bound CSS Module; it resolves to the global stylesheet '{global_file}' and is emitted as a literal, unscoped class name."
         ),
         precision: Some(source_diagnostic_precision(
-            "classValueResolution",
-            "globalClassUniverse",
-            "perSourceReference",
+            ValueDomainPrecisionV1::ClassValueResolution,
+            FlowPrecisionV1::GlobalClassUniverse,
+            ContextPrecisionV1::PerSourceReference,
+            0,
+            false,
         )),
         suggestion: None,
         create_selector,
@@ -748,9 +752,11 @@ fn summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_i
                     )
                 },
                 precision: Some(source_diagnostic_precision(
-                    "styleModuleResolution",
-                    "sourceImportResolution",
-                    "perImportSpecifier",
+                    ValueDomainPrecisionV1::StyleModuleResolution,
+                    FlowPrecisionV1::SourceImportResolution,
+                    ContextPrecisionV1::PerImportSpecifier,
+                    1,
+                    false,
                 )),
                 suggestion: None,
                 create_selector: None,
@@ -1145,9 +1151,11 @@ fn summarize_omena_query_type_fact_provider_unavailable_diagnostics(
     };
     let precision = || {
         Some(source_diagnostic_precision(
-            OMENA_QUERY_TYPE_ORACLE_UNKNOWN_VALUE_DOMAIN,
-            "typeOracleProviderUnavailable",
-            "perTypeFactTarget",
+            ValueDomainPrecisionV1::Unknown,
+            FlowPrecisionV1::TypeOracleProviderUnavailable,
+            ContextPrecisionV1::PerTypeFactTarget,
+            1,
+            false,
         ))
     };
     let mut diagnostics = Vec::new();
@@ -1251,9 +1259,11 @@ fn summarize_omena_query_domain_class_reference_diagnostics(
                 option_name, reference.owner_name, reference.axis_name
             ),
             precision: Some(source_diagnostic_precision(
-                "classValueUniverse",
-                "sourceDomainReference",
-                "perDomainAxis",
+                ValueDomainPrecisionV1::ClassValueUniverse,
+                FlowPrecisionV1::SourceDomainReference,
+                ContextPrecisionV1::PerDomainAxis,
+                0,
+                true,
             )),
             suggestion: None,
             create_selector: None,
@@ -1575,14 +1585,16 @@ fn summarize_omena_query_unresolved_source_reference_diagnostic(
             value_domain_size,
         ),
         precision: Some(source_diagnostic_precision(
-            "classValueResolution",
-            "sourceSelectorReference",
+            ValueDomainPrecisionV1::ClassValueResolution,
+            FlowPrecisionV1::SourceSelectorReference,
             match code {
                 "missingResolvedClassValues" | "missingResolvedClassDomain" => {
-                    "resolvedClassValueDomain"
+                    ContextPrecisionV1::ResolvedClassValueDomain
                 }
-                _ => "perSourceReference",
+                _ => ContextPrecisionV1::PerSourceReference,
             },
+            usize::from(value_domain_size == 0),
+            value_domain_size > 0,
         )),
         suggestion,
         create_selector,

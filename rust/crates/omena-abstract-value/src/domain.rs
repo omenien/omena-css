@@ -3,9 +3,11 @@ use std::collections::BTreeSet;
 use crate::automaton::{automaton_class_value_from_owned_values, automaton_is_well_formed_acyclic};
 use crate::{
     ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0, AbstractClassValueProvenanceV0,
-    AbstractClassValueV0, AbstractValueDomainSummaryV0, CompositeClassValueInputV0, FactPrecision,
-    MAX_FINITE_CLASS_VALUES, OmenaAbstractValueCoverageDirectionV0,
+    AbstractClassValueV0, AbstractValueDomainSummaryV0, AnalysisPrecisionV1,
+    CompositeClassValueInputV0, ContextPrecisionV1, EffectivePrecisionV1, FactPrecision,
+    FlowPrecisionV1, MAX_FINITE_CLASS_VALUES, OmenaAbstractValueCoverageDirectionV0,
     OmenaAbstractValuePrecisionBasisV0, OmenaAbstractValuePrecisionWitnessV0,
+    ProviderCompletenessV1, RevisionIdentityV1, ValueDomainPrecisionV1, WorldAssumptionV1,
 };
 
 pub fn summarize_omena_abstract_value_domain() -> AbstractValueDomainSummaryV0 {
@@ -223,33 +225,99 @@ pub fn fact_precision_from_class_value(value: &AbstractClassValueV0) -> FactPrec
     fact_precision_from_class_value_with_witness(value, None)
 }
 
-pub fn fact_precision_from_class_value_with_witness(
+pub const fn fact_precision_from_analysis_precision(
+    precision: &AnalysisPrecisionV1,
+) -> FactPrecision {
+    match precision.effective_precision() {
+        EffectivePrecisionV1::Exact => FactPrecision::Exact,
+        EffectivePrecisionV1::Conservative => FactPrecision::Conservative,
+        EffectivePrecisionV1::Heuristic => FactPrecision::Heuristic,
+        EffectivePrecisionV1::Unknown => FactPrecision::Unknown,
+    }
+}
+
+pub fn analysis_precision_from_class_value(value: &AbstractClassValueV0) -> AnalysisPrecisionV1 {
+    analysis_precision_from_class_value_with_witness(value, None)
+}
+
+pub fn analysis_precision_from_class_value_with_witness(
     value: &AbstractClassValueV0,
     external_witness: Option<&OmenaAbstractValuePrecisionWitnessV0>,
-) -> FactPrecision {
-    match value {
-        AbstractClassValueV0::Bottom | AbstractClassValueV0::Exact { .. } => FactPrecision::Exact,
+) -> AnalysisPrecisionV1 {
+    let (value_domain, provider_completeness, world_assumption) = match value {
+        AbstractClassValueV0::Bottom | AbstractClassValueV0::Exact { .. } => (
+            ValueDomainPrecisionV1::ExactClassValue,
+            ProviderCompletenessV1::Complete,
+            WorldAssumptionV1::Closed,
+        ),
         AbstractClassValueV0::FiniteSet { values }
             if closed_set_precision_witness_is_sound(values, external_witness) =>
         {
-            FactPrecision::Exact
+            (
+                ValueDomainPrecisionV1::ExactClassValue,
+                ProviderCompletenessV1::Complete,
+                WorldAssumptionV1::Closed,
+            )
         }
-        AbstractClassValueV0::FiniteSet { .. } => FactPrecision::Conservative,
+        AbstractClassValueV0::FiniteSet { .. } => (
+            ValueDomainPrecisionV1::ClosedClassValueSet,
+            ProviderCompletenessV1::Partial,
+            WorldAssumptionV1::Open,
+        ),
         AbstractClassValueV0::Automaton {
             automaton,
             precision_witness,
             ..
-        } if automaton_precision_witness_is_sound(automaton, precision_witness.as_ref()) => {
-            FactPrecision::Conservative
-        }
+        } if automaton_precision_witness_is_sound(automaton, precision_witness.as_ref()) => (
+            ValueDomainPrecisionV1::ClosedClassValueSet,
+            ProviderCompletenessV1::Complete,
+            WorldAssumptionV1::Closed,
+        ),
         AbstractClassValueV0::Automaton { .. }
         | AbstractClassValueV0::Prefix { .. }
         | AbstractClassValueV0::Suffix { .. }
         | AbstractClassValueV0::PrefixSuffix { .. }
         | AbstractClassValueV0::CharInclusion { .. }
-        | AbstractClassValueV0::Composite { .. } => FactPrecision::Heuristic,
-        AbstractClassValueV0::Top { .. } => FactPrecision::Unknown,
+        | AbstractClassValueV0::Composite { .. } => (
+            ValueDomainPrecisionV1::PatternClassValue,
+            ProviderCompletenessV1::Partial,
+            WorldAssumptionV1::Open,
+        ),
+        AbstractClassValueV0::Top { .. } => (
+            ValueDomainPrecisionV1::Unknown,
+            ProviderCompletenessV1::Unknown,
+            WorldAssumptionV1::Unknown,
+        ),
+    };
+    let has_known_value = !matches!(value, AbstractClassValueV0::Top { .. });
+    AnalysisPrecisionV1 {
+        value_domain,
+        flow: if has_known_value {
+            FlowPrecisionV1::RepresentationBound
+        } else {
+            FlowPrecisionV1::Unknown
+        },
+        context: if has_known_value {
+            ContextPrecisionV1::ValueLocal
+        } else {
+            ContextPrecisionV1::Unknown
+        },
+        provider_completeness,
+        world_assumption,
+        revision: if has_known_value {
+            RevisionIdentityV1::Current
+        } else {
+            RevisionIdentityV1::Unknown
+        },
     }
+}
+
+pub fn fact_precision_from_class_value_with_witness(
+    value: &AbstractClassValueV0,
+    external_witness: Option<&OmenaAbstractValuePrecisionWitnessV0>,
+) -> FactPrecision {
+    let precision = analysis_precision_from_class_value_with_witness(value, external_witness);
+    fact_precision_from_analysis_precision(&precision)
 }
 
 fn automaton_precision_witness_is_sound(

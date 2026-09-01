@@ -276,7 +276,8 @@ pub(crate) use omena_query_core::{
     OmenaQueryAnalysisResultV0, OmenaSalsaDatabaseV0, PolynomialProvenanceV0,
     ProvenanceSemiringLawReportV0, ReducedClassValueProductIterationV0, ReducedClassValueProductV0,
     RefinementPropertyPredicateV0, SelectorProjectionCertaintyV0, abstract_class_value_from_facts,
-    abstract_class_value_kind, canonicalize_css_value,
+    abstract_class_value_kind, analysis_precision_from_class_value,
+    analysis_precision_from_class_value_with_witness, canonicalize_css_value,
     derive_context_indexed_cascade_restriction_maps_v0, fact_precision_from_class_value,
     fact_precision_from_class_value_with_witness, iterate_reduced_class_value_product_constraints,
     join_abstract_class_values, narrow_abstract_property_value_for_cascade_branch,
@@ -287,13 +288,15 @@ pub(crate) use omena_query_core::{
     summarize_polynomial_provenance_from_linear_v0, verify_provenance_semiring_laws_on_fixtures,
 };
 pub use omena_query_core::{
-    AbstractPropertyValueNarrowingV0, AbstractPropertyValueV0, ClassExpressionInputV2,
-    EngineInputV2, FactPrecision, IncrementalGraphInputV0, IncrementalNodeInputV0,
-    IncrementalRevisionV0, OmenaIncrementalDatabaseV0, OmenaQueryAnalysisPrecisionV0,
+    AbstractPropertyValueNarrowingV0, AbstractPropertyValueV0, AnalysisPrecisionV1,
+    ClassExpressionInputV2, ContextPrecisionV1, EngineInputV2, FactPrecision, FlowPrecisionV1,
+    IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
+    OmenaIncrementalDatabaseV0, OmenaQueryAnalysisPrecisionV0,
     OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryExpressionDomainIncrementalFlowAnalysisV0,
     OmenaQueryExpressionDomainSelectorProjectionV0, OmenaWorkspaceSnapshotIdV0, PositionV2,
-    RangeV2, SourceAnalysisInputV2, SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2,
-    StyleDocumentV2, StyleSelectorV2, TypeFactEntryV2, snapshot_from_graph_input,
+    ProviderCompletenessV1, RangeV2, RevisionIdentityV1, SourceAnalysisInputV2, SourceDocumentV2,
+    StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2, StyleSelectorV2, TypeFactEntryV2,
+    ValueDomainPrecisionV1, WorldAssumptionV1, snapshot_from_graph_input,
     summarize_omena_query_expression_domain_call_site_flow_analysis,
     summarize_omena_query_expression_domain_control_flow_analysis,
     summarize_omena_query_expression_domain_flow_analysis,
@@ -1052,7 +1055,7 @@ pub use types::{
     round_trip_omena_query_linear_provenance_labels,
 };
 pub(crate) use types::{
-    OMENA_QUERY_TSGO_PROVIDER_UNAVAILABLE_PROVENANCE, OMENA_QUERY_TYPE_ORACLE_UNKNOWN_VALUE_DOMAIN,
+    OMENA_QUERY_TSGO_PROVIDER_UNAVAILABLE_PROVENANCE,
     apply_omena_query_checker_product_gate_to_source_diagnostics,
     apply_omena_query_checker_product_gate_to_style_diagnostics, source_diagnostic_precision,
 };

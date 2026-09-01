@@ -2830,6 +2830,7 @@ version = "0.5.0"
 dependencies = [
  "omena-abstract-value",
  "omena-engine-input-producers",
+ "omena-evidence-graph",
  "omena-incremental",
  "omena-refinement",
  "omena-resolver",

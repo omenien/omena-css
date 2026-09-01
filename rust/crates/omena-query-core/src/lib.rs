@@ -30,6 +30,8 @@ use engine_input_producers::{
     summarize_selector_usage_canonical_producer_signal_input,
     summarize_selector_usage_query_fragments_input,
 };
+use omena_abstract_value::fact_precision_from_analysis_precision as project_fact_precision_from_analysis_precision;
+pub use omena_abstract_value::fact_precision_from_analysis_precision as fact_precision_from_precision_axes;
 use omena_abstract_value::{
     AbstractClassValueProvenanceV0, ClassValueFlowSealedIncrementalAnalysisV0,
     SealedClassValueFlowAnalysisArtifactV0, analyze_class_value_flow_incremental,
@@ -51,6 +53,7 @@ pub use omena_abstract_value::{
     ProvenanceSemiringLawReportV0, ReducedClassValueProductIterationV0, ReducedClassValueProductV0,
     SelectorProjectionCertaintyV0, SpecStandardPropertyValueValidatorV0, TokenObserverProjectionV0,
     abstract_class_value_from_facts, abstract_class_value_kind,
+    analysis_precision_from_class_value, analysis_precision_from_class_value_with_witness,
     derive_context_indexed_cascade_restriction_maps_v0, fact_precision_from_class_value,
     fact_precision_from_class_value_with_witness, iterate_reduced_class_value_product_constraints,
     join_abstract_class_values, narrow_abstract_property_value_for_authored_cascade_branch,
@@ -68,6 +71,10 @@ pub use omena_abstract_value::{
 )]
 pub use omena_abstract_value::{
     derive_cascade_restriction_maps_v0, summarize_cascade_value_family_v0,
+};
+pub use omena_evidence_graph::{
+    AnalysisPrecisionV1, ContextPrecisionV1, FlowPrecisionV1, ProviderCompletenessV1,
+    RevisionIdentityV1, ValueDomainPrecisionV1, WorldAssumptionV1,
 };
 pub use omena_incremental::{
     IncrementalEditDistancePriorityInputV0, IncrementalGraphInputV0,
@@ -117,30 +124,23 @@ fn record_selector_projection_evaluation_for_test() {
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryAnalysisPrecisionV0 {
     pub product: String,
-    pub value_domain: String,
-    pub flow_sensitivity: String,
-    pub context_sensitivity: String,
-    pub revision_axis: String,
+    #[serde(flatten)]
+    pub axes: AnalysisPrecisionV1,
 }
 
-const OMENA_QUERY_ANALYSIS_FACT_PRECISION_BY_VALUE_DOMAIN: &[(&str, FactPrecision)] = &[
-    ("cascadeAtPosition", FactPrecision::Exact),
-    ("styleModuleResolution", FactPrecision::Exact),
-    ("classValueResolution", FactPrecision::Conservative),
-    ("classValueUniverse", FactPrecision::Conservative),
-    ("classValueFlow", FactPrecision::Heuristic),
-    ("unknown", FactPrecision::Unknown),
-];
+impl OmenaQueryAnalysisPrecisionV0 {
+    pub fn new(product: impl Into<String>, axes: AnalysisPrecisionV1) -> Self {
+        Self {
+            product: product.into(),
+            axes,
+        }
+    }
+}
 
 pub fn fact_precision_from_analysis_precision(
     precision: &OmenaQueryAnalysisPrecisionV0,
 ) -> FactPrecision {
-    OMENA_QUERY_ANALYSIS_FACT_PRECISION_BY_VALUE_DOMAIN
-        .iter()
-        .find_map(|(value_domain, mapped)| {
-            (*value_domain == precision.value_domain).then_some(*mapped)
-        })
-        .unwrap_or(FactPrecision::Unknown)
+    project_fact_precision_from_analysis_precision(&precision.axes)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -233,7 +233,7 @@ pub struct OmenaQueryExpressionDomainSelectorProjectionEntryV0 {
 pub struct OmenaQueryExpressionDomainSelectorPrecisionV0 {
     pub graph_id: String,
     pub node_id: String,
-    pub precision: FactPrecision,
+    pub precision: AnalysisPrecisionV1,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -494,15 +494,44 @@ pub fn summarize_omena_query_expression_domain_incremental_flow_analysis_result(
 ) -> OmenaQueryAnalysisResultV0<OmenaQueryExpressionDomainIncrementalFlowAnalysisV0> {
     let value = runtime.analyze_input(input);
     let revision = value.revision;
+    let complete_dataflow = value.graph_count == value.analyses.len();
     OmenaQueryAnalysisResultV0::new(
         value,
-        OmenaQueryAnalysisPrecisionV0 {
-            product: "omena-query.analysis-precision".to_string(),
-            value_domain: "classValueFlow".to_string(),
-            flow_sensitivity: "incrementalDataflow".to_string(),
-            context_sensitivity: "perExpressionGraph".to_string(),
-            revision_axis: "OmenaQueryExpressionDomainFlowRuntimeV0.revision".to_string(),
-        },
+        OmenaQueryAnalysisPrecisionV0::new(
+            "omena-query.analysis-precision",
+            AnalysisPrecisionV1 {
+                value_domain: ValueDomainPrecisionV1::ClassValueFlow,
+                flow: FlowPrecisionV1::from_dataflow_mode(complete_dataflow),
+                context: ContextPrecisionV1::PerExpressionGraph,
+                provider_completeness: ProviderCompletenessV1::from_unresolved_count(
+                    input
+                        .sources
+                        .iter()
+                        .flat_map(|source| &source.document.class_expressions)
+                        .filter(|expression| {
+                            !input
+                                .type_facts
+                                .iter()
+                                .any(|fact| fact.expression_id == expression.id)
+                        })
+                        .count(),
+                ),
+                world_assumption: WorldAssumptionV1::from_closed_world(input.sources.iter().all(
+                    |source| {
+                        source.document.class_expressions.iter().all(|expression| {
+                            input
+                                .styles
+                                .iter()
+                                .any(|style| style.file_path == expression.scss_module_path)
+                        })
+                    },
+                )),
+                revision: RevisionIdentityV1::expression_domain_runtime(
+                    revision,
+                    runtime.revision(),
+                ),
+            },
+        ),
         vec![
             "omena-query-core.expression-domain-runtime".to_string(),
             "omena-abstract-value.incremental-class-value-flow".to_string(),
@@ -595,7 +624,7 @@ where
             precisions.push(OmenaQueryExpressionDomainSelectorPrecisionV0 {
                 graph_id: graph.graph_id.clone(),
                 node_id: node.id.clone(),
-                precision: fact_precision_from_class_value(&node.value),
+                precision: analysis_precision_from_class_value(&node.value),
             });
             projections.push(OmenaQueryExpressionDomainSelectorProjectionEntryV0 {
                 graph_id: graph.graph_id.clone(),
@@ -1304,42 +1333,61 @@ mod tests {
     }
 
     #[test]
-    fn analysis_precision_view_maps_known_producers_and_fails_closed() {
-        let precision = |value_domain: &str| OmenaQueryAnalysisPrecisionV0 {
-            product: "omena-query.analysis-precision".to_string(),
-            value_domain: value_domain.to_string(),
-            flow_sensitivity: "fixture".to_string(),
-            context_sensitivity: "fixture".to_string(),
-            revision_axis: "fixture".to_string(),
+    fn analysis_precision_view_projects_the_meet_and_round_trips_typed_axes() {
+        let exact_axes = AnalysisPrecisionV1 {
+            value_domain: ValueDomainPrecisionV1::CascadeAtPosition,
+            flow: FlowPrecisionV1::IncrementalDataflow,
+            context: ContextPrecisionV1::KLimitedCallSite,
+            provider_completeness: ProviderCompletenessV1::from_unresolved_count(0),
+            world_assumption: WorldAssumptionV1::from_closed_world(true),
+            revision: RevisionIdentityV1::from_revisions(4, 4),
         };
+        let precision =
+            |axes| OmenaQueryAnalysisPrecisionV0::new("omena-query.analysis-precision", axes);
 
         assert_eq!(
-            fact_precision_from_analysis_precision(&precision("cascadeAtPosition")),
-            FactPrecision::Exact
+            fact_precision_from_analysis_precision(&precision(exact_axes)),
+            FactPrecision::Exact,
         );
         assert_eq!(
-            fact_precision_from_analysis_precision(&precision("styleModuleResolution")),
-            FactPrecision::Exact
+            fact_precision_from_analysis_precision(&precision(AnalysisPrecisionV1 {
+                provider_completeness: ProviderCompletenessV1::from_unresolved_count(1),
+                ..exact_axes
+            })),
+            FactPrecision::Unknown,
         );
         assert_eq!(
-            fact_precision_from_analysis_precision(&precision("classValueResolution")),
-            FactPrecision::Conservative
+            fact_precision_from_analysis_precision(&precision(AnalysisPrecisionV1 {
+                world_assumption: WorldAssumptionV1::from_closed_world(false),
+                ..exact_axes
+            })),
+            FactPrecision::Heuristic,
         );
         assert_eq!(
-            fact_precision_from_analysis_precision(&precision("classValueUniverse")),
-            FactPrecision::Conservative
+            fact_precision_from_analysis_precision(&precision(AnalysisPrecisionV1 {
+                revision: RevisionIdentityV1::from_revisions(3, 4),
+                ..exact_axes
+            })),
+            FactPrecision::Heuristic,
         );
         assert_eq!(
-            fact_precision_from_analysis_precision(&precision("classValueFlow")),
-            FactPrecision::Heuristic
+            fact_precision_from_analysis_precision(&precision(AnalysisPrecisionV1 {
+                context: ContextPrecisionV1::from_max_context_depth(1),
+                ..exact_axes
+            })),
+            FactPrecision::Heuristic,
         );
         assert_eq!(
-            fact_precision_from_analysis_precision(&precision("unknown")),
-            FactPrecision::Unknown
+            fact_precision_from_analysis_precision(&precision(AnalysisPrecisionV1 {
+                flow: FlowPrecisionV1::KLimitedCallSiteFlow,
+                ..exact_axes
+            })),
+            FactPrecision::Heuristic,
         );
-        assert_eq!(
-            fact_precision_from_analysis_precision(&precision("unregistered")),
-            FactPrecision::Unknown
-        );
+
+        let serialized = serde_json::to_string(&precision(exact_axes)).expect("serialize");
+        let round_trip: OmenaQueryAnalysisPrecisionV0 =
+            serde_json::from_str(&serialized).expect("deserialize");
+        assert_eq!(round_trip.axes, exact_axes);
     }
 }

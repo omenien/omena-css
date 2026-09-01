@@ -397,12 +397,86 @@ model OmenaQueryCreateSassSymbolActionV0 {
   symbolSyntax: string;
 }
 
+enum OmenaQueryValueDomainPrecisionV1 {
+  exactClassValue: "exactClassValue",
+  closedClassValueSet: "closedClassValueSet",
+  patternClassValue: "patternClassValue",
+  cascadeAtPosition: "cascadeAtPosition",
+  styleModuleResolution: "styleModuleResolution",
+  classValueResolution: "classValueResolution",
+  classValueUniverse: "classValueUniverse",
+  classValueFlow: "classValueFlow",
+  unknownValue: "unknown",
+}
+
+enum OmenaQueryFlowPrecisionV1 {
+  representationBound: "representationBound",
+  providerObservation: "providerObservation",
+  incrementalDataflow: "incrementalDataflow",
+  positionScopedCascade: "positionScopedCascade",
+  sourceSelectorUsage: "sourceSelectorUsage",
+  sourceControlFlow: "sourceControlFlow",
+  sourceSyntaxIndex: "sourceSyntaxIndex",
+  globalClassUniverse: "globalClassUniverse",
+  sourceImportResolution: "sourceImportResolution",
+  typeOracleProviderUnavailable: "typeOracleProviderUnavailable",
+  sourceDomainReference: "sourceDomainReference",
+  sourceSelectorReference: "sourceSelectorReference",
+  kLimitedCallSiteFlow: "kLimitedCallSiteFlow",
+  fixture: "fixture",
+  unknownValue: "unknown",
+}
+
+enum OmenaQueryContextPrecisionV1 {
+  valueLocal: "valueLocal",
+  providerScoped: "providerScoped",
+  perExpressionGraph: "perExpressionGraph",
+  styleSemanticGraph: "styleSemanticGraph",
+  perModuleExport: "perModuleExport",
+  sameFile: "sameFile",
+  perSourceReference: "perSourceReference",
+  perImportSpecifier: "perImportSpecifier",
+  perTypeFactTarget: "perTypeFactTarget",
+  perDomainAxis: "perDomainAxis",
+  resolvedClassValueDomain: "resolvedClassValueDomain",
+  contextInsensitive: "0-cfa",
+  shallowCallSite: "1-cfa",
+  kLimitedCallSite: "k-cfa",
+  fixture: "fixture",
+  unknownValue: "unknown",
+}
+
+enum OmenaQueryProviderCompletenessV1 {
+  complete: "complete",
+  partial: "partial",
+  unresolved: "unresolved",
+  unknownValue: "unknown",
+}
+
+enum OmenaQueryWorldAssumptionV1 {
+  closed: "closed",
+  open: "open",
+  unknownValue: "unknown",
+}
+
+enum OmenaQueryRevisionIdentityV1 {
+  querySourceDiagnosticsInput: "OmenaQuerySourceDiagnosticsForFileV0.input",
+  expressionDomainFlowRuntime: "OmenaQueryExpressionDomainFlowRuntimeV0.revision",
+  evaluationRuntimeExpressionDomain: "OmenaQueryEvaluationRuntimeSummaryV0.expressionDomainRevision",
+  workspaceSnapshot: "workspaceSnapshot",
+  current: "current",
+  staleTypeFact: "staleTypeFact",
+  unknownValue: "unknown",
+}
+
 model OmenaQueryAnalysisPrecisionV0 {
   product: string;
-  valueDomain: string;
-  flowSensitivity: string;
-  contextSensitivity: string;
-  revisionAxis: string;
+  valueDomain: OmenaQueryValueDomainPrecisionV1;
+  flowSensitivity: OmenaQueryFlowPrecisionV1;
+  contextSensitivity: OmenaQueryContextPrecisionV1;
+  providerCompleteness: OmenaQueryProviderCompletenessV1;
+  worldAssumption: OmenaQueryWorldAssumptionV1;
+  revisionAxis: OmenaQueryRevisionIdentityV1;
 }
 
 model OmenaQuerySourceDiagnosticV0 {

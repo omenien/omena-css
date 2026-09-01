@@ -208,10 +208,13 @@ export function App({ suffix }) {
             .as_ref()
             .ok_or_else(|| format!("{code} must carry source diagnostic precision"))?;
         assert_eq!(precision.product, "omena-query.analysis-precision");
-        assert_eq!(precision.value_domain, "classValueResolution");
         assert_eq!(
-            precision.revision_axis,
-            "OmenaQuerySourceDiagnosticsForFileV0.input"
+            precision.axes.value_domain,
+            crate::ValueDomainPrecisionV1::ClassValueResolution,
+        );
+        assert_eq!(
+            precision.axes.revision,
+            crate::RevisionIdentityV1::QuerySourceDiagnosticsInput,
         );
     }
     let missing_module = diagnostics
@@ -573,8 +576,14 @@ fn source_diagnostics_tag_tsgo_unavailable_type_fact_as_unknown_precision()
         .precision
         .as_ref()
         .ok_or_else(|| std::io::Error::other("unknown provider diagnostic must carry precision"))?;
-    assert_eq!(precision.value_domain, "unknown");
-    assert_eq!(precision.flow_sensitivity, "typeOracleProviderUnavailable");
+    assert_eq!(
+        precision.axes.value_domain,
+        crate::ValueDomainPrecisionV1::Unknown,
+    );
+    assert_eq!(
+        precision.axes.flow,
+        crate::FlowPrecisionV1::TypeOracleProviderUnavailable,
+    );
     assert!(
         diagnostic
             .provenance

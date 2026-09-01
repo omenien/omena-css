@@ -452,7 +452,7 @@ fn acyclic_automaton_reachability_satisfies_the_tree_shake_precision_floor() -> 
     let observed_precision = precisions
         .iter()
         .find(|entry| entry.node_id == "utilities")
-        .map(|entry| entry.precision);
+        .map(|entry| omena_query_core::fact_precision_from_precision_axes(&entry.precision));
     assert_eq!(observed_precision, Some(crate::FactPrecision::Conservative));
 
     let summary = execute_omena_query_consumer_build_style_source_with_engine_input_context(

@@ -2807,34 +2807,35 @@ impl OmenaQuerySourceDiagnosticV0 {
 }
 
 pub(crate) fn source_diagnostic_precision(
-    value_domain: &str,
-    flow_sensitivity: &str,
-    context_sensitivity: &str,
+    value_domain: ValueDomainPrecisionV1,
+    flow: FlowPrecisionV1,
+    context: ContextPrecisionV1,
+    unresolved_provider_count: usize,
+    closed_world: bool,
 ) -> OmenaQueryAnalysisPrecisionV0 {
-    let precision =
-        source_diagnostic_precision_node(value_domain, flow_sensitivity, context_sensitivity);
-    OmenaQueryAnalysisPrecisionV0 {
-        product: precision.product,
-        value_domain: precision.value_domain,
-        flow_sensitivity: precision.flow_sensitivity,
-        context_sensitivity: precision.context_sensitivity,
-        revision_axis: precision.revision_axis,
-    }
+    let axes = AnalysisPrecisionV1 {
+        value_domain,
+        flow,
+        context,
+        provider_completeness: ProviderCompletenessV1::from_unresolved_count(
+            unresolved_provider_count,
+        ),
+        world_assumption: WorldAssumptionV1::from_closed_world(closed_world),
+        revision: RevisionIdentityV1::QuerySourceDiagnosticsInput,
+    };
+    let precision = source_diagnostic_precision_node(axes);
+    OmenaQueryAnalysisPrecisionV0::new(precision.product, precision.axes)
 }
 
 pub fn fact_precision_from_evidence_analysis_precision(
     precision: &EvidenceAnalysisPrecisionV0,
 ) -> omena_query_core::FactPrecision {
-    omena_query_core::fact_precision_from_analysis_precision(&OmenaQueryAnalysisPrecisionV0 {
-        product: precision.product.clone(),
-        value_domain: precision.value_domain.clone(),
-        flow_sensitivity: precision.flow_sensitivity.clone(),
-        context_sensitivity: precision.context_sensitivity.clone(),
-        revision_axis: precision.revision_axis.clone(),
-    })
+    omena_query_core::fact_precision_from_analysis_precision(&OmenaQueryAnalysisPrecisionV0::new(
+        precision.product.clone(),
+        precision.axes,
+    ))
 }
 
-pub(crate) const OMENA_QUERY_TYPE_ORACLE_UNKNOWN_VALUE_DOMAIN: &str = "unknown";
 pub(crate) const OMENA_QUERY_TSGO_PROVIDER_UNAVAILABLE_PROVENANCE: &str =
     "tsgo-provider.unavailable->unknown-precision";
 
@@ -2882,21 +2883,12 @@ fn populate_omena_query_checker_product_gate_provenance_from_evidence_graph(
     );
 }
 
-fn source_diagnostic_precision_node(
-    value_domain: &str,
-    flow_sensitivity: &str,
-    context_sensitivity: &str,
-) -> EvidenceAnalysisPrecisionV0 {
-    let precision = EvidenceAnalysisPrecisionV0::new(
-        "omena-query.analysis-precision",
-        value_domain,
-        flow_sensitivity,
-        context_sensitivity,
-        "OmenaQuerySourceDiagnosticsForFileV0.input",
-    );
+fn source_diagnostic_precision_node(axes: AnalysisPrecisionV1) -> EvidenceAnalysisPrecisionV0 {
+    let precision = EvidenceAnalysisPrecisionV0::new("omena-query.analysis-precision", axes);
+    let input_identity = format!("{:?}", axes.value_domain);
     let Some(node) = project_omena_query_evidence_node(
         "sourceDiagnosticPrecision",
-        value_domain,
+        input_identity.as_str(),
         &[],
         Some(precision.clone()),
     ) else {
@@ -3463,12 +3455,13 @@ mod evidence_graph_projection_tests {
     }
 
     #[test]
-    fn source_diagnostic_precision_projects_byte_identical_shape() -> Result<(), serde_json::Error>
-    {
+    fn source_diagnostic_precision_projects_typed_wire_shape() -> Result<(), serde_json::Error> {
         let precision = source_diagnostic_precision(
-            "classValueResolution",
-            "sourceSyntaxIndex",
-            "perSourceReference",
+            ValueDomainPrecisionV1::ClassValueResolution,
+            FlowPrecisionV1::SourceSyntaxIndex,
+            ContextPrecisionV1::PerSourceReference,
+            0,
+            true,
         );
         let serialized = serde_json::to_value(&precision)?;
 
@@ -3479,6 +3472,8 @@ mod evidence_graph_projection_tests {
                 "valueDomain": "classValueResolution",
                 "flowSensitivity": "sourceSyntaxIndex",
                 "contextSensitivity": "perSourceReference",
+                "providerCompleteness": "complete",
+                "worldAssumption": "closed",
                 "revisionAxis": "OmenaQuerySourceDiagnosticsForFileV0.input"
             })
         );

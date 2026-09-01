@@ -152,11 +152,17 @@ fn read_cascade_at_position_analysis_result_carries_revision_aligned_precision()
     assert_eq!(first.product, "omena-query.analysis-result");
     assert_eq!(first.value.product, "omena-query.read-cascade-at-position");
     assert_eq!(first.precision.product, "omena-query.analysis-precision");
-    assert_eq!(first.precision.value_domain, "cascadeAtPosition");
-    assert_eq!(first.precision.flow_sensitivity, "positionScopedCascade");
     assert_eq!(
-        first.precision.revision_axis,
-        "OmenaQueryEvaluationRuntimeSummaryV0.expressionDomainRevision"
+        first.precision.axes.value_domain,
+        crate::ValueDomainPrecisionV1::CascadeAtPosition,
+    );
+    assert_eq!(
+        first.precision.axes.flow,
+        crate::FlowPrecisionV1::PositionScopedCascade,
+    );
+    assert_eq!(
+        first.precision.axes.revision,
+        crate::RevisionIdentityV1::EvaluationRuntimeExpressionDomain,
     );
     assert!(
         first

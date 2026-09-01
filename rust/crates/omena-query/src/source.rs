@@ -626,15 +626,21 @@ pub fn resolve_omena_query_source_precision_for_source(
     variable_name: &str,
     reference_byte_offset: usize,
 ) -> OmenaQuerySourcePrecisionReferenceV0 {
-    let precision =
-        source_diagnostic_precision("classValueResolution", "sourceControlFlow", "sameFile");
-    let Some(capture) = summarize_omena_query_source_control_flow_graph_for_source_language(
+    let capture = summarize_omena_query_source_control_flow_graph_for_source_language(
         source_path,
         source,
         source_language,
         variable_name,
         reference_byte_offset,
-    ) else {
+    );
+    let precision = source_diagnostic_precision(
+        ValueDomainPrecisionV1::ClassValueResolution,
+        FlowPrecisionV1::SourceControlFlow,
+        ContextPrecisionV1::SameFile,
+        usize::from(capture.is_none()),
+        capture.is_some(),
+    );
+    let Some(capture) = capture else {
         return source_precision_reference(
             source_path,
             source_language,

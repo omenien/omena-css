@@ -867,9 +867,7 @@ impl EvidenceNodeSeedV0 {
     }
 }
 
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum EffectivePrecisionV1 {
     Unknown,
@@ -899,6 +897,12 @@ impl EffectivePrecisionV1 {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ValueDomainPrecisionV1 {
+    #[serde(rename = "exactClassValue")]
+    ExactClassValue,
+    #[serde(rename = "closedClassValueSet")]
+    ClosedClassValueSet,
+    #[serde(rename = "patternClassValue")]
+    PatternClassValue,
     #[serde(rename = "cascadeAtPosition")]
     CascadeAtPosition,
     #[serde(rename = "styleModuleResolution")]
@@ -916,11 +920,13 @@ pub enum ValueDomainPrecisionV1 {
 impl ValueDomainPrecisionV1 {
     pub const fn effective_precision(self) -> EffectivePrecisionV1 {
         match self {
-            Self::CascadeAtPosition | Self::StyleModuleResolution => EffectivePrecisionV1::Exact,
-            Self::ClassValueResolution | Self::ClassValueUniverse => {
+            Self::ExactClassValue | Self::CascadeAtPosition | Self::StyleModuleResolution => {
+                EffectivePrecisionV1::Exact
+            }
+            Self::ClosedClassValueSet | Self::ClassValueResolution | Self::ClassValueUniverse => {
                 EffectivePrecisionV1::Conservative
             }
-            Self::ClassValueFlow => EffectivePrecisionV1::Heuristic,
+            Self::PatternClassValue | Self::ClassValueFlow => EffectivePrecisionV1::Heuristic,
             Self::Unknown => EffectivePrecisionV1::Unknown,
         }
     }
@@ -928,6 +934,10 @@ impl ValueDomainPrecisionV1 {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum FlowPrecisionV1 {
+    #[serde(rename = "representationBound")]
+    RepresentationBound,
+    #[serde(rename = "providerObservation")]
+    ProviderObservation,
     #[serde(rename = "incrementalDataflow")]
     IncrementalDataflow,
     #[serde(rename = "positionScopedCascade")]
@@ -957,11 +967,21 @@ pub enum FlowPrecisionV1 {
 }
 
 impl FlowPrecisionV1 {
+    pub const fn from_dataflow_mode(dataflow_enabled: bool) -> Self {
+        if dataflow_enabled {
+            Self::IncrementalDataflow
+        } else {
+            Self::KLimitedCallSiteFlow
+        }
+    }
+
     pub const fn effective_precision(self) -> EffectivePrecisionV1 {
         match self {
-            Self::IncrementalDataflow | Self::PositionScopedCascade | Self::Fixture => {
-                EffectivePrecisionV1::Exact
-            }
+            Self::RepresentationBound
+            | Self::ProviderObservation
+            | Self::IncrementalDataflow
+            | Self::PositionScopedCascade
+            | Self::Fixture => EffectivePrecisionV1::Exact,
             Self::SourceSelectorUsage
             | Self::SourceControlFlow
             | Self::SourceSyntaxIndex
@@ -978,6 +998,10 @@ impl FlowPrecisionV1 {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ContextPrecisionV1 {
+    #[serde(rename = "valueLocal")]
+    ValueLocal,
+    #[serde(rename = "providerScoped")]
+    ProviderScoped,
     #[serde(rename = "perExpressionGraph")]
     PerExpressionGraph,
     #[serde(rename = "styleSemanticGraph")]
@@ -1019,7 +1043,9 @@ impl ContextPrecisionV1 {
 
     pub const fn effective_precision(self) -> EffectivePrecisionV1 {
         match self {
-            Self::PerExpressionGraph
+            Self::ValueLocal
+            | Self::ProviderScoped
+            | Self::PerExpressionGraph
             | Self::StyleSemanticGraph
             | Self::PerModuleExport
             | Self::PerSourceReference
@@ -1028,10 +1054,8 @@ impl ContextPrecisionV1 {
             | Self::PerDomainAxis
             | Self::KLimitedCallSite
             | Self::Fixture => EffectivePrecisionV1::Exact,
-            Self::SameFile | Self::ResolvedClassValueDomain | Self::ShallowCallSite => {
-                EffectivePrecisionV1::Conservative
-            }
-            Self::ContextInsensitive => EffectivePrecisionV1::Heuristic,
+            Self::SameFile | Self::ResolvedClassValueDomain => EffectivePrecisionV1::Conservative,
+            Self::ContextInsensitive | Self::ShallowCallSite => EffectivePrecisionV1::Heuristic,
             Self::Unknown => EffectivePrecisionV1::Unknown,
         }
     }
@@ -1062,6 +1086,14 @@ impl ProviderCompletenessV1 {
             Self::Unresolved | Self::Unknown => EffectivePrecisionV1::Unknown,
         }
     }
+
+    pub const fn with_closed_world_witness(self) -> Self {
+        match self {
+            Self::Complete | Self::Partial => Self::Complete,
+            Self::Unresolved => Self::Unresolved,
+            Self::Unknown => Self::Unknown,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -1084,7 +1116,7 @@ impl WorldAssumptionV1 {
     pub const fn effective_precision(self) -> EffectivePrecisionV1 {
         match self {
             Self::Closed => EffectivePrecisionV1::Exact,
-            Self::Open => EffectivePrecisionV1::Conservative,
+            Self::Open => EffectivePrecisionV1::Heuristic,
             Self::Unknown => EffectivePrecisionV1::Unknown,
         }
     }
@@ -1093,6 +1125,14 @@ impl WorldAssumptionV1 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RevisionIdentityV1 {
+    #[serde(rename = "OmenaQuerySourceDiagnosticsForFileV0.input")]
+    QuerySourceDiagnosticsInput,
+    #[serde(rename = "OmenaQueryExpressionDomainFlowRuntimeV0.revision")]
+    ExpressionDomainFlowRuntime,
+    #[serde(rename = "OmenaQueryEvaluationRuntimeSummaryV0.expressionDomainRevision")]
+    EvaluationRuntimeExpressionDomain,
+    #[serde(rename = "workspaceSnapshot")]
+    WorkspaceSnapshot,
     Current,
     StaleTypeFact,
     Unknown,
@@ -1107,9 +1147,21 @@ impl RevisionIdentityV1 {
         }
     }
 
+    pub const fn expression_domain_runtime(observed_revision: u64, current_revision: u64) -> Self {
+        if observed_revision == current_revision {
+            Self::ExpressionDomainFlowRuntime
+        } else {
+            Self::StaleTypeFact
+        }
+    }
+
     pub const fn effective_precision(self) -> EffectivePrecisionV1 {
         match self {
-            Self::Current => EffectivePrecisionV1::Exact,
+            Self::QuerySourceDiagnosticsInput
+            | Self::ExpressionDomainFlowRuntime
+            | Self::EvaluationRuntimeExpressionDomain
+            | Self::WorkspaceSnapshot
+            | Self::Current => EffectivePrecisionV1::Exact,
             Self::StaleTypeFact => EffectivePrecisionV1::Heuristic,
             Self::Unknown => EffectivePrecisionV1::Unknown,
         }
@@ -1120,14 +1172,28 @@ impl RevisionIdentityV1 {
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisPrecisionV1 {
     pub value_domain: ValueDomainPrecisionV1,
+    #[serde(rename = "flowSensitivity")]
     pub flow: FlowPrecisionV1,
+    #[serde(rename = "contextSensitivity")]
     pub context: ContextPrecisionV1,
     pub provider_completeness: ProviderCompletenessV1,
     pub world_assumption: WorldAssumptionV1,
+    #[serde(rename = "revisionAxis")]
     pub revision: RevisionIdentityV1,
 }
 
 impl AnalysisPrecisionV1 {
+    pub const fn unknown() -> Self {
+        Self {
+            value_domain: ValueDomainPrecisionV1::Unknown,
+            flow: FlowPrecisionV1::Unknown,
+            context: ContextPrecisionV1::Unknown,
+            provider_completeness: ProviderCompletenessV1::Unknown,
+            world_assumption: WorldAssumptionV1::Unknown,
+            revision: RevisionIdentityV1::Unknown,
+        }
+    }
+
     pub const fn effective_precision(self) -> EffectivePrecisionV1 {
         self.value_domain
             .effective_precision()
@@ -1136,6 +1202,15 @@ impl AnalysisPrecisionV1 {
             .meet(self.provider_completeness.effective_precision())
             .meet(self.world_assumption.effective_precision())
             .meet(self.revision.effective_precision())
+    }
+
+    pub const fn with_closed_world_witness(self, value_domain: ValueDomainPrecisionV1) -> Self {
+        Self {
+            value_domain,
+            provider_completeness: self.provider_completeness.with_closed_world_witness(),
+            world_assumption: WorldAssumptionV1::Closed,
+            ..self
+        }
     }
 }
 
@@ -1726,14 +1801,17 @@ mod tests {
             .as_ref()
             .ok_or("precision payload must round-trip through the graph")?;
         assert_eq!(precision.axes, axes);
-        assert_eq!(precision.axes.effective_precision(), EffectivePrecisionV1::Conservative);
+        assert_eq!(
+            precision.axes.effective_precision(),
+            EffectivePrecisionV1::Conservative
+        );
         let json = serde_json::to_value(precision).map_err(|_| "precision must serialize")?;
         assert_eq!(json["valueDomain"], "classValueResolution");
-        assert_eq!(json["flow"], "sourceSyntaxIndex");
-        assert_eq!(json["context"], "perSourceReference");
+        assert_eq!(json["flowSensitivity"], "sourceSyntaxIndex");
+        assert_eq!(json["contextSensitivity"], "perSourceReference");
         assert_eq!(json["providerCompleteness"], "complete");
         assert_eq!(json["worldAssumption"], "closed");
-        assert_eq!(json["revision"], "current");
+        assert_eq!(json["revisionAxis"], "current");
         Ok(())
     }
 
@@ -1747,9 +1825,16 @@ mod tests {
         ];
         for left in levels {
             assert_eq!(left.meet(left), left, "meet must be idempotent");
-            assert_eq!(left.meet(EffectivePrecisionV1::Unknown), EffectivePrecisionV1::Unknown);
+            assert_eq!(
+                left.meet(EffectivePrecisionV1::Unknown),
+                EffectivePrecisionV1::Unknown
+            );
             for right in levels {
-                assert_eq!(left.meet(right), right.meet(left), "meet must be commutative");
+                assert_eq!(
+                    left.meet(right),
+                    right.meet(left),
+                    "meet must be commutative"
+                );
                 for third in levels {
                     assert_eq!(
                         left.meet(right).meet(third),
@@ -1786,7 +1871,7 @@ mod tests {
                 ..exact
             }
             .effective_precision(),
-            EffectivePrecisionV1::Conservative,
+            EffectivePrecisionV1::Heuristic,
         );
         assert_eq!(
             AnalysisPrecisionV1 {
@@ -1802,7 +1887,7 @@ mod tests {
                 ..exact
             }
             .effective_precision(),
-            EffectivePrecisionV1::Conservative,
+            EffectivePrecisionV1::Heuristic,
         );
         assert_eq!(
             AnalysisPrecisionV1 {

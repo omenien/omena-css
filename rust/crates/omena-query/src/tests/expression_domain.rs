@@ -173,10 +173,13 @@ fn wraps_expression_domain_runtime_in_revision_aligned_analysis_result() -> Resu
     assert_eq!(first.product, "omena-query.analysis-result");
     assert_eq!(first.revision, 1);
     assert_eq!(first.value.revision, first.revision);
-    assert_eq!(first.precision.value_domain, "classValueFlow");
     assert_eq!(
-        first.precision.revision_axis,
-        "OmenaQueryExpressionDomainFlowRuntimeV0.revision"
+        first.precision.axes.value_domain,
+        crate::ValueDomainPrecisionV1::ClassValueFlow,
+    );
+    assert_eq!(
+        first.precision.axes.revision,
+        crate::RevisionIdentityV1::ExpressionDomainFlowRuntime,
     );
     assert!(
         first
@@ -199,6 +202,8 @@ fn wraps_expression_domain_runtime_in_revision_aligned_analysis_result() -> Resu
             "valueDomain": "classValueFlow",
             "flowSensitivity": "incrementalDataflow",
             "contextSensitivity": "perExpressionGraph",
+            "providerCompleteness": "complete",
+            "worldAssumption": "closed",
             "revisionAxis": "OmenaQueryExpressionDomainFlowRuntimeV0.revision"
         },
         "provenance": ["omena-query-core.expression-domain-runtime"],
@@ -236,7 +241,9 @@ fn projects_reduced_product_flow_to_target_style_selectors() {
         precisions
             .iter()
             .find(|precision| precision.node_id == "expr-primary")
-            .map(|precision| precision.precision),
+            .map(|precision| {
+                omena_query_core::fact_precision_from_precision_axes(&precision.precision)
+            }),
         Some(FactPrecision::Heuristic)
     );
     assert!(

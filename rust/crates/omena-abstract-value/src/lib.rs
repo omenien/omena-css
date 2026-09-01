@@ -33,6 +33,10 @@ pub use omena_cascade::{
     FirstWitnessErrorV0, OrderedTokenWordV0, TokenSupportV0, is_dom_class_ascii_whitespace_v0,
     token_support_v0, tokenize_dom_class_attribute_v0,
 };
+pub use omena_evidence_graph::{
+    AnalysisPrecisionV1, ContextPrecisionV1, EffectivePrecisionV1, FlowPrecisionV1,
+    ProviderCompletenessV1, RevisionIdentityV1, ValueDomainPrecisionV1, WorldAssumptionV1,
+};
 pub use property_value::*;
 pub use provenance::*;
 pub use reduced_product::{

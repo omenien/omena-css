@@ -391,7 +391,7 @@ pub(super) fn derive_omena_query_transform_context_from_sources_with_resolution_
 
 pub(super) struct OmenaQueryEngineInputTransformContextDerivationV0 {
     pub(super) module_reachability: OmenaQueryEngineInputModuleReachabilityV0,
-    pub(super) reachability_precision: Option<FactPrecision>,
+    pub(super) reachability_precisions: Vec<AnalysisPrecisionV1>,
     pub(super) closed_set_enumeration_candidate: bool,
 }
 
@@ -455,7 +455,7 @@ pub(super) fn derive_omena_query_transform_context_from_engine_input(
         .collect::<BTreeMap<_, _>>();
     let mut reachable_class_names = BTreeSet::new();
     let mut reachability_sources = Vec::new();
-    let mut reachability_precision_ceiling: Option<FactPrecision> = None;
+    let mut reachability_precisions = Vec::new();
     let mut closed_set_enumeration_candidate = true;
     let mut selected_projection_count = 0_usize;
     let mut targeted_class_names_by_style_path = BTreeMap::<String, BTreeSet<String>>::new();
@@ -517,12 +517,8 @@ pub(super) fn derive_omena_query_transform_context_from_engine_input(
             let projection_precision = precision_by_projection
                 .get(&(projection.graph_id.as_str(), projection.node_id.as_str()))
                 .copied()
-                .unwrap_or(FactPrecision::Unknown);
-            reachability_precision_ceiling = Some(
-                reachability_precision_ceiling.map_or(projection_precision, |current| {
-                    current.bounded_by(projection_precision)
-                }),
-            );
+                .unwrap_or_else(AnalysisPrecisionV1::unknown);
+            reachability_precisions.push(projection_precision);
             reachability_sources.push(OmenaQuerySemanticReachabilitySourceV0 {
                 graph_id: projection.graph_id.clone(),
                 file_path: projection.file_path.clone(),
@@ -639,7 +635,7 @@ pub(super) fn derive_omena_query_transform_context_from_engine_input(
     );
 
     OmenaQueryEngineInputTransformContextDerivationV0 {
-        reachability_precision: reachability_precision_ceiling,
+        reachability_precisions,
         closed_set_enumeration_candidate: selected_projection_count > 0
             && closed_set_enumeration_candidate,
         module_reachability,

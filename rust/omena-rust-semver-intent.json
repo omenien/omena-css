@@ -5,6 +5,108 @@
   "targetReleaseVersion": "0.6.0",
   "intents": [
     {
+      "crate": "omena-abstract-value",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor projects class-value precision through the evidence-owned six-axis meet, so an open-world finite set is heuristic until a sound closed-world witness is admitted.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "analysis-precision-six-axis-meet",
+          "kind": "selection-outcome-changing",
+          "surface": "class-value FactPrecision projection",
+          "reason": "FactPrecision now reflects the least precise value-domain, flow, context, provider-completeness, world-assumption, and revision axis instead of the value representation alone.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/domain.rs",
+              "needles": ["match precision.effective_precision()", "WorldAssumptionV1::Open"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-evidence-graph",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor replaces four public string fields with an evidence-owned typed six-axis precision value and changes the public constructor to accept that value as one argument.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": ["field EvidenceAnalysisPrecisionV0.axes"]
+        },
+        {
+          "lint": "method_parameter_count_changed",
+          "evidenceNeedles": [
+            "omena_evidence_graph::EvidenceAnalysisPrecisionV0::new takes 5 parameters",
+            "but now takes 2 parameters"
+          ]
+        },
+        {
+          "lint": "struct_pub_field_missing",
+          "evidenceNeedles": [
+            "field value_domain of struct EvidenceAnalysisPrecisionV0",
+            "field flow_sensitivity of struct EvidenceAnalysisPrecisionV0",
+            "field context_sensitivity of struct EvidenceAnalysisPrecisionV0",
+            "field revision_axis of struct EvidenceAnalysisPrecisionV0"
+          ]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "analysis-precision-wire-axes",
+          "kind": "wire-value-order-preserving",
+          "surface": "EvidenceAnalysisPrecisionV0 JSON precision metadata",
+          "reason": "The flattened wire object retains the four existing labels as typed enum values and adds provider-completeness and world-assumption labels.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
+              "needles": [
+                "pub provider_completeness: ProviderCompletenessV1",
+                "pub world_assumption: WorldAssumptionV1",
+                "#[serde(flatten)]"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-query-core",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor replaces the public query precision DTO's four string fields with the evidence-owned typed six-axis value and delegates FactPrecision projection to its meet authority.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": ["field OmenaQueryAnalysisPrecisionV0.axes"]
+        },
+        {
+          "lint": "struct_pub_field_missing",
+          "evidenceNeedles": [
+            "field value_domain of struct OmenaQueryAnalysisPrecisionV0",
+            "field flow_sensitivity of struct OmenaQueryAnalysisPrecisionV0",
+            "field context_sensitivity of struct OmenaQueryAnalysisPrecisionV0",
+            "field revision_axis of struct OmenaQueryAnalysisPrecisionV0"
+          ]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "query-analysis-precision-wire-axes",
+          "kind": "wire-value-order-preserving",
+          "surface": "OmenaQueryAnalysisPrecisionV0 JSON precision metadata",
+          "reason": "The flattened query wire object retains the existing labels as typed values and exposes provider-completeness and world-assumption so consumers can explain the effective meet.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
+              "needles": [
+                "pub axes: AnalysisPrecisionV1",
+                "project_fact_precision_from_analysis_precision(&precision.axes)"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
       "crate": "omena-bridge",
       "releaseClass": "pre1MinorBreaking",
       "reason": "The next pre-1.0 minor makes unavailable offline SIF attestation verification an explicit refusal instead of silently retaining the former host-only trust closure on every consumer.",
@@ -516,6 +618,40 @@
               "SourcePinV0"
             ]
           }
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "closed-world-precision-axis-meet",
+          "kind": "selection-outcome-changing",
+          "surface": "query closed-world reachability precision",
+          "reason": "Open-world, non-enumerated, and missing-member reachability results now remain heuristic because world-assumption participates in the meet; a sound sealed bundle can still raise the result to exact.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
+              "needles": [
+                "assert_eq!(open_world_precision, FactPrecision::Heuristic);",
+                "assert_eq!(closed_world_precision, FactPrecision::Exact);",
+                "\"loweringAxis\": \"worldAssumption\""
+              ]
+            }
+          ]
+        },
+        {
+          "id": "css-modules-export-usage-flow-precision",
+          "kind": "selection-outcome-changing",
+          "surface": "CSS Modules unused-export diagnostic precision",
+          "reason": "An unused-export diagnostic backed by complete module resolution now reports conservative precision because source-selector usage flow participates in the meet instead of being discarded behind an exact value-domain label.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
+              "needles": [
+                "flow: FlowPrecisionV1::SourceSelectorUsage",
+                "assert_eq!(report.diagnostics[0].precision, FactPrecision::Conservative);",
+                "\"loweringAxis\": \"flow\""
+              ]
+            }
+          ]
         }
       ]
     }

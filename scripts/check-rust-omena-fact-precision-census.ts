@@ -56,45 +56,17 @@ const precisionPattern = /FactPrecision::(Exact|Conservative|Heuristic|Unknown)/
 const expectedSites: readonly PrecisionSiteDispositionRecord[] = [
   site(
     "rust/crates/omena-abstract-value/src/domain.rs",
-    "fn fact_precision_from_class_value_with_witness",
-    { Exact: 2, Conservative: 2, Heuristic: 1, Unknown: 1 },
+    "fn fact_precision_from_analysis_precision",
+    { Exact: 1, Conservative: 1, Heuristic: 1, Unknown: 1 },
     "derivationRule",
-    "the exhaustive class-value lattice adapter derives rank from representation and bound witness",
+    "the only FactPrecision projection exhaustively maps the evidence-graph effective meet",
   ),
   site(
     "rust/crates/omena-bridge/src/style_intelligence.rs",
-    "const CSS_MODULES_METADATA",
-    { Exact: 1 },
-    "productionOverride",
-    "the built-in CSS Modules provider observes source-bound imports and class references directly",
-  ),
-  site(
-    "rust/crates/omena-bridge/src/style_intelligence.rs",
-    "const CVA_RECIPE_METADATA",
-    { Exact: 1 },
-    "productionOverride",
-    "the built-in CVA provider exposes only statically extracted recipe facts",
-  ),
-  site(
-    "rust/crates/omena-bridge/src/style_intelligence.rs",
-    "const UTILITY_DOMAIN_METADATA",
-    { Unknown: 1 },
-    "productionOverride",
-    "the utility-domain provider is not precision-backed until its external configuration is resolved",
-  ),
-  site(
-    "rust/crates/omena-bridge/src/style_intelligence.rs",
-    "const VANILLA_EXTRACT_METADATA",
-    { Exact: 1 },
-    "productionOverride",
-    "the built-in vanilla-extract provider exposes only statically extracted recipe facts",
-  ),
-  site(
-    "rust/crates/omena-bridge/src/style_intelligence.rs",
-    "const VUE_STYLE_MODULE_METADATA",
-    { Exact: 1 },
-    "productionOverride",
-    "the built-in Vue provider exposes source-bound useCssModule references",
+    "fn provider_precision_backed",
+    { Conservative: 1 },
+    "consumer",
+    "provider backing is derived from the projected meet and requires a conservative floor",
   ),
   site(
     "rust/crates/omena-bridge/src/utility_intelligence/mod.rs",
@@ -130,20 +102,6 @@ const expectedSites: readonly PrecisionSiteDispositionRecord[] = [
     { Heuristic: 1 },
     "productionOverride",
     "the migration policy marks missing local-semantic evidence for manual review",
-  ),
-  site(
-    "rust/crates/omena-query-core/src/lib.rs",
-    "const OMENA_QUERY_ANALYSIS_FACT_PRECISION_BY_VALUE_DOMAIN",
-    { Exact: 2, Conservative: 2, Heuristic: 1, Unknown: 1 },
-    "derivationRule",
-    "the closed value-domain adapter maps every declared query analysis domain",
-  ),
-  site(
-    "rust/crates/omena-query-core/src/lib.rs",
-    "fn fact_precision_from_analysis_precision",
-    { Unknown: 1 },
-    "derivationRule",
-    "an undeclared query analysis domain fails closed to Unknown",
   ),
   site(
     "rust/crates/omena-query-transform-runner/src/plugins/bundle_host.rs",
@@ -183,7 +141,7 @@ const expectedSites: readonly PrecisionSiteDispositionRecord[] = [
   site(
     "rust/crates/omena-query/src/style/transform.rs",
     "fn closed_world_bound_reachability_precision",
-    { Conservative: 2 },
+    { Conservative: 1 },
     "derivationRule",
     "the sealed-bundle adapter validates enumeration membership and a content-addressed witness",
   ),
@@ -200,13 +158,6 @@ const expectedSites: readonly PrecisionSiteDispositionRecord[] = [
     { Exact: 1, Conservative: 1, Heuristic: 1, Unknown: 1 },
     "consumer",
     "the closed-world bundle adapter folds carried source-rank counts into the execution precision ceiling",
-  ),
-  site(
-    "rust/crates/omena-query/src/style/transform/context.rs",
-    "fn derive_omena_query_transform_context_from_engine_input",
-    { Unknown: 1 },
-    "derivationRule",
-    "a projection absent from the precision index fails closed before the bounded ceiling fold",
   ),
   site(
     "rust/crates/omena-transform-passes/src/model.rs",
@@ -403,9 +354,13 @@ function cfgTestModuleRanges(source: string): readonly (readonly [number, number
 
 function enclosingOwner(source: string, offset: number): string {
   const prefix = source.slice(0, offset);
-  const declarations = [...prefix.matchAll(/(?<!')\b(fn|const|static)\s+([a-zA-Z0-9_]+)\b/gu)];
+  const declarations = [
+    ...prefix.matchAll(/(?<!')\b((?:const\s+)?fn|const|static)\s+([a-zA-Z0-9_]+)\b/gu),
+  ];
   const declaration = declarations.at(-1);
-  return declaration === undefined ? "moduleScope" : `${declaration[1]} ${declaration[2]}`;
+  if (declaration === undefined) return "moduleScope";
+  const kind = declaration[1]!.endsWith("fn") ? "fn" : declaration[1]!;
+  return `${kind} ${declaration[2]}`;
 }
 
 function analyzeRustLexicalContext(source: string): {

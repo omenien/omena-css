@@ -181,7 +181,7 @@ fn class_value_precision_view_preserves_domain_certainty() {
     );
     assert_eq!(
         fact_precision_from_class_value(&finite_set_class_value(["card", "panel"])),
-        FactPrecision::Conservative
+        FactPrecision::Heuristic
     );
     assert_eq!(
         fact_precision_from_class_value(&prefix_class_value("card-", None)),
@@ -218,7 +218,7 @@ fn closed_set_witness_promotes_only_bound_finite_enumerations() {
 
     assert_eq!(
         fact_precision_from_class_value(&value),
-        FactPrecision::Conservative
+        FactPrecision::Heuristic
     );
     assert_eq!(
         fact_precision_from_class_value_with_witness(&value, Some(&bound_witness)),
@@ -226,7 +226,7 @@ fn closed_set_witness_promotes_only_bound_finite_enumerations() {
     );
     assert_eq!(
         fact_precision_from_class_value_with_witness(&value, Some(&unbound_witness)),
-        FactPrecision::Conservative
+        FactPrecision::Heuristic
     );
 }
 

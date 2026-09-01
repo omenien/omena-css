@@ -1,4 +1,8 @@
-use omena_abstract_value::FactPrecision;
+use omena_abstract_value::{
+    AnalysisPrecisionV1, ContextPrecisionV1, FactPrecision, FlowPrecisionV1,
+    ProviderCompletenessV1, RevisionIdentityV1, ValueDomainPrecisionV1, WorldAssumptionV1,
+    fact_precision_from_analysis_precision,
+};
 use serde::Serialize;
 
 use omena_parser::ParserRangeV0;
@@ -19,6 +23,28 @@ pub struct StyleIntelligenceProviderMetadataV0 {
     pub utility_targets: &'static [&'static str],
     pub precision: FactPrecision,
     pub precision_backed: bool,
+}
+
+const fn provider_analysis_precision(import_target_count: usize) -> AnalysisPrecisionV1 {
+    let unresolved_provider_count = if import_target_count == 0 { 1 } else { 0 };
+    AnalysisPrecisionV1 {
+        value_domain: ValueDomainPrecisionV1::StyleModuleResolution,
+        flow: FlowPrecisionV1::ProviderObservation,
+        context: ContextPrecisionV1::ProviderScoped,
+        provider_completeness: ProviderCompletenessV1::from_unresolved_count(
+            unresolved_provider_count,
+        ),
+        world_assumption: WorldAssumptionV1::from_closed_world(import_target_count > 0),
+        revision: RevisionIdentityV1::Current,
+    }
+}
+
+const fn provider_fact_precision(import_target_count: usize) -> FactPrecision {
+    fact_precision_from_analysis_precision(&provider_analysis_precision(import_target_count))
+}
+
+const fn provider_precision_backed(import_target_count: usize) -> bool {
+    provider_fact_precision(import_target_count).satisfies(FactPrecision::Conservative)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -268,6 +294,12 @@ pub(crate) struct BuiltInRecipeProviderConfigV0 {
     pub(crate) call_shape: BuiltInRecipeCallShapeV0,
 }
 
+const CSS_MODULES_IMPORT_TARGETS: &[&str] = &["*.module.css", "*.module.scss", "*.module.less"];
+const UTILITY_DOMAIN_IMPORT_TARGETS: &[&str] = &[];
+const VANILLA_EXTRACT_IMPORT_TARGETS: &[&str] = &["@vanilla-extract/recipes"];
+const VUE_STYLE_MODULE_IMPORT_TARGETS: &[&str] = &["*.vue"];
+const CVA_RECIPE_IMPORT_TARGETS: &[&str] = &["class-variance-authority", "cva"];
+
 const CSS_MODULES_METADATA: StyleIntelligenceProviderMetadataV0 =
     StyleIntelligenceProviderMetadataV0 {
         provider_id: "css-modules-classnames-bind",
@@ -280,10 +312,10 @@ const CSS_MODULES_METADATA: StyleIntelligenceProviderMetadataV0 =
             "classReferenceExtraction",
             "sourceExpressionProjection",
         ],
-        import_targets: &["*.module.css", "*.module.scss", "*.module.less"],
+        import_targets: CSS_MODULES_IMPORT_TARGETS,
         utility_targets: &["classnames/bind", "classnames", "clsx", "clsx/lite"],
-        precision: FactPrecision::Exact,
-        precision_backed: true,
+        precision: provider_fact_precision(CSS_MODULES_IMPORT_TARGETS.len()),
+        precision_backed: provider_precision_backed(CSS_MODULES_IMPORT_TARGETS.len()),
     };
 
 const UTILITY_DOMAIN_METADATA: StyleIntelligenceProviderMetadataV0 =
@@ -298,10 +330,10 @@ const UTILITY_DOMAIN_METADATA: StyleIntelligenceProviderMetadataV0 =
             "completionProjection",
             "graphBoundHoverProjection",
         ],
-        import_targets: &[],
+        import_targets: UTILITY_DOMAIN_IMPORT_TARGETS,
         utility_targets: &["class", "className", "classnames", "clsx", "clsx/lite"],
-        precision: FactPrecision::Unknown,
-        precision_backed: false,
+        precision: provider_fact_precision(UTILITY_DOMAIN_IMPORT_TARGETS.len()),
+        precision_backed: provider_precision_backed(UTILITY_DOMAIN_IMPORT_TARGETS.len()),
     };
 
 const VANILLA_EXTRACT_METADATA: StyleIntelligenceProviderMetadataV0 =
@@ -311,10 +343,10 @@ const VANILLA_EXTRACT_METADATA: StyleIntelligenceProviderMetadataV0 =
         stability: "builtIn",
         domains: &["vanilla-extract-recipes"],
         owns_surfaces: &["domainClassReferenceExtraction"],
-        import_targets: &["@vanilla-extract/recipes"],
+        import_targets: VANILLA_EXTRACT_IMPORT_TARGETS,
         utility_targets: &["recipe"],
-        precision: FactPrecision::Exact,
-        precision_backed: true,
+        precision: provider_fact_precision(VANILLA_EXTRACT_IMPORT_TARGETS.len()),
+        precision_backed: provider_precision_backed(VANILLA_EXTRACT_IMPORT_TARGETS.len()),
     };
 
 const VUE_STYLE_MODULE_METADATA: StyleIntelligenceProviderMetadataV0 =
@@ -324,10 +356,10 @@ const VUE_STYLE_MODULE_METADATA: StyleIntelligenceProviderMetadataV0 =
         stability: "builtIn",
         domains: &["vue-style-modules"],
         owns_surfaces: &["domainClassReferenceExtraction"],
-        import_targets: &["*.vue"],
+        import_targets: VUE_STYLE_MODULE_IMPORT_TARGETS,
         utility_targets: &["useCssModule"],
-        precision: FactPrecision::Exact,
-        precision_backed: true,
+        precision: provider_fact_precision(VUE_STYLE_MODULE_IMPORT_TARGETS.len()),
+        precision_backed: provider_precision_backed(VUE_STYLE_MODULE_IMPORT_TARGETS.len()),
     };
 
 const CVA_RECIPE_METADATA: StyleIntelligenceProviderMetadataV0 =
@@ -337,10 +369,10 @@ const CVA_RECIPE_METADATA: StyleIntelligenceProviderMetadataV0 =
         stability: "builtIn",
         domains: &["cva-recipe"],
         owns_surfaces: &["domainClassReferenceExtraction"],
-        import_targets: &["class-variance-authority", "cva"],
+        import_targets: CVA_RECIPE_IMPORT_TARGETS,
         utility_targets: &["cva"],
-        precision: FactPrecision::Exact,
-        precision_backed: true,
+        precision: provider_fact_precision(CVA_RECIPE_IMPORT_TARGETS.len()),
+        precision_backed: provider_precision_backed(CVA_RECIPE_IMPORT_TARGETS.len()),
     };
 
 const VANILLA_EXTRACT_RECIPE_CONFIG: BuiltInRecipeProviderConfigV0 =
@@ -503,6 +535,29 @@ mod tests {
         );
         assert!(built_in_style_intelligence_provider("cva-recipe-domain").is_some());
         Ok(())
+    }
+
+    #[test]
+    fn provider_precision_backing_consumes_completeness_not_only_value_domain() {
+        let unresolved = provider_analysis_precision(UTILITY_DOMAIN_IMPORT_TARGETS.len());
+        assert_eq!(
+            unresolved.value_domain,
+            ValueDomainPrecisionV1::StyleModuleResolution,
+        );
+        assert_eq!(
+            provider_fact_precision(UTILITY_DOMAIN_IMPORT_TARGETS.len()),
+            FactPrecision::Unknown,
+        );
+        assert!(!provider_precision_backed(
+            UTILITY_DOMAIN_IMPORT_TARGETS.len(),
+        ));
+
+        let complete = provider_analysis_precision(CSS_MODULES_IMPORT_TARGETS.len());
+        assert_eq!(
+            fact_precision_from_analysis_precision(&complete),
+            FactPrecision::Exact,
+        );
+        assert!(provider_precision_backed(CSS_MODULES_IMPORT_TARGETS.len()));
     }
 
     #[test]

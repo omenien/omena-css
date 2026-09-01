@@ -7,7 +7,11 @@ use crate::{
     execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
     execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_and_precision,
 };
-use omena_abstract_value::FactPrecision;
+use omena_abstract_value::{
+    AnalysisPrecisionV1, ContextPrecisionV1, FactPrecision, FlowPrecisionV1,
+    ProviderCompletenessV1, RevisionIdentityV1, ValueDomainPrecisionV1, WorldAssumptionV1,
+    fact_precision_from_analysis_precision,
+};
 use omena_parser::{
     ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0, StyleDialect,
 };
@@ -171,6 +175,93 @@ fn tree_shake_requires_explicit_closed_world_bundle() -> Result<(), String> {
         })
     ));
     Ok(())
+}
+
+#[test]
+fn tree_shake_precision_floor_consumes_the_full_axis_meet() {
+    let source = ".used { color: red; } .dead { color: blue; }";
+    let context = TransformExecutionContextV0 {
+        reachable_class_names: vec!["used".to_string()],
+        ..TransformExecutionContextV0::default()
+    };
+    let instance = ModuleInstanceKeyV0::new(
+        ModuleIdV0::new("precision-meet.css"),
+        ConfigurationHashV0::none(),
+    );
+    let bundle = test_closed_world_bundle(
+        vec![instance.clone()],
+        vec![ClosedWorldLinkedModuleV0::new(instance).with_class_name("used")],
+    );
+    let passes = [
+        TransformPassKind::TreeShakeClass,
+        TransformPassKind::PrintCss,
+    ];
+    let exact = AnalysisPrecisionV1 {
+        value_domain: ValueDomainPrecisionV1::CascadeAtPosition,
+        flow: FlowPrecisionV1::IncrementalDataflow,
+        context: ContextPrecisionV1::KLimitedCallSite,
+        provider_completeness: ProviderCompletenessV1::from_unresolved_count(0),
+        world_assumption: WorldAssumptionV1::from_closed_world(true),
+        revision: RevisionIdentityV1::from_revisions(12, 12),
+    };
+    let execute = |precision| {
+        execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_and_precision(
+            source,
+            StyleDialect::Css,
+            &passes,
+            &context,
+            &bundle,
+            fact_precision_from_analysis_precision(&precision),
+        )
+    };
+
+    assert_eq!(execute(exact).mutation_count, 1);
+    let unresolved_provider = AnalysisPrecisionV1 {
+        provider_completeness: ProviderCompletenessV1::from_unresolved_count(1),
+        ..exact
+    };
+    assert_eq!(
+        unresolved_provider.provider_completeness,
+        ProviderCompletenessV1::Unresolved
+    );
+    let open_world = AnalysisPrecisionV1 {
+        world_assumption: WorldAssumptionV1::from_closed_world(false),
+        ..exact
+    };
+    assert_eq!(open_world.world_assumption, WorldAssumptionV1::Open);
+    let stale_revision = AnalysisPrecisionV1 {
+        revision: RevisionIdentityV1::from_revisions(11, 12),
+        ..exact
+    };
+    assert_eq!(stale_revision.revision, RevisionIdentityV1::StaleTypeFact);
+    let shallow_context = AnalysisPrecisionV1 {
+        context: ContextPrecisionV1::from_max_context_depth(1),
+        ..exact
+    };
+    assert_eq!(shallow_context.context, ContextPrecisionV1::ShallowCallSite);
+    let non_dataflow = AnalysisPrecisionV1 {
+        flow: FlowPrecisionV1::from_dataflow_mode(false),
+        ..exact
+    };
+    assert_eq!(non_dataflow.flow, FlowPrecisionV1::KLimitedCallSiteFlow);
+    for lowered in [
+        unresolved_provider,
+        open_world,
+        stale_revision,
+        shallow_context,
+        non_dataflow,
+    ] {
+        let blocked = execute(lowered);
+        assert_eq!(blocked.output_css, source);
+        assert_eq!(blocked.mutation_count, 0);
+        assert!(matches!(
+            blocked.decisions.first(),
+            Some(TransformDecision::Blocked {
+                reason: TransformBlockedReasonV0::PrecisionBelowFloor { .. },
+                ..
+            })
+        ));
+    }
 }
 
 #[test]

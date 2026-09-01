@@ -1075,7 +1075,7 @@ pub fn execute_omena_query_consumer_build_style_source_with_context_and_options(
         style_source,
         requested_pass_ids,
         context,
-        None,
+        &[],
         false,
         options,
     )
@@ -1086,7 +1086,7 @@ fn execute_omena_query_consumer_build_style_source_with_context_and_reachability
     style_source: &str,
     requested_pass_ids: &[String],
     context: &TransformExecutionContextV0,
-    reachability_precision: Option<FactPrecision>,
+    reachability_precisions: &[AnalysisPrecisionV1],
     closed_set_enumeration_candidate: bool,
     options: &OmenaQueryConsumerBuildOptionsV0,
 ) -> OmenaQueryConsumerBuildSummaryV0 {
@@ -1108,7 +1108,7 @@ fn execute_omena_query_consumer_build_style_source_with_context_and_reachability
         let reachability_precision = closed_world_bound_reachability_precision(
             &context,
             closed_world_bundle,
-            reachability_precision,
+            reachability_precisions,
             closed_set_enumeration_candidate,
         );
         return execute_omena_query_consumer_build_style_source_with_context_and_closed_world_bundle(
@@ -1335,7 +1335,7 @@ pub fn execute_omena_query_consumer_build_style_source_with_engine_input_context
             style_source,
             requested_pass_ids,
             context_derivation.module_reachability.context(),
-            context_derivation.reachability_precision,
+            context_derivation.reachability_precisions.as_slice(),
             context_derivation.closed_set_enumeration_candidate,
             &OmenaQueryConsumerBuildOptionsV0::default(),
         );
@@ -1351,14 +1351,15 @@ pub fn execute_omena_query_consumer_build_style_source_with_engine_input_context
 fn closed_world_bound_reachability_precision(
     context: &TransformExecutionContextV0,
     closed_world_bundle: &ClosedWorldBundleV0,
-    open_world_precision: Option<FactPrecision>,
+    open_world_precisions: &[AnalysisPrecisionV1],
     closed_set_enumeration_candidate: bool,
 ) -> FactPrecision {
-    let fallback = open_world_precision.unwrap_or(FactPrecision::Conservative);
-    if !closed_set_enumeration_candidate
-        || !fallback.satisfies(FactPrecision::Conservative)
-        || context.reachable_class_names.is_empty()
-    {
+    let fallback = open_world_precisions
+        .iter()
+        .map(omena_query_core::fact_precision_from_precision_axes)
+        .reduce(FactPrecision::bounded_by)
+        .unwrap_or(FactPrecision::Conservative);
+    if !closed_set_enumeration_candidate || context.reachable_class_names.is_empty() {
         return fallback;
     }
 
@@ -1388,7 +1389,16 @@ fn closed_world_bound_reachability_precision(
         basis: OmenaAbstractValuePrecisionBasisV0::ClosedSetEnumeration,
         authority_digest: Some(closed_world_bundle.closure_hash().to_string()),
     };
-    fact_precision_from_class_value_with_witness(&value, Some(&witness))
+    let witnessed = analysis_precision_from_class_value_with_witness(&value, Some(&witness));
+    open_world_precisions
+        .iter()
+        .map(|precision| {
+            omena_query_core::fact_precision_from_precision_axes(
+                &precision.with_closed_world_witness(witnessed.value_domain),
+            )
+        })
+        .reduce(FactPrecision::bounded_by)
+        .unwrap_or(fallback)
 }
 
 pub fn execute_omena_query_consumer_build_style_sources_with_context(
@@ -6914,19 +6924,13 @@ mod closed_set_precision_tests {
         let finite_value = AbstractClassValueV0::FiniteSet {
             values: reachable_class_names,
         };
-        let open_world_precision = fact_precision_from_class_value(&finite_value);
-        let closed_world_precision = closed_world_bound_reachability_precision(
-            &context,
-            &bundle,
-            Some(open_world_precision),
-            true,
-        );
-        let non_enumerated_precision = closed_world_bound_reachability_precision(
-            &context,
-            &bundle,
-            Some(open_world_precision),
-            false,
-        );
+        let open_world_axes = analysis_precision_from_class_value(&finite_value);
+        let open_world_precision =
+            omena_query_core::fact_precision_from_precision_axes(&open_world_axes);
+        let closed_world_precision =
+            closed_world_bound_reachability_precision(&context, &bundle, &[open_world_axes], true);
+        let non_enumerated_precision =
+            closed_world_bound_reachability_precision(&context, &bundle, &[open_world_axes], false);
         let missing_member_context = TransformExecutionContextV0 {
             reachable_class_names: vec!["card".to_string(), "outside-bundle".to_string()],
             ..TransformExecutionContextV0::default()
@@ -6934,14 +6938,14 @@ mod closed_set_precision_tests {
         let missing_member_precision = closed_world_bound_reachability_precision(
             &missing_member_context,
             &bundle,
-            Some(open_world_precision),
+            &[open_world_axes],
             true,
         );
 
-        assert_eq!(open_world_precision, FactPrecision::Conservative);
+        assert_eq!(open_world_precision, FactPrecision::Heuristic);
         assert_eq!(closed_world_precision, FactPrecision::Exact);
-        assert_eq!(non_enumerated_precision, FactPrecision::Conservative);
-        assert_eq!(missing_member_precision, FactPrecision::Conservative);
+        assert_eq!(non_enumerated_precision, FactPrecision::Heuristic);
+        assert_eq!(missing_member_precision, FactPrecision::Heuristic);
 
         let calibration_report: serde_json::Value = serde_json::from_str(include_str!(
             "../../../../omena-precision-calibration-report.json"
@@ -6960,6 +6964,26 @@ mod closed_set_precision_tests {
                 "closedWorldPrecision": closed_world_precision,
                 "nonEnumeratedPrecision": non_enumerated_precision,
                 "missingMemberPrecision": missing_member_precision,
+                "precisionLabelDrops": [
+                    {
+                        "output": "openWorldPrecision",
+                        "before": "conservative",
+                        "after": "heuristic",
+                        "loweringAxis": "worldAssumption",
+                    },
+                    {
+                        "output": "nonEnumeratedPrecision",
+                        "before": "conservative",
+                        "after": "heuristic",
+                        "loweringAxis": "worldAssumption",
+                    },
+                    {
+                        "output": "missingMemberPrecision",
+                        "before": "conservative",
+                        "after": "heuristic",
+                        "loweringAxis": "worldAssumption",
+                    },
+                ],
             })
         );
         Ok(())

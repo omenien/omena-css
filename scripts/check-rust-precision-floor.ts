@@ -72,12 +72,28 @@ function callBodies(source: string, marker: string): string[] {
 
 const abstractTypes = read("rust/crates/omena-abstract-value/src/types.rs");
 const abstractDomain = read("rust/crates/omena-abstract-value/src/domain.rs");
+const evidenceGraph = read("rust/crates/omena-evidence-graph/src/lib.rs");
 const queryCore = read("rust/crates/omena-query-core/src/lib.rs");
 const queryTypes = read("rust/crates/omena-query/src/types.rs");
 const queryTransform = read("rust/crates/omena-query/src/style/transform.rs");
 const queryTransformContext = read("rust/crates/omena-query/src/style/transform/context.rs");
+const checkerFixSafety = read("rust/crates/omena-checker/src/fix_safety.rs");
+const bridgeStyleIntelligence = read("rust/crates/omena-bridge/src/style_intelligence.rs");
 const transformModel = read("rust/crates/omena-transform-passes/src/model.rs");
 const transformExecutor = read("rust/crates/omena-transform-passes/src/runtime/executor.rs");
+const transformTreeShakeTests = read(
+  "rust/crates/omena-transform-passes/src/tests/tree_shake_classes.rs",
+);
+const precisionCalibration = JSON.parse(read("rust/omena-precision-calibration-report.json")) as {
+  readonly cases: readonly {
+    readonly precisionLabelDrops?: readonly {
+      readonly output: string;
+      readonly before: string;
+      readonly after: string;
+      readonly loweringAxis: string;
+    }[];
+  }[];
+};
 
 const factPrecisionVariants = topLevelEnumVariants(abstractTypes, "FactPrecision");
 assert.deepEqual(factPrecisionVariants, ["Exact", "Conservative", "Heuristic", "Unknown"]);
@@ -85,7 +101,7 @@ assert.deepEqual(factPrecisionVariants, ["Exact", "Conservative", "Heuristic", "
 const classValueVariants = topLevelEnumVariants(abstractTypes, "AbstractClassValueV0");
 const classValueAdapter = blockBody(
   abstractDomain,
-  "pub fn fact_precision_from_class_value_with_witness",
+  "pub fn analysis_precision_from_class_value_with_witness",
 );
 const mappedClassValueVariants = [
   ...new Set(
@@ -97,70 +113,139 @@ const mappedClassValueVariants = [
 assert.deepEqual(mappedClassValueVariants, classValueVariants.toSorted());
 assert.ok(!/(^|[^\w])_\s*=>/u.test(classValueAdapter), "class-value adapter must not catch all");
 
-const producerSources = [queryCore, ...rustSources("rust/crates/omena-query/src")];
-const producerValueDomains = new Set<string>();
-for (const source of producerSources) {
-  for (const match of source.matchAll(/value_domain:\s*"([^"]+)"/gu)) {
-    if (match[1]) producerValueDomains.add(match[1]);
-  }
-  for (const match of source.matchAll(/source_diagnostic_precision\(\s*"([^"]+)"/gu)) {
-    if (match[1]) producerValueDomains.add(match[1]);
-  }
-  if (source.includes("OMENA_QUERY_TYPE_ORACLE_UNKNOWN_VALUE_DOMAIN")) {
-    producerValueDomains.add("unknown");
-  }
+const precisionAxisTypes = [
+  "ValueDomainPrecisionV1",
+  "FlowPrecisionV1",
+  "ContextPrecisionV1",
+  "ProviderCompletenessV1",
+  "WorldAssumptionV1",
+  "RevisionIdentityV1",
+] as const;
+for (const axisType of precisionAxisTypes) {
+  assert.ok(
+    evidenceGraph.includes(`pub enum ${axisType}`),
+    `${axisType} must be owned by omena-evidence-graph`,
+  );
+  const declarations = rustSources("rust/crates").reduce(
+    (count, source) =>
+      count + [...source.matchAll(new RegExp(`pub enum ${axisType}\\s*\\{`, "gu"))].length,
+    0,
+  );
+  assert.equal(declarations, 1, `${axisType} must have one authority`);
 }
+const analysisPrecision = blockBody(evidenceGraph, "pub struct AnalysisPrecisionV1");
+for (const [field, axisType] of [
+  ["value_domain", "ValueDomainPrecisionV1"],
+  ["flow", "FlowPrecisionV1"],
+  ["context", "ContextPrecisionV1"],
+  ["provider_completeness", "ProviderCompletenessV1"],
+  ["world_assumption", "WorldAssumptionV1"],
+  ["revision", "RevisionIdentityV1"],
+] as const) {
+  assert.match(analysisPrecision, new RegExp(`pub ${field}: ${axisType}`, "u"));
+}
+const analysisPrecisionImpl = blockBody(evidenceGraph, "impl AnalysisPrecisionV1");
+const effectivePrecision = blockBody(
+  analysisPrecisionImpl,
+  "pub const fn effective_precision(self)",
+);
+for (const field of [
+  "value_domain",
+  "flow",
+  "context",
+  "provider_completeness",
+  "world_assumption",
+  "revision",
+]) {
+  assert.ok(effectivePrecision.includes(`self.${field}`), `meet must consume ${field}`);
+}
+assert.ok(effectivePrecision.includes(".meet("), "effective precision must be a meet");
+assert.ok(
+  evidenceGraph.includes("precision_meet_obeys_lattice_laws_and_unknown_absorbs"),
+  "lattice laws must stay executable",
+);
+
+const precisionProducerSources = [
+  evidenceGraph,
+  abstractDomain,
+  queryCore,
+  queryTypes,
+  ...rustSources("rust/crates/omena-query/src"),
+];
+const typedProducerValueDomains = new Set(
+  precisionProducerSources.flatMap((source) =>
+    [...source.matchAll(/value_domain:\s*ValueDomainPrecisionV1::([A-Z][A-Za-z0-9]*)/gu)].map(
+      (match) => match[1]!,
+    ),
+  ),
+);
+assert.ok(typedProducerValueDomains.size > 0, "typed value-domain producers must be non-vacuous");
+const typedAxisProducerMarkers = [
+  "analysis_precision_from_class_value_with_witness",
+  "FlowPrecisionV1::from_dataflow_mode",
+  "ContextPrecisionV1::from_max_context_depth",
+  "ProviderCompletenessV1::from_unresolved_count",
+  "WorldAssumptionV1::from_closed_world",
+  "RevisionIdentityV1::from_revisions",
+] as const;
+const typedAxisProducerCorpus = precisionProducerSources.join("\n");
+for (const marker of typedAxisProducerMarkers) {
+  assert.ok(typedAxisProducerCorpus.includes(marker), `missing typed axis producer ${marker}`);
+}
+function literalConstantAxisAssignments(sources: readonly string[]): string[] {
+  const pattern =
+    /(?:value_domain|flow(?:_sensitivity)?|context(?:_sensitivity)?|provider_completeness|world_assumption|revision(?:_axis)?):\s*(?:String::from\s*\(\s*)?"[^"]+"/gu;
+  return sources.flatMap((source) => [...source.matchAll(pattern)].map((match) => match[0]));
+}
+const literalAxisAssignments = literalConstantAxisAssignments(precisionProducerSources);
+assert.deepEqual(
+  literalAxisAssignments,
+  [],
+  "precision axes must be computed by typed producers, not assigned literal labels",
+);
+assert.equal(
+  literalConstantAxisAssignments(['flow_sensitivity: "incrementalDataflow"']).length,
+  1,
+  "the literal-axis falsifier must be detected",
+);
+function stringKeyedPrecisionDerivations(sources: readonly string[]): string[] {
+  const patterns = [
+    /OMENA_QUERY_ANALYSIS_FACT_PRECISION_BY_VALUE_DOMAIN/gu,
+    /source_diagnostic_precision\(\s*"/gu,
+    /(?:value_domain|flow_sensitivity|context_sensitivity|revision_axis):\s*(?:String|"[^"]+")/gu,
+    /precision\.value_domain\s*==/gu,
+  ];
+  return sources.flatMap((source) =>
+    patterns.flatMap((pattern) => [...source.matchAll(pattern)].map((match) => match[0])),
+  );
+}
+const stringKeyedDerivations = stringKeyedPrecisionDerivations(precisionProducerSources);
+assert.deepEqual(
+  stringKeyedDerivations,
+  [],
+  "precision identity and gates must not use String axes",
+);
+assert.equal(
+  stringKeyedPrecisionDerivations([
+    "const OMENA_QUERY_ANALYSIS_FACT_PRECISION_BY_VALUE_DOMAIN: &[(&str, FactPrecision)] = &[];",
+  ]).length,
+  1,
+  "the String-keyed derivation falsifier must be detected",
+);
 
 const analysisAdapter = blockBody(queryCore, "pub fn fact_precision_from_analysis_precision");
-const analysisMappingStart = queryCore.indexOf(
-  "const OMENA_QUERY_ANALYSIS_FACT_PRECISION_BY_VALUE_DOMAIN",
-);
-assert.ok(analysisMappingStart >= 0, "missing query precision mapping table");
-const analysisMappingEnd = queryCore.indexOf("];", analysisMappingStart);
-assert.ok(analysisMappingEnd > analysisMappingStart, "unterminated query precision mapping table");
-const analysisMappingBody = queryCore.slice(analysisMappingStart, analysisMappingEnd);
-const analysisMappings = [
-  ...analysisMappingBody.matchAll(/\("([^"]+)",\s*FactPrecision::([A-Z][A-Za-z0-9]*)\)/gu),
-].map((match) => ({ valueDomain: match[1]!, precision: match[2]! }));
-assert.ok(analysisMappings.length > 0, "query precision mapping table must be non-vacuous");
-assert.equal(
-  new Set(analysisMappings.map((mapping) => mapping.valueDomain)).size,
-  analysisMappings.length,
-  "query precision mapping table must not contain duplicate domains",
-);
-const unmappedProducerValueDomains = [...producerValueDomains].filter(
-  (valueDomain) => !analysisMappings.some((mapping) => mapping.valueDomain === valueDomain),
-);
-const unproducedMappingValueDomains = analysisMappings
-  .map((mapping) => mapping.valueDomain)
-  .filter((valueDomain) => !producerValueDomains.has(valueDomain));
-assert.deepEqual(
-  unmappedProducerValueDomains,
-  [],
-  `query precision producers are not mapped: ${unmappedProducerValueDomains.join(", ")}`,
-);
-assert.deepEqual(
-  unproducedMappingValueDomains,
-  [],
-  `query precision mappings have no live producer: ${unproducedMappingValueDomains.join(", ")}`,
-);
-assert.deepEqual(
-  analysisMappings.find((mapping) => mapping.valueDomain === "unknown"),
-  { valueDomain: "unknown", precision: "Unknown" },
-  "the declared unknown domain must map to Unknown",
-);
-assert.ok(!/(^|[^\w])_\s*=>/u.test(analysisAdapter), "query precision adapter must not catch all");
 assert.ok(
-  analysisAdapter.includes(".unwrap_or(FactPrecision::Unknown)"),
-  "open external precision domains must fail closed to Unknown",
+  analysisAdapter.includes("project_fact_precision_from_analysis_precision(&precision.axes)"),
+  "query precision must project the complete typed axes through the abstract-value authority",
 );
 assert.ok(
   queryTypes.includes("pub fn fact_precision_from_evidence_analysis_precision"),
   "evidence precision must reuse the query-side precision adapter",
 );
+assert.ok(queryTypes.includes("precision.axes"), "the evidence bridge must carry every axis");
 assert.ok(queryCore.includes("pub struct OmenaQueryExpressionDomainSelectorPrecisionV0"));
-assert.ok(queryCore.includes("pub precision: FactPrecision"));
-assert.ok(queryCore.includes("precision: fact_precision_from_class_value(&node.value)"));
+assert.ok(queryCore.includes("pub precision: AnalysisPrecisionV1"));
+assert.ok(queryCore.includes("precision: analysis_precision_from_class_value(&node.value)"));
 assert.ok(
   transformExecutor.includes(
     "execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_and_precision",
@@ -171,11 +256,50 @@ assert.ok(
     "summarize_omena_query_expression_domain_selector_projection_with_precision",
   ),
 );
-assert.ok(queryTransformContext.includes("current.bounded_by(projection_precision)"));
+assert.ok(queryTransformContext.includes("reachability_precisions.push(projection_precision)"));
+assert.ok(queryTransform.includes("with_closed_world_witness(witnessed.value_domain)"));
+for (const [source, arm] of [
+  [checkerFixSafety, "fix_safety_closes_when_any_meet_axis_lowers_an_exact_domain"],
+  [
+    bridgeStyleIntelligence,
+    "provider_precision_backing_consumes_completeness_not_only_value_domain",
+  ],
+  [transformTreeShakeTests, "tree_shake_precision_floor_consumes_the_full_axis_meet"],
+  [queryTransform, "sealed_bundle_content_binds_finite_reachability_precision"],
+] as const) {
+  assert.ok(source.includes(arm), `missing destructive consumer sensitivity arm ${arm}`);
+}
+for (const producerGateArm of [
+  "unresolved_provider.provider_completeness",
+  "open_world.world_assumption",
+  "stale_revision.revision",
+  "shallow_context.context",
+  "non_dataflow.flow",
+]) {
+  assert.ok(
+    transformTreeShakeTests.includes(producerGateArm),
+    `missing producer-to-closed-gate axis assertion ${producerGateArm}`,
+  );
+}
 assert.ok(
   queryTransform.includes(
     "execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_precision_and_policy",
   ),
+);
+const precisionLabelDrops = precisionCalibration.cases.flatMap(
+  (calibrationCase) => calibrationCase.precisionLabelDrops ?? [],
+);
+assert.equal(precisionLabelDrops.length, 4, "precision label-drop disclosure count drifted");
+assert.ok(
+  precisionLabelDrops.every(
+    (drop) =>
+      drop.output.length > 0 &&
+      drop.before !== drop.after &&
+      precisionAxisTypes.some((axis) =>
+        axis.toLowerCase().startsWith(drop.loweringAxis.toLowerCase()),
+      ),
+  ),
+  "every precision label drop must name its lowering axis",
 );
 
 const factPrecisionDeclarations = rustSources("rust/crates").reduce(
@@ -277,10 +401,14 @@ process.stdout.write(
       mappedClassValueVariantCount: mappedClassValueVariants.length,
       unmappedClosedCurrencyVariantCount:
         classValueVariants.length - mappedClassValueVariants.length,
-      queryPrecisionValueDomains: [...producerValueDomains].toSorted(),
-      queryPrecisionMappings: analysisMappings,
-      unmappedProducerValueDomains,
-      unproducedMappingValueDomains,
+      precisionAxisTypes,
+      typedProducerValueDomains: [...typedProducerValueDomains].toSorted(),
+      typedAxisProducerCount: typedAxisProducerMarkers.length,
+      literalConstantAxisAssignmentCount: literalAxisAssignments.length,
+      stringKeyedPrecisionDerivationCount: stringKeyedDerivations.length,
+      destructiveConsumerSensitivityArms: 4,
+      producerToClosedGateAxisArms: 5,
+      disclosedPrecisionLabelDropCount: precisionLabelDrops.length,
       belowFloorCauseClasses: ["heuristicReachability", "unknownReachability"],
       structuralPassCount: structuralHandlers.length,
       structuralDecisionClassCounts: classCounts,

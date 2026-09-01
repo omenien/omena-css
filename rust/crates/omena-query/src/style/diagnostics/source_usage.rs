@@ -110,20 +110,34 @@ pub fn summarize_omena_query_css_modules_export_usage(
         Some(&resolver_identity_index),
         false,
     );
-    let exact_precision =
-        omena_query_core::fact_precision_from_analysis_precision(&OmenaQueryAnalysisPrecisionV0 {
-            product: "omena-query.analysis-precision".to_string(),
-            value_domain: "styleModuleResolution".to_string(),
-            flow_sensitivity: "sourceSelectorUsage".to_string(),
-            context_sensitivity: "perModuleExport".to_string(),
-            revision_axis: "workspaceSnapshot".to_string(),
-        });
     let unresolved_import_style_paths = resolution
         .edges
         .iter()
         .filter(|edge| edge.resolved_style_path.is_none())
         .map(|edge| edge.from_style_path.as_str())
         .collect::<BTreeSet<_>>();
+    let unresolved_provider_count = unresolved_import_style_paths.len()
+        + source_documents
+            .iter()
+            .filter(|source| source.has_unresolved_style_import)
+            .count();
+    let effective_precision = omena_query_core::fact_precision_from_analysis_precision(
+        &OmenaQueryAnalysisPrecisionV0::new(
+            "omena-query.analysis-precision",
+            AnalysisPrecisionV1 {
+                value_domain: ValueDomainPrecisionV1::StyleModuleResolution,
+                flow: FlowPrecisionV1::SourceSelectorUsage,
+                context: ContextPrecisionV1::PerModuleExport,
+                provider_completeness: ProviderCompletenessV1::from_unresolved_count(
+                    unresolved_provider_count,
+                ),
+                world_assumption: WorldAssumptionV1::from_closed_world(
+                    unresolved_provider_count == 0 && !source_documents.is_empty(),
+                ),
+                revision: RevisionIdentityV1::WorkspaceSnapshot,
+            },
+        ),
+    );
 
     let mut exports = Vec::new();
     let mut skip_reason_counts = BTreeMap::new();
@@ -164,7 +178,7 @@ pub fn summarize_omena_query_css_modules_export_usage(
                 precision: if status == OmenaQueryCssModuleExportUsageStatusV0::Skipped {
                     FactPrecision::Unknown
                 } else {
-                    exact_precision
+                    effective_precision
                 },
                 skip_reasons: skip_reasons.clone(),
             });
@@ -902,7 +916,29 @@ export const App = () => <div className={styles.composed} />;"#
         assert_eq!(report.unused_export_count, 1);
         assert_eq!(report.skipped_export_count, 0);
         assert_eq!(report.diagnostics[0].export_name, "ghost");
-        assert_eq!(report.diagnostics[0].precision, FactPrecision::Exact);
+        assert_eq!(report.diagnostics[0].precision, FactPrecision::Conservative);
+        let calibration_report: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../omena-precision-calibration-report.json"
+        )))
+        .expect("precision calibration report should be valid JSON");
+        assert_eq!(
+            calibration_report["cases"][2],
+            serde_json::json!({
+                "caseId": "cssModulesUnusedExportFlow",
+                "inputStyleModuleCount": 3,
+                "inputSourceDocumentCount": 1,
+                "representation": "styleModuleResolution",
+                "authority": "sourceSelectorUsage",
+                "currentPrecision": report.diagnostics[0].precision,
+                "precisionLabelDrops": [{
+                    "output": "unusedModuleExport.precision",
+                    "before": "exact",
+                    "after": "conservative",
+                    "loweringAxis": "flow",
+                }],
+            })
+        );
         assert!(report.exports.iter().any(|export| {
             export.style_path.ends_with("base.module.css")
                 && export.export_name == "base"

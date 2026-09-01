@@ -18,10 +18,12 @@ use omena_syntax::ident::{
 };
 
 use crate::{
-    AbstractPropertyValueV0, CascadeContextV0, CascadeDimensionalRefinementBridgeV0,
-    CascadeValueFamilyMemberV0, OmenaQueryAnalysisPrecisionV0, OmenaQueryAnalysisResultV0,
-    OmenaQueryCascadeAtPositionV0, OmenaQueryEvaluationRuntimeSummaryV0,
-    RefinementPropertyPredicateV0, derive_context_indexed_cascade_restriction_maps_v0,
+    AbstractPropertyValueV0, AnalysisPrecisionV1, CascadeContextV0,
+    CascadeDimensionalRefinementBridgeV0, CascadeValueFamilyMemberV0, ContextPrecisionV1,
+    FlowPrecisionV1, OmenaQueryAnalysisPrecisionV0, OmenaQueryAnalysisResultV0,
+    OmenaQueryCascadeAtPositionV0, OmenaQueryEvaluationRuntimeSummaryV0, ProviderCompletenessV1,
+    RefinementPropertyPredicateV0, RevisionIdentityV1, ValueDomainPrecisionV1, WorldAssumptionV1,
+    derive_context_indexed_cascade_restriction_maps_v0,
     summarize_cascade_dimensional_refinement_bridge_v0,
     summarize_context_indexed_cascade_value_family_v0,
 };
@@ -68,14 +70,17 @@ fn cascade_at_position_analysis_result(
 ) -> OmenaQueryAnalysisResultV0<OmenaQueryCascadeAtPositionV0> {
     OmenaQueryAnalysisResultV0::new(
         value,
-        OmenaQueryAnalysisPrecisionV0 {
-            product: "omena-query.analysis-precision".to_string(),
-            value_domain: "cascadeAtPosition".to_string(),
-            flow_sensitivity: "positionScopedCascade".to_string(),
-            context_sensitivity: "styleSemanticGraph".to_string(),
-            revision_axis: "OmenaQueryEvaluationRuntimeSummaryV0.expressionDomainRevision"
-                .to_string(),
-        },
+        OmenaQueryAnalysisPrecisionV0::new(
+            "omena-query.analysis-precision",
+            AnalysisPrecisionV1 {
+                value_domain: ValueDomainPrecisionV1::CascadeAtPosition,
+                flow: FlowPrecisionV1::PositionScopedCascade,
+                context: ContextPrecisionV1::StyleSemanticGraph,
+                provider_completeness: ProviderCompletenessV1::from_unresolved_count(0),
+                world_assumption: WorldAssumptionV1::from_closed_world(false),
+                revision: RevisionIdentityV1::EvaluationRuntimeExpressionDomain,
+            },
+        ),
         vec![
             "omena-query.read-cascade-at-position".to_string(),
             "omena-cascade.winner-resolution".to_string(),
