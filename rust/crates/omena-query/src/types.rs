@@ -3455,7 +3455,8 @@ mod evidence_graph_projection_tests {
     }
 
     #[test]
-    fn source_diagnostic_precision_projects_typed_wire_shape() -> Result<(), serde_json::Error> {
+    fn source_diagnostic_precision_projects_byte_identical_shape() -> Result<(), serde_json::Error>
+    {
         let precision = source_diagnostic_precision(
             ValueDomainPrecisionV1::ClassValueResolution,
             FlowPrecisionV1::SourceSyntaxIndex,

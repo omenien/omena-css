@@ -19,6 +19,9 @@ mod sass_symbols;
 mod shared;
 mod single_file;
 mod source_usage;
+#[cfg(test)]
+#[path = "tests/source_usage.rs"]
+mod source_usage_tests;
 mod substrate;
 
 #[cfg(feature = "salsa-memo")]

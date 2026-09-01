@@ -1333,7 +1333,8 @@ mod tests {
     }
 
     #[test]
-    fn analysis_precision_view_projects_the_meet_and_round_trips_typed_axes() {
+    fn analysis_precision_view_projects_the_meet_and_round_trips_typed_axes()
+    -> serde_json::Result<()> {
         let exact_axes = AnalysisPrecisionV1 {
             value_domain: ValueDomainPrecisionV1::CascadeAtPosition,
             flow: FlowPrecisionV1::IncrementalDataflow,
@@ -1385,9 +1386,9 @@ mod tests {
             FactPrecision::Heuristic,
         );
 
-        let serialized = serde_json::to_string(&precision(exact_axes)).expect("serialize");
-        let round_trip: OmenaQueryAnalysisPrecisionV0 =
-            serde_json::from_str(&serialized).expect("deserialize");
+        let serialized = serde_json::to_string(&precision(exact_axes))?;
+        let round_trip: OmenaQueryAnalysisPrecisionV0 = serde_json::from_str(&serialized)?;
         assert_eq!(round_trip.axes, exact_axes);
+        Ok(())
     }
 }

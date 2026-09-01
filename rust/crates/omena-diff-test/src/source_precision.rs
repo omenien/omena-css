@@ -124,19 +124,16 @@ fn source_precision_reference_report(
 }
 
 fn source_precision_stratum(precision: &omena_query::OmenaQueryAnalysisPrecisionV0) -> String {
-    let wire = serde_json::to_value(&precision.axes)
-        .expect("analysis precision axes should serialize to their public wire labels");
-    format!(
-        "{}|{}|{}",
-        wire["valueDomain"]
-            .as_str()
-            .expect("value-domain precision should serialize as a string"),
-        wire["flowSensitivity"]
-            .as_str()
-            .expect("flow precision should serialize as a string"),
-        wire["contextSensitivity"]
-            .as_str()
-            .expect("context precision should serialize as a string")
+    serde_json::to_value(precision.axes).map_or_else(
+        |_| "unknown|unknown|unknown".to_string(),
+        |wire| {
+            format!(
+                "{}|{}|{}",
+                wire["valueDomain"].as_str().unwrap_or("unknown"),
+                wire["flowSensitivity"].as_str().unwrap_or("unknown"),
+                wire["contextSensitivity"].as_str().unwrap_or("unknown")
+            )
+        },
     )
 }
 
