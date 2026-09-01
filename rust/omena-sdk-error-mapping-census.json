@@ -646,7 +646,7 @@
       "emitter": "stderr-exit-failure",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-cli/src/lib.rs",
-      "line": 52,
+      "line": 53,
       "source": "eprintln!(\"{error}\");",
       "errorClass": "unknown"
     },
