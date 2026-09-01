@@ -1211,10 +1211,12 @@ pub type omena_query::OmenaQueryStyleModuleDiskCandidateIdentityV0 = omena_resol
 pub type omena_query::OmenaQueryTsconfigPathMappingV0 = omena_resolver::types::OmenaResolverTsconfigPathMappingV0
 pub use omena_query::AbstractPropertyValueNarrowingV0
 pub use omena_query::AbstractPropertyValueV0
+pub use omena_query::AnalysisPrecisionV1
 pub use omena_query::BatchHypergraphConnectivityOracle
 pub use omena_query::ClassExpressionInputV2
 pub use omena_query::ClassValueFlowAnalysisV0
 pub use omena_query::ClassValueFlowIncrementalAnalysisV0
+pub use omena_query::ContextPrecisionV1
 pub use omena_query::EngineInputV2
 pub use omena_query::ExpressionDomainCallSiteFlowAnalysisV0
 pub use omena_query::ExpressionDomainControlFlowAnalysisV0
@@ -1224,6 +1226,7 @@ pub use omena_query::ExpressionDomainReducedProductIterationV0
 pub use omena_query::ExpressionSemanticsCanonicalProducerSignalV0
 pub use omena_query::ExpressionSemanticsQueryFragmentsV0
 pub use omena_query::FactPrecision
+pub use omena_query::FlowPrecisionV1
 pub use omena_query::HypergraphClosureMode
 pub use omena_query::HypergraphClosurePath
 pub use omena_query::HypergraphIFDSSummaryEdgeV0
@@ -1382,8 +1385,10 @@ pub use omena_query::PolynomialProvenanceProjectionV0
 pub use omena_query::PolynomialProvenanceTermV0
 pub use omena_query::PolynomialProvenanceVariableV0
 pub use omena_query::PositionV2
+pub use omena_query::ProviderCompletenessV1
 pub use omena_query::RangeV2
 pub use omena_query::ReverseDependencyIndexV0
+pub use omena_query::RevisionIdentityV1
 pub use omena_query::SelectorUsageCanonicalProducerSignalV0
 pub use omena_query::SelectorUsageQueryFragmentsV0
 pub use omena_query::SourceAnalysisInputV2
@@ -1399,6 +1404,8 @@ pub use omena_query::TransformBundleEdgeKind
 pub use omena_query::TypeFactEntryV2
 pub use omena_query::UnifiedHypergraphEdgeKindV0
 pub use omena_query::UnifiedHypergraphHyperedgeV0
+pub use omena_query::ValueDomainPrecisionV1
+pub use omena_query::WorldAssumptionV1
 pub use omena_query::append_omena_query_utility_class_intelligence
 pub use omena_query::apply_reverse_dependency_delta_v0
 pub use omena_query::build_omena_resolver_style_module_confirmation_identity_index

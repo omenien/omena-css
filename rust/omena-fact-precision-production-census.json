@@ -1,24 +1,24 @@
 {
   "schemaVersion": "0",
   "product": "omena.fact-precision-production-census",
-  "rawReferenceCount": 131,
-  "productionSiteCount": 20,
-  "productionOverrideCount": 14,
+  "rawReferenceCount": 117,
+  "productionSiteCount": 12,
+  "productionOverrideCount": 9,
   "classifiedSites": [
     {
       "sourcePath": "rust/crates/omena-abstract-value/src/domain.rs",
-      "owner": "fn fact_precision_from_class_value_with_witness",
+      "owner": "fn fact_precision_from_analysis_precision",
       "lexicalContext": "code",
       "testOnly": false,
       "variantCounts": {
-        "Exact": 2,
-        "Conservative": 2,
+        "Exact": 1,
+        "Conservative": 1,
         "Heuristic": 1,
         "Unknown": 1
       },
-      "occurrenceCount": 6,
+      "occurrenceCount": 4,
       "disposition": "derivationRule",
-      "authority": "the exhaustive class-value lattice adapter derives rank from representation and bound witness"
+      "authority": "the only FactPrecision projection exhaustively maps the evidence-graph effective meet"
     },
     {
       "sourcePath": "rust/crates/omena-abstract-value/src/tests.rs",
@@ -27,8 +27,8 @@
       "testOnly": true,
       "variantCounts": {
         "Exact": 3,
-        "Conservative": 6,
-        "Heuristic": 4,
+        "Conservative": 5,
+        "Heuristic": 5,
         "Unknown": 1
       },
       "occurrenceCount": 14,
@@ -42,8 +42,8 @@
       "testOnly": true,
       "variantCounts": {
         "Exact": 1,
-        "Conservative": 2,
-        "Heuristic": 0,
+        "Conservative": 0,
+        "Heuristic": 2,
         "Unknown": 0
       },
       "occurrenceCount": 3,
@@ -97,78 +97,33 @@
     },
     {
       "sourcePath": "rust/crates/omena-bridge/src/style_intelligence.rs",
-      "owner": "const CSS_MODULES_METADATA",
-      "lexicalContext": "code",
-      "testOnly": false,
-      "variantCounts": {
-        "Exact": 1,
-        "Conservative": 0,
-        "Heuristic": 0,
-        "Unknown": 0
-      },
-      "occurrenceCount": 1,
-      "disposition": "productionOverride",
-      "authority": "the built-in CSS Modules provider observes source-bound imports and class references directly"
-    },
-    {
-      "sourcePath": "rust/crates/omena-bridge/src/style_intelligence.rs",
-      "owner": "const CVA_RECIPE_METADATA",
-      "lexicalContext": "code",
-      "testOnly": false,
-      "variantCounts": {
-        "Exact": 1,
-        "Conservative": 0,
-        "Heuristic": 0,
-        "Unknown": 0
-      },
-      "occurrenceCount": 1,
-      "disposition": "productionOverride",
-      "authority": "the built-in CVA provider exposes only statically extracted recipe facts"
-    },
-    {
-      "sourcePath": "rust/crates/omena-bridge/src/style_intelligence.rs",
-      "owner": "const UTILITY_DOMAIN_METADATA",
+      "owner": "fn provider_precision_backed",
       "lexicalContext": "code",
       "testOnly": false,
       "variantCounts": {
         "Exact": 0,
+        "Conservative": 1,
+        "Heuristic": 0,
+        "Unknown": 0
+      },
+      "occurrenceCount": 1,
+      "disposition": "consumer",
+      "authority": "provider backing is derived from the projected meet and requires a conservative floor"
+    },
+    {
+      "sourcePath": "rust/crates/omena-bridge/src/style_intelligence.rs",
+      "owner": "fn provider_precision_backing_consumes_completeness_not_only_value_domain",
+      "lexicalContext": "code",
+      "testOnly": true,
+      "variantCounts": {
+        "Exact": 1,
         "Conservative": 0,
         "Heuristic": 0,
         "Unknown": 1
       },
-      "occurrenceCount": 1,
-      "disposition": "productionOverride",
-      "authority": "the utility-domain provider is not precision-backed until its external configuration is resolved"
-    },
-    {
-      "sourcePath": "rust/crates/omena-bridge/src/style_intelligence.rs",
-      "owner": "const VANILLA_EXTRACT_METADATA",
-      "lexicalContext": "code",
-      "testOnly": false,
-      "variantCounts": {
-        "Exact": 1,
-        "Conservative": 0,
-        "Heuristic": 0,
-        "Unknown": 0
-      },
-      "occurrenceCount": 1,
-      "disposition": "productionOverride",
-      "authority": "the built-in vanilla-extract provider exposes only statically extracted recipe facts"
-    },
-    {
-      "sourcePath": "rust/crates/omena-bridge/src/style_intelligence.rs",
-      "owner": "const VUE_STYLE_MODULE_METADATA",
-      "lexicalContext": "code",
-      "testOnly": false,
-      "variantCounts": {
-        "Exact": 1,
-        "Conservative": 0,
-        "Heuristic": 0,
-        "Unknown": 0
-      },
-      "occurrenceCount": 1,
-      "disposition": "productionOverride",
-      "authority": "the built-in Vue provider exposes source-bound useCssModule references"
+      "occurrenceCount": 2,
+      "disposition": "test",
+      "authority": "test-only precision expectation or mutation fixture"
     },
     {
       "sourcePath": "rust/crates/omena-bridge/src/style_intelligence.rs",
@@ -352,48 +307,18 @@
     },
     {
       "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
-      "owner": "const OMENA_QUERY_ANALYSIS_FACT_PRECISION_BY_VALUE_DOMAIN",
-      "lexicalContext": "code",
-      "testOnly": false,
-      "variantCounts": {
-        "Exact": 2,
-        "Conservative": 2,
-        "Heuristic": 1,
-        "Unknown": 1
-      },
-      "occurrenceCount": 6,
-      "disposition": "derivationRule",
-      "authority": "the closed value-domain adapter maps every declared query analysis domain"
-    },
-    {
-      "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
-      "owner": "fn analysis_precision_view_maps_known_producers_and_fails_closed",
+      "owner": "fn analysis_precision_view_projects_the_meet_and_round_trips_typed_axes",
       "lexicalContext": "code",
       "testOnly": true,
       "variantCounts": {
-        "Exact": 2,
-        "Conservative": 2,
-        "Heuristic": 1,
-        "Unknown": 2
-      },
-      "occurrenceCount": 7,
-      "disposition": "test",
-      "authority": "test-only precision expectation or mutation fixture"
-    },
-    {
-      "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
-      "owner": "fn fact_precision_from_analysis_precision",
-      "lexicalContext": "code",
-      "testOnly": false,
-      "variantCounts": {
-        "Exact": 0,
+        "Exact": 1,
         "Conservative": 0,
-        "Heuristic": 0,
+        "Heuristic": 4,
         "Unknown": 1
       },
-      "occurrenceCount": 1,
-      "disposition": "derivationRule",
-      "authority": "an undeclared query analysis domain fails closed to Unknown"
+      "occurrenceCount": 6,
+      "disposition": "test",
+      "authority": "test-only precision expectation or mutation fixture"
     },
     {
       "sourcePath": "rust/crates/omena-query-transform-runner/src/plugin_api.rs",
@@ -566,8 +491,8 @@
       "lexicalContext": "code",
       "testOnly": true,
       "variantCounts": {
-        "Exact": 1,
-        "Conservative": 0,
+        "Exact": 0,
+        "Conservative": 1,
         "Heuristic": 0,
         "Unknown": 0
       },
@@ -612,11 +537,11 @@
       "testOnly": false,
       "variantCounts": {
         "Exact": 0,
-        "Conservative": 2,
+        "Conservative": 1,
         "Heuristic": 0,
         "Unknown": 0
       },
-      "occurrenceCount": 2,
+      "occurrenceCount": 1,
       "disposition": "derivationRule",
       "authority": "the sealed-bundle adapter validates enumeration membership and a content-addressed witness"
     },
@@ -657,28 +582,13 @@
       "testOnly": true,
       "variantCounts": {
         "Exact": 1,
-        "Conservative": 3,
-        "Heuristic": 0,
+        "Conservative": 0,
+        "Heuristic": 3,
         "Unknown": 0
       },
       "occurrenceCount": 4,
       "disposition": "test",
       "authority": "test-only precision expectation or mutation fixture"
-    },
-    {
-      "sourcePath": "rust/crates/omena-query/src/style/transform/context.rs",
-      "owner": "fn derive_omena_query_transform_context_from_engine_input",
-      "lexicalContext": "code",
-      "testOnly": false,
-      "variantCounts": {
-        "Exact": 0,
-        "Conservative": 0,
-        "Heuristic": 0,
-        "Unknown": 1
-      },
-      "occurrenceCount": 1,
-      "disposition": "derivationRule",
-      "authority": "a projection absent from the precision index fails closed before the bounded ceiling fold"
     },
     {
       "sourcePath": "rust/crates/omena-query/src/tests.rs",

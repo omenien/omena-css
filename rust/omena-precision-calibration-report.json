@@ -37,10 +37,46 @@
       "witnessDirection": "supersetOfProducible",
       "witnessBasis": "closedSetEnumeration",
       "authority": "closedWorldBundleClosureHash",
-      "openWorldPrecision": "conservative",
+      "openWorldPrecision": "heuristic",
       "closedWorldPrecision": "exact",
-      "nonEnumeratedPrecision": "conservative",
-      "missingMemberPrecision": "conservative"
+      "nonEnumeratedPrecision": "heuristic",
+      "missingMemberPrecision": "heuristic",
+      "precisionLabelDrops": [
+        {
+          "output": "openWorldPrecision",
+          "before": "conservative",
+          "after": "heuristic",
+          "loweringAxis": "worldAssumption"
+        },
+        {
+          "output": "nonEnumeratedPrecision",
+          "before": "conservative",
+          "after": "heuristic",
+          "loweringAxis": "worldAssumption"
+        },
+        {
+          "output": "missingMemberPrecision",
+          "before": "conservative",
+          "after": "heuristic",
+          "loweringAxis": "worldAssumption"
+        }
+      ]
+    },
+    {
+      "caseId": "cssModulesUnusedExportFlow",
+      "inputStyleModuleCount": 3,
+      "inputSourceDocumentCount": 1,
+      "representation": "styleModuleResolution",
+      "authority": "sourceSelectorUsage",
+      "currentPrecision": "conservative",
+      "precisionLabelDrops": [
+        {
+          "output": "unusedModuleExport.precision",
+          "before": "exact",
+          "after": "conservative",
+          "loweringAxis": "flow"
+        }
+      ]
     }
   ]
 }

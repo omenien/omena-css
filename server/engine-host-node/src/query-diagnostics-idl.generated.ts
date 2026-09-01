@@ -6,6 +6,63 @@ export type OmenaQueryDiagnosticsForFileV0Json =
   | OmenaQuerySourceDiagnosticsForFileV0Json
   | OmenaQueryStyleDiagnosticsForFileV0Json;
 export type OmenaQueryDiagnosticSeverityV0Json = "error" | "warning" | "information" | "hint";
+export type OmenaQueryValueDomainPrecisionV1Json =
+  | "exactClassValue"
+  | "closedClassValueSet"
+  | "patternClassValue"
+  | "cascadeAtPosition"
+  | "styleModuleResolution"
+  | "classValueResolution"
+  | "classValueUniverse"
+  | "classValueFlow"
+  | "unknown";
+export type OmenaQueryFlowPrecisionV1Json =
+  | "representationBound"
+  | "providerObservation"
+  | "incrementalDataflow"
+  | "positionScopedCascade"
+  | "sourceSelectorUsage"
+  | "sourceControlFlow"
+  | "sourceSyntaxIndex"
+  | "globalClassUniverse"
+  | "sourceImportResolution"
+  | "typeOracleProviderUnavailable"
+  | "sourceDomainReference"
+  | "sourceSelectorReference"
+  | "kLimitedCallSiteFlow"
+  | "fixture"
+  | "unknown";
+export type OmenaQueryContextPrecisionV1Json =
+  | "valueLocal"
+  | "providerScoped"
+  | "perExpressionGraph"
+  | "styleSemanticGraph"
+  | "perModuleExport"
+  | "sameFile"
+  | "perSourceReference"
+  | "perImportSpecifier"
+  | "perTypeFactTarget"
+  | "perDomainAxis"
+  | "resolvedClassValueDomain"
+  | "0-cfa"
+  | "1-cfa"
+  | "k-cfa"
+  | "fixture"
+  | "unknown";
+export type OmenaQueryProviderCompletenessV1Json =
+  | "complete"
+  | "partial"
+  | "unresolved"
+  | "unknown";
+export type OmenaQueryWorldAssumptionV1Json = "closed" | "open" | "unknown";
+export type OmenaQueryRevisionIdentityV1Json =
+  | "OmenaQuerySourceDiagnosticsForFileV0.input"
+  | "OmenaQueryExpressionDomainFlowRuntimeV0.revision"
+  | "OmenaQueryEvaluationRuntimeSummaryV0.expressionDomainRevision"
+  | "workspaceSnapshot"
+  | "current"
+  | "staleTypeFact"
+  | "unknown";
 
 export interface OmenaQuerySourceDiagnosticsForFileV0Json {
   readonly schemaVersion: string;
@@ -36,10 +93,12 @@ export interface TextPositionJsonV2Json {
 }
 export interface OmenaQueryAnalysisPrecisionV0Json {
   readonly product: string;
-  readonly valueDomain: string;
-  readonly flowSensitivity: string;
-  readonly contextSensitivity: string;
-  readonly revisionAxis: string;
+  readonly valueDomain: OmenaQueryValueDomainPrecisionV1Json;
+  readonly flowSensitivity: OmenaQueryFlowPrecisionV1Json;
+  readonly contextSensitivity: OmenaQueryContextPrecisionV1Json;
+  readonly providerCompleteness: OmenaQueryProviderCompletenessV1Json;
+  readonly worldAssumption: OmenaQueryWorldAssumptionV1Json;
+  readonly revisionAxis: OmenaQueryRevisionIdentityV1Json;
 }
 export interface OmenaQueryCreateSelectorActionV0Json {
   readonly uri: string;
