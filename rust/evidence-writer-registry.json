@@ -3,7 +3,7 @@
   "generatedBy": "pnpm omena-check evidence-writers --write",
   "commandAuthority": {
     "modulePath": "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
-    "sha256": "c1f73bc6c624ad4e5f2b41dce6435bc1307f6746b255b33be01f588420732559",
+    "sha256": "e2d54fbcd81d44f55ffc13e7baa7fb0b8c05a5bab1d716e3e41158eba6de0cb5",
     "declaredCommandCount": 26,
     "declaredOutputCount": 75,
     "declaredStaticWriteOutputCount": 68
@@ -2779,13 +2779,15 @@
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/omena-domain-claim-rename-map.json",
         "scripts/check-rust-omena-query-public-surface.ts",
-        "scripts/check-rust-omena-query-visibility-experiment.ts"
+        "scripts/check-rust-omena-query-visibility-experiment.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
       "consumerGateIds": [
         "rust/omena-query/public-surface",
         "rust/omena-query/public-surface-all-features",
         "rust/omena-query/public-surface:update",
-        "rust/omena-query/visibility-experiment"
+        "rust/omena-query/visibility-experiment",
+        "tooling/evidence-affected-map"
       ]
     },
     {

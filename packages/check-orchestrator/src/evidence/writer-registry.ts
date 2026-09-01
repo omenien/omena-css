@@ -10,6 +10,7 @@ import {
 } from "./scan-surface-manifest";
 import { defineScanSurface, resolveScanSurface } from "./scan-surface";
 import {
+  EVIDENCE_RUNTIME_VARIABLE_OUTPUT_PATHS,
   EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH,
   EVIDENCE_WRITER_COMMAND_DECLARATIONS,
   EVIDENCE_WRITER_NON_LITERAL_WRITE_REFUSALS,
@@ -180,6 +181,7 @@ export interface EvidenceWriterNonLiteralWriteCensusV0 {
     readonly broadNonLiteralWriteSiteCount: 319;
     readonly unsweptRegistryWriterScriptsWithNonLiteralSites: 44;
   };
+  readonly runtimeVariableOutputPaths: typeof EVIDENCE_RUNTIME_VARIABLE_OUTPUT_PATHS;
   readonly typedJustifications: typeof EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS;
   readonly sites: readonly EvidenceWriterNonLiteralWriteSiteV0[];
 }
@@ -249,13 +251,14 @@ export function evidenceWriterNonLiteralWriteCensusPath(repoRoot: string): strin
 
 export function loadEvidenceWriterNonLiteralWriteCensus(
   repoRoot: string,
+  requireCurrentAuthority = true,
 ): EvidenceWriterNonLiteralWriteCensusV0 | null {
   const censusPath = evidenceWriterNonLiteralWriteCensusPath(repoRoot);
   if (!existsSync(censusPath)) return null;
   const census = JSON.parse(
     readFileSync(censusPath, "utf8"),
   ) as EvidenceWriterNonLiteralWriteCensusV0;
-  validateEvidenceWriterNonLiteralWriteCensus(census);
+  validateEvidenceWriterNonLiteralWriteCensus(census, requireCurrentAuthority);
   return census;
 }
 
@@ -363,6 +366,7 @@ export function buildEvidenceWriterNonLiteralWriteCensus(
       broadNonLiteralWriteSiteCount: 319,
       unsweptRegistryWriterScriptsWithNonLiteralSites: 44,
     },
+    runtimeVariableOutputPaths: EVIDENCE_RUNTIME_VARIABLE_OUTPUT_PATHS,
     typedJustifications: EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS,
     sites,
   } as const satisfies EvidenceWriterNonLiteralWriteCensusV0;
@@ -399,7 +403,7 @@ export function assertEvidenceWriterNonLiteralWriteCensusDecreaseOnly(
   if (!previous) {
     throw new Error("committed evidence writer non-literal census is required before --write");
   }
-  validateEvidenceWriterNonLiteralWriteCensus(previous);
+  validateEvidenceWriterNonLiteralWriteCensus(previous, false);
   const previousFingerprints = new Set(previous.sites.map((site) => site.fingerprint));
   const introduced = next.sites.find((site) => !previousFingerprints.has(site.fingerprint));
   if (introduced) {
@@ -422,6 +426,7 @@ export function assertEvidenceWriterNonLiteralWriteCensusDecreaseOnly(
 
 function validateEvidenceWriterNonLiteralWriteCensus(
   census: EvidenceWriterNonLiteralWriteCensusV0,
+  requireCurrentAuthority = true,
 ): void {
   if (
     census.schemaVersion !== "0" ||
@@ -433,8 +438,16 @@ function validateEvidenceWriterNonLiteralWriteCensus(
     throw new Error("evidence writer non-literal census site count drifted");
   }
   if (
+    requireCurrentAuthority &&
+    JSON.stringify(census.runtimeVariableOutputPaths) !==
+      JSON.stringify(EVIDENCE_RUNTIME_VARIABLE_OUTPUT_PATHS)
+  ) {
+    throw new Error("evidence writer non-literal census runtime-variable outputs drifted");
+  }
+  if (
+    requireCurrentAuthority &&
     JSON.stringify(census.typedJustifications) !==
-    JSON.stringify(EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS)
+      JSON.stringify(EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS)
   ) {
     throw new Error("evidence writer non-literal census typed justifications drifted");
   }
@@ -762,10 +775,16 @@ export function assertGovernedNonLiteralWriteCoverage(repoRoot: string): void {
   }
 }
 
+export interface EvidenceWriterDeclarationWriteWitnessCoverageSummary {
+  readonly witnessedOutputs: readonly string[];
+  readonly staticallyBoundWitnessOutputs: readonly string[];
+  readonly unresolvedWitnessOutputs: readonly string[];
+}
+
 export function assertEvidenceWriterDeclarationWriteWitnessCoverage(
   repoRoot: string,
   discovery: EvidenceArtifactDiscovery = discoverEvidenceArtifacts(repoRoot),
-): void {
+): EvidenceWriterDeclarationWriteWitnessCoverageSummary {
   const declarations: readonly EvidenceWriterCommandDeclaration[] =
     EVIDENCE_WRITER_COMMAND_DECLARATIONS;
   const declarationCountsByScript = new Map<string, number>();
@@ -778,19 +797,60 @@ export function assertEvidenceWriterDeclarationWriteWitnessCoverage(
     }
   }
   const writeExpressionsByScript = new Map<string, ReadonlySet<string>>();
+  const writeOutputPathsByScriptAndExpression = new Map<
+    string,
+    ReadonlyMap<string, ReadonlySet<string>>
+  >();
   for (const [scriptPath, analysis] of discovery.scriptAnalysisCache) {
     const expressions = new Set<string>();
-    const visit = (node: tsTypes.Node): void => {
+    const outputPathsByExpression = new Map<string, Set<string>>();
+    const visit = (
+      node: tsTypes.Node,
+      loopValues: ReadonlyMap<tsTypes.Identifier, readonly StaticDataValue[]> = new Map(),
+    ): void => {
       if (ts.isCallExpression(node) && isFileWriteCall(node.expression)) {
         const firstArgument = node.arguments[0];
         if (firstArgument) {
-          expressions.add(normalizeWriteExpression(firstArgument.getText(analysis.sourceFile)));
+          const expression = normalizeWriteExpression(firstArgument.getText(analysis.sourceFile));
+          expressions.add(expression);
+          const resolvedOutputPaths = outputPathsByExpression.get(expression) ?? new Set<string>();
+          for (const resolved of lexicalStaticPathExpressionValues(firstArgument, {
+            repoRoot,
+            scriptPath,
+            analysis,
+            analysisCache: discovery.scriptAnalysisCache,
+            loopValues,
+            includeConditionalBranches: true,
+          })) {
+            resolvedOutputPaths.add(normalizeRepositoryPath(repoRoot, resolved));
+          }
+          outputPathsByExpression.set(expression, resolvedOutputPaths);
         }
       }
-      ts.forEachChild(node, visit);
+      if (ts.isForOfStatement(node) && ts.isVariableDeclarationList(node.initializer)) {
+        const iterationValues = staticIterationValues(
+          evaluateStaticDataExpression(node.expression, {
+            repoRoot,
+            scriptPath,
+            analysis,
+            analysisCache: discovery.scriptAnalysisCache,
+            loopValues,
+            resolving: new Set(),
+            includeConditionalBranches: true,
+          }),
+        );
+        const nestedLoopValues = new Map(loopValues);
+        for (const declaration of node.initializer.declarations) {
+          bindStaticIterationValues(declaration.name, iterationValues, nestedLoopValues);
+        }
+        visit(node.statement, nestedLoopValues);
+        return;
+      }
+      ts.forEachChild(node, (child) => visit(child, loopValues));
     };
     visit(analysis.sourceFile);
     writeExpressionsByScript.set(scriptPath, expressions);
+    writeOutputPathsByScriptAndExpression.set(scriptPath, outputPathsByExpression);
   }
 
   const justificationKeys = new Set<string>();
@@ -815,10 +875,27 @@ export function assertEvidenceWriterDeclarationWriteWitnessCoverage(
     }
     if (justification.kind === "runtime-variable-output") {
       const sources = new Set(justification.variableFields?.map((field) => field.source) ?? []);
-      for (const source of ["timestamp", "wallTime", "sha", "worktreeClean"] as const) {
+      for (const source of ["timestamp", "wallTime", "sha", "worktreeClean", "host"] as const) {
         if (!sources.has(source)) {
           throw new Error(
             `runtime-variable output justification omits ${source}: ${justification.outputPath}`,
+          );
+        }
+      }
+      const artifact = JSON.parse(
+        readFileSync(path.join(repoRoot, justification.outputPath), "utf8"),
+      ) as unknown;
+      const fieldPaths = new Set<string>();
+      for (const field of justification.variableFields ?? []) {
+        if (fieldPaths.has(field.fieldPath)) {
+          throw new Error(
+            `runtime-variable output justification duplicates field path ${field.fieldPath}: ${justification.outputPath}`,
+          );
+        }
+        fieldPaths.add(field.fieldPath);
+        if (!jsonValueContainsFieldPath(artifact, field.fieldPath)) {
+          throw new Error(
+            `runtime-variable output justification field path is absent: ${justification.outputPath}:${field.fieldPath}`,
           );
         }
       }
@@ -829,6 +906,31 @@ export function assertEvidenceWriterDeclarationWriteWitnessCoverage(
     }
   }
 
+  for (const outputPath of EVIDENCE_RUNTIME_VARIABLE_OUTPUT_PATHS) {
+    const justification = EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS.find(
+      (entry) => entry.outputPath === outputPath && entry.kind === "runtime-variable-output",
+    );
+    if (!justification) {
+      throw new Error(
+        `runtime-variable evidence output requires a typed justification: ${outputPath}`,
+      );
+    }
+  }
+  for (const justification of EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS) {
+    if (
+      justification.kind === "runtime-variable-output" &&
+      !EVIDENCE_RUNTIME_VARIABLE_OUTPUT_PATHS.includes(
+        justification.outputPath as (typeof EVIDENCE_RUNTIME_VARIABLE_OUTPUT_PATHS)[number],
+      )
+    ) {
+      throw new Error(
+        `runtime-variable output justification lacks an independent classification: ${justification.outputPath}`,
+      );
+    }
+  }
+
+  const witnessedOutputs = new Set<string>();
+  const staticallyBoundWitnessOutputs = new Set<string>();
   for (const declaration of declarations) {
     const outputPaths = resolveEvidenceWriterCommandOutputPaths(repoRoot, declaration);
     const outputPathSet = new Set(outputPaths);
@@ -845,6 +947,10 @@ export function assertEvidenceWriterDeclarationWriteWitnessCoverage(
           `evidence writer output witness is not an AST-visible write: ${declaration.commandId}:${witness.writerScript}:${witness.writeExpression}`,
         );
       }
+      const resolvedOutputPaths =
+        writeOutputPathsByScriptAndExpression
+          .get(witness.writerScript)
+          ?.get(normalizedExpression) ?? new Set<string>();
       for (const outputPath of witness.outputPaths) {
         if (!outputPathSet.has(outputPath)) {
           throw new Error(
@@ -857,6 +963,16 @@ export function assertEvidenceWriterDeclarationWriteWitnessCoverage(
           );
         }
         witnessedOutputPaths.add(outputPath);
+        const witnessKey = `${declaration.commandId}:${outputPath}`;
+        witnessedOutputs.add(witnessKey);
+        if (resolvedOutputPaths.size > 0) {
+          if (!resolvedOutputPaths.has(outputPath)) {
+            throw new Error(
+              `evidence writer output witness does not resolve to its declared output: ${declaration.commandId}:${outputPath}:${witness.writeExpression}`,
+            );
+          }
+          staticallyBoundWitnessOutputs.add(witnessKey);
+        }
       }
     }
     for (const manifestOutput of declaration.manifestOutputPaths ?? []) {
@@ -913,6 +1029,39 @@ export function assertEvidenceWriterDeclarationWriteWitnessCoverage(
       throw new Error(`evidence writer output justification is unbound: ${key}`);
     }
   }
+  return {
+    witnessedOutputs: [...witnessedOutputs].toSorted(),
+    staticallyBoundWitnessOutputs: [...staticallyBoundWitnessOutputs].toSorted(),
+    unresolvedWitnessOutputs: [...witnessedOutputs]
+      .filter((output) => !staticallyBoundWitnessOutputs.has(output))
+      .toSorted(),
+  };
+}
+
+function jsonValueContainsFieldPath(value: unknown, fieldPath: string): boolean {
+  const segments = fieldPath.split(".");
+  if (segments.length === 0 || segments.some((segment) => segment.length === 0)) return false;
+  let current: readonly unknown[] = [value];
+  for (const segment of segments) {
+    const arraySegment = segment.endsWith("[]");
+    const property = arraySegment ? segment.slice(0, -2) : segment;
+    if (property.length === 0) return false;
+    const next: unknown[] = [];
+    for (const candidate of current) {
+      if (typeof candidate !== "object" || candidate === null || !(property in candidate)) {
+        return false;
+      }
+      const propertyValue = (candidate as Record<string, unknown>)[property];
+      if (arraySegment) {
+        if (!Array.isArray(propertyValue) || propertyValue.length === 0) return false;
+        next.push(...propertyValue);
+      } else {
+        next.push(propertyValue);
+      }
+    }
+    current = next;
+  }
+  return current.length > 0;
 }
 
 function normalizeWriteExpression(expression: string): string {
@@ -1755,6 +1904,7 @@ interface StaticDataEvaluationContext {
   readonly analysisCache: ReadonlyMap<string, WriterScriptAnalysis>;
   readonly loopValues: ReadonlyMap<tsTypes.Identifier, readonly StaticDataValue[]>;
   readonly resolving?: Set<string>;
+  readonly includeConditionalBranches?: boolean;
 }
 
 function lexicalStaticPathExpressionValues(
@@ -1772,7 +1922,7 @@ function lexicalStaticPathExpressionValues(
 
 function evaluateStaticDataExpression(
   expression: tsTypes.Expression,
-  context: Required<StaticDataEvaluationContext>,
+  context: StaticDataEvaluationContext & { readonly resolving: Set<string> },
 ): readonly StaticDataValue[] {
   const unwrapped = unwrapStaticDataExpression(expression);
   if (ts.isStringLiteral(unwrapped) || ts.isNoSubstitutionTemplateLiteral(unwrapped)) {
@@ -1798,6 +1948,12 @@ function evaluateStaticDataExpression(
     return [
       ...evaluateStaticDataExpression(unwrapped.left, context),
       ...evaluateStaticDataExpression(unwrapped.right, context),
+    ];
+  }
+  if (ts.isConditionalExpression(unwrapped) && context.includeConditionalBranches === true) {
+    return [
+      ...evaluateStaticDataExpression(unwrapped.whenTrue, context),
+      ...evaluateStaticDataExpression(unwrapped.whenFalse, context),
     ];
   }
   if (ts.isIdentifier(unwrapped)) return evaluateStaticIdentifier(unwrapped, context);
@@ -1885,7 +2041,7 @@ function evaluateStaticDataExpression(
 
 function evaluateStaticIdentifier(
   identifier: tsTypes.Identifier,
-  context: Required<StaticDataEvaluationContext>,
+  context: StaticDataEvaluationContext & { readonly resolving: Set<string> },
 ): readonly StaticDataValue[] {
   const declaration = context.analysis.lexical.declarationFor(identifier);
   if (!declaration) return [];

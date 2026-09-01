@@ -64,6 +64,15 @@ export interface EvidenceWriterOutputJustification {
 }
 
 /**
+ * Outputs whose committed bytes intentionally record one measured execution.
+ * This classification is independent of the justification text so removing a
+ * justification cannot silently make a run-varying output reproducible.
+ */
+export const EVIDENCE_RUNTIME_VARIABLE_OUTPUT_PATHS = [
+  "rust/crates/omena-benchmarks/baselines/wpt-case-count-baseline-v0.json",
+] as const;
+
+/**
  * A governed writer may use a computed write target only when it is either
  * resolved to a repository output, bound to committed data above, or refused
  * here as a non-repository side effect. Exact expression keys keep this list

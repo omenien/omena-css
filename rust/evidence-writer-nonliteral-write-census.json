@@ -18,6 +18,9 @@
     "broadNonLiteralWriteSiteCount": 319,
     "unsweptRegistryWriterScriptsWithNonLiteralSites": 44
   },
+  "runtimeVariableOutputPaths": [
+    "rust/crates/omena-benchmarks/baselines/wpt-case-count-baseline-v0.json"
+  ],
   "typedJustifications": [
     {
       "commandId": "benchmark-emitted-css-golden",

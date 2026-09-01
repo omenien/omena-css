@@ -58,6 +58,7 @@ import {
   sha256Text,
 } from "../../../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import {
+  assertEvidenceWriterDeclarationWriteWitnessCoverage,
   assertEvidenceWriterNonLiteralWriteCensusDecreaseOnly,
   assertEvidenceWriterAuthorityCoverage,
   assertEvidenceWriterOutputAuthorityCoverage,
@@ -78,6 +79,7 @@ import {
   type EvidenceWriterRegistryV0,
 } from "../../../packages/check-orchestrator/src/evidence/writer-registry";
 import {
+  EVIDENCE_RUNTIME_VARIABLE_OUTPUT_PATHS,
   EVIDENCE_STATIC_WRITE_OUTPUT_AUTHORITY,
   EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH,
   EVIDENCE_WRITER_COMMAND_DECLARATIONS,
@@ -1671,6 +1673,73 @@ describe("writer registry portability", () => {
     }
   }, 120_000);
 
+  it("binds every explicit write witness to its own declared output path", () => {
+    const fixture = createDetachedFixtureWorktree("omena-writer-witness-binding-");
+    try {
+      syncEvidenceWriterFixtureSources(fixture.repoRoot, fixture.worktree);
+      attachFixtureNodeModules(fixture.repoRoot, fixture.worktree);
+      const authorityPath = path.join(fixture.worktree, EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH);
+      const source = readFileSync(authorityPath, "utf8");
+      const lintOutputMarker =
+        'outputPaths: ["rust/crates/omena-diff-test/oss-corpus-farm/ranked-set-loss-census.json"],';
+      const lintWitnessMarker = `${lintOutputMarker}\n    outputWriteWitnesses: [`;
+      const plantedOutput = "rust/crates/omena-diff-test/oss-corpus-farm/lint-census-policy.json";
+      const plantBPrime = source.replace(
+        lintWitnessMarker,
+        `outputPaths: [\n      "rust/crates/omena-diff-test/oss-corpus-farm/ranked-set-loss-census.json",\n      "${plantedOutput}",\n    ],\n    outputWriteWitnesses: [\n      {\n        outputPaths: ["${plantedOutput}"],\n        writerScript: "scripts/oss-corpus-farm.ts",\n        writeExpression: "baselinePath",\n      },`,
+      );
+      expect(plantBPrime).not.toBe(source);
+
+      const baselineStart = source.indexOf('  {\n    commandId: "external-corpus-baseline"');
+      const baselineEnd = source.indexOf(
+        '\n  {\n    commandId: "external-corpus-lint-census"',
+        baselineStart,
+      );
+      expect(baselineStart).toBeGreaterThanOrEqual(0);
+      expect(baselineEnd).toBeGreaterThan(baselineStart);
+      const baselineDeclaration = source.slice(baselineStart, baselineEnd);
+      const swappedDeclaration = baselineDeclaration
+        .replace('writeExpression: "baselinePath"', 'writeExpression: "__swap__"')
+        .replace('writeExpression: "reportPath"', 'writeExpression: "baselinePath"')
+        .replace('writeExpression: "__swap__"', 'writeExpression: "reportPath"');
+      expect(swappedDeclaration).not.toBe(baselineDeclaration);
+      const witnessSwap = `${source.slice(0, baselineStart)}${swappedDeclaration}${source.slice(baselineEnd)}`;
+
+      for (const [label, plantedSource] of [
+        ["plant-b-prime", plantBPrime],
+        ["witness-swap", witnessSwap],
+      ] as const) {
+        for (const mode of ["--check", "--write"] as const) {
+          writeFileSync(authorityPath, plantedSource);
+          const red = runEvidenceWriterFixtureCommand(fixture.worktree, mode);
+          expect(red.status, `${label} ${mode}\n${red.stdout}\n${red.stderr}`).not.toBe(0);
+          expect(red.stderr).toContain(
+            "evidence writer output witness does not resolve to its declared output",
+          );
+        }
+      }
+    } finally {
+      removeFixtureWorktree(fixture);
+    }
+  }, 180_000);
+
+  it("path-binds the current witness corpus including the two-literal query ternary", () => {
+    const repoRoot = path.resolve(import.meta.dirname, "../../..");
+    const coverage = assertEvidenceWriterDeclarationWriteWitnessCoverage(repoRoot);
+    expect(coverage.witnessedOutputs).toHaveLength(26);
+    expect(coverage.staticallyBoundWitnessOutputs).toHaveLength(7);
+    expect(coverage.unresolvedWitnessOutputs).toHaveLength(19);
+    expect(
+      coverage.staticallyBoundWitnessOutputs.length + coverage.unresolvedWitnessOutputs.length,
+    ).toBe(coverage.witnessedOutputs.length);
+    expect(coverage.staticallyBoundWitnessOutputs).toEqual(
+      expect.arrayContaining([
+        "query-public-surface:rust/crates/omena-query/tests/snapshots/public-api.txt",
+        "query-public-surface-all-features:rust/crates/omena-query/tests/snapshots/public-api-all-features.txt",
+      ]),
+    );
+  }, 30_000);
+
   it("names every unstable field in the measured W2 output justification", () => {
     const justification = EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS.find(
       (entry) => entry.kind === "runtime-variable-output",
@@ -1683,6 +1752,7 @@ describe("writer registry portability", () => {
     expect(new Set(justification?.variableFields?.map((field) => field.source))).toEqual(
       new Set(["timestamp", "wallTime", "sha", "worktreeClean", "host"]),
     );
+    expect(EVIDENCE_RUNTIME_VARIABLE_OUTPUT_PATHS).toEqual([justification?.outputPath]);
     const repoRoot = path.resolve(import.meta.dirname, "../../..");
     const census = JSON.parse(
       readFileSync(
@@ -1694,6 +1764,62 @@ describe("writer registry portability", () => {
       /committed evidence writer non-literal census is required/u,
     );
   });
+
+  it("requires and validates the measured W2 typed justification", () => {
+    const fixture = createDetachedFixtureWorktree("omena-runtime-justification-");
+    try {
+      syncEvidenceWriterFixtureSources(fixture.repoRoot, fixture.worktree);
+      attachFixtureNodeModules(fixture.repoRoot, fixture.worktree);
+      const authorityPath = path.join(fixture.worktree, EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH);
+      const source = readFileSync(authorityPath, "utf8");
+      const runtimeStart = source.indexOf(
+        '  {\n    outputPath: "rust/crates/omena-benchmarks/baselines/wpt-case-count-baseline-v0.json"',
+      );
+      const runtimeEnd = source.indexOf("\n  },\n];", runtimeStart);
+      expect(runtimeStart).toBeGreaterThanOrEqual(0);
+      expect(runtimeEnd).toBeGreaterThan(runtimeStart);
+      const withoutRuntimeJustification = `${source.slice(0, runtimeStart)}${source.slice(
+        runtimeEnd + "\n  },".length,
+      )}`;
+      const mutations = [
+        {
+          label: "host-drop",
+          source: source.replace('      { fieldPath: "samples[].machine", source: "host" },\n', ""),
+          error: "runtime-variable output justification omits host",
+        },
+        {
+          label: "field-path",
+          source: source.replace("samples[].recordedAtUtc", "samples[].notACommittedField"),
+          error: "runtime-variable output justification field path is absent",
+        },
+        {
+          label: "justification-drop",
+          source: withoutRuntimeJustification,
+          error: "runtime-variable evidence output requires a typed justification",
+        },
+      ] as const;
+      for (const mutation of mutations) {
+        expect(mutation.source, mutation.label).not.toBe(source);
+        writeFileSync(authorityPath, mutation.source);
+        const checkRed = runEvidenceWriterFixtureCommand(fixture.worktree, "--check");
+        expect(
+          checkRed.status,
+          `${mutation.label} --check\n${checkRed.stdout}\n${checkRed.stderr}`,
+        ).not.toBe(0);
+        expect(checkRed.stderr).toContain(mutation.error);
+        if (mutation.label === "justification-drop") {
+          const writeRed = runEvidenceWriterFixtureCommand(fixture.worktree, "--write");
+          expect(
+            writeRed.status,
+            `${mutation.label} --write\n${writeRed.stdout}\n${writeRed.stderr}`,
+          ).not.toBe(0);
+          expect(writeRed.stderr).toContain(mutation.error);
+        }
+      }
+    } finally {
+      removeFixtureWorktree(fixture);
+    }
+  }, 180_000);
 
   it("rejects a newly shaped governed non-literal write without a declaration or refusal", () => {
     const fixture = createDetachedFixtureWorktree("omena-governed-write-");

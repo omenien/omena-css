@@ -1558,7 +1558,7 @@ function runEvidenceWritersCommand(parsed: ParsedArgs): void {
   ];
   if (parsed.write) {
     assertEvidenceWriterNonLiteralWriteCensusDecreaseOnly(
-      loadEvidenceWriterNonLiteralWriteCensus(manifest.rootDir),
+      loadEvidenceWriterNonLiteralWriteCensus(manifest.rootDir, false),
       census,
     );
     for (const output of outputs) writeFileSync(output.path, output.source);
