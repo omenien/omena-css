@@ -156,7 +156,8 @@ impl FileEditV0 {
         mut self,
         postcondition: WorkspaceEditPostconditionV0,
     ) -> Self {
-        self.postconditions.push(postcondition);
+        let Self { postconditions, .. } = &mut self;
+        postconditions.push(postcondition);
         self
     }
 }
@@ -244,8 +245,7 @@ impl WorkspaceEditTransaction {
                 })
             }
             Err(cause) => {
-                let rollback_failures = rollback(staged.as_mut_slice());
-                cleanup_staged(staged.as_slice());
+                let rollback_failures = rollback_and_cleanup(staged);
                 if rollback_failures.is_empty() {
                     remove_if_exists(journal_path.as_path())?;
                     Err(cause)
@@ -632,7 +632,8 @@ impl TransactionLockGuard {
                 destination.as_path(),
                 transaction_id,
             )?;
-            guard.paths.push(lock_path.clone());
+            let Self { paths } = &mut guard;
+            paths.push(lock_path.clone());
         }
         Ok(guard)
     }
@@ -724,9 +725,10 @@ fn cleanup_backups(
     remove_if_exists(journal_path)
 }
 
-fn rollback(staged: &mut [StagedEditV0]) -> Vec<String> {
+fn rollback_and_cleanup(mut staged: Vec<StagedEditV0>) -> Vec<String> {
+    staged.reverse();
     let mut failures = Vec::new();
-    for edit in staged.iter_mut().rev() {
+    for edit in staged {
         if edit.replacement_moved
             && let Err(error) = fs::remove_file(edit.destination.as_path())
             && error.kind() != std::io::ErrorKind::NotFound
@@ -735,6 +737,7 @@ fn rollback(staged: &mut [StagedEditV0]) -> Vec<String> {
                 "failed to remove replacement {}: {error}",
                 edit.destination.display()
             ));
+            cleanup_staged(std::slice::from_ref(&edit));
             continue;
         }
         if edit.backup_ready
@@ -745,6 +748,7 @@ fn rollback(staged: &mut [StagedEditV0]) -> Vec<String> {
                 edit.destination.display()
             ));
         }
+        cleanup_staged(std::slice::from_ref(&edit));
     }
     failures
 }
@@ -1013,11 +1017,15 @@ mod tests {
             return Err("before-rename failpoint did not abort the transaction".to_string());
         };
         assert!(matches!(
-            error,
+            &error,
             WorkspaceEditTransactionErrorV0::InjectedFailure {
                 point: "beforeRename"
             }
         ));
+        assert_eq!(
+            error.to_string(),
+            "injected workspace edit failure at beforeRename"
+        );
         assert_eq!(
             fs::read(&path).map_err(|error| error.to_string())?,
             original

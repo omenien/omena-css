@@ -357,7 +357,7 @@
       },
       {
         "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-        "line": 844,
+        "line": 849,
         "function": "build_css_modules_rename_plan",
         "operation": "str-eq",
         "evidence": "if selector_name == new_name {",
@@ -950,7 +950,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:24d311a1eb0b3288f735d7a13f1deef7b4d031ffd0e588d52157d3ce5c91c6a0"
+    "siteDigest": "sha256:07958ef0b5764b5fdbb704272934bb2989477743b21d8014955a499c38d3e073"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
@@ -1855,7 +1855,7 @@
       },
       {
         "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-        "line": 322,
+        "line": 327,
         "function": "build_token_rename_plan",
         "operation": "sealed-property-key",
         "evidence": ".filter(|occurrence| occurrence.property_key == token_name)",
@@ -6974,7 +6974,7 @@
         "role": "producer"
       }
     ],
-    "siteDigest": "sha256:63057ae4442b8f66a4ea052431490ab36f7e56b62d4e0fb45e872eee1231d569",
+    "siteDigest": "sha256:6ad3c850040d1cdf9a68338b2809590ab4c3eb797af00788d8d702b20f3823da",
     "residualRawCarrierDirection": "decrease-only",
     "residualRawCarrierSiteCount": 128,
     "residualRawCarrierSites": [
@@ -14952,7 +14952,7 @@
         },
         {
           "path": "rust/crates/omena-cli/src/build.rs",
-          "line": 334,
+          "line": 352,
           "function": "build_file",
           "escapeId": "serde-json-to-string",
           "evidence": "let blockers = serde_json::to_string(blockers)",
@@ -14964,7 +14964,7 @@
         },
         {
           "path": "rust/crates/omena-cli/src/build.rs",
-          "line": 886,
+          "line": 934,
           "function": "emit_bundle_code_split_outputs",
           "escapeId": "serde-json-to-string-pretty",
           "evidence": "let source_map_json = serde_json::to_string_pretty(&source_map_v3)",
@@ -14976,7 +14976,7 @@
         },
         {
           "path": "rust/crates/omena-cli/src/build.rs",
-          "line": 930,
+          "line": 987,
           "function": "emit_bundle_code_split_outputs",
           "escapeId": "serde-json-to-string-pretty",
           "evidence": "let manifest_json = serde_json::to_string_pretty(&manifest)",
@@ -15446,7 +15446,7 @@
         },
         {
           "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-          "line": 657,
+          "line": 662,
           "function": "fold_sass_oracle_result",
           "escapeId": "debug-format-spec",
           "evidence": "detail: format!(",
@@ -15464,7 +15464,7 @@
         },
         {
           "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-          "line": 718,
+          "line": 723,
           "function": "run_sass_migration_oracle",
           "escapeId": "serde-json-to-vec",
           "evidence": "let request_json = serde_json::to_vec(request)",
@@ -15476,7 +15476,7 @@
         },
         {
           "path": "rust/crates/omena-cli/src/minify.rs",
-          "line": 136,
+          "line": 147,
           "function": "minify_source",
           "escapeId": "serde-json-to-string",
           "evidence": "let blockers = serde_json::to_string(&blockers)",
@@ -15646,7 +15646,7 @@
         },
         {
           "path": "rust/crates/omena-cli/src/write_safety.rs",
-          "line": 119,
+          "line": 144,
           "function": "fmt",
           "escapeId": "write-debug",
           "evidence": "Self::Rejected(rejection) => write!(",
@@ -18472,7 +18472,7 @@
           "reachingIdentitySinks": []
         }
       ],
-      "escapeSiteDigest": "sha256:be935228d5a169b79e4a9249f215cbeb59f9c8352ac8273e5c968507b5e2cf0d",
+      "escapeSiteDigest": "sha256:693a807db08a07379c2eb791dc60a3f8777dc8aef22a742c26d340683b443b75",
       "identityFlowCount": 16,
       "identityFlows": [
         {
@@ -21123,7 +21123,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-              "line": 249,
+              "line": 254,
               "function": "migrate_command",
               "operation": "carrier-field-spelling:match-pattern",
               "evidence": "match command {",
@@ -24866,7 +24866,7 @@
               "reason": "A property-shaped String field with a spelling other than `name` is outside the carrier-source recognizer's field-name bound."
             }
           ],
-          "siteDigest": "sha256:96b260c2fa859ddabcc629f480c0454726216f5190942a4521542cfc6c04c12f",
+          "siteDigest": "sha256:7f8798d4c37ae16502794c400d5b78b68b743c3d575d0463f04c0bcd5ec2fb9f",
           "reason": "Carrier-source discovery is bound to a literal String field named `name` and direct `.name` or `Type { name }` reads. The /property|custom|declaration|reference|identity|selector|class|key/ regex governs only the `field-name-not-name` operation; match-arm, closure-binder, and explicit Deref field reads are separately counted lexical upper bounds, not affirmed non-property flows."
         },
         {
@@ -24910,7 +24910,7 @@
           "id": "place-expression-mutation-grammar",
           "direction": "decrease-only",
           "operations": ["complex-method-receiver", "complex-mutable-argument"],
-          "siteCount": 1177,
+          "siteCount": 1178,
           "sites": [
             {
               "path": "rust/crates/engine-shadow-runner/src/main.rs",
@@ -27299,7 +27299,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 398,
+              "line": 416,
               "function": "build_file",
               "operation": "place-expression-argument:&mut",
               "evidence": "push_ready_surface(&mut summary.ready_surfaces, \"treeShakeBuildMode\");",
@@ -27308,7 +27308,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 408,
+              "line": 426,
               "function": "build_file",
               "operation": "place-expression-argument:&mut",
               "evidence": "push_ready_surface(&mut summary.ready_surfaces, \"bundleAssetUrlResolution\");",
@@ -27317,7 +27317,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 410,
+              "line": 428,
               "function": "build_file",
               "operation": "place-expression-argument:&mut",
               "evidence": "push_ready_surface(&mut summary.ready_surfaces, \"bundleCodeSplitPlan\");",
@@ -27326,7 +27326,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 412,
+              "line": 430,
               "function": "build_file",
               "operation": "place-expression-argument:&mut",
               "evidence": "push_ready_surface(&mut summary.ready_surfaces, \"bundleOperationFacade\");",
@@ -27335,7 +27335,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 416,
+              "line": 434,
               "function": "build_file",
               "operation": "place-expression-argument:&mut",
               "evidence": "push_ready_surface(&mut summary.ready_surfaces, \"bundleBuildMode\");",
@@ -27344,7 +27344,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 418,
+              "line": 436,
               "function": "build_file",
               "operation": "place-expression-argument:&mut",
               "evidence": "push_ready_surface(&mut summary.ready_surfaces, \"bundleAssetUrlRewrite\");",
@@ -27353,7 +27353,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 424,
+              "line": 442,
               "function": "build_file",
               "operation": "place-expression-argument:&mut",
               "evidence": "push_ready_surface(&mut summary.ready_surfaces, \"sourceMapV3Serializer\");",
@@ -27362,7 +27362,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 426,
+              "line": 444,
               "function": "build_file",
               "operation": "place-expression-argument:&mut",
               "evidence": "push_ready_surface(&mut summary.ready_surfaces, \"bundleSourceMapOriginChain\");",
@@ -27371,7 +27371,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 461,
+              "line": 480,
               "function": "build_file",
               "operation": "place-expression-argument:&mut",
               "evidence": "push_ready_surface(&mut summary.ready_surfaces, \"bundleCodeSplitEmission\");",
@@ -27380,7 +27380,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 471,
+              "line": 490,
               "function": "build_file",
               "operation": "place-expression-argument:&mut",
               "evidence": "push_ready_surface(&mut summary.ready_surfaces, \"bundleCodeSplitEntryConfig\");",
@@ -27389,7 +27389,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 525,
+              "line": 544,
               "function": "build_file",
               "operation": "place-expression-argument:&mut",
               "evidence": "&mut summary.ready_surfaces,",
@@ -27398,7 +27398,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 542,
+              "line": 561,
               "function": "build_file",
               "operation": "place-expression-argument:&mut",
               "evidence": "push_ready_surface(&mut summary.ready_surfaces, \"postcssCompatibilityRunner\");",
@@ -27407,7 +27407,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1130,
+              "line": 1194,
               "function": "merge_cli_transform_context",
               "operation": "place-expression-argument:&mut",
               "evidence": "&mut base.reachable_class_names,",
@@ -27416,7 +27416,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1134,
+              "line": 1198,
               "function": "merge_cli_transform_context",
               "operation": "place-expression-argument:&mut",
               "evidence": "&mut base.reachable_keyframe_names,",
@@ -27425,7 +27425,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1138,
+              "line": 1202,
               "function": "merge_cli_transform_context",
               "operation": "place-expression-argument:&mut",
               "evidence": "&mut base.reachable_value_names,",
@@ -27434,7 +27434,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1141,
+              "line": 1205,
               "function": "merge_cli_transform_context",
               "operation": "place-expression-receiver:extend",
               "evidence": "base.reachable_custom_property_names",
@@ -27443,7 +27443,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1153,
+              "line": 1217,
               "function": "append_tree_shake_build_passes",
               "operation": "place-expression-argument:&mut",
               "evidence": "fn append_tree_shake_build_passes(pass_ids: &mut Vec<String>) {",
@@ -27452,7 +27452,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1167,
+              "line": 1231,
               "function": "append_bundle_build_passes",
               "operation": "place-expression-argument:&mut",
               "evidence": "pass_ids: &mut Vec<String>,",
@@ -27461,7 +27461,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1183,
+              "line": 1247,
               "function": "append_minify_build_passes",
               "operation": "place-expression-argument:&mut",
               "evidence": "fn append_minify_build_passes(pass_ids: &mut Vec<String>) {",
@@ -27470,7 +27470,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1205,
+              "line": 1269,
               "function": "push_ready_surface",
               "operation": "place-expression-argument:&mut",
               "evidence": "fn push_ready_surface(surfaces: &mut Vec<&'static str>, surface: &'static str) {",
@@ -27479,7 +27479,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1211,
+              "line": 1275,
               "function": "merge_cli_context_list",
               "operation": "place-expression-argument:&mut",
               "evidence": "fn merge_cli_context_list(target: &mut Vec<String>, additional: &[String]) {",
@@ -27668,7 +27668,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/format.rs",
-              "line": 117,
+              "line": 121,
               "function": "build_format_report",
               "operation": "place-expression-argument:&mut",
               "evidence": "for plan in &mut plans {",
@@ -27758,7 +27758,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/migrate/apply.rs",
-              "line": 126,
+              "line": 146,
               "function": "prepare_migration_writes",
               "operation": "place-expression-receiver:push",
               "evidence": ".or_default()",
@@ -27767,7 +27767,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-              "line": 601,
+              "line": 606,
               "function": "fold_sass_oracle_result",
               "operation": "place-expression-argument:&mut",
               "evidence": "drafts: &mut Vec<MigrationEditDraftV0>,",
@@ -27776,7 +27776,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-              "line": 602,
+              "line": 607,
               "function": "fold_sass_oracle_result",
               "operation": "place-expression-argument:&mut",
               "evidence": "evidence: &mut Vec<MigrationEvidenceV0>,",
@@ -27785,7 +27785,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-              "line": 603,
+              "line": 608,
               "function": "fold_sass_oracle_result",
               "operation": "place-expression-argument:&mut",
               "evidence": "blockers: &mut Vec<MigrationBlockerV0>,",
@@ -27794,7 +27794,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-              "line": 724,
+              "line": 729,
               "function": "run_sass_migration_oracle",
               "operation": "place-expression-argument:&mut",
               "evidence": "std::io::copy(&mut request_json.as_slice(), &mut stdin)",
@@ -27937,8 +27937,17 @@
               "reason": "A known mutation method is invoked through a non-bare place expression that the receiver resolver cannot bind."
             },
             {
+              "path": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+              "line": 508,
+              "function": "fmt",
+              "operation": "place-expression-argument:&mut",
+              "evidence": "fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {",
+              "disposition": "named-exempt",
+              "reason": "A mutable argument is a field, index, dereference, or call-chain place rather than a bare binding or named alias."
+            },
+            {
               "path": "rust/crates/omena-cli/src/write_safety.rs",
-              "line": 117,
+              "line": 142,
               "function": "fmt",
               "operation": "place-expression-argument:&mut",
               "evidence": "fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {",
@@ -35506,7 +35515,7 @@
               "reason": "A mutable argument is a field, index, dereference, or call-chain place rather than a bare binding or named alias."
             }
           ],
-          "siteDigest": "sha256:0c3ab46a6b9d4c90a38bc2e39dbf70381a68e696f2bf57bbe5f18f93b153b4a6",
+          "siteDigest": "sha256:85d57440cd67e73c094d2bf9565ba5ed0bc38369d251328741c02ba74bb71546",
           "reason": "The mutable-flow resolver follows bare bindings and named aliases. Index, field, call-chain, dereference, and other place-expression receivers or mutable arguments are a conservative product-closure upper bound that also includes type-annotation `&mut` fragments and pure temporaries."
         },
         {
@@ -37470,7 +37479,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 661,
+              "line": 700,
               "function": "compose_source_map_with_input_source_maps",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": "let Some(input_source_map) = input_source_maps.get(&source_path) else {",
@@ -37479,7 +37488,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 976,
+              "line": 1040,
               "function": "rewrite_bundle_code_split_imports_for_source",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": "let Some(source_path) = source_path_lookup.get(target_path.as_str()) else {",
@@ -37488,7 +37497,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 979,
+              "line": 1043,
               "function": "rewrite_bundle_code_split_imports_for_source",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": "let Some(target_file_name) = file_name_by_path.get(source_path.as_str()) else {",
@@ -37497,7 +37506,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1028,
+              "line": 1092,
               "function": "bundle_code_split_manifest_imports_for_source",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": "let Some(source_path) = source_path_lookup.get(target_path.as_str()) else {",
@@ -37506,7 +37515,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1031,
+              "line": 1095,
               "function": "bundle_code_split_manifest_imports_for_source",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": "let Some(file_name) = file_name_by_path.get(source_path.as_str()) else {",
@@ -37515,7 +37524,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1160,
+              "line": 1224,
               "function": "append_tree_shake_build_passes",
               "operation": "non-string-container-egress:Vec.iter",
               "evidence": "if !pass_ids.iter().any(|existing| existing == pass_id) {",
@@ -37524,7 +37533,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1177,
+              "line": 1241,
               "function": "append_bundle_build_passes",
               "operation": "non-string-container-egress:Vec.iter",
               "evidence": "if !pass_ids.iter().any(|existing| existing == pass_id) {",
@@ -37533,7 +37542,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1185,
+              "line": 1249,
               "function": "append_minify_build_passes",
               "operation": "non-string-container-egress:Vec.iter",
               "evidence": "if !pass_ids.iter().any(|existing| existing == pass_id) {",
@@ -37659,7 +37668,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/migrate/apply.rs",
-              "line": 171,
+              "line": 193,
               "function": "prepare_migration_writes",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": ".filter_map(|edit| assessments.get(edit.id.as_str()))",
@@ -37668,7 +37677,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-              "line": 569,
+              "line": 574,
               "function": "build_sass_import_to_use_plan_with_oracle",
               "operation": "non-string-container-egress:Vec.iter",
               "evidence": "edits: drafts",
@@ -43598,7 +43607,7 @@
               "reason": "A known non-String container method can return an element or iterator, but container taint is not generally transferred to that scalar result."
             }
           ],
-          "siteDigest": "sha256:45543c045b959b608ffba369e9dfcdbc9f6170e1610ad0126ab3c446f414412d",
+          "siteDigest": "sha256:9d38add67558a78c0c11229e8a3f5a7400a97b4253876a3a809d3ae9502a17aa",
           "reason": "The flow engine tracks authored sources into known non-String containers but does not generally transfer a container source back into scalars returned by these egress methods."
         },
         {

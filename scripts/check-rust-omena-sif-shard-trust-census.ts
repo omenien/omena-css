@@ -56,8 +56,8 @@ assert.deepEqual(
 
 const rules: readonly CensusRule[] = [
   {
-    id: "cli-sif-artifact-writer",
-    call: "fs::write(&output_path, &sif_json)",
+    id: "cli-sif-artifact-transaction",
+    call: "commit_sif_json_output(",
   },
   {
     id: "cli-lock-update-writer",
@@ -110,7 +110,7 @@ const rules: readonly CensusRule[] = [
 ];
 
 const expectedKeys = [
-  "artifact-input|cli-sif-artifact-writer|rust/crates/omena-cli/src/sif.rs|generate_sif",
+  "artifact-input|cli-sif-artifact-transaction|rust/crates/omena-cli/src/sif.rs|generate_sif",
   "artifact-input|cli-lock-update-writer|rust/crates/omena-cli/src/lock.rs|lock_update",
   "trust-writer|cli-recorded-verdict-writer|rust/crates/omena-cli/src/lock.rs|lock_verify_attestation",
   "trust-writer|cli-recorded-bundle-writer|rust/crates/omena-cli/src/lock.rs|lock_verify_attestation",
@@ -516,7 +516,7 @@ function countOccurrences(source: string, needle: string): number {
 
 function censusRoleForRuleId(ruleId: string): CensusRole {
   switch (ruleId) {
-    case "cli-sif-artifact-writer":
+    case "cli-sif-artifact-transaction":
     case "cli-lock-update-writer":
       return "artifact-input";
     case "cli-recorded-verdict-writer":
@@ -539,7 +539,7 @@ function censusRoleForRuleId(ruleId: string): CensusRole {
 }
 
 function ruleAppliesToSite(ruleId: string, sourcePath: string, symbol: string): boolean {
-  if (ruleId === "cli-sif-artifact-writer") return symbol === "generate_sif";
+  if (ruleId === "cli-sif-artifact-transaction") return symbol === "generate_sif";
   if (ruleId === "cli-lock-update-writer") return symbol === "lock_update";
   if (ruleId === "query-resolved-style-shard-consumer") {
     return sourcePath === "rust/crates/omena-query/src/source.rs";

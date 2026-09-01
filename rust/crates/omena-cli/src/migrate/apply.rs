@@ -103,7 +103,7 @@ pub(super) fn apply_migration_plan(
 
     if !write_reports.is_empty() {
         transaction.commit().map_err(|error| error.to_string())?;
-        for report in &mut write_reports {
+        for report in write_reports.as_mut_slice() {
             report.wrote = true;
         }
     }
