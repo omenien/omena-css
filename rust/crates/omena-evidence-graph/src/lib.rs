@@ -867,30 +867,291 @@ impl EvidenceNodeSeedV0 {
     }
 }
 
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+#[serde(rename_all = "camelCase")]
+pub enum EffectivePrecisionV1 {
+    Unknown,
+    Heuristic,
+    Conservative,
+    Exact,
+}
+
+impl EffectivePrecisionV1 {
+    pub const fn meet(self, other: Self) -> Self {
+        if self.rank() <= other.rank() {
+            self
+        } else {
+            other
+        }
+    }
+
+    const fn rank(self) -> u8 {
+        match self {
+            Self::Unknown => 0,
+            Self::Heuristic => 1,
+            Self::Conservative => 2,
+            Self::Exact => 3,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ValueDomainPrecisionV1 {
+    #[serde(rename = "cascadeAtPosition")]
+    CascadeAtPosition,
+    #[serde(rename = "styleModuleResolution")]
+    StyleModuleResolution,
+    #[serde(rename = "classValueResolution")]
+    ClassValueResolution,
+    #[serde(rename = "classValueUniverse")]
+    ClassValueUniverse,
+    #[serde(rename = "classValueFlow")]
+    ClassValueFlow,
+    #[serde(rename = "unknown")]
+    Unknown,
+}
+
+impl ValueDomainPrecisionV1 {
+    pub const fn effective_precision(self) -> EffectivePrecisionV1 {
+        match self {
+            Self::CascadeAtPosition | Self::StyleModuleResolution => EffectivePrecisionV1::Exact,
+            Self::ClassValueResolution | Self::ClassValueUniverse => {
+                EffectivePrecisionV1::Conservative
+            }
+            Self::ClassValueFlow => EffectivePrecisionV1::Heuristic,
+            Self::Unknown => EffectivePrecisionV1::Unknown,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum FlowPrecisionV1 {
+    #[serde(rename = "incrementalDataflow")]
+    IncrementalDataflow,
+    #[serde(rename = "positionScopedCascade")]
+    PositionScopedCascade,
+    #[serde(rename = "sourceSelectorUsage")]
+    SourceSelectorUsage,
+    #[serde(rename = "sourceControlFlow")]
+    SourceControlFlow,
+    #[serde(rename = "sourceSyntaxIndex")]
+    SourceSyntaxIndex,
+    #[serde(rename = "globalClassUniverse")]
+    GlobalClassUniverse,
+    #[serde(rename = "sourceImportResolution")]
+    SourceImportResolution,
+    #[serde(rename = "typeOracleProviderUnavailable")]
+    TypeOracleProviderUnavailable,
+    #[serde(rename = "sourceDomainReference")]
+    SourceDomainReference,
+    #[serde(rename = "sourceSelectorReference")]
+    SourceSelectorReference,
+    #[serde(rename = "kLimitedCallSiteFlow")]
+    KLimitedCallSiteFlow,
+    #[serde(rename = "fixture")]
+    Fixture,
+    #[serde(rename = "unknown")]
+    Unknown,
+}
+
+impl FlowPrecisionV1 {
+    pub const fn effective_precision(self) -> EffectivePrecisionV1 {
+        match self {
+            Self::IncrementalDataflow | Self::PositionScopedCascade | Self::Fixture => {
+                EffectivePrecisionV1::Exact
+            }
+            Self::SourceSelectorUsage
+            | Self::SourceControlFlow
+            | Self::SourceSyntaxIndex
+            | Self::SourceImportResolution
+            | Self::SourceDomainReference
+            | Self::SourceSelectorReference => EffectivePrecisionV1::Conservative,
+            Self::GlobalClassUniverse | Self::KLimitedCallSiteFlow => {
+                EffectivePrecisionV1::Heuristic
+            }
+            Self::TypeOracleProviderUnavailable | Self::Unknown => EffectivePrecisionV1::Unknown,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ContextPrecisionV1 {
+    #[serde(rename = "perExpressionGraph")]
+    PerExpressionGraph,
+    #[serde(rename = "styleSemanticGraph")]
+    StyleSemanticGraph,
+    #[serde(rename = "perModuleExport")]
+    PerModuleExport,
+    #[serde(rename = "sameFile")]
+    SameFile,
+    #[serde(rename = "perSourceReference")]
+    PerSourceReference,
+    #[serde(rename = "perImportSpecifier")]
+    PerImportSpecifier,
+    #[serde(rename = "perTypeFactTarget")]
+    PerTypeFactTarget,
+    #[serde(rename = "perDomainAxis")]
+    PerDomainAxis,
+    #[serde(rename = "resolvedClassValueDomain")]
+    ResolvedClassValueDomain,
+    #[serde(rename = "0-cfa")]
+    ContextInsensitive,
+    #[serde(rename = "1-cfa")]
+    ShallowCallSite,
+    #[serde(rename = "k-cfa")]
+    KLimitedCallSite,
+    #[serde(rename = "fixture")]
+    Fixture,
+    #[serde(rename = "unknown")]
+    Unknown,
+}
+
+impl ContextPrecisionV1 {
+    pub const fn from_max_context_depth(max_context_depth: usize) -> Self {
+        match max_context_depth {
+            0 => Self::ContextInsensitive,
+            1 => Self::ShallowCallSite,
+            _ => Self::KLimitedCallSite,
+        }
+    }
+
+    pub const fn effective_precision(self) -> EffectivePrecisionV1 {
+        match self {
+            Self::PerExpressionGraph
+            | Self::StyleSemanticGraph
+            | Self::PerModuleExport
+            | Self::PerSourceReference
+            | Self::PerImportSpecifier
+            | Self::PerTypeFactTarget
+            | Self::PerDomainAxis
+            | Self::KLimitedCallSite
+            | Self::Fixture => EffectivePrecisionV1::Exact,
+            Self::SameFile | Self::ResolvedClassValueDomain | Self::ShallowCallSite => {
+                EffectivePrecisionV1::Conservative
+            }
+            Self::ContextInsensitive => EffectivePrecisionV1::Heuristic,
+            Self::Unknown => EffectivePrecisionV1::Unknown,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ProviderCompletenessV1 {
+    Complete,
+    Partial,
+    Unresolved,
+    Unknown,
+}
+
+impl ProviderCompletenessV1 {
+    pub const fn from_unresolved_count(unresolved_count: usize) -> Self {
+        if unresolved_count == 0 {
+            Self::Complete
+        } else {
+            Self::Unresolved
+        }
+    }
+
+    pub const fn effective_precision(self) -> EffectivePrecisionV1 {
+        match self {
+            Self::Complete => EffectivePrecisionV1::Exact,
+            Self::Partial => EffectivePrecisionV1::Conservative,
+            Self::Unresolved | Self::Unknown => EffectivePrecisionV1::Unknown,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WorldAssumptionV1 {
+    Closed,
+    Open,
+    Unknown,
+}
+
+impl WorldAssumptionV1 {
+    pub const fn from_closed_world(closed_world: bool) -> Self {
+        if closed_world {
+            Self::Closed
+        } else {
+            Self::Open
+        }
+    }
+
+    pub const fn effective_precision(self) -> EffectivePrecisionV1 {
+        match self {
+            Self::Closed => EffectivePrecisionV1::Exact,
+            Self::Open => EffectivePrecisionV1::Conservative,
+            Self::Unknown => EffectivePrecisionV1::Unknown,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RevisionIdentityV1 {
+    Current,
+    StaleTypeFact,
+    Unknown,
+}
+
+impl RevisionIdentityV1 {
+    pub const fn from_revisions(observed_revision: u64, current_revision: u64) -> Self {
+        if observed_revision == current_revision {
+            Self::Current
+        } else {
+            Self::StaleTypeFact
+        }
+    }
+
+    pub const fn effective_precision(self) -> EffectivePrecisionV1 {
+        match self {
+            Self::Current => EffectivePrecisionV1::Exact,
+            Self::StaleTypeFact => EffectivePrecisionV1::Heuristic,
+            Self::Unknown => EffectivePrecisionV1::Unknown,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisPrecisionV1 {
+    pub value_domain: ValueDomainPrecisionV1,
+    pub flow: FlowPrecisionV1,
+    pub context: ContextPrecisionV1,
+    pub provider_completeness: ProviderCompletenessV1,
+    pub world_assumption: WorldAssumptionV1,
+    pub revision: RevisionIdentityV1,
+}
+
+impl AnalysisPrecisionV1 {
+    pub const fn effective_precision(self) -> EffectivePrecisionV1 {
+        self.value_domain
+            .effective_precision()
+            .meet(self.flow.effective_precision())
+            .meet(self.context.effective_precision())
+            .meet(self.provider_completeness.effective_precision())
+            .meet(self.world_assumption.effective_precision())
+            .meet(self.revision.effective_precision())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EvidenceAnalysisPrecisionV0 {
     pub product: String,
-    pub value_domain: String,
-    pub flow_sensitivity: String,
-    pub context_sensitivity: String,
-    pub revision_axis: String,
+    #[serde(flatten)]
+    pub axes: AnalysisPrecisionV1,
 }
 
 impl EvidenceAnalysisPrecisionV0 {
-    pub fn new(
-        product: impl Into<String>,
-        value_domain: impl Into<String>,
-        flow_sensitivity: impl Into<String>,
-        context_sensitivity: impl Into<String>,
-        revision_axis: impl Into<String>,
-    ) -> Self {
+    pub fn new(product: impl Into<String>, axes: AnalysisPrecisionV1) -> Self {
         Self {
             product: product.into(),
-            value_domain: value_domain.into(),
-            flow_sensitivity: flow_sensitivity.into(),
-            context_sensitivity: context_sensitivity.into(),
-            revision_axis: revision_axis.into(),
+            axes,
         }
     }
 }
@@ -1434,16 +1695,21 @@ mod tests {
     #[test]
     fn graph_preserves_optional_precision_payload() -> Result<(), &'static str> {
         let key = EvidenceNodeKeyV0::new("source_diagnostic_precision", "missingSelector");
+        let axes = AnalysisPrecisionV1 {
+            value_domain: ValueDomainPrecisionV1::ClassValueResolution,
+            flow: FlowPrecisionV1::SourceSyntaxIndex,
+            context: ContextPrecisionV1::PerSourceReference,
+            provider_completeness: ProviderCompletenessV1::from_unresolved_count(0),
+            world_assumption: WorldAssumptionV1::from_closed_world(true),
+            revision: RevisionIdentityV1::from_revisions(7, 7),
+        };
         let graph = build_salsa_demand_evidence_graph_v0(
             [EvidenceNodeSeedV0::with_precision(
                 key.clone(),
                 vec!["omena-query.source-syntax-index".to_string()],
                 Some(EvidenceAnalysisPrecisionV0::new(
                     "omena-query.analysis-precision",
-                    "classValueResolution",
-                    "sourceSyntaxIndex",
-                    "perSourceReference",
-                    "OmenaQuerySourceDiagnosticsForFileV0.input",
+                    axes,
                 )),
                 GuaranteeKindV0::for_label_less_family(),
             )],
@@ -1459,9 +1725,92 @@ mod tests {
             .precision
             .as_ref()
             .ok_or("precision payload must round-trip through the graph")?;
-        assert_eq!(precision.value_domain, "classValueResolution");
-        assert_eq!(precision.flow_sensitivity, "sourceSyntaxIndex");
-        assert_eq!(precision.context_sensitivity, "perSourceReference");
+        assert_eq!(precision.axes, axes);
+        assert_eq!(precision.axes.effective_precision(), EffectivePrecisionV1::Conservative);
+        let json = serde_json::to_value(precision).map_err(|_| "precision must serialize")?;
+        assert_eq!(json["valueDomain"], "classValueResolution");
+        assert_eq!(json["flow"], "sourceSyntaxIndex");
+        assert_eq!(json["context"], "perSourceReference");
+        assert_eq!(json["providerCompleteness"], "complete");
+        assert_eq!(json["worldAssumption"], "closed");
+        assert_eq!(json["revision"], "current");
         Ok(())
+    }
+
+    #[test]
+    fn precision_meet_obeys_lattice_laws_and_unknown_absorbs() {
+        let levels = [
+            EffectivePrecisionV1::Unknown,
+            EffectivePrecisionV1::Heuristic,
+            EffectivePrecisionV1::Conservative,
+            EffectivePrecisionV1::Exact,
+        ];
+        for left in levels {
+            assert_eq!(left.meet(left), left, "meet must be idempotent");
+            assert_eq!(left.meet(EffectivePrecisionV1::Unknown), EffectivePrecisionV1::Unknown);
+            for right in levels {
+                assert_eq!(left.meet(right), right.meet(left), "meet must be commutative");
+                for third in levels {
+                    assert_eq!(
+                        left.meet(right).meet(third),
+                        left.meet(right.meet(third)),
+                        "meet must be associative",
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn every_non_value_axis_can_lower_an_exact_domain() {
+        let exact = AnalysisPrecisionV1 {
+            value_domain: ValueDomainPrecisionV1::CascadeAtPosition,
+            flow: FlowPrecisionV1::IncrementalDataflow,
+            context: ContextPrecisionV1::KLimitedCallSite,
+            provider_completeness: ProviderCompletenessV1::from_unresolved_count(0),
+            world_assumption: WorldAssumptionV1::from_closed_world(true),
+            revision: RevisionIdentityV1::from_revisions(9, 9),
+        };
+        assert_eq!(exact.effective_precision(), EffectivePrecisionV1::Exact);
+        assert_eq!(
+            AnalysisPrecisionV1 {
+                provider_completeness: ProviderCompletenessV1::from_unresolved_count(1),
+                ..exact
+            }
+            .effective_precision(),
+            EffectivePrecisionV1::Unknown,
+        );
+        assert_eq!(
+            AnalysisPrecisionV1 {
+                world_assumption: WorldAssumptionV1::from_closed_world(false),
+                ..exact
+            }
+            .effective_precision(),
+            EffectivePrecisionV1::Conservative,
+        );
+        assert_eq!(
+            AnalysisPrecisionV1 {
+                revision: RevisionIdentityV1::from_revisions(8, 9),
+                ..exact
+            }
+            .effective_precision(),
+            EffectivePrecisionV1::Heuristic,
+        );
+        assert_eq!(
+            AnalysisPrecisionV1 {
+                context: ContextPrecisionV1::from_max_context_depth(1),
+                ..exact
+            }
+            .effective_precision(),
+            EffectivePrecisionV1::Conservative,
+        );
+        assert_eq!(
+            AnalysisPrecisionV1 {
+                flow: FlowPrecisionV1::KLimitedCallSiteFlow,
+                ..exact
+            }
+            .effective_precision(),
+            EffectivePrecisionV1::Heuristic,
+        );
     }
 }
