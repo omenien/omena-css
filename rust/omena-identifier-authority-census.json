@@ -357,7 +357,7 @@
       },
       {
         "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-        "line": 849,
+        "line": 852,
         "function": "build_css_modules_rename_plan",
         "operation": "str-eq",
         "evidence": "if selector_name == new_name {",
@@ -950,7 +950,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:a0d4e0ae6e35e32f49215a1a8dccacae8801fd70f9db3d246877e2f9fbf0a658"
+    "siteDigest": "sha256:2832642d4f1f67b494ef8481a52c6654e65a35def7eb1e0131fc96b69d24ccb2"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
@@ -1855,7 +1855,7 @@
       },
       {
         "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-        "line": 327,
+        "line": 330,
         "function": "build_token_rename_plan",
         "operation": "sealed-property-key",
         "evidence": ".filter(|occurrence| occurrence.property_key == token_name)",
@@ -6974,7 +6974,7 @@
         "role": "producer"
       }
     ],
-    "siteDigest": "sha256:53203872de14ed6189e0541368f357a9c5945e54f5e8049b0cd170816383bb41",
+    "siteDigest": "sha256:8dc74233c2a6b992cb4e5fe627dd460b89537e41e436a27cd2f8137f75b17b08",
     "residualRawCarrierDirection": "decrease-only",
     "residualRawCarrierSiteCount": 128,
     "residualRawCarrierSites": [
@@ -14988,7 +14988,7 @@
         },
         {
           "path": "rust/crates/omena-cli/src/bundle.rs",
-          "line": 55,
+          "line": 72,
           "function": "bundle_command",
           "escapeId": "serde-json-to-string",
           "evidence": "let blockers = serde_json::to_string(blockers)",
@@ -15446,7 +15446,7 @@
         },
         {
           "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-          "line": 662,
+          "line": 665,
           "function": "fold_sass_oracle_result",
           "escapeId": "debug-format-spec",
           "evidence": "detail: format!(",
@@ -15464,7 +15464,7 @@
         },
         {
           "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-          "line": 723,
+          "line": 726,
           "function": "run_sass_migration_oracle",
           "escapeId": "serde-json-to-vec",
           "evidence": "let request_json = serde_json::to_vec(request)",
@@ -15488,8 +15488,8 @@
         },
         {
           "path": "rust/crates/omena-cli/src/output.rs",
-          "line": 43,
-          "function": "write_json_artifact",
+          "line": 53,
+          "function": "commit_json_artifact",
           "escapeId": "serde-json-to-string-pretty",
           "evidence": "let mut json = serde_json::to_string_pretty(value)",
           "operandClasses": ["authored-bearing"],
@@ -15500,7 +15500,7 @@
         },
         {
           "path": "rust/crates/omena-cli/src/output.rs",
-          "line": 57,
+          "line": 103,
           "function": "serialize_json_envelope",
           "escapeId": "serde-json-to-value",
           "evidence": "let payload = serde_json::to_value(value)",
@@ -15512,7 +15512,7 @@
         },
         {
           "path": "rust/crates/omena-cli/src/output.rs",
-          "line": 59,
+          "line": 105,
           "function": "serialize_json_envelope",
           "escapeId": "serde-json-to-string-pretty",
           "evidence": "serde_json::to_string_pretty(&OmenaCliResponseEnvelopeV0 {",
@@ -15524,7 +15524,7 @@
         },
         {
           "path": "rust/crates/omena-cli/src/output.rs",
-          "line": 81,
+          "line": 127,
           "function": "serialize_json_error_envelope",
           "escapeId": "serde-json-to-string",
           "evidence": "serde_json::to_string(&envelope).unwrap_or_else(|_| {",
@@ -18472,7 +18472,7 @@
           "reachingIdentitySinks": []
         }
       ],
-      "escapeSiteDigest": "sha256:05b023ca156df5bb9e690fb61cf1ee2f7702f944b6124e7dfee0b5fd22ec781a",
+      "escapeSiteDigest": "sha256:d354ca04ff41e4a8377f8224b29bc693e9b69a93c00cce81306d70280f6f4055",
       "identityFlowCount": 16,
       "identityFlows": [
         {
@@ -21123,7 +21123,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-              "line": 254,
+              "line": 257,
               "function": "migrate_command",
               "operation": "carrier-field-spelling:match-pattern",
               "evidence": "match command {",
@@ -24866,7 +24866,7 @@
               "reason": "A property-shaped String field with a spelling other than `name` is outside the carrier-source recognizer's field-name bound."
             }
           ],
-          "siteDigest": "sha256:f7e50619ef63360ffdf8c3131a2e496f25dd3557fcd17d7f83dba405dcd06687",
+          "siteDigest": "sha256:bfb4f2b9c1c42bfb724224934c31339b97a4e7942031a6f77314d9342e6014c9",
           "reason": "Carrier-source discovery is bound to a literal String field named `name` and direct `.name` or `Type { name }` reads. The /property|custom|declaration|reference|identity|selector|class|key/ regex governs only the `field-name-not-name` operation; match-arm, closure-binder, and explicit Deref field reads are separately counted lexical upper bounds, not affirmed non-property flows."
         },
         {
@@ -27767,7 +27767,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-              "line": 606,
+              "line": 609,
               "function": "fold_sass_oracle_result",
               "operation": "place-expression-argument:&mut",
               "evidence": "drafts: &mut Vec<MigrationEditDraftV0>,",
@@ -27776,7 +27776,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-              "line": 607,
+              "line": 610,
               "function": "fold_sass_oracle_result",
               "operation": "place-expression-argument:&mut",
               "evidence": "evidence: &mut Vec<MigrationEvidenceV0>,",
@@ -27785,7 +27785,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-              "line": 608,
+              "line": 611,
               "function": "fold_sass_oracle_result",
               "operation": "place-expression-argument:&mut",
               "evidence": "blockers: &mut Vec<MigrationBlockerV0>,",
@@ -27794,7 +27794,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-              "line": 729,
+              "line": 732,
               "function": "run_sass_migration_oracle",
               "operation": "place-expression-argument:&mut",
               "evidence": "std::io::copy(&mut request_json.as_slice(), &mut stdin)",
@@ -27938,7 +27938,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
-              "line": 508,
+              "line": 550,
               "function": "fmt",
               "operation": "place-expression-argument:&mut",
               "evidence": "fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {",
@@ -35515,7 +35515,7 @@
               "reason": "A mutable argument is a field, index, dereference, or call-chain place rather than a bare binding or named alias."
             }
           ],
-          "siteDigest": "sha256:e2a19d952b89bca27e8d18fc70be21d2e55a452df67863cf539739af5af032e7",
+          "siteDigest": "sha256:68fc418d37cba5aadbd35be16af130bcacc9e302c6859879b1fcb2794bcd0639",
           "reason": "The mutable-flow resolver follows bare bindings and named aliases. Index, field, call-chain, dereference, and other place-expression receivers or mutable arguments are a conservative product-closure upper bound that also includes type-annotation `&mut` fragments and pure temporaries."
         },
         {
@@ -37677,7 +37677,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/migrate/mod.rs",
-              "line": 574,
+              "line": 577,
               "function": "build_sass_import_to_use_plan_with_oracle",
               "operation": "non-string-container-egress:Vec.iter",
               "evidence": "edits: drafts",
@@ -43607,7 +43607,7 @@
               "reason": "A known non-String container method can return an element or iterator, but container taint is not generally transferred to that scalar result."
             }
           ],
-          "siteDigest": "sha256:70a79901e7381db95778d9c352ffcbc61dab70cdb846c12c83f12264fe8cde1f",
+          "siteDigest": "sha256:48699e1522fe5aeaf090966faca998a078a184cce17416c9c60a2e43c97a6347",
           "reason": "The flow engine tracks authored sources into known non-String containers but does not generally transfer a container source back into scalars returned by these egress methods."
         },
         {
