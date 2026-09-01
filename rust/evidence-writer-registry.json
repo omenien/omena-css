@@ -3,7 +3,7 @@
   "generatedBy": "pnpm omena-check evidence-writers --write",
   "commandAuthority": {
     "modulePath": "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
-    "sha256": "ae17397ed54f197f414805512e546b0eaaec59a0a6074434840dc29bf7c50f22",
+    "sha256": "6a4186774e78f37ae1b7604e9350b1fbe922af0a6ac5fb637649b7e53e7743fb",
     "declaredCommandCount": 26,
     "declaredOutputCount": 75,
     "declaredStaticWriteOutputCount": 68
@@ -64,6 +64,7 @@
         "test/unit/check-orchestrator/bundle-shard-matrix.test.ts",
         "test/unit/check-orchestrator/ci-workflow.test.ts",
         "test/unit/check-orchestrator/consolidated-graph.test.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts",
         "test/unit/check-orchestrator/gate-policy.test.ts",
         "test/unit/check-orchestrator/governance-arms.test.ts",
         "test/unit/check-orchestrator/lifecycle.test.ts",
@@ -77,6 +78,7 @@
         "rust/product-test-coverage-classguard",
         "tooling/ci-cost-ledger",
         "tooling/ci-workflow",
+        "tooling/evidence-affected-map",
         "tooling/omena-check"
       ]
     },
@@ -309,12 +311,14 @@
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/evidence-writer-nonliteral-write-census.json",
         "scripts/check-docs-reference-surface.ts",
-        "scripts/check-docs-site-contracts.ts"
+        "scripts/check-docs-site-contracts.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
       "consumerGateIds": [
         "docs/reference-surface",
         "docs/reference-surface:update",
-        "docs/site-contracts"
+        "docs/site-contracts",
+        "tooling/evidence-affected-map"
       ]
     },
     {
@@ -380,9 +384,14 @@
         "docs/vscode-extension.md",
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/evidence-writer-nonliteral-write-census.json",
-        "scripts/check-docs-reference-surface.ts"
+        "scripts/check-docs-reference-surface.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
-      "consumerGateIds": ["docs/reference-surface", "docs/reference-surface:update"]
+      "consumerGateIds": [
+        "docs/reference-surface",
+        "docs/reference-surface:update",
+        "tooling/evidence-affected-map"
+      ]
     },
     {
       "artifactPath": "docs/reference/crates.md",
@@ -482,12 +491,14 @@
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/evidence-writer-nonliteral-write-census.json",
         "scripts/check-docs-reference-surface.ts",
-        "scripts/check-docs-site-contracts.ts"
+        "scripts/check-docs-site-contracts.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
       "consumerGateIds": [
         "docs/reference-surface",
         "docs/reference-surface:update",
-        "docs/site-contracts"
+        "docs/site-contracts",
+        "tooling/evidence-affected-map"
       ]
     },
     {
@@ -553,9 +564,14 @@
         "docs/vscode-extension.md",
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/evidence-writer-nonliteral-write-census.json",
-        "scripts/check-docs-reference-surface.ts"
+        "scripts/check-docs-reference-surface.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
-      "consumerGateIds": ["docs/reference-surface", "docs/reference-surface:update"]
+      "consumerGateIds": [
+        "docs/reference-surface",
+        "docs/reference-surface:update",
+        "tooling/evidence-affected-map"
+      ]
     },
     {
       "artifactPath": "docs/reference/personas.md",
@@ -620,9 +636,14 @@
         "docs/vscode-extension.md",
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/evidence-writer-nonliteral-write-census.json",
-        "scripts/check-docs-reference-surface.ts"
+        "scripts/check-docs-reference-surface.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
-      "consumerGateIds": ["docs/reference-surface", "docs/reference-surface:update"]
+      "consumerGateIds": [
+        "docs/reference-surface",
+        "docs/reference-surface:update",
+        "tooling/evidence-affected-map"
+      ]
     },
     {
       "artifactPath": "docs/sdk.md",
@@ -818,13 +839,15 @@
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "packages/check-orchestrator/src/manifest/documented-commands.ts",
         "rust/evidence-writer-nonliteral-write-census.json",
-        "scripts/check-rust-omena-identifier-authority-census.ts"
+        "scripts/check-rust-omena-identifier-authority-census.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
       "consumerGateIds": [
         "rust/omena-syntax-authority-raw-scan-census",
         "rust/omena-syntax-authority-raw-scan-census:update",
         "tooling/ci-cost-ledger",
         "tooling/ci-workflow",
+        "tooling/evidence-affected-map",
         "tooling/omena-check"
       ]
     },
@@ -931,6 +954,7 @@
         "test/unit/check-orchestrator/ci-workflow.test.ts",
         "test/unit/check-orchestrator/consolidated-graph.test.ts",
         "test/unit/check-orchestrator/cost-ledger.test.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts",
         "test/unit/check-orchestrator/product-test-ci-structure.test.ts"
       ],
       "consumerGateIds": [
@@ -938,7 +962,8 @@
         "rust/closure-fast-aggregation-complete",
         "rust/omena-identifier-authority-matrix",
         "rust/omena-identifier-authority-mutations",
-        "rust/product-test-coverage-classguard"
+        "rust/product-test-coverage-classguard",
+        "tooling/evidence-affected-map"
       ]
     },
     {
@@ -3399,11 +3424,13 @@
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-transform-target/src/lib.rs",
         "rust/evidence-writer-nonliteral-write-census.json",
-        "scripts/generate-rust-omena-transform-target-compat.ts"
+        "scripts/generate-rust-omena-transform-target-compat.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
       "consumerGateIds": [
         "rust/omena-transform-target/generated-compat",
-        "rust/omena-transform-target/generated-compat:update"
+        "rust/omena-transform-target/generated-compat:update",
+        "tooling/evidence-affected-map"
       ]
     },
     {
@@ -3438,13 +3465,15 @@
         "scripts/check-rust-m4-axis-a-closure-audit.ts",
         "scripts/check-rust-omena-query-transform-plan.ts",
         "scripts/check-rust-omena-transform-target-generated-compat.ts",
-        "scripts/generate-rust-omena-transform-target-compat.ts"
+        "scripts/generate-rust-omena-transform-target-compat.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
       "consumerGateIds": [
         "rust/m4-axis-a-closure-audit",
         "rust/omena-query/transform-plan",
         "rust/omena-transform-target/generated-compat",
-        "rust/omena-transform-target/generated-compat:update"
+        "rust/omena-transform-target/generated-compat:update",
+        "tooling/evidence-affected-map"
       ]
     },
     {

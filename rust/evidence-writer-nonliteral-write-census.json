@@ -84,47 +84,47 @@
     {
       "commandId": "documentation-reference-surface",
       "outputPath": "docs/reference/README.md",
-      "reason": "the documentation writer derives absolutePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+      "reason": "the documentation writer passes the Map-iterated relativePath into assertGeneratedFile, whose absolutePath write target the static evaluator does not resolve across the helper parameter"
     },
     {
       "commandId": "documentation-reference-surface",
       "outputPath": "docs/reference/cli.md",
-      "reason": "the documentation writer derives absolutePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+      "reason": "the documentation writer passes the Map-iterated relativePath into assertGeneratedFile, whose absolutePath write target the static evaluator does not resolve across the helper parameter"
     },
     {
       "commandId": "documentation-reference-surface",
       "outputPath": "docs/reference/configuration.md",
-      "reason": "the documentation writer derives absolutePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+      "reason": "the documentation writer passes the Map-iterated relativePath into assertGeneratedFile, whose absolutePath write target the static evaluator does not resolve across the helper parameter"
     },
     {
       "commandId": "documentation-reference-surface",
       "outputPath": "docs/reference/editor-settings.md",
-      "reason": "the documentation writer derives absolutePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+      "reason": "the documentation writer passes the Map-iterated relativePath into assertGeneratedFile, whose absolutePath write target the static evaluator does not resolve across the helper parameter"
     },
     {
       "commandId": "documentation-reference-surface",
       "outputPath": "docs/reference/lsp-capabilities.md",
-      "reason": "the documentation writer derives absolutePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+      "reason": "the documentation writer passes the Map-iterated relativePath into assertGeneratedFile, whose absolutePath write target the static evaluator does not resolve across the helper parameter"
     },
     {
       "commandId": "documentation-reference-surface",
       "outputPath": "docs/reference/personas.md",
-      "reason": "the documentation writer derives absolutePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+      "reason": "the documentation writer passes the Map-iterated relativePath into assertGeneratedFile, whose absolutePath write target the static evaluator does not resolve across the helper parameter"
     },
     {
       "commandId": "documentation-reference-surface",
       "outputPath": "docs/sdk.md",
-      "reason": "the documentation writer derives absolutePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+      "reason": "the documentation writer passes the module-level sdkGuidePath literal into assertGeneratedFile, whose absolutePath write target the static evaluator does not resolve across the helper parameter"
     },
     {
       "commandId": "documentation-reference-surface",
       "outputPath": "docs/vscode-extension.md",
-      "reason": "the documentation writer derives absolutePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+      "reason": "the documentation writer passes the module-level vscodeGuidePath literal into assertGeneratedFile, whose absolutePath write target the static evaluator does not resolve across the helper parameter"
     },
     {
       "commandId": "documentation-reference-surface",
       "outputPath": "rust/crates/omena-cli/README.md",
-      "reason": "the documentation writer derives absolutePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+      "reason": "the documentation writer passes the module-level cliReadmePath literal into assertGeneratedFile, whose absolutePath write target the static evaluator does not resolve across the helper parameter"
     },
     {
       "commandId": "evidence-scan-surfaces",
@@ -164,17 +164,17 @@
     {
       "commandId": "transform-target-compatibility",
       "outputPath": "rust/crates/omena-transform-target/data/browser-thresholds.toml",
-      "reason": "the compatibility writer derives relativePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+      "reason": "the compatibility writer passes the module-level browserThresholdsPath literal into writeText, whose path.join write target the static evaluator does not resolve across the helper parameter"
     },
     {
       "commandId": "transform-target-compatibility",
       "outputPath": "rust/crates/omena-transform-target/data/native-stage2-coverage.json",
-      "reason": "the compatibility writer derives relativePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+      "reason": "the compatibility writer passes the module-level nativeStage2CoveragePath literal into writeText, whose path.join write target the static evaluator does not resolve across the helper parameter"
     },
     {
       "commandId": "transform-target-compatibility",
       "outputPath": "rust/crates/omena-transform-target/data/pass-feature-bindings.toml",
-      "reason": "the compatibility writer derives relativePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+      "reason": "the compatibility writer passes the module-level passFeatureBindingsPath literal into writeText, whose path.join write target the static evaluator does not resolve across the helper parameter"
     }
   ],
   "sites": [
