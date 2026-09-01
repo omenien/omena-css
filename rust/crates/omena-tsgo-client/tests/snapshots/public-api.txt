@@ -134,7 +134,7 @@ pub omena_tsgo_client::ProviderCapabilitiesV0::input_contract: &'static str
 pub omena_tsgo_client::ProviderCapabilitiesV0::output_contract: &'static str
 pub omena_tsgo_client::ProviderCapabilitiesV0::provider_id: &'static str
 pub omena_tsgo_client::ProviderCapabilitiesV0::provider_kind: &'static str
-pub omena_tsgo_client::ProviderCapabilitiesV0::unknown_precision_value_domain: &'static str
+pub omena_tsgo_client::ProviderCapabilitiesV0::unknown_precision_value_domain: omena_evidence_graph::ValueDomainPrecisionV1
 pub omena_tsgo_client::ProviderUnresolvedDisciplineV0::UnknownNotGuess
 pub omena_tsgo_client::TsgoApiMethodV0::method: &'static str
 pub omena_tsgo_client::TsgoApiMethodV0::phase: &'static str
