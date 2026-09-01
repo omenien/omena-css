@@ -80,6 +80,103 @@
       ]
     }
   ],
+  "unresolvedWitnessOutputs": [
+    {
+      "commandId": "documentation-reference-surface",
+      "outputPath": "docs/reference/README.md",
+      "reason": "the documentation writer derives absolutePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+    },
+    {
+      "commandId": "documentation-reference-surface",
+      "outputPath": "docs/reference/cli.md",
+      "reason": "the documentation writer derives absolutePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+    },
+    {
+      "commandId": "documentation-reference-surface",
+      "outputPath": "docs/reference/configuration.md",
+      "reason": "the documentation writer derives absolutePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+    },
+    {
+      "commandId": "documentation-reference-surface",
+      "outputPath": "docs/reference/editor-settings.md",
+      "reason": "the documentation writer derives absolutePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+    },
+    {
+      "commandId": "documentation-reference-surface",
+      "outputPath": "docs/reference/lsp-capabilities.md",
+      "reason": "the documentation writer derives absolutePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+    },
+    {
+      "commandId": "documentation-reference-surface",
+      "outputPath": "docs/reference/personas.md",
+      "reason": "the documentation writer derives absolutePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+    },
+    {
+      "commandId": "documentation-reference-surface",
+      "outputPath": "docs/sdk.md",
+      "reason": "the documentation writer derives absolutePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+    },
+    {
+      "commandId": "documentation-reference-surface",
+      "outputPath": "docs/vscode-extension.md",
+      "reason": "the documentation writer derives absolutePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+    },
+    {
+      "commandId": "documentation-reference-surface",
+      "outputPath": "rust/crates/omena-cli/README.md",
+      "reason": "the documentation writer derives absolutePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+    },
+    {
+      "commandId": "evidence-scan-surfaces",
+      "outputPath": "rust/evidence-scan-surfaces.json",
+      "reason": "the CLI receives manifestPath from the scan-surface writer result rather than a locally resolvable path expression"
+    },
+    {
+      "commandId": "evidence-writer-registry",
+      "outputPath": "rust/evidence-writer-nonliteral-write-census.json",
+      "reason": "the CLI writes output.path while iterating writer-result descriptors that the static path evaluator does not expand"
+    },
+    {
+      "commandId": "evidence-writer-registry",
+      "outputPath": "rust/evidence-writer-registry.json",
+      "reason": "the CLI writes output.path while iterating writer-result descriptors that the static path evaluator does not expand"
+    },
+    {
+      "commandId": "orchestrator-ci-workflow",
+      "outputPath": ".github/workflows/ci.yml",
+      "reason": "the workflow writer calls an imported root-relative path builder that the static path evaluator does not execute"
+    },
+    {
+      "commandId": "orchestrator-ci-workflow-registry",
+      "outputPath": "packages/check-orchestrator/ci-workflow.json",
+      "reason": "the workflow writer receives registryPath through a helper-owned result that the static path evaluator does not inline"
+    },
+    {
+      "commandId": "orchestrator-cost-ledger",
+      "outputPath": "packages/check-orchestrator/ci-cost-ledger.json",
+      "reason": "the CLI calls an imported root-relative cost-ledger path builder that the static path evaluator does not execute"
+    },
+    {
+      "commandId": "orchestrator-inventory",
+      "outputPath": "packages/check-orchestrator/CHECKS.md",
+      "reason": "the CLI derives inventoryPath from its command root through an alias the static path evaluator does not resolve"
+    },
+    {
+      "commandId": "transform-target-compatibility",
+      "outputPath": "rust/crates/omena-transform-target/data/browser-thresholds.toml",
+      "reason": "the compatibility writer derives relativePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+    },
+    {
+      "commandId": "transform-target-compatibility",
+      "outputPath": "rust/crates/omena-transform-target/data/native-stage2-coverage.json",
+      "reason": "the compatibility writer derives relativePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+    },
+    {
+      "commandId": "transform-target-compatibility",
+      "outputPath": "rust/crates/omena-transform-target/data/pass-feature-bindings.toml",
+      "reason": "the compatibility writer derives relativePath from an Object.entries output-table loop that the static path evaluator does not resolve"
+    }
+  ],
   "sites": [
     {
       "fingerprint": "384b9b9725f001b9aeaffddddaab5729b87bb476ff3891ec5688dbc517e630a9",

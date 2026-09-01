@@ -81,6 +81,7 @@ import {
 import {
   EVIDENCE_RUNTIME_VARIABLE_OUTPUT_PATHS,
   EVIDENCE_STATIC_WRITE_OUTPUT_AUTHORITY,
+  EVIDENCE_UNRESOLVED_WRITE_WITNESS_LEDGER,
   EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH,
   EVIDENCE_WRITER_COMMAND_DECLARATIONS,
   EVIDENCE_WRITER_NON_LITERAL_WRITE_REFUSALS,
@@ -198,6 +199,26 @@ function syncEvidenceWriterRuntimeModules(repoRoot: string, worktree: string): v
       readFileSync(path.join(repoRoot, relativePath)),
     );
   }
+}
+
+function rewriteEvidenceWriterCommandDeclaration(
+  source: string,
+  commandId: string,
+  rewrite: (declaration: string) => string,
+): string {
+  const declarationsStart = source.indexOf("export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [");
+  if (declarationsStart < 0) throw new Error("missing evidence writer declarations");
+  const startMarker = `  {\n    commandId: "${commandId}",`;
+  const start = source.indexOf(startMarker, declarationsStart);
+  if (start < 0) throw new Error(`missing evidence writer declaration: ${commandId}`);
+  const end = source.indexOf("\n  {\n    commandId:", start + startMarker.length);
+  if (end < 0) throw new Error(`missing next evidence writer declaration: ${commandId}`);
+  const declaration = source.slice(start, end);
+  const rewritten = rewrite(declaration);
+  if (rewritten === declaration) {
+    throw new Error(`evidence writer declaration rewrite was inert: ${commandId}`);
+  }
+  return `${source.slice(0, start)}${rewritten}${source.slice(end)}`;
 }
 
 function narrowFixtureScanManifest(worktree: string): void {
@@ -1723,6 +1744,140 @@ describe("writer registry portability", () => {
     }
   }, 180_000);
 
+  it("rejects an unresolved documentation witness plant by command and output identity", () => {
+    const fixture = createDetachedFixtureWorktree("omena-unresolved-witness-docs-");
+    try {
+      syncEvidenceWriterFixtureSources(fixture.repoRoot, fixture.worktree);
+      attachFixtureNodeModules(fixture.repoRoot, fixture.worktree);
+      const authorityPath = path.join(fixture.worktree, EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH);
+      const source = readFileSync(authorityPath, "utf8");
+      const plantedOutput = "rust/crates/omena-diff-test/oss-corpus-farm/lint-census-policy.json";
+      const plantedSource = rewriteEvidenceWriterCommandDeclaration(
+        source,
+        "documentation-reference-surface",
+        (declaration) => {
+          const withDeclaredOutput = declaration.replace(
+            '    outputPaths: [\n      "docs/reference/README.md",',
+            `    outputPaths: [\n      "${plantedOutput}",\n      "docs/reference/README.md",`,
+          );
+          return withDeclaredOutput.replace(
+            '        outputPaths: [\n          "docs/reference/README.md",',
+            `        outputPaths: [\n          "${plantedOutput}",\n          "docs/reference/README.md",`,
+          );
+        },
+      );
+      writeFileSync(authorityPath, plantedSource);
+
+      const red = runEvidenceWriterFixtureCommand(fixture.worktree, "--write");
+      expect(red.status, `${red.stdout}\n${red.stderr}`).not.toBe(0);
+      expect(red.stderr).toContain(
+        `unresolved evidence writer output witness is not in the committed ledger: documentation-reference-surface:${plantedOutput}`,
+      );
+    } finally {
+      removeFixtureWorktree(fixture);
+    }
+  }, 120_000);
+
+  it("refuses official adoption of a new unresolved witness ledger identity", () => {
+    const fixture = createDetachedFixtureWorktree("omena-unresolved-witness-ledger-growth-");
+    try {
+      syncEvidenceWriterFixtureSources(fixture.repoRoot, fixture.worktree);
+      attachFixtureNodeModules(fixture.repoRoot, fixture.worktree);
+      const authorityPath = path.join(fixture.worktree, EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH);
+      const source = readFileSync(authorityPath, "utf8");
+      const plantedOutput = "rust/crates/omena-diff-test/oss-corpus-farm/lint-census-policy.json";
+      const withPlantedWitness = rewriteEvidenceWriterCommandDeclaration(
+        source,
+        "documentation-reference-surface",
+        (declaration) => {
+          const withDeclaredOutput = declaration.replace(
+            '    outputPaths: [\n      "docs/reference/README.md",',
+            `    outputPaths: [\n      "${plantedOutput}",\n      "docs/reference/README.md",`,
+          );
+          return withDeclaredOutput.replace(
+            '        outputPaths: [\n          "docs/reference/README.md",',
+            `        outputPaths: [\n          "${plantedOutput}",\n          "docs/reference/README.md",`,
+          );
+        },
+      );
+      const nextLedgerMarker = '  {\n    commandId: "evidence-scan-surfaces",';
+      const plantedSource = withPlantedWitness.replace(
+        nextLedgerMarker,
+        `  {\n    commandId: "documentation-reference-surface",\n    outputPath: "${plantedOutput}",\n    reason: "official ledger growth mutation probe",\n  },\n${nextLedgerMarker}`,
+      );
+      expect(plantedSource).not.toBe(withPlantedWitness);
+      writeFileSync(authorityPath, plantedSource);
+
+      const red = runEvidenceWriterFixtureCommand(fixture.worktree, "--write");
+      expect(red.status, `${red.stdout}\n${red.stderr}`).not.toBe(0);
+      expect(red.stderr).toContain(
+        `decrease-only unresolved evidence writer witness ledger refuses a new entry: documentation-reference-surface:${plantedOutput}`,
+      );
+    } finally {
+      removeFixtureWorktree(fixture);
+    }
+  }, 120_000);
+
+  it("rejects the same unresolved witness plant under a second command", () => {
+    const fixture = createDetachedFixtureWorktree("omena-unresolved-witness-second-");
+    try {
+      syncEvidenceWriterFixtureSources(fixture.repoRoot, fixture.worktree);
+      attachFixtureNodeModules(fixture.repoRoot, fixture.worktree);
+      const authorityPath = path.join(fixture.worktree, EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH);
+      const source = readFileSync(authorityPath, "utf8");
+      const plantedOutput = "rust/crates/omena-diff-test/oss-corpus-farm/lint-census-policy.json";
+      const plantedSource = rewriteEvidenceWriterCommandDeclaration(
+        source,
+        "transform-target-compatibility",
+        (declaration) => {
+          const withDeclaredOutput = declaration.replace(
+            '    outputPaths: [\n      "rust/crates/omena-transform-target/data/browser-thresholds.toml",',
+            `    outputPaths: [\n      "${plantedOutput}",\n      "rust/crates/omena-transform-target/data/browser-thresholds.toml",`,
+          );
+          return withDeclaredOutput.replace(
+            '        outputPaths: [\n          "rust/crates/omena-transform-target/data/browser-thresholds.toml",',
+            `        outputPaths: [\n          "${plantedOutput}",\n          "rust/crates/omena-transform-target/data/browser-thresholds.toml",`,
+          );
+        },
+      );
+      writeFileSync(authorityPath, plantedSource);
+
+      const red = runEvidenceWriterFixtureCommand(fixture.worktree, "--write");
+      expect(red.status, `${red.stdout}\n${red.stderr}`).not.toBe(0);
+      expect(red.stderr).toContain(
+        `unresolved evidence writer output witness is not in the committed ledger: transform-target-compatibility:${plantedOutput}`,
+      );
+    } finally {
+      removeFixtureWorktree(fixture);
+    }
+  }, 120_000);
+
+  it("rejects a count-preserving unresolved witness identity swap", () => {
+    const fixture = createDetachedFixtureWorktree("omena-unresolved-witness-swap-");
+    try {
+      syncEvidenceWriterFixtureSources(fixture.repoRoot, fixture.worktree);
+      attachFixtureNodeModules(fixture.repoRoot, fixture.worktree);
+      const authorityPath = path.join(fixture.worktree, EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH);
+      const source = readFileSync(authorityPath, "utf8");
+      const removedOutput = "docs/sdk.md";
+      const plantedOutput = "rust/crates/omena-diff-test/oss-corpus-farm/lint-census-policy.json";
+      const plantedSource = rewriteEvidenceWriterCommandDeclaration(
+        source,
+        "documentation-reference-surface",
+        (declaration) => declaration.replaceAll(`"${removedOutput}"`, `"${plantedOutput}"`),
+      );
+      writeFileSync(authorityPath, plantedSource);
+
+      const red = runEvidenceWriterFixtureCommand(fixture.worktree, "--write");
+      expect(red.status, `${red.stdout}\n${red.stderr}`).not.toBe(0);
+      expect(red.stderr).toContain(
+        `unresolved evidence writer output witness is not in the committed ledger: documentation-reference-surface:${plantedOutput}`,
+      );
+    } finally {
+      removeFixtureWorktree(fixture);
+    }
+  }, 120_000);
+
   it("path-binds the current witness corpus including the two-literal query ternary", () => {
     const repoRoot = path.resolve(import.meta.dirname, "../../..");
     const coverage = assertEvidenceWriterDeclarationWriteWitnessCoverage(repoRoot);
@@ -1738,7 +1893,57 @@ describe("writer registry portability", () => {
         "query-public-surface-all-features:rust/crates/omena-query/tests/snapshots/public-api-all-features.txt",
       ]),
     );
+    expect(
+      EVIDENCE_UNRESOLVED_WRITE_WITNESS_LEDGER.map(
+        (entry) => `${entry.commandId}:${entry.outputPath}`,
+      ).toSorted(),
+    ).toEqual(coverage.unresolvedWitnessOutputs);
+    expect(
+      EVIDENCE_UNRESOLVED_WRITE_WITNESS_LEDGER.every((entry) => entry.reason.trim().length > 0),
+    ).toBe(true);
   }, 30_000);
+
+  it("ratchets unresolved witness identities rather than their total count", () => {
+    const repoRoot = path.resolve(import.meta.dirname, "../../..");
+    const census = JSON.parse(
+      readFileSync(
+        path.join(repoRoot, "rust/evidence-writer-nonliteral-write-census.json"),
+        "utf8",
+      ),
+    ) as EvidenceWriterNonLiteralWriteCensusV0;
+    const next = structuredClone(census) as unknown as {
+      unresolvedWitnessOutputs: Array<{
+        commandId: string;
+        outputPath: string;
+        reason: string;
+      }>;
+    };
+    next.unresolvedWitnessOutputs = [
+      ...next.unresolvedWitnessOutputs.filter(
+        (entry) =>
+          !(
+            entry.commandId === "documentation-reference-surface" &&
+            entry.outputPath === "docs/sdk.md"
+          ),
+      ),
+      {
+        commandId: "documentation-reference-surface",
+        outputPath: "rust/crates/omena-diff-test/oss-corpus-farm/lint-census-policy.json",
+        reason: "identity-preserving-count mutation probe",
+      },
+    ].toSorted((left, right) => {
+      const leftKey = `${left.commandId}\0${left.outputPath}`;
+      const rightKey = `${right.commandId}\0${right.outputPath}`;
+      return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
+    });
+
+    expect(() =>
+      assertEvidenceWriterNonLiteralWriteCensusDecreaseOnly(
+        census,
+        next as unknown as EvidenceWriterNonLiteralWriteCensusV0,
+      ),
+    ).toThrow(/decrease-only unresolved evidence writer witness ledger refuses a new entry/u);
+  });
 
   it("names every unstable field in the measured W2 output justification", () => {
     const justification = EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS.find(

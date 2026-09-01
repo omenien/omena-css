@@ -11,6 +11,7 @@ import {
 import { defineScanSurface, resolveScanSurface } from "./scan-surface";
 import {
   EVIDENCE_RUNTIME_VARIABLE_OUTPUT_PATHS,
+  EVIDENCE_UNRESOLVED_WRITE_WITNESS_LEDGER,
   EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH,
   EVIDENCE_WRITER_COMMAND_DECLARATIONS,
   EVIDENCE_WRITER_NON_LITERAL_WRITE_REFUSALS,
@@ -183,6 +184,7 @@ export interface EvidenceWriterNonLiteralWriteCensusV0 {
   };
   readonly runtimeVariableOutputPaths: typeof EVIDENCE_RUNTIME_VARIABLE_OUTPUT_PATHS;
   readonly typedJustifications: typeof EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS;
+  readonly unresolvedWitnessOutputs: typeof EVIDENCE_UNRESOLVED_WRITE_WITNESS_LEDGER;
   readonly sites: readonly EvidenceWriterNonLiteralWriteSiteV0[];
 }
 
@@ -368,6 +370,7 @@ export function buildEvidenceWriterNonLiteralWriteCensus(
     },
     runtimeVariableOutputPaths: EVIDENCE_RUNTIME_VARIABLE_OUTPUT_PATHS,
     typedJustifications: EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS,
+    unresolvedWitnessOutputs: EVIDENCE_UNRESOLVED_WRITE_WITNESS_LEDGER,
     sites,
   } as const satisfies EvidenceWriterNonLiteralWriteCensusV0;
   validateEvidenceWriterNonLiteralWriteCensus(census);
@@ -399,7 +402,7 @@ export function assertEvidenceWriterNonLiteralWriteCensusDecreaseOnly(
   previous: EvidenceWriterNonLiteralWriteCensusV0 | null,
   next: EvidenceWriterNonLiteralWriteCensusV0,
 ): void {
-  validateEvidenceWriterNonLiteralWriteCensus(next);
+  validateEvidenceWriterNonLiteralWriteCensus(next, false);
   if (!previous) {
     throw new Error("committed evidence writer non-literal census is required before --write");
   }
@@ -409,6 +412,17 @@ export function assertEvidenceWriterNonLiteralWriteCensusDecreaseOnly(
   if (introduced) {
     throw new Error(
       `decrease-only evidence writer census refuses a new non-literal write site: ${introduced.writerScript}:${introduced.line}:${introduced.writeExpression}`,
+    );
+  }
+  const previousUnresolvedWitnessKeys = new Set(
+    previous.unresolvedWitnessOutputs.map(unresolvedWriteWitnessLedgerKey),
+  );
+  const introducedUnresolvedWitness = next.unresolvedWitnessOutputs.find(
+    (entry) => !previousUnresolvedWitnessKeys.has(unresolvedWriteWitnessLedgerKey(entry)),
+  );
+  if (introducedUnresolvedWitness) {
+    throw new Error(
+      `decrease-only unresolved evidence writer witness ledger refuses a new entry: ${introducedUnresolvedWitness.commandId}:${introducedUnresolvedWitness.outputPath}`,
     );
   }
   if (
@@ -422,6 +436,7 @@ export function assertEvidenceWriterNonLiteralWriteCensusDecreaseOnly(
   ) {
     throw new Error("evidence writer non-literal census is not decrease-only");
   }
+  validateEvidenceWriterNonLiteralWriteCensus(next);
 }
 
 function validateEvidenceWriterNonLiteralWriteCensus(
@@ -450,6 +465,14 @@ function validateEvidenceWriterNonLiteralWriteCensus(
       JSON.stringify(EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS)
   ) {
     throw new Error("evidence writer non-literal census typed justifications drifted");
+  }
+  validateUnresolvedWriteWitnessLedger(census.unresolvedWitnessOutputs);
+  if (
+    requireCurrentAuthority &&
+    JSON.stringify(census.unresolvedWitnessOutputs) !==
+      JSON.stringify(EVIDENCE_UNRESOLVED_WRITE_WITNESS_LEDGER)
+  ) {
+    throw new Error("evidence writer unresolved witness ledger drifted");
   }
   const fingerprints = new Set<string>();
   const occurrenceBySiteShape = new Map<string, number>();
@@ -781,12 +804,63 @@ export interface EvidenceWriterDeclarationWriteWitnessCoverageSummary {
   readonly unresolvedWitnessOutputs: readonly string[];
 }
 
+function unresolvedWriteWitnessLedgerKey(entry: {
+  readonly commandId: string;
+  readonly outputPath: string;
+}): string {
+  return `${entry.commandId}\0${entry.outputPath}`;
+}
+
+function validateUnresolvedWriteWitnessLedger(
+  entries: readonly {
+    readonly commandId: string;
+    readonly outputPath: string;
+    readonly reason: string;
+  }[],
+): void {
+  const keys: string[] = [];
+  for (const entry of entries) {
+    if (entry.commandId.trim().length === 0 || entry.outputPath.trim().length === 0) {
+      throw new Error("unresolved evidence writer witness ledger identity is empty");
+    }
+    if (
+      path.posix.isAbsolute(entry.outputPath) ||
+      entry.outputPath === ".." ||
+      entry.outputPath.startsWith("../") ||
+      path.posix.normalize(entry.outputPath) !== entry.outputPath
+    ) {
+      throw new Error(
+        `unresolved evidence writer witness ledger path is invalid: ${entry.commandId}:${entry.outputPath}`,
+      );
+    }
+    if (entry.reason.trim().length === 0) {
+      throw new Error(
+        `unresolved evidence writer witness ledger entry has no reason: ${entry.commandId}:${entry.outputPath}`,
+      );
+    }
+    keys.push(unresolvedWriteWitnessLedgerKey(entry));
+  }
+  if (new Set(keys).size !== keys.length) {
+    throw new Error("unresolved evidence writer witness ledger identities must be unique");
+  }
+  if (JSON.stringify(keys) !== JSON.stringify(keys.toSorted())) {
+    throw new Error("unresolved evidence writer witness ledger identities must be sorted");
+  }
+}
+
 export function assertEvidenceWriterDeclarationWriteWitnessCoverage(
   repoRoot: string,
   discovery: EvidenceArtifactDiscovery = discoverEvidenceArtifacts(repoRoot),
 ): EvidenceWriterDeclarationWriteWitnessCoverageSummary {
   const declarations: readonly EvidenceWriterCommandDeclaration[] =
     EVIDENCE_WRITER_COMMAND_DECLARATIONS;
+  validateUnresolvedWriteWitnessLedger(EVIDENCE_UNRESOLVED_WRITE_WITNESS_LEDGER);
+  const unresolvedWitnessLedgerByKey = new Map(
+    EVIDENCE_UNRESOLVED_WRITE_WITNESS_LEDGER.map((entry) => [
+      unresolvedWriteWitnessLedgerKey(entry),
+      entry,
+    ]),
+  );
   const declarationCountsByScript = new Map<string, number>();
   for (const declaration of declarations) {
     for (const writerScript of declaration.writerScripts) {
@@ -931,6 +1005,7 @@ export function assertEvidenceWriterDeclarationWriteWitnessCoverage(
 
   const witnessedOutputs = new Set<string>();
   const staticallyBoundWitnessOutputs = new Set<string>();
+  const unresolvedWitnessOutputs = new Set<string>();
   for (const declaration of declarations) {
     const outputPaths = resolveEvidenceWriterCommandOutputPaths(repoRoot, declaration);
     const outputPathSet = new Set(outputPaths);
@@ -972,6 +1047,17 @@ export function assertEvidenceWriterDeclarationWriteWitnessCoverage(
             );
           }
           staticallyBoundWitnessOutputs.add(witnessKey);
+        } else {
+          const ledgerKey = unresolvedWriteWitnessLedgerKey({
+            commandId: declaration.commandId,
+            outputPath,
+          });
+          if (!unresolvedWitnessLedgerByKey.has(ledgerKey)) {
+            throw new Error(
+              `unresolved evidence writer output witness is not in the committed ledger: ${declaration.commandId}:${outputPath}`,
+            );
+          }
+          unresolvedWitnessOutputs.add(witnessKey);
         }
       }
     }
@@ -1029,12 +1115,18 @@ export function assertEvidenceWriterDeclarationWriteWitnessCoverage(
       throw new Error(`evidence writer output justification is unbound: ${key}`);
     }
   }
+  for (const entry of EVIDENCE_UNRESOLVED_WRITE_WITNESS_LEDGER) {
+    const witnessKey = `${entry.commandId}:${entry.outputPath}`;
+    if (!unresolvedWitnessOutputs.has(witnessKey)) {
+      throw new Error(
+        `committed unresolved evidence writer witness ledger entry is stale: ${witnessKey}`,
+      );
+    }
+  }
   return {
     witnessedOutputs: [...witnessedOutputs].toSorted(),
     staticallyBoundWitnessOutputs: [...staticallyBoundWitnessOutputs].toSorted(),
-    unresolvedWitnessOutputs: [...witnessedOutputs]
-      .filter((output) => !staticallyBoundWitnessOutputs.has(output))
-      .toSorted(),
+    unresolvedWitnessOutputs: [...unresolvedWitnessOutputs].toSorted(),
   };
 }
 
