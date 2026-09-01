@@ -40,6 +40,7 @@ mod sdk;
 mod sif;
 mod text_edit;
 mod verification;
+mod workspace_edit_transaction;
 mod write_safety;
 
 use commands::Cli;

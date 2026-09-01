@@ -4,12 +4,14 @@ use super::plan::{
 };
 use super::{BTreeMap, FixSafetyAssessmentV0, FixSafetyV0, Path, PathBuf};
 use super::{
-    MigrationApplyFileV0, MigrationApplyReportV0, MigrationCodemodV0, MigrationEditV0,
-    MigrationPlanV0, MigrationRollbackPlanV0, PreparedMigrationWriteV0,
+    ExpectedContentDigestV0, FileEditV0, SourceWriteEvidenceV0, SourceWriteModeV0,
+    WorkspaceEditPostconditionV0, WorkspaceEditSafetyClassV0, WorkspaceEditTransaction,
+    apply_byte_edit, authorize_write_with_safety, cli_file_uri_to_path, compute_fix_safety, fs,
+    path_string,
 };
 use super::{
-    SourceWriteEvidenceV0, SourceWriteModeV0, apply_byte_edit, apply_write_with_safety,
-    cli_file_uri_to_path, compute_fix_safety, fs, path_string,
+    MigrationApplyFileV0, MigrationApplyReportV0, MigrationCodemodV0, MigrationEditV0,
+    MigrationPlanV0, MigrationRollbackPlanV0, PreparedMigrationWriteV0,
 };
 
 pub(super) fn apply_migration_plan(
@@ -64,20 +66,31 @@ pub(super) fn apply_migration_plan(
     } else {
         SourceWriteModeV0::SafeOnly
     };
+    let mut transaction =
+        WorkspaceEditTransaction::new(None, WorkspaceEditSafetyClassV0::PlanFirst);
     let mut write_reports = Vec::new();
     let mut files = Vec::new();
     let mut applied_edit_count = 0;
     for write in prepared {
-        let report = apply_write_with_safety(
+        let report = authorize_write_with_safety(
             write.path.as_path(),
-            write.content.as_bytes(),
             &write.assessment,
             mode,
-            SourceWriteEvidenceV0::MigrationPlan {
+            &SourceWriteEvidenceV0::MigrationPlan {
                 reviewed: approve_review || plan.review_edits.is_empty(),
             },
+            None,
         )
         .map_err(|error| error.to_string())?;
+        transaction = transaction.expect(write.expected_digest).edit(
+            FileEditV0::new(write.path.as_path(), write.content.as_bytes())
+                .with_postcondition(WorkspaceEditPostconditionV0::style_reparse_for_path(
+                    write.path.as_path(),
+                ))
+                .with_postcondition(WorkspaceEditPostconditionV0::byte_identity(
+                    write.content.as_bytes(),
+                )),
+        );
         applied_edit_count += write.edit_ids.len();
         files.push(MigrationApplyFileV0 {
             path: path_string(write.path.as_path()),
@@ -86,6 +99,13 @@ pub(super) fn apply_migration_plan(
             edit_ids: write.edit_ids,
         });
         write_reports.push(report);
+    }
+
+    if !write_reports.is_empty() {
+        transaction.commit().map_err(|error| error.to_string())?;
+        for report in &mut write_reports {
+            report.wrote = true;
+        }
     }
 
     let receipt = source_rollback_receipt(plan.codemod, plan.edits.as_slice());
@@ -137,6 +157,8 @@ fn prepare_migration_writes(
             )
         })?;
         let source_signature = content_sha256(source.as_bytes());
+        let expected_digest =
+            ExpectedContentDigestV0::from_bytes(path.as_path(), source.as_bytes());
         if edits
             .iter()
             .any(|edit| edit.expected_source_sha256 != source_signature)
@@ -180,6 +202,7 @@ fn prepare_migration_writes(
         let edit_ids = edits.iter().map(|edit| edit.id.clone()).collect::<Vec<_>>();
         prepared.push(PreparedMigrationWriteV0 {
             path,
+            expected_digest,
             output_content_signature: content_sha256(content.as_bytes()),
             content,
             assessment,

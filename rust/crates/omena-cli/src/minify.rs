@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
 use omena_query::{
     OmenaQueryBuildAdmissionRequirementsV0, OmenaQueryClosedWorldOutcomeV0,
@@ -21,6 +21,10 @@ use crate::{
     minify_backend::{MinifyDelegationReportV0, run_hybrid_lightning_lowering},
     output::{CliOutputMetadataV0, print_json},
     paths::path_string,
+    workspace_edit_transaction::{
+        ExpectedContentDigestV0, FileEditV0, WorkspaceEditPostconditionV0,
+        WorkspaceEditSafetyClassV0, WorkspaceEditTransaction,
+    },
 };
 
 #[derive(Debug, Clone, Serialize)]
@@ -78,7 +82,14 @@ pub(crate) fn minify_source(
     json: bool,
 ) -> Result<(), String> {
     let input = input.ok_or_else(|| "omena minify requires an input stylesheet".to_string())?;
+    let expected_output_digest = output
+        .as_deref()
+        .map(ExpectedContentDigestV0::observe)
+        .transpose()
+        .map_err(|error| error.to_string())?;
     let source = read_source(&input)?;
+    let expected_input_digest =
+        ExpectedContentDigestV0::from_bytes(input.as_path(), source.as_bytes());
     let input_path = path_string(&input);
     let loaded_config = find_omena_config_for_path(&input)?;
     let configured_profile = loaded_config
@@ -227,12 +238,22 @@ pub(crate) fn minify_source(
     };
 
     if let Some(output) = output {
-        fs::write(&output, report.output_css.as_bytes()).map_err(|error| {
-            format!(
-                "failed to write minified CSS to {}: {error}",
-                path_string(&output)
+        WorkspaceEditTransaction::new(None, WorkspaceEditSafetyClassV0::EvidenceRequired)
+            .expect(expected_input_digest)
+            .expect(expected_output_digest.ok_or_else(|| {
+                "minify output digest was not captured before analysis".to_string()
+            })?)
+            .edit(
+                FileEditV0::new(output.as_path(), report.output_css.as_bytes())
+                    .with_postcondition(WorkspaceEditPostconditionV0::style_reparse_for_path(
+                        input.as_path(),
+                    ))
+                    .with_postcondition(WorkspaceEditPostconditionV0::byte_identity(
+                        report.output_css.as_bytes(),
+                    )),
             )
-        })?;
+            .commit()
+            .map_err(|error| error.to_string())?;
     } else if !json {
         print!("{}", report.output_css);
     }

@@ -14,8 +14,10 @@ use crate::{
     lint::discover_style_paths,
     output::{CliOutputMetadataV0, print_json},
     paths::path_string,
+    workspace_edit_transaction::{ExpectedContentDigestV0, WorkspaceEditPostconditionV0},
     write_safety::{
-        SourceWriteErrorV0, SourceWriteEvidenceV0, SourceWriteModeV0, apply_write_with_safety,
+        SourceWriteCommitV0, SourceWriteErrorV0, SourceWriteEvidenceV0, SourceWriteModeV0,
+        apply_write_with_safety,
     },
 };
 
@@ -53,6 +55,8 @@ pub(crate) struct FormatReportV0 {
 struct FormatPlanV0 {
     path: PathBuf,
     output: String,
+    expected_digest: ExpectedContentDigestV0,
+    mode: FormatMode,
     report: FormatFileReportV0,
 }
 
@@ -118,13 +122,28 @@ pub(crate) fn build_format_report(
             if !plan.report.changed {
                 continue;
             }
-            apply_format_write(plan.path.as_path(), plan.output.as_str(), true)
-                .map_err(|error| error.to_string())?;
+            apply_format_write(
+                plan.path.as_path(),
+                plan.output.as_str(),
+                plan.expected_digest.clone(),
+                plan.mode,
+                plan.report.line_width,
+                plan.report.indent_width,
+                true,
+            )
+            .map_err(|error| error.to_string())?;
             plan.report.written = true;
         }
     } else if !check && let Some(plan) = plans.iter().find(|plan| !plan.report.idempotent) {
-        let Err(error) = apply_format_write(plan.path.as_path(), plan.output.as_str(), false)
-        else {
+        let Err(error) = apply_format_write(
+            plan.path.as_path(),
+            plan.output.as_str(),
+            plan.expected_digest.clone(),
+            plan.mode,
+            plan.report.line_width,
+            plan.report.indent_width,
+            false,
+        ) else {
             return Err("non-idempotent formatting unexpectedly passed the write gate".to_string());
         };
         if !matches!(error, SourceWriteErrorV0::Rejected(_)) {
@@ -208,6 +227,8 @@ fn build_format_plan(path: &PathBuf, cli_mode: Option<FormatMode>) -> Result<For
     Ok(FormatPlanV0 {
         path: path.clone(),
         output: first.css.clone(),
+        expected_digest: ExpectedContentDigestV0::from_bytes(path.as_path(), source.as_bytes()),
+        mode,
         report: FormatFileReportV0 {
             path: source_path,
             mode: mode.as_str(),
@@ -225,6 +246,10 @@ fn build_format_plan(path: &PathBuf, cli_mode: Option<FormatMode>) -> Result<For
 fn apply_format_write(
     path: &std::path::Path,
     output: &str,
+    expected_digest: ExpectedContentDigestV0,
+    mode: FormatMode,
+    line_width: usize,
+    indent_width: usize,
     idempotent: bool,
 ) -> Result<(), SourceWriteErrorV0> {
     let assessment = compute_fix_safety(FixSafetyEvidenceInputV0 {
@@ -239,11 +264,58 @@ fn apply_format_write(
     apply_write_with_safety(
         path,
         output.as_bytes(),
+        SourceWriteCommitV0::new(
+            expected_digest,
+            None,
+            vec![
+                WorkspaceEditPostconditionV0::style_reparse(parser_dialect_for_path(path)),
+                formatting_idempotence_postcondition(path, mode, line_width, indent_width),
+                WorkspaceEditPostconditionV0::byte_identity(output.as_bytes()),
+            ],
+        ),
         &assessment,
         SourceWriteModeV0::SafeOnly,
         SourceWriteEvidenceV0::Formatting { idempotent },
     )?;
     Ok(())
+}
+
+fn formatting_idempotence_postcondition(
+    path: &std::path::Path,
+    mode: FormatMode,
+    line_width: usize,
+    indent_width: usize,
+) -> WorkspaceEditPostconditionV0 {
+    let source_path = path_string(path);
+    let dialect = dialect_for_path(path);
+    WorkspaceEditPostconditionV0::new("formattingIdempotence", move |_staged_path, content| {
+        let staged_source = std::str::from_utf8(content)
+            .map_err(|error| format!("staged formatted output is not UTF-8: {error}"))?;
+        let print_mode = match mode {
+            FormatMode::Pretty => OmenaQueryTransformPrintMode::Pretty,
+            FormatMode::Stable => OmenaQueryTransformPrintMode::Identity,
+        };
+        let formatted = print_omena_query_transform_source_with_pretty_options(
+            source_path.as_str(),
+            staged_source,
+            dialect,
+            format!("format-postcondition:{source_path}"),
+            &[],
+            OmenaQueryTransformPrintOptionsV0 {
+                mode: print_mode,
+                include_source_map: false,
+            },
+            OmenaQueryPrettyFormatOptionsV0 {
+                line_width,
+                indent_width,
+            },
+        );
+        if formatted.css == staged_source {
+            Ok(())
+        } else {
+            Err("formatting the staged output changed it again".to_string())
+        }
+    })
 }
 
 fn resolve_format_mode(
@@ -268,6 +340,15 @@ fn dialect_for_path(path: &std::path::Path) -> OmenaQueryTransformStyleDialect {
         Some("sass") => OmenaQueryTransformStyleDialect::Sass,
         Some("less") => OmenaQueryTransformStyleDialect::Less,
         _ => OmenaQueryTransformStyleDialect::Css,
+    }
+}
+
+fn parser_dialect_for_path(path: &std::path::Path) -> omena_query::OmenaParserStyleDialect {
+    match path.extension().and_then(|extension| extension.to_str()) {
+        Some("scss") => omena_query::OmenaParserStyleDialect::Scss,
+        Some("sass") => omena_query::OmenaParserStyleDialect::Sass,
+        Some("less") => omena_query::OmenaParserStyleDialect::Less,
+        _ => omena_query::OmenaParserStyleDialect::Css,
     }
 }
 
@@ -333,7 +414,15 @@ mod tests {
         let path = root.join("app.css");
         fs::write(&path, ".app {}").map_err(|error| error.to_string())?;
 
-        let Err(error) = apply_format_write(path.as_path(), ".changed {}", false) else {
+        let Err(error) = apply_format_write(
+            path.as_path(),
+            ".changed {}",
+            ExpectedContentDigestV0::from_bytes(path.as_path(), b".app {}"),
+            FormatMode::Pretty,
+            DEFAULT_LINE_WIDTH,
+            DEFAULT_INDENT_WIDTH,
+            false,
+        ) else {
             return Err(
                 "non-idempotent formatting unexpectedly reached the filesystem".to_string(),
             );

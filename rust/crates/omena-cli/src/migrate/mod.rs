@@ -43,8 +43,12 @@ use crate::{
     text_edit::{
         apply_byte_edit, byte_span_for_range_with_line_index, range_for_byte_span_with_line_index,
     },
+    workspace_edit_transaction::{
+        ExpectedContentDigestV0, FileEditV0, WorkspaceEditPostconditionV0,
+        WorkspaceEditSafetyClassV0, WorkspaceEditTransaction,
+    },
     write_safety::{
-        SourceWriteEvidenceV0, SourceWriteModeV0, SourceWriteReportV0, apply_write_with_safety,
+        SourceWriteEvidenceV0, SourceWriteModeV0, SourceWriteReportV0, authorize_write_with_safety,
     },
 };
 
@@ -183,6 +187,7 @@ struct MigrationApplyReportV0 {
 struct PreparedMigrationWriteV0 {
     path: PathBuf,
     content: String,
+    expected_digest: ExpectedContentDigestV0,
     assessment: FixSafetyAssessmentV0,
     input_content_signature: String,
     output_content_signature: String,

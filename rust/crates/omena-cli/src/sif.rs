@@ -1,14 +1,19 @@
-use crate::{commands::SifCommand, io::read_source, paths::path_string};
+use crate::{
+    commands::SifCommand,
+    io::read_source,
+    paths::path_string,
+    workspace_edit_transaction::{
+        ExpectedContentDigestV0, FileEditV0, WorkspaceEditPostconditionV0,
+        WorkspaceEditSafetyClassV0, WorkspaceEditTransaction,
+    },
+};
 use omena_sif::{
     OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1, OmenaSifTrustTierV1,
     build_omena_sif_published_attestation_subject_v1, generate_static_omena_lif_exports_v1,
     generate_static_omena_sif_v1, read_omena_sif_json_v1, write_omena_lif_exports_json_v1,
     write_omena_sif_json_v1, write_omena_sif_published_attestation_subject_json_v1,
 };
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 pub(crate) fn sif_command(command: SifCommand) -> Result<(), String> {
     match command {
@@ -40,7 +45,14 @@ fn generate_attestation_subject(
     output: Option<PathBuf>,
     json: bool,
 ) -> Result<(), String> {
+    let expected_output_digest = output
+        .as_deref()
+        .map(ExpectedContentDigestV0::observe)
+        .transpose()
+        .map_err(|error| error.to_string())?;
     let source = read_source(&sif_path)?;
+    let expected_source_digest =
+        ExpectedContentDigestV0::from_bytes(sif_path.as_path(), source.as_bytes());
     let sif = read_omena_sif_json_v1(source.as_str()).map_err(|error| {
         format!(
             "failed to parse canonical SIF {}: {error}",
@@ -62,12 +74,14 @@ fn generate_attestation_subject(
         .map_err(|error| format!("failed to serialize published SIF subject: {error}"))?;
     let wrote_output = output.is_some();
     if let Some(output_path) = output {
-        fs::write(&output_path, &subject_json).map_err(|error| {
-            format!(
-                "failed to write published SIF subject to {}: {error}",
-                path_string(&output_path)
-            )
-        })?;
+        commit_sif_json_output(
+            output_path.as_path(),
+            subject_json.as_bytes(),
+            expected_source_digest,
+            expected_output_digest.ok_or_else(|| {
+                "SIF attestation output digest was not captured before analysis".to_string()
+            })?,
+        )?;
         if !json {
             println!(
                 "generated SIF attestation subject: {}",
@@ -88,7 +102,14 @@ fn generate_sif(
     syntax: Option<String>,
     json: bool,
 ) -> Result<(), String> {
+    let expected_output_digest = output
+        .as_deref()
+        .map(ExpectedContentDigestV0::observe)
+        .transpose()
+        .map_err(|error| error.to_string())?;
     let source = read_source(&path)?;
+    let expected_source_digest =
+        ExpectedContentDigestV0::from_bytes(path.as_path(), source.as_bytes());
     let syntax = match syntax {
         Some(syntax) => parse_sif_source_syntax(&syntax)?,
         None => infer_sif_source_syntax(&path),
@@ -105,12 +126,13 @@ fn generate_sif(
     let wrote_output = output.is_some();
 
     if let Some(output_path) = output {
-        fs::write(&output_path, &sif_json).map_err(|error| {
-            format!(
-                "failed to write SIF artifact to {}: {error}",
-                path_string(&output_path)
-            )
-        })?;
+        commit_sif_json_output(
+            output_path.as_path(),
+            sif_json.as_bytes(),
+            expected_source_digest,
+            expected_output_digest
+                .ok_or_else(|| "SIF output digest was not captured before analysis".to_string())?,
+        )?;
         if !json {
             println!("generated SIF: {}", path_string(&output_path));
         }
@@ -129,7 +151,14 @@ fn generate_lif_exports(
     syntax: Option<String>,
     json: bool,
 ) -> Result<(), String> {
+    let expected_output_digest = output
+        .as_deref()
+        .map(ExpectedContentDigestV0::observe)
+        .transpose()
+        .map_err(|error| error.to_string())?;
     let source = read_source(&path)?;
+    let expected_source_digest =
+        ExpectedContentDigestV0::from_bytes(path.as_path(), source.as_bytes());
     let syntax = match syntax {
         Some(syntax) => parse_sif_source_syntax(&syntax)?,
         None => infer_sif_source_syntax(&path),
@@ -145,12 +174,14 @@ fn generate_lif_exports(
     let wrote_output = output.is_some();
 
     if let Some(output_path) = output {
-        fs::write(&output_path, &exports_json).map_err(|error| {
-            format!(
-                "failed to write LIF exports to {}: {error}",
-                path_string(&output_path)
-            )
-        })?;
+        commit_sif_json_output(
+            output_path.as_path(),
+            exports_json.as_bytes(),
+            expected_source_digest,
+            expected_output_digest.ok_or_else(|| {
+                "LIF exports output digest was not captured before analysis".to_string()
+            })?,
+        )?;
         if !json {
             println!("generated LIF exports: {}", path_string(&output_path));
         }
@@ -161,6 +192,25 @@ fn generate_lif_exports(
     }
 
     Ok(())
+}
+
+fn commit_sif_json_output(
+    output_path: &Path,
+    content: &[u8],
+    expected_source_digest: ExpectedContentDigestV0,
+    expected_output_digest: ExpectedContentDigestV0,
+) -> Result<(), String> {
+    WorkspaceEditTransaction::new(None, WorkspaceEditSafetyClassV0::EvidenceRequired)
+        .expect(expected_source_digest)
+        .expect(expected_output_digest)
+        .edit(
+            FileEditV0::new(output_path, content)
+                .with_postcondition(WorkspaceEditPostconditionV0::json_reparse())
+                .with_postcondition(WorkspaceEditPostconditionV0::byte_identity(content)),
+        )
+        .commit()
+        .map(|_| ())
+        .map_err(|error| error.to_string())
 }
 
 fn parse_sif_source_syntax(syntax: &str) -> Result<OmenaSifSourceSyntaxV1, String> {

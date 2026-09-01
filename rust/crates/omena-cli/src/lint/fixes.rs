@@ -9,9 +9,10 @@ use serde::Serialize;
 use crate::{
     paths::{cli_file_uri_to_path, path_string},
     text_edit::apply_text_edit,
+    workspace_edit_transaction::{ExpectedContentDigestV0, WorkspaceEditPostconditionV0},
     write_safety::{
-        SourceWriteErrorV0, SourceWriteEvidenceV0, SourceWriteModeV0, SourceWriteRejectionV0,
-        apply_write_with_safety,
+        SourceWriteCommitV0, SourceWriteErrorV0, SourceWriteEvidenceV0, SourceWriteModeV0,
+        SourceWriteRejectionV0, apply_write_with_safety,
     },
 };
 
@@ -111,6 +112,19 @@ pub(super) fn apply_lint_fix_requests(
             match apply_write_with_safety(
                 candidate.output_path.as_path(),
                 edited.as_bytes(),
+                SourceWriteCommitV0::new(
+                    ExpectedContentDigestV0::from_bytes(
+                        candidate.output_path.as_path(),
+                        source.as_bytes(),
+                    ),
+                    None,
+                    vec![
+                        WorkspaceEditPostconditionV0::style_reparse_for_path(
+                            candidate.output_path.as_path(),
+                        ),
+                        WorkspaceEditPostconditionV0::byte_identity(edited.as_bytes()),
+                    ],
+                ),
                 &candidate.assessment,
                 SourceWriteModeV0::SafeOnly,
                 SourceWriteEvidenceV0::LintFix,

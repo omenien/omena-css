@@ -7,9 +7,14 @@
 )]
 
 use omena_checker::{FixSafetyAssessmentV0, FixSafetyV0};
-use omena_query::OmenaQueryTransformDecisionV0;
+use omena_query::{OmenaQueryTransformDecisionV0, OmenaWorkspaceSnapshotIdV0};
 use serde::Serialize;
-use std::{fmt, fs, path::Path};
+use std::{fmt, path::Path};
+
+use crate::workspace_edit_transaction::{
+    ExpectedContentDigestV0, FileEditV0, WorkspaceEditPostconditionV0, WorkspaceEditSafetyClassV0,
+    WorkspaceEditTransaction, WorkspaceEditTransactionErrorV0,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -100,6 +105,9 @@ pub(crate) struct SourceWriteReportV0 {
     pub safety: FixSafetyV0,
     pub precision_backed: bool,
     pub rationale: Vec<&'static str>,
+    pub safety_class: WorkspaceEditSafetyClassV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workspace_revision: Option<OmenaWorkspaceSnapshotIdV0>,
     pub wrote: bool,
     pub transform_decisions: Vec<OmenaQueryTransformDecisionV0>,
 }
@@ -107,10 +115,27 @@ pub(crate) struct SourceWriteReportV0 {
 #[derive(Debug)]
 pub(crate) enum SourceWriteErrorV0 {
     Rejected(SourceWriteRejectionV0),
-    Io {
-        output_path: String,
-        message: String,
-    },
+    Transaction(WorkspaceEditTransactionErrorV0),
+}
+
+pub(crate) struct SourceWriteCommitV0 {
+    expected_digest: ExpectedContentDigestV0,
+    workspace_revision: Option<OmenaWorkspaceSnapshotIdV0>,
+    postconditions: Vec<WorkspaceEditPostconditionV0>,
+}
+
+impl SourceWriteCommitV0 {
+    pub(crate) fn new(
+        expected_digest: ExpectedContentDigestV0,
+        workspace_revision: Option<OmenaWorkspaceSnapshotIdV0>,
+        postconditions: Vec<WorkspaceEditPostconditionV0>,
+    ) -> Self {
+        Self {
+            expected_digest,
+            workspace_revision,
+            postconditions,
+        }
+    }
 }
 
 impl fmt::Display for SourceWriteErrorV0 {
@@ -121,10 +146,7 @@ impl fmt::Display for SourceWriteErrorV0 {
                 "source write rejected for {}: {:?}",
                 rejection.output_path, rejection.reason
             ),
-            Self::Io {
-                output_path,
-                message,
-            } => write!(formatter, "failed to write {output_path}: {message}"),
+            Self::Transaction(error) => error.fmt(formatter),
         }
     }
 }
@@ -132,14 +154,41 @@ impl fmt::Display for SourceWriteErrorV0 {
 pub(crate) fn apply_write_with_safety(
     output_path: &Path,
     content: &[u8],
+    commit: SourceWriteCommitV0,
     assessment: &FixSafetyAssessmentV0,
     mode: SourceWriteModeV0,
     evidence: SourceWriteEvidenceV0<'_>,
 ) -> Result<SourceWriteReportV0, SourceWriteErrorV0> {
+    let SourceWriteCommitV0 {
+        expected_digest,
+        workspace_revision,
+        postconditions,
+    } = commit;
+    let mut report =
+        authorize_write_with_safety(output_path, assessment, mode, &evidence, workspace_revision)?;
+    let mut edit = FileEditV0::new(output_path, content);
+    for postcondition in postconditions {
+        edit = edit.with_postcondition(postcondition);
+    }
+    WorkspaceEditTransaction::new(workspace_revision, report.safety_class)
+        .expect(expected_digest)
+        .edit(edit)
+        .commit()
+        .map_err(SourceWriteErrorV0::Transaction)?;
+    report.wrote = true;
+    Ok(report)
+}
+
+pub(crate) fn authorize_write_with_safety(
+    output_path: &Path,
+    assessment: &FixSafetyAssessmentV0,
+    mode: SourceWriteModeV0,
+    evidence: &SourceWriteEvidenceV0<'_>,
+    workspace_revision: Option<OmenaWorkspaceSnapshotIdV0>,
+) -> Result<SourceWriteReportV0, SourceWriteErrorV0> {
     let output_path_string = output_path.to_string_lossy().into_owned();
     let transform_decisions = evidence.transform_decisions();
-
-    if let Some(reason) = rejection_reason(assessment.safety, mode, &evidence) {
+    if let Some(reason) = rejection_reason(assessment.safety, mode, evidence) {
         return Err(SourceWriteErrorV0::Rejected(SourceWriteRejectionV0 {
             schema_version: "0",
             product: "omena-cli.source-write-rejection",
@@ -152,12 +201,6 @@ pub(crate) fn apply_write_with_safety(
             transform_decisions,
         }));
     }
-
-    fs::write(output_path, content).map_err(|error| SourceWriteErrorV0::Io {
-        output_path: output_path_string.clone(),
-        message: error.to_string(),
-    })?;
-
     Ok(SourceWriteReportV0 {
         schema_version: "0",
         product: "omena-cli.source-write-report",
@@ -166,9 +209,26 @@ pub(crate) fn apply_write_with_safety(
         safety: assessment.safety,
         precision_backed: assessment.precision_backed,
         rationale: assessment.rationale.clone(),
-        wrote: true,
+        safety_class: source_write_safety_class(assessment.safety, evidence),
+        workspace_revision,
+        wrote: false,
         transform_decisions,
     })
+}
+
+fn source_write_safety_class(
+    safety: FixSafetyV0,
+    evidence: &SourceWriteEvidenceV0<'_>,
+) -> WorkspaceEditSafetyClassV0 {
+    match evidence {
+        SourceWriteEvidenceV0::Formatting { .. } => WorkspaceEditSafetyClassV0::FormattingOnly,
+        SourceWriteEvidenceV0::MigrationPlan { .. } => WorkspaceEditSafetyClassV0::PlanFirst,
+        SourceWriteEvidenceV0::LintFix | SourceWriteEvidenceV0::Transform { .. } => match safety {
+            FixSafetyV0::Safe => WorkspaceEditSafetyClassV0::Safe,
+            FixSafetyV0::Conservative => WorkspaceEditSafetyClassV0::Conservative,
+            FixSafetyV0::ManualReview => WorkspaceEditSafetyClassV0::EvidenceRequired,
+        },
+    }
 }
 
 fn rejection_reason(
@@ -221,6 +281,7 @@ mod tests {
     use omena_checker::{FixSafetyEvidenceInputV0, compute_fix_safety};
     use omena_query::execute_omena_query_transform_passes_from_source;
     use std::{
+        fs,
         path::PathBuf,
         sync::atomic::{AtomicU64, Ordering},
     };
@@ -252,10 +313,33 @@ mod tests {
         })
     }
 
+    fn apply_test_write(
+        output_path: &Path,
+        content: &[u8],
+        assessment: &FixSafetyAssessmentV0,
+        mode: SourceWriteModeV0,
+        evidence: SourceWriteEvidenceV0<'_>,
+    ) -> Result<SourceWriteReportV0, SourceWriteErrorV0> {
+        let expected_digest = ExpectedContentDigestV0::observe(output_path)
+            .map_err(SourceWriteErrorV0::Transaction)?;
+        apply_write_with_safety(
+            output_path,
+            content,
+            SourceWriteCommitV0::new(
+                expected_digest,
+                None,
+                vec![WorkspaceEditPostconditionV0::byte_identity(content)],
+            ),
+            assessment,
+            mode,
+            evidence,
+        )
+    }
+
     #[test]
     fn safe_writes_and_conservative_requires_opt_in() -> Result<(), String> {
         let safe_path = fixture_path("safe");
-        let report = apply_write_with_safety(
+        let report = apply_test_write(
             &safe_path,
             b".safe {}\n",
             &assessment(FixSafetyV0::Safe),
@@ -271,7 +355,7 @@ mod tests {
         fs::remove_file(safe_path).map_err(|error| error.to_string())?;
 
         let conservative_path = fixture_path("conservative");
-        let denied = apply_write_with_safety(
+        let denied = apply_test_write(
             &conservative_path,
             b".conservative {}\n",
             &assessment(FixSafetyV0::Conservative),
@@ -287,7 +371,7 @@ mod tests {
         ));
         assert!(!conservative_path.exists());
 
-        apply_write_with_safety(
+        apply_test_write(
             &conservative_path,
             b".conservative {}\n",
             &assessment(FixSafetyV0::Conservative),
@@ -302,7 +386,7 @@ mod tests {
     #[test]
     fn manual_review_never_reaches_the_filesystem() {
         let path = fixture_path("manual");
-        let denied = apply_write_with_safety(
+        let denied = apply_test_write(
             &path,
             b".manual {}\n",
             &assessment(FixSafetyV0::ManualReview),
@@ -322,7 +406,7 @@ mod tests {
     #[test]
     fn formatting_requires_observed_idempotence() {
         let path = fixture_path("formatting");
-        let denied = apply_write_with_safety(
+        let denied = apply_test_write(
             &path,
             b".formatting {}\n",
             &assessment(FixSafetyV0::Safe),
@@ -355,7 +439,7 @@ mod tests {
         );
 
         let path = fixture_path("transform");
-        let report = apply_write_with_safety(
+        let report = apply_test_write(
             &path,
             execution.execution.output_css.as_bytes(),
             &assessment(FixSafetyV0::Safe),
@@ -373,7 +457,7 @@ mod tests {
     #[test]
     fn migration_requires_a_reviewed_plan() {
         let path = fixture_path("migration");
-        let denied = apply_write_with_safety(
+        let denied = apply_test_write(
             &path,
             b".migration {}\n",
             &assessment(FixSafetyV0::Safe),

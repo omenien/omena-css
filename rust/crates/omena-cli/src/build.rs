@@ -16,6 +16,10 @@ use crate::{
         PostcssCompatExecutionV0, PostcssNativeDifferentialV0, run_postcss_compat_plugin,
         summarize_postcss_native_differential,
     },
+    workspace_edit_transaction::{
+        ExpectedContentDigestV0, FileEditV0, WorkspaceEditPostconditionV0,
+        WorkspaceEditSafetyClassV0, WorkspaceEditTransaction,
+    },
 };
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryBuildVerificationProfileV0, OmenaQueryBundleEmissionPathV0,
@@ -219,6 +223,11 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         return Err("--input-source-map requires --source-map".to_string());
     }
 
+    let expected_output_digest = output
+        .as_deref()
+        .map(ExpectedContentDigestV0::observe)
+        .transpose()
+        .map_err(|error| error.to_string())?;
     let source = read_source(&path)?;
     let style_path = path_string(&path);
     let input_source_maps = read_input_source_maps(&input_source_maps, &style_path)?;
@@ -258,6 +267,15 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
     };
     let original_workspace_sources =
         read_workspace_sources(&path, &source, &workspace_source_paths)?;
+    let expected_workspace_digests = original_workspace_sources
+        .iter()
+        .map(|source| {
+            ExpectedContentDigestV0::from_bytes(
+                Path::new(source.style_path.as_str()),
+                source.style_source.as_bytes(),
+            )
+        })
+        .collect::<Vec<_>>();
     let (workspace_sources, bundle_asset_url_rewrites) = if bundle {
         rewrite_bundle_asset_urls_for_build_sources(&original_workspace_sources)
     } else {
@@ -451,6 +469,7 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
             bundle_entry_style_paths: &bundle_entry_style_paths,
             context: &context,
             source_map,
+            expected_source_digests: expected_workspace_digests.as_slice(),
         })?;
         if split_emission.upstream_maps_applied {
             push_ready_surface(
@@ -546,12 +565,32 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
     };
 
     if let Some(output_path) = output {
-        fs::write(&output_path, &summary.execution.output_css).map_err(|error| {
-            format!(
-                "failed to write transformed CSS to {}: {error}",
-                path_string(&output_path)
+        let mut transaction =
+            WorkspaceEditTransaction::new(None, WorkspaceEditSafetyClassV0::EvidenceRequired);
+        for expected in &expected_workspace_digests {
+            transaction = transaction.expect(expected.clone());
+        }
+        transaction
+            .expect(expected_output_digest.ok_or_else(|| {
+                "build output digest was not captured before analysis".to_string()
+            })?)
+            .edit(
+                FileEditV0::new(
+                    output_path.as_path(),
+                    summary.execution.output_css.as_bytes(),
+                )
+                .with_postcondition(
+                    WorkspaceEditPostconditionV0::style_reparse_for_admitted_output(
+                        path.as_path(),
+                        summary.execution.output_css.as_bytes(),
+                    ),
+                )
+                .with_postcondition(WorkspaceEditPostconditionV0::byte_identity(
+                    summary.execution.output_css.as_bytes(),
+                )),
             )
-        })?;
+            .commit()
+            .map_err(|error| error.to_string())?;
     } else if !json {
         print!("{}", summary.execution.output_css);
     }
@@ -721,6 +760,7 @@ struct BundleCodeSplitOutputOptions<'a> {
     bundle_entry_style_paths: &'a [String],
     context: &'a OmenaQueryTransformExecutionContextV0,
     source_map: bool,
+    expected_source_digests: &'a [ExpectedContentDigestV0],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -776,6 +816,7 @@ fn emit_bundle_code_split_outputs(
         bundle_entry_style_paths,
         context,
         source_map,
+        expected_source_digests,
     } = options;
 
     fs::create_dir_all(out_dir).map_err(|error| {
@@ -827,6 +868,11 @@ fn emit_bundle_code_split_outputs(
 
     let mut manifest_outputs = Vec::new();
     let mut upstream_maps_applied = false;
+    let mut transaction =
+        WorkspaceEditTransaction::new(None, WorkspaceEditSafetyClassV0::EvidenceRequired);
+    for expected in expected_source_digests {
+        transaction = transaction.expect(expected.clone());
+    }
     for style_path in reachable_paths {
         let Some(source) = source_by_path.get(style_path.as_str()) else {
             continue;
@@ -883,25 +929,36 @@ fn emit_bundle_code_split_outputs(
                 compose_source_map_with_input_source_maps(source_map_v3, input_source_maps);
             upstream_maps_applied = upstream_maps_applied || upstream_map_applied;
             let map_output_path = out_dir.join(map_file_name);
+            let expected_map_digest = ExpectedContentDigestV0::observe(&map_output_path)
+                .map_err(|error| error.to_string())?;
             let source_map_json = serde_json::to_string_pretty(&source_map_v3)
                 .map_err(|error| format!("failed to serialize split source map: {error}"))?;
-            fs::write(&map_output_path, source_map_json).map_err(|error| {
-                format!(
-                    "failed to write bundle split source map {}: {error}",
-                    path_string(&map_output_path)
-                )
-            })?;
+            transaction = transaction.expect(expected_map_digest).edit(
+                FileEditV0::new(map_output_path.as_path(), source_map_json.as_bytes())
+                    .with_postcondition(WorkspaceEditPostconditionV0::json_reparse())
+                    .with_postcondition(WorkspaceEditPostconditionV0::byte_identity(
+                        source_map_json.as_bytes(),
+                    )),
+            );
             output_css.push_str("\n/*# sourceMappingURL=");
             output_css.push_str(map_file_name);
             output_css.push_str(" */\n");
         }
         let output_path = out_dir.join(file_name);
-        fs::write(&output_path, output_css).map_err(|error| {
-            format!(
-                "failed to write bundle split output {}: {error}",
-                path_string(&output_path)
-            )
-        })?;
+        let expected_output_digest =
+            ExpectedContentDigestV0::observe(&output_path).map_err(|error| error.to_string())?;
+        transaction = transaction.expect(expected_output_digest).edit(
+            FileEditV0::new(output_path.as_path(), output_css.as_bytes())
+                .with_postcondition(
+                    WorkspaceEditPostconditionV0::style_reparse_for_admitted_output(
+                        Path::new(style_path.as_str()),
+                        output_css.as_bytes(),
+                    ),
+                )
+                .with_postcondition(WorkspaceEditPostconditionV0::byte_identity(
+                    output_css.as_bytes(),
+                )),
+        );
         let split_boundary = split_boundary_by_path
             .get(style_path.as_str())
             .copied()
@@ -930,12 +987,19 @@ fn emit_bundle_code_split_outputs(
     let manifest_json = serde_json::to_string_pretty(&manifest)
         .map_err(|error| format!("failed to serialize bundle split manifest: {error}"))?;
     let manifest_path = out_dir.join(BUNDLE_CODE_SPLIT_MANIFEST_FILE_NAME);
-    fs::write(&manifest_path, manifest_json).map_err(|error| {
-        format!(
-            "failed to write bundle split manifest {}: {error}",
-            path_string(&manifest_path)
+    let expected_manifest_digest =
+        ExpectedContentDigestV0::observe(&manifest_path).map_err(|error| error.to_string())?;
+    transaction
+        .expect(expected_manifest_digest)
+        .edit(
+            FileEditV0::new(manifest_path.as_path(), manifest_json.as_bytes())
+                .with_postcondition(WorkspaceEditPostconditionV0::json_reparse())
+                .with_postcondition(WorkspaceEditPostconditionV0::byte_identity(
+                    manifest_json.as_bytes(),
+                )),
         )
-    })?;
+        .commit()
+        .map_err(|error| error.to_string())?;
     Ok(BundleCodeSplitEmissionSummaryV0 {
         upstream_maps_applied,
         configured_entry_count: workspace_split_plan.configured_entry_count,
