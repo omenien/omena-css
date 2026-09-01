@@ -13,12 +13,15 @@ import {
   EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH,
   EVIDENCE_WRITER_COMMAND_DECLARATIONS,
   EVIDENCE_WRITER_NON_LITERAL_WRITE_REFUSALS,
+  EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS,
   EVIDENCE_STATIC_WRITE_OUTPUT_AUTHORITY,
   resolveEvidenceWriterCommandOutputPaths,
   type EvidenceWriterCommandDeclaration,
 } from "./writer-command-authority";
 
 export const EVIDENCE_WRITER_REGISTRY_PATH = "rust/evidence-writer-registry.json";
+export const EVIDENCE_WRITER_NON_LITERAL_WRITE_CENSUS_PATH =
+  "rust/evidence-writer-nonliteral-write-census.json";
 const WPT_TIER_ZERO_OUTPUT_PATHS = new Set([
   "rust/crates/omena-diff-test/wpt-corpus/extracted/tier-zero-coverage.json",
   "rust/crates/omena-diff-test/wpt-corpus/extracted/tier-zero-tuples.json",
@@ -115,6 +118,12 @@ export const EVIDENCE_FRESH_REPRODUCTION_EXEMPTIONS: readonly {
     reason:
       "the registry builder validates every toolchain-byte owner against the repository path set, including the registry output itself",
   },
+  {
+    artifactPath: EVIDENCE_WRITER_NON_LITERAL_WRITE_CENSUS_PATH,
+    kind: "reads-own-output",
+    reason:
+      "the official updater reads the committed census before writing so a newly introduced non-literal site cannot be adopted by regeneration",
+  },
   ...DOCUMENTATION_REFERENCE_SELF_INPUT_PATHS.map(
     (
       artifactPath,
@@ -149,6 +158,42 @@ export interface EvidenceWriterRegistryV0 {
   };
   readonly artifacts: readonly EvidenceArtifactRowV0[];
   readonly notPreviewableInputs: readonly NotPreviewableInputV0[];
+}
+
+export interface EvidenceWriterNonLiteralWriteCensusV0 {
+  readonly schemaVersion: "0";
+  readonly generatedBy: "pnpm omena-check evidence-writers --write";
+  readonly scope: {
+    readonly pathspecs: readonly ["scripts/**", "packages/check-orchestrator/src/**"];
+    readonly scannedScriptCount: number;
+    readonly registryWriterScriptCount: number;
+    readonly declaredWriterScriptCount: number;
+    readonly broadWriterScriptCountWithNonLiteralSites: number;
+    readonly broadNonLiteralWriteSiteCount: number;
+    readonly unsweptRegistryWriterScriptCount: number;
+    readonly unsweptRegistryWriterScriptsWithNonLiteralSites: number;
+    readonly unsweptRegistryNonLiteralWriteSiteCount: number;
+  };
+  readonly reviewerBaseline: {
+    readonly pin: "ba7308df84bf501b6cf3a13347dcf47571b0eb61";
+    readonly broadWriterScriptCountWithNonLiteralSites: 122;
+    readonly broadNonLiteralWriteSiteCount: 319;
+    readonly unsweptRegistryWriterScriptsWithNonLiteralSites: 44;
+  };
+  readonly typedJustifications: typeof EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS;
+  readonly sites: readonly EvidenceWriterNonLiteralWriteSiteV0[];
+}
+
+export interface EvidenceWriterNonLiteralWriteSiteV0 {
+  readonly fingerprint: string;
+  readonly writerScript: string;
+  readonly line: number;
+  readonly writeApi: string;
+  readonly writeExpression: string;
+  readonly disposition:
+    | "declared-writer-sweep"
+    | "unswept-registry-writer"
+    | "outside-registry-writer";
 }
 
 export interface EvidenceArtifactRowV0 {
@@ -198,16 +243,226 @@ export function renderEvidenceWriterRegistry(registry: EvidenceWriterRegistryV0)
   return formatEvidenceJsonArtifact(registry, EVIDENCE_WRITER_REGISTRY_PATH);
 }
 
+export function evidenceWriterNonLiteralWriteCensusPath(repoRoot: string): string {
+  return path.join(repoRoot, EVIDENCE_WRITER_NON_LITERAL_WRITE_CENSUS_PATH);
+}
+
+export function loadEvidenceWriterNonLiteralWriteCensus(
+  repoRoot: string,
+): EvidenceWriterNonLiteralWriteCensusV0 | null {
+  const censusPath = evidenceWriterNonLiteralWriteCensusPath(repoRoot);
+  if (!existsSync(censusPath)) return null;
+  const census = JSON.parse(
+    readFileSync(censusPath, "utf8"),
+  ) as EvidenceWriterNonLiteralWriteCensusV0;
+  validateEvidenceWriterNonLiteralWriteCensus(census);
+  return census;
+}
+
+export function renderEvidenceWriterNonLiteralWriteCensus(
+  census: EvidenceWriterNonLiteralWriteCensusV0,
+): string {
+  validateEvidenceWriterNonLiteralWriteCensus(census);
+  return formatEvidenceJsonArtifact(census, EVIDENCE_WRITER_NON_LITERAL_WRITE_CENSUS_PATH);
+}
+
+const EVIDENCE_NON_LITERAL_WRITE_APIS = new Set([
+  "appendFileSync",
+  "copyFileSync",
+  "cpSync",
+  "createWriteStream",
+  "linkSync",
+  "outputFileSync",
+  "renameSync",
+  "symlinkSync",
+  "writeFileSync",
+  "writeSync",
+]);
+
+export function buildEvidenceWriterNonLiteralWriteCensus(
+  repoRoot: string,
+  registry: EvidenceWriterRegistryV0,
+): EvidenceWriterNonLiteralWriteCensusV0 {
+  const scriptPaths = resolveScanSurface(WRITER_SOURCE_SURFACE, { repoRoot }).paths.filter(
+    (candidate) => /\.(?:[cm]?js|ts)$/u.test(candidate),
+  );
+  const registryWriterScripts = new Set<string>(
+    registry.artifacts.flatMap((row) => row.writerScripts),
+  );
+  const declaredWriterScripts = new Set<string>(
+    EVIDENCE_WRITER_COMMAND_DECLARATIONS.flatMap((declaration) => declaration.writerScripts),
+  );
+  const unsweptRegistryWriterScripts = new Set<string>(
+    [...registryWriterScripts].filter((script) => !declaredWriterScripts.has(script)),
+  );
+  const sites: EvidenceWriterNonLiteralWriteSiteV0[] = [];
+  const occurrenceBySiteShape = new Map<string, number>();
+  for (const scriptPath of scriptPaths) {
+    const source = readFileSync(path.join(repoRoot, scriptPath), "utf8");
+    const sourceFile = ts.createSourceFile(scriptPath, source, ts.ScriptTarget.Latest, true);
+    const visit = (node: tsTypes.Node): void => {
+      if (ts.isCallExpression(node)) {
+        const writeApi = callName(node.expression);
+        const firstArgument = node.arguments[0];
+        if (
+          writeApi &&
+          EVIDENCE_NON_LITERAL_WRITE_APIS.has(writeApi) &&
+          firstArgument &&
+          !ts.isStringLiteral(firstArgument) &&
+          !ts.isNoSubstitutionTemplateLiteral(firstArgument)
+        ) {
+          const writeExpression = normalizeWriteExpression(firstArgument.getText(sourceFile));
+          const siteShape = `${scriptPath}\0${writeApi}\0${writeExpression}`;
+          const occurrence = (occurrenceBySiteShape.get(siteShape) ?? 0) + 1;
+          occurrenceBySiteShape.set(siteShape, occurrence);
+          sites.push({
+            fingerprint: evidenceNonLiteralWriteSiteFingerprint(siteShape, occurrence),
+            writerScript: scriptPath,
+            line: sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1,
+            writeApi,
+            writeExpression,
+            disposition: declaredWriterScripts.has(scriptPath)
+              ? "declared-writer-sweep"
+              : unsweptRegistryWriterScripts.has(scriptPath)
+                ? "unswept-registry-writer"
+                : "outside-registry-writer",
+          });
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+  }
+  sites.sort((left, right) =>
+    compareText(
+      `${left.writerScript}:${String(left.line).padStart(8, "0")}:${left.writeApi}:${left.writeExpression}`,
+      `${right.writerScript}:${String(right.line).padStart(8, "0")}:${right.writeApi}:${right.writeExpression}`,
+    ),
+  );
+  const unsweptSites = sites.filter((site) => site.disposition === "unswept-registry-writer");
+  const census = {
+    schemaVersion: "0",
+    generatedBy: "pnpm omena-check evidence-writers --write",
+    scope: {
+      pathspecs: ["scripts/**", "packages/check-orchestrator/src/**"],
+      scannedScriptCount: scriptPaths.length,
+      registryWriterScriptCount: registryWriterScripts.size,
+      declaredWriterScriptCount: declaredWriterScripts.size,
+      broadWriterScriptCountWithNonLiteralSites: new Set(sites.map((site) => site.writerScript))
+        .size,
+      broadNonLiteralWriteSiteCount: sites.length,
+      unsweptRegistryWriterScriptCount: unsweptRegistryWriterScripts.size,
+      unsweptRegistryWriterScriptsWithNonLiteralSites: new Set(
+        unsweptSites.map((site) => site.writerScript),
+      ).size,
+      unsweptRegistryNonLiteralWriteSiteCount: unsweptSites.length,
+    },
+    reviewerBaseline: {
+      pin: "ba7308df84bf501b6cf3a13347dcf47571b0eb61",
+      broadWriterScriptCountWithNonLiteralSites: 122,
+      broadNonLiteralWriteSiteCount: 319,
+      unsweptRegistryWriterScriptsWithNonLiteralSites: 44,
+    },
+    typedJustifications: EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS,
+    sites,
+  } as const satisfies EvidenceWriterNonLiteralWriteCensusV0;
+  validateEvidenceWriterNonLiteralWriteCensus(census);
+  const runtimeJustifications = EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS.filter(
+    (entry) => entry.kind === "runtime-variable-output",
+  );
+  for (const justification of runtimeJustifications) {
+    const row = registry.artifacts.find(
+      (artifact) => artifact.artifactPath === justification.outputPath,
+    );
+    if (
+      row?.classification !== "W2" ||
+      !row.writerScripts.includes(justification.writerScript) ||
+      !sites.some(
+        (site) =>
+          site.writerScript === justification.writerScript &&
+          site.writeExpression === justification.writeExpression,
+      )
+    ) {
+      throw new Error(
+        `runtime-variable output justification is not bound to its W2 write site: ${justification.outputPath}`,
+      );
+    }
+  }
+  return census;
+}
+
+export function assertEvidenceWriterNonLiteralWriteCensusDecreaseOnly(
+  previous: EvidenceWriterNonLiteralWriteCensusV0 | null,
+  next: EvidenceWriterNonLiteralWriteCensusV0,
+): void {
+  validateEvidenceWriterNonLiteralWriteCensus(next);
+  if (!previous) {
+    throw new Error("committed evidence writer non-literal census is required before --write");
+  }
+  validateEvidenceWriterNonLiteralWriteCensus(previous);
+  const previousFingerprints = new Set(previous.sites.map((site) => site.fingerprint));
+  const introduced = next.sites.find((site) => !previousFingerprints.has(site.fingerprint));
+  if (introduced) {
+    throw new Error(
+      `decrease-only evidence writer census refuses a new non-literal write site: ${introduced.writerScript}:${introduced.line}:${introduced.writeExpression}`,
+    );
+  }
+  if (
+    next.scope.broadNonLiteralWriteSiteCount > previous.scope.broadNonLiteralWriteSiteCount ||
+    next.scope.broadWriterScriptCountWithNonLiteralSites >
+      previous.scope.broadWriterScriptCountWithNonLiteralSites ||
+    next.scope.unsweptRegistryWriterScriptsWithNonLiteralSites >
+      previous.scope.unsweptRegistryWriterScriptsWithNonLiteralSites ||
+    next.scope.unsweptRegistryNonLiteralWriteSiteCount >
+      previous.scope.unsweptRegistryNonLiteralWriteSiteCount
+  ) {
+    throw new Error("evidence writer non-literal census is not decrease-only");
+  }
+}
+
+function validateEvidenceWriterNonLiteralWriteCensus(
+  census: EvidenceWriterNonLiteralWriteCensusV0,
+): void {
+  if (
+    census.schemaVersion !== "0" ||
+    census.generatedBy !== "pnpm omena-check evidence-writers --write"
+  ) {
+    throw new Error("invalid evidence writer non-literal census header");
+  }
+  if (census.scope.broadNonLiteralWriteSiteCount !== census.sites.length) {
+    throw new Error("evidence writer non-literal census site count drifted");
+  }
+  if (
+    JSON.stringify(census.typedJustifications) !==
+    JSON.stringify(EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS)
+  ) {
+    throw new Error("evidence writer non-literal census typed justifications drifted");
+  }
+  const fingerprints = new Set<string>();
+  const occurrenceBySiteShape = new Map<string, number>();
+  for (const site of census.sites) {
+    const siteShape = `${site.writerScript}\0${site.writeApi}\0${site.writeExpression}`;
+    const occurrence = (occurrenceBySiteShape.get(siteShape) ?? 0) + 1;
+    occurrenceBySiteShape.set(siteShape, occurrence);
+    const expectedFingerprint = evidenceNonLiteralWriteSiteFingerprint(siteShape, occurrence);
+    if (site.fingerprint !== expectedFingerprint || fingerprints.has(site.fingerprint)) {
+      throw new Error(
+        `evidence writer non-literal census fingerprint drifted: ${site.writerScript}:${site.line}`,
+      );
+    }
+    fingerprints.add(site.fingerprint);
+  }
+}
+
+function evidenceNonLiteralWriteSiteFingerprint(siteShape: string, occurrence: number): string {
+  return createHash("sha256").update(`${siteShape}\0${occurrence}`).digest("hex");
+}
+
 export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterRegistryV0 {
   assertGovernedNonLiteralWriteCoverage(repoRoot);
   const discovery = discoverEvidenceArtifacts(repoRoot);
-  const {
-    repositoryPaths,
-    scriptPaths,
-    artifactPaths,
-    scriptAnalysisCache,
-    staticWriterScriptsByOutput,
-  } = discovery;
+  const { repositoryPaths, scriptPaths, artifactPaths, staticWriterScriptsByOutput } = discovery;
+  assertEvidenceWriterDeclarationWriteWitnessCoverage(repoRoot, discovery);
   const referencePathsByArtifact = repositoryReferencePathsByArtifact(
     repoRoot,
     artifactPaths,
@@ -230,9 +485,7 @@ export function buildEvidenceWriterRegistry(repoRoot: string): EvidenceWriterReg
       artifactPath,
       [
         ...new Set([
-          ...(path.posix.dirname(artifactPath) === "rust"
-            ? findArtifactWriterScripts(repoRoot, artifactPath, scriptPaths, scriptAnalysisCache)
-            : (staticWriterScriptsByOutput.get(artifactPath) ?? [])),
+          ...(staticWriterScriptsByOutput.get(artifactPath) ?? []),
           ...declaredCommandsForOutput(repoRoot, artifactPath).flatMap((row) => row.writerScripts),
         ]),
       ].toSorted(),
@@ -402,6 +655,9 @@ export function findUnclassifiedGovernedNonLiteralWriteSites(
       for (const writeExpression of declaration.writeExpressions ?? []) {
         expressions.add(writeExpression);
       }
+      for (const witness of declaration.outputWriteWitnesses ?? []) {
+        if (witness.writerScript === writerScript) expressions.add(witness.writeExpression);
+      }
       dataExpressionsByScript.set(writerScript, expressions);
     }
   }
@@ -504,6 +760,163 @@ export function assertGovernedNonLiteralWriteCoverage(repoRoot: string): void {
       );
     }
   }
+}
+
+export function assertEvidenceWriterDeclarationWriteWitnessCoverage(
+  repoRoot: string,
+  discovery: EvidenceArtifactDiscovery = discoverEvidenceArtifacts(repoRoot),
+): void {
+  const declarations: readonly EvidenceWriterCommandDeclaration[] =
+    EVIDENCE_WRITER_COMMAND_DECLARATIONS;
+  const declarationCountsByScript = new Map<string, number>();
+  for (const declaration of declarations) {
+    for (const writerScript of declaration.writerScripts) {
+      declarationCountsByScript.set(
+        writerScript,
+        (declarationCountsByScript.get(writerScript) ?? 0) + 1,
+      );
+    }
+  }
+  const writeExpressionsByScript = new Map<string, ReadonlySet<string>>();
+  for (const [scriptPath, analysis] of discovery.scriptAnalysisCache) {
+    const expressions = new Set<string>();
+    const visit = (node: tsTypes.Node): void => {
+      if (ts.isCallExpression(node) && isFileWriteCall(node.expression)) {
+        const firstArgument = node.arguments[0];
+        if (firstArgument) {
+          expressions.add(normalizeWriteExpression(firstArgument.getText(analysis.sourceFile)));
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(analysis.sourceFile);
+    writeExpressionsByScript.set(scriptPath, expressions);
+  }
+
+  const justificationKeys = new Set<string>();
+  const consumedJustificationKeys = new Set<string>();
+  for (const justification of EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS) {
+    const key = `${justification.commandId ?? ""}\0${justification.outputPath}`;
+    if (justificationKeys.has(key)) {
+      throw new Error(`evidence writer output justification is duplicated: ${key}`);
+    }
+    justificationKeys.add(key);
+    if (justification.reason.trim().length === 0) {
+      throw new Error(`evidence writer output justification has no reason: ${key}`);
+    }
+    const sourcePath = path.join(repoRoot, justification.writerScript);
+    if (
+      !existsSync(sourcePath) ||
+      !readFileSync(sourcePath, "utf8").includes(justification.writeExpression)
+    ) {
+      throw new Error(
+        `evidence writer output justification is stale: ${justification.writerScript}:${justification.writeExpression}`,
+      );
+    }
+    if (justification.kind === "runtime-variable-output") {
+      const sources = new Set(justification.variableFields?.map((field) => field.source) ?? []);
+      for (const source of ["timestamp", "wallTime", "sha", "worktreeClean"] as const) {
+        if (!sources.has(source)) {
+          throw new Error(
+            `runtime-variable output justification omits ${source}: ${justification.outputPath}`,
+          );
+        }
+      }
+    } else if (justification.variableFields !== undefined) {
+      throw new Error(
+        `non-runtime output justification cannot declare variable fields: ${justification.outputPath}`,
+      );
+    }
+  }
+
+  for (const declaration of declarations) {
+    const outputPaths = resolveEvidenceWriterCommandOutputPaths(repoRoot, declaration);
+    const outputPathSet = new Set(outputPaths);
+    const witnessedOutputPaths = new Set<string>();
+    for (const witness of declaration.outputWriteWitnesses ?? []) {
+      if (!declaration.writerScripts.includes(witness.writerScript)) {
+        throw new Error(
+          `evidence writer output witness names an undeclared script: ${declaration.commandId}:${witness.writerScript}`,
+        );
+      }
+      const normalizedExpression = normalizeWriteExpression(witness.writeExpression);
+      if (!writeExpressionsByScript.get(witness.writerScript)?.has(normalizedExpression)) {
+        throw new Error(
+          `evidence writer output witness is not an AST-visible write: ${declaration.commandId}:${witness.writerScript}:${witness.writeExpression}`,
+        );
+      }
+      for (const outputPath of witness.outputPaths) {
+        if (!outputPathSet.has(outputPath)) {
+          throw new Error(
+            `evidence writer output witness names an undeclared output: ${declaration.commandId}:${outputPath}`,
+          );
+        }
+        if (witnessedOutputPaths.has(outputPath)) {
+          throw new Error(
+            `evidence writer output has duplicate write witnesses: ${declaration.commandId}:${outputPath}`,
+          );
+        }
+        witnessedOutputPaths.add(outputPath);
+      }
+    }
+    for (const manifestOutput of declaration.manifestOutputPaths ?? []) {
+      const manifestPaths = resolveEvidenceWriterCommandOutputPaths(repoRoot, {
+        ...declaration,
+        outputPaths: [],
+        manifestOutputPaths: [manifestOutput],
+      });
+      const expression = normalizeWriteExpression(manifestOutput.writeExpression);
+      const hasAstWitness = declaration.writerScripts.some((writerScript) =>
+        writeExpressionsByScript.get(writerScript)?.has(expression),
+      );
+      if (!hasAstWitness) {
+        throw new Error(
+          `evidence writer manifest output has no AST-visible write: ${declaration.commandId}:${manifestOutput.writeExpression}`,
+        );
+      }
+      for (const outputPath of manifestPaths) witnessedOutputPaths.add(outputPath);
+    }
+
+    const hasSharedWriter = declaration.writerScripts.some(
+      (writerScript) => (declarationCountsByScript.get(writerScript) ?? 0) > 1,
+    );
+    for (const outputPath of outputPaths) {
+      const justification = EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS.find(
+        (entry) => entry.commandId === declaration.commandId && entry.outputPath === outputPath,
+      );
+      if (justification) {
+        if (!declaration.writerScripts.includes(justification.writerScript)) {
+          throw new Error(
+            `evidence writer output justification names an undeclared script: ${declaration.commandId}:${justification.writerScript}`,
+          );
+        }
+        consumedJustificationKeys.add(`${declaration.commandId}\0${outputPath}`);
+        continue;
+      }
+      if (witnessedOutputPaths.has(outputPath)) continue;
+      const exactWriters = discovery.staticWriterScriptsByOutput.get(outputPath) ?? [];
+      if (
+        !hasSharedWriter &&
+        exactWriters.some((script) => declaration.writerScripts.includes(script))
+      ) {
+        continue;
+      }
+      throw new Error(
+        `evidence writer declared output has no command-scoped AST write witness or typed justification: ${declaration.commandId}:${outputPath}`,
+      );
+    }
+  }
+  for (const justification of EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS) {
+    if (justification.commandId === undefined) continue;
+    const key = `${justification.commandId}\0${justification.outputPath}`;
+    if (!consumedJustificationKeys.has(key)) {
+      throw new Error(`evidence writer output justification is unbound: ${key}`);
+    }
+  }
+}
+
+function normalizeWriteExpression(expression: string): string {
+  return expression.replace(/\s+/gu, " ").trim();
 }
 
 function discoverEvidenceArtifacts(repoRoot: string): EvidenceArtifactDiscovery {
@@ -1098,99 +1511,6 @@ function literalRepositoryInputs(
   return [...inputs].toSorted();
 }
 
-function findArtifactWriterScripts(
-  repoRoot: string,
-  artifactPath: string,
-  scriptPaths: readonly string[],
-  analysisCache: Map<string, WriterScriptAnalysis>,
-): readonly string[] {
-  const basename = path.posix.basename(artifactPath);
-  const requireExactPath = path.posix.dirname(artifactPath) !== "rust";
-  const writers: string[] = [];
-  for (const scriptPath of scriptPaths) {
-    let analysis = analysisCache.get(scriptPath);
-    if (!analysis) {
-      const source = readFileSync(path.join(repoRoot, scriptPath), "utf8");
-      const sourceFile = ts.createSourceFile(scriptPath, source, ts.ScriptTarget.Latest, true);
-      const lexical = buildStaticPathLexicalIndex(sourceFile);
-      analysis = {
-        source,
-        sourceFile,
-        staticPathVariables: collectStaticPathVariables(repoRoot, sourceFile),
-        lexical,
-        lexicalStaticPathValues: collectLexicalStaticPathValues(repoRoot, sourceFile, lexical),
-      };
-      analysisCache.set(scriptPath, analysis);
-    }
-    const { source, sourceFile } = analysis;
-    if (requireExactPath) {
-      let writesExactArtifact = false;
-      const findExactWrite = (node: tsTypes.Node): void => {
-        if (ts.isCallExpression(node) && isFileWriteCall(node.expression)) {
-          const firstArgument = node.arguments[0];
-          const resolved = firstArgument
-            ? lexicalStaticPathExpressionValue(firstArgument, analysis!, repoRoot)
-            : null;
-          if (resolved && normalizeRepositoryPath(repoRoot, resolved) === artifactPath) {
-            writesExactArtifact = true;
-          }
-        }
-        if (!writesExactArtifact) ts.forEachChild(node, findExactWrite);
-      };
-      findExactWrite(sourceFile);
-      if (writesExactArtifact) writers.push(scriptPath);
-      continue;
-    }
-    if (!source.includes(basename)) continue;
-    const pathVariables = new Set<string>();
-    let changed = true;
-    while (changed) {
-      changed = false;
-      const collectPaths = (node: tsTypes.Node): void => {
-        if (
-          ts.isVariableDeclaration(node) &&
-          ts.isIdentifier(node.name) &&
-          node.initializer &&
-          (node.initializer.getText(sourceFile).includes(basename) ||
-            expressionUsesIdentifier(node.initializer, pathVariables)) &&
-          !pathVariables.has(node.name.text)
-        ) {
-          pathVariables.add(node.name.text);
-          changed = true;
-        }
-        ts.forEachChild(node, collectPaths);
-      };
-      collectPaths(sourceFile);
-    }
-    let writesArtifact = false;
-    const findWrite = (node: tsTypes.Node): void => {
-      if (!ts.isCallExpression(node)) {
-        ts.forEachChild(node, findWrite);
-        return;
-      }
-      const callee = node.expression;
-      const calleeName = ts.isIdentifier(callee)
-        ? callee.text
-        : ts.isPropertyAccessExpression(callee)
-          ? callee.name.text
-          : "";
-      const firstArgument = node.arguments[0];
-      if (
-        calleeName === "writeFileSync" &&
-        firstArgument &&
-        (firstArgument.getText(sourceFile).includes(basename) ||
-          expressionUsesIdentifier(firstArgument, pathVariables))
-      ) {
-        writesArtifact = true;
-      }
-      ts.forEachChild(node, findWrite);
-    };
-    findWrite(sourceFile);
-    if (writesArtifact) writers.push(scriptPath);
-  }
-  return writers.toSorted();
-}
-
 interface StaticPathLexicalScope {
   readonly parent: StaticPathLexicalScope | null;
   readonly bindings: ReadonlyMap<string, tsTypes.Identifier>;
@@ -1470,6 +1790,15 @@ function evaluateStaticDataExpression(
       );
     }
     return prefixes;
+  }
+  if (
+    ts.isBinaryExpression(unwrapped) &&
+    unwrapped.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken
+  ) {
+    return [
+      ...evaluateStaticDataExpression(unwrapped.left, context),
+      ...evaluateStaticDataExpression(unwrapped.right, context),
+    ];
   }
   if (ts.isIdentifier(unwrapped)) return evaluateStaticIdentifier(unwrapped, context);
   if (ts.isArrayLiteralExpression(unwrapped)) {
@@ -1776,19 +2105,6 @@ function callName(expression: tsTypes.LeftHandSideExpression): string | null {
 function isFileWriteCall(expression: tsTypes.LeftHandSideExpression): boolean {
   const name = callName(expression);
   return name === "writeFileSync" || name === "writeFile";
-}
-
-function expressionUsesIdentifier(
-  expression: tsTypes.Expression,
-  identifiers: ReadonlySet<string>,
-): boolean {
-  let found = false;
-  const visit = (node: tsTypes.Node): void => {
-    if (ts.isIdentifier(node) && identifiers.has(node.text)) found = true;
-    if (!found) ts.forEachChild(node, visit);
-  };
-  visit(expression);
-  return found;
 }
 
 function commandSegmentForWriter(command: string, writerScript: string): readonly string[] {

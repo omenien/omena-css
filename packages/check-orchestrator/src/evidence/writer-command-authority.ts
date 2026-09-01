@@ -16,8 +16,15 @@ export interface EvidenceWriterCommandDeclaration {
   readonly writerScripts: readonly string[];
   readonly outputPaths: readonly string[];
   readonly writeExpressions?: readonly string[];
+  readonly outputWriteWitnesses?: readonly EvidenceWriterOutputWriteWitness[];
   readonly manifestOutputPaths?: readonly EvidenceWriterManifestOutputDeclaration[];
   readonly inputPaths?: readonly string[];
+}
+
+export interface EvidenceWriterOutputWriteWitness {
+  readonly outputPaths: readonly string[];
+  readonly writerScript: string;
+  readonly writeExpression: string;
 }
 
 export interface EvidenceWriterManifestOutputDeclaration {
@@ -36,8 +43,24 @@ export interface EvidenceWriterManifestOutputDeclaration {
 export interface EvidenceWriterNonLiteralWriteRefusal {
   readonly writerScript: string;
   readonly writeExpression: string;
-  readonly kind: "ephemeral-fixture" | "operator-selected-external-output";
+  readonly kind:
+    | "ephemeral-fixture"
+    | "operator-selected-external-output"
+    | "failure-triggered-raw-capture";
   readonly reason: string;
+}
+
+export interface EvidenceWriterOutputJustification {
+  readonly commandId?: string;
+  readonly outputPath: string;
+  readonly writerScript: string;
+  readonly writeExpression: string;
+  readonly kind: "non-typescript-writer" | "runtime-variable-output";
+  readonly reason: string;
+  readonly variableFields?: readonly {
+    readonly fieldPath: string;
+    readonly source: "timestamp" | "wallTime" | "sha" | "worktreeClean" | "host";
+  }[];
 }
 
 /**
@@ -99,11 +122,60 @@ export const EVIDENCE_WRITER_NON_LITERAL_WRITE_REFUSALS: readonly EvidenceWriter
     {
       writerScript: "scripts/oss-corpus-farm.ts",
       writeExpression: "manifestPathForCapture",
-      kind: "operator-selected-external-output",
+      kind: "failure-triggered-raw-capture",
       reason:
-        "the capture manifest accompanies fixtures below the explicitly selected capture root",
+        "the manifest is a conditional failure-capture side effect whose destination is either an operator-selected root or the tracked raw-regression inbox, not a reproducible updater output",
     },
   ];
+
+/**
+ * A typed exception is narrower than a declaration: it binds one output to
+ * one source-level write expression and explains why the TypeScript AST
+ * authority cannot prove stable bytes for it. Runtime-variable artifacts name
+ * every field that prevents a deterministic full-repository rewrite.
+ */
+export const EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS: readonly EvidenceWriterOutputJustification[] = [
+  {
+    commandId: "benchmark-emitted-css-golden",
+    outputPath: "rust/crates/omena-benchmarks/fixtures/emitted-css-golden-v0.json",
+    writerScript: "rust/crates/omena-benchmarks/src/bin/emitted_css_golden_gate.rs",
+    writeExpression: "fs::write(&path, snapshot)",
+    kind: "non-typescript-writer",
+    reason: "the declared output is written by the Rust regeneration binary",
+  },
+  {
+    commandId: "benchmark-transform-relex-baseline",
+    outputPath: "rust/crates/omena-benchmarks/fixtures/transform-relex-baseline-v0.json",
+    writerScript: "rust/crates/omena-benchmarks/src/bin/transform_relex_baseline_gate.rs",
+    writeExpression: "fs::write(&path, snapshot)",
+    kind: "non-typescript-writer",
+    reason: "the declared output is written by the Rust regeneration binary",
+  },
+  {
+    commandId: "linked-stylesheet-byte-identity",
+    outputPath: "rust/crates/omena-bundler/tests/snapshots/linked-stylesheet-byte-identity.json",
+    writerScript: "rust/crates/omena-bundler/tests/linked_stylesheet_byte_identity.rs",
+    writeExpression: "std::fs::write(",
+    kind: "non-typescript-writer",
+    reason: "the declared output is written by the Rust contract test's explicit update mode",
+  },
+  {
+    outputPath: "rust/crates/omena-benchmarks/baselines/wpt-case-count-baseline-v0.json",
+    writerScript: "scripts/check-rust-omena-diff-test-wpt-perf.ts",
+    writeExpression: "baselinePath",
+    kind: "runtime-variable-output",
+    reason:
+      "the recorder deliberately captures a measured run and cannot be reproduced by an unqualified full-repository --write sweep",
+    variableFields: [
+      { fieldPath: "samples[].recordedAtUtc", source: "timestamp" },
+      { fieldPath: "samples[].wallTimeMilliseconds", source: "wallTime" },
+      { fieldPath: "samples[].microsecondsPerCase", source: "wallTime" },
+      { fieldPath: "samples[].gitSha", source: "sha" },
+      { fieldPath: "samples[].worktreeClean", source: "worktreeClean" },
+      { fieldPath: "samples[].machine", source: "host" },
+    ],
+  },
+];
 
 /**
  * Resolve paths that are deliberately owned by committed manifest data rather
@@ -136,7 +208,7 @@ export function resolveEvidenceWriterCommandOutputPaths(
       addManifestOutputPath(outputPaths, declaration.commandId, manifestOutput, value);
       continue;
     }
-    if (!manifestOutput.recordOutputProperty || !manifestOutput.recordFilter) {
+    if (!manifestOutput.recordOutputProperty) {
       throw new Error(
         `evidence writer record output selector is incomplete: ${declaration.commandId}:${manifestOutput.manifestPath}`,
       );
@@ -159,7 +231,10 @@ export function resolveEvidenceWriterCommandOutputPaths(
         );
       }
       const fields = record as Readonly<Record<string, unknown>>;
-      if (fields[manifestOutput.recordFilter.property] !== manifestOutput.recordFilter.equals) {
+      if (
+        manifestOutput.recordFilter &&
+        fields[manifestOutput.recordFilter.property] !== manifestOutput.recordFilter.equals
+      ) {
         continue;
       }
       if (!(manifestOutput.recordOutputProperty in fields)) {
@@ -258,6 +333,7 @@ export const EVIDENCE_STATIC_WRITE_OUTPUT_AUTHORITY = [
   "rust/crates/omena-query-transform-runner/plugin-consumption-law-census.json",
   "rust/crates/omena-query/src/sdk_workflow_contract_idl_generated.rs",
   "rust/crates/omena-query/tests/snapshots/wildcard-reexport-baseline.json",
+  "rust/crates/omena-reactive/tests/snapshots/public-api.txt",
   "rust/crates/omena-spec-audit/data/omena-conformance-dashboard.json",
   "rust/crates/omena-spec-audit/data/omena-coverage-gap.json",
   "rust/crates/omena-spec-audit/data/value-grammar-differential.json",
@@ -299,6 +375,13 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
     writerScripts: ["packages/check-orchestrator/src/cli/main.ts"],
     outputPaths: ["packages/check-orchestrator/CHECKS.md"],
     writeExpressions: ["inventoryPath"],
+    outputWriteWitnesses: [
+      {
+        outputPaths: ["packages/check-orchestrator/CHECKS.md"],
+        writerScript: "packages/check-orchestrator/src/cli/main.ts",
+        writeExpression: "inventoryPath",
+      },
+    ],
   },
   {
     commandId: "orchestrator-cost-ledger",
@@ -309,6 +392,13 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
     ],
     outputPaths: ["packages/check-orchestrator/ci-cost-ledger.json"],
     writeExpressions: ["costLedgerPath(rootDir)"],
+    outputWriteWitnesses: [
+      {
+        outputPaths: ["packages/check-orchestrator/ci-cost-ledger.json"],
+        writerScript: "packages/check-orchestrator/src/cli/main.ts",
+        writeExpression: "costLedgerPath(rootDir)",
+      },
+    ],
   },
   {
     commandId: "orchestrator-ci-workflow",
@@ -319,6 +409,13 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
     ],
     outputPaths: [".github/workflows/ci.yml"],
     writeExpressions: ["ciWorkflowPath(rootDir)"],
+    outputWriteWitnesses: [
+      {
+        outputPaths: [".github/workflows/ci.yml"],
+        writerScript: "packages/check-orchestrator/src/manifest/ci-workflow.ts",
+        writeExpression: "ciWorkflowPath(rootDir)",
+      },
+    ],
   },
   {
     commandId: "orchestrator-ci-workflow-registry",
@@ -329,6 +426,13 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
     ],
     outputPaths: ["packages/check-orchestrator/ci-workflow.json"],
     writeExpressions: ["ciWorkflowRegistryPath(rootDir)", "registryPath"],
+    outputWriteWitnesses: [
+      {
+        outputPaths: ["packages/check-orchestrator/ci-workflow.json"],
+        writerScript: "packages/check-orchestrator/src/manifest/ci-workflow.ts",
+        writeExpression: "registryPath",
+      },
+    ],
   },
   {
     commandId: "evidence-scan-surfaces",
@@ -339,6 +443,13 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
     ],
     outputPaths: ["rust/evidence-scan-surfaces.json"],
     writeExpressions: ["manifestPath"],
+    outputWriteWitnesses: [
+      {
+        outputPaths: ["rust/evidence-scan-surfaces.json"],
+        writerScript: "packages/check-orchestrator/src/cli/main.ts",
+        writeExpression: "manifestPath",
+      },
+    ],
   },
   {
     commandId: "evidence-writer-registry",
@@ -347,8 +458,67 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
       "packages/check-orchestrator/src/cli/main.ts",
       "packages/check-orchestrator/src/evidence/writer-registry.ts",
     ],
-    outputPaths: ["rust/evidence-writer-registry.json"],
-    writeExpressions: ["registryPath"],
+    outputPaths: [
+      "rust/evidence-writer-nonliteral-write-census.json",
+      "rust/evidence-writer-registry.json",
+    ],
+    writeExpressions: ["output.path"],
+    outputWriteWitnesses: [
+      {
+        outputPaths: [
+          "rust/evidence-writer-nonliteral-write-census.json",
+          "rust/evidence-writer-registry.json",
+        ],
+        writerScript: "packages/check-orchestrator/src/cli/main.ts",
+        writeExpression: "output.path",
+      },
+    ],
+  },
+  {
+    commandId: "diff-test-wpt-corpus",
+    writeCommand: [
+      "node",
+      "--import",
+      "tsx",
+      "./scripts/generate-rust-omena-diff-test-wpt-corpus.ts",
+    ],
+    writerScripts: ["scripts/generate-rust-omena-diff-test-wpt-corpus.ts"],
+    outputPaths: ["rust/crates/omena-diff-test/wpt-corpus/manifest.json"],
+    manifestOutputPaths: [
+      {
+        manifestPath: "rust/crates/omena-diff-test/wpt-corpus/selections.json",
+        propertyPath: ["chunkPath"],
+        baseDirectory: "rust/crates/omena-diff-test/wpt-corpus",
+        writeExpression: "path.join(corpusRoot, chunk.chunkPath)",
+      },
+      {
+        manifestPath: "rust/crates/omena-diff-test/wpt-corpus/selections.json",
+        recordCollectionPath: ["advisoryChunks"],
+        recordOutputProperty: "chunkPath",
+        baseDirectory: "rust/crates/omena-diff-test/wpt-corpus",
+        writeExpression: "path.join(corpusRoot, chunk.chunkPath)",
+      },
+    ],
+    inputPaths: ["rust/crates/omena-diff-test/wpt-corpus/selections.json"],
+  },
+  {
+    commandId: "identifier-authority-census",
+    writeCommand: [
+      "node",
+      "--import",
+      "tsx",
+      "./scripts/check-rust-omena-identifier-authority-census.ts",
+      "--write",
+    ],
+    writerScripts: ["scripts/check-rust-omena-identifier-authority-census.ts"],
+    outputPaths: ["rust/omena-identifier-authority-census.json"],
+    outputWriteWitnesses: [
+      {
+        outputPaths: ["rust/omena-identifier-authority-census.json"],
+        writerScript: "scripts/check-rust-omena-identifier-authority-census.ts",
+        writeExpression: "censusPath",
+      },
+    ],
   },
   {
     commandId: "engine-v2-contract-idl-generated",
@@ -446,6 +616,18 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
       "rust/crates/omena-query/tests/snapshots/public-api.txt",
       "rust/crates/omena-query/tests/snapshots/wildcard-reexport-baseline.json",
     ],
+    outputWriteWitnesses: [
+      {
+        outputPaths: ["rust/crates/omena-query/tests/snapshots/public-api.txt"],
+        writerScript: "scripts/check-rust-omena-query-public-surface.ts",
+        writeExpression: "snapshotPath",
+      },
+      {
+        outputPaths: ["rust/crates/omena-query/tests/snapshots/wildcard-reexport-baseline.json"],
+        writerScript: "scripts/check-rust-omena-query-public-surface.ts",
+        writeExpression: "wildcardBaselinePath",
+      },
+    ],
   },
   {
     commandId: "query-public-surface-all-features",
@@ -459,6 +641,13 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
     ],
     writerScripts: ["scripts/check-rust-omena-query-public-surface.ts"],
     outputPaths: ["rust/crates/omena-query/tests/snapshots/public-api-all-features.txt"],
+    outputWriteWitnesses: [
+      {
+        outputPaths: ["rust/crates/omena-query/tests/snapshots/public-api-all-features.txt"],
+        writerScript: "scripts/check-rust-omena-query-public-surface.ts",
+        writeExpression: "snapshotPath",
+      },
+    ],
   },
   {
     commandId: "reactive-public-surface",
@@ -530,6 +719,23 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
       "docs/vscode-extension.md",
       "docs/sdk.md",
     ],
+    outputWriteWitnesses: [
+      {
+        outputPaths: [
+          "docs/reference/README.md",
+          "docs/reference/cli.md",
+          "docs/reference/personas.md",
+          "docs/reference/configuration.md",
+          "docs/reference/editor-settings.md",
+          "docs/reference/lsp-capabilities.md",
+          "rust/crates/omena-cli/README.md",
+          "docs/vscode-extension.md",
+          "docs/sdk.md",
+        ],
+        writerScript: "scripts/check-docs-reference-surface.ts",
+        writeExpression: "absolutePath",
+      },
+    ],
   },
   {
     commandId: "external-corpus-baseline",
@@ -538,6 +744,18 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
     outputPaths: [
       "rust/crates/omena-diff-test/oss-corpus-farm/baselines.json",
       "rust/crates/omena-diff-test/oss-corpus-farm/report.json",
+    ],
+    outputWriteWitnesses: [
+      {
+        outputPaths: ["rust/crates/omena-diff-test/oss-corpus-farm/baselines.json"],
+        writerScript: "scripts/oss-corpus-farm.ts",
+        writeExpression: "baselinePath",
+      },
+      {
+        outputPaths: ["rust/crates/omena-diff-test/oss-corpus-farm/report.json"],
+        writerScript: "scripts/oss-corpus-farm.ts",
+        writeExpression: "reportPath",
+      },
     ],
   },
   {
@@ -551,6 +769,13 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
     ],
     writerScripts: ["scripts/oss-corpus-farm.ts"],
     outputPaths: ["rust/crates/omena-diff-test/oss-corpus-farm/ranked-set-loss-census.json"],
+    outputWriteWitnesses: [
+      {
+        outputPaths: ["rust/crates/omena-diff-test/oss-corpus-farm/ranked-set-loss-census.json"],
+        writerScript: "scripts/oss-corpus-farm.ts",
+        writeExpression: "rankedSetLossCensusPath",
+      },
+    ],
     manifestOutputPaths: [
       {
         manifestPath: "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json",
@@ -576,6 +801,17 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
       "rust/crates/omena-transform-target/data/browser-thresholds.toml",
       "rust/crates/omena-transform-target/data/pass-feature-bindings.toml",
       "rust/crates/omena-transform-target/data/native-stage2-coverage.json",
+    ],
+    outputWriteWitnesses: [
+      {
+        outputPaths: [
+          "rust/crates/omena-transform-target/data/browser-thresholds.toml",
+          "rust/crates/omena-transform-target/data/pass-feature-bindings.toml",
+          "rust/crates/omena-transform-target/data/native-stage2-coverage.json",
+        ],
+        writerScript: "scripts/generate-rust-omena-transform-target-compat.ts",
+        writeExpression: "path.join(repoRoot, relativePath)",
+      },
     ],
   },
   {

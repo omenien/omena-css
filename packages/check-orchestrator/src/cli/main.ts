@@ -8,9 +8,14 @@ import {
   renderEvidenceScanSurfaceManifest,
 } from "../evidence/scan-surface-manifest";
 import {
+  assertEvidenceWriterNonLiteralWriteCensusDecreaseOnly,
+  buildEvidenceWriterNonLiteralWriteCensus,
   buildEvidenceWriterRegistry,
+  evidenceWriterNonLiteralWriteCensusPath,
   evidenceWriterRegistryPath,
+  loadEvidenceWriterNonLiteralWriteCensus,
   loadEvidenceWriterRegistry,
+  renderEvidenceWriterNonLiteralWriteCensus,
   renderEvidenceWriterRegistry,
 } from "../evidence/writer-registry";
 import { buildEvidenceAffectedPlan } from "../evidence/affected-evidence";
@@ -1538,21 +1543,36 @@ function runEvidenceWritersCommand(parsed: ParsedArgs): void {
     fail("Use either --check or --write, not both.");
   }
   const registry = buildEvidenceWriterRegistry(manifest.rootDir);
-  const expected = renderEvidenceWriterRegistry(registry);
-  const registryPath = evidenceWriterRegistryPath(manifest.rootDir);
+  const census = buildEvidenceWriterNonLiteralWriteCensus(manifest.rootDir, registry);
+  const outputs = [
+    {
+      label: "evidence writer registry",
+      path: evidenceWriterRegistryPath(manifest.rootDir),
+      source: renderEvidenceWriterRegistry(registry),
+    },
+    {
+      label: "evidence writer non-literal census",
+      path: evidenceWriterNonLiteralWriteCensusPath(manifest.rootDir),
+      source: renderEvidenceWriterNonLiteralWriteCensus(census),
+    },
+  ];
   if (parsed.write) {
-    writeFileSync(registryPath, expected);
-    console.log("evidence writer registry: written");
+    assertEvidenceWriterNonLiteralWriteCensusDecreaseOnly(
+      loadEvidenceWriterNonLiteralWriteCensus(manifest.rootDir),
+      census,
+    );
+    for (const output of outputs) writeFileSync(output.path, output.source);
+    for (const output of outputs) console.log(`${output.label}: written`);
     return;
   }
   if (parsed.check) {
-    const current = existsSync(registryPath) ? readFileSync(registryPath, "utf8") : "";
-    if (current !== expected) {
-      fail(
-        "Evidence writer registry is out of date. Run `pnpm omena-check evidence-writers --write`.",
-      );
+    for (const output of outputs) {
+      const current = existsSync(output.path) ? readFileSync(output.path, "utf8") : "";
+      if (current !== output.source) {
+        fail(`${output.label} is out of date. Run \`pnpm omena-check evidence-writers --write\`.`);
+      }
+      console.log(`${output.label}: ok`);
     }
-    console.log("evidence writer registry: ok");
     return;
   }
   const counts = Object.groupBy(registry.artifacts, (row) => row.classification);

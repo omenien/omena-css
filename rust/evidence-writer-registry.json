@@ -3,10 +3,10 @@
   "generatedBy": "pnpm omena-check evidence-writers --write",
   "commandAuthority": {
     "modulePath": "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
-    "sha256": "46b420edff4a2982a745a95a20068c413509737a140f050500f2e24860635ac6",
-    "declaredCommandCount": 24,
-    "declaredOutputCount": 70,
-    "declaredStaticWriteOutputCount": 67
+    "sha256": "c1f73bc6c624ad4e5f2b41dce6435bc1307f6746b255b33be01f588420732559",
+    "declaredCommandCount": 26,
+    "declaredOutputCount": 75,
+    "declaredStaticWriteOutputCount": 68
   },
   "artifacts": [
     {
@@ -1166,9 +1166,15 @@
       "consumerPaths": [
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-diff-test/wpt-corpus/SCHEMA.md",
-        "scripts/check-rust-omena-diff-test-wpt-perf.ts"
+        "rust/evidence-writer-nonliteral-write-census.json",
+        "scripts/check-rust-omena-diff-test-wpt-perf.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
-      "consumerGateIds": ["rust/omena-diff-test-wpt-perf", "rust/omena-diff-test-wpt-perf-record"]
+      "consumerGateIds": [
+        "rust/omena-diff-test-wpt-perf",
+        "rust/omena-diff-test-wpt-perf-record",
+        "tooling/evidence-affected-map"
+      ]
     },
     {
       "artifactPath": "rust/crates/omena-benchmarks/baselines/z5-perf-gate-baseline-v0.json",
@@ -1240,7 +1246,8 @@
       "consumerPaths": [
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-benchmarks/src/bin/emitted_css_golden_gate.rs",
-        "rust/crates/omena-benchmarks/src/lib.rs"
+        "rust/crates/omena-benchmarks/src/lib.rs",
+        "rust/evidence-writer-nonliteral-write-census.json"
       ],
       "consumerGateIds": []
     },
@@ -1277,7 +1284,8 @@
       "consumerPaths": [
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-benchmarks/src/bin/transform_relex_baseline_gate.rs",
-        "rust/crates/omena-benchmarks/src/lib.rs"
+        "rust/crates/omena-benchmarks/src/lib.rs",
+        "rust/evidence-writer-nonliteral-write-census.json"
       ],
       "consumerGateIds": []
     },
@@ -1310,7 +1318,8 @@
       "consumerPaths": [
         ".oxfmtrc.json",
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
-        "rust/crates/omena-bundler/tests/linked_stylesheet_byte_identity.rs"
+        "rust/crates/omena-bundler/tests/linked_stylesheet_byte_identity.rs",
+        "rust/evidence-writer-nonliteral-write-census.json"
       ],
       "consumerGateIds": []
     },
@@ -1867,7 +1876,8 @@
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json",
         "scripts/check-rust-ranked-set-loss-census.ts",
-        "scripts/oss-corpus-farm.ts"
+        "scripts/oss-corpus-farm.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
       "consumerGateIds": [
         "rust/lint-finding-census",
@@ -1875,7 +1885,8 @@
         "rust/oss-corpus-farm",
         "rust/oss-corpus-farm-determinism",
         "rust/oss-corpus-farm:update",
-        "rust/ranked-set-loss-census"
+        "rust/ranked-set-loss-census",
+        "tooling/evidence-affected-map"
       ]
     },
     {
@@ -2179,6 +2190,76 @@
       ]
     },
     {
+      "artifactPath": "rust/crates/omena-diff-test/wpt-corpus/css-values-advisory.json",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "freshReproductionRequired": true,
+      "writerScripts": ["scripts/generate-rust-omena-diff-test-wpt-corpus.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/generate-rust-omena-diff-test-wpt-corpus.ts"
+      ],
+      "inputPaths": [
+        "rust/crates/omena-diff-test/wpt-corpus/adjudications/reviewed-expectations.json",
+        "rust/crates/omena-diff-test/wpt-corpus/adjudications/reviewed-promotion-template.json",
+        "rust/crates/omena-diff-test/wpt-corpus/module-promotion-policy.json",
+        "rust/crates/omena-diff-test/wpt-corpus/selections.json",
+        "scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [
+        "rust/crates/omena-diff-test/wpt-corpus/extracted/tier-zero-coverage.json",
+        "rust/crates/omena-diff-test/wpt-corpus/extracted/tier-zero-tuples.json"
+      ],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "rust/crates/omena-diff-test/src/lib.rs",
+        "rust/crates/omena-diff-test/wpt-corpus/manifest.json",
+        "rust/crates/omena-diff-test/wpt-corpus/selections.json",
+        "scripts/check-rust-omena-diff-test-raffia-advisory.ts"
+      ],
+      "consumerGateIds": ["rust/omena-diff-test-raffia-advisory"]
+    },
+    {
+      "artifactPath": "rust/crates/omena-diff-test/wpt-corpus/css-values.json",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "freshReproductionRequired": true,
+      "writerScripts": ["scripts/generate-rust-omena-diff-test-wpt-corpus.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/generate-rust-omena-diff-test-wpt-corpus.ts"
+      ],
+      "inputPaths": [
+        "rust/crates/omena-diff-test/wpt-corpus/adjudications/reviewed-expectations.json",
+        "rust/crates/omena-diff-test/wpt-corpus/adjudications/reviewed-promotion-template.json",
+        "rust/crates/omena-diff-test/wpt-corpus/module-promotion-policy.json",
+        "rust/crates/omena-diff-test/wpt-corpus/selections.json",
+        "scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts"
+      ],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [
+        "rust/crates/omena-diff-test/wpt-corpus/extracted/tier-zero-coverage.json",
+        "rust/crates/omena-diff-test/wpt-corpus/extracted/tier-zero-tuples.json"
+      ],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "rust/crates/omena-diff-test/src/lib.rs",
+        "rust/crates/omena-diff-test/wpt-corpus/adjudications/reviewed-expectations.json",
+        "rust/crates/omena-diff-test/wpt-corpus/manifest.json",
+        "rust/crates/omena-diff-test/wpt-corpus/module-promotion-policy.json",
+        "rust/crates/omena-diff-test/wpt-corpus/selections.json",
+        "rust/crates/omena-parser/style-block-divergences.json",
+        "rust/crates/omena-spec-audit/data/spec-sources.json",
+        "scripts/check-rust-omena-diff-test-raffia-advisory.ts"
+      ],
+      "consumerGateIds": ["rust/omena-diff-test-raffia-advisory"]
+    },
+    {
       "artifactPath": "rust/crates/omena-diff-test/wpt-corpus/extracted/tier-zero-coverage.json",
       "classification": "W1",
       "writerNodeKind": "normal",
@@ -2254,8 +2335,9 @@
     },
     {
       "artifactPath": "rust/crates/omena-diff-test/wpt-corpus/manifest.json",
-      "classification": "W2",
+      "classification": "W1",
       "writerNodeKind": "normal",
+      "freshReproductionRequired": true,
       "writerScripts": ["scripts/generate-rust-omena-diff-test-wpt-corpus.ts"],
       "writeCommand": [
         "node",
@@ -3511,6 +3593,75 @@
       "consumerGateIds": ["tooling/evidence-affected-map"]
     },
     {
+      "artifactPath": "rust/evidence-writer-nonliteral-write-census.json",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "freshReproductionExemption": {
+        "kind": "reads-own-output",
+        "reason": "the official updater reads the committed census before writing so a newly introduced non-literal site cannot be adopted by regeneration"
+      },
+      "writerScripts": [
+        "packages/check-orchestrator/src/cli/main.ts",
+        "packages/check-orchestrator/src/evidence/writer-registry.ts"
+      ],
+      "writeCommand": ["pnpm", "omena-check", "evidence-writers", "--write"],
+      "inputPaths": [
+        "package.json",
+        "packages/check-orchestrator/src/affected.ts",
+        "packages/check-orchestrator/src/cli/commands.ts",
+        "packages/check-orchestrator/src/cli/execution.ts",
+        "packages/check-orchestrator/src/cli/summary-args.ts",
+        "packages/check-orchestrator/src/evidence/affected-evidence.ts",
+        "packages/check-orchestrator/src/evidence/preview-budget.ts",
+        "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
+        "packages/check-orchestrator/src/evidence/scan-surface-registry.ts",
+        "packages/check-orchestrator/src/evidence/scan-surface.ts",
+        "packages/check-orchestrator/src/evidence/scanner-analysis.ts",
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "packages/check-orchestrator/src/evidence/writer-runner.ts",
+        "packages/check-orchestrator/src/manifest/ci-workflow.ts",
+        "packages/check-orchestrator/src/manifest/cost-ledger.ts",
+        "packages/check-orchestrator/src/manifest/index.ts",
+        "packages/check-orchestrator/src/manifest/shards.ts",
+        "packages/check-orchestrator/src/probes.ts",
+        "pnpm-lock.yaml",
+        "server/engine-core-ts/src/ts-facade.ts"
+      ],
+      "inputScannerPaths": ["packages/check-orchestrator/src/cli/main.ts"],
+      "inputArtifactPaths": [
+        "docs/reference/README.md",
+        "docs/reference/cli.md",
+        "docs/reference/configuration.md",
+        "docs/reference/editor-settings.md",
+        "docs/reference/lsp-capabilities.md",
+        "docs/reference/personas.md",
+        "docs/sdk.md",
+        "docs/vscode-extension.md",
+        "packages/css-build-adapter/interface-member-snapshot.json",
+        "rust/crates/omena-abstract-value/data/closed-world-builtin-token-profiles.json",
+        "rust/crates/omena-abstract-value/data/closed-world-keyword-closure-certificate.json",
+        "rust/crates/omena-abstract-value/tests/fixtures/value-grammar-real-declarations.json",
+        "rust/crates/omena-cli/README.md",
+        "rust/crates/omena-diff-test/wpt-corpus/extracted/tier-zero-coverage.json",
+        "rust/crates/omena-diff-test/wpt-corpus/extracted/tier-zero-tuples.json",
+        "rust/omena-css-module-token-shape-measurement.json",
+        "rust/omena-domain-claim-census.json",
+        "rust/omena-domain-claim-rename-map.json",
+        "rust/omena-identifier-authority-census.json",
+        "rust/omena-product-path-matrix.json",
+        "rust/omena-published-crate-surface-register.json",
+        "rust/omena-response-surface-split-census.json",
+        "rust/omena-syntax-authority-raw-scan-census.json",
+        "rust/product-surface-boundary-reviews.json"
+      ],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
+      ],
+      "consumerGateIds": ["tooling/evidence-affected-map"]
+    },
+    {
       "artifactPath": "rust/evidence-writer-registry.json",
       "classification": "W1",
       "writerNodeKind": "normal",
@@ -4143,6 +4294,7 @@
       ],
       "writerGateIds": ["rust/omena-syntax-authority-raw-scan-census:update"],
       "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/omena-domain-claim-rename-map.json",
         "scripts/check-rust-omena-identifier-authority-census.selftest.mjs",
         "scripts/check-rust-omena-identifier-authority-census.ts",
@@ -6389,6 +6541,12 @@
     },
     {
       "ownerId": "rust/evidence-scan-surfaces.json",
+      "kind": "toolchain-bytes",
+      "detail": "formatter bytes from packages/check-orchestrator/src/evidence/scan-surface-manifest.ts, packages/check-orchestrator/src/manifest/ci-workflow.ts",
+      "gateIds": ["tooling/evidence-affected-map"]
+    },
+    {
+      "ownerId": "rust/evidence-writer-nonliteral-write-census.json",
       "kind": "toolchain-bytes",
       "detail": "formatter bytes from packages/check-orchestrator/src/evidence/scan-surface-manifest.ts, packages/check-orchestrator/src/manifest/ci-workflow.ts",
       "gateIds": ["tooling/evidence-affected-map"]

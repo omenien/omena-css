@@ -58,6 +58,7 @@ import {
   sha256Text,
 } from "../../../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import {
+  assertEvidenceWriterNonLiteralWriteCensusDecreaseOnly,
   assertEvidenceWriterAuthorityCoverage,
   assertEvidenceWriterOutputAuthorityCoverage,
   assertUpdateCommandWriterCoverage,
@@ -73,6 +74,7 @@ import {
   loadEvidenceWriterRegistry,
   renderEvidenceWriterRegistry,
   type EvidenceArtifactRowV0,
+  type EvidenceWriterNonLiteralWriteCensusV0,
   type EvidenceWriterRegistryV0,
 } from "../../../packages/check-orchestrator/src/evidence/writer-registry";
 import {
@@ -80,6 +82,7 @@ import {
   EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH,
   EVIDENCE_WRITER_COMMAND_DECLARATIONS,
   EVIDENCE_WRITER_NON_LITERAL_WRITE_REFUSALS,
+  EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS,
   resolveEvidenceWriterCommandOutputPaths,
 } from "../../../packages/check-orchestrator/src/evidence/writer-command-authority";
 import type {
@@ -149,6 +152,50 @@ function commitFixturePaths(worktree: string, message: string, paths: readonly s
     ],
     { cwd: worktree, stdio: "ignore" },
   );
+}
+
+function runEvidenceWriterFixtureCommand(
+  worktree: string,
+  mode: "--check" | "--write",
+): ReturnType<typeof spawnSync> {
+  return spawnSync(
+    process.execPath,
+    ["--import", "tsx", "./packages/check-orchestrator/src/cli/main.ts", "evidence-writers", mode],
+    {
+      cwd: worktree,
+      encoding: "utf8",
+      env: process.env,
+      timeout: 120_000,
+    },
+  );
+}
+
+const evidenceWriterFixturePaths = [
+  "packages/check-orchestrator/src/cli/main.ts",
+  "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+  "packages/check-orchestrator/src/evidence/writer-registry.ts",
+  "rust/evidence-writer-nonliteral-write-census.json",
+  "rust/evidence-writer-registry.json",
+  "test/unit/check-orchestrator/evidence-affected.test.ts",
+] as const;
+
+const evidenceWriterRuntimeModulePaths = evidenceWriterFixturePaths.slice(0, 3);
+
+function syncEvidenceWriterFixtureSources(repoRoot: string, worktree: string): void {
+  for (const relativePath of evidenceWriterFixturePaths) {
+    const destination = path.join(worktree, relativePath);
+    mkdirSync(path.dirname(destination), { recursive: true });
+    writeFileSync(destination, readFileSync(path.join(repoRoot, relativePath)));
+  }
+}
+
+function syncEvidenceWriterRuntimeModules(repoRoot: string, worktree: string): void {
+  for (const relativePath of evidenceWriterRuntimeModulePaths) {
+    writeFileSync(
+      path.join(worktree, relativePath),
+      readFileSync(path.join(repoRoot, relativePath)),
+    );
+  }
 }
 
 function narrowFixtureScanManifest(worktree: string): void {
@@ -1345,14 +1392,20 @@ describe("writer registry portability", () => {
       root,
       "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json",
     );
+    const wptSelectionsPath = path.join(
+      root,
+      "rust/crates/omena-diff-test/wpt-corpus/selections.json",
+    );
     mkdirSync(path.dirname(scriptPath), { recursive: true });
     mkdirSync(path.dirname(artifactPath), { recursive: true });
     mkdirSync(path.dirname(farmManifestPath), { recursive: true });
+    mkdirSync(path.dirname(wptSelectionsPath), { recursive: true });
     writeFileSync(
       path.join(root, "rust/omena-published-crate-surface-register.json"),
       '{"rows":[]}\n',
     );
     writeFileSync(farmManifestPath, '{"lintCensus":{"reportPath":"lint-census-report.json"}}\n');
+    writeFileSync(wptSelectionsPath, '{"chunkPath":"seed.json","advisoryChunks":[]}\n');
     writeFileSync(artifactPath, '{"schemaVersion":"0"}\n');
     writeFileSync(textArtifactPath, "evidence\n");
     writeFileSync(
@@ -1473,6 +1526,173 @@ describe("writer registry portability", () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it("moves both WPT chunk rows when committed selection data changes", () => {
+    const fixture = createDetachedFixtureWorktree("omena-wpt-writer-row-");
+    try {
+      syncEvidenceWriterFixtureSources(fixture.repoRoot, fixture.worktree);
+      attachFixtureNodeModules(fixture.repoRoot, fixture.worktree);
+      const baseline = runEvidenceWriterFixtureCommand(fixture.worktree, "--check");
+      expect(baseline.status, `${baseline.stdout}\n${baseline.stderr}`).toBe(0);
+      const selectionsPath = path.join(
+        fixture.worktree,
+        "rust/crates/omena-diff-test/wpt-corpus/selections.json",
+      );
+      const selections = JSON.parse(readFileSync(selectionsPath, "utf8")) as {
+        chunkPath: string;
+        advisoryChunks: readonly { chunkPath: string }[];
+      };
+      const oldOutputPath = path.posix.join(
+        "rust/crates/omena-diff-test/wpt-corpus",
+        selections.chunkPath,
+      );
+      selections.chunkPath = "css-values-authority-probe.json";
+      const newOutputPath = path.posix.join(
+        "rust/crates/omena-diff-test/wpt-corpus",
+        selections.chunkPath,
+      );
+      const advisoryOutputPath = path.posix.join(
+        "rust/crates/omena-diff-test/wpt-corpus",
+        selections.advisoryChunks[0]!.chunkPath,
+      );
+      writeFileSync(selectionsPath, `${JSON.stringify(selections, null, 2)}\n`);
+
+      const red = runEvidenceWriterFixtureCommand(fixture.worktree, "--check");
+      expect(red.status).not.toBe(0);
+      expect(red.stderr).toContain("evidence writer registry is out of date");
+      const write = runEvidenceWriterFixtureCommand(fixture.worktree, "--write");
+      expect(write.status, `${write.stdout}\n${write.stderr}`).toBe(0);
+      const registry = JSON.parse(
+        readFileSync(path.join(fixture.worktree, EVIDENCE_WRITER_REGISTRY_PATH), "utf8"),
+      ) as EvidenceWriterRegistryV0;
+      expect(registry.artifacts.map((row) => row.artifactPath)).toContain(newOutputPath);
+      expect(registry.artifacts.map((row) => row.artifactPath)).toContain(advisoryOutputPath);
+      expect(registry.artifacts.map((row) => row.artifactPath)).not.toContain(oldOutputPath);
+      expect(registry.artifacts.find((row) => row.artifactPath === newOutputPath)).toMatchObject({
+        classification: "W1",
+        writerScripts: ["scripts/generate-rust-omena-diff-test-wpt-corpus.ts"],
+      });
+    } finally {
+      removeFixtureWorktree(fixture);
+    }
+  }, 120_000);
+
+  it("refuses an unresolved write site without mutating an existing root row", () => {
+    const fixture = createDetachedFixtureWorktree("omena-writer-attribution-");
+    try {
+      syncEvidenceWriterFixtureSources(fixture.repoRoot, fixture.worktree);
+      attachFixtureNodeModules(fixture.repoRoot, fixture.worktree);
+      const registryPath = path.join(fixture.worktree, EVIDENCE_WRITER_REGISTRY_PATH);
+      const registerPath = "rust/omena-published-crate-surface-register.json";
+      const registryBefore = JSON.parse(
+        readFileSync(registryPath, "utf8"),
+      ) as EvidenceWriterRegistryV0;
+      const registerRowBefore = registryBefore.artifacts.find(
+        (row) => row.artifactPath === registerPath,
+      );
+      const register = JSON.parse(
+        readFileSync(path.join(fixture.worktree, registerPath), "utf8"),
+      ) as {
+        rows: readonly { disposition: string; crate: string }[];
+      };
+      const probeCrate = register.rows.find((row) => row.disposition === "snapshotGated")!.crate;
+      const probeOutput = `rust/crates/${probeCrate}/tests/snapshots/r4lc-probe.txt`;
+      const writerPath = "scripts/check-rust-omena-literal-evidence-census.ts";
+      const absoluteWriterPath = path.join(fixture.worktree, writerPath);
+      const source = readFileSync(absoluteWriterPath, "utf8");
+      const serializedLine = "const serialized = `${JSON.stringify(census, null, 2)}\\n`;";
+      const insertion = [
+        'const registerProbe = JSON.parse(fs.readFileSync(path.join(repoRoot, "rust/omena-published-crate-surface-register.json"), "utf8")) as { rows: { disposition: string; crate: string }[] };',
+        'const probeCrate = registerProbe.rows.find((row) => row.disposition === "snapshotGated")!.crate;',
+        "fs.writeFileSync(path.join(repoRoot, `rust/crates/${probeCrate}/tests/snapshots/r4lc-probe.txt`), serialized);",
+      ].join("\n");
+      writeFileSync(
+        absoluteWriterPath,
+        source.replace(serializedLine, `${serializedLine}\n${insertion}`),
+      );
+
+      const firstRed = runEvidenceWriterFixtureCommand(fixture.worktree, "--check");
+      expect(firstRed.status).not.toBe(0);
+      execFileSync(process.execPath, ["--import", "tsx", `./${writerPath}`, "--write"], {
+        cwd: fixture.worktree,
+        stdio: "ignore",
+      });
+      expect(existsSync(path.join(fixture.worktree, probeOutput))).toBe(true);
+      execFileSync("git", ["add", "--", probeOutput], {
+        cwd: fixture.worktree,
+        stdio: "ignore",
+      });
+      const writeRed = runEvidenceWriterFixtureCommand(fixture.worktree, "--write");
+      expect(writeRed.status).not.toBe(0);
+      expect(writeRed.stderr).toContain(
+        "decrease-only evidence writer census refuses a new non-literal write site",
+      );
+      const registryAfter = JSON.parse(
+        readFileSync(registryPath, "utf8"),
+      ) as EvidenceWriterRegistryV0;
+      expect(registryAfter.artifacts.find((row) => row.artifactPath === registerPath)).toEqual(
+        registerRowBefore,
+      );
+      expect(registryAfter.artifacts.some((row) => row.artifactPath === probeOutput)).toBe(false);
+      const terminalRed = runEvidenceWriterFixtureCommand(fixture.worktree, "--check");
+      expect(terminalRed.status).not.toBe(0);
+    } finally {
+      removeFixtureWorktree(fixture);
+    }
+  }, 120_000);
+
+  it("rejects both cross-command and read-only false output declarations", () => {
+    const fixture = createDetachedFixtureWorktree("omena-writer-declaration-");
+    try {
+      syncEvidenceWriterFixtureSources(fixture.repoRoot, fixture.worktree);
+      attachFixtureNodeModules(fixture.repoRoot, fixture.worktree);
+      const authorityPath = path.join(fixture.worktree, EVIDENCE_WRITER_COMMAND_AUTHORITY_PATH);
+      const source = readFileSync(authorityPath, "utf8");
+      const marker =
+        'outputPaths: ["rust/crates/omena-diff-test/oss-corpus-farm/ranked-set-loss-census.json"],';
+      for (const [mode, plantedOutput] of [
+        ["--check", "rust/crates/omena-diff-test/oss-corpus-farm/report.json"],
+        ["--write", "rust/crates/omena-diff-test/oss-corpus-farm/lint-census-policy.json"],
+      ] as const) {
+        writeFileSync(
+          authorityPath,
+          source.replace(
+            marker,
+            `outputPaths: [\n      "rust/crates/omena-diff-test/oss-corpus-farm/ranked-set-loss-census.json",\n      "${plantedOutput}",\n    ],`,
+          ),
+        );
+        const red = runEvidenceWriterFixtureCommand(fixture.worktree, mode);
+        expect(red.status).not.toBe(0);
+        expect(red.stderr).toContain(`external-corpus-lint-census:${plantedOutput}`);
+      }
+    } finally {
+      removeFixtureWorktree(fixture);
+    }
+  }, 120_000);
+
+  it("names every unstable field in the measured W2 output justification", () => {
+    const justification = EVIDENCE_WRITER_OUTPUT_JUSTIFICATIONS.find(
+      (entry) => entry.kind === "runtime-variable-output",
+    );
+    expect(justification).toMatchObject({
+      outputPath: "rust/crates/omena-benchmarks/baselines/wpt-case-count-baseline-v0.json",
+      writerScript: "scripts/check-rust-omena-diff-test-wpt-perf.ts",
+      writeExpression: "baselinePath",
+    });
+    expect(new Set(justification?.variableFields?.map((field) => field.source))).toEqual(
+      new Set(["timestamp", "wallTime", "sha", "worktreeClean", "host"]),
+    );
+    const repoRoot = path.resolve(import.meta.dirname, "../../..");
+    const census = JSON.parse(
+      readFileSync(
+        path.join(repoRoot, "rust/evidence-writer-nonliteral-write-census.json"),
+        "utf8",
+      ),
+    ) as EvidenceWriterNonLiteralWriteCensusV0;
+    expect(() => assertEvidenceWriterNonLiteralWriteCensusDecreaseOnly(null, census)).toThrow(
+      /committed evidence writer non-literal census is required/u,
+    );
   });
 
   it("rejects a newly shaped governed non-literal write without a declaration or refusal", () => {
@@ -2269,6 +2489,7 @@ describe("digest-pinned writer wrapper", () => {
   it("runs the composed affected --write lane and makes a missing W2 output RED", () => {
     const fixture = createDetachedFixtureWorktree("omena-affected-write-");
     try {
+      syncEvidenceWriterRuntimeModules(fixture.repoRoot, fixture.worktree);
       const candidateModules = [
         "packages/check-orchestrator/src/cli/main.ts",
         "packages/check-orchestrator/src/evidence/writer-runner.ts",
@@ -2353,6 +2574,7 @@ describe("digest-pinned writer wrapper", () => {
       writeFileSync(registryPath, `${JSON.stringify(fixtureRegistry, null, 2)}\n`);
       commitFixturePaths(fixture.worktree, "test: prepare composed writer fixture", [
         ...candidateModules,
+        ...evidenceWriterRuntimeModulePaths,
         EVIDENCE_WRITER_REGISTRY_PATH,
         "rust/evidence-scan-surfaces.json",
         "fixture/docs-change.txt",
@@ -2540,6 +2762,7 @@ describe("pre-push evidence budget", () => {
   it("spawns the real CLI with one blind-bound and one ordinary gate and kills M2 rebinding", () => {
     const fixture = createDetachedFixtureWorktree("omena-preview-cli-");
     try {
+      syncEvidenceWriterRuntimeModules(fixture.repoRoot, fixture.worktree);
       const mainPath = "packages/check-orchestrator/src/cli/main.ts";
       writeFileSync(
         path.join(fixture.worktree, mainPath),
@@ -2608,6 +2831,7 @@ describe("pre-push evidence budget", () => {
       writeFileSync(registryPath, `${JSON.stringify(fixtureRegistry, null, 2)}\n`);
       commitFixturePaths(fixture.worktree, "test: prepare preview fixture", [
         mainPath,
+        ...evidenceWriterRuntimeModulePaths,
         "package.json",
         EVIDENCE_WRITER_REGISTRY_PATH,
         "rust/evidence-scan-surfaces.json",

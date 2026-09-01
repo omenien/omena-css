@@ -1,0 +1,2634 @@
+{
+  "schemaVersion": "0",
+  "generatedBy": "pnpm omena-check evidence-writers --write",
+  "scope": {
+    "pathspecs": ["scripts/**", "packages/check-orchestrator/src/**"],
+    "scannedScriptCount": 494,
+    "registryWriterScriptCount": 75,
+    "declaredWriterScriptCount": 31,
+    "broadWriterScriptCountWithNonLiteralSites": 122,
+    "broadNonLiteralWriteSiteCount": 319,
+    "unsweptRegistryWriterScriptCount": 44,
+    "unsweptRegistryWriterScriptsWithNonLiteralSites": 42,
+    "unsweptRegistryNonLiteralWriteSiteCount": 71
+  },
+  "reviewerBaseline": {
+    "pin": "ba7308df84bf501b6cf3a13347dcf47571b0eb61",
+    "broadWriterScriptCountWithNonLiteralSites": 122,
+    "broadNonLiteralWriteSiteCount": 319,
+    "unsweptRegistryWriterScriptsWithNonLiteralSites": 44
+  },
+  "typedJustifications": [
+    {
+      "commandId": "benchmark-emitted-css-golden",
+      "outputPath": "rust/crates/omena-benchmarks/fixtures/emitted-css-golden-v0.json",
+      "writerScript": "rust/crates/omena-benchmarks/src/bin/emitted_css_golden_gate.rs",
+      "writeExpression": "fs::write(&path, snapshot)",
+      "kind": "non-typescript-writer",
+      "reason": "the declared output is written by the Rust regeneration binary"
+    },
+    {
+      "commandId": "benchmark-transform-relex-baseline",
+      "outputPath": "rust/crates/omena-benchmarks/fixtures/transform-relex-baseline-v0.json",
+      "writerScript": "rust/crates/omena-benchmarks/src/bin/transform_relex_baseline_gate.rs",
+      "writeExpression": "fs::write(&path, snapshot)",
+      "kind": "non-typescript-writer",
+      "reason": "the declared output is written by the Rust regeneration binary"
+    },
+    {
+      "commandId": "linked-stylesheet-byte-identity",
+      "outputPath": "rust/crates/omena-bundler/tests/snapshots/linked-stylesheet-byte-identity.json",
+      "writerScript": "rust/crates/omena-bundler/tests/linked_stylesheet_byte_identity.rs",
+      "writeExpression": "std::fs::write(",
+      "kind": "non-typescript-writer",
+      "reason": "the declared output is written by the Rust contract test's explicit update mode"
+    },
+    {
+      "outputPath": "rust/crates/omena-benchmarks/baselines/wpt-case-count-baseline-v0.json",
+      "writerScript": "scripts/check-rust-omena-diff-test-wpt-perf.ts",
+      "writeExpression": "baselinePath",
+      "kind": "runtime-variable-output",
+      "reason": "the recorder deliberately captures a measured run and cannot be reproduced by an unqualified full-repository --write sweep",
+      "variableFields": [
+        {
+          "fieldPath": "samples[].recordedAtUtc",
+          "source": "timestamp"
+        },
+        {
+          "fieldPath": "samples[].wallTimeMilliseconds",
+          "source": "wallTime"
+        },
+        {
+          "fieldPath": "samples[].microsecondsPerCase",
+          "source": "wallTime"
+        },
+        {
+          "fieldPath": "samples[].gitSha",
+          "source": "sha"
+        },
+        {
+          "fieldPath": "samples[].worktreeClean",
+          "source": "worktreeClean"
+        },
+        {
+          "fieldPath": "samples[].machine",
+          "source": "host"
+        }
+      ]
+    }
+  ],
+  "sites": [
+    {
+      "fingerprint": "384b9b9725f001b9aeaffddddaab5729b87bb476ff3891ec5688dbc517e630a9",
+      "writerScript": "packages/check-orchestrator/src/cli/execution.ts",
+      "line": 165,
+      "writeApi": "appendFileSync",
+      "writeExpression": "this.spillPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "c81330a84f786d807c1f4ccbd3432d7e2000576e432cab8c2567f2d514d07392",
+      "writerScript": "packages/check-orchestrator/src/cli/execution.ts",
+      "line": 190,
+      "writeApi": "writeFileSync",
+      "writeExpression": "this.spillPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "91f39368183ba0a9fd6abf2f5db122763967d031d96ac9174c531eeaf2079eaa",
+      "writerScript": "packages/check-orchestrator/src/cli/main.ts",
+      "line": 816,
+      "writeApi": "writeFileSync",
+      "writeExpression": "artifactPath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "2f5020e2a47017b5b4a629679e3e16ffb89a4037fe8e2dc146a2f8a034730752",
+      "writerScript": "packages/check-orchestrator/src/cli/main.ts",
+      "line": 863,
+      "writeApi": "appendFileSync",
+      "writeExpression": "stepSummaryPath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "08f64c1fb66d950e9d78e5b464d51185832f81c4ffdb61b0535c9d38378984cc",
+      "writerScript": "packages/check-orchestrator/src/cli/main.ts",
+      "line": 1412,
+      "writeApi": "writeFileSync",
+      "writeExpression": "costLedgerPath(rootDir)",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "ba3f5f272f0822487ab1d5e39434a2f26f383a3a5f2692263d8d0c2f8795f736",
+      "writerScript": "packages/check-orchestrator/src/cli/main.ts",
+      "line": 1493,
+      "writeApi": "writeFileSync",
+      "writeExpression": "inventoryPath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "5100bfea9e6848ab6e1d40304f8a835822c9a67f0129e42f59d00434a0897fb3",
+      "writerScript": "packages/check-orchestrator/src/cli/main.ts",
+      "line": 1518,
+      "writeApi": "writeFileSync",
+      "writeExpression": "manifestPath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "be69bbce2a7436cfaaff8828a6d17db0331a3de63870742ee80a1c3ed5ad961c",
+      "writerScript": "packages/check-orchestrator/src/cli/main.ts",
+      "line": 1564,
+      "writeApi": "writeFileSync",
+      "writeExpression": "output.path",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "8d6439774c90a6e4add535d89b4594a534c091518f6b0cf037973235aeb0b3b7",
+      "writerScript": "packages/check-orchestrator/src/evidence/scan-surface-registry.ts",
+      "line": 698,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(temporaryRoot, \"scan-surface.ts\")",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "53a6693810844453a8c6b3befb980e877eb379fd2c411fa573f53abb705ec403",
+      "writerScript": "packages/check-orchestrator/src/evidence/scan-surface-registry.ts",
+      "line": 704,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(predicateDirectory, path.posix.basename(sourcePath))",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "6112165997a896ce1f4c987959cf4ae6864033996a6c6dd5f410daf4b51eb808",
+      "writerScript": "packages/check-orchestrator/src/evidence/writer-runner.ts",
+      "line": 177,
+      "writeApi": "writeFileSync",
+      "writeExpression": "absolutePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "9543ee8ca6813e025991ae6351e507136c9493645df2c17c5eba7bac01e6677f",
+      "writerScript": "packages/check-orchestrator/src/manifest/ci-workflow.ts",
+      "line": 267,
+      "writeApi": "writeFileSync",
+      "writeExpression": "ciWorkflowPath(rootDir)",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "6cd22d63465984fd35662a76e532ba785a098c886376f1007f55b80a61c3f0e1",
+      "writerScript": "packages/check-orchestrator/src/manifest/ci-workflow.ts",
+      "line": 275,
+      "writeApi": "writeFileSync",
+      "writeExpression": "registryPath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "abeef7bb29809c52aee07fd3f3c5f21a1cbf24be296b57c56b2d8f98f251485a",
+      "writerScript": "scripts/acquire-omena-sif-npm-provenance.ts",
+      "line": 115,
+      "writeApi": "writeFileSync",
+      "writeExpression": "outputPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "310be7d5f2dcf49a5091f90bb1c9622c5818629eb538f237baee25764be44db5",
+      "writerScript": "scripts/benchmark-build-adapter-snapshot-identity.mjs",
+      "line": 35,
+      "writeApi": "writeFileSync",
+      "writeExpression": "targetPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "f7a34c9698cbf3c94d1fd22f03ceb1827fecaffd320788803af1823c060ae2ca",
+      "writerScript": "scripts/benchmark-build-adapter-snapshot-identity.mjs",
+      "line": 36,
+      "writeApi": "writeFileSync",
+      "writeExpression": "dependencyPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "63da60d5505e886235dfd24572799ae7a5a07bd3b5430fb156d6cc006d94ae2b",
+      "writerScript": "scripts/benchmark-build-adapter-snapshot-identity.mjs",
+      "line": 37,
+      "writeApi": "writeFileSync",
+      "writeExpression": "manifestPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "ccad25297f8e3915160e66a4230c0a972ca3a825332479f9badcf9096b675b6b",
+      "writerScript": "scripts/benchmark-build-adapter-snapshot-identity.mjs",
+      "line": 38,
+      "writeApi": "writeFileSync",
+      "writeExpression": "configPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "dfe9e216814cf5764e96626f9cc7ebcc82799882395b5f1e1e1c1fda45cecd03",
+      "writerScript": "scripts/benchmark-omena-vite-productization.mjs",
+      "line": 22,
+      "writeApi": "writeFileSync",
+      "writeExpression": "filePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "510747f8428953ffe18cc56074b0059c30de782ee6f64e7582a5aca77d6ca948",
+      "writerScript": "scripts/benchmark-rust-omena-source-diagnostics-identity-index.ts",
+      "line": 104,
+      "writeApi": "symlinkSync",
+      "writeExpression": "styleRoot",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "feeebba8ca7a24aa3f54ca1a7104d3083e91e644955bba87cee04ce90b17e6cd",
+      "writerScript": "scripts/benchmark-rust-omena-source-diagnostics-identity-index.ts",
+      "line": 106,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(root, \"package.json\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "fa8c6a0f71132aff6318ec1570461009f5baa108cc551ae4df0c18ea568df0cf",
+      "writerScript": "scripts/benchmark-rust-omena-source-diagnostics-identity-index.ts",
+      "line": 112,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(styleRoot, `Style${suffix}.module.css`)",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "a8a5ed9c1b9c11f505a6d306aed510f46f670d74ae0ad45ef2f97821746ec30e",
+      "writerScript": "scripts/benchmark-rust-omena-source-diagnostics-identity-index.ts",
+      "line": 122,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(sourceRoot, `Component${sourceSuffix}.tsx`)",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "374b35271a067c43378bff33651bef95f5ea57657ffc5739cabb5be2f5dbe8c3",
+      "writerScript": "scripts/check-cme-checker-testkit-archetypes.ts",
+      "line": 172,
+      "writeApi": "writeFileSync",
+      "writeExpression": "targetPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "c61587169f88350dc105087de4ef3de2ff662b708d849389046d702bd5b83fbb",
+      "writerScript": "scripts/check-docs-readme-example.ts",
+      "line": 40,
+      "writeApi": "writeFileSync",
+      "writeExpression": "fixturePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "3a62841878de2c034d4e6753615156b3d0ea151b60e998fce81d993afd1627d8",
+      "writerScript": "scripts/check-docs-reference-surface.ts",
+      "line": 858,
+      "writeApi": "writeFileSync",
+      "writeExpression": "absolutePath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "f73d97ea20bee22995a683180e8b9e7e849446bf8b831203a35d5834e1a21788",
+      "writerScript": "scripts/check-docs-reference-surface.ts",
+      "line": 1134,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(fixtureRoot, \"src/input.css\")",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "b2fa75230c0a6c94aaf8339a9dacee7b56227c5aab6c41636f2b4ef25960d2bb",
+      "writerScript": "scripts/check-docs-reference-surface.ts",
+      "line": 1135,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(fixtureRoot, \"omena.toml\")",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "2ae2a8e90a62353d0bd7981d01012cdcf07beb80dfb6e333fcdf3f7a37ed6b27",
+      "writerScript": "scripts/check-docs-reference-surface.ts",
+      "line": 1182,
+      "writeApi": "writeFileSync",
+      "writeExpression": "destination",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "e997bd270aaa46a7086b4d6961b24002ffdbd64ad9ca477dcbd26debbafc83d0",
+      "writerScript": "scripts/check-engine-v2-contract-idl-toolchain.ts",
+      "line": 169,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(rustProofDir, \"Cargo.toml\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "64a92e8afb2e8928c9958e7f5b865e3ab7d42a5e565430a2cd6b7d10962aabbf",
+      "writerScript": "scripts/check-engine-v2-contract-idl-toolchain.ts",
+      "line": 182,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(rustProofDir, \"src/lib.rs\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "c85515e85c78033cec48301d7aea7ac4bc916110fe4a70b7915b50ab8a99f69f",
+      "writerScript": "scripts/check-gate-falsifier-disclosure.ts",
+      "line": 649,
+      "writeApi": "writeFileSync",
+      "writeExpression": "mapPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "23905a4e41ed4bf926f652d70531bc4ed263161646162a9080ecb9b75697ef19",
+      "writerScript": "scripts/check-gate-falsifier-disclosure.ts",
+      "line": 650,
+      "writeApi": "writeFileSync",
+      "writeExpression": "evidencePath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "e7a85f6a5a84c8fcdd30f0d9f6a8b502f08890036ad103f42c4936543c8554d6",
+      "writerScript": "scripts/check-js-bundler-host-parity.ts",
+      "line": 133,
+      "writeApi": "writeFileSync",
+      "writeExpression": "filePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "c813366036fd9eab801fc4e3ab5bd2953a4d1ab8af7ae758e3a6e29bbd2e7aa6",
+      "writerScript": "scripts/check-js-bundler-host-parity.ts",
+      "line": 267,
+      "writeApi": "writeFileSync",
+      "writeExpression": "runtimePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "2aad501b53f1e1de0e19f37f1b6ff20114bf7d536c77c59260ed7844d1a5bc92",
+      "writerScript": "scripts/check-js-bundler-host-parity.ts",
+      "line": 429,
+      "writeApi": "writeFileSync",
+      "writeExpression": "consumerPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "1632fec1e020c6353c22f5956416dc6280e3941eb50a46676eb602e57a6baadf",
+      "writerScript": "scripts/check-lsp-runtime-loop.ts",
+      "line": 68,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(workspaceRoot, \"tsconfig.json\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "27bf9be71f9a4da6edc6ba1b1cf5d77ce4bb2bee53871fab4225499bd88d62d6",
+      "writerScript": "scripts/check-lsp-runtime-loop.ts",
+      "line": 87,
+      "writeApi": "writeFileSync",
+      "writeExpression": "sourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "5d4fa25d33bd7fe1e7f542f00bd4050f60d2bce103b944dc81153f459e2ce9ee",
+      "writerScript": "scripts/check-lsp-runtime-loop.ts",
+      "line": 88,
+      "writeApi": "writeFileSync",
+      "writeExpression": "stylePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "445854d54c5df1aa214f3c6d71b7871910792909a62eb99a61e890963d430475",
+      "writerScript": "scripts/check-omena-plugin-package-staging.mjs",
+      "line": 90,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(consumerRoot, \"package.json\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "7324385cf433f89a80d4704dd5b2789dc4adb52df209a94a835f39aadfe2742a",
+      "writerScript": "scripts/check-oxlint-plugin-smoke.mjs",
+      "line": 15,
+      "writeApi": "writeFileSync",
+      "writeExpression": "configPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "213d56a9c89af1c261290b43a8bb64ed5f1196be4445977863fc1ac825f351d6",
+      "writerScript": "scripts/check-packaged-omena-napi-crossplatform.mjs",
+      "line": 174,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(consumerDir, \"package.json\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "a953059090742b6467518c37c383b3a3eea95505f6e822f119cc1094c2ef94a7",
+      "writerScript": "scripts/check-postcss-plugin-consumer-build.mjs",
+      "line": 21,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(tempRoot, \"package.json\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "05146de3ed1aafac4a21f0c08b8d942a888b2e65e9b0f0b802cd71942a12dc92",
+      "writerScript": "scripts/check-postcss-plugin-consumer-build.mjs",
+      "line": 35,
+      "writeApi": "writeFileSync",
+      "writeExpression": "stylePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "9f44dbb8fafb69f0fbb97edef46b75a72c2469f01465db93828e33afd2248c2a",
+      "writerScript": "scripts/check-postcss-plugin-consumer-build.mjs",
+      "line": 40,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(tempRoot, \"build.mjs\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "03607d7d212d27a7ad4968497ddff8fb9a532c55f0829f87702b69cb4b1b5a72",
+      "writerScript": "scripts/check-postcss-plugin-smoke.mjs",
+      "line": 41,
+      "writeApi": "writeFileSync",
+      "writeExpression": "stylePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "0c78a3da2a68f49ab695ffc16d74b4a74334501febfa0c10f1eb36e904c43e0a",
+      "writerScript": "scripts/check-postcss-plugin-smoke.mjs",
+      "line": 79,
+      "writeApi": "writeFileSync",
+      "writeExpression": "scssPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "7bac1a8ae156205ba758348b3db2bf764051abdc9dee6f94a444a8151f24ffd5",
+      "writerScript": "scripts/check-postcss-plugin-smoke.mjs",
+      "line": 108,
+      "writeApi": "writeFileSync",
+      "writeExpression": "upstreamSourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "9352c5a19662d178c62e980d12af06ade0c2f3817ffe504baafa7d5d5dfa47b0",
+      "writerScript": "scripts/check-rust-benchmark-instruction-count-advisory.ts",
+      "line": 301,
+      "writeApi": "writeFileSync",
+      "writeExpression": "artifactPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "f3744c57b1bdc7c3c178331859ed40407786427c0f595b4dd4f34dc64581ed12",
+      "writerScript": "scripts/check-rust-benchmark-instruction-count-advisory.ts",
+      "line": 303,
+      "writeApi": "writeFileSync",
+      "writeExpression": "reachabilityDecisionArtifactPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "aa5e0e0fc1ffa01b3dcbc6168b42c400676c77611d37eab9e45325ddae6ddbec",
+      "writerScript": "scripts/check-rust-contract-shape-census.ts",
+      "line": 159,
+      "writeApi": "writeFileSync",
+      "writeExpression": "serdeCensusPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "547a72f0896f9205bcf4c3166b7e2bb815158fa5572f2bb9ee02db011befa168",
+      "writerScript": "scripts/check-rust-contract-shape-census.ts",
+      "line": 182,
+      "writeApi": "writeFileSync",
+      "writeExpression": "adapterSnapshotPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "e9eda84b2fc7d3509ed20ed4e99b1123882e930bb9bcd672afc966665ccf89ea",
+      "writerScript": "scripts/check-rust-contract-shape-census.ts",
+      "line": 226,
+      "writeApi": "writeFileSync",
+      "writeExpression": "adapterSnapshotPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "5a9d97ef7d166745225c3675c6f6ffc1c7434a23e8fe5eaabdad145b7a4c991d",
+      "writerScript": "scripts/check-rust-contract-shape-census.ts",
+      "line": 238,
+      "writeApi": "writeFileSync",
+      "writeExpression": "adapterSnapshotPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "eb0505c627ae685fc311c8879e0287408a7d704c9a00dace44d406280c456fab",
+      "writerScript": "scripts/check-rust-crate-documentation.ts",
+      "line": 116,
+      "writeApi": "writeFileSync",
+      "writeExpression": "catalogPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "d350666d45bf99dfc8b5295e15b17099bdb82814f4a38dbb96ee8b8f830b3fb6",
+      "writerScript": "scripts/check-rust-demand-sliced-monotone-fact-propagation-relocation-gate-bound.ts",
+      "line": 90,
+      "writeApi": "writeFileSync",
+      "writeExpression": "approvalReportPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "f9566748ba969588588a76befe38e6b8d1990912b0dbdd776e6a70b596617065",
+      "writerScript": "scripts/check-rust-demand-sliced-monotone-fact-propagation-relocation-gate-bound.ts",
+      "line": 100,
+      "writeApi": "writeFileSync",
+      "writeExpression": "invalidApprovalPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "eada1e07adf1a08988928ca1c753c16ae51e5c1541ddf53b7382f8678a5d8299",
+      "writerScript": "scripts/check-rust-demand-sliced-monotone-fact-propagation-relocation-gate-bound.ts",
+      "line": 118,
+      "writeApi": "writeFileSync",
+      "writeExpression": "staleApprovalPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "b59df42bc78af67bc24e781df7b159c86aa8a8071e270cb48df6b733ff121e21",
+      "writerScript": "scripts/check-rust-discharge-ledger.ts",
+      "line": 142,
+      "writeApi": "writeFileSync",
+      "writeExpression": "ledgerPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "facf5092826a035fbecf5b78d5bff70605d32e8dd82f1bb93ed1eb8896d3ccef",
+      "writerScript": "scripts/check-rust-domain-claim-census.ts",
+      "line": 318,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(repoRoot, artifactPath)",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "a15e332eda347e879b18af760b879fee3fa4cd91ed9e0cfdf6742bd23a747717",
+      "writerScript": "scripts/check-rust-line-index-authority.ts",
+      "line": 549,
+      "writeApi": "writeFileSync",
+      "writeExpression": "baselinePath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "ef2af20f8d10ed03e80de2d8799953d22b689d5230241f2ba76e3a9456d405eb",
+      "writerScript": "scripts/check-rust-line-index-authority.ts",
+      "line": 550,
+      "writeApi": "writeFileSync",
+      "writeExpression": "publicApiSnapshotPath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "17da065919935d4b5acc916e9fcc40c93fa49bc0d41916ed2eeaa05abe310c99",
+      "writerScript": "scripts/check-rust-omena-bundler-adapter-pass-authority.ts",
+      "line": 157,
+      "writeApi": "writeFileSync",
+      "writeExpression": "rawStylePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "9c46b59233466d88d12d13c1fbf2ffcf975d7ba7c5b5d7d9e11a8c444136757b",
+      "writerScript": "scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
+      "line": 769,
+      "writeApi": "writeFileSync",
+      "writeExpression": "baselinePath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "b446b5425a70a19730e02931afa4928b16baf2093db91dc543fde881ac016b58",
+      "writerScript": "scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
+      "line": 786,
+      "writeApi": "writeFileSync",
+      "writeExpression": "censusPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "b5587232bbb2ddcd43a7c1ecaa2f3f37f683c8fec4fee0e5ea742690c0a00d84",
+      "writerScript": "scripts/check-rust-omena-bundler-public-surface.ts",
+      "line": 57,
+      "writeApi": "writeFileSync",
+      "writeExpression": "snapshotPath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "77ca805f0c464bad51b21f9a0ca04d86904dafd0c5d75467f8936327f8f4dc78",
+      "writerScript": "scripts/check-rust-omena-cli-bundle-origin-chain.ts",
+      "line": 95,
+      "writeApi": "writeFileSync",
+      "writeExpression": "appPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "951fc3e817369c5efef2f1cd7ee447b28ce44e1cb6cf29a3859170f76c500388",
+      "writerScript": "scripts/check-rust-omena-cli-bundle-origin-chain.ts",
+      "line": 96,
+      "writeApi": "writeFileSync",
+      "writeExpression": "appScssPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "f9d6de53fae6f63ad39f3fd474f1564fd633f47e223396edd1c2e5e41754a01a",
+      "writerScript": "scripts/check-rust-omena-cli-bundle-origin-chain.ts",
+      "line": 97,
+      "writeApi": "writeFileSync",
+      "writeExpression": "appSourceMapPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "7fed56685f96d3157c913c9a63de2d0dd532da9a1ccc59c6ffe2354640f3fe32",
+      "writerScript": "scripts/check-rust-omena-cli-bundle-origin-chain.ts",
+      "line": 98,
+      "writeApi": "writeFileSync",
+      "writeExpression": "adminPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "592fdb5251b09f1062e91922f298d16e9375401c5b4acfa4bec237dd0414922b",
+      "writerScript": "scripts/check-rust-omena-cli-bundle-origin-chain.ts",
+      "line": 99,
+      "writeApi": "writeFileSync",
+      "writeExpression": "tokensPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "76dbcc33ff31ea8ad1c9f9026a5539e39dbe4abc4d69d5db12def56b5b6e923d",
+      "writerScript": "scripts/check-rust-omena-cli-bundle-origin-chain.ts",
+      "line": 100,
+      "writeApi": "writeFileSync",
+      "writeExpression": "basePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "7b7c74ae9d3592adb1f07d8483da42eec06006ed6d60ce836bc2f1e5403902ea",
+      "writerScript": "scripts/check-rust-omena-cli-bundle-origin-chain.ts",
+      "line": 101,
+      "writeApi": "writeFileSync",
+      "writeExpression": "contextPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "aae06a97256b586c10975f1305880dab12b52eaca28aa01ee231e6be72520534",
+      "writerScript": "scripts/check-rust-omena-cli-bundle-origin-chain.ts",
+      "line": 105,
+      "writeApi": "writeFileSync",
+      "writeExpression": "appAssetPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "b50b44ce5ffd1c7eaca27acdb2b9e2ed1b6dd884ae840206d2f08a415c7b933e",
+      "writerScript": "scripts/check-rust-omena-cli-bundle-origin-chain.ts",
+      "line": 106,
+      "writeApi": "writeFileSync",
+      "writeExpression": "tokenAssetPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "8ecccefd239206968a8fba6b8575814ad23d0889df46ecf5be9b3efd4712a587",
+      "writerScript": "scripts/check-rust-omena-cli-external-migration.ts",
+      "line": 25,
+      "writeApi": "writeFileSync",
+      "writeExpression": "appPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "d60ea76ab05e28d09c348528f53ce93698104c129bdfec1f7e8abe2393bed001",
+      "writerScript": "scripts/check-rust-omena-cli-external-migration.ts",
+      "line": 29,
+      "writeApi": "writeFileSync",
+      "writeExpression": "tokensPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "1b6c516d8eea591cc3c818206dc2ada6b7720750b9541c2200709adcb9f10763",
+      "writerScript": "scripts/check-rust-omena-cli-external-migration.ts",
+      "line": 45,
+      "writeApi": "writeFileSync",
+      "writeExpression": "explicitLockfilePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "ce7edb443935213d57788afa75a6ea23c2e6f16c6a31a7a01be88611be421da5",
+      "writerScript": "scripts/check-rust-omena-cli-external-migration.ts",
+      "line": 58,
+      "writeApi": "writeFileSync",
+      "writeExpression": "lockfilePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "86f108542de5678e59ec8d1330f3f65f5a16a74a8bb0cbed4eab183d8e45016e",
+      "writerScript": "scripts/check-rust-omena-cli-external-migration.ts",
+      "line": 74,
+      "writeApi": "writeFileSync",
+      "writeExpression": "lockfilePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "8c88eff430e41c9da3a76946e1cc1552c322817ea3f906819cb2870f47451519",
+      "writerScript": "scripts/check-rust-omena-cli-external-migration.ts",
+      "line": 86,
+      "writeApi": "writeFileSync",
+      "writeExpression": "lockfilePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "5024f541f4ddcd8254ea880e2fcbddaf90a0a452ffef59cdb6c093a3465679d8",
+      "writerScript": "scripts/check-rust-omena-cli-external-sif-chain.ts",
+      "line": 33,
+      "writeApi": "writeFileSync",
+      "writeExpression": "tokensPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "18c259de9af85b3dd93aa73dffb95ebe959aef61d8481348989294405720aeb2",
+      "writerScript": "scripts/check-rust-omena-cli-external-sif-chain.ts",
+      "line": 34,
+      "writeApi": "writeFileSync",
+      "writeExpression": "indexPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "f1f92b471862dbfe6b12730360128bc42f0bed1fb24b4fa2ad58e640506b2664",
+      "writerScript": "scripts/check-rust-omena-cli-external-sif-chain.ts",
+      "line": 35,
+      "writeApi": "writeFileSync",
+      "writeExpression": "aliasTokensPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "51607b4b998baa9b9fa06e3e0220ca976f6253fb5493bfefc88517731f1dee9e",
+      "writerScript": "scripts/check-rust-omena-cli-external-sif-chain.ts",
+      "line": 36,
+      "writeApi": "writeFileSync",
+      "writeExpression": "join(workspace, \"vite.config.ts\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "7ad2efeaf1bc41391f60afdefb3126f5dd05d68ae867298de80b582a28feb7d7",
+      "writerScript": "scripts/check-rust-omena-cli-external-sif-chain.ts",
+      "line": 40,
+      "writeApi": "writeFileSync",
+      "writeExpression": "directAppPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "5f0fcac8958eb9a70e4e5277825d54f666a36e127093bb1476c9bd50af158a28",
+      "writerScript": "scripts/check-rust-omena-cli-external-sif-chain.ts",
+      "line": 44,
+      "writeApi": "writeFileSync",
+      "writeExpression": "forwardedAppPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "d702574f3b3a9b945b7a011497460efdc73856690c98fc8c36c1701acaca3569",
+      "writerScript": "scripts/check-rust-omena-cli-external-sif-chain.ts",
+      "line": 48,
+      "writeApi": "writeFileSync",
+      "writeExpression": "aliasedAppPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "536209bedf1c771ba6a1d84efcf7939493c9b1ad038d3f6455cef032c9537830",
+      "writerScript": "scripts/check-rust-omena-cli-json-output-census.ts",
+      "line": 69,
+      "writeApi": "writeFileSync",
+      "writeExpression": "censusPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "d15d9538d0c76f11a3695f4e4dc139b16412a19331240cef2ecd1a87fc360361",
+      "writerScript": "scripts/check-rust-omena-cli-lock-management.ts",
+      "line": 30,
+      "writeApi": "writeFileSync",
+      "writeExpression": "designSourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "8e229c17ddf581a9c95ce0e31272c6ffe55cb257c1b4070de3eddd06101ecde8",
+      "writerScript": "scripts/check-rust-omena-cli-lock-management.ts",
+      "line": 31,
+      "writeApi": "writeFileSync",
+      "writeExpression": "paletteSourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "124313bd92278f93b8be3a48ab091986a81e1a5b0b69dedaf3d7bfd00ee33aff",
+      "writerScript": "scripts/check-rust-omena-cli-lock-management.ts",
+      "line": 79,
+      "writeApi": "writeFileSync",
+      "writeExpression": "designSourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "ae6ebb79a7e0e8834bd15a587f4597397db97d148015385080bb9718914c3ae9",
+      "writerScript": "scripts/check-rust-omena-cli-lock-management.ts",
+      "line": 114,
+      "writeApi": "writeFileSync",
+      "writeExpression": "lockfilePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "41fa83b3e78ee3e7cd562be984422eb9bf016a86f8d7cdfe8738e34f86c882fc",
+      "writerScript": "scripts/check-rust-omena-cli-lock-source-coverage.ts",
+      "line": 16,
+      "writeApi": "writeFileSync",
+      "writeExpression": "sourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "5f1b4062d2532b13435c8033ce58f75a7f9e67857f1b7cb2f1850e2674317115",
+      "writerScript": "scripts/check-rust-omena-cli-lock-source-coverage.ts",
+      "line": 25,
+      "writeApi": "writeFileSync",
+      "writeExpression": "tokensPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "c672981a2ef6bb01ebedc87cb4fe03562dde5a8fedfdb2307eddaa135f3a687c",
+      "writerScript": "scripts/check-rust-omena-cli-lock-source-coverage.ts",
+      "line": 26,
+      "writeApi": "writeFileSync",
+      "writeExpression": "lockfilePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "6cdecdd63c9002fd403eaff1f7c2f1c2595816e2dfbae929e2fb3ff00ecfc7d2",
+      "writerScript": "scripts/check-rust-omena-cli-migration.ts",
+      "line": 86,
+      "writeApi": "writeFileSync",
+      "writeExpression": "stylePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "6a53d8c70623c3f9bb0152288931cd46918161ef092e1b4da54efb2dceabf900",
+      "writerScript": "scripts/check-rust-omena-cli-migration.ts",
+      "line": 87,
+      "writeApi": "writeFileSync",
+      "writeExpression": "sourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "5957220e74e737c820cf3fdf128df33b349433cef1ff77a7120107e05f5afb7e",
+      "writerScript": "scripts/check-rust-omena-cli-migration.ts",
+      "line": 124,
+      "writeApi": "writeFileSync",
+      "writeExpression": "tamperedPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "e8754ecb98436d3ecb9697361e8202f8d5231dd3da57ffdb6da751552f189fe2",
+      "writerScript": "scripts/check-rust-omena-cli-migration.ts",
+      "line": 163,
+      "writeApi": "writeFileSync",
+      "writeExpression": "stylePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "2296d237ff5b2bd826fd98498d35df8fc7ba19720a522567594339ca36037dc0",
+      "writerScript": "scripts/check-rust-omena-cli-migration.ts",
+      "line": 164,
+      "writeApi": "writeFileSync",
+      "writeExpression": "sourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "1e21a949294fb22481ea670f63d84aaaf35b6757079aed640f9d44573796c992",
+      "writerScript": "scripts/check-rust-omena-cli-migration.ts",
+      "line": 272,
+      "writeApi": "writeFileSync",
+      "writeExpression": "outputPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "b2a2b8a1879d7392c4b810081d0da864aabcd28531cf1acce1e594484c769f14",
+      "writerScript": "scripts/check-rust-omena-cli-migration.ts",
+      "line": 281,
+      "writeApi": "writeFileSync",
+      "writeExpression": "sourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "ef01ce03d42a37f33dbe36f805862f364e4ef919c92ce7e20ba68fefa450d27b",
+      "writerScript": "scripts/check-rust-omena-cli-postcss-compat.ts",
+      "line": 139,
+      "writeApi": "writeFileSync",
+      "writeExpression": "nativeInput",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "11ce006d6ee7adb03ebe168afd3acd50a95e916d661f039137530e60dda45cf2",
+      "writerScript": "scripts/check-rust-omena-cli-postcss-compat.ts",
+      "line": 211,
+      "writeApi": "writeFileSync",
+      "writeExpression": "input",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "245ad1d27bba360d14a30285e01edf905ec7d827e8462a142fa1e043ee9a9be0",
+      "writerScript": "scripts/check-rust-omena-cli-postcss-compat.ts",
+      "line": 212,
+      "writeApi": "writeFileSync",
+      "writeExpression": "config",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "56377138864f4992316cc61bae64cddb256ed1e2fcfa17faac2029dfa254810b",
+      "writerScript": "scripts/check-rust-omena-cli-postcss-compat.ts",
+      "line": 238,
+      "writeApi": "writeFileSync",
+      "writeExpression": "input",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "db57efbe86c50219aa580f0deebe83d1227b9e4bef6682b673dcf2b66d2a7636",
+      "writerScript": "scripts/check-rust-omena-cli-postcss-compat.ts",
+      "line": 239,
+      "writeApi": "writeFileSync",
+      "writeExpression": "config",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "ec9a19d2762bf45681dd29750b5d53c9d68d9113755a57482572c2ff56dbeea3",
+      "writerScript": "scripts/check-rust-omena-cli-postcss-compat.ts",
+      "line": 315,
+      "writeApi": "writeFileSync",
+      "writeExpression": "unknownInput",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "c2512a252065856aea0f76d0ce57f741403fd5c754debf774e128263d8ffcaaa",
+      "writerScript": "scripts/check-rust-omena-cli-postcss-compat.ts",
+      "line": 316,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(unknownRoot, \"omena.toml\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "902adfb096de5051c1318a4f09ce429688dd1ffac896633a0ef2d8080bf474b8",
+      "writerScript": "scripts/check-rust-omena-cli-soundiness-report.ts",
+      "line": 45,
+      "writeApi": "writeFileSync",
+      "writeExpression": "stylePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "41668332183d9940830d7c9aca53ee1ae255b368cb2c137f6d4499e4d4724f25",
+      "writerScript": "scripts/check-rust-omena-cli-soundiness-report.ts",
+      "line": 107,
+      "writeApi": "writeFileSync",
+      "writeExpression": "stalePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "a6ae57a19993ec14b93fe69528ee61f1ab49da6513b67a89fbd59594411531db",
+      "writerScript": "scripts/check-rust-omena-cli-soundiness-report.ts",
+      "line": 128,
+      "writeApi": "writeFileSync",
+      "writeExpression": "localExternalPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "55956480472a9525c6bdce5c04d9308e9798f644b31b40d5b451381ed1ca3756",
+      "writerScript": "scripts/check-rust-omena-cli-soundiness-report.ts",
+      "line": 129,
+      "writeApi": "writeFileSync",
+      "writeExpression": "poisonedSourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "07e97850cc66d99c90862566fef0ae7c0a59da908ebae09a24bc90059b79f05a",
+      "writerScript": "scripts/check-rust-omena-cli-soundiness-report.ts",
+      "line": 130,
+      "writeApi": "writeFileSync",
+      "writeExpression": "attackStylePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "8e804877fa3c70ba1ef5b08fe2db8aa4f172b0b90e71b9650bab17e295eee69c",
+      "writerScript": "scripts/check-rust-omena-cli-soundiness-report.ts",
+      "line": 151,
+      "writeApi": "writeFileSync",
+      "writeExpression": "defaultLockPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "069dc96d2c97eaf59b9e1b11620c207747795e18fa8f0be6f3d79a777827b61f",
+      "writerScript": "scripts/check-rust-omena-closed-world-admission-tier.ts",
+      "line": 432,
+      "writeApi": "writeFileSync",
+      "writeExpression": "enginePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "3b8366c67347126c5130e9dce3dfe41e53d8e4653fb100750b9b60acf52e671b",
+      "writerScript": "scripts/check-rust-omena-closed-world-admission-tier.ts",
+      "line": 511,
+      "writeApi": "writeFileSync",
+      "writeExpression": "entryPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "ddaaa4c84c37884fa7de4f750bf6674b2922c4156713e6594a459ad2076ccfeb",
+      "writerScript": "scripts/check-rust-omena-closed-world-admission-tier.ts",
+      "line": 512,
+      "writeApi": "writeFileSync",
+      "writeExpression": "basePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "706cd87344b8b2da59e670eb33739329ce3d4ff19ca941429108ba49fd6fca2c",
+      "writerScript": "scripts/check-rust-omena-closed-world-admission-tier.ts",
+      "line": 716,
+      "writeApi": "writeFileSync",
+      "writeExpression": "sourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "08555acebba94dd990db167984fe5cc2841874c89a6c62245f371a86ee0a930b",
+      "writerScript": "scripts/check-rust-omena-closed-world-admission-tier.ts",
+      "line": 738,
+      "writeApi": "writeFileSync",
+      "writeExpression": "sourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "6ae0da96fed2be86adf52ec1f90918936cd7ffd5d991987ac7bb062c6c11a0e8",
+      "writerScript": "scripts/check-rust-omena-closed-world-admission-tier.ts",
+      "line": 815,
+      "writeApi": "writeFileSync",
+      "writeExpression": "sourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "f4246542b075b521fce9c3c8a81481a32c796c15b8609acedd7a963c206eb17e",
+      "writerScript": "scripts/check-rust-omena-closed-world-admission-tier.ts",
+      "line": 832,
+      "writeApi": "writeFileSync",
+      "writeExpression": "sourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "7ab7e022ccc45d55f81d56493d918915304068f838d9f5c470cd9966853fe230",
+      "writerScript": "scripts/check-rust-omena-config-schema-census.ts",
+      "line": 192,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(fixtureRoot, \"src\", \"input.css\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "36d28d6383f0db0a583d0a1934cc84300d4d92359165ed335c20b305aee0c0d7",
+      "writerScript": "scripts/check-rust-omena-config-schema-census.ts",
+      "line": 193,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(fixtureRoot, \"omena.toml\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "fdfe6ea21fd2acb5583196234bc4f4f90bf909bab33f4af00ecde710ff381886",
+      "writerScript": "scripts/check-rust-omena-cross-surface-parity.ts",
+      "line": 114,
+      "writeApi": "writeFileSync",
+      "writeExpression": "baselinePath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "18aef34eb701d42e54b794c069c276449f0ab1b92cbfc352ecffd574fa4a29a6",
+      "writerScript": "scripts/check-rust-omena-cross-surface-parity.ts",
+      "line": 226,
+      "writeApi": "writeFileSync",
+      "writeExpression": "target",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "f7c90376dbaf4effe96baf4cd79355881626e1c0402b46092ee7fcfb330daeb4",
+      "writerScript": "scripts/check-rust-omena-cross-surface-parity.ts",
+      "line": 257,
+      "writeApi": "copyFileSync",
+      "writeExpression": "source",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "c985992e0ed2a1b7ff2817393413bef6549cff6ffe450b1997292fdbace1bfdb",
+      "writerScript": "scripts/check-rust-omena-cross-surface-parity.ts",
+      "line": 311,
+      "writeApi": "writeFileSync",
+      "writeExpression": "inputPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "40c23cdb9ef6b478393b36b667f1b459ee45a2d6436737959153e670de6a7546",
+      "writerScript": "scripts/check-rust-omena-cross-surface-parity.ts",
+      "line": 382,
+      "writeApi": "writeFileSync",
+      "writeExpression": "stylePath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "92109ff62f4e2b83638b47984c3d4364ecda99c7dfadff246ec7eb3b585f8bbc",
+      "writerScript": "scripts/check-rust-omena-cross-surface-parity.ts",
+      "line": 390,
+      "writeApi": "writeFileSync",
+      "writeExpression": "inputPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "0cd6a571c31b78797d8da9ffea6575956070fd27a957b0a21e31a488bfb2087a",
+      "writerScript": "scripts/check-rust-omena-cross-surface-parity.ts",
+      "line": 542,
+      "writeApi": "writeFileSync",
+      "writeExpression": "entryPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "a01110d49f24d836cacaf971015e38d53679b919cb3cf34be8b73b57c831d7ba",
+      "writerScript": "scripts/check-rust-omena-cross-surface-parity.ts",
+      "line": 543,
+      "writeApi": "writeFileSync",
+      "writeExpression": "dependencyPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "5e0b3096efcdda88ed52af1bb075400f500fd48d85e101a5769eddfc36941094",
+      "writerScript": "scripts/check-rust-omena-cross-surface-parity.ts",
+      "line": 545,
+      "writeApi": "writeFileSync",
+      "writeExpression": "inputPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "9b0f0d632d2c26171785f33a5b1b58b50f56b6f835b3c1350249385db4b0bef9",
+      "writerScript": "scripts/check-rust-omena-custom-property-fixed-point-formalization.ts",
+      "line": 1058,
+      "writeApi": "copyFileSync",
+      "writeExpression": "path.join(repoRoot, file)",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "c49f2c32af612a8f253229849b9afe695a19688174064d4aa700ad39b942d28d",
+      "writerScript": "scripts/check-rust-omena-custom-property-fixed-point-formalization.ts",
+      "line": 1061,
+      "writeApi": "writeFileSync",
+      "writeExpression": "mutationTarget",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "74a9146f9c864008a7d96102d8cc695e7e57c002ebadec60bc463c955a6e4874",
+      "writerScript": "scripts/check-rust-omena-diff-test-external-corpus-differential.ts",
+      "line": 317,
+      "writeApi": "writeFileSync",
+      "writeExpression": "inputPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "f3d45d09dc75ad573aab8d28ff2765759a2c01978012ed8a1f27aa5897d7675d",
+      "writerScript": "scripts/check-rust-omena-diff-test-raffia-advisory.ts",
+      "line": 95,
+      "writeApi": "writeFileSync",
+      "writeExpression": "artifactPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "68e08bdaf5ae8550becffab09cf0d7e0f9883f6ed24b6a89e9a6971fe2ee086c",
+      "writerScript": "scripts/check-rust-omena-diff-test-regressions.ts",
+      "line": 205,
+      "writeApi": "writeFileSync",
+      "writeExpression": "filePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "c41edbb45e8dc2ebeca03a0ad14c9cb3befeec0909ba4d89d89349eabecfcf17",
+      "writerScript": "scripts/check-rust-omena-diff-test-sass-spec-conformance-oracle.ts",
+      "line": 95,
+      "writeApi": "writeFileSync",
+      "writeExpression": "capturePath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "0039f260826098d28669768268508d6077236a34c34d9339fed7343c77ec4948",
+      "writerScript": "scripts/check-rust-omena-diff-test-sass-spec-conformance-oracle.ts",
+      "line": 134,
+      "writeApi": "writeFileSync",
+      "writeExpression": "inputPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "46c77e1da78cee45ea9730d38933a3d92190dde3eeac45380537b9b393213680",
+      "writerScript": "scripts/check-rust-omena-diff-test-sass-spec-oracle.ts",
+      "line": 95,
+      "writeApi": "writeFileSync",
+      "writeExpression": "capturePath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "dff75547b717b3840d50a78de440e2500ea79881b85ac7f20752e6b8b3a915dc",
+      "writerScript": "scripts/check-rust-omena-diff-test-sass-spec-oracle.ts",
+      "line": 144,
+      "writeApi": "writeFileSync",
+      "writeExpression": "inputPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "67c33998748621eed8b41598b92efa461a30d01c383c44340e7f250d861ba57a",
+      "writerScript": "scripts/check-rust-omena-diff-test-sass-spec-upstream-scale.ts",
+      "line": 144,
+      "writeApi": "writeFileSync",
+      "writeExpression": "artifactPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "6f6806e4f13801a2a5ab8cc94851ee645374c1d226634c7e9fa0d8f71a351e4f",
+      "writerScript": "scripts/check-rust-omena-diff-test-wpt-perf.ts",
+      "line": 69,
+      "writeApi": "writeFileSync",
+      "writeExpression": "baselinePath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "69b2f8a32f8884d00304c8dafee8bd474c69729f7906a6e938b0f4f0cee347e5",
+      "writerScript": "scripts/check-rust-omena-diff-test-wpt-perf.ts",
+      "line": 92,
+      "writeApi": "writeFileSync",
+      "writeExpression": "resolvedOutputPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "d09263c31b1ce6e808e685de6dd4911110ecd4daa36dcb0a0587ec836cba2795",
+      "writerScript": "scripts/check-rust-omena-fact-precision-census.ts",
+      "line": 316,
+      "writeApi": "writeFileSync",
+      "writeExpression": "censusPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "595fc50227c5bd39bceb93c3fa5f54a45e42e99eaae1c93c0ceac76bce95a98d",
+      "writerScript": "scripts/check-rust-omena-ffi-boundary-typing-census.ts",
+      "line": 115,
+      "writeApi": "writeFileSync",
+      "writeExpression": "censusPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "25b477fecc83a67b4b52a1f8f2694ea801ba15f9455ddaf937a48e12a96d3137",
+      "writerScript": "scripts/check-rust-omena-identifier-authority-census.selftest.mjs",
+      "line": 996,
+      "writeApi": "writeFileSync",
+      "writeExpression": "censusPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "dd864a5508bac85b6461fd70ed5de2162d3c7ffb4443556c319db3517852dc01",
+      "writerScript": "scripts/check-rust-omena-identifier-authority-census.selftest.mjs",
+      "line": 1070,
+      "writeApi": "writeFileSync",
+      "writeExpression": "censusPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "a96e7b0d11ec96c71f24aab616cbfbb06927db03abdb200ad09cf312557f9f56",
+      "writerScript": "scripts/check-rust-omena-identifier-authority-census.selftest.mjs",
+      "line": 1204,
+      "writeApi": "writeFileSync",
+      "writeExpression": "generatedManifestPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "a48acbc63088f31f0c7e83f3cbeec5b0690fd00aa18d6b70da2057717796bae2",
+      "writerScript": "scripts/check-rust-omena-identifier-authority-census.ts",
+      "line": 2064,
+      "writeApi": "writeFileSync",
+      "writeExpression": "censusPath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "e2bf26598ff88cb689eeb99457450a90d8690e4849d21a971fb744a2d87a0050",
+      "writerScript": "scripts/check-rust-omena-keyword-case-authority-census.ts",
+      "line": 309,
+      "writeApi": "writeFileSync",
+      "writeExpression": "censusPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "533fc0d2ce515fcf35c44a8155b7d7607e059b2dbe55511fac5347eebf7eca66",
+      "writerScript": "scripts/check-rust-omena-literal-evidence-census.ts",
+      "line": 167,
+      "writeApi": "writeFileSync",
+      "writeExpression": "censusPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "9f0d2f531d9a5c36bd7ee34e570de8bb9d024fe3d5a325026ef29d97963c7159",
+      "writerScript": "scripts/check-rust-omena-lsp-server-cancellation.ts",
+      "line": 21,
+      "writeApi": "writeFileSync",
+      "writeExpression": "sourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "8dabbec3c70c6b640261fec6ac3de54584d8e9a45575b57f556435f5e64858f7",
+      "writerScript": "scripts/check-rust-omena-lsp-server-cancellation.ts",
+      "line": 28,
+      "writeApi": "writeFileSync",
+      "writeExpression": "stylePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "e7ec88225570bd9bffa4782c7acc06f227ae9d2c4dc2c16a5c2d5ceb81d8f334",
+      "writerScript": "scripts/check-rust-omena-lsp-server-external-sif-runtime.ts",
+      "line": 91,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(workspaceRoot, \"package.json\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "8253c275c21ad56d3d225bb298cc130764e98143b46530c62fe51c4b0f339682",
+      "writerScript": "scripts/check-rust-omena-lsp-server-external-sif-runtime.ts",
+      "line": 95,
+      "writeApi": "writeFileSync",
+      "writeExpression": "resolvedPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "1f07ceca70b699565c2df746a9eb6c3ce2dbc428a83128ed0ed16cb7062ef371",
+      "writerScript": "scripts/check-rust-omena-lsp-server-external-sif-runtime.ts",
+      "line": 96,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(appThemeDir, \"package.json\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "f3d31c5f321f4071b17a8a144c23f747bad8bac450d8a8e70be46b822cb4e3b0",
+      "writerScript": "scripts/check-rust-omena-lsp-server-external-sif-runtime.ts",
+      "line": 105,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(appThemeDir, \"index.scss\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "76796122d5b8700a6f02ba828491ff45c0e0c2c49becc93f811280687492e9c6",
+      "writerScript": "scripts/check-rust-omena-lsp-server-external-sif-runtime.ts",
+      "line": 109,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(appThemeDir, \"_radius.scss\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "ab7bbb23b5fccdf7b5de43910e9b7b2a1fcb4ef700fb412a486880ce3aedf7a5",
+      "writerScript": "scripts/check-rust-omena-lsp-server-external-sif-runtime.ts",
+      "line": 110,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(designTokensDir, \"package.json\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "9e2183e2bad11c1b0c93fc42a9afd3c0311dc0cf9199a405e8f11273ad42726d",
+      "writerScript": "scripts/check-rust-omena-lsp-server-external-sif-runtime.ts",
+      "line": 119,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(designTokensDir, \"colors.scss\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "08cc64332fcf53e78c29246deb2cdfcf1dadff835f2dec6cadbbeabe8cad89a3",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 142,
+      "writeApi": "writeFileSync",
+      "writeExpression": "sourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "5e7f7bba13c201a816b539a49bd05b3b413d49550cd89001af9383450d18f5de",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 143,
+      "writeApi": "writeFileSync",
+      "writeExpression": "targetPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "e397df3d1278d16af001690424fb0850b1846910b52210478f0cca44dc04e35f",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 144,
+      "writeApi": "writeFileSync",
+      "writeExpression": "tsconfigSourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "7027d9a2aa66cbb737c418aee845117746f2dc540ccf0a69e544bb59a1d6cf27",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 145,
+      "writeApi": "writeFileSync",
+      "writeExpression": "tsconfigOldTargetPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "5a912bc9354ebe15c90084f134f20d3b48ef0f979e5bb096c6d391c9bf555268",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 146,
+      "writeApi": "writeFileSync",
+      "writeExpression": "tsconfigNewTargetPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "a4a1f809a6ff20cc248564f2c64da5413614e35fab8c643338d828137935b9b2",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 147,
+      "writeApi": "writeFileSync",
+      "writeExpression": "webpackSourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "92bc64b7085dc411531f4175caead1e8e0bd1fd090bfe71a5a25300fa46d6bd3",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 148,
+      "writeApi": "writeFileSync",
+      "writeExpression": "webpackOldTargetPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "b9dce4ce0433f096a9717cbaf4bf0863b07d1300e4f87932cca7e78166f4a4da",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 149,
+      "writeApi": "writeFileSync",
+      "writeExpression": "webpackNewTargetPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "7b3a5b9dc65967e3214b29274e790df9255fe683481590f6e3777afbb96e6100",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 150,
+      "writeApi": "writeFileSync",
+      "writeExpression": "packageSourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "c1c8ec03ba81c9f8685e174ec119e4af52d126c0c6e22af769794d4302c3d79f",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 151,
+      "writeApi": "writeFileSync",
+      "writeExpression": "rootPackageImportSourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "50da2c3f98ea41e67039d56a72136054582ea3c11febd0e2bb93f2de12ce9748",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 152,
+      "writeApi": "writeFileSync",
+      "writeExpression": "rootPackageJsonPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "84a19f7a4ae951b67e06e2132d805ed84a0b6f1458a1dbbabd1ccb6acd225146",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 153,
+      "writeApi": "writeFileSync",
+      "writeExpression": "packageJsonPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "9132a4ef28a84309a6a6505ebed59dfa290c5a87d642b7bf711f05fdbbef53e8",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 164,
+      "writeApi": "writeFileSync",
+      "writeExpression": "packageOldTargetPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "a16c638f1bde2f096cbc9012cd738b162f9ef3882c7ea605a3de6b586e4b045e",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 165,
+      "writeApi": "writeFileSync",
+      "writeExpression": "packageNewTargetPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "854ca1a5814401f89dd091b45e2a7b2d81efbfa8c74f0ab78751127e4c835bc0",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 166,
+      "writeApi": "writeFileSync",
+      "writeExpression": "configPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "3dda19341d3129389dbb9eb07fbf5d02cdfeabfb47e482ab6a63f1ec4365b95f",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 167,
+      "writeApi": "writeFileSync",
+      "writeExpression": "webpackConfigPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "8d7eadf45aa832ce05ac183526ba3e38bbfc3da7eaacb9efbcf545cf429af96b",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 168,
+      "writeApi": "writeFileSync",
+      "writeExpression": "tsconfigPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "03a0df86b7a8edcf954aa8592e7e9ba4a5165cda4da9b9472d42e6abba1d14dc",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 169,
+      "writeApi": "writeFileSync",
+      "writeExpression": "tsconfigBasePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "886c00336c7d4fb256162a93cd4c3770d358cbe45adead58f802acbe5a38dacd",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 276,
+      "writeApi": "writeFileSync",
+      "writeExpression": "tsconfigPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "f573b9e5284dab013c7746c5944e5ef084a5fe63345c976e9b899ab204f3320f",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 287,
+      "writeApi": "writeFileSync",
+      "writeExpression": "tsconfigPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "38555fc3b947234be3ebe2a63ca3150171972322b929f2b9051eb92f4ce4b40a",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 288,
+      "writeApi": "writeFileSync",
+      "writeExpression": "tsconfigBasePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "cd0b51aae66f1476c2b4761956e06569dea7cf076c0706795c3ad67a99039c18",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 299,
+      "writeApi": "writeFileSync",
+      "writeExpression": "tsconfigBasePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "d009ea0b61e2cbf9cc1380452432dc185229adfb5382c5107212fa3f144e14ed",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 317,
+      "writeApi": "writeFileSync",
+      "writeExpression": "webpackConfigPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "b31665512803e8038271e355d6534fc5d39c2ce72fcd4c332e5eb1d77501429d",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 342,
+      "writeApi": "writeFileSync",
+      "writeExpression": "packageJsonPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "e0d6ef92a48a4ee58256c51a9b352809236c013f69c918977b6aceabd927908c",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 353,
+      "writeApi": "writeFileSync",
+      "writeExpression": "rootPackageJsonPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "922bb1ca9bf8f52a3d2d3d7a7233b14e8e3b40601fbb652034aaf594ee34bc2f",
+      "writerScript": "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
+      "line": 548,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(packageDir, \"package.json\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "d3f59b8e8977062aa8d4c51061eae4b38c822880f5e46a0a653dd4e34b577b56",
+      "writerScript": "scripts/check-rust-omena-lsp-server-runtime-loop.ts",
+      "line": 116,
+      "writeApi": "writeFileSync",
+      "writeExpression": "sourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "dbed6bb8452140b2735846dc968cd0c2226509d6df4c66b4ebbf76109c0ea269",
+      "writerScript": "scripts/check-rust-omena-lsp-server-runtime-loop.ts",
+      "line": 117,
+      "writeApi": "writeFileSync",
+      "writeExpression": "stylePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "5f68350edd64a2e4cfe56223ceca6b4073a4fd97436b352bbc120ab9a349940d",
+      "writerScript": "scripts/check-rust-omena-lsp-server-runtime-loop.ts",
+      "line": 118,
+      "writeApi": "writeFileSync",
+      "writeExpression": "peerStylePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "1a3f14c5689c9814846b48e442035a72db14fb7dd599e01a9914c0f41500bb76",
+      "writerScript": "scripts/check-rust-omena-lsp-server-runtime-loop.ts",
+      "line": 119,
+      "writeApi": "writeFileSync",
+      "writeExpression": "sharedPartialPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "911aa127d5b71301f26be7121a3c15fd0c5ba608c1a843f7787b1bc9a001703c",
+      "writerScript": "scripts/check-rust-omena-lsp-server-runtime-loop.ts",
+      "line": 121,
+      "writeApi": "writeFileSync",
+      "writeExpression": "filePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "b0d65e20a914aa297ec153156388cca74681487729d4080d437d77bee8ef2272",
+      "writerScript": "scripts/check-rust-omena-lsp-server-runtime-loop.ts",
+      "line": 123,
+      "writeApi": "writeFileSync",
+      "writeExpression": "bridgePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "13056e579b0e3ab0ef432d4903086d0287b26fe1db451f517bbff968b2aa0206",
+      "writerScript": "scripts/check-rust-omena-lsp-server-runtime-loop.ts",
+      "line": 124,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(workspaceRoot, \"omena.lock\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "b90cd16e6ff93b4f10ebd4383f40f4f26c42505cbbb6c517d474c4c2e7e1c0eb",
+      "writerScript": "scripts/check-rust-omena-lsp-server-sass-alias-diagnostics.ts",
+      "line": 30,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(workspacePath, \"tsconfig.json\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "bc8bda061a5d7b8c098752b6e93d0e971b72aab1c9a5922c99031b078068bf3b",
+      "writerScript": "scripts/check-rust-omena-lsp-server-sass-alias-diagnostics.ts",
+      "line": 41,
+      "writeApi": "writeFileSync",
+      "writeExpression": "appStylePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "7c34709e7dcfd16b9de036dfd06deb922fa8235f24dff5104cd3c3c941448a6b",
+      "writerScript": "scripts/check-rust-omena-lsp-server-sass-alias-diagnostics.ts",
+      "line": 42,
+      "writeApi": "writeFileSync",
+      "writeExpression": "relativeStylePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "828ff1052ba64b05c8d492201a7511ae63835a748f504a514abe802d38bc6d82",
+      "writerScript": "scripts/check-rust-omena-lsp-server-sass-alias-diagnostics.ts",
+      "line": 43,
+      "writeApi": "writeFileSync",
+      "writeExpression": "tokensStylePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "98ec80b2adad1e943eb641f4416570c30606b55f870ff8eb2e58b39adb539110",
+      "writerScript": "scripts/check-rust-omena-lsp-server-sass-alias-diagnostics.ts",
+      "line": 44,
+      "writeApi": "writeFileSync",
+      "writeExpression": "relativeTokensStylePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "ca2db2917f0b1c0b0bcab25bbd741bd4c3ba077439aade5bc1f57fceeb718fd3",
+      "writerScript": "scripts/check-rust-omena-lsp-server-type-fact-protocol.ts",
+      "line": 94,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(workspaceRoot, \"tsconfig.json\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "a1790d550436b744488b7a5b93fa671b40590f9b65f762669787e7d61b0d3793",
+      "writerScript": "scripts/check-rust-omena-lsp-server-type-fact-protocol.ts",
+      "line": 112,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(srcDir, \"global.d.ts\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "66d65a26274d47b09c9db6598eaf0fce158dbf51f9ea40dba5a52f2b3bff6a23",
+      "writerScript": "scripts/check-rust-omena-lsp-server-type-fact-protocol.ts",
+      "line": 123,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(srcDir, \"App.tsx\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "c450a1a22e2aa934353613f21b46390d99f6bcfdd9c79e94473cd21c795aeb24",
+      "writerScript": "scripts/check-rust-omena-lsp-server-type-fact-protocol.ts",
+      "line": 124,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(srcDir, \"App.module.scss\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "7a6f519c422ce1a047a1099d6a27dd37b229b61ab9603d365f18a32b9a26c6ab",
+      "writerScript": "scripts/check-rust-omena-lsp-server-type-fact-protocol.ts",
+      "line": 125,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(srcDir, \"Late.tsx\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "b3966c48d5e0e714a49f61c048f750f507550b172054225202ec8d631a7e36c9",
+      "writerScript": "scripts/check-rust-omena-lsp-server-type-fact-protocol.ts",
+      "line": 127,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(srcDir, `Synthetic${index}.tsx`)",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "02b9f89b457e0414a2d4527f419494bafd05c196e4c1d139c173f89951369cf5",
+      "writerScript": "scripts/check-rust-omena-lsp-server-type-fact-protocol.ts",
+      "line": 350,
+      "writeApi": "writeFileSync",
+      "writeExpression": "lateStylePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "99c22734df23f5d5985da3d434edc9e11ccda730423f197ffd083df99535bbef",
+      "writerScript": "scripts/check-rust-omena-module-qualified-product-path.ts",
+      "line": 168,
+      "writeApi": "writeFileSync",
+      "writeExpression": "censusPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "20594b149709608d4b1afe60a2e30a646a8c09851a5113e62d877561a7889e8a",
+      "writerScript": "scripts/check-rust-omena-plugin-abi-stability.ts",
+      "line": 215,
+      "writeApi": "writeFileSync",
+      "writeExpression": "contractPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "5fa75e6191fd668bd3628ec5729e5ecd50bf3276d370d738b6dd50e8aa04ef0f",
+      "writerScript": "scripts/check-rust-omena-plugin-consumption-law.ts",
+      "line": 130,
+      "writeApi": "writeFileSync",
+      "writeExpression": "censusPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "9983e0ee6a0c7c322df7f74c8f32102ce53c1bc1982ae79600795fa47a5e63bc",
+      "writerScript": "scripts/check-rust-omena-precision-witness-census.ts",
+      "line": 87,
+      "writeApi": "writeFileSync",
+      "writeExpression": "censusPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "d0c2e4af3504c3e3c117742d5bba0016af02a2837b6961653accfd8c6e3674f2",
+      "writerScript": "scripts/check-rust-omena-query-dead-reexports.ts",
+      "line": 300,
+      "writeApi": "writeFileSync",
+      "writeExpression": "worktreeSourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "b6f1ba09f2ca0b6caba55e5737937f1db85c9b30a37fa5093bc2af3b63c5c96f",
+      "writerScript": "scripts/check-rust-omena-query-public-surface.ts",
+      "line": 69,
+      "writeApi": "writeFileSync",
+      "writeExpression": "snapshotPath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "6f5db86c44439e6699e25381c90729106548c5c0f4ad923a3b57bacffeccc178",
+      "writerScript": "scripts/check-rust-omena-query-public-surface.ts",
+      "line": 93,
+      "writeApi": "writeFileSync",
+      "writeExpression": "wildcardBaselinePath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "fb802a4579e789adb5c63578fff96373dc2cfebaacdd72f654db84845b3a3335",
+      "writerScript": "scripts/check-rust-omena-query-transform-differential.ts",
+      "line": 598,
+      "writeApi": "writeFileSync",
+      "writeExpression": "reportPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "3c663b5d0c6f6c78afe6b168fe95c77057c6f704fd2fa49a0425fa987abf203b",
+      "writerScript": "scripts/check-rust-omena-reactive-public-surface.ts",
+      "line": 44,
+      "writeApi": "writeFileSync",
+      "writeExpression": "writeTarget",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "f6e1671fdecbe9dc35f13aa13e4d94507629aa5bbce0796d3664c289f9284b38",
+      "writerScript": "scripts/check-rust-omena-resolver-identity-index-callers.ts",
+      "line": 149,
+      "writeApi": "writeFileSync",
+      "writeExpression": "censusPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "6c1c6d13f1b28af2d847e50eca3b77d64a5d878c8bb7dc0bd6b3162cbabc4fbd",
+      "writerScript": "scripts/check-rust-omena-response-surface-split-census.ts",
+      "line": 104,
+      "writeApi": "writeFileSync",
+      "writeExpression": "censusPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "82e3b22f3222e31850f901f6196ea2f173b81719dae8f13b9256a03f59a07ad7",
+      "writerScript": "scripts/check-rust-omena-sdk-error-mapping-census.ts",
+      "line": 197,
+      "writeApi": "writeFileSync",
+      "writeExpression": "censusPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "bccce75498bce0ce82f50825593344a55fe23f48543d49045b174dbfa2ded84b",
+      "writerScript": "scripts/check-rust-omena-sdk-workflow-parity.ts",
+      "line": 164,
+      "writeApi": "writeFileSync",
+      "writeExpression": "matrixPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "4784111a1b0936cc6303d3d282d47494a4a29264f105b6393a2e3fcebe121072",
+      "writerScript": "scripts/check-rust-omena-sdk-workflow-parity.ts",
+      "line": 254,
+      "writeApi": "copyFileSync",
+      "writeExpression": "path.join(targetDir, \"release\", libraryName)",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "2b5db4685f33baa345f6a34f62715ca61f7642ce5ba4d84f5593047065b937c3",
+      "writerScript": "scripts/check-rust-omena-sdk-workflow-parity.ts",
+      "line": 274,
+      "writeApi": "writeFileSync",
+      "writeExpression": "inputPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "770f925690f6627e3bc4d2110af4b4c59f56282b034cacbebd77e5064a11a15e",
+      "writerScript": "scripts/check-rust-omena-sdk-workflow-parity.ts",
+      "line": 357,
+      "writeApi": "writeFileSync",
+      "writeExpression": "requestPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "d4a83316ed971046dfa492cb80b7bde04117910136020362bb603fb82ccee2e7",
+      "writerScript": "scripts/check-rust-omena-sif-end-to-end.ts",
+      "line": 96,
+      "writeApi": "writeFileSync",
+      "writeExpression": "tokensPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "7aced66baa489553b38b2805081d722912acb29aaa52c606c6496e98abd37d47",
+      "writerScript": "scripts/check-rust-omena-sif-end-to-end.ts",
+      "line": 97,
+      "writeApi": "writeFileSync",
+      "writeExpression": "lessTokensPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "000aa20157346b89cd2d4830ac61fa7a5b9ad076725d60c7c4d640a042394890",
+      "writerScript": "scripts/check-rust-omena-sif-end-to-end.ts",
+      "line": 105,
+      "writeApi": "writeFileSync",
+      "writeExpression": "consumerPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "5fde2c28de2ed136718051c4c3d6aa3fc92cd2094e7b73169c85feebf9f1d246",
+      "writerScript": "scripts/check-rust-omena-sif-npm-provenance-acquisition.ts",
+      "line": 69,
+      "writeApi": "writeFileSync",
+      "writeExpression": "inputPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "7a254215358b40556cba79eb2aafff78835fd0763606b22ee1ca773bb0811089",
+      "writerScript": "scripts/check-rust-omena-source-type-fact-shape-census.ts",
+      "line": 343,
+      "writeApi": "writeFileSync",
+      "writeExpression": "censusPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "edbaf757b5956f0a5128a585eb76b38436002c33b88fb08141d8ebb84695d8e6",
+      "writerScript": "scripts/check-rust-omena-style-resolution-authority.ts",
+      "line": 131,
+      "writeApi": "writeFileSync",
+      "writeExpression": "censusPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "ae81130c7a317297277725b4bf865f98f8bd8fe2b14744c3d356f86234d11fd2",
+      "writerScript": "scripts/check-rust-omena-syntax-authority-raw-scan-census.ts",
+      "line": 432,
+      "writeApi": "writeFileSync",
+      "writeExpression": "censusPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "c83e6108823d819903cbd355ee3d138171ca6d402993f36f9f4c098865197773",
+      "writerScript": "scripts/check-rust-omena-top-provenance-census.ts",
+      "line": 110,
+      "writeApi": "writeFileSync",
+      "writeExpression": "censusPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "f67cd7263a02ac975ed941280d1add85b9099b2f7ba50f3ea0256f43516c9419",
+      "writerScript": "scripts/check-rust-omena-value-grammar-differential.ts",
+      "line": 216,
+      "writeApi": "writeFileSync",
+      "writeExpression": "combinedPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "31a098b4cc378aa1425ad61b24951e3abcba3cd3c7b07caeba4d9fc1ec3721d1",
+      "writerScript": "scripts/check-rust-omena-value-grammar-differential.ts",
+      "line": 506,
+      "writeApi": "writeFileSync",
+      "writeExpression": "ledgerPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "f95fdc63e3d23cdb037962e4a8a0caad1d64bc08fa41e4c7fea0e12daf6b86e4",
+      "writerScript": "scripts/check-rust-omena-value-grammar-differential.ts",
+      "line": 507,
+      "writeApi": "writeFileSync",
+      "writeExpression": "keywordClosureCertificatePath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "73d67b385eac8d38b2776453e479f6e8368763c3033a48d3d1df2dc28ccaa0eb",
+      "writerScript": "scripts/check-rust-omena-value-grammar-differential.ts",
+      "line": 508,
+      "writeApi": "writeFileSync",
+      "writeExpression": "builtinTokenProfilePath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "d653c8796e9236e1d30970d78a16739af10b27ecf88591014a2ac31f3e28a735",
+      "writerScript": "scripts/check-rust-omena-value-grammar-evidence.ts",
+      "line": 75,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(root, VALUE_GRAMMAR_EVIDENCE_PATH)",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "09a1b0c1c722ef13e38563d0e24f27cf44253c5dc5019d48cbfca2ad00eb8af0",
+      "writerScript": "scripts/check-rust-omenad-substrate-inventory.ts",
+      "line": 245,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(repoRoot, snapshotPath)",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "7382f7104866ddb1ac4e8d5e1de5c8082a2e5d74c17ea743876cc4846cbdb3f2",
+      "writerScript": "scripts/check-rust-oss-corpus-farm-regressions.ts",
+      "line": 219,
+      "writeApi": "writeFileSync",
+      "writeExpression": "filePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "9a14a84bc108eb5f67619c4c791c28e31795b6bda7cde01311dae5444f245b0a",
+      "writerScript": "scripts/check-rust-proof-kernel-self-produced-census.ts",
+      "line": 159,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(repoRoot, artifactPath)",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "eba34238d5c5889b96a053e85f91637dc40497c277ffdb72c295b22f7a094aa9",
+      "writerScript": "scripts/check-rust-published-crate-surface-register.ts",
+      "line": 171,
+      "writeApi": "writeFileSync",
+      "writeExpression": "snapshotPath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "237886e59fa0424eccc0f656f419c355a4a80270a8589987c636b88999659fe4",
+      "writerScript": "scripts/check-rust-published-crate-surface-register.ts",
+      "line": 238,
+      "writeApi": "writeFileSync",
+      "writeExpression": "registerPath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "625641a2d77652bc2f4d6f250620e44b054a31c35743e5fa139fc0603ab34db0",
+      "writerScript": "scripts/check-rust-selected-query-workspace.ts",
+      "line": 265,
+      "writeApi": "writeFileSync",
+      "writeExpression": "filePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "5c126595688b490155ad940d787e68a1c26137d22a48cbfa7376e4ccaa163202",
+      "writerScript": "scripts/check-rust-source-frontend-parity-ledger.ts",
+      "line": 397,
+      "writeApi": "writeFileSync",
+      "writeExpression": "absolutePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "3ba96854fb5109f8f9dc3d4038f8b24fd4c93606c5bf8051c51d48dd9259d6c1",
+      "writerScript": "scripts/check-rust-two-tier-identity-contract.ts",
+      "line": 112,
+      "writeApi": "writeFileSync",
+      "writeExpression": "inventoryFullPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "b107f003a9aa7d2fc5c6d5ddc5f4d585302537defa8e0d11a77a57db1f081405",
+      "writerScript": "scripts/check-rust-z5-perf-gate-baseline.ts",
+      "line": 438,
+      "writeApi": "writeFileSync",
+      "writeExpression": "baselinePath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "97cc0d678fb3b9642629b94ae22288fcbd5bb7a96a1067456688a84a47a8fb9d",
+      "writerScript": "scripts/check-rust-z5-perf-gate-baseline.ts",
+      "line": 498,
+      "writeApi": "writeFileSync",
+      "writeExpression": "reportPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "f5b7f11f881732cdb7bb9b77c5a14910ecf392d4bb6506041edbe32a530b0670",
+      "writerScript": "scripts/check-type-fact-backend-parity.ts",
+      "line": 350,
+      "writeApi": "writeFileSync",
+      "writeExpression": "configPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "c07bb5205ff9f8f23ad721e9efbb8976c3d2181bdc07d6c02bd6a5d0234a232e",
+      "writerScript": "scripts/check-type-fact-backend-parity.ts",
+      "line": 354,
+      "writeApi": "writeFileSync",
+      "writeExpression": "filePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "ced16e245e1b60ce0f3c2fa2a384bccf2dcf914572888b1c5253a613d8f81b98",
+      "writerScript": "scripts/check-vite-plugin-hmr.mjs",
+      "line": 28,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(tempRoot, \"index.html\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "8884d273d4c2182e200a4c5c9dadc78cca111f3e824e21b1d970bad4e1796fd6",
+      "writerScript": "scripts/check-vite-plugin-hmr.mjs",
+      "line": 32,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(srcRoot, \"main.js\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "2872522a9eb5076121bb94eb34283d1555dc62e05886fb8ec267068b7d083ffc",
+      "writerScript": "scripts/check-vite-plugin-hmr.mjs",
+      "line": 36,
+      "writeApi": "writeFileSync",
+      "writeExpression": "stylePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "9b9a961af82d252cbff9de3a4769d06f1f53552e8d4c2e67698f7b80ccc43816",
+      "writerScript": "scripts/check-vite-plugin-hmr.mjs",
+      "line": 71,
+      "writeApi": "writeFileSync",
+      "writeExpression": "stylePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "9c78d407a45ec7efcc29f7aa80d40bb7bccee9ad1aff02103563c95ab55bedd2",
+      "writerScript": "scripts/check-vite-plugin-hmr.mjs",
+      "line": 125,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(tempRoot, \"index.html\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "105edc72bc75fbaba80ca9c29601b2246a8111938c13e20956a87eea8abd607d",
+      "writerScript": "scripts/check-vite-plugin-hmr.mjs",
+      "line": 129,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(srcRoot, \"main.js\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "052d8e3d45441f2b7d74c4e9bb4a7b9602a6945117f6fd52a96f004c861fb905",
+      "writerScript": "scripts/check-vite-plugin-hmr.mjs",
+      "line": 152,
+      "writeApi": "writeFileSync",
+      "writeExpression": "stylePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "2e5184f7be502646f8ad59069adc2647dea30a0ba1928cbc12308d67d6d19fb4",
+      "writerScript": "scripts/check-vite-plugin-hmr.mjs",
+      "line": 157,
+      "writeApi": "writeFileSync",
+      "writeExpression": "dependencyPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "aa3ad5f134ec12a34cdeefb4b785fb385c4b2f3613abb30d0fa3bf9dec6b143a",
+      "writerScript": "scripts/check-vite-plugin-hmr.mjs",
+      "line": 218,
+      "writeApi": "writeFileSync",
+      "writeExpression": "dependencyPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "13da20d3650d634fd4f39646d89a689fc937f4edae63da33a0dbfeab756802e2",
+      "writerScript": "scripts/check-vite-plugin-smoke.mjs",
+      "line": 70,
+      "writeApi": "writeFileSync",
+      "writeExpression": "stylePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "572498426a8bb03210e4f17119ed242eff73cc192634978728668c920ea41f7c",
+      "writerScript": "scripts/crate-registry-state.ts",
+      "line": 204,
+      "writeApi": "writeFileSync",
+      "writeExpression": "outputPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "eb6c9861b21f51afb1d3b953d57a334233bbb740c5591382e6e5321281c110c3",
+      "writerScript": "scripts/crate-registry-state.ts",
+      "line": 221,
+      "writeApi": "appendFileSync",
+      "writeExpression": "process.env.GITHUB_OUTPUT",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "e237c699d23fd7a517552aefd4aa29f163aa12756c9f20c1044834ef6b15d2dd",
+      "writerScript": "scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts",
+      "line": 163,
+      "writeApi": "writeFileSync",
+      "writeExpression": "tuplesPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "9c650748b169675c26b56e587e29603b803f33f4c645d493792ae9a177d07954",
+      "writerScript": "scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts",
+      "line": 164,
+      "writeApi": "writeFileSync",
+      "writeExpression": "coveragePath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "c603f72f03fe1d4cabc02d162e3c81d15f31220d068c9785fb5ae4100cf0340c",
+      "writerScript": "scripts/finalize-omena-napi-pkg.mjs",
+      "line": 130,
+      "writeApi": "writeFileSync",
+      "writeExpression": "loaderPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "c85e8aad8aa0d28ff833637344acf983988b0a3904902bd270778847157d7d9c",
+      "writerScript": "scripts/finalize-omena-napi-pkg.mjs",
+      "line": 155,
+      "writeApi": "writeFileSync",
+      "writeExpression": "pkgJsonPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "8baac0e62d9a9ad364cf01283f13a41eec3d5aba2575d9f8e2a8828a19e7d245",
+      "writerScript": "scripts/finalize-omena-napi-pkg.mjs",
+      "line": 171,
+      "writeApi": "copyFileSync",
+      "writeExpression": "sourceBinary",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "7635c2b0a3c0fd5e5d13295456c80ad4f84aba19496e970c7f0e81dea63ba867",
+      "writerScript": "scripts/finalize-omena-napi-pkg.mjs",
+      "line": 188,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(platformDir, \"package.json\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "1a3f8c8e3968ecb733ee36d382b22b3bc49b211118d301c5ecaa347e6cc772af",
+      "writerScript": "scripts/finalize-omena-plugin-pkgs.mjs",
+      "line": 94,
+      "writeApi": "copyFileSync",
+      "writeExpression": "path.join(repoRoot, \"LICENSE\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "66d099de681af2eb129da658fb1f8dae6b447ea55aaf25f8bbcf4e6a6a89d32b",
+      "writerScript": "scripts/finalize-omena-plugin-pkgs.mjs",
+      "line": 99,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(outputDir, \"package.json\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "077bb025013af0994fdda59ef728cb76a6607f67f17f5197a338248d5474216a",
+      "writerScript": "scripts/finalize-omena-plugin-pkgs.mjs",
+      "line": 113,
+      "writeApi": "copyFileSync",
+      "writeExpression": "sourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "a795b5a7a3c70806570e21e241b9745f1cd9fd8231f6684d14af09e9c9621af9",
+      "writerScript": "scripts/finalize-omena-plugin-pkgs.mjs",
+      "line": 119,
+      "writeApi": "copyFileSync",
+      "writeExpression": "sourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "3026fe1e56fdb2201859cba065c277e8aa499e6e56163ce9792eea6da5742020",
+      "writerScript": "scripts/finalize-omena-wasm-pkg.mjs",
+      "line": 54,
+      "writeApi": "writeFileSync",
+      "writeExpression": "pkgJsonPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "717d6f10c5c6051b81632008a68715649377980e491df6f5aff8b4542901f444",
+      "writerScript": "scripts/generate-cargo-publish-workspace-config.ts",
+      "line": 72,
+      "writeApi": "writeFileSync",
+      "writeExpression": "outputPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "67291b8761e102c2fc9937fac4c9e9803796f56558ffc0845919c42096858018",
+      "writerScript": "scripts/generate-engine-v2-contract-idl.ts",
+      "line": 121,
+      "writeApi": "writeFileSync",
+      "writeExpression": "absolutePath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "90a96dd86165c81bbdee8e27bd350928c0d8f90845b4e8969cf2868109a47d06",
+      "writerScript": "scripts/generate-engine-v2-contract-idl.ts",
+      "line": 334,
+      "writeApi": "writeFileSync",
+      "writeExpression": "tempFile",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "a69c65c3f06ce1c8f91a6de4b80172cc3c0c0aee53483de3a7f92514c6199661",
+      "writerScript": "scripts/generate-rust-omena-conformance-dashboard.ts",
+      "line": 259,
+      "writeApi": "writeFileSync",
+      "writeExpression": "dashboardPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "6417a9b358246f15366504acbd58dbe43ceb94ec11add9ed981eed4c8625621e",
+      "writerScript": "scripts/generate-rust-omena-coverage-gap.ts",
+      "line": 30,
+      "writeApi": "writeFileSync",
+      "writeExpression": "reportPath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "ffd2ab347545ec82fe72f5c8e3784f061afd1c9c02748f6d9fa3e381a48c221b",
+      "writerScript": "scripts/generate-rust-omena-diff-test-wpt-corpus.ts",
+      "line": 330,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(corpusRoot, chunk.chunkPath)",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "fe9699c49451d2906f101bab68b105f5ada43eb219075a12cf6454888cf1d3fe",
+      "writerScript": "scripts/generate-rust-omena-diff-test-wpt-corpus.ts",
+      "line": 332,
+      "writeApi": "writeFileSync",
+      "writeExpression": "manifestPath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "7f3d64494a9fa0fe0e87ceffde185426dc074df9276702e4588508039e9ff9ff",
+      "writerScript": "scripts/generate-rust-omena-spec-audit-webref-grammar.ts",
+      "line": 60,
+      "writeApi": "writeFileSync",
+      "writeExpression": "deltaReportPath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "e29f66ac1bcaabfab0222308ae0c3cfacf2d1ed48372cafa3fe0010432b42d9a",
+      "writerScript": "scripts/generate-rust-omena-spec-audit-webref-grammar.ts",
+      "line": 70,
+      "writeApi": "writeFileSync",
+      "writeExpression": "deltaReportPath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "0b62b443445331983312f4106ce83fff8303df7059d11ba60e195e82bc04e676",
+      "writerScript": "scripts/generate-rust-omena-spec-audit-webref-grammar.ts",
+      "line": 75,
+      "writeApi": "writeFileSync",
+      "writeExpression": "snapshotPath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "f9fac2603719afe8d180922b4619746dc0f554ee42781affdb0ec4e72d962c1b",
+      "writerScript": "scripts/generate-rust-omena-transform-target-compat.ts",
+      "line": 857,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(repoRoot, relativePath)",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "ed5b3af00b7ae19e50b4d6a91456d8f6591eac16e8783da5e50ded9e8efae26d",
+      "writerScript": "scripts/generate-rust-omena-value-grammar-corpus.ts",
+      "line": 208,
+      "writeApi": "writeFileSync",
+      "writeExpression": "outputPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "46ede700e754c0a504895fd1fc446f702e077e4aeb400a13b819b1b60a2bd3b0",
+      "writerScript": "scripts/generate-sass-spec-conformance-corpus.ts",
+      "line": 113,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(corpusRoot, chunkPath)",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "9f107e4a09c2edc7eda469b7c245ccff1d3db3392e7e16ef636f36516e53195c",
+      "writerScript": "scripts/generate-sass-spec-conformance-corpus.ts",
+      "line": 114,
+      "writeApi": "writeFileSync",
+      "writeExpression": "manifestPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "88250845948f7f48fc4306d9383952c80fd73af5c7d4b5bd87502658420c52b4",
+      "writerScript": "scripts/generate-sass-spec-corpus.ts",
+      "line": 182,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(corpusRoot, chunkPath)",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "bf08f6606dbdc9e33c00774e0064cb966b08f933bc3f9ad0631f33e5f66a9aba",
+      "writerScript": "scripts/generate-sass-spec-corpus.ts",
+      "line": 183,
+      "writeApi": "writeFileSync",
+      "writeExpression": "manifestPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "2dea8e4278a8d1cce4a7f532a002f5957139d15894e8b4aec8fc94e7025d58c8",
+      "writerScript": "scripts/lib/parser-edit-slope-gate.ts",
+      "line": 420,
+      "writeApi": "writeFileSync",
+      "writeExpression": "reportPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "fa9c2fea9f4628609731e789ef260863c079ce58bdc1dd5edd0c0345b88bf935",
+      "writerScript": "scripts/lib/parser-edit-slope-gate.ts",
+      "line": 426,
+      "writeApi": "writeFileSync",
+      "writeExpression": "BASELINE_PATH",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "7294de1045b17d6087ba5312f334c6968f619c757de994dca2a77de007559508",
+      "writerScript": "scripts/lib/parser-edit-slope-gate.ts",
+      "line": 546,
+      "writeApi": "writeFileSync",
+      "writeExpression": "BASELINE_PATH",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "c72fc3d433a70cacfb1d417fab6ad693f75b9f893636803f7b13c5fa48a52ade",
+      "writerScript": "scripts/lib/parser-edit-slope-gate.ts",
+      "line": 639,
+      "writeApi": "renameSync",
+      "writeExpression": "temporary",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "c5c85a75994180b9589b4da7707f45b992c08478c81b43ab38e0aef3eabffa84",
+      "writerScript": "scripts/lib/query-consumer-family.ts",
+      "line": 317,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(srcDir, \"App.tsx\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "96ec99d284bfc33899044f8eabcf7d53b267d3a7b6a72339296a4c3561fb7a46",
+      "writerScript": "scripts/lib/query-consumer-family.ts",
+      "line": 327,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(srcDir, \"App.module.scss\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "6d640c4cc6af6ed51ed81ad9ea0bd3e1b568b6213b87bc36b38dcb1908048258",
+      "writerScript": "scripts/lib/query-consumer-family.ts",
+      "line": 328,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(srcDir, \"types.d.ts\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "8cc28a6fd8624cca64181819c59bc1b847a1620cc245cfbbf5aee4b7fd313fb9",
+      "writerScript": "scripts/lib/query-consumer-family.ts",
+      "line": 800,
+      "writeApi": "writeFileSync",
+      "writeExpression": "sourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "7a2b2b7377c0df854c89a02997497f50241e4b9ec4c3ebbc4327aa4a85eca00e",
+      "writerScript": "scripts/lib/query-consumer-family.ts",
+      "line": 801,
+      "writeApi": "writeFileSync",
+      "writeExpression": "stylePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "95ae33d6171f1eeaad12811f4f384d3183311de14e26a01d2ada5fd93fd5a8c7",
+      "writerScript": "scripts/lib/query-consumer-family.ts",
+      "line": 802,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(root, \"tsconfig.json\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "ff47f8de67210355e5eff42869549c918510b4fd567a658f72e4b4acade36b51",
+      "writerScript": "scripts/lib/query-consumer-family.ts",
+      "line": 803,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(root, \"types\", \"css-modules.d.ts\")",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "7f1975b72c8d2706d177e765f1f934bc88d1bab332b18a0f29cf7676b989f456",
+      "writerScript": "scripts/measure-css-module-token-shapes.ts",
+      "line": 242,
+      "writeApi": "writeFileSync",
+      "writeExpression": "outputPath",
+      "disposition": "unswept-registry-writer"
+    },
+    {
+      "fingerprint": "6f66304254b743c4202692016e7005b572b278fc4dbe9dbf9f52189cd54e150d",
+      "writerScript": "scripts/measure-rust-omena-diagnostic-transition-attribution.ts",
+      "line": 168,
+      "writeApi": "writeFileSync",
+      "writeExpression": "probePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "cf1df6f6123471cfe5b9f8f8789cfcd12886b4f71cbdc573cb915767ecc893e8",
+      "writerScript": "scripts/oss-corpus-farm.ts",
+      "line": 448,
+      "writeApi": "writeFileSync",
+      "writeExpression": "rankedSetLossCensusPath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "1dd5efc9918f802be6987dbfcdd782f0c26c857f1e073622efd2558a3d58aac8",
+      "writerScript": "scripts/oss-corpus-farm.ts",
+      "line": 473,
+      "writeApi": "writeFileSync",
+      "writeExpression": "reportPathForManifest",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "fc264b26c4ee98900c1f3998c94bbaa97a7b600a93821f23bcbc695d38b053a3",
+      "writerScript": "scripts/oss-corpus-farm.ts",
+      "line": 474,
+      "writeApi": "writeFileSync",
+      "writeExpression": "rankedSetLossCensusPath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "704d5d47b5656fe3924e0f945da36fe8d64d4afe0b9f59c14aa2bed7603a6324",
+      "writerScript": "scripts/oss-corpus-farm.ts",
+      "line": 505,
+      "writeApi": "writeFileSync",
+      "writeExpression": "reportPath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "5acbabc295432d6c9ced3e9ec749c114dec6bef6b2867a2238941024fc457f8d",
+      "writerScript": "scripts/oss-corpus-farm.ts",
+      "line": 1673,
+      "writeApi": "writeFileSync",
+      "writeExpression": "baselinePath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "babbe92c3e2326f98f2b72ad403f84ae7713c4ccdb252525e706de6b849bd28d",
+      "writerScript": "scripts/oss-corpus-farm.ts",
+      "line": 1677,
+      "writeApi": "writeFileSync",
+      "writeExpression": "reportPath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "46a10f1deafc96d1799e2d51a9c0b50c6cadd3dc241f82842080c19b925bc66e",
+      "writerScript": "scripts/oss-corpus-farm.ts",
+      "line": 1897,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.join(fixtureDir, \"fixture.omena\")",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "b4750412b3b463c3f9d59143827eeefdd027e1ae61efd90bc84c9aaf9b45a27c",
+      "writerScript": "scripts/oss-corpus-farm.ts",
+      "line": 1932,
+      "writeApi": "writeFileSync",
+      "writeExpression": "manifestPathForCapture",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "b20f70ab7af82ceb921709d1ef6e9386667f9d09772a3969ee324738bf3206bf",
+      "writerScript": "scripts/package-extension-vsix.ts",
+      "line": 69,
+      "writeApi": "copyFileSync",
+      "writeExpression": "source",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "a73ef06bb3bf566c3aea63bc51277874ba8a7f3caed91c981b60c4a0c2ad2fd2",
+      "writerScript": "scripts/package-extension-vsix.ts",
+      "line": 77,
+      "writeApi": "cpSync",
+      "writeExpression": "source",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "a8de3e84b605ec22a295bfe2d1a0bc3271e19c36b506fdfa446709745776425f",
+      "writerScript": "scripts/prepare-engine-shadow-runner.mjs",
+      "line": 22,
+      "writeApi": "copyFileSync",
+      "writeExpression": "sourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "2064b87e8fa2397484bd7f0b76c7d5c70596d7397ef79f0a97e5fcbf399e6656",
+      "writerScript": "scripts/prepare-omena-lsp-server.mjs",
+      "line": 22,
+      "writeApi": "copyFileSync",
+      "writeExpression": "sourcePath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "f5e2f6ab281507bcba647011137a7cbc2b24acd65a7fe884f3258af1271a4778",
+      "writerScript": "scripts/prepare-tsgo-binary.mjs",
+      "line": 43,
+      "writeApi": "cpSync",
+      "writeExpression": "path.join(sourceLibDir, entry.name)",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "453689caeecacdb7702811542ca7a2ecba17b8abd7197fcea5b9cece79d88faa",
+      "writerScript": "scripts/release-notes.ts",
+      "line": 71,
+      "writeApi": "writeFileSync",
+      "writeExpression": "path.resolve(repoRoot, output)",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "79c55bc9529239b68494b143e98692465f8bbf78ab4a29c8a994aebb20559fed",
+      "writerScript": "scripts/release-notes.ts",
+      "line": 640,
+      "writeApi": "writeFileSync",
+      "writeExpression": "output",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "2aacc1b0345b2c75109e4039b048953f13c16b94b199d31cad7af57236be104d",
+      "writerScript": "scripts/run-sass-migration-oracle.ts",
+      "line": 128,
+      "writeApi": "writeFileSync",
+      "writeExpression": "outputPath",
+      "disposition": "outside-registry-writer"
+    },
+    {
+      "fingerprint": "2f56ea9a5141c9f4224212736243021a728b64540f7eebbf4843b7753f9f2e11",
+      "writerScript": "scripts/update-contract-parity-v1-golden.ts",
+      "line": 22,
+      "writeApi": "writeFileSync",
+      "writeExpression": "fixturePath",
+      "disposition": "declared-writer-sweep"
+    },
+    {
+      "fingerprint": "5719d8dd5a5f5ce74f5aba548f58b4621aa098212ed13b332683b1df502c271c",
+      "writerScript": "scripts/update-contract-parity-v2-golden.ts",
+      "line": 30,
+      "writeApi": "writeFileSync",
+      "writeExpression": "fixturePath",
+      "disposition": "declared-writer-sweep"
+    }
+  ]
+}
