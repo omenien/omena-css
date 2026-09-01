@@ -2363,6 +2363,10 @@ describe("digest-pinned writer wrapper", () => {
       attachFixtureNodeModules(fixture.repoRoot, fixture.worktree);
       writeFileSync(path.join(fixtureDirectory, "docs-change.txt"), "changed\n");
       writeFileSync(path.join(fixtureDirectory, "w2-change.txt"), "changed\n");
+      commitFixturePaths(fixture.worktree, "test: drive composed writer fixture", [
+        "fixture/docs-change.txt",
+        "fixture/w2-change.txt",
+      ]);
       const cliArgs = [
         "--import",
         "tsx",
@@ -2371,10 +2375,16 @@ describe("digest-pinned writer wrapper", () => {
         "--evidence",
         "--write",
         "--json",
-        "--base=HEAD",
+        "--base=HEAD^",
       ];
       const cliReadmePath = path.join(fixture.worktree, "rust/crates/omena-cli/README.md");
       const cliReadmeBefore = readFileSync(cliReadmePath);
+      expect(
+        execFileSync("git", ["status", "--porcelain"], {
+          cwd: fixture.worktree,
+          encoding: "utf8",
+        }),
+      ).toBe("");
       const green = spawnSync(process.execPath, cliArgs, {
         cwd: fixture.worktree,
         encoding: "utf8",
@@ -2387,12 +2397,17 @@ describe("digest-pinned writer wrapper", () => {
       expect(green.stdout).toContain('"product": "docs.reference-surface"');
 
       rmSync(path.join(fixtureDirectory, "w2-executed.log"), { force: true });
-      commitFixturePaths(fixture.worktree, "test: anchor composed writer result", [
-        "fixture/docs-change.txt",
+      writeFileSync(path.join(fixtureDirectory, "w2-change.txt"), "changed-again\n");
+      commitFixturePaths(fixture.worktree, "test: drive missing W2 fixture", [
         "fixture/w2-change.txt",
       ]);
-      writeFileSync(path.join(fixtureDirectory, "w2-change.txt"), "changed-again\n");
       const w2OutputBefore = readFileSync(path.join(fixtureDirectory, "w2-output.json"));
+      expect(
+        execFileSync("git", ["status", "--porcelain"], {
+          cwd: fixture.worktree,
+          encoding: "utf8",
+        }),
+      ).toBe("");
       const red = spawnSync(process.execPath, cliArgs, {
         cwd: fixture.worktree,
         encoding: "utf8",
