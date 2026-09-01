@@ -315,7 +315,8 @@ impl WorkspaceEditTransaction {
             }
             let stage_path = sidecar_path(edit.path.as_path(), "stage", transaction_id, index);
             let backup_path = sidecar_path(edit.path.as_path(), "backup", transaction_id, index);
-            let stage_result = write_new_file(stage_path.as_path(), edit.content.as_slice());
+            let stage_result =
+                write_staged_product_bytes(stage_path.as_path(), edit.content.as_slice());
             if let Err(error) = stage_result {
                 cleanup_staged(staged.as_slice());
                 return Err(error);
@@ -392,7 +393,7 @@ impl WorkspaceEditTransaction {
             }
         })?;
         encoded.push(b'\n');
-        write_new_file(path, encoded.as_slice())
+        write_transaction_journal_file(path, encoded.as_slice())
     }
 
     fn rename_all(
@@ -672,7 +673,10 @@ enum WorkspaceEditFailpointV0 {
     AfterRenames(usize),
 }
 
-fn write_new_file(path: &Path, content: &[u8]) -> Result<(), WorkspaceEditTransactionErrorV0> {
+fn write_staged_product_bytes(
+    path: &Path,
+    content: &[u8],
+) -> Result<(), WorkspaceEditTransactionErrorV0> {
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -682,6 +686,21 @@ fn write_new_file(path: &Path, content: &[u8]) -> Result<(), WorkspaceEditTransa
         .map_err(|error| io_error("write staged file", path, error))?;
     file.sync_all()
         .map_err(|error| io_error("sync staged file", path, error))
+}
+
+fn write_transaction_journal_file(
+    path: &Path,
+    content: &[u8],
+) -> Result<(), WorkspaceEditTransactionErrorV0> {
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|error| io_error("create transaction journal", path, error))?;
+    file.write_all(content)
+        .map_err(|error| io_error("write transaction journal", path, error))?;
+    file.sync_all()
+        .map_err(|error| io_error("sync transaction journal", path, error))
 }
 
 fn cleanup_backups(
