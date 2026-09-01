@@ -3,7 +3,7 @@
   "generatedBy": "pnpm omena-check evidence-writers --write",
   "scope": {
     "pathspecs": ["scripts/**", "packages/check-orchestrator/src/**"],
-    "scannedScriptCount": 494,
+    "scannedScriptCount": 495,
     "registryWriterScriptCount": 75,
     "declaredWriterScriptCount": 31,
     "broadWriterScriptCountWithNonLiteralSites": 122,

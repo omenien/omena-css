@@ -4699,6 +4699,27 @@
       "consumerGateIds": ["rust/precision-floor"]
     },
     {
+      "artifactPath": "rust/omena-precision-floor-authority.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-precision-floor-authority.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputPaths": [],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "scripts/check-rust-precision-floor-mutation.ts",
+        "scripts/check-rust-precision-floor.ts"
+      ],
+      "consumerGateIds": ["rust/precision-floor"]
+    },
+    {
       "artifactPath": "rust/omena-precision-witness-census.json",
       "classification": "W2",
       "writerNodeKind": "normal",

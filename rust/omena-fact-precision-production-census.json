@@ -1,7 +1,7 @@
 {
   "schemaVersion": "0",
   "product": "omena.fact-precision-production-census",
-  "rawReferenceCount": 133,
+  "rawReferenceCount": 135,
   "productionSiteCount": 11,
   "productionOverrideCount": 8,
   "classifiedSites": [
@@ -707,6 +707,21 @@
         "Unknown": 0
       },
       "occurrenceCount": 1,
+      "disposition": "test",
+      "authority": "test-only precision expectation or mutation fixture"
+    },
+    {
+      "sourcePath": "rust/crates/omena-query/src/tests/precision_floor_manifest.rs",
+      "owner": "fn producer_arm",
+      "lexicalContext": "code",
+      "testOnly": true,
+      "variantCounts": {
+        "Exact": 0,
+        "Conservative": 2,
+        "Heuristic": 0,
+        "Unknown": 0
+      },
+      "occurrenceCount": 2,
       "disposition": "test",
       "authority": "test-only precision expectation or mutation fixture"
     },
