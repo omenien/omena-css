@@ -55,13 +55,14 @@
           "id": "analysis-precision-wire-axes",
           "kind": "wire-value-order-preserving",
           "surface": "EvidenceAnalysisPrecisionV0 JSON precision metadata",
-          "reason": "The flattened wire object retains the four existing labels as typed enum values and adds provider-completeness and world-assumption labels.",
+          "reason": "The flattened wire object retains the existing value-domain, flow, and revision labels, adds provider-completeness and world-assumption labels, and normalizes numeric context depths at or above two from the former '<n>-cfa' spelling to the typed 'k-cfa' label.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
               "needles": [
                 "pub provider_completeness: ProviderCompletenessV1",
                 "pub world_assumption: WorldAssumptionV1",
+                "#[serde(rename = \"k-cfa\")]",
                 "#[serde(flatten)]"
               ]
             }
@@ -93,7 +94,7 @@
           "id": "query-analysis-precision-wire-axes",
           "kind": "wire-value-order-preserving",
           "surface": "OmenaQueryAnalysisPrecisionV0 JSON precision metadata",
-          "reason": "The flattened query wire object retains the existing labels as typed values and exposes provider-completeness and world-assumption so consumers can explain the effective meet.",
+          "reason": "The flattened query wire object carries typed labels and exposes provider-completeness and world-assumption so consumers can explain the effective meet; context depths at or above two are intentionally normalized from '<n>-cfa' to 'k-cfa'.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
@@ -101,6 +102,10 @@
                 "pub axes: AnalysisPrecisionV1",
                 "project_fact_precision_from_analysis_precision(&precision.axes)"
               ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
+              "needles": ["#[serde(rename = \"k-cfa\")]"]
             }
           ]
         }
@@ -652,6 +657,48 @@
               "needles": [
                 "assert_eq!(report.diagnostics[0].precision, FactPrecision::Conservative);",
                 "\"loweringAxis\": \"flow\""
+              ]
+            }
+          ]
+        },
+        {
+          "id": "source-diagnostic-precision-axis-meet",
+          "kind": "selection-outcome-changing",
+          "surface": "source diagnostic and source-flow precision labels",
+          "reason": "Global fallthrough, unresolved module imports, empty resolved-class domains, and absent source-flow captures now report the meet of their real flow, provider-completeness, and world-assumption axes instead of the retired value-domain-only label.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
+              "needles": [
+                "code: \"globalClassFallthrough\"",
+                "usize::from(value_domain_size == 0)",
+                "ValueDomainPrecisionV1::StyleModuleResolution"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/source.rs",
+              "needles": ["usize::from(capture.is_none())", "Some(\"noFlowCapture\")"]
+            }
+          ]
+        },
+        {
+          "id": "cascade-position-provider-precision",
+          "kind": "selection-outcome-changing",
+          "surface": "cascade-at-position analysis-result precision",
+          "reason": "A resolved cascade position retains exact precision, while an unresolved custom-property provider now reports unknown through provider-completeness and open-world axes instead of inheriting the retired value-domain-only exact label.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/cascade_position.rs",
+              "needles": [
+                "let unresolved_provider_count = usize::from(value.status == \"unresolved\")",
+                "unresolved_provider_count == 0"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/tests/cascade_queries.rs",
+              "needles": [
+                "fn unresolved_cascade_provider_keeps_the_position_gate_unknown()",
+                "assert_eq!(effective, crate::FactPrecision::Unknown)"
               ]
             }
           ]

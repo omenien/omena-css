@@ -132,18 +132,11 @@ const expectedSites: readonly PrecisionSiteDispositionRecord[] = [
     "the semantic-observation transform performs no mutation and reports its complete IR observation",
   ),
   site(
-    "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-    "fn summarize_omena_query_css_modules_export_usage",
-    { Unknown: 1 },
-    "productionOverride",
-    "an unresolved import or dynamic source-usage path is explicitly skipped rather than inferred",
-  ),
-  site(
     "rust/crates/omena-query/src/style/transform.rs",
     "fn closed_world_bound_reachability_precision",
-    { Conservative: 1 },
+    { Unknown: 1 },
     "derivationRule",
-    "the sealed-bundle adapter validates enumeration membership and a content-addressed witness",
+    "the sealed-bundle adapter defaults absent precision input to Unknown and validates enumeration membership plus a content-addressed witness",
   ),
   site(
     "rust/crates/omena-query/src/style/transform.rs",

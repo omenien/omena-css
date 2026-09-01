@@ -4239,7 +4239,6 @@
         "rust/crates/omena-cli/src/migrate/normalize.rs",
         "rust/crates/omena-query-transform-runner/src/plugins/bundle_host.rs",
         "rust/crates/omena-query-transform-runner/src/plugins/semantic_observation.rs",
-        "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
         "rust/crates/omena-query/src/style/transform.rs",
         "rust/crates/omena-transform-passes/src/model.rs",
         "rust/crates/omena-transform-passes/src/runtime/executor.rs"
@@ -4967,6 +4966,7 @@
         "scripts/check-rust-domain-claim-census.ts",
         "scripts/check-rust-frame-refresh-runtime-disposition.ts",
         "scripts/check-rust-omena-query-visibility-experiment.ts",
+        "scripts/check-rust-precision-floor.ts",
         "scripts/check-rust-sif-attestation-feature.ts",
         "scripts/lib/rust-semver-intent.ts",
         "scripts/release-notes.ts"
@@ -4977,6 +4977,7 @@
         "rust/domain-claim-census",
         "rust/frame-refresh-runtime-disposition",
         "rust/omena-query/visibility-experiment",
+        "rust/precision-floor",
         "rust/sif-attestation-feature"
       ]
     },

@@ -20,6 +20,125 @@ function rustSources(relativeDirectory: string): string[] {
     .map((entry) => fs.readFileSync(path.join(directory, entry), "utf8"));
 }
 
+interface RustSourceEntry {
+  readonly relativePath: string;
+  readonly source: string;
+}
+
+function rustSourceEntries(relativeDirectory: string): RustSourceEntry[] {
+  const directory = path.join(repoRoot, relativeDirectory);
+  return evidenceScanSurface
+    .readdirSync(directory, { recursive: true, encoding: "utf8" })
+    .filter((entry) => entry.endsWith(".rs"))
+    .map((entry) => ({
+      relativePath: path.posix.join(relativeDirectory, entry.replaceAll(path.sep, "/")),
+      source: fs.readFileSync(path.join(directory, entry), "utf8"),
+    }));
+}
+
+function productionRustSource(entry: RustSourceEntry): string | undefined {
+  if (entry.relativePath.endsWith("/tests.rs") || entry.relativePath.includes("/tests/")) {
+    return undefined;
+  }
+  const characters = entry.source.split("");
+  const pattern = /#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*mod\s+[A-Za-z0-9_]+\s*\{/gu;
+  for (const match of entry.source.matchAll(pattern)) {
+    const open = entry.source.indexOf("{", match.index);
+    let depth = 1;
+    let cursor = open + 1;
+    while (cursor < entry.source.length && depth > 0) {
+      if (entry.source[cursor] === "{") depth += 1;
+      if (entry.source[cursor] === "}") depth -= 1;
+      cursor += 1;
+    }
+    for (let index = match.index; index < cursor; index += 1) {
+      if (characters[index] !== "\n" && characters[index] !== "\r") characters[index] = " ";
+    }
+  }
+  return characters.join("");
+}
+
+function structLiteralBodies(source: string, typeName: string): string[] {
+  const bodies: string[] = [];
+  const pattern = new RegExp(`\\b${typeName}\\s*\\{`, "gu");
+  for (const match of source.matchAll(pattern)) {
+    const open = source.indexOf("{", match.index);
+    let depth = 1;
+    let cursor = open + 1;
+    while (cursor < source.length && depth > 0) {
+      if (source[cursor] === "{") depth += 1;
+      if (source[cursor] === "}") depth -= 1;
+      cursor += 1;
+    }
+    assert.equal(depth, 0, `unterminated ${typeName} literal`);
+    bodies.push(source.slice(open + 1, cursor - 1));
+  }
+  return bodies;
+}
+
+function topLevelFieldExpressions(body: string): ReadonlyMap<string, string> {
+  const fields = new Map<string, string>();
+  let start = 0;
+  let round = 0;
+  let square = 0;
+  let curly = 0;
+  const segments: string[] = [];
+  for (let index = 0; index <= body.length; index += 1) {
+    const character = body[index];
+    if (character === "(") round += 1;
+    if (character === ")") round -= 1;
+    if (character === "[") square += 1;
+    if (character === "]") square -= 1;
+    if (character === "{") curly += 1;
+    if (character === "}") curly -= 1;
+    if (
+      (character === "," || index === body.length) &&
+      round === 0 &&
+      square === 0 &&
+      curly === 0
+    ) {
+      segments.push(body.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  for (const segment of segments) {
+    const match = segment.match(/^([a-z_]+)\s*:\s*([\s\S]+)$/u);
+    if (match?.[1] && match[2]) fields.set(match[1], match[2].trim());
+  }
+  return fields;
+}
+
+function topLevelArguments(body: string): string[] {
+  const arguments_: string[] = [];
+  let start = 0;
+  let round = 0;
+  let square = 0;
+  let curly = 0;
+  for (let index = 0; index <= body.length; index += 1) {
+    const character = body[index];
+    if (character === "(") round += 1;
+    if (character === ")") round -= 1;
+    if (character === "[") square += 1;
+    if (character === "]") square -= 1;
+    if (character === "{") curly += 1;
+    if (character === "}") curly -= 1;
+    if (
+      (character === "," || index === body.length) &&
+      round === 0 &&
+      square === 0 &&
+      curly === 0
+    ) {
+      arguments_.push(body.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  return arguments_.filter((argument) => argument.length > 0);
+}
+
+function directCallBodies(source: string, marker: string): string[] {
+  return callBodies(source, marker).filter((body) => body.includes("ValueDomainPrecisionV1::"));
+}
+
 function blockBody(source: string, marker: string): string {
   const start = source.indexOf(marker);
   assert.ok(start >= 0, `missing ${marker}`);
@@ -93,6 +212,29 @@ const precisionCalibration = JSON.parse(read("rust/omena-precision-calibration-r
       readonly loweringAxis: string;
     }[];
   }[];
+  readonly differentialSweep: {
+    readonly baselinePin: string;
+    readonly method: string;
+    readonly baselineTable: readonly {
+      readonly valueDomain: string;
+      readonly effectivePrecision: string;
+    }[];
+    readonly rows: readonly {
+      readonly caseId: string;
+      readonly output: string;
+      readonly before: string;
+      readonly after: string;
+      readonly loweringAxes: readonly string[];
+      readonly disposition: "disclosed" | "reverted";
+      readonly semverIntentId: string | null;
+    }[];
+  };
+};
+const semverIntent = JSON.parse(read("rust/omena-rust-semver-intent.json")) as {
+  readonly intents: readonly {
+    readonly crate: string;
+    readonly expectedRuntimeValueChanges?: readonly { readonly id: string }[];
+  }[];
 };
 
 const factPrecisionVariants = topLevelEnumVariants(abstractTypes, "FactPrecision");
@@ -165,13 +307,33 @@ assert.ok(
   "lattice laws must stay executable",
 );
 
-const precisionProducerSources = [
-  evidenceGraph,
-  abstractDomain,
-  queryCore,
-  queryTypes,
-  ...rustSources("rust/crates/omena-query/src"),
+const precisionConsumerCrates = [
+  "omena-abstract-value",
+  "omena-query-core",
+  "omena-query",
+  "omena-bridge",
+  "omena-checker",
+  "omena-transform-passes",
+] as const;
+const precisionAuthorityAndConsumerEntries = [
+  ...rustSourceEntries("rust/crates/omena-evidence-graph/src"),
+  ...precisionConsumerCrates.flatMap((crateName) =>
+    rustSourceEntries(`rust/crates/${crateName}/src`),
+  ),
 ];
+const productionPrecisionEntries = precisionAuthorityAndConsumerEntries.flatMap((entry) => {
+  const source = productionRustSource(entry);
+  return source === undefined ? [] : [{ ...entry, source }];
+});
+const precisionProducerSources = productionPrecisionEntries.map((entry) => entry.source);
+for (const crateName of precisionConsumerCrates) {
+  assert.ok(
+    productionPrecisionEntries.some((entry) =>
+      entry.relativePath.startsWith(`rust/crates/${crateName}/src/`),
+    ),
+    `precision producer/consumer census must include ${crateName}`,
+  );
+}
 const typedProducerValueDomains = new Set(
   precisionProducerSources.flatMap((source) =>
     [...source.matchAll(/value_domain:\s*ValueDomainPrecisionV1::([A-Z][A-Za-z0-9]*)/gu)].map(
@@ -186,18 +348,81 @@ const typedAxisProducerMarkers = [
   "ContextPrecisionV1::from_max_context_depth",
   "ProviderCompletenessV1::from_unresolved_count",
   "WorldAssumptionV1::from_closed_world",
-  "RevisionIdentityV1::from_revisions",
+  "RevisionIdentityV1::expression_domain_runtime",
 ] as const;
 const typedAxisProducerCorpus = precisionProducerSources.join("\n");
 for (const marker of typedAxisProducerMarkers) {
   assert.ok(typedAxisProducerCorpus.includes(marker), `missing typed axis producer ${marker}`);
 }
+const precisionAxisFields = [
+  "value_domain",
+  "flow",
+  "context",
+  "provider_completeness",
+  "world_assumption",
+  "revision",
+] as const;
+const analysisPrecisionConstructors = productionPrecisionEntries.flatMap((entry) =>
+  structLiteralBodies(entry.source, "AnalysisPrecisionV1")
+    .map((body) => ({
+      sourcePath: entry.relativePath,
+      fields: topLevelFieldExpressions(body),
+    }))
+    .filter((constructor) => constructor.fields.size > 0),
+);
+const analysisPrecisionAxisAssignments = analysisPrecisionConstructors.flatMap((constructor) =>
+  precisionAxisFields.flatMap((field) => {
+    const expression = constructor.fields.get(field);
+    return expression === undefined ? [] : [{ ...constructor, field, expression }];
+  }),
+);
+const typedJustifiedAxisAssignments = analysisPrecisionAxisAssignments.filter(({ expression }) =>
+  /^(?:ValueDomainPrecisionV1|FlowPrecisionV1|ContextPrecisionV1|ProviderCompletenessV1|WorldAssumptionV1|RevisionIdentityV1)::[A-Z][A-Za-z0-9]*$/u.test(
+    expression,
+  ),
+);
+const derivedAxisAssignments = analysisPrecisionAxisAssignments.filter(
+  (assignment) => !typedJustifiedAxisAssignments.includes(assignment),
+);
+assert.ok(
+  analysisPrecisionConstructors.length > 0,
+  "precision constructor census must be non-vacuous",
+);
+assert.equal(
+  typedJustifiedAxisAssignments.length + derivedAxisAssignments.length,
+  analysisPrecisionAxisAssignments.length,
+  "every production typed-axis assignment must be classified",
+);
+assert.ok(
+  analysisPrecisionAxisAssignments.some((assignment) =>
+    assignment.sourcePath.includes("/omena-bridge/"),
+  ),
+  "producer census must measure bridge metadata assignments",
+);
+assert.equal(
+  analysisPrecisionAxisAssignments.some(
+    (assignment) =>
+      assignment.sourcePath.includes("/omena-checker/") &&
+      !assignment.sourcePath.includes("/tests/"),
+  ),
+  false,
+  "omena-checker consumes precision but must not become a production axis producer",
+);
 function literalConstantAxisAssignments(sources: readonly string[]): string[] {
   const pattern =
     /(?:value_domain|flow(?:_sensitivity)?|context(?:_sensitivity)?|provider_completeness|world_assumption|revision(?:_axis)?):\s*(?:String::from\s*\(\s*)?"[^"]+"/gu;
   return sources.flatMap((source) => [...source.matchAll(pattern)].map((match) => match[0]));
 }
-const literalAxisAssignments = literalConstantAxisAssignments(precisionProducerSources);
+const precisionIdentitySources = [
+  evidenceGraph,
+  abstractDomain,
+  queryCore,
+  queryTypes,
+  bridgeStyleIntelligence,
+  checkerFixSafety,
+  ...rustSources("rust/crates/omena-query/src"),
+];
+const literalAxisAssignments = literalConstantAxisAssignments(precisionIdentitySources);
 assert.deepEqual(
   literalAxisAssignments,
   [],
@@ -219,7 +444,7 @@ function stringKeyedPrecisionDerivations(sources: readonly string[]): string[] {
     patterns.flatMap((pattern) => [...source.matchAll(pattern)].map((match) => match[0])),
   );
 }
-const stringKeyedDerivations = stringKeyedPrecisionDerivations(precisionProducerSources);
+const stringKeyedDerivations = stringKeyedPrecisionDerivations(precisionIdentitySources);
 assert.deepEqual(
   stringKeyedDerivations,
   [],
@@ -258,7 +483,7 @@ assert.ok(
 );
 assert.ok(queryTransformContext.includes("reachability_precisions.push(projection_precision)"));
 assert.ok(queryTransform.includes("with_closed_world_witness(witnessed.value_domain)"));
-for (const [source, arm] of [
+const destructiveConsumerSensitivityArmCandidates = [
   [checkerFixSafety, "fix_safety_closes_when_any_meet_axis_lowers_an_exact_domain"],
   [
     bridgeStyleIntelligence,
@@ -266,21 +491,54 @@ for (const [source, arm] of [
   ],
   [transformTreeShakeTests, "tree_shake_precision_floor_consumes_the_full_axis_meet"],
   [queryTransform, "sealed_bundle_content_binds_finite_reachability_precision"],
-] as const) {
-  assert.ok(source.includes(arm), `missing destructive consumer sensitivity arm ${arm}`);
+] as const;
+const destructiveConsumerSensitivityArms = destructiveConsumerSensitivityArmCandidates.filter(
+  ([source, arm]) => source.includes(arm),
+);
+assert.equal(
+  destructiveConsumerSensitivityArms.length,
+  destructiveConsumerSensitivityArmCandidates.length,
+  "every destructive precision consumer must retain its measured sensitivity arm",
+);
+for (const [, arm] of destructiveConsumerSensitivityArms) {
+  assert.ok(arm.length > 0);
 }
-for (const producerGateArm of [
-  "unresolved_provider.provider_completeness",
-  "open_world.world_assumption",
-  "stale_revision.revision",
-  "shallow_context.context",
-  "non_dataflow.flow",
-]) {
-  assert.ok(
-    transformTreeShakeTests.includes(producerGateArm),
-    `missing producer-to-closed-gate axis assertion ${producerGateArm}`,
-  );
+const treeShakeMeetSensitivityBody = blockBody(
+  transformTreeShakeTests,
+  "fn tree_shake_precision_floor_consumes_the_full_axis_meet",
+);
+const literalFixtureGateAxes = new Set<string>();
+for (const body of structLiteralBodies(treeShakeMeetSensitivityBody, "AnalysisPrecisionV1")) {
+  if (!body.includes("..exact")) continue;
+  for (const field of topLevelFieldExpressions(body).keys()) literalFixtureGateAxes.add(field);
 }
+assert.deepEqual(
+  [...literalFixtureGateAxes].toSorted(),
+  [...precisionAxisFields].toSorted(),
+  "the destructive gate fixture must lower each of the six axes",
+);
+const realInputProducerArmCandidates = [
+  [queryCore, "incremental_precision_derives_provider_and_world_axes_from_engine_input"],
+  [queryCore, "unresolved_effective.satisfies(FactPrecision::Conservative)"],
+  [queryCore, "open_world_effective.satisfies(FactPrecision::Conservative)"],
+  [read("rust/crates/omena-query/src/tests/dynamic_classname.rs"), "dynamic_classname_input(0)"],
+  [
+    read("rust/crates/omena-query/src/tests/source_surfaces.rs"),
+    "source_precision_without_a_real_flow_capture_closes_the_precision_floor",
+  ],
+  [
+    read("rust/crates/omena-query/src/style/diagnostics/tests/source_usage.rs"),
+    "UnresolvedImportEdge",
+  ],
+] as const;
+const realInputProducerToGateArms = realInputProducerArmCandidates.filter(([source, marker]) =>
+  source.includes(marker),
+);
+assert.equal(
+  realInputProducerToGateArms.length,
+  realInputProducerArmCandidates.length,
+  "real input producer-to-gate arms must stay executable and closed",
+);
 assert.ok(
   queryTransform.includes(
     "execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_precision_and_policy",
@@ -289,7 +547,6 @@ assert.ok(
 const precisionLabelDrops = precisionCalibration.cases.flatMap(
   (calibrationCase) => calibrationCase.precisionLabelDrops ?? [],
 );
-assert.equal(precisionLabelDrops.length, 4, "precision label-drop disclosure count drifted");
 assert.ok(
   precisionLabelDrops.every(
     (drop) =>
@@ -300,6 +557,186 @@ assert.ok(
       ),
   ),
   "every precision label drop must name its lowering axis",
+);
+assert.equal(
+  precisionCalibration.differentialSweep.baselinePin,
+  "db5a53366e8ab695457d23dad6535450bcf84cd1",
+);
+assert.equal(
+  precisionCalibration.differentialSweep.method,
+  "retiredSixRowTableTranscriptionPlusProductionFixtureReplay",
+);
+assert.deepEqual(precisionCalibration.differentialSweep.baselineTable, [
+  { valueDomain: "cascadeAtPosition", effectivePrecision: "exact" },
+  { valueDomain: "styleModuleResolution", effectivePrecision: "exact" },
+  { valueDomain: "classValueResolution", effectivePrecision: "conservative" },
+  { valueDomain: "classValueUniverse", effectivePrecision: "conservative" },
+  { valueDomain: "classValueFlow", effectivePrecision: "heuristic" },
+  { valueDomain: "unknown", effectivePrecision: "unknown" },
+]);
+const semverRuntimeChangeIds = new Set(
+  semverIntent.intents.flatMap((intent) =>
+    (intent.expectedRuntimeValueChanges ?? []).map((change) => `${intent.crate}:${change.id}`),
+  ),
+);
+const precisionSweepRows = precisionCalibration.differentialSweep.rows;
+assert.equal(
+  new Set(precisionSweepRows.map((row) => row.output)).size,
+  precisionSweepRows.length,
+  "differential sweep outputs must be unique",
+);
+function validateDifferentialSweepRows(
+  rows: typeof precisionCalibration.differentialSweep.rows,
+): void {
+  for (const row of rows) {
+    const changed = row.before !== row.after;
+    if (changed) {
+      assert.equal(row.disposition, "disclosed", `${row.output} changed without disclosure`);
+      assert.ok(row.loweringAxes.length > 0, `${row.output} must name its lowering axis`);
+      assert.ok(row.semverIntentId !== null, `${row.output} must name a semver intent`);
+      assert.ok(
+        row.semverIntentId !== null && semverRuntimeChangeIds.has(row.semverIntentId),
+        `${row.output} names a missing semver intent`,
+      );
+    } else {
+      assert.equal(row.disposition, "reverted", `${row.output} must be marked reverted`);
+      assert.deepEqual(row.loweringAxes, [], `${row.output} reverted row must not claim a drop`);
+      assert.equal(
+        row.semverIntentId,
+        null,
+        `${row.output} reverted row must not claim semver drift`,
+      );
+    }
+  }
+}
+validateDifferentialSweepRows(precisionSweepRows);
+assert.throws(
+  () =>
+    validateDifferentialSweepRows([
+      ...precisionSweepRows,
+      {
+        caseId: "injectedUndisclosedDrift",
+        output: "injected.precision",
+        before: "exact",
+        after: "unknown",
+        loweringAxes: [],
+        disposition: "reverted",
+        semverIntentId: null,
+      },
+    ]),
+  /changed without disclosure/u,
+  "adding one undisclosed differential row must make the disclosure predicate RED",
+);
+const precisionRanks = ["unknown", "heuristic", "conservative", "exact"] as const;
+function axisEffectiveRanks(enumName: string): ReadonlyMap<string, string> {
+  const implementation = blockBody(evidenceGraph, `impl ${enumName}`);
+  const method = blockBody(implementation, "pub const fn effective_precision(self)");
+  const ranks = new Map<string, string>();
+  for (const match of method.matchAll(
+    /((?:Self::[A-Z][A-Za-z0-9]*(?:\s*\|\s*)?)+)\s*=>\s*\{?\s*EffectivePrecisionV1::([A-Z][A-Za-z0-9]*)/gu,
+  )) {
+    for (const variant of match[1]!.matchAll(/Self::([A-Z][A-Za-z0-9]*)/gu)) {
+      ranks.set(variant[1]!, match[2]!.toLowerCase());
+    }
+  }
+  assert.ok(ranks.size > 0, `could not read effective ranks for ${enumName}`);
+  return ranks;
+}
+const axisRankMaps = {
+  value: axisEffectiveRanks("ValueDomainPrecisionV1"),
+  flow: axisEffectiveRanks("FlowPrecisionV1"),
+  context: axisEffectiveRanks("ContextPrecisionV1"),
+  provider: axisEffectiveRanks("ProviderCompletenessV1"),
+  world: axisEffectiveRanks("WorldAssumptionV1"),
+  revision: axisEffectiveRanks("RevisionIdentityV1"),
+};
+const baselineByValueDomain = new Map(
+  precisionCalibration.differentialSweep.baselineTable.map((row) => [
+    row.valueDomain,
+    row.effectivePrecision,
+  ]),
+);
+const staticTupleToSweepOutput = new Map([
+  [
+    "ClassValueResolution|GlobalClassUniverse|PerSourceReference|0|false",
+    "globalClassFallthrough.precision",
+  ],
+  [
+    "StyleModuleResolution|SourceImportResolution|PerImportSpecifier|1|false",
+    "missing-module.precision",
+  ],
+]);
+const staticDifferentialOutputs: string[] = [];
+for (const entry of productionPrecisionEntries.filter((candidate) =>
+  candidate.relativePath.startsWith("rust/crates/omena-query/src/"),
+)) {
+  for (const call of directCallBodies(entry.source, "source_diagnostic_precision(")) {
+    const args = topLevelArguments(call);
+    if (args.length !== 5 || !/^[0-9]+$/u.test(args[3]!) || !/^(?:true|false)$/u.test(args[4]!)) {
+      continue;
+    }
+    const variantMatches = args
+      .slice(0, 3)
+      .map((argument) => argument.match(/::([A-Z][A-Za-z0-9]*)$/u)?.[1]);
+    if (variantMatches.some((variant) => variant === undefined)) continue;
+    const variants = variantMatches as string[];
+    const unresolvedCount = Number(args[3]);
+    const closedWorld = args[4] === "true";
+    const currentAxisRanks = [
+      axisRankMaps.value.get(variants[0]!),
+      axisRankMaps.flow.get(variants[1]!),
+      axisRankMaps.context.get(variants[2]!),
+      axisRankMaps.provider.get(unresolvedCount === 0 ? "Complete" : "Unresolved"),
+      axisRankMaps.world.get(closedWorld ? "Closed" : "Open"),
+      axisRankMaps.revision.get("QuerySourceDiagnosticsInput"),
+    ];
+    assert.ok(currentAxisRanks.every((rank) => rank !== undefined));
+    const current = currentAxisRanks.reduce<(typeof precisionRanks)[number]>((lowest, rank) => {
+      assert.ok(rank !== undefined);
+      const typedRank = rank as (typeof precisionRanks)[number];
+      return precisionRanks.indexOf(typedRank) < precisionRanks.indexOf(lowest)
+        ? typedRank
+        : lowest;
+    }, "exact");
+    const valueDomainWire = args[0]!
+      .match(/::([A-Z][A-Za-z0-9]*)$/u)![1]!
+      .replace(/^[A-Z]/u, (character) => character.toLowerCase());
+    const baseline = baselineByValueDomain.get(valueDomainWire);
+    assert.ok(baseline !== undefined, `missing baseline row for ${valueDomainWire}`);
+    if (baseline === current) continue;
+    const tuple = `${variants.join("|")}|${args[3]}|${args[4]}`;
+    const output = staticTupleToSweepOutput.get(tuple);
+    assert.ok(
+      output !== undefined,
+      `production precision call drifted without a swept output: ${entry.relativePath} ${tuple}`,
+    );
+    staticDifferentialOutputs.push(output);
+  }
+}
+assert.deepEqual(
+  staticDifferentialOutputs.toSorted(),
+  [...staticTupleToSweepOutput.values()].toSorted(),
+  "the table-transcription sweep must replay every static production precision drift",
+);
+for (const output of staticDifferentialOutputs) {
+  assert.ok(
+    precisionSweepRows.some((row) => row.output === output && row.before !== row.after),
+    `${output} is missing from the differential sweep manifest`,
+  );
+}
+const sweptPrecisionChanges = precisionSweepRows
+  .filter(
+    (row) => row.before !== row.after && row.output !== "analysisPrecision.contextSensitivity",
+  )
+  .map(({ output, before, after }) => ({ output, before, after }))
+  .toSorted((left, right) => left.output.localeCompare(right.output));
+const calibratedPrecisionChanges = precisionLabelDrops
+  .map(({ output, before, after }) => ({ output, before, after }))
+  .toSorted((left, right) => left.output.localeCompare(right.output));
+assert.deepEqual(
+  calibratedPrecisionChanges,
+  sweptPrecisionChanges,
+  "the calibration disclosure must be keyed to the differential sweep output",
 );
 
 const factPrecisionDeclarations = rustSources("rust/crates").reduce(
@@ -404,11 +841,24 @@ process.stdout.write(
       precisionAxisTypes,
       typedProducerValueDomains: [...typedProducerValueDomains].toSorted(),
       typedAxisProducerCount: typedAxisProducerMarkers.length,
+      precisionConsumerCrateCount: precisionConsumerCrates.length,
+      analysisPrecisionConstructorCount: analysisPrecisionConstructors.length,
+      productionAxisAssignmentCount: analysisPrecisionAxisAssignments.length,
+      typedJustifiedAxisAssignmentCount: typedJustifiedAxisAssignments.length,
+      derivedAxisAssignmentCount: derivedAxisAssignments.length,
       literalConstantAxisAssignmentCount: literalAxisAssignments.length,
       stringKeyedPrecisionDerivationCount: stringKeyedDerivations.length,
-      destructiveConsumerSensitivityArms: 4,
-      producerToClosedGateAxisArms: 5,
+      destructiveConsumerSensitivityArms: destructiveConsumerSensitivityArms.length,
+      literalFixtureGateSensitivityArms: literalFixtureGateAxes.size,
+      producerToClosedGateAxisArms: realInputProducerToGateArms.length,
       disclosedPrecisionLabelDropCount: precisionLabelDrops.length,
+      staticDifferentialReplayCount: staticDifferentialOutputs.length,
+      differentialSweepRowCount: precisionSweepRows.length,
+      differentialSweepChangedRowCount: precisionSweepRows.filter((row) => row.before !== row.after)
+        .length,
+      differentialSweepRevertedRowCount: precisionSweepRows.filter(
+        (row) => row.disposition === "reverted",
+      ).length,
       belowFloorCauseClasses: ["heuristicReachability", "unknownReachability"],
       structuralPassCount: structuralHandlers.length,
       structuralDecisionClassCounts: classCounts,

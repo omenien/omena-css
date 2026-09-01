@@ -43,19 +43,19 @@
       "missingMemberPrecision": "heuristic",
       "precisionLabelDrops": [
         {
-          "output": "openWorldPrecision",
+          "output": "closedSetFiniteReachability.openWorldPrecision",
           "before": "conservative",
           "after": "heuristic",
           "loweringAxis": "worldAssumption"
         },
         {
-          "output": "nonEnumeratedPrecision",
+          "output": "closedSetFiniteReachability.nonEnumeratedPrecision",
           "before": "conservative",
           "after": "heuristic",
           "loweringAxis": "worldAssumption"
         },
         {
-          "output": "missingMemberPrecision",
+          "output": "closedSetFiniteReachability.missingMemberPrecision",
           "before": "conservative",
           "after": "heuristic",
           "loweringAxis": "worldAssumption"
@@ -71,12 +71,206 @@
       "currentPrecision": "conservative",
       "precisionLabelDrops": [
         {
-          "output": "unusedModuleExport.precision",
+          "output": "cssModulesUnusedExportFlow.safeGhost.precision",
           "before": "exact",
           "after": "conservative",
           "loweringAxis": "flow"
         }
       ]
+    },
+    {
+      "caseId": "globalClassFallthrough",
+      "currentPrecision": "heuristic",
+      "precisionLabelDrops": [
+        {
+          "output": "globalClassFallthrough.precision",
+          "before": "conservative",
+          "after": "heuristic",
+          "loweringAxis": "flow"
+        }
+      ]
+    },
+    {
+      "caseId": "unresolvedModuleImport",
+      "currentPrecision": "unknown",
+      "precisionLabelDrops": [
+        {
+          "output": "missing-module.precision",
+          "before": "exact",
+          "after": "unknown",
+          "loweringAxis": "providerCompleteness"
+        }
+      ]
+    },
+    {
+      "caseId": "unresolvedSourceReferenceEmptyDomain",
+      "currentPrecision": "unknown",
+      "precisionLabelDrops": [
+        {
+          "output": "missingResolvedClassDomain.precision",
+          "before": "conservative",
+          "after": "unknown",
+          "loweringAxis": "providerCompleteness"
+        }
+      ]
+    },
+    {
+      "caseId": "sourceControlFlowNoCapture",
+      "currentPrecision": "unknown",
+      "precisionLabelDrops": [
+        {
+          "output": "sourcePrecisionReference.precision",
+          "before": "conservative",
+          "after": "unknown",
+          "loweringAxis": "providerCompleteness"
+        }
+      ]
+    },
+    {
+      "caseId": "closedWorldEmptyPrecisionInput",
+      "currentPrecision": "unknown",
+      "precisionLabelDrops": [
+        {
+          "output": "closedSetFiniteReachability.emptyInputPrecision",
+          "before": "conservative",
+          "after": "unknown",
+          "loweringAxis": "providerCompleteness"
+        }
+      ]
+    },
+    {
+      "caseId": "cascadeAtPositionUnresolvedProvider",
+      "currentPrecision": "unknown",
+      "precisionLabelDrops": [
+        {
+          "output": "cascadeAtPosition.unresolved.precision",
+          "before": "exact",
+          "after": "unknown",
+          "loweringAxis": "providerCompleteness"
+        }
+      ]
     }
-  ]
+  ],
+  "differentialSweep": {
+    "baselinePin": "db5a53366e8ab695457d23dad6535450bcf84cd1",
+    "method": "retiredSixRowTableTranscriptionPlusProductionFixtureReplay",
+    "baselineTable": [
+      { "valueDomain": "cascadeAtPosition", "effectivePrecision": "exact" },
+      { "valueDomain": "styleModuleResolution", "effectivePrecision": "exact" },
+      { "valueDomain": "classValueResolution", "effectivePrecision": "conservative" },
+      { "valueDomain": "classValueUniverse", "effectivePrecision": "conservative" },
+      { "valueDomain": "classValueFlow", "effectivePrecision": "heuristic" },
+      { "valueDomain": "unknown", "effectivePrecision": "unknown" }
+    ],
+    "rows": [
+      {
+        "caseId": "closedSetOpenWorld",
+        "output": "closedSetFiniteReachability.openWorldPrecision",
+        "before": "conservative",
+        "after": "heuristic",
+        "loweringAxes": ["worldAssumption"],
+        "disposition": "disclosed",
+        "semverIntentId": "omena-query:closed-world-precision-axis-meet"
+      },
+      {
+        "caseId": "closedSetNonEnumerated",
+        "output": "closedSetFiniteReachability.nonEnumeratedPrecision",
+        "before": "conservative",
+        "after": "heuristic",
+        "loweringAxes": ["worldAssumption"],
+        "disposition": "disclosed",
+        "semverIntentId": "omena-query:closed-world-precision-axis-meet"
+      },
+      {
+        "caseId": "closedSetMissingMember",
+        "output": "closedSetFiniteReachability.missingMemberPrecision",
+        "before": "conservative",
+        "after": "heuristic",
+        "loweringAxes": ["worldAssumption"],
+        "disposition": "disclosed",
+        "semverIntentId": "omena-query:closed-world-precision-axis-meet"
+      },
+      {
+        "caseId": "cssModulesSafeUnusedExport",
+        "output": "cssModulesUnusedExportFlow.safeGhost.precision",
+        "before": "exact",
+        "after": "conservative",
+        "loweringAxes": ["flow"],
+        "disposition": "disclosed",
+        "semverIntentId": "omena-query:css-modules-export-usage-flow-precision"
+      },
+      {
+        "caseId": "globalClassFallthrough",
+        "output": "globalClassFallthrough.precision",
+        "before": "conservative",
+        "after": "heuristic",
+        "loweringAxes": ["flow", "worldAssumption"],
+        "disposition": "disclosed",
+        "semverIntentId": "omena-query:source-diagnostic-precision-axis-meet"
+      },
+      {
+        "caseId": "unresolvedModuleImport",
+        "output": "missing-module.precision",
+        "before": "exact",
+        "after": "unknown",
+        "loweringAxes": ["providerCompleteness", "worldAssumption"],
+        "disposition": "disclosed",
+        "semverIntentId": "omena-query:source-diagnostic-precision-axis-meet"
+      },
+      {
+        "caseId": "unresolvedSourceReferenceEmptyDomain",
+        "output": "missingResolvedClassDomain.precision",
+        "before": "conservative",
+        "after": "unknown",
+        "loweringAxes": ["providerCompleteness", "worldAssumption"],
+        "disposition": "disclosed",
+        "semverIntentId": "omena-query:source-diagnostic-precision-axis-meet"
+      },
+      {
+        "caseId": "sourceControlFlowNoCapture",
+        "output": "sourcePrecisionReference.precision",
+        "before": "conservative",
+        "after": "unknown",
+        "loweringAxes": ["providerCompleteness", "worldAssumption"],
+        "disposition": "disclosed",
+        "semverIntentId": "omena-query:source-diagnostic-precision-axis-meet"
+      },
+      {
+        "caseId": "cascadeAtPosition",
+        "output": "cascadeAtPosition.precision",
+        "before": "exact",
+        "after": "exact",
+        "loweringAxes": [],
+        "disposition": "reverted",
+        "semverIntentId": null
+      },
+      {
+        "caseId": "closedWorldEmptyPrecisionInput",
+        "output": "closedSetFiniteReachability.emptyInputPrecision",
+        "before": "conservative",
+        "after": "unknown",
+        "loweringAxes": ["providerCompleteness"],
+        "disposition": "disclosed",
+        "semverIntentId": "omena-query:closed-world-precision-axis-meet"
+      },
+      {
+        "caseId": "cascadeAtPositionUnresolvedProvider",
+        "output": "cascadeAtPosition.unresolved.precision",
+        "before": "exact",
+        "after": "unknown",
+        "loweringAxes": ["providerCompleteness", "worldAssumption"],
+        "disposition": "disclosed",
+        "semverIntentId": "omena-query:cascade-position-provider-precision"
+      },
+      {
+        "caseId": "contextDepthWireLabel",
+        "output": "analysisPrecision.contextSensitivity",
+        "before": "2-cfa",
+        "after": "k-cfa",
+        "loweringAxes": ["context"],
+        "disposition": "disclosed",
+        "semverIntentId": "omena-evidence-graph:analysis-precision-wire-axes"
+      }
+    ]
+  }
 }
