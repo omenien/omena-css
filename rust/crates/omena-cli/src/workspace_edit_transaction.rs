@@ -616,30 +616,12 @@ impl TransactionLockGuard {
         let mut guard = Self { paths: Vec::new() };
         for destination in destinations {
             let lock_path = transaction_lock_path(destination.as_path());
-            let mut lock = match OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(lock_path.as_path())
-            {
-                Ok(lock) => lock,
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                    return Err(WorkspaceEditTransactionErrorV0::ConcurrentTransaction {
-                        destination: destination.to_string_lossy().into_owned(),
-                        lock_path: lock_path.to_string_lossy().into_owned(),
-                    });
-                }
-                Err(error) => {
-                    return Err(io_error(
-                        "create transaction lock",
-                        lock_path.as_path(),
-                        error,
-                    ));
-                }
-            };
+            write_transaction_lock_file(
+                lock_path.as_path(),
+                destination.as_path(),
+                transaction_id,
+            )?;
             guard.paths.push(lock_path.clone());
-            writeln!(lock, "{}:{transaction_id}", std::process::id())
-                .and_then(|()| lock.sync_all())
-                .map_err(|error| io_error("write transaction lock", lock_path.as_path(), error))?;
         }
         Ok(guard)
     }
@@ -651,6 +633,36 @@ impl Drop for TransactionLockGuard {
             let _ = fs::remove_file(path);
         }
     }
+}
+
+fn write_transaction_lock_file(
+    lock_path: &Path,
+    destination: &Path,
+    transaction_id: u64,
+) -> Result<(), WorkspaceEditTransactionErrorV0> {
+    let mut lock = match OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(lock_path)
+    {
+        Ok(lock) => lock,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Err(WorkspaceEditTransactionErrorV0::ConcurrentTransaction {
+                destination: destination.to_string_lossy().into_owned(),
+                lock_path: lock_path.to_string_lossy().into_owned(),
+            });
+        }
+        Err(error) => {
+            return Err(io_error("create transaction lock", lock_path, error));
+        }
+    };
+    if let Err(error) =
+        writeln!(lock, "{}:{transaction_id}", std::process::id()).and_then(|()| lock.sync_all())
+    {
+        let _ = fs::remove_file(lock_path);
+        return Err(io_error("write transaction lock", lock_path, error));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
