@@ -250,6 +250,8 @@ pub use sass::{
     resolve_omena_query_sass_module_use_sources_for_candidate,
     resolve_omena_query_sass_symbol_declarations, summarize_omena_query_sass_module_sources,
 };
+#[cfg(test)]
+pub(crate) use source_refs::global_class_fallthrough_label_tests::empty_resolved_class_domain_precision_fixture;
 pub use source_refs::{
     OmenaWorkspaceMonikerInput, occurrences_for_monikers, omena_workspace_moniker,
     resolve_omena_query_selector_rename_edits, resolve_omena_query_source_candidate_selector_names,
@@ -282,10 +284,12 @@ pub use substrate::{
     summarize_omena_query_fragile_guarded_winner_v0, summarize_omena_query_style_edit_distance,
     summarize_omena_query_style_edit_distance_cascade_margin_bridge,
 };
-#[cfg(test)]
-pub(crate) use transform::LINKED_FALLBACK_EXACT_TOKEN_REASON;
 pub(crate) use transform::build_closed_world_bundle_for_single_style_source_context;
 pub use transform::derive_omena_query_module_reachability_from_engine_input;
+#[cfg(test)]
+pub(crate) use transform::{
+    LINKED_FALLBACK_EXACT_TOKEN_REASON, precision_floor_closed_set_observations,
+};
 #[allow(deprecated)]
 pub use transform::{
     OmenaQueryBundlePlanInputV0, OmenaQueryTargetConsumerBuildInputsV0,

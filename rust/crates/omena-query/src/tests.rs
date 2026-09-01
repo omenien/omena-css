@@ -563,6 +563,7 @@ mod consumer_surfaces;
 mod cross_file_summary;
 mod dynamic_classname;
 mod expression_domain;
+mod precision_floor_manifest;
 mod provider_queries;
 mod runtime_contracts;
 mod sass_closure_config_golden;

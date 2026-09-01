@@ -14,7 +14,9 @@ fn classname_reference_range(line: usize) -> ParserRangeV0 {
     }
 }
 
-fn dynamic_classname_input(max_context_depth: usize) -> OmenaQueryDynamicClassnameMTierInputV0 {
+pub(super) fn dynamic_classname_input(
+    max_context_depth: usize,
+) -> OmenaQueryDynamicClassnameMTierInputV0 {
     OmenaQueryDynamicClassnameMTierInputV0 {
         source_uri: "file:///Routes.tsx".to_string(),
         selector_universe: vec!["btn-primary".to_string()],

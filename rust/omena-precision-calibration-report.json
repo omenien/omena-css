@@ -153,14 +153,20 @@
   ],
   "differentialSweep": {
     "baselinePin": "db5a53366e8ab695457d23dad6535450bcf84cd1",
-    "method": "retiredSixRowTableTranscriptionPlusProductionFixtureReplay",
-    "baselineTable": [
-      { "valueDomain": "cascadeAtPosition", "effectivePrecision": "exact" },
-      { "valueDomain": "styleModuleResolution", "effectivePrecision": "exact" },
-      { "valueDomain": "classValueResolution", "effectivePrecision": "conservative" },
-      { "valueDomain": "classValueUniverse", "effectivePrecision": "conservative" },
-      { "valueDomain": "classValueFlow", "effectivePrecision": "heuristic" },
-      { "valueDomain": "unknown", "effectivePrecision": "unknown" }
+    "method": "pinnedBaselineObservationTranscriptionPlusExecutableProductFixtureManifest",
+    "baselineObservations": [
+      { "output": "closedSetFiniteReachability.openWorldPrecision", "before": "conservative" },
+      { "output": "closedSetFiniteReachability.nonEnumeratedPrecision", "before": "conservative" },
+      { "output": "closedSetFiniteReachability.missingMemberPrecision", "before": "conservative" },
+      { "output": "cssModulesUnusedExportFlow.safeGhost.precision", "before": "exact" },
+      { "output": "globalClassFallthrough.precision", "before": "conservative" },
+      { "output": "missing-module.precision", "before": "exact" },
+      { "output": "missingResolvedClassDomain.precision", "before": "conservative" },
+      { "output": "sourcePrecisionReference.precision", "before": "conservative" },
+      { "output": "cascadeAtPosition.precision", "before": "exact" },
+      { "output": "closedSetFiniteReachability.emptyInputPrecision", "before": "conservative" },
+      { "output": "cascadeAtPosition.unresolved.precision", "before": "exact" },
+      { "output": "analysisPrecision.contextSensitivity", "before": "2-cfa" }
     ],
     "rows": [
       {

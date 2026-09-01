@@ -54,6 +54,7 @@ pub use omena_abstract_value::{
     SelectorProjectionCertaintyV0, SpecStandardPropertyValueValidatorV0, TokenObserverProjectionV0,
     abstract_class_value_from_facts, abstract_class_value_kind,
     analysis_precision_from_class_value, analysis_precision_from_class_value_with_witness,
+    closed_world_precision_witness_from_class_value,
     derive_context_indexed_cascade_restriction_maps_v0, fact_precision_from_class_value,
     fact_precision_from_class_value_with_witness, iterate_reduced_class_value_product_constraints,
     join_abstract_class_values, narrow_abstract_property_value_for_authored_cascade_branch,

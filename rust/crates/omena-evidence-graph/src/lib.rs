@@ -1086,14 +1086,6 @@ impl ProviderCompletenessV1 {
             Self::Unresolved | Self::Unknown => EffectivePrecisionV1::Unknown,
         }
     }
-
-    pub const fn with_closed_world_witness(self) -> Self {
-        match self {
-            Self::Complete | Self::Partial => Self::Complete,
-            Self::Unresolved => Self::Unresolved,
-            Self::Unknown => Self::Unknown,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -1118,13 +1110,6 @@ impl WorldAssumptionV1 {
             Self::Closed => EffectivePrecisionV1::Exact,
             Self::Open => EffectivePrecisionV1::Heuristic,
             Self::Unknown => EffectivePrecisionV1::Unknown,
-        }
-    }
-
-    pub const fn with_closed_world_witness(self) -> Self {
-        match self {
-            Self::Closed | Self::Open => Self::Closed,
-            Self::Unknown => Self::Unknown,
         }
     }
 }
@@ -1209,15 +1194,6 @@ impl AnalysisPrecisionV1 {
             .meet(self.provider_completeness.effective_precision())
             .meet(self.world_assumption.effective_precision())
             .meet(self.revision.effective_precision())
-    }
-
-    pub const fn with_closed_world_witness(self, value_domain: ValueDomainPrecisionV1) -> Self {
-        Self {
-            value_domain,
-            provider_completeness: self.provider_completeness.with_closed_world_witness(),
-            world_assumption: self.world_assumption.with_closed_world_witness(),
-            ..self
-        }
     }
 }
 
@@ -1912,51 +1888,5 @@ mod tests {
             .effective_precision(),
             EffectivePrecisionV1::Heuristic,
         );
-    }
-
-    #[test]
-    fn closed_world_witness_is_bounded_and_never_launders_unknown_axes() {
-        let receiver = AnalysisPrecisionV1 {
-            value_domain: ValueDomainPrecisionV1::ClassValueFlow,
-            flow: FlowPrecisionV1::KLimitedCallSiteFlow,
-            context: ContextPrecisionV1::SameFile,
-            provider_completeness: ProviderCompletenessV1::Partial,
-            world_assumption: WorldAssumptionV1::Open,
-            revision: RevisionIdentityV1::StaleTypeFact,
-        };
-        let witnessed =
-            receiver.with_closed_world_witness(ValueDomainPrecisionV1::ClosedClassValueSet);
-        assert_eq!(
-            witnessed.value_domain,
-            ValueDomainPrecisionV1::ClosedClassValueSet
-        );
-        assert_eq!(witnessed.flow, receiver.flow);
-        assert_eq!(witnessed.context, receiver.context);
-        assert_eq!(witnessed.revision, receiver.revision);
-        assert_eq!(
-            witnessed.provider_completeness,
-            ProviderCompletenessV1::Complete
-        );
-        assert_eq!(witnessed.world_assumption, WorldAssumptionV1::Closed);
-        assert_eq!(
-            witnessed.effective_precision(),
-            EffectivePrecisionV1::Heuristic,
-            "a favourable witness must remain bounded by every unwitnessed receiver axis"
-        );
-
-        for provider_completeness in [
-            ProviderCompletenessV1::Unresolved,
-            ProviderCompletenessV1::Unknown,
-        ] {
-            let bounded = AnalysisPrecisionV1 {
-                provider_completeness,
-                world_assumption: WorldAssumptionV1::Unknown,
-                ..receiver
-            }
-            .with_closed_world_witness(ValueDomainPrecisionV1::ClosedClassValueSet);
-            assert_eq!(bounded.provider_completeness, provider_completeness);
-            assert_eq!(bounded.world_assumption, WorldAssumptionV1::Unknown);
-            assert_eq!(bounded.effective_precision(), EffectivePrecisionV1::Unknown);
-        }
     }
 }

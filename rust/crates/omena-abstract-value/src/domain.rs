@@ -240,6 +240,57 @@ pub fn analysis_precision_from_class_value(value: &AbstractClassValueV0) -> Anal
     analysis_precision_from_class_value_with_witness(value, None)
 }
 
+/// A closed-world precision projection whose axes can only be populated by a
+/// validated abstract-value witness.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OmenaClosedWorldPrecisionWitnessV1 {
+    value_domain: Option<ValueDomainPrecisionV1>,
+    provider_completeness: Option<ProviderCompletenessV1>,
+    world_assumption: Option<WorldAssumptionV1>,
+}
+
+impl OmenaClosedWorldPrecisionWitnessV1 {
+    pub const fn apply_to(self, receiver: AnalysisPrecisionV1) -> AnalysisPrecisionV1 {
+        AnalysisPrecisionV1 {
+            value_domain: match (receiver.value_domain, self.value_domain) {
+                (ValueDomainPrecisionV1::Unknown, _) | (_, None) => receiver.value_domain,
+                (_, Some(value_domain)) => value_domain,
+            },
+            provider_completeness: match (
+                receiver.provider_completeness,
+                self.provider_completeness,
+            ) {
+                (ProviderCompletenessV1::Unresolved | ProviderCompletenessV1::Unknown, _)
+                | (_, None) => receiver.provider_completeness,
+                (_, Some(provider_completeness)) => provider_completeness,
+            },
+            world_assumption: match (receiver.world_assumption, self.world_assumption) {
+                (WorldAssumptionV1::Unknown, _) | (_, None) => receiver.world_assumption,
+                (_, Some(world_assumption)) => world_assumption,
+            },
+            ..receiver
+        }
+    }
+}
+
+pub fn closed_world_precision_witness_from_class_value(
+    value: &AbstractClassValueV0,
+    external_witness: Option<&OmenaAbstractValuePrecisionWitnessV0>,
+) -> Option<OmenaClosedWorldPrecisionWitnessV1> {
+    match value {
+        AbstractClassValueV0::FiniteSet { values }
+            if closed_set_precision_witness_is_sound(values, external_witness) =>
+        {
+            Some(OmenaClosedWorldPrecisionWitnessV1 {
+                value_domain: Some(ValueDomainPrecisionV1::ExactClassValue),
+                provider_completeness: Some(ProviderCompletenessV1::Complete),
+                world_assumption: Some(WorldAssumptionV1::Closed),
+            })
+        }
+        _ => None,
+    }
+}
+
 pub fn analysis_precision_from_class_value_with_witness(
     value: &AbstractClassValueV0,
     external_witness: Option<&OmenaAbstractValuePrecisionWitnessV0>,
@@ -516,4 +567,74 @@ fn starts_at_class_boundary(value: &str) -> bool {
 
 fn is_class_boundary_char(char: char) -> bool {
     char == '-' || char == '_'
+}
+
+#[cfg(test)]
+mod precision_witness_tests {
+    use super::*;
+
+    fn receiver() -> AnalysisPrecisionV1 {
+        AnalysisPrecisionV1 {
+            value_domain: ValueDomainPrecisionV1::ClassValueFlow,
+            flow: FlowPrecisionV1::KLimitedCallSiteFlow,
+            context: ContextPrecisionV1::SameFile,
+            provider_completeness: ProviderCompletenessV1::Partial,
+            world_assumption: WorldAssumptionV1::Open,
+            revision: RevisionIdentityV1::StaleTypeFact,
+        }
+    }
+
+    #[test]
+    fn one_axis_witness_cannot_upgrade_another_axis() {
+        let original = receiver();
+        let witnessed = OmenaClosedWorldPrecisionWitnessV1 {
+            value_domain: Some(ValueDomainPrecisionV1::ClosedClassValueSet),
+            provider_completeness: None,
+            world_assumption: None,
+        }
+        .apply_to(original);
+
+        assert_eq!(
+            witnessed.value_domain,
+            ValueDomainPrecisionV1::ClosedClassValueSet
+        );
+        assert_eq!(
+            witnessed.provider_completeness,
+            original.provider_completeness
+        );
+        assert_eq!(witnessed.world_assumption, original.world_assumption);
+        assert_eq!(witnessed.flow, original.flow);
+        assert_eq!(witnessed.context, original.context);
+        assert_eq!(witnessed.revision, original.revision);
+    }
+
+    #[test]
+    fn validated_closed_set_witness_preserves_unknown_and_unresolved_axes() -> Result<(), String> {
+        let value = AbstractClassValueV0::FiniteSet {
+            values: vec!["card".to_string(), "panel".to_string()],
+        };
+        let external = OmenaAbstractValuePrecisionWitnessV0 {
+            direction: OmenaAbstractValueCoverageDirectionV0::SupersetOfProducible,
+            basis: OmenaAbstractValuePrecisionBasisV0::ClosedSetEnumeration,
+            authority_digest: Some("fixture-authority".to_string()),
+        };
+        let witness = closed_world_precision_witness_from_class_value(&value, Some(&external))
+            .ok_or_else(|| "a non-empty validated closed set must produce a witness".to_string())?;
+
+        let original = AnalysisPrecisionV1 {
+            provider_completeness: ProviderCompletenessV1::Unresolved,
+            world_assumption: WorldAssumptionV1::Unknown,
+            value_domain: ValueDomainPrecisionV1::Unknown,
+            ..receiver()
+        };
+        assert_eq!(witness.apply_to(original), original);
+        assert_eq!(
+            closed_world_precision_witness_from_class_value(
+                &AbstractClassValueV0::FiniteSet { values: Vec::new() },
+                Some(&external),
+            ),
+            None
+        );
+        Ok(())
+    }
 }

@@ -1389,16 +1389,60 @@ fn closed_world_bound_reachability_precision(
         basis: OmenaAbstractValuePrecisionBasisV0::ClosedSetEnumeration,
         authority_digest: Some(closed_world_bundle.closure_hash().to_string()),
     };
-    let witnessed = analysis_precision_from_class_value_with_witness(&value, Some(&witness));
+    let Some(witnessed) = closed_world_precision_witness_from_class_value(&value, Some(&witness))
+    else {
+        return fallback;
+    };
     open_world_precisions
         .iter()
         .map(|precision| {
-            omena_query_core::fact_precision_from_precision_axes(
-                &precision.with_closed_world_witness(witnessed.value_domain),
-            )
+            omena_query_core::fact_precision_from_precision_axes(&witnessed.apply_to(*precision))
         })
         .reduce(FactPrecision::bounded_by)
         .unwrap_or(fallback)
+}
+
+#[cfg(test)]
+pub(crate) fn precision_floor_closed_set_observations() -> Result<[FactPrecision; 4], String> {
+    let style_path = "Workspace.module.css";
+    let style_source = ".card {} .panel {} .toolbar {} .dead {}";
+    let reachable_class_names = vec![
+        "card".to_string(),
+        "panel".to_string(),
+        "toolbar".to_string(),
+    ];
+    let context = TransformExecutionContextV0 {
+        reachable_class_names: reachable_class_names.clone(),
+        ..TransformExecutionContextV0::default()
+    };
+    let requested_pass_ids = vec!["tree-shake-class".to_string()];
+    let bundle = build_closed_world_bundle_for_single_style_source_context(
+        style_path,
+        style_source,
+        &requested_pass_ids,
+        &context,
+    )
+    .ok_or_else(|| "the precision-floor fixture must produce a sealed bundle".to_string())?;
+    let finite_value = AbstractClassValueV0::FiniteSet {
+        values: reachable_class_names,
+    };
+    let open_world_axes = analysis_precision_from_class_value(&finite_value);
+    let missing_member_context = TransformExecutionContextV0 {
+        reachable_class_names: vec!["card".to_string(), "outside-bundle".to_string()],
+        ..TransformExecutionContextV0::default()
+    };
+
+    Ok([
+        omena_query_core::fact_precision_from_precision_axes(&open_world_axes),
+        closed_world_bound_reachability_precision(&context, &bundle, &[open_world_axes], false),
+        closed_world_bound_reachability_precision(
+            &missing_member_context,
+            &bundle,
+            &[open_world_axes],
+            true,
+        ),
+        closed_world_bound_reachability_precision(&context, &bundle, &[], true),
+    ])
 }
 
 pub fn execute_omena_query_consumer_build_style_sources_with_context(

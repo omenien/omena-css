@@ -2079,7 +2079,7 @@ fn normalize_path(path: PathBuf) -> PathBuf {
 }
 
 #[cfg(test)]
-mod global_class_fallthrough_label_tests {
+pub(crate) mod global_class_fallthrough_label_tests {
     use super::{
         omena_query_line_index, summarize_omena_query_global_class_fallthrough_diagnostic,
         summarize_omena_query_unresolved_source_reference_diagnostic,
@@ -2087,8 +2087,40 @@ mod global_class_fallthrough_label_tests {
     use crate::{
         FactPrecision, FlowPrecisionV1, OmenaQuerySourceSelectorReferenceFactV0,
         OmenaQuerySourceSelectorReferenceMatchKindV0, OmenaQuerySourceSelectorReferenceSurfaceV0,
-        ParserByteSpanV0, ParserRangeV0, ProviderCompletenessV1, WorldAssumptionV1,
+        ParserByteSpanV0, ParserRangeV0, WorldAssumptionV1,
     };
+
+    pub(crate) fn empty_resolved_class_domain_precision_fixture() -> Result<FactPrecision, String> {
+        let source = "empty-${suffix}";
+        let reference = OmenaQuerySourceSelectorReferenceFactV0 {
+            byte_span: ParserByteSpanV0 {
+                start: 0,
+                end: source.len(),
+            },
+            selector_name: None,
+            match_kind: OmenaQuerySourceSelectorReferenceMatchKindV0::Prefix,
+            target_style_uri: Some("file:///workspace/Empty.module.css".to_string()),
+            surface: OmenaQuerySourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex,
+        };
+        let diagnostic = summarize_omena_query_unresolved_source_reference_diagnostic(
+            source,
+            &omena_query_line_index(source),
+            &reference,
+            "empty-",
+            None,
+            &[],
+            0,
+        );
+        if diagnostic.code != "missingResolvedClassDomain" {
+            return Err("empty-domain fixture changed diagnostic code".to_string());
+        }
+        let precision = diagnostic
+            .precision
+            .ok_or_else(|| "empty domain precision".to_string())?;
+        Ok(omena_query_core::fact_precision_from_analysis_precision(
+            &precision,
+        ))
+    }
 
     #[test]
     fn message_shows_decoded_non_ascii_global_filename() -> Result<(), String> {
@@ -2123,36 +2155,7 @@ mod global_class_fallthrough_label_tests {
 
     #[test]
     fn empty_resolved_class_domain_derives_unknown_precision() -> Result<(), String> {
-        let source = "empty-${suffix}";
-        let reference = OmenaQuerySourceSelectorReferenceFactV0 {
-            byte_span: ParserByteSpanV0 {
-                start: 0,
-                end: source.len(),
-            },
-            selector_name: None,
-            match_kind: OmenaQuerySourceSelectorReferenceMatchKindV0::Prefix,
-            target_style_uri: Some("file:///workspace/Empty.module.css".to_string()),
-            surface: OmenaQuerySourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex,
-        };
-        let diagnostic = summarize_omena_query_unresolved_source_reference_diagnostic(
-            source,
-            &omena_query_line_index(source),
-            &reference,
-            "empty-",
-            None,
-            &[],
-            0,
-        );
-        assert_eq!(diagnostic.code, "missingResolvedClassDomain");
-        let precision = diagnostic
-            .precision
-            .ok_or_else(|| "empty domain precision".to_string())?;
-        assert_eq!(
-            precision.axes.provider_completeness,
-            ProviderCompletenessV1::Unresolved
-        );
-        assert_eq!(precision.axes.world_assumption, WorldAssumptionV1::Open);
-        let effective = omena_query_core::fact_precision_from_analysis_precision(&precision);
+        let effective = empty_resolved_class_domain_precision_fixture()?;
         assert_eq!(effective, FactPrecision::Unknown);
         assert!(!effective.satisfies(FactPrecision::Conservative));
         Ok(())

@@ -7,7 +7,7 @@
     {
       "crate": "omena-abstract-value",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor projects class-value precision through the evidence-owned six-axis meet, so an open-world finite set is heuristic until a sound closed-world witness is admitted.",
+      "reason": "The next pre-1.0 minor projects class-value precision through the evidence-owned six-axis meet, so an open-world finite set is heuristic until a sound closed-world witness is admitted through an additive typed projection; the unpublished same-window arbitrary axis raiser is not part of the release surface.",
       "expectedFailures": [],
       "expectedRuntimeValueChanges": [
         {
@@ -18,7 +18,12 @@
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-abstract-value/src/domain.rs",
-              "needles": ["match precision.effective_precision()", "WorldAssumptionV1::Open"]
+              "needles": [
+                "match precision.effective_precision()",
+                "WorldAssumptionV1::Open",
+                "pub struct OmenaClosedWorldPrecisionWitnessV1",
+                "pub const fn apply_to(self, receiver: AnalysisPrecisionV1)"
+              ]
             }
           ]
         }
@@ -27,7 +32,7 @@
     {
       "crate": "omena-evidence-graph",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor replaces four public string fields with an evidence-owned typed six-axis precision value and changes the public constructor to accept that value as one argument.",
+      "reason": "The next pre-1.0 minor replaces four public string fields with an evidence-owned typed six-axis precision value and changes the public constructor to accept that value as one argument. Closed-world axis projection is owned by the abstract-value witness boundary rather than an evidence-graph raiser.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
