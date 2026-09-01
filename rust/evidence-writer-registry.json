@@ -1968,6 +1968,7 @@
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/crates/omena-cli/src/tests.rs",
         "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json",
+        "rust/crates/omena-query/src/style/diagnostics/tests/source_usage.rs",
         "rust/crates/omena-query/src/style/transform.rs",
         "rust/crates/omena-query/src/tests/consumer_reachability.rs",
         "rust/omena-source-type-fact-shape-census.json",
@@ -1975,6 +1976,7 @@
         "scripts/check-rust-demand-sliced-monotone-fact-propagation-relocation-gate-bound.ts",
         "scripts/check-rust-omena-query-transform-differential.ts",
         "scripts/check-rust-omena-source-type-fact-shape-census.ts",
+        "scripts/check-rust-precision-floor.ts",
         "scripts/generate-rust-omena-transform-target-compat.ts",
         "scripts/oss-corpus-farm.ts",
         "test/unit/check-orchestrator/evidence-affected.test.ts"
@@ -1991,6 +1993,7 @@
         "rust/oss-corpus-farm",
         "rust/oss-corpus-farm-determinism",
         "rust/oss-corpus-farm:update",
+        "rust/precision-floor",
         "tooling/evidence-affected-map"
       ]
     },
@@ -4234,12 +4237,10 @@
         "rust/crates/omena-bridge/src/utility_intelligence/mod.rs",
         "rust/crates/omena-checker/src/fix_safety.rs",
         "rust/crates/omena-cli/src/migrate/normalize.rs",
-        "rust/crates/omena-query-core/src/lib.rs",
         "rust/crates/omena-query-transform-runner/src/plugins/bundle_host.rs",
         "rust/crates/omena-query-transform-runner/src/plugins/semantic_observation.rs",
         "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
         "rust/crates/omena-query/src/style/transform.rs",
-        "rust/crates/omena-query/src/style/transform/context.rs",
         "rust/crates/omena-transform-passes/src/model.rs",
         "rust/crates/omena-transform-passes/src/runtime/executor.rs"
       ],
@@ -4691,10 +4692,12 @@
       "inputArtifactPaths": [],
       "writerGateIds": [],
       "consumerPaths": [
+        "rust/crates/omena-query/src/style/diagnostics/tests/source_usage.rs",
         "rust/crates/omena-query/src/style/transform.rs",
-        "rust/crates/omena-query/src/tests/consumer_reachability.rs"
+        "rust/crates/omena-query/src/tests/consumer_reachability.rs",
+        "scripts/check-rust-precision-floor.ts"
       ],
-      "consumerGateIds": []
+      "consumerGateIds": ["rust/precision-floor"]
     },
     {
       "artifactPath": "rust/omena-precision-witness-census.json",

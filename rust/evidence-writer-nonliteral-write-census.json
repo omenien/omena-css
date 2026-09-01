@@ -1349,7 +1349,7 @@
     {
       "fingerprint": "d09263c31b1ce6e808e685de6dd4911110ecd4daa36dcb0a0587ec836cba2795",
       "writerScript": "scripts/check-rust-omena-fact-precision-census.ts",
-      "line": 316,
+      "line": 267,
       "writeApi": "writeFileSync",
       "writeExpression": "censusPath",
       "disposition": "unswept-registry-writer"
