@@ -271,6 +271,7 @@ async function runExamplesTransitiveClosureGate() {
   const stylePath = path.join(examplesRoot, "src/hmr-closure/Closure.module.scss");
   const initialSource = fs.readFileSync(stylePath, "utf8");
   const warnings = [];
+  let originalReadFile;
   let server;
   let chrome;
   let page;
@@ -317,7 +318,11 @@ async function runExamplesTransitiveClosureGate() {
       throw new Error("Examples Vite config did not expose the Omena hot-update hook.");
     }
     await server.watcher.unwatch(stylePath);
-    fs.writeFileSync(stylePath, `${initialSource}\n.added {\n  display: block;\n}\n`, "utf8");
+    originalReadFile = fs.promises.readFile;
+    fs.promises.readFile = async (filePath, ...args) =>
+      filePath === stylePath
+        ? `${initialSource}\n.added {\n  display: block;\n}\n`
+        : originalReadFile(filePath, ...args);
     const invalidated = await handleHotUpdate.call(
       {
         addWatchFile() {},
@@ -351,7 +356,7 @@ async function runExamplesTransitiveClosureGate() {
       );
     }
   } finally {
-    fs.writeFileSync(stylePath, initialSource, "utf8");
+    if (originalReadFile) fs.promises.readFile = originalReadFile;
     page?.close();
     if (chrome) {
       await stopChrome(chrome.process);

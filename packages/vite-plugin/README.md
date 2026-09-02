@@ -86,4 +86,4 @@ repository change does not publish a package; publication remains part of the
 normal release train. The checked-in
 [`virtual-source-admission-census.json`](./virtual-source-admission-census.json)
 separates existing disk-backed inputs from newly admitted mapped and virtual-only
-inputs, and the smoke gate rejects unreviewed census drift.
+inputs, and the focused plugin unit gate rejects unreviewed census drift.

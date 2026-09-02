@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { execFileSync } from "node:child_process";
 import type * as ChildProcess from "node:child_process";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -71,6 +72,208 @@ const { MINIFY_PASS_IDS, VIRTUAL_MODULE_ID, classifyCssModuleExportDelta, omenaC
   require("../../../packages/vite-plugin/index.cjs") as OmenaPluginExports;
 
 const tempRoots: string[] = [];
+
+function countStyleModules(root: string): number {
+  let count = 0;
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    if (entry.name === "dist" || entry.name === "node_modules") continue;
+    const entryPath = path.join(root, entry.name);
+    if (entry.isDirectory()) {
+      count += countStyleModules(entryPath);
+    } else if (/\.module\.(?:css|less|scss)$/u.test(entry.name)) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function measureVirtualSourceAdmissionCensus() {
+  const examplesConfig = fs.readFileSync(
+    path.join(process.cwd(), "examples/vite.config.ts"),
+    "utf8",
+  );
+  const viteUnit = fs.readFileSync(import.meta.filename, "utf8");
+  const rows = [
+    {
+      key: "examples-disk-backed",
+      provenanceClass: "disk-backed",
+      admission: "existing",
+      source: "examples/",
+      section: "tracked module style inputs",
+      count: countStyleModules(path.join(process.cwd(), "examples")),
+    },
+    {
+      key: "real-project-corpus-disk-backed",
+      provenanceClass: "disk-backed",
+      admission: "existing",
+      source: "test/_fixtures/real-project-corpus/",
+      section: "tracked module style inputs",
+      count: countStyleModules(path.join(process.cwd(), "test/_fixtures/real-project-corpus")),
+    },
+    {
+      key: "examples-upstream-transform",
+      provenanceClass: "virtual-with-map",
+      admission: "newly-admitted",
+      source: "examples/vite.config.ts",
+      section: "plugins: upstreamVirtualSource()",
+      count: examplesConfig.match(/^\s{4}upstreamVirtualSource\(\),$/gmu)?.length ?? 0,
+    },
+    {
+      key: "virtual-only-regression",
+      provenanceClass: "virtual-only",
+      admission: "newly-admitted",
+      source: "test/unit/vite-plugin/vite-plugin.test.ts",
+      section: "analyzes a virtual-only source when no disk mapping is available",
+      count:
+        viteUnit.match(/it\("analyzes a virtual-only source when no disk mapping is available"/gu)
+          ?.length ?? 0,
+    },
+  ];
+  const existing = rows
+    .filter(({ admission }) => admission === "existing")
+    .reduce((sum, { count }) => sum + count, 0);
+  const newlyAdmitted = rows
+    .filter(({ admission }) => admission === "newly-admitted")
+    .reduce((sum, { count }) => sum + count, 0);
+  return {
+    schemaVersion: "0",
+    product: "omena-vite.virtual-source-admission-census",
+    package: "@omena/vite-plugin",
+    semverIntent: "next-pre-1.0-minor",
+    rows,
+    totals: {
+      existing,
+      newlyAdmitted,
+      total: existing + newlyAdmitted,
+    },
+  };
+}
+
+function gitOutput(args: readonly string[]): string {
+  return execFileSync("git", args, {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
+}
+
+function resolveCommit(ref: string): string {
+  return gitOutput(["rev-parse", "--verify", `${ref}^{commit}`]).trim();
+}
+
+function listStyleModulesAt(ref: string): string[] {
+  return gitOutput([
+    "ls-tree",
+    "-r",
+    "--name-only",
+    ref,
+    "--",
+    "examples",
+    "test/_fixtures/real-project-corpus",
+  ])
+    .split("\n")
+    .filter((file) => /\.module\.(?:css|less|scss)$/u.test(file))
+    .toSorted();
+}
+
+function readFileAt(ref: string, relativePath: string): string {
+  return gitOutput(["show", `${ref}:${relativePath}`]);
+}
+
+function evaluateCommonJs(
+  source: string,
+  filename: string,
+  localRequire: (specifier: string) => unknown,
+): unknown {
+  const commonJsModule: { exports: unknown } = { exports: {} };
+  const evaluate = new Function(
+    "exports",
+    "require",
+    "module",
+    "__filename",
+    "__dirname",
+    source,
+  ) as (...args: unknown[]) => void;
+  evaluate(commonJsModule.exports, localRequire, commonJsModule, filename, path.dirname(filename));
+  return commonJsModule.exports;
+}
+
+function loadPluginAt(ref: string): (options?: Record<string, unknown>) => OmenaVitePlugin {
+  const adapterFilename = path.join(process.cwd(), "packages/css-build-adapter/index.cjs");
+  const pluginFilename = path.join(process.cwd(), "packages/vite-plugin/index.cjs");
+  const semanticPassIds = JSON.parse(
+    readFileAt(ref, "packages/css-build-adapter/semantic-minify-pass-ids.json"),
+  );
+  const adapter = evaluateCommonJs(
+    readFileAt(ref, "packages/css-build-adapter/index.cjs"),
+    adapterFilename,
+    (specifier) => {
+      if (specifier === "./semantic-minify-pass-ids.json") return semanticPassIds;
+      return require(specifier);
+    },
+  );
+  const plugin = evaluateCommonJs(
+    readFileAt(ref, "packages/vite-plugin/index.cjs"),
+    pluginFilename,
+    (specifier) => {
+      if (specifier === "@omena/css-build-adapter") return adapter;
+      return require(specifier);
+    },
+  ) as { readonly omenaCss: (options?: Record<string, unknown>) => OmenaVitePlugin };
+  return plugin.omenaCss;
+}
+
+function diskByteProbeEngine() {
+  return {
+    buildSnapshotIdentity() {
+      return {
+        schemaVersion: "0",
+        product: "omena-query.build-snapshot-digest",
+        contentHashAlgorithm: "blake3",
+        digest: "blake3:test-probe-snapshot",
+        targetSourceDigest: "blake3:test-probe-target-source",
+      };
+    },
+    buildStyleSourcesWithContextJson(targetPath: string, sourcesJson: string) {
+      const [source] = JSON.parse(sourcesJson) as BuildSource[];
+      return JSON.stringify({
+        execution: {
+          outputCss: `${source!.styleSource}\n/* deterministic disk-backed probe */\n`,
+          executedPassIds: [],
+        },
+        sourceMapV3: {
+          version: 3,
+          sources: [targetPath],
+          names: [],
+          mappings: "AAAA",
+        },
+      });
+    },
+  };
+}
+
+async function transformDiskBytes(
+  createPlugin: (options?: Record<string, unknown>) => OmenaVitePlugin,
+  filePath: string,
+  source: string,
+): Promise<Buffer> {
+  const warnings: string[] = [];
+  const plugin = createPlugin({
+    configFile: false,
+    cwd: process.cwd(),
+    engine: diskByteProbeEngine(),
+    moduleInterface: false,
+    passes: [],
+  });
+  const result = await plugin.transform.call(
+    { warn: (message) => warnings.push(String(message)) },
+    source,
+    filePath,
+  );
+  expect(warnings).toEqual([]);
+  expect(result).not.toBeNull();
+  return Buffer.from(`${JSON.stringify({ code: result!.code, map: result!.map })}\n`, "utf8");
+}
 
 function bundlerHostMock(
   classExports:
@@ -200,6 +403,46 @@ afterEach(() => {
 });
 
 describe("@omena/vite-plugin", () => {
+  it("pins the reviewed virtual-source admission census", () => {
+    const censusPath = path.join(
+      process.cwd(),
+      "packages/vite-plugin/virtual-source-admission-census.json",
+    );
+    const committed = JSON.parse(fs.readFileSync(censusPath, "utf8"));
+
+    expect(committed).toEqual(measureVirtualSourceAdmissionCensus());
+  });
+
+  const diskByteBaseline = process.env.OMENA_VITE_DISK_BYTE_BASELINE;
+  const diskByteIdentityTest = diskByteBaseline ? it : it.skip;
+  diskByteIdentityTest("preserves disk-backed output bytes across git pins", async () => {
+    const baseline = resolveCommit(diskByteBaseline!);
+    const current = resolveCommit("HEAD");
+    const baselineFiles = listStyleModulesAt(baseline);
+    const currentFiles = listStyleModulesAt(current);
+    const baselineSet = new Set(baselineFiles);
+    const currentSet = new Set(currentFiles);
+    const removed = baselineFiles.filter((file) => !currentSet.has(file));
+    const added = currentFiles.filter((file) => !baselineSet.has(file));
+
+    expect(removed).toEqual([]);
+    const baselinePlugin = loadPluginAt(baseline);
+    const currentPlugin = loadPluginAt(current);
+    await Promise.all(
+      baselineFiles.map(async (relativePath) => {
+        const filePath = path.join(process.cwd(), relativePath);
+        const source = fs.readFileSync(filePath, "utf8");
+        expect(source).toBe(readFileAt(current, relativePath));
+        const baselineBytes = await transformDiskBytes(baselinePlugin, filePath, source);
+        const currentBytes = await transformDiskBytes(currentPlugin, filePath, source);
+        expect(currentBytes.equals(baselineBytes), relativePath).toBe(true);
+      }),
+    );
+    process.stdout.write(
+      `Vite disk-backed byte identity: compared=${baselineFiles.length} identical=${baselineFiles.length} added=${added.length} removed=${removed.length} baseline=${baseline} current=${current}\n`,
+    );
+  });
+
   it("classifies semantic export deltas into three hot-update decisions", () => {
     expect(classifyCssModuleExportDelta({ root: "_root_0" }, { root: "_root_0" })).toBe(
       "styleOnly",
@@ -359,7 +602,7 @@ describe("@omena/vite-plugin", () => {
     const virtualSource = `${marker}${diskSource}`;
     const buildInputs: string[] = [];
     fs.writeFileSync(stylePath, diskSource);
-    const host = bundlerHostMock({ root: "_root_0" });
+    const host = bundlerHostMock({ root: "root-token" });
     const buildSnapshotIdentity = vi.fn(host.buildSnapshotIdentity);
     const engine = {
       ...host,
@@ -422,7 +665,7 @@ describe("@omena/vite-plugin", () => {
     const diskSource = ".root { color: red; }\n";
     const virtualSource = `:root { --virtual-only-marker: active; }\n${diskSource}`;
     const engine = {
-      ...bundlerHostMock({ root: "_root_0" }),
+      ...bundlerHostMock({ root: "root-token" }),
       summarizeTransformBundleFromSourceJson: () => JSON.stringify({ plannedPassIds: [] }),
       buildStyleSourcesWithContextJson: (_targetPath: string, sourcesJson: string) => {
         const [source] = JSON.parse(sourcesJson) as BuildSource[];
@@ -464,7 +707,7 @@ describe("@omena/vite-plugin", () => {
       configFile: false,
       requireDiskSource: true,
       engine: {
-        ...bundlerHostMock({ root: "_root_0" }),
+        ...bundlerHostMock({ root: "root-token" }),
         summarizeTransformBundleFromSourceJson: () => JSON.stringify({ plannedPassIds: [] }),
         buildStyleSourcesWithContextJson: build,
       },
@@ -553,8 +796,8 @@ describe("@omena/vite-plugin", () => {
       ...bundlerHostMock((request) => {
         const source = request.styleSources[0]?.styleSource ?? "";
         return source.includes("shape")
-          ? { used: "_used_red", added: "_added_0" }
-          : { used: "_used_red" };
+          ? { used: "used-token", added: "added-token" }
+          : { used: "used-token" };
       }),
       summarizeTransformBundleFromSourceJson: () =>
         JSON.stringify({ plannedPassIds: ["class-name-rewrite"] }),

@@ -71,7 +71,7 @@ export interface OmenaBuildState {
   enginePromise: Promise<unknown> | null;
 }
 
-export interface OmenaBuildSourceProvenanceIdentityV0 {
+interface OmenaBuildSourceProvenanceIdentityV0 {
   readonly schemaVersion: "0";
   readonly product: "omena-vite.virtual-source-provenance";
   readonly classification: "virtual-with-map" | "virtual-only";
@@ -80,7 +80,7 @@ export interface OmenaBuildSourceProvenanceIdentityV0 {
   readonly upstreamMap: OmenaBuildUpstreamSourceMapV0 | null;
 }
 
-export interface OmenaBuildUpstreamSourceMapV0 {
+interface OmenaBuildUpstreamSourceMapV0 {
   readonly version: 3;
   readonly file?: string;
   readonly sources: readonly string[];
@@ -89,7 +89,7 @@ export interface OmenaBuildUpstreamSourceMapV0 {
   readonly mappings: string;
 }
 
-export interface OmenaBuildIdentityContext {
+interface OmenaBuildIdentityContext {
   readonly sourceProvenance?: OmenaBuildSourceProvenanceIdentityV0;
 }
 

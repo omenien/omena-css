@@ -9,11 +9,6 @@ const { omenaCss } = require("../packages/vite-plugin/index.cjs");
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-"));
 const stylePath = path.join(tempRoot, "App.module.css");
 const warnings = [];
-const admissionCensusPath = path.join(
-  process.cwd(),
-  "packages/vite-plugin/virtual-source-admission-census.json",
-);
-const writeAdmissionCensus = process.argv.includes("--write-admission-census");
 
 function createSmokeEngine() {
   return {
@@ -121,115 +116,6 @@ try {
   if (warnings.length > 0) {
     throw new Error(`Unexpected Vite plugin warnings: ${warnings.join(" | ")}`);
   }
-  verifyAdmissionCensus(writeAdmissionCensus);
 } finally {
   fs.rmSync(tempRoot, { recursive: true, force: true });
-}
-
-function verifyAdmissionCensus(write) {
-  const census = measureAdmissionCensus();
-  const serialized = `${JSON.stringify(census, null, 2)}\n`;
-  if (write) {
-    fs.writeFileSync(admissionCensusPath, serialized, "utf8");
-    console.log(`wrote ${path.relative(process.cwd(), admissionCensusPath)}`);
-    return;
-  }
-  const committed = fs.existsSync(admissionCensusPath)
-    ? fs.readFileSync(admissionCensusPath, "utf8")
-    : "";
-  if (committed !== serialized) {
-    const committedCensus = committed ? JSON.parse(committed) : null;
-    throw new Error(
-      `Vite virtual-source admission census drift: committed=${JSON.stringify(committedCensus?.totals ?? null)} measured=${JSON.stringify(census.totals)}. Run node scripts/check-vite-plugin-smoke.mjs --write-admission-census after reviewing the newly admitted inputs.`,
-    );
-  }
-  console.log(
-    `Vite virtual-source admission census: existing=${census.totals.existing} newlyAdmitted=${census.totals.newlyAdmitted} total=${census.totals.total}`,
-  );
-}
-
-function measureAdmissionCensus() {
-  const examplesCount = countStyleModules(path.join(process.cwd(), "examples"));
-  const corpusCount = countStyleModules(
-    path.join(process.cwd(), "test/_fixtures/real-project-corpus"),
-  );
-  const examplesConfig = fs.readFileSync(
-    path.join(process.cwd(), "examples/vite.config.ts"),
-    "utf8",
-  );
-  const viteUnit = fs.readFileSync(
-    path.join(process.cwd(), "test/unit/vite-plugin/vite-plugin.test.ts"),
-    "utf8",
-  );
-  const mappedVirtualCount =
-    examplesConfig.match(/^\s{4}upstreamVirtualSource\(\),$/gmu)?.length ?? 0;
-  const virtualOnlyCount =
-    viteUnit.match(/it\("analyzes a virtual-only source when no disk mapping is available"/gu)
-      ?.length ?? 0;
-  const rows = [
-    {
-      key: "examples-disk-backed",
-      provenanceClass: "disk-backed",
-      admission: "existing",
-      source: "examples/",
-      section: "tracked module style inputs",
-      count: examplesCount,
-    },
-    {
-      key: "real-project-corpus-disk-backed",
-      provenanceClass: "disk-backed",
-      admission: "existing",
-      source: "test/_fixtures/real-project-corpus/",
-      section: "tracked module style inputs",
-      count: corpusCount,
-    },
-    {
-      key: "examples-upstream-transform",
-      provenanceClass: "virtual-with-map",
-      admission: "newly-admitted",
-      source: "examples/vite.config.ts",
-      section: "plugins: upstreamVirtualSource()",
-      count: mappedVirtualCount,
-    },
-    {
-      key: "virtual-only-regression",
-      provenanceClass: "virtual-only",
-      admission: "newly-admitted",
-      source: "test/unit/vite-plugin/vite-plugin.test.ts",
-      section: "analyzes a virtual-only source when no disk mapping is available",
-      count: virtualOnlyCount,
-    },
-  ];
-  const existing = rows
-    .filter(({ admission }) => admission === "existing")
-    .reduce((sum, { count }) => sum + count, 0);
-  const newlyAdmitted = rows
-    .filter(({ admission }) => admission === "newly-admitted")
-    .reduce((sum, { count }) => sum + count, 0);
-  return {
-    schemaVersion: "0",
-    product: "omena-vite.virtual-source-admission-census",
-    package: "@omena/vite-plugin",
-    semverIntent: "next-pre-1.0-minor",
-    rows,
-    totals: {
-      existing,
-      newlyAdmitted,
-      total: existing + newlyAdmitted,
-    },
-  };
-}
-
-function countStyleModules(root) {
-  let count = 0;
-  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-    if (entry.name === "dist" || entry.name === "node_modules") continue;
-    const entryPath = path.join(root, entry.name);
-    if (entry.isDirectory()) {
-      count += countStyleModules(entryPath);
-    } else if (/\.module\.(?:css|less|scss)$/u.test(entry.name)) {
-      count += 1;
-    }
-  }
-  return count;
 }
