@@ -1,0 +1,20 @@
+name: Precision Floor Mutation Suite
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mutation-suite:
+    # omena-ci-tier: manual
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - run: pnpm exec tsx scripts/check-rust-precision-floor-mutation.ts --all

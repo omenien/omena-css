@@ -36,7 +36,7 @@ const requestedArguments = process.argv.slice(2);
 assert.equal(
   requestedArguments.length,
   1,
-  "usage: rust-precision-floor-mutations.ts <probe-id|--all>",
+  "usage: check-rust-precision-floor-mutation.ts <probe-id|--all>",
 );
 const requestedId = requestedArguments[0];
 const probes =
