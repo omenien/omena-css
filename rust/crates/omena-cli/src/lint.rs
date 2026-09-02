@@ -122,7 +122,13 @@ pub(crate) fn lint_workspace(
         eprintln!("warning: {warning}");
     }
     if let Some(capture) = &execution.ranked_set_loss_capture {
-        write_ranked_set_loss_capture(capture)?;
+        if allows_ranked_set_loss_capture_publish(&execution.report.write) {
+            write_ranked_set_loss_capture(capture)?;
+        } else {
+            eprintln!(
+                "warning: ranked-set loss census was not written because lint --write did not land every candidate fix"
+            );
+        }
     }
     let report = execution.report;
     if json {
@@ -135,6 +141,12 @@ pub(crate) fn lint_workspace(
         print_text_report(&report);
     }
     Ok(())
+}
+
+fn allows_ranked_set_loss_capture_publish(status: &LintWriteStatusV0) -> bool {
+    !status.requested
+        || (status.candidate_edit_count > 0
+            && status.applied_edit_count == status.candidate_edit_count)
 }
 
 pub(crate) fn lint_check_report(root: Option<PathBuf>) -> Result<LintReportV0, String> {

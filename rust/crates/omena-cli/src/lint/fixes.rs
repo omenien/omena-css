@@ -41,7 +41,7 @@ struct LintFixSuggestionV0 {
 #[serde(rename_all = "camelCase")]
 pub(super) struct LintWriteStatusV0 {
     pub(super) requested: bool,
-    candidate_edit_count: usize,
+    pub(super) candidate_edit_count: usize,
     safe_edit_count: usize,
     conservative_edit_count: usize,
     manual_review_edit_count: usize,
@@ -271,5 +271,94 @@ mod tests {
             "omena-lint-fix-{label}-{}-{id}",
             std::process::id()
         ))
+    }
+
+    #[test]
+    fn ranked_set_loss_capture_only_follows_complete_landing() -> Result<(), String> {
+        let first_path = fixture_path("capture-complete-first.css");
+        let second_path = fixture_path("capture-complete-second.css");
+        fs::write(&first_path, ".known {}\n").map_err(|error| error.to_string())?;
+        fs::write(&second_path, ".known {}\n").map_err(|error| error.to_string())?;
+
+        let mut first = lint_fix_candidate(
+            "missing-static-class",
+            path_string(first_path.as_path()).as_str(),
+            end_range(),
+            ".first {}\n",
+        );
+        first.assessment = test_safe_assessment();
+        let mut second = lint_fix_candidate(
+            "missing-static-class",
+            path_string(second_path.as_path()).as_str(),
+            end_range(),
+            ".second {}\n",
+        );
+        second.assessment = test_safe_assessment();
+
+        let preview = apply_lint_fix_requests(&[first.clone(), second.clone()], false)?;
+        assert!(super::super::allows_ranked_set_loss_capture_publish(
+            &preview
+        ));
+
+        let complete = apply_lint_fix_requests(&[first, second], true)?;
+        assert_eq!(complete.applied_edit_count, 2);
+        assert_eq!(complete.rejection_count, 0);
+        assert!(super::super::allows_ranked_set_loss_capture_publish(
+            &complete
+        ));
+
+        let landed_path = fixture_path("capture-partial-landed.css");
+        let rejected_path = fixture_path("capture-partial-rejected.css");
+        fs::write(&landed_path, ".known {}\n").map_err(|error| error.to_string())?;
+        fs::write(&rejected_path, ".known {}\n").map_err(|error| error.to_string())?;
+
+        let mut landed = lint_fix_candidate(
+            "missing-static-class",
+            path_string(landed_path.as_path()).as_str(),
+            end_range(),
+            ".landed {}\n",
+        );
+        landed.assessment = test_safe_assessment();
+        let rejected = lint_fix_candidate(
+            "missing-static-class",
+            path_string(rejected_path.as_path()).as_str(),
+            end_range(),
+            ".rejected {}\n",
+        );
+
+        let partial = apply_lint_fix_requests(&[landed, rejected], true)?;
+        assert_eq!(partial.applied_edit_count, 1);
+        assert_eq!(partial.rejection_count, 1);
+        assert!(!super::super::allows_ranked_set_loss_capture_publish(
+            &partial
+        ));
+        assert!(
+            fs::read_to_string(&landed_path)
+                .map_err(|error| error.to_string())?
+                .contains(".landed {}")
+        );
+        assert_eq!(
+            fs::read_to_string(&rejected_path).map_err(|error| error.to_string())?,
+            ".known {}\n"
+        );
+
+        let empty_write = apply_lint_fix_requests(&[], true)?;
+        assert!(!super::super::allows_ranked_set_loss_capture_publish(
+            &empty_write
+        ));
+
+        for path in [first_path, second_path, landed_path, rejected_path] {
+            fs::remove_file(path).map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    }
+
+    fn test_safe_assessment() -> FixSafetyAssessmentV0 {
+        FixSafetyAssessmentV0 {
+            safety: FixSafetyV0::Safe,
+            safety_name: FixSafetyV0::Safe.as_str(),
+            precision_backed: true,
+            rationale: vec!["testSafeAssessment"],
+        }
     }
 }
