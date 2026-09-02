@@ -122,13 +122,7 @@ pub(crate) fn lint_workspace(
         eprintln!("warning: {warning}");
     }
     if let Some(capture) = &execution.ranked_set_loss_capture {
-        if allows_ranked_set_loss_capture_publish(&execution.report.write) {
-            write_ranked_set_loss_capture(capture)?;
-        } else {
-            eprintln!(
-                "warning: ranked-set loss census was not written because lint --write did not land every candidate fix"
-            );
-        }
+        write_ranked_set_loss_capture_if_complete(capture, &execution.report.write)?;
     }
     let report = execution.report;
     if json {
@@ -141,12 +135,6 @@ pub(crate) fn lint_workspace(
         print_text_report(&report);
     }
     Ok(())
-}
-
-fn allows_ranked_set_loss_capture_publish(status: &LintWriteStatusV0) -> bool {
-    !status.requested
-        || (status.candidate_edit_count > 0
-            && status.applied_edit_count == status.candidate_edit_count)
 }
 
 pub(crate) fn lint_check_report(root: Option<PathBuf>) -> Result<LintReportV0, String> {
@@ -522,6 +510,26 @@ fn print_text_report(report: &LintReportV0) {
             println!("  unsupported: {}", unsupported.stylelint_rule);
         }
     }
+}
+
+fn write_ranked_set_loss_capture_if_complete(
+    capture: &OmenaQueryCascadeRankedSetLossCaptureV0,
+    status: &LintWriteStatusV0,
+) -> Result<(), String> {
+    if allows_ranked_set_loss_capture_publish(status) {
+        write_ranked_set_loss_capture(capture)
+    } else {
+        eprintln!(
+            "warning: ranked-set loss census was not written because lint --write did not land every candidate fix"
+        );
+        Ok(())
+    }
+}
+
+fn allows_ranked_set_loss_capture_publish(status: &LintWriteStatusV0) -> bool {
+    !status.requested
+        || (status.candidate_edit_count > 0
+            && status.applied_edit_count == status.candidate_edit_count)
 }
 
 #[cfg(test)]
