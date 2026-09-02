@@ -2173,7 +2173,7 @@
     {
       "fingerprint": "ced16e245e1b60ce0f3c2fa2a384bccf2dcf914572888b1c5253a613d8f81b98",
       "writerScript": "scripts/check-vite-plugin-hmr.mjs",
-      "line": 29,
+      "line": 30,
       "writeApi": "writeFileSync",
       "writeExpression": "path.join(tempRoot, \"index.html\")",
       "disposition": "outside-registry-writer"
@@ -2181,7 +2181,7 @@
     {
       "fingerprint": "8884d273d4c2182e200a4c5c9dadc78cca111f3e824e21b1d970bad4e1796fd6",
       "writerScript": "scripts/check-vite-plugin-hmr.mjs",
-      "line": 33,
+      "line": 34,
       "writeApi": "writeFileSync",
       "writeExpression": "path.join(srcRoot, \"main.js\")",
       "disposition": "outside-registry-writer"
@@ -2189,7 +2189,7 @@
     {
       "fingerprint": "2872522a9eb5076121bb94eb34283d1555dc62e05886fb8ec267068b7d083ffc",
       "writerScript": "scripts/check-vite-plugin-hmr.mjs",
-      "line": 37,
+      "line": 38,
       "writeApi": "writeFileSync",
       "writeExpression": "stylePath",
       "disposition": "outside-registry-writer"
@@ -2197,7 +2197,7 @@
     {
       "fingerprint": "9b9a961af82d252cbff9de3a4769d06f1f53552e8d4c2e67698f7b80ccc43816",
       "writerScript": "scripts/check-vite-plugin-hmr.mjs",
-      "line": 72,
+      "line": 73,
       "writeApi": "writeFileSync",
       "writeExpression": "stylePath",
       "disposition": "outside-registry-writer"
@@ -2205,7 +2205,7 @@
     {
       "fingerprint": "9c78d407a45ec7efcc29f7aa80d40bb7bccee9ad1aff02103563c95ab55bedd2",
       "writerScript": "scripts/check-vite-plugin-hmr.mjs",
-      "line": 126,
+      "line": 127,
       "writeApi": "writeFileSync",
       "writeExpression": "path.join(tempRoot, \"index.html\")",
       "disposition": "outside-registry-writer"
@@ -2213,7 +2213,7 @@
     {
       "fingerprint": "105edc72bc75fbaba80ca9c29601b2246a8111938c13e20956a87eea8abd607d",
       "writerScript": "scripts/check-vite-plugin-hmr.mjs",
-      "line": 130,
+      "line": 131,
       "writeApi": "writeFileSync",
       "writeExpression": "path.join(srcRoot, \"main.js\")",
       "disposition": "outside-registry-writer"
@@ -2221,7 +2221,7 @@
     {
       "fingerprint": "052d8e3d45441f2b7d74c4e9bb4a7b9602a6945117f6fd52a96f004c861fb905",
       "writerScript": "scripts/check-vite-plugin-hmr.mjs",
-      "line": 153,
+      "line": 154,
       "writeApi": "writeFileSync",
       "writeExpression": "stylePath",
       "disposition": "outside-registry-writer"
@@ -2229,7 +2229,7 @@
     {
       "fingerprint": "2e5184f7be502646f8ad59069adc2647dea30a0ba1928cbc12308d67d6d19fb4",
       "writerScript": "scripts/check-vite-plugin-hmr.mjs",
-      "line": 158,
+      "line": 159,
       "writeApi": "writeFileSync",
       "writeExpression": "dependencyPath",
       "disposition": "outside-registry-writer"
@@ -2237,7 +2237,7 @@
     {
       "fingerprint": "aa3ad5f134ec12a34cdeefb4b785fb385c4b2f3613abb30d0fa3bf9dec6b143a",
       "writerScript": "scripts/check-vite-plugin-hmr.mjs",
-      "line": 219,
+      "line": 220,
       "writeApi": "writeFileSync",
       "writeExpression": "dependencyPath",
       "disposition": "outside-registry-writer"

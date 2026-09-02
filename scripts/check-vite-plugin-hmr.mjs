@@ -9,6 +9,7 @@ const examplesRequire = createRequire(path.join(process.cwd(), "examples/package
 const { createServer } = await import(examplesRequire.resolve("vite"));
 const { omenaCss } = require("../packages/vite-plugin/index.cjs");
 const ROOT_TOKEN_SHAPE = /^_[A-Za-z0-9_-]{6}_root$/u;
+const BUTTON_TOKEN_SHAPE = /(?:^|\s)_[A-Za-z0-9_-]{6}_button(?:\s|$)/u;
 
 async function main() {
   await runHookConvergenceGate();
@@ -268,7 +269,7 @@ async function runBrowserDevHmrGate() {
 
 async function runExamplesTransitiveClosureGate() {
   const examplesRoot = path.join(process.cwd(), "examples");
-  const stylePath = path.join(examplesRoot, "src/hmr-closure/Closure.module.scss");
+  const stylePath = path.join(examplesRoot, "src/scenarios/01-basic/Button.module.scss");
   const initialSource = fs.readFileSync(stylePath, "utf8");
   const warnings = [];
   let originalReadFile;
@@ -301,12 +302,8 @@ async function runExamplesTransitiveClosureGate() {
     const browserDiagnostics = collectBrowserDiagnostics(page);
     await navigateCdpPage(page, url);
     await waitForValue(
-      () =>
-        evaluate(
-          page,
-          `typeof window.__readOmenaHmrClosure === "function" ? window.__readOmenaHmrClosure() : null`,
-        ),
-      (value) => typeof value === "string" && ROOT_TOKEN_SHAPE.test(value),
+      () => evaluate(page, `document.querySelector(".stage section button")?.className ?? null`),
+      (value) => typeof value === "string" && BUTTON_TOKEN_SHAPE.test(value),
       10_000,
     );
 
@@ -338,8 +335,8 @@ async function runExamplesTransitiveClosureGate() {
     );
     const invalidatedIds = (invalidated ?? []).map(({ id }) => id ?? "");
     const requiredImporterSuffixes = [
-      "/src/hmr-closure/leaf.ts",
-      "/src/hmr-closure/middle.ts",
+      "/src/scenarios/01-basic/BasicScenario.tsx",
+      "/src/App.tsx",
       "/src/main.tsx",
     ];
     const missingImporters = requiredImporterSuffixes.filter(

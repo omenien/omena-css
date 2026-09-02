@@ -228,7 +228,8 @@
         "scripts/package-extension-vsix.ts",
         "scripts/surfaces/packages-check-orchestrator-src-manifest-documented-commands.surface.ts",
         "test/unit/check-orchestrator/evidence-affected.test.ts",
-        "test/unit/check-orchestrator/manifest.test.ts"
+        "test/unit/check-orchestrator/manifest.test.ts",
+        "test/unit/vite-plugin/vite-plugin.test.ts"
       ],
       "consumerGateIds": [
         "core/build/omena-plugin-packages",
@@ -1715,7 +1716,8 @@
         "scripts/package-extension-vsix.ts",
         "scripts/surfaces/packages-check-orchestrator-src-manifest-documented-commands.surface.ts",
         "test/unit/check-orchestrator/evidence-affected.test.ts",
-        "test/unit/check-orchestrator/manifest.test.ts"
+        "test/unit/check-orchestrator/manifest.test.ts",
+        "test/unit/vite-plugin/vite-plugin.test.ts"
       ],
       "consumerGateIds": [
         "core/build/omena-plugin-packages",

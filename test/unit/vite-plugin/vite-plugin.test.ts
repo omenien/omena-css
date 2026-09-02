@@ -149,6 +149,18 @@ function measureVirtualSourceAdmissionCensus() {
   };
 }
 
+function readPublishedVirtualSourceAdmissionCensus(): unknown {
+  const readme = fs.readFileSync(
+    path.join(process.cwd(), "packages/vite-plugin/README.md"),
+    "utf8",
+  );
+  const match = readme.match(
+    /<!-- omena-vite-virtual-source-admission-census:start -->\n\n```json\n([\s\S]*?)\n```\n\n<!-- omena-vite-virtual-source-admission-census:end -->/u,
+  );
+  if (!match?.[1]) throw new Error("Published Vite virtual-source admission census is missing");
+  return JSON.parse(match[1]);
+}
+
 function gitOutput(args: readonly string[]): string {
   return execFileSync("git", args, {
     cwd: process.cwd(),
@@ -404,13 +416,9 @@ afterEach(() => {
 
 describe("@omena/vite-plugin", () => {
   it("pins the reviewed virtual-source admission census", () => {
-    const censusPath = path.join(
-      process.cwd(),
-      "packages/vite-plugin/virtual-source-admission-census.json",
+    expect(readPublishedVirtualSourceAdmissionCensus()).toEqual(
+      measureVirtualSourceAdmissionCensus(),
     );
-    const committed = JSON.parse(fs.readFileSync(censusPath, "utf8"));
-
-    expect(committed).toEqual(measureVirtualSourceAdmissionCensus());
   });
 
   const diskByteBaseline = process.env.OMENA_VITE_DISK_BYTE_BASELINE;

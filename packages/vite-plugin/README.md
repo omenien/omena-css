@@ -83,7 +83,58 @@ of an upstream transform.
 Changing the default from strict disk matching to transform-input analysis is a
 user-visible behavior change intended for the next pre-1.0 minor release. This
 repository change does not publish a package; publication remains part of the
-normal release train. The checked-in
-[`virtual-source-admission-census.json`](./virtual-source-admission-census.json)
-separates existing disk-backed inputs from newly admitted mapped and virtual-only
-inputs, and the focused plugin unit gate rejects unreviewed census drift.
+normal release train. The published census below separates existing disk-backed
+inputs from newly admitted mapped and virtual-only inputs. The focused plugin
+unit gate measures the named source populations and rejects unreviewed drift.
+
+<!-- omena-vite-virtual-source-admission-census:start -->
+
+```json
+{
+  "schemaVersion": "0",
+  "product": "omena-vite.virtual-source-admission-census",
+  "package": "@omena/vite-plugin",
+  "semverIntent": "next-pre-1.0-minor",
+  "rows": [
+    {
+      "key": "examples-disk-backed",
+      "provenanceClass": "disk-backed",
+      "admission": "existing",
+      "source": "examples/",
+      "section": "tracked module style inputs",
+      "count": 26
+    },
+    {
+      "key": "real-project-corpus-disk-backed",
+      "provenanceClass": "disk-backed",
+      "admission": "existing",
+      "source": "test/_fixtures/real-project-corpus/",
+      "section": "tracked module style inputs",
+      "count": 6
+    },
+    {
+      "key": "examples-upstream-transform",
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "source": "examples/vite.config.ts",
+      "section": "plugins: upstreamVirtualSource()",
+      "count": 1
+    },
+    {
+      "key": "virtual-only-regression",
+      "provenanceClass": "virtual-only",
+      "admission": "newly-admitted",
+      "source": "test/unit/vite-plugin/vite-plugin.test.ts",
+      "section": "analyzes a virtual-only source when no disk mapping is available",
+      "count": 1
+    }
+  ],
+  "totals": {
+    "existing": 32,
+    "newlyAdmitted": 2,
+    "total": 34
+  }
+}
+```
+
+<!-- omena-vite-virtual-source-admission-census:end -->
