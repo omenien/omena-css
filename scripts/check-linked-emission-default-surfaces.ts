@@ -47,11 +47,15 @@ const injectAdapterEmissionEnvironmentDrop = process.argv.includes(
   "--inject-adapter-emission-environment-drop",
 );
 const injectDefaultDrift = process.argv.includes("--inject-default-drift");
+const injectViteEffectiveOptionsDrop = process.argv.includes(
+  "--inject-vite-effective-options-drop",
+);
 const knownArguments = new Set([
   "--inject-silent-legacy-construction",
   "--inject-adapter-legacy-binding",
   "--inject-adapter-emission-environment-drop",
   "--inject-default-drift",
+  "--inject-vite-effective-options-drop",
 ]);
 for (const argument of process.argv.slice(2)) {
   assert.ok(knownArguments.has(argument), `unknown argument: ${argument}`);
@@ -185,8 +189,13 @@ assert.equal(countOccurrences(adapter, "async buildBundleSourcesLegacy(input)"),
 assert.match(adapterTypes, /@deprecated Legacy import-inline (?:bundle )?emission/u);
 assert.match(
   vite,
-  /async transform\(code, id\) \{[\s\S]*?const effectiveOptions = await resolveEffectiveOptions\(options, state\);[\s\S]*?const output = await rebuildAndCache\(fileId, code, effectiveOptions, state\);/u,
-  "Vite transform must delegate the resolved emission option to the shared adapter build",
+  /async transform\(code, id\) \{[\s\S]*?const effectiveOptions = await resolveEffectiveOptions\(options, state\);[\s\S]*?const output = await rebuildViteSource\(\s*fileId,\s*code,\s*diskSource,\s*upstreamMap,\s*effectiveOptions,\s*state,\s*\);/u,
+  "Vite transform must delegate the resolved emission option through the provenance-aware build path",
+);
+assert.match(
+  vite,
+  /async function rebuildViteSource\(fileId, source, diskSource, upstreamMap, effectiveOptions, state\) \{[\s\S]*?const identityContext = isDiskBacked[\s\S]*?const output = await rebuildAndCache\(fileId, source, effectiveOptions, state, identityContext\);/u,
+  "Vite provenance-aware builds must preserve resolved emission options at the shared adapter boundary",
 );
 assert.match(viteTypes, /@deprecated Legacy import-inline (?:bundle )?emission/u);
 assert.match(
@@ -301,6 +310,14 @@ function readSource(sourcePath: string): string {
         "    ImportInlineLegacy,\n    #[default]\n    LinkedOrder,",
         "    ImportInlineLegacy,\n    LinkedOrder,",
       );
+  }
+  if (injectViteEffectiveOptionsDrop && sourcePath === "packages/vite-plugin/index.cjs") {
+    const mutated = source.replace(
+      "        effectiveOptions,\n        state,\n      );",
+      "        {},\n        state,\n      );",
+    );
+    assert.notEqual(mutated, source, "Vite effective-options mutation did not match the source");
+    source = mutated;
   }
   return source;
 }

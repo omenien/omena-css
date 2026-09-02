@@ -79,7 +79,8 @@
       "sourcePath": "packages/vite-plugin/index.cjs",
       "defaultNeedles": [
         "const effectiveOptions = await resolveEffectiveOptions(options, state);",
-        "const output = await rebuildAndCache(fileId, code, effectiveOptions, state);"
+        "const output = await rebuildViteSource(",
+        "fileId,\n        code,\n        diskSource,\n        upstreamMap,\n        effectiveOptions,\n        state,\n      );"
       ],
       "legacyOptIn": "OmenaVitePluginOptions.legacyEmission"
     },
