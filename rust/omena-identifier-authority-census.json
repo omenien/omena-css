@@ -537,7 +537,7 @@
       },
       {
         "path": "rust/crates/omena-query-core/src/lib.rs",
-        "line": 820,
+        "line": 821,
         "function": "selector_universe_for_targets",
         "operation": "map-get",
         "evidence": "if let Some(selector_names) = style_selectors_by_path.get(target_style_path) {",
@@ -546,7 +546,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 2110,
+        "line": 2114,
         "function": "summarize_omena_query_css_modules_interface_bundle_inner",
         "operation": "insert",
         "evidence": "emitted_class_names.insert(",
@@ -555,7 +555,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3947,
+        "line": 3951,
         "function": "collect_css_modules_composes_adjacency_with_path_mappings",
         "operation": "str-eq",
         "evidence": "let target_class_names = if target_style_path == *style_path {",
@@ -564,7 +564,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3962,
+        "line": 3966,
         "function": "collect_css_modules_composes_adjacency_with_path_mappings",
         "operation": "contains",
         "evidence": "if !class_names.contains(&canonical_class_key(owner_selector_name)) {",
@@ -573,7 +573,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3968,
+        "line": 3972,
         "function": "collect_css_modules_composes_adjacency_with_path_mappings",
         "operation": "contains",
         "evidence": "if !target_class_names.contains(&canonical_class_key(target_selector_name)) {",
@@ -582,7 +582,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 4322,
+        "line": 4326,
         "function": "collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts",
         "operation": "insert",
         "evidence": "if seen.insert((range_span.start, range_span.end, selector_name.clone())) {",
@@ -618,7 +618,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-        "line": 528,
+        "line": 519,
         "function": "collect_omena_query_source_selector_usage_by_style",
         "operation": "insert",
         "evidence": "used_for_style.insert(selector_name);",
@@ -627,7 +627,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-        "line": 736,
+        "line": 727,
         "function": "record_omena_query_used_source_selector",
         "operation": "insert",
         "evidence": "used_for_style.insert(selector_name);",
@@ -636,7 +636,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-        "line": 751,
+        "line": 742,
         "function": "class_name_aliases",
         "operation": "map-get",
         "evidence": "aliases.get(selector_name).or_else(|| {",
@@ -645,7 +645,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-        "line": 789,
+        "line": 780,
         "function": "collect_classname_transform_aliases",
         "operation": "insert",
         "evidence": ".insert(selector_name.clone());",
@@ -654,7 +654,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-        "line": 865,
+        "line": 856,
         "function": "propagate_omena_query_composes_usage",
         "operation": "insert",
         "evidence": ".insert(target.selector_name.clone());",
@@ -690,7 +690,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/transform.rs",
-        "line": 1379,
+        "line": 1382,
         "function": "closed_world_bound_reachability_precision",
         "operation": "contains",
         "evidence": ".any(|name| !closed_world_class_names.contains(name.as_str()))",
@@ -950,7 +950,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:2832642d4f1f67b494ef8481a52c6654e65a35def7eb1e0131fc96b69d24ccb2"
+    "siteDigest": "sha256:269485fa5bd5f875b0e15ff3069f4dbe0f17bd510b5f96890c79a9f025688bbc"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
@@ -2407,7 +2407,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 608,
+        "line": 612,
         "function": "summarize_omena_query_custom_property_occurrence_index",
         "operation": "sealed-property-key",
         "evidence": "let Some(property_key) = fact.property_key else {",
@@ -2415,7 +2415,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 623,
+        "line": 627,
         "function": "summarize_omena_query_custom_property_occurrence_index",
         "operation": "sealed-property-key",
         "evidence": "property_key,",
@@ -2423,7 +2423,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 928,
+        "line": 932,
         "function": "summarize_omena_query_style_hover_render_parts_for_target_with_substrate",
         "operation": "CanonicalPropertyKeyV0",
         "evidence": "CanonicalPropertyKeyV0,",
@@ -2431,7 +2431,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1101,
+        "line": 1105,
         "function": "selector_property_value_narrowings_from_declarations",
         "operation": "sealed-property-key",
         "evidence": "declaration.property_key.clone(),",
@@ -2439,7 +2439,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1129,
+        "line": 1133,
         "function": "selector_property_value_narrowings_from_declarations",
         "operation": "sealed-property-key",
         "evidence": "|(property_key, condition_context, layer_name, layer_order)| {",
@@ -2447,7 +2447,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1132,
+        "line": 1136,
         "function": "selector_property_value_narrowings_from_declarations",
         "operation": "sealed-property-key",
         "evidence": ".filter(|declaration| declaration.property_key == property_key)",
@@ -2455,7 +2455,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1146,
+        "line": 1150,
         "function": "selector_property_value_narrowings_from_declarations",
         "operation": "sealed-property-key",
         "evidence": "property_key.as_str(),",
@@ -2463,7 +2463,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1245,
+        "line": 1249,
         "function": "module_graph_narrowings_from_matching_declarations",
         "operation": "sealed-property-key",
         "evidence": "declaration.property_key.clone(),",
@@ -2471,7 +2471,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1273,
+        "line": 1277,
         "function": "module_graph_narrowings_from_matching_declarations",
         "operation": "sealed-property-key",
         "evidence": "|(property_key, condition_context, layer_name, layer_order)| {",
@@ -2479,7 +2479,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1276,
+        "line": 1280,
         "function": "module_graph_narrowings_from_matching_declarations",
         "operation": "sealed-property-key",
         "evidence": ".filter(|declaration| declaration.property_key == property_key)",
@@ -2487,7 +2487,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1290,
+        "line": 1294,
         "function": "module_graph_narrowings_from_matching_declarations",
         "operation": "sealed-property-key",
         "evidence": "property_key.as_str(),",
@@ -2495,7 +2495,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1845,
+        "line": 1849,
         "function": "parser_materialization",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "pub custom_property_decl_names: BTreeSet<CanonicalCustomPropertyNameV0>,",
@@ -2503,7 +2503,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1846,
+        "line": 1850,
         "function": "parser_materialization",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "pub custom_property_ref_names: BTreeSet<CanonicalCustomPropertyNameV0>,",
@@ -2511,7 +2511,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 2235,
+        "line": 2239,
         "function": "custom_property_decl_names_for_query",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": ") -> BTreeSet<CanonicalCustomPropertyNameV0> {",
@@ -2519,7 +2519,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 2258,
+        "line": 2262,
         "function": "custom_property_ref_names_for_query",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": ") -> BTreeSet<CanonicalCustomPropertyNameV0> {",
@@ -2527,7 +2527,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 4206,
+        "line": 4210,
         "function": "collect_style_selector_hover_candidates_from_omena_parser_facts",
         "operation": "sealed-property-key",
         "evidence": "property_key: None,",
@@ -2535,7 +2535,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 4234,
+        "line": 4238,
         "function": "collect_custom_property_hover_candidates_from_omena_parser_facts",
         "operation": "sealed-property-key",
         "evidence": "let Some(property_key) = fact.property_key.clone() else {",
@@ -2543,7 +2543,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 4243,
+        "line": 4247,
         "function": "collect_custom_property_hover_candidates_from_omena_parser_facts",
         "operation": "sealed-property-key",
         "evidence": "property_key.as_str().to_string(),",
@@ -2551,7 +2551,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 4249,
+        "line": 4253,
         "function": "collect_custom_property_hover_candidates_from_omena_parser_facts",
         "operation": "sealed-property-key",
         "evidence": "property_key: Some(property_key),",
@@ -2559,7 +2559,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 4298,
+        "line": 4302,
         "function": "collect_sass_symbol_hover_candidates_from_omena_parser_facts",
         "operation": "sealed-property-key",
         "evidence": "property_key: None,",
@@ -2567,7 +2567,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 4327,
+        "line": 4331,
         "function": "collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts",
         "operation": "sealed-property-key",
         "evidence": "property_key: None,",
@@ -2943,7 +2943,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-        "line": 329,
+        "line": 334,
         "function": "compute_referenced_declaration_cascade_value_seed",
         "operation": "sealed-property-key",
         "evidence": "let property_key = declaration.property.to_property_name().canonical_key();",
@@ -2951,7 +2951,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-        "line": 331,
+        "line": 336,
         "function": "compute_referenced_declaration_cascade_value_seed",
         "operation": "sealed-property-key",
         "evidence": "let standard_property_value_verdicts = if property_key.as_custom().is_none() {",
@@ -2959,7 +2959,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-        "line": 335,
+        "line": 340,
         "function": "compute_referenced_declaration_cascade_value_seed",
         "operation": "sealed-property-key",
         "evidence": "property_key.as_str(),",
@@ -2967,7 +2967,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-        "line": 348,
+        "line": 353,
         "function": "compute_referenced_declaration_cascade_value_seed",
         "operation": "sealed-property-key",
         "evidence": "property_key: property_key.clone(),",
@@ -2975,7 +2975,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-        "line": 441,
+        "line": 446,
         "function": "collect_same_file_custom_property_env_from_graph",
         "operation": "sealed-property-key",
         "evidence": "let property_key = declaration.name.to_custom_key();",
@@ -2983,7 +2983,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-        "line": 443,
+        "line": 448,
         "function": "collect_same_file_custom_property_env_from_graph",
         "operation": "sealed-property-key",
         "evidence": ".entry(property_key)",
@@ -2991,7 +2991,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-        "line": 579,
+        "line": 584,
         "function": "positioned_custom_property_reference_facts",
         "operation": "CanonicalCustomPropertyNameV0",
         "evidence": "BTreeMap::<CanonicalCustomPropertyNameV0, VecDeque<ParserRangeV0>>::new();",
@@ -6974,7 +6974,7 @@
         "role": "producer"
       }
     ],
-    "siteDigest": "sha256:8dc74233c2a6b992cb4e5fe627dd460b89537e41e436a27cd2f8137f75b17b08",
+    "siteDigest": "sha256:251c0037fc0c5e112f461f9c756caf1040a6b601379d177b32e12dd24603f19e",
     "residualRawCarrierDirection": "decrease-only",
     "residualRawCarrierSiteCount": 128,
     "residualRawCarrierSites": [
@@ -8656,7 +8656,7 @@
           },
           {
             "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-            "line": 441,
+            "line": 446,
             "function": "collect_same_file_custom_property_env_from_graph",
             "operation": "residual-property-consumer:presentation",
             "evidence": "let property_key = declaration.name.to_custom_key();",
@@ -12654,7 +12654,7 @@
     ],
     "residualCarrierConsumerSiteCount": 254,
     "residualIdentityShapedConsumerCount": 0,
-    "residualCarrierConsumerDigest": "sha256:24274ab89ddbc908a458c392b76cdcef76b87ff2e9c0cbe8be17c16a4e90b667",
+    "residualCarrierConsumerDigest": "sha256:3b1658f3c8e3de416c75d5440657ddcbaa021429e410e793392421ddf83fff27",
     "rawStringIdentitySiteCount": 0,
     "rawStringIdentitySites": [],
     "rawStringIdentitySiteDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -16492,7 +16492,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style.rs",
-          "line": 2205,
+          "line": 2209,
           "function": "style_selector_definitions_for_query",
           "escapeId": "render-authored-helper",
           "evidence": "let _ = omena_syntax::ident::render_authored(&candidate.name, &mut name);",
@@ -16528,7 +16528,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-          "line": 209,
+          "line": 214,
           "function": "read_omena_query_cascade_at_position_from_graph",
           "escapeId": "render-authored-helper",
           "evidence": "let _ = render_authored(reference.name, &mut rendered_reference_name);",
@@ -16540,7 +16540,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-          "line": 330,
+          "line": 335,
           "function": "compute_referenced_declaration_cascade_value_seed",
           "escapeId": "debug-format-spec",
           "evidence": "let declaration_id = format!(\"{style_path}:{property_key:?}:{}\", declaration.source_order);",
@@ -16552,7 +16552,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-          "line": 398,
+          "line": 403,
           "function": "summarize_query_cascade_refinement_evidence",
           "escapeId": "render-authored-helper",
           "evidence": "let _ = render_authored(reference_name, &mut rendered_reference_name);",
@@ -16564,7 +16564,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-          "line": 586,
+          "line": 591,
           "function": "positioned_custom_property_reference_facts",
           "escapeId": "render-authored-helper",
           "evidence": "let _ = render_authored(fact.name, &mut rendered_name);",
@@ -16828,7 +16828,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 1292,
+          "line": 1295,
           "function": "execute_omena_query_consumer_build_style_module_with_context_and_closed_world_bundle",
           "escapeId": "debug-format-spec",
           "evidence": ".map_err(|error| format!(\"module-qualified transform execution failed: {error:?}\"))?;",
@@ -16840,7 +16840,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 1470,
+          "line": 1529,
           "function": "execute_omena_query_consumer_build_style_sources_with_context_resolution_inputs_and_options",
           "escapeId": "debug-format-spec",
           "evidence": "return Err(format!(",
@@ -16852,7 +16852,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 1759,
+          "line": 1818,
           "function": "execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_build_inputs",
           "escapeId": "debug-format-spec",
           "evidence": "return Err(format!(",
@@ -16864,7 +16864,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 2265,
+          "line": 2324,
           "function": "linked_bundle_source_map_segments",
           "escapeId": "debug-format-spec",
           "evidence": "format!(\"linked source-map module {source_path:?} has no source document\")",
@@ -16873,12 +16873,12 @@
           "disposition": "sanctioned-identity",
           "resultBindings": ["source"],
           "reachingIdentitySinks": [
-            "rust/crates/omena-query/src/style/transform.rs:2287:linked_bundle_source_map_segments:binary-eq"
+            "rust/crates/omena-query/src/style/transform.rs:2346:linked_bundle_source_map_segments:binary-eq"
           ]
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 2271,
+          "line": 2330,
           "function": "linked_bundle_source_map_segments",
           "escapeId": "debug-format-spec",
           "evidence": "format!(",
@@ -16890,7 +16890,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 2279,
+          "line": 2338,
           "function": "linked_bundle_source_map_segments",
           "escapeId": "debug-format-spec",
           "evidence": "return Err(format!(",
@@ -16907,7 +16907,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 2334,
+          "line": 2393,
           "function": "linked_bundle_source_map_segments",
           "escapeId": "debug-format-spec",
           "evidence": "return Err(format!(",
@@ -16925,7 +16925,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 2522,
+          "line": 2581,
           "function": "validate_linked_source_map_original_segment",
           "escapeId": "debug-format-spec",
           "evidence": "return Err(format!(",
@@ -16937,7 +16937,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 2534,
+          "line": 2593,
           "function": "validate_linked_source_map_original_segment",
           "escapeId": "debug-format-spec",
           "evidence": "return Err(format!(",
@@ -16949,7 +16949,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 2551,
+          "line": 2610,
           "function": "validate_linked_source_map_original_segment",
           "escapeId": "debug-format-spec",
           "evidence": "return Err(format!(",
@@ -16958,12 +16958,12 @@
           "disposition": "presentation",
           "resultBindings": [],
           "reachingIdentitySinks": [
-            "rust/crates/omena-query/src/style/transform.rs:2287:linked_bundle_source_map_segments:binary-eq"
+            "rust/crates/omena-query/src/style/transform.rs:2346:linked_bundle_source_map_segments:binary-eq"
           ]
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 2560,
+          "line": 2619,
           "function": "validate_linked_source_map_original_segment",
           "escapeId": "debug-format-spec",
           "evidence": "return Err(format!(",
@@ -16972,12 +16972,12 @@
           "disposition": "presentation",
           "resultBindings": [],
           "reachingIdentitySinks": [
-            "rust/crates/omena-query/src/style/transform.rs:2287:linked_bundle_source_map_segments:binary-eq"
+            "rust/crates/omena-query/src/style/transform.rs:2346:linked_bundle_source_map_segments:binary-eq"
           ]
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 2570,
+          "line": 2629,
           "function": "validate_linked_source_map_original_segment",
           "escapeId": "debug-format-spec",
           "evidence": "return Err(format!(",
@@ -16986,12 +16986,12 @@
           "disposition": "presentation",
           "resultBindings": [],
           "reachingIdentitySinks": [
-            "rust/crates/omena-query/src/style/transform.rs:2287:linked_bundle_source_map_segments:binary-eq"
+            "rust/crates/omena-query/src/style/transform.rs:2346:linked_bundle_source_map_segments:binary-eq"
           ]
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 2577,
+          "line": 2636,
           "function": "validate_linked_source_map_original_segment",
           "escapeId": "debug-format-spec",
           "evidence": "return Err(format!(",
@@ -17000,12 +17000,12 @@
           "disposition": "presentation",
           "resultBindings": [],
           "reachingIdentitySinks": [
-            "rust/crates/omena-query/src/style/transform.rs:2287:linked_bundle_source_map_segments:binary-eq"
+            "rust/crates/omena-query/src/style/transform.rs:2346:linked_bundle_source_map_segments:binary-eq"
           ]
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 2858,
+          "line": 2917,
           "function": "find_import_origin_generated_range",
           "escapeId": "render-authored-helper",
           "evidence": "let _ = omena_syntax::ident::render_authored(name, &mut rendered);",
@@ -17017,7 +17017,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 2880,
+          "line": 2939,
           "function": "find_import_origin_generated_range",
           "escapeId": "render-authored-helper",
           "evidence": "let _ = omena_syntax::ident::render_authored(name, &mut rendered);",
@@ -17029,7 +17029,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 4161,
+          "line": 4220,
           "function": "execute_linked_bundle_modules",
           "escapeId": "debug-format-spec",
           "evidence": ".ok_or_else(|| format!(\"linked bundle has no entrypoint for {target_style_path:?}\"))?;",
@@ -17041,7 +17041,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 4225,
+          "line": 4284,
           "function": "execute_linked_bundle_modules",
           "escapeId": "debug-format-spec",
           "evidence": ".map_err(|error| format!(\"linked bundle materialization failed: {error:?}\"))?;",
@@ -17053,7 +17053,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 4231,
+          "line": 4290,
           "function": "execute_linked_bundle_modules",
           "escapeId": "debug-format-spec",
           "evidence": "return Err(format!(",
@@ -17065,7 +17065,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 4283,
+          "line": 4342,
           "function": "execute_linked_bundle_modules_with_ownership_reference",
           "escapeId": "debug-format-spec",
           "evidence": "return Err(format!(",
@@ -17077,7 +17077,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 4575,
+          "line": 4634,
           "function": "summarize_linked_bundle_execution_scope",
           "escapeId": "debug-format-spec",
           "evidence": "format!(",
@@ -17089,7 +17089,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 4582,
+          "line": 4641,
           "function": "summarize_linked_bundle_execution_scope",
           "escapeId": "debug-format-spec",
           "evidence": "return Err(format!(",
@@ -17146,7 +17146,7 @@
           "disposition": "presentation",
           "resultBindings": ["name"],
           "reachingIdentitySinks": [
-            "rust/crates/omena-query/src/style/transform.rs:2287:linked_bundle_source_map_segments:binary-eq",
+            "rust/crates/omena-query/src/style/transform.rs:2346:linked_bundle_source_map_segments:binary-eq",
             "rust/crates/omena-query/src/style/transform/token_integrity.rs:76:summarize_css_module_token_ownership:map-contains-key",
             "rust/crates/omena-query/src/style/transform/token_integrity.rs:261:collect_token_preimages:map-contains-key"
           ]
@@ -17162,7 +17162,7 @@
           "disposition": "presentation",
           "resultBindings": [],
           "reachingIdentitySinks": [
-            "rust/crates/omena-query/src/style/transform.rs:2287:linked_bundle_source_map_segments:binary-eq",
+            "rust/crates/omena-query/src/style/transform.rs:2346:linked_bundle_source_map_segments:binary-eq",
             "rust/crates/omena-query/src/style/transform/token_integrity.rs:76:summarize_css_module_token_ownership:map-contains-key",
             "rust/crates/omena-query/src/style/transform/token_integrity.rs:261:collect_token_preimages:map-contains-key"
           ]
@@ -17178,7 +17178,7 @@
           "disposition": "presentation",
           "resultBindings": ["canonical"],
           "reachingIdentitySinks": [
-            "rust/crates/omena-query/src/style/transform.rs:2287:linked_bundle_source_map_segments:binary-eq",
+            "rust/crates/omena-query/src/style/transform.rs:2346:linked_bundle_source_map_segments:binary-eq",
             "rust/crates/omena-query/src/style/transform/token_integrity.rs:76:summarize_css_module_token_ownership:map-contains-key",
             "rust/crates/omena-query/src/style/transform/token_integrity.rs:261:collect_token_preimages:map-contains-key"
           ]
@@ -18472,7 +18472,7 @@
           "reachingIdentitySinks": []
         }
       ],
-      "escapeSiteDigest": "sha256:d354ca04ff41e4a8377f8224b29bc693e9b69a93c00cce81306d70280f6f4055",
+      "escapeSiteDigest": "sha256:a1fbe71cad29ab32506254e27ecf18ef05e0897dc811a43330440dea00cbe1b9",
       "identityFlowCount": 16,
       "identityFlows": [
         {
@@ -18576,12 +18576,12 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 2287,
+          "line": 2346,
           "function": "linked_bundle_source_map_segments",
           "comparisonId": "binary-eq",
           "escapeIds": ["debug-format-spec"],
           "evidence": "if source == module_execution.output_css {",
-          "operandDerivation": "rust/crates/omena-query/src/style/transform.rs:2265:source_path=>non-property",
+          "operandDerivation": "rust/crates/omena-query/src/style/transform.rs:2324:source_path=>non-property",
           "sanctioned": true,
           "sanctionReason": "Every source operand is mechanically classified as key-bearing or non-property; no authored-bearing operand contributes to this identity flow."
         },
@@ -18652,7 +18652,7 @@
           "sanctionReason": "Every source operand is mechanically classified as key-bearing or non-property; no authored-bearing operand contributes to this identity flow."
         }
       ],
-      "identityFlowDigest": "sha256:812d3344847059d9155819e9c171e4f80648a852c9efdf3ce46d4d81390dcb27",
+      "identityFlowDigest": "sha256:885ab8fc7c7a26432bdab76a9d37a8a8729798a0aabf28603392f5c3dd33cade",
       "identityViolationCount": 0,
       "sanctionedIdentityCount": 16,
       "writeIntoSiteCount": 68,
@@ -18879,7 +18879,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style.rs",
-          "line": 2205,
+          "line": 2209,
           "function": "style_selector_definitions_for_query",
           "escapeId": "render-authored-helper",
           "sinkClass": "emitter-output",
@@ -18889,7 +18889,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-          "line": 209,
+          "line": 214,
           "function": "read_omena_query_cascade_at_position_from_graph",
           "escapeId": "render-authored-helper",
           "sinkClass": "returned-to-emitter",
@@ -18899,7 +18899,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-          "line": 398,
+          "line": 403,
           "function": "summarize_query_cascade_refinement_evidence",
           "escapeId": "render-authored-helper",
           "sinkClass": "returned-to-emitter",
@@ -18909,7 +18909,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-          "line": 586,
+          "line": 591,
           "function": "positioned_custom_property_reference_facts",
           "escapeId": "render-authored-helper",
           "sinkClass": "emitter-output",
@@ -19039,7 +19039,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 2858,
+          "line": 2917,
           "function": "find_import_origin_generated_range",
           "escapeId": "render-authored-helper",
           "sinkClass": "emitter-output",
@@ -19049,7 +19049,7 @@
         },
         {
           "path": "rust/crates/omena-query/src/style/transform.rs",
-          "line": 2880,
+          "line": 2939,
           "function": "find_import_origin_generated_range",
           "escapeId": "render-authored-helper",
           "sinkClass": "emitter-output",
@@ -19338,7 +19338,7 @@
           "derivation": "sink=witness; class=returned-to-emitter; function-return=TransformCascadeProofObligationV0"
         }
       ],
-      "writeIntoSiteDigest": "sha256:a5897a6ad4ac08074e4f327db087a089aaf22215c015b3b08a5efa2675890896",
+      "writeIntoSiteDigest": "sha256:c24e7f4a2fad41ff395676f6c256dd761a35de738d523f614bde16046a117cf0",
       "unresolvedCallEdges": [
         {
           "path": "rust/crates/omena-abstract-value/src/value_grammar.rs",
@@ -21249,7 +21249,7 @@
             },
             {
               "path": "rust/crates/omena-evidence-graph/src/lib.rs",
-              "line": 1237,
+              "line": 1220,
               "function": "new",
               "operation": "carrier-field-spelling:field-name-not-name",
               "evidence": "pub from_query_identity: String,",
@@ -21879,7 +21879,7 @@
             },
             {
               "path": "rust/crates/omena-query-core/src/lib.rs",
-              "line": 778,
+              "line": 779,
               "function": "style_selector_universe_by_path",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": ".map(|selector| {",
@@ -21933,7 +21933,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 378,
+              "line": 382,
               "function": "canonical_class_key",
               "operation": "carrier-field-spelling:field-name-not-name",
               "evidence": "pub selector: String,",
@@ -21942,7 +21942,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 433,
+              "line": 437,
               "function": "summarize_omena_query_cascade_section_outcomes_from_source",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": "outcomes.sort_by(|left, right| {",
@@ -21951,7 +21951,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 456,
+              "line": 460,
               "function": "summarize_omena_query_cascade_site_outcomes_from_source",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": ".map(|outcome| OmenaQueryCascadeSiteOutcomeV0 {",
@@ -21960,7 +21960,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 2162,
+              "line": 2166,
               "function": "sass_module_public_member_names_from_parser_facts",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": ".filter(|fact| fact.kind == ParsedVariableFactKind::ScssDeclaration && fact.is_top_level)",
@@ -21969,7 +21969,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 2163,
+              "line": 2167,
               "function": "sass_module_public_member_names_from_parser_facts",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": ".filter_map(|fact| fact.name.as_non_property())",
@@ -21978,7 +21978,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 2169,
+              "line": 2173,
               "function": "sass_module_public_member_names_from_parser_facts",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": ".filter(|fact| fact.kind == ParsedSassSymbolFactKind::MixinDeclaration && fact.is_top_level)",
@@ -21987,7 +21987,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 2175,
+              "line": 2179,
               "function": "sass_module_public_member_names_from_parser_facts",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": ".filter(|fact| {",
@@ -21996,7 +21996,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 2178,
+              "line": 2182,
               "function": "sass_module_public_member_names_from_parser_facts",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": ".filter_map(|fact| canonical_public_sass_member_name(fact.name.as_str()))",
@@ -22005,7 +22005,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 2202,
+              "line": 2206,
               "function": "style_selector_definitions_for_query",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": ".filter(|candidate| candidate.kind == \"selector\")",
@@ -22014,7 +22014,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 3316,
+              "line": 3320,
               "function": "summarize_css_modules_cross_file_resolution_from_semantic_facts_and_import_edges",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": ".map(|edge| OmenaQueryCssModulesValueClosureEdgeV0 {",
@@ -22023,7 +22023,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 3328,
+              "line": 3332,
               "function": "summarize_css_modules_cross_file_resolution_from_semantic_facts_and_import_edges",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": ".map(|edge| OmenaQueryCssModulesIcssClosureEdgeV0 {",
@@ -22032,7 +22032,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 3475,
+              "line": 3479,
               "function": "summarize_css_modules_cross_file_resolution_from_semantic_inputs",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": ".map(|edge| OmenaQueryCssModulesValueClosureEdgeV0 {",
@@ -22041,7 +22041,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 3487,
+              "line": 3491,
               "function": "summarize_css_modules_cross_file_resolution_from_semantic_inputs",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": ".map(|edge| OmenaQueryCssModulesIcssClosureEdgeV0 {",
@@ -22050,7 +22050,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 3856,
+              "line": 3860,
               "function": "style_import_reachability_edges_for_query",
               "operation": "carrier-field-spelling:field-name-not-name",
               "evidence": "selector_name: String,",
@@ -22257,7 +22257,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-              "line": 130,
+              "line": 135,
               "function": "read_omena_query_cascade_at_position_from_graph",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": ".map(|fact| CustomPropertyReferenceFactView {",
@@ -22266,7 +22266,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-              "line": 201,
+              "line": 206,
               "function": "read_omena_query_cascade_at_position_from_graph",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": ".find(|entry| entry.name == reference.name.to_custom_key());",
@@ -22275,7 +22275,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-              "line": 242,
+              "line": 247,
               "function": "read_omena_query_cascade_at_position_from_graph",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": ".map(|computed| computed.property.clone()),",
@@ -22284,7 +22284,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-              "line": 469,
+              "line": 474,
               "function": "collect_same_file_custom_property_env_from_graph_for_reference_winner",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": ".find(|declaration| {",
@@ -22293,7 +22293,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-              "line": 597,
+              "line": 602,
               "function": "positioned_custom_property_reference_facts",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": "ordered_ref_facts.sort_by_key(|fact| fact.source_order);",
@@ -22302,7 +22302,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-              "line": 600,
+              "line": 605,
               "function": "positioned_custom_property_reference_facts",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": ".filter_map(|fact| {",
@@ -22626,7 +22626,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "line": 356,
+              "line": 347,
               "function": "summarize_omena_query_unused_selector_style_diagnostics_with_shared",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": ".filter(|selector| selector.kind == ParsedSelectorFactKind::Class)",
@@ -22635,7 +22635,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "line": 357,
+              "line": 348,
               "function": "summarize_omena_query_unused_selector_style_diagnostics_with_shared",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": ".filter(|selector| !class_name_set_contains(&used_in_target, selector.name.as_str()))",
@@ -22644,7 +22644,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "line": 358,
+              "line": 349,
               "function": "summarize_omena_query_unused_selector_style_diagnostics_with_shared",
               "operation": "carrier-field-spelling:closure-binder",
               "evidence": ".filter_map(|selector| {",
@@ -24866,7 +24866,7 @@
               "reason": "A property-shaped String field with a spelling other than `name` is outside the carrier-source recognizer's field-name bound."
             }
           ],
-          "siteDigest": "sha256:bfb4f2b9c1c42bfb724224934c31339b97a4e7942031a6f77314d9342e6014c9",
+          "siteDigest": "sha256:0d3957a5bbea30f4e43e236f4f9437b5e184a00e002db481c2c912b7c1700015",
           "reason": "Carrier-source discovery is bound to a literal String field named `name` and direct `.name` or `Type { name }` reads. The /property|custom|declaration|reference|identity|selector|class|key/ regex governs only the `field-name-not-name` operation; match-arm, closure-binder, and explicit Deref field reads are separately counted lexical upper bounds, not affirmed non-property flows."
         },
         {
@@ -30854,7 +30854,7 @@
             },
             {
               "path": "rust/crates/omena-query-core/src/lib.rs",
-              "line": 349,
+              "line": 350,
               "function": "analyze_input_with_artifact_analyzer",
               "operation": "place-expression-receiver:insert",
               "evidence": "self.artifacts_by_graph_id",
@@ -31043,7 +31043,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 1366,
+              "line": 1370,
               "function": "collect_hover_selector_branch_scopes",
               "operation": "place-expression-argument:&mut",
               "evidence": "layer_orders: &mut BTreeMap<String, i32>,",
@@ -31052,7 +31052,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 1370,
+              "line": 1374,
               "function": "collect_hover_selector_branch_scopes",
               "operation": "place-expression-argument:&mut",
               "evidence": "matches: &mut Vec<HoverCascadeBranchMatch>,",
@@ -31061,7 +31061,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 1783,
+              "line": 1787,
               "function": "fmt",
               "operation": "place-expression-argument:&mut",
               "evidence": "fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {",
@@ -31070,7 +31070,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 1971,
+              "line": 1975,
               "function": "collect_omena_query_style_fact_entry_from_raw",
               "operation": "place-expression-receiver:push",
               "evidence": ".or_default()",
@@ -31079,7 +31079,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 3155,
+              "line": 3159,
               "function": "memoized_configurable_names",
               "operation": "place-expression-receiver:insert",
               "evidence": ".borrow_mut()",
@@ -31088,7 +31088,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 3254,
+              "line": 3258,
               "function": "summarize_css_modules_cross_file_resolution_from_module_interfaces_and_pre_resolved_import_edges",
               "operation": "place-expression-argument:&mut",
               "evidence": "for facts in &mut semantic_facts {",
@@ -31097,7 +31097,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 3255,
+              "line": 3259,
               "function": "summarize_css_modules_cross_file_resolution_from_module_interfaces_and_pre_resolved_import_edges",
               "operation": "place-expression-argument:&mut",
               "evidence": "for edge in &mut facts.css_module_composes_edges {",
@@ -31106,7 +31106,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 3265,
+              "line": 3269,
               "function": "summarize_css_modules_cross_file_resolution_from_module_interfaces_and_pre_resolved_import_edges",
               "operation": "place-expression-argument:&mut",
               "evidence": "for edge in &mut facts.css_module_value_import_edges {",
@@ -31115,7 +31115,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 3274,
+              "line": 3278,
               "function": "summarize_css_modules_cross_file_resolution_from_module_interfaces_and_pre_resolved_import_edges",
               "operation": "place-expression-argument:&mut",
               "evidence": "for edge in &mut facts.icss_import_edges {",
@@ -31124,7 +31124,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 3973,
+              "line": 3977,
               "function": "collect_css_modules_composes_adjacency_with_path_mappings",
               "operation": "place-expression-receiver:insert",
               "evidence": ".or_insert_with(BTreeSet::new)",
@@ -31133,7 +31133,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 4188,
+              "line": 4192,
               "function": "collect_style_selector_hover_candidates_from_omena_parser_facts",
               "operation": "place-expression-argument:&mut",
               "evidence": "seen: &mut BTreeSet<(usize, usize, String)>,",
@@ -31142,7 +31142,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 4189,
+              "line": 4193,
               "function": "collect_style_selector_hover_candidates_from_omena_parser_facts",
               "operation": "place-expression-argument:&mut",
               "evidence": "candidates: &mut Vec<OmenaQueryStyleHoverCandidateV0>,",
@@ -31151,7 +31151,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 4219,
+              "line": 4223,
               "function": "collect_custom_property_hover_candidates_from_omena_parser_facts",
               "operation": "place-expression-argument:&mut",
               "evidence": "seen: &mut BTreeSet<(usize, usize, String)>,",
@@ -31160,7 +31160,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 4220,
+              "line": 4224,
               "function": "collect_custom_property_hover_candidates_from_omena_parser_facts",
               "operation": "place-expression-argument:&mut",
               "evidence": "candidates: &mut Vec<OmenaQueryStyleHoverCandidateV0>,",
@@ -31169,7 +31169,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 4262,
+              "line": 4266,
               "function": "collect_sass_symbol_hover_candidates_from_omena_parser_facts",
               "operation": "place-expression-argument:&mut",
               "evidence": "seen: &mut BTreeSet<(usize, usize, String)>,",
@@ -31178,7 +31178,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 4263,
+              "line": 4267,
               "function": "collect_sass_symbol_hover_candidates_from_omena_parser_facts",
               "operation": "place-expression-argument:&mut",
               "evidence": "candidates: &mut Vec<OmenaQueryStyleHoverCandidateV0>,",
@@ -31187,7 +31187,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 4311,
+              "line": 4315,
               "function": "collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts",
               "operation": "place-expression-argument:&mut",
               "evidence": "seen: &mut BTreeSet<(usize, usize, String)>,",
@@ -31196,7 +31196,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 4312,
+              "line": 4316,
               "function": "collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts",
               "operation": "place-expression-argument:&mut",
               "evidence": "candidates: &mut Vec<OmenaQueryStyleHoverCandidateV0>,",
@@ -31205,7 +31205,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 4707,
+              "line": 4711,
               "function": "push_omena_query_ready_surface",
               "operation": "place-expression-argument:&mut",
               "evidence": "fn push_omena_query_ready_surface(ready_surfaces: &mut Vec<&'static str>, surface: &'static str) {",
@@ -31682,7 +31682,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "line": 455,
+              "line": 446,
               "function": "collect_omena_query_source_selector_usage_by_style",
               "operation": "place-expression-argument:&mut",
               "evidence": "&mut index.selector_references,",
@@ -31691,7 +31691,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "line": 545,
+              "line": 536,
               "function": "collect_omena_query_source_selector_usage_from_syntax_index",
               "operation": "place-expression-argument:&mut",
               "evidence": "used_selectors: &mut BTreeMap<String, BTreeSet<String>>,",
@@ -31700,7 +31700,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "line": 546,
+              "line": 537,
               "function": "collect_omena_query_source_selector_usage_from_syntax_index",
               "operation": "place-expression-argument:&mut",
               "evidence": "unresolved_dynamic_usage: &mut BTreeSet<String>,",
@@ -31709,7 +31709,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "line": 645,
+              "line": 636,
               "function": "source_usage_style_identity",
               "operation": "place-expression-receiver:replace",
               "evidence": ".to_string_lossy()",
@@ -31718,7 +31718,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "line": 727,
+              "line": 718,
               "function": "record_omena_query_used_source_selector",
               "operation": "place-expression-argument:&mut",
               "evidence": "used_selectors: &mut BTreeMap<String, BTreeSet<String>>,",
@@ -31727,7 +31727,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "line": 788,
+              "line": 779,
               "function": "collect_classname_transform_aliases",
               "operation": "place-expression-receiver:insert",
               "evidence": ".or_default()",
@@ -31736,7 +31736,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "line": 842,
+              "line": 833,
               "function": "propagate_omena_query_composes_usage",
               "operation": "place-expression-argument:&mut",
               "evidence": "used_selectors: &mut BTreeMap<String, BTreeSet<String>>,",
@@ -31745,7 +31745,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "line": 864,
+              "line": 855,
               "function": "propagate_omena_query_composes_usage",
               "operation": "place-expression-receiver:insert",
               "evidence": ".or_default()",
@@ -32159,7 +32159,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 1346,
+              "line": 1349,
               "function": "execute_omena_query_consumer_build_style_source_with_engine_input_context",
               "operation": "place-expression-receiver:push",
               "evidence": ".ready_surfaces",
@@ -32168,7 +32168,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 1518,
+              "line": 1577,
               "function": "execute_omena_query_consumer_build_style_sources_with_context_resolution_inputs_and_options",
               "operation": "place-expression-receiver:push",
               "evidence": ".ready_surfaces",
@@ -32177,7 +32177,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 1831,
+              "line": 1890,
               "function": "extend_unique_pass_ids",
               "operation": "place-expression-argument:&mut",
               "evidence": "fn extend_unique_pass_ids(target: &mut Vec<String>, additional: &[String]) {",
@@ -32186,7 +32186,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 1883,
+              "line": 1942,
               "function": "attach_omena_query_consumer_build_bundle_summary",
               "operation": "place-expression-receiver:push",
               "evidence": "summary.ready_surfaces.push(\"bundleAssetUrlResolution\");",
@@ -32195,7 +32195,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 1891,
+              "line": 1950,
               "function": "attach_omena_query_consumer_build_bundle_summary",
               "operation": "place-expression-receiver:push",
               "evidence": "summary.ready_surfaces.push(\"bundleCodeSplitPlan\");",
@@ -32204,7 +32204,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 2034,
+              "line": 2093,
               "function": "collect_omena_query_bundle_code_split_entry_reachability",
               "operation": "place-expression-receiver:insert",
               "evidence": ".or_default()",
@@ -32213,7 +32213,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 2113,
+              "line": 2172,
               "function": "attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs",
               "operation": "place-expression-receiver:push",
               "evidence": "summary.ready_surfaces.push(\"sourceMapV3Serializer\");",
@@ -32222,7 +32222,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 2123,
+              "line": 2182,
               "function": "attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs",
               "operation": "place-expression-receiver:push",
               "evidence": "summary.ready_surfaces.push(\"bundleSourceMapOriginChain\");",
@@ -32231,7 +32231,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 2328,
+              "line": 2387,
               "function": "linked_bundle_source_map_segments",
               "operation": "place-expression-argument:&mut",
               "evidence": "for segment in &mut module_segments {",
@@ -32240,7 +32240,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 2685,
+              "line": 2744,
               "function": "extend_import_graph_source_map_segments",
               "operation": "place-expression-argument:&mut",
               "evidence": "segments: &mut Vec<TransformSourceMapSegmentV0>,",
@@ -32249,7 +32249,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 2686,
+              "line": 2745,
               "function": "extend_import_graph_source_map_segments",
               "operation": "place-expression-argument:&mut",
               "evidence": "seen_segments: &mut BTreeSet<(String, usize, usize, &'static str)>,",
@@ -32258,7 +32258,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 2736,
+              "line": 2795,
               "function": "collect_import_graph_source_map_segments",
               "operation": "place-expression-argument:&mut",
               "evidence": "segments: &mut Vec<TransformSourceMapSegmentV0>,",
@@ -32267,7 +32267,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 2737,
+              "line": 2796,
               "function": "collect_import_graph_source_map_segments",
               "operation": "place-expression-argument:&mut",
               "evidence": "seen_segments: &mut BTreeSet<(String, usize, usize, &'static str)>,",
@@ -32276,7 +32276,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 2742,
+              "line": 2801,
               "function": "collect_import_graph_source_map_segments",
               "operation": "place-expression-argument:&mut",
               "evidence": "visiting: &mut BTreeSet<String>,",
@@ -32285,7 +32285,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 2778,
+              "line": 2837,
               "function": "collect_import_graph_source_map_segments",
               "operation": "place-expression-argument:&mut",
               "evidence": "&mut BTreeSet::new(),",
@@ -32294,7 +32294,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 2913,
+              "line": 2972,
               "function": "push_unique_import_origin_segment",
               "operation": "place-expression-argument:&mut",
               "evidence": "segments: &mut Vec<TransformSourceMapSegmentV0>,",
@@ -32303,7 +32303,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 2914,
+              "line": 2973,
               "function": "push_unique_import_origin_segment",
               "operation": "place-expression-argument:&mut",
               "evidence": "seen_segments: &mut BTreeSet<(String, usize, usize, &'static str)>,",
@@ -32312,7 +32312,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 3630,
+              "line": 3689,
               "function": "extend_passes_from_ids",
               "operation": "place-expression-argument:&mut",
               "evidence": "fn extend_passes_from_ids(ids: &[&'static str], passes: &mut Vec<TransformPassKind>) {",
@@ -32321,7 +32321,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 3819,
+              "line": 3878,
               "function": "fan_out_reachability_to_instances",
               "operation": "place-expression-receiver:extend",
               "evidence": "merged.class_names.extend(input.class_names.iter().cloned());",
@@ -32330,7 +32330,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 3821,
+              "line": 3880,
               "function": "fan_out_reachability_to_instances",
               "operation": "place-expression-receiver:extend",
               "evidence": ".keyframe_names",
@@ -32339,7 +32339,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 3823,
+              "line": 3882,
               "function": "fan_out_reachability_to_instances",
               "operation": "place-expression-receiver:extend",
               "evidence": "merged.value_names.extend(input.value_names.iter().cloned());",
@@ -32348,7 +32348,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 3825,
+              "line": 3884,
               "function": "fan_out_reachability_to_instances",
               "operation": "place-expression-receiver:extend",
               "evidence": ".custom_property_names",
@@ -32357,7 +32357,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 3857,
+              "line": 3916,
               "function": "fan_out_reachability_to_instances",
               "operation": "place-expression-receiver:clone_from",
               "evidence": "input.class_names.clone_from(&reachability.class_names);",
@@ -32366,7 +32366,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 3859,
+              "line": 3918,
               "function": "fan_out_reachability_to_instances",
               "operation": "place-expression-receiver:clone_from",
               "evidence": ".keyframe_names",
@@ -32375,7 +32375,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 3861,
+              "line": 3920,
               "function": "fan_out_reachability_to_instances",
               "operation": "place-expression-receiver:clone_from",
               "evidence": "input.value_names.clone_from(&reachability.value_names);",
@@ -32384,7 +32384,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 3863,
+              "line": 3922,
               "function": "fan_out_reachability_to_instances",
               "operation": "place-expression-receiver:clone_from",
               "evidence": ".custom_property_names",
@@ -32393,7 +32393,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 3913,
+              "line": 3972,
               "function": "prepare_transform_bundle_linker_projection",
               "operation": "place-expression-receiver:insert",
               "evidence": ".or_default()",
@@ -32402,7 +32402,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 4113,
+              "line": 4172,
               "function": "materialize_transform_bundle_resolved_dependencies",
               "operation": "place-expression-receiver:push",
               "evidence": ".or_default()",
@@ -32411,7 +32411,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 4317,
+              "line": 4376,
               "function": "execute_linked_bundle_modules_with_ownership_reference",
               "operation": "place-expression-argument:&mut",
               "evidence": "for inline in &mut module_context.import_inlines {",
@@ -35515,7 +35515,7 @@
               "reason": "A mutable argument is a field, index, dereference, or call-chain place rather than a bare binding or named alias."
             }
           ],
-          "siteDigest": "sha256:68fc418d37cba5aadbd35be16af130bcacc9e302c6859879b1fcb2794bcd0639",
+          "siteDigest": "sha256:f109345f3cc803b647debe94ab6edf0d9945c64fc05f6b600a30110e3f5f152e",
           "reason": "The mutable-flow resolver follows bare bindings and named aliases. Index, field, call-chain, dereference, and other place-expression receivers or mutable arguments are a conservative product-closure upper bound that also includes type-annotation `&mut` fragments and pure temporaries."
         },
         {
@@ -35805,7 +35805,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "line": 171,
+              "line": 166,
               "function": "summarize_omena_query_css_modules_export_usage",
               "operation": "assignment-form-container-write:BTreeMap",
               "evidence": "*skip_reason_counts.entry(*reason).or_insert(0usize) += 1;",
@@ -36209,7 +36209,7 @@
               "reason": "A known non-String container is written through assignment syntax, which is outside the method/macro mutation table."
             }
           ],
-          "siteDigest": "sha256:ff032dc71060ca1c9d0b7fc6c0b2097172939223d21084d1dc2218d0f91fedd7",
+          "siteDigest": "sha256:1a9af181015d14c0a8e23badf29bb512faca84cfd21cc28598f6c8485a1a823c",
           "reason": "The container mutation table models method and selected macro/add-assign writes, not reassignment or indexed/place assignment into a known non-String container."
         },
         {
@@ -39414,7 +39414,7 @@
             },
             {
               "path": "rust/crates/omena-query-core/src/lib.rs",
-              "line": 622,
+              "line": 623,
               "function": "summarize_omena_query_expression_domain_selector_projection_with_flow_hedges",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": "selector_certainty_flow_hedges.get(&(graph.file_path.clone(), node.id.clone())),",
@@ -39423,7 +39423,7 @@
             },
             {
               "path": "rust/crates/omena-query-core/src/lib.rs",
-              "line": 798,
+              "line": 799,
               "function": "target_style_paths_for_flow_node",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": "if let Some(target) = expression_targets.get(node_id) {",
@@ -39432,7 +39432,7 @@
             },
             {
               "path": "rust/crates/omena-query-core/src/lib.rs",
-              "line": 802,
+              "line": 803,
               "function": "target_style_paths_for_flow_node",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": "if let Some(target) = expression_targets.get(predecessor_id) {",
@@ -39441,7 +39441,7 @@
             },
             {
               "path": "rust/crates/omena-query-core/src/lib.rs",
-              "line": 806,
+              "line": 807,
               "function": "target_style_paths_for_flow_node",
               "operation": "non-string-container-egress:BTreeSet.into_iter",
               "evidence": "targets.into_iter().collect()",
@@ -39450,7 +39450,7 @@
             },
             {
               "path": "rust/crates/omena-query-core/src/lib.rs",
-              "line": 815,
+              "line": 816,
               "function": "selector_universe_for_targets",
               "operation": "non-string-container-egress:BTreeMap.values",
               "evidence": "for selector_names in style_selectors_by_path.values() {",
@@ -39459,7 +39459,7 @@
             },
             {
               "path": "rust/crates/omena-query-core/src/lib.rs",
-              "line": 820,
+              "line": 821,
               "function": "selector_universe_for_targets",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": "if let Some(selector_names) = style_selectors_by_path.get(target_style_path) {",
@@ -39468,7 +39468,7 @@
             },
             {
               "path": "rust/crates/omena-query-core/src/lib.rs",
-              "line": 825,
+              "line": 826,
               "function": "selector_universe_for_targets",
               "operation": "non-string-container-egress:BTreeSet.into_iter",
               "evidence": "selectors.into_iter().collect()",
@@ -39558,7 +39558,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 1354,
+              "line": 1358,
               "function": "selector_hover_branch_scope_at_position",
               "operation": "non-string-container-egress:Vec.into_iter",
               "evidence": "matches.into_iter().next().map(|matched| matched.scope)",
@@ -39567,7 +39567,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 2227,
+              "line": 2231,
               "function": "style_selector_definitions_for_query",
               "operation": "non-string-container-egress:Vec.into_iter",
               "evidence": "keyed_definitions",
@@ -39576,7 +39576,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 2320,
+              "line": 2324,
               "function": "sass_module_rule_configuration_surfaces_for_query",
               "operation": "non-string-container-egress:BTreeMap.iter",
               "evidence": "variable_overrides: forward_variable_overrides",
@@ -39585,7 +39585,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 2439,
+              "line": 2443,
               "function": "collect_load_path_roots",
               "operation": "non-string-container-egress:BTreeSet.into_iter",
               "evidence": "roots.into_iter().collect()",
@@ -39594,28 +39594,19 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 2647,
-              "function": "summarize_sass_module_cross_file_resolution",
-              "operation": "non-string-container-egress:Vec.iter",
-              "evidence": "let symlink_chain_edge_count = edges",
-              "disposition": "named-exempt",
-              "reason": "A known non-String container method can return an element or iterator, but container taint is not generally transferred to that scalar result."
-            },
-            {
-              "path": "rust/crates/omena-query/src/style.rs",
               "line": 2651,
               "function": "summarize_sass_module_cross_file_resolution",
               "operation": "non-string-container-egress:Vec.iter",
-              "evidence": "let symlink_chain_link_count = edges.iter().map(|edge| edge.symlink_chain_link_count).sum();",
+              "evidence": "let symlink_chain_edge_count = edges",
               "disposition": "named-exempt",
               "reason": "A known non-String container method can return an element or iterator, but container taint is not generally transferred to that scalar result."
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 2868,
-              "function": "summarize_sass_module_cross_file_resolution_from_module_interfaces_and_edges",
+              "line": 2655,
+              "function": "summarize_sass_module_cross_file_resolution",
               "operation": "non-string-container-egress:Vec.iter",
-              "evidence": "let symlink_chain_edge_count = edges",
+              "evidence": "let symlink_chain_link_count = edges.iter().map(|edge| edge.symlink_chain_link_count).sum();",
               "disposition": "named-exempt",
               "reason": "A known non-String container method can return an element or iterator, but container taint is not generally transferred to that scalar result."
             },
@@ -39624,13 +39615,22 @@
               "line": 2872,
               "function": "summarize_sass_module_cross_file_resolution_from_module_interfaces_and_edges",
               "operation": "non-string-container-egress:Vec.iter",
+              "evidence": "let symlink_chain_edge_count = edges",
+              "disposition": "named-exempt",
+              "reason": "A known non-String container method can return an element or iterator, but container taint is not generally transferred to that scalar result."
+            },
+            {
+              "path": "rust/crates/omena-query/src/style.rs",
+              "line": 2876,
+              "function": "summarize_sass_module_cross_file_resolution_from_module_interfaces_and_edges",
+              "operation": "non-string-container-egress:Vec.iter",
               "evidence": "let symlink_chain_link_count = edges.iter().map(|edge| edge.symlink_chain_link_count).sum();",
               "disposition": "named-exempt",
               "reason": "A known non-String container method can return an element or iterator, but container taint is not generally transferred to that scalar result."
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 2916,
+              "line": 2920,
               "function": "canonical_available_style_path",
               "operation": "non-string-container-egress:BTreeSet.iter",
               "evidence": "available_style_paths",
@@ -39639,7 +39639,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 3239,
+              "line": 3243,
               "function": "summarize_css_modules_cross_file_resolution_from_module_interfaces_and_pre_resolved_import_edges",
               "operation": "non-string-container-egress:Vec.iter",
               "evidence": "let resolved_sources = edges",
@@ -39648,7 +39648,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 3584,
+              "line": 3588,
               "function": "css_modules_cross_file_resolution_from_query_parts",
               "operation": "non-string-container-egress:Vec.iter",
               "evidence": "let resolved_import_edge_count = edges",
@@ -39657,7 +39657,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 3588,
+              "line": 3592,
               "function": "css_modules_cross_file_resolution_from_query_parts",
               "operation": "non-string-container-egress:Vec.iter",
               "evidence": "let matched_name_count = edges",
@@ -39666,7 +39666,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 3683,
+              "line": 3687,
               "function": "resolve_css_modules_import_edge_for_query",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": ".and_then(|style_path| reachable.get(style_path));",
@@ -39675,7 +39675,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 3686,
+              "line": 3690,
               "function": "resolve_css_modules_import_edge_for_query",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": ".and_then(|style_path| facts_by_path.get(style_path))",
@@ -39684,7 +39684,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style.rs",
-              "line": 3950,
+              "line": 3954,
               "function": "collect_css_modules_composes_adjacency_with_path_mappings",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": "facts_by_path",
@@ -39864,7 +39864,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-              "line": 449,
+              "line": 454,
               "function": "collect_same_file_custom_property_env_from_graph",
               "operation": "non-string-container-egress:BTreeMap.into_iter",
               "evidence": "latest_values",
@@ -39990,7 +39990,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "line": 193,
+              "line": 184,
               "function": "summarize_omena_query_css_modules_export_usage",
               "operation": "non-string-container-egress:Vec.iter",
               "evidence": "let diagnostics = exports",
@@ -39999,7 +39999,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "line": 209,
+              "line": 200,
               "function": "summarize_omena_query_css_modules_export_usage",
               "operation": "non-string-container-egress:Vec.iter",
               "evidence": "let used_export_count = exports",
@@ -40008,7 +40008,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "line": 213,
+              "line": 204,
               "function": "summarize_omena_query_css_modules_export_usage",
               "operation": "non-string-container-egress:Vec.iter",
               "evidence": "let skipped_export_count = exports",
@@ -40017,7 +40017,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "line": 228,
+              "line": 219,
               "function": "summarize_omena_query_css_modules_export_usage",
               "operation": "non-string-container-egress:BTreeMap.into_iter",
               "evidence": "skip_reason_counts: skip_reason_counts",
@@ -40026,7 +40026,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "line": 259,
+              "line": 250,
               "function": "export_usage_skip_reasons",
               "operation": "non-string-container-egress:BTreeSet.into_iter",
               "evidence": "reasons.into_iter().collect()",
@@ -40035,7 +40035,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "line": 620,
+              "line": 611,
               "function": "source_usage_available_style_path",
               "operation": "non-string-container-egress:BTreeSet.iter",
               "evidence": "available_style_paths",
@@ -40044,7 +40044,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "line": 730,
+              "line": 721,
               "function": "record_omena_query_used_source_selector",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": "if let Some(canonical_names) = aliases_by_path",
@@ -40053,7 +40053,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "line": 742,
+              "line": 733,
               "function": "class_name_set_contains",
               "operation": "non-string-container-egress:BTreeSet.iter",
               "evidence": "names",
@@ -40062,7 +40062,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "line": 844,
+              "line": 835,
               "function": "propagate_omena_query_composes_usage",
               "operation": "non-string-container-egress:BTreeMap.iter",
               "evidence": "let mut used_nodes = used_selectors",
@@ -40386,7 +40386,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 1923,
+              "line": 1982,
               "function": "summarize_omena_query_bundle_code_split_workspace_plan",
               "operation": "non-string-container-egress:Vec.iter",
               "evidence": "let entry_style_path_set = entry_style_paths.iter().cloned().collect::<BTreeSet<_>>();",
@@ -40395,7 +40395,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 1946,
+              "line": 2005,
               "function": "summarize_omena_query_bundle_code_split_workspace_plan",
               "operation": "non-string-container-egress:Vec.iter",
               "evidence": "let configured_entry_count = outputs",
@@ -40404,7 +40404,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 1950,
+              "line": 2009,
               "function": "summarize_omena_query_bundle_code_split_workspace_plan",
               "operation": "non-string-container-egress:Vec.iter",
               "evidence": "let shared_boundary_count = outputs",
@@ -40413,7 +40413,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 2024,
+              "line": 2083,
               "function": "collect_omena_query_bundle_code_split_entry_reachability",
               "operation": "non-string-container-egress:Vec.pop",
               "evidence": "while let Some(style_path) = stack.pop() {",
@@ -40422,7 +40422,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 2028,
+              "line": 2087,
               "function": "collect_omena_query_bundle_code_split_entry_reachability",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": "let Some(import_sources) = dependency_specifiers_by_path.get(style_path.as_str())",
@@ -40431,7 +40431,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 2655,
+              "line": 2714,
               "function": "import_inline_source_map_segments",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": "let Some(imported_source) = source_by_path.get(resolved_style_path.as_str()).copied()",
@@ -40440,7 +40440,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 2693,
+              "line": 2752,
               "function": "extend_import_graph_source_map_segments",
               "operation": "non-string-container-egress:BTreeMap.iter",
               "evidence": "let style_sources = source_by_path",
@@ -40449,7 +40449,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 2702,
+              "line": 2761,
               "function": "extend_import_graph_source_map_segments",
               "operation": "non-string-container-egress:BTreeMap.iter",
               "evidence": "let owned_source_by_path = source_by_path",
@@ -40458,7 +40458,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 2824,
+              "line": 2883,
               "function": "collect_import_graph_source_map_segments",
               "operation": "non-string-container-egress:BTreeSet.remove",
               "evidence": "visiting.remove(importer_style_path);",
@@ -40467,7 +40467,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 3318,
+              "line": 3377,
               "function": "strict_query_preflight",
               "operation": "non-string-container-egress:Vec.into_iter",
               "evidence": "let admitted_passes = requested_passes",
@@ -40476,7 +40476,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 3610,
+              "line": 3669,
               "function": "apply_transform_source_replacements",
               "operation": "non-string-container-egress:Vec.into_iter",
               "evidence": "for (start, end, replacement) in replacements.into_iter().rev() {",
@@ -40485,7 +40485,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 3839,
+              "line": 3898,
               "function": "fan_out_reachability_to_instances",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": ".filter_map(|source_path| configurations_by_source_path.get(source_path))",
@@ -40494,7 +40494,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 3845,
+              "line": 3904,
               "function": "fan_out_reachability_to_instances",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": "configurations_by_source_path",
@@ -40503,7 +40503,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 4177,
+              "line": 4236,
               "function": "execute_linked_bundle_modules",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": "let retained_class_names = retained_class_names_by_module",
@@ -40512,7 +40512,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 4226,
+              "line": 4285,
               "function": "execute_linked_bundle_modules",
               "operation": "non-string-container-egress:Vec.iter",
               "evidence": "let Some(entry_execution) = module_executions",
@@ -40521,7 +40521,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 4603,
+              "line": 4662,
               "function": "summarize_linked_bundle_execution_scope",
               "operation": "non-string-container-egress:Vec.iter",
               "evidence": "let summed_module_input_byte_len = module_executions",
@@ -40530,7 +40530,7 @@
             },
             {
               "path": "rust/crates/omena-query/src/style/transform.rs",
-              "line": 4607,
+              "line": 4666,
               "function": "summarize_linked_bundle_execution_scope",
               "operation": "non-string-container-egress:Vec.iter",
               "evidence": "let summed_module_output_byte_len = module_executions",
@@ -43607,7 +43607,7 @@
               "reason": "A known non-String container method can return an element or iterator, but container taint is not generally transferred to that scalar result."
             }
           ],
-          "siteDigest": "sha256:48699e1522fe5aeaf090966faca998a078a184cce17416c9c60a2e43c97a6347",
+          "siteDigest": "sha256:b639133421fead336dca38f386804e09a2b71c7c7918a0138b05fadfefb5fff2",
           "reason": "The flow engine tracks authored sources into known non-String containers but does not generally transfer a container source back into scalars returned by these egress methods."
         },
         {

@@ -1,7 +1,7 @@
 {
   "schemaVersion": "0",
   "product": "omena.fact-precision-production-census",
-  "rawReferenceCount": 135,
+  "rawReferenceCount": 136,
   "productionSiteCount": 11,
   "productionOverrideCount": 8,
   "classifiedSites": [
@@ -19,6 +19,21 @@
       "occurrenceCount": 4,
       "disposition": "derivationRule",
       "authority": "the only FactPrecision projection exhaustively maps the evidence-graph effective meet"
+    },
+    {
+      "sourcePath": "rust/crates/omena-abstract-value/src/domain.rs",
+      "owner": "fn validated_closed_set_witness_preserves_unknown_and_unresolved_axes",
+      "lexicalContext": "code",
+      "testOnly": true,
+      "variantCounts": {
+        "Exact": 1,
+        "Conservative": 0,
+        "Heuristic": 0,
+        "Unknown": 0
+      },
+      "occurrenceCount": 1,
+      "disposition": "test",
+      "authority": "test-only precision expectation or mutation fixture"
     },
     {
       "sourcePath": "rust/crates/omena-abstract-value/src/tests.rs",

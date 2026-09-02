@@ -171,7 +171,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 1634,
+      "line": 1638,
       "caller": "summarize_omena_query_style_semantic_graph_batch_from_sources_with_resolution_inputs",
       "callee": "workspace_revision_selector_with_identity_index",
       "callOrdinal": 0,
@@ -181,7 +181,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 1648,
+      "line": 1652,
       "caller": "summarize_omena_query_style_semantic_graph_batch_from_sources_with_resolution_inputs",
       "callee": "summarize_css_modules_cross_file_resolution_with_resolution_inputs_and_identity_index",
       "callOrdinal": 0,
@@ -191,7 +191,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 1665,
+      "line": 1669,
       "caller": "summarize_omena_query_style_semantic_graph_batch_from_sources_with_resolution_inputs",
       "callee": "summarize_omena_query_style_semantic_graph_batch_from_committed_parts",
       "callOrdinal": 0,
@@ -201,7 +201,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 1732,
+      "line": 1736,
       "caller": "summarize_omena_query_style_semantic_graph_batch_from_committed_parts",
       "callee": "filter_import_reachable_design_token_workspace_declarations",
       "callOrdinal": 0,
@@ -211,7 +211,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3184,
+      "line": 3188,
       "caller": "summarize_css_modules_cross_file_resolution_with_resolution_inputs",
       "callee": "summarize_css_modules_cross_file_resolution_with_resolution_inputs_and_identity_index",
       "callOrdinal": 0,
@@ -221,7 +221,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3199,
+      "line": 3203,
       "caller": "summarize_css_modules_cross_file_resolution_with_resolution_inputs_and_identity_index",
       "callee": "style_import_reachability_edges_for_query",
       "callOrdinal": 0,
@@ -231,7 +231,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3392,
+      "line": 3396,
       "caller": "summarize_css_modules_import_edge_resolutions_for_module_interface",
       "callee": "resolve_css_modules_import_edge_for_query",
       "callOrdinal": 0,
@@ -241,7 +241,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3408,
+      "line": 3412,
       "caller": "summarize_css_modules_import_edge_resolutions_for_module_interface",
       "callee": "resolve_css_modules_import_edge_for_query",
       "callOrdinal": 1,
@@ -251,7 +251,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3424,
+      "line": 3428,
       "caller": "summarize_css_modules_import_edge_resolutions_for_module_interface",
       "callee": "resolve_css_modules_import_edge_for_query",
       "callOrdinal": 2,
@@ -261,7 +261,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3673,
+      "line": 3677,
       "caller": "resolve_css_modules_import_edge_for_query",
       "callee": "resolve_style_module_source_with_resolution_inputs_and_identity_index",
       "callOrdinal": 0,
@@ -271,7 +271,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3833,
+      "line": 3837,
       "caller": "style_import_reachability_edges_for_query",
       "callee": "resolve_style_module_source_with_resolution_inputs_and_identity_index",
       "callOrdinal": 0,
@@ -281,7 +281,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3897,
+      "line": 3901,
       "caller": "collect_css_modules_composes_adjacency",
       "callee": "collect_css_modules_composes_adjacency_with_path_mappings",
       "callOrdinal": 0,
@@ -291,7 +291,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3930,
+      "line": 3934,
       "caller": "collect_css_modules_composes_adjacency_with_path_mappings",
       "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
       "callOrdinal": 0,
@@ -301,7 +301,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 4013,
+      "line": 4017,
       "caller": "filter_import_reachable_design_token_workspace_declarations",
       "callee": "collect_omena_query_import_reachable_style_path_metadata",
       "callOrdinal": 0,
@@ -311,7 +311,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 4057,
+      "line": 4061,
       "caller": "collect_omena_query_import_reachable_style_path_metadata",
       "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
       "callOrdinal": 0,
@@ -321,7 +321,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 4131,
+      "line": 4135,
       "caller": "resolve_style_module_source_with_resolution_inputs_and_identity_index",
       "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
       "callOrdinal": 0,
@@ -611,7 +611,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-      "line": 308,
+      "line": 299,
       "caller": "summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings",
       "callee": "summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings_from_entries",
       "callOrdinal": 0,
@@ -621,7 +621,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-      "line": 405,
+      "line": 396,
       "caller": "summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings_from_entries",
       "callee": "collect_omena_query_unused_selector_shared",
       "callOrdinal": 0,
@@ -631,7 +631,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-      "line": 482,
+      "line": 473,
       "caller": "collect_omena_query_source_selector_usage_by_style",
       "callee": "resolve_style_module_source_with_path_mappings_and_identity_index",
       "callOrdinal": 0,
@@ -1266,5 +1266,5 @@
     "justifiedNoneCount": 16,
     "violationCount": 0
   },
-  "siteDigest": "sha256:5fa78ad67f33b02f04c52ef51c82a5c709e3f00ca74a444f2018b59a9a63c6aa"
+  "siteDigest": "sha256:ca2857b3ed221d8363603f4a89d66dad73d53e564429fe0b200a18fdee8d2aba"
 }
