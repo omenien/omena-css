@@ -8,83 +8,113 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const authority = JSON.parse(
   fs.readFileSync(path.join(repoRoot, "rust/omena-precision-floor-authority.json"), "utf8"),
 ) as {
-  readonly mutationProbes: readonly {
-    readonly id: string;
-    readonly sourcePath: string;
-    readonly from: string;
-    readonly to: string;
-    readonly command: readonly string[];
-    readonly expectedFailure: string;
-  }[];
+  readonly mutationProbes: readonly MutationProbe[];
 };
 
-const requestedId = process.argv[2];
-assert.ok(requestedId !== undefined, "usage: check-rust-precision-floor-mutation.ts <probe-id>");
-const probe = authority.mutationProbes.find((candidate) => candidate.id === requestedId);
-assert.ok(probe !== undefined, `unknown precision mutation probe: ${requestedId}`);
-assert.ok(probe.command[0] !== undefined, `${probe.id} must declare a command`);
-
-const sourcePath = path.join(repoRoot, probe.sourcePath);
-const original = fs.readFileSync(sourcePath, "utf8");
-assert.equal(
-  original.split(probe.from).length - 1,
-  1,
-  `${probe.id} source must match exactly once before mutation`,
-);
-const mutated = original.replace(probe.from, probe.to);
-assert.notEqual(mutated, original, `${probe.id} must change the source`);
-const mutationPatch = unifiedPatch(probe.sourcePath, original, mutated);
-
-let transcript = "";
-let status: number | null = null;
-try {
-  const apply = spawnSync("git", ["apply", "--whitespace=nowarn", "-"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    input: mutationPatch,
-  });
-  assert.equal(apply.status, 0, `${probe.id} mutation apply failed:\n${apply.stderr}`);
-  const run = spawnSync(probe.command[0], probe.command.slice(1), {
-    cwd: repoRoot,
-    encoding: "utf8",
-    maxBuffer: 32 * 1024 * 1024,
-    env: { ...process.env, OMENA_PRECISION_MUTATION_PROBE: probe.id },
-  });
-  status = run.status;
-  transcript = `${run.stdout ?? ""}\n${run.stderr ?? ""}`;
-} finally {
-  const restore = spawnSync("git", ["apply", "--reverse", "--whitespace=nowarn", "-"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    input: mutationPatch,
-  });
-  assert.equal(restore.status, 0, `${probe.id} mutation restore failed:\n${restore.stderr}`);
+interface MutationProbe {
+  readonly id: string;
+  readonly sourcePath: string;
+  readonly from: string;
+  readonly to: string;
+  readonly command: readonly string[];
+  readonly expectedFailure: string;
 }
 
-assert.notEqual(status, 0, `${probe.id} unexpectedly stayed GREEN:\n${transcript}`);
-assert.ok(
-  transcript.includes(probe.expectedFailure),
-  `${probe.id} failed for the wrong reason; expected ${probe.expectedFailure}:\n${transcript}`,
-);
-assert.equal(fs.readFileSync(sourcePath, "utf8"), original, `${probe.id} source restore failed`);
+interface MutationResult {
+  readonly schemaVersion: "1";
+  readonly product: "omena-transform.precision-floor-source-mutation";
+  readonly probeId: string;
+  readonly sourcePath: string;
+  readonly command: readonly string[];
+  readonly observedExit: number | null;
+  readonly expectedFailure: string;
+  readonly restored: true;
+  readonly red: true;
+}
 
-process.stdout.write(
-  `${JSON.stringify(
-    {
-      schemaVersion: "1",
-      product: "omena-transform.precision-floor-source-mutation",
-      probeId: probe.id,
-      sourcePath: probe.sourcePath,
-      command: probe.command,
-      observedExit: status,
-      expectedFailure: probe.expectedFailure,
-      restored: true,
-      red: true,
-    },
-    null,
-    2,
-  )}\n`,
+const requestedArguments = process.argv.slice(2);
+assert.equal(
+  requestedArguments.length,
+  1,
+  "usage: check-rust-precision-floor-mutation.ts <probe-id|--all>",
 );
+const requestedId = requestedArguments[0];
+const probes =
+  requestedId === "--all"
+    ? authority.mutationProbes
+    : authority.mutationProbes.filter((candidate) => candidate.id === requestedId);
+assert.ok(probes.length > 0, `unknown precision mutation probe: ${requestedId}`);
+
+const results = probes.map(runProbe);
+const output =
+  requestedId === "--all"
+    ? {
+        schemaVersion: "1",
+        product: "omena-transform.precision-floor-source-mutation-suite",
+        probeCount: results.length,
+        results,
+      }
+    : results[0];
+process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+
+function runProbe(probe: MutationProbe): MutationResult {
+  assert.ok(probe.command[0] !== undefined, `${probe.id} must declare a command`);
+  const sourcePath = path.join(repoRoot, probe.sourcePath);
+  const original = fs.readFileSync(sourcePath, "utf8");
+  assert.equal(
+    original.split(probe.from).length - 1,
+    1,
+    `${probe.id} source must match exactly once before mutation`,
+  );
+  const mutated = original.replace(probe.from, probe.to);
+  assert.notEqual(mutated, original, `${probe.id} must change the source`);
+  const mutationPatch = unifiedPatch(probe.sourcePath, original, mutated);
+
+  let transcript = "";
+  let status: number | null = null;
+  try {
+    const apply = spawnSync("git", ["apply", "--whitespace=nowarn", "-"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      input: mutationPatch,
+    });
+    assert.equal(apply.status, 0, `${probe.id} mutation apply failed:\n${apply.stderr}`);
+    const run = spawnSync(probe.command[0], probe.command.slice(1), {
+      cwd: repoRoot,
+      encoding: "utf8",
+      maxBuffer: 32 * 1024 * 1024,
+      env: { ...process.env, OMENA_PRECISION_MUTATION_PROBE: probe.id },
+    });
+    status = run.status;
+    transcript = `${run.stdout ?? ""}\n${run.stderr ?? ""}`;
+  } finally {
+    const restore = spawnSync("git", ["apply", "--reverse", "--whitespace=nowarn", "-"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      input: mutationPatch,
+    });
+    assert.equal(restore.status, 0, `${probe.id} mutation restore failed:\n${restore.stderr}`);
+  }
+
+  assert.notEqual(status, 0, `${probe.id} unexpectedly stayed GREEN:\n${transcript}`);
+  assert.ok(
+    transcript.includes(probe.expectedFailure),
+    `${probe.id} failed for the wrong reason; expected ${probe.expectedFailure}:\n${transcript}`,
+  );
+  assert.equal(fs.readFileSync(sourcePath, "utf8"), original, `${probe.id} source restore failed`);
+
+  return {
+    schemaVersion: "1",
+    product: "omena-transform.precision-floor-source-mutation",
+    probeId: probe.id,
+    sourcePath: probe.sourcePath,
+    command: probe.command,
+    observedExit: status,
+    expectedFailure: probe.expectedFailure,
+    restored: true,
+    red: true,
+  };
+}
 
 function unifiedPatch(relativePath: string, before: string, after: string): string {
   const beforeLines = before.split("\n");
