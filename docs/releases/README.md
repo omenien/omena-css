@@ -22,7 +22,9 @@ GitHub Release mutation.
 2. Register each independently published tag in `manifest.json`. The editor uses
    `vscode-vX.Y.Z`; the Rust crate train and CLI use `release-vX.Y.Z`. Record
    channel-specific distribution facts in the same entry after checking the
-   registries and GitHub Release assets.
+   registries and GitHub Release assets. Derive registry-authentication wording
+   from the live registry resolver output at authoring time; never copy the
+   register's historical `registryBaselineAtRegistration` field as current state.
 3. Render the body locally:
 
    ```sh

@@ -73,6 +73,20 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const manifestPath = path.join(repoRoot, "rust/product-surface-boundary-reviews.json");
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as BoundaryReviewManifest;
 
+if (process.argv.includes("--inject-api-churn-value-staleness")) {
+  const first = manifest.reviews[0];
+  if (first) {
+    (first.measurements.apiSurfaceStability as { value: number }).value += 1;
+  }
+}
+if (process.argv.includes("--inject-api-churn-response-desync")) {
+  const first = manifest.reviews[0];
+  if (first) {
+    (first.measurements.apiSurfaceStability as { response: string }).response =
+      "The measured interval wording has been deliberately disconnected from its numeric value.";
+  }
+}
+
 if (process.argv.includes("--measure")) {
   process.stdout.write(`${JSON.stringify(measureBuildCommands(), null, 2)}\n`);
   process.exit(0);
@@ -198,6 +212,54 @@ function validateApiChurn(review: BoundaryReview, base: string): void {
     Number.parseInt(output, 10),
     `${review.id} API churn measurement drifted`,
   );
+  assert.match(
+    review.measurements.apiSurfaceStability.response.toLowerCase(),
+    new RegExp(`\\b${numberWord(review.measurements.apiSurfaceStability.value)}\\b`, "u"),
+    `${review.id} API churn response must spell the measured commit count consistently`,
+  );
+}
+
+function numberWord(value: number): string {
+  const small = [
+    "zero",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "eleven",
+    "twelve",
+    "thirteen",
+    "fourteen",
+    "fifteen",
+    "sixteen",
+    "seventeen",
+    "eighteen",
+    "nineteen",
+  ];
+  if (value < 20) return small[value] ?? String(value);
+  const tens = [
+    "",
+    "",
+    "twenty",
+    "thirty",
+    "forty",
+    "fifty",
+    "sixty",
+    "seventy",
+    "eighty",
+    "ninety",
+  ];
+  if (value < 100) {
+    const remainder = value % 10;
+    return `${tens[Math.floor(value / 10)]}${remainder === 0 ? "" : `[- ]${small[remainder]}`}`;
+  }
+  return String(value);
 }
 
 function validateCargoBoundary(

@@ -13,8 +13,8 @@ name: _Publish Crate Train
 # mixed train selects the protected bootstrap token while any never-published
 # names remain; a fully registered train uses OIDC Trusted Publishing.
 #
-# DORMANT: this workflow only runs on manual workflow_dispatch, on workflow_call from
-# a release entrypoint, or on a pushed `release-v*` tag. It is NOT part of per-push CI.
+# DORMANT: this workflow only runs on manual workflow_dispatch or on workflow_call
+# from a release entrypoint. A pushed tag never starts publication work.
 
 on:
   workflow_call:
@@ -68,10 +68,6 @@ on:
         type: boolean
         required: false
         default: false
-  push:
-    tags:
-      - "release-v*"
-
 concurrency:
   group: publish-crate-train-${{ inputs.tag || github.ref }}
   cancel-in-progress: false
@@ -129,15 +125,15 @@ jobs:
     needs: release-integrity
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    # Protected environment: required reviewers + the CRATES_IO_TOKEN bootstrap secret
-    # live here (docs 12 §6 / 14 §7).
+    # The release environment carries publication secrets. Required reviewers are
+    # an independently verified repository setting, never an assumption in this file.
     environment: release
     permissions:
       id-token: write # OIDC: rust-lang/crates-io-auth-action (oidc mode); also npm-style provenance posture.
       contents: write # cut the crate-train GitHub release at the published commit.
     env:
-      # workflow_call passes inputs.*; a raw `push: tags` trigger has no inputs, so
-      # tag publication derives bootstrap vs OIDC from the live registry state.
+      # workflow_call and workflow_dispatch both pass inputs.*. Tag-ref dispatches
+      # retain the immutable-ref path without making a pushed tag an event source.
       RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
       RELEASE_IS_TAG: ${{ (inputs.tag != '' || startsWith(github.ref, 'refs/tags/release-v')) && 'true' || 'false' }}
       PUBLISH_MODE: ${{ (inputs.tag != '' || startsWith(github.ref, 'refs/tags/release-v')) && 'auto' || inputs.mode || 'oidc' }}

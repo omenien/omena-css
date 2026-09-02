@@ -75,6 +75,27 @@
       "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
+      "gateId": "release/check/release-print-sensitive-evidence",
+      "stage": "blocking",
+      "reviewedAt": "2026-09-03",
+      "reviewAfter": "2026-12-02",
+      "evidence": "Static release-print registry and bundle-completeness assertion; no artifact build or network access."
+    },
+    {
+      "gateId": "release/check/release-rehearsal-workflow",
+      "stage": "blocking",
+      "reviewedAt": "2026-09-03",
+      "reviewAfter": "2026-12-02",
+      "evidence": "Static scheduled-workflow capability and named-step shape assertion; no rehearsal workload execution."
+    },
+    {
+      "gateId": "release/check/release-workflow-job-classification",
+      "stage": "blocking",
+      "reviewedAt": "2026-09-03",
+      "reviewAfter": "2026-12-02",
+      "evidence": "Parsed YAML job classification with semantic digests; action refs are normalized and no workload runs."
+    },
+    {
       "gateId": "rust/benchmark/ci-reachability",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",

@@ -73,14 +73,14 @@ gates, packages the VSIX, and verifies the packaged Rust LSP/type-fact path.
   exact-pin train resolves locally before its first member exists on crates.io.
   This command-scoped map is not packaged: uploaded manifests retain their exact
   crates.io version requirements and contain no local dependency paths.
-- Push `release-vX.Y.Z` only after the dry-run is green. The tag starts the crate
-  publish and the five-target `Release CLI` archive/checksum workflow.
+- Push `release-vX.Y.Z` only after the dry-run is green. The tag is an immutable
+  source selector and starts no publication workflow; dispatch both paths explicitly.
 - Existing crate names use crates.io Trusted Publishing. A never-published name
   requires one `mode=bootstrap` run with the protected `CRATES_IO_TOKEN`, then
   registration for OIDC. Because Cargo publishes the workspace as one train, a
   release containing any never-published name uses bootstrap authentication for
-  that whole run; tag-triggered releases derive this choice from live registry
-  state and return to OIDC once every name is registered.
+  that whole run; the dispatch derives readiness from live registry state and
+  returns to OIDC once every name is registered.
 - Verify exact registry versions, sparse-index poll, install smoke, GitHub
   Release, archives, and checksums; then register the immutable release tag.
 - Rotate the active intent to the next pre-1.0 minor and commit before resuming;

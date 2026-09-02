@@ -44,6 +44,7 @@
       "writerGateIds": [],
       "consumerPaths": [
         ".github/dependabot.yml",
+        "docs/releases/release-workflow-job-allowlist.json",
         "packages/check-orchestrator/reports/ci-reachability-closed-world-2026-06-15.json",
         "packages/check-orchestrator/src/cli/main.ts",
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
@@ -1392,6 +1393,7 @@
         ".github/workflows/_publish-crate-train.yml",
         "rust/Cargo.toml",
         "scripts/check-rust-publish-train-closure.ts",
+        "scripts/crate-registry-state.ts",
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": [],
@@ -1527,6 +1529,7 @@
         ".github/workflows/_publish-crate-train.yml",
         "rust/Cargo.toml",
         "scripts/check-rust-publish-train-closure.ts",
+        "scripts/crate-registry-state.ts",
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": [],
@@ -2433,6 +2436,8 @@
         "rust/crates/omena-spec-audit/src/lib.rs",
         "rust/omena-product-path-matrix.json",
         "rust/omena-source-type-fact-shape-census.json",
+        "rust/release-print-sensitive-evidence.json",
+        "scripts/check-release-print-sensitive-evidence.ts",
         "scripts/check-rust-m4-axis-a-closure-audit.ts",
         "scripts/check-rust-omena-cli-bundle-origin-chain.ts",
         "scripts/check-rust-omena-cli-migration.ts",
@@ -2463,6 +2468,7 @@
       ],
       "consumerGateIds": [
         "release/check/release-notes",
+        "release/check/release-print-sensitive-evidence",
         "release/release/notes",
         "rust/lint-finding-census",
         "rust/lint-finding-census:update",
@@ -2706,6 +2712,7 @@
         ".github/workflows/_publish-crate-train.yml",
         "rust/Cargo.toml",
         "scripts/check-rust-publish-train-closure.ts",
+        "scripts/crate-registry-state.ts",
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": [],
@@ -2866,6 +2873,7 @@
         "rust/Cargo.toml",
         "rust/crates/omena-query/src/tests.rs",
         "scripts/check-rust-publish-train-closure.ts",
+        "scripts/crate-registry-state.ts",
         "scripts/fixtures/rust-wildcard-reexports.rs",
         "scripts/lib/rust-semver-intent.ts"
       ],
@@ -2973,6 +2981,7 @@
         ".github/workflows/_publish-crate-train.yml",
         "rust/Cargo.toml",
         "scripts/check-rust-publish-train-closure.ts",
+        "scripts/crate-registry-state.ts",
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": [],
@@ -3318,6 +3327,7 @@
         "rust/crates/omena-semantic/src/lib.rs",
         "rust/crates/omena-syntax/src/line_index.rs",
         "scripts/check-rust-publish-train-closure.ts",
+        "scripts/crate-registry-state.ts",
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": ["scripts/check-rust-line-index-authority.ts"],
@@ -3498,6 +3508,7 @@
         ".github/workflows/_publish-crate-train.yml",
         "rust/Cargo.toml",
         "scripts/check-rust-publish-train-closure.ts",
+        "scripts/crate-registry-state.ts",
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": [],
@@ -3559,6 +3570,7 @@
         ".github/workflows/_publish-crate-train.yml",
         "rust/Cargo.toml",
         "scripts/check-rust-publish-train-closure.ts",
+        "scripts/crate-registry-state.ts",
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": [],
@@ -3777,6 +3789,8 @@
         "scripts/check-packaged-tsgo-binary.mjs",
         "scripts/check-plugin-bundler-product-gate.mjs",
         "scripts/check-provider-host-routing-boundary.ts",
+        "scripts/check-release-print-sensitive-evidence.ts",
+        "scripts/check-release-tag-grammar.ts",
         "scripts/check-rust-benchmark-ci-reachability.ts",
         "scripts/check-rust-contract-shape-census.ts",
         "scripts/check-rust-core-layer-hygiene.ts",
@@ -4174,8 +4188,15 @@
         "rust/omena-rust-semver-intent.json"
       ],
       "writerGateIds": [],
-      "consumerPaths": ["scripts/check-rust-domain-claim-census.ts"],
-      "consumerGateIds": ["rust/domain-claim-census"]
+      "consumerPaths": [
+        "rust/release-print-sensitive-evidence.json",
+        "scripts/check-release-print-sensitive-evidence.ts",
+        "scripts/check-rust-domain-claim-census.ts"
+      ],
+      "consumerGateIds": [
+        "release/check/release-print-sensitive-evidence",
+        "rust/domain-claim-census"
+      ]
     },
     {
       "artifactPath": "rust/omena-domain-claim-rename-map.json",
@@ -4823,6 +4844,7 @@
         ".github/workflows/_publish-crate-train.yml",
         "rust/Cargo.toml",
         "scripts/check-rust-publish-train-closure.ts",
+        "scripts/crate-registry-state.ts",
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": [],
@@ -5304,10 +5326,37 @@
       "consumerPaths": [
         "CONTRIBUTING.md",
         "packages/check-orchestrator/src/evidence/affected-evidence.ts",
+        "rust/release-print-sensitive-evidence.json",
+        "scripts/check-release-print-sensitive-evidence.ts",
         "scripts/check-rust-omena-crate-boundary-reviews.ts",
         "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
-      "consumerGateIds": ["rust/product-surface-boundary-reviews", "tooling/evidence-affected-map"]
+      "consumerGateIds": [
+        "release/check/release-print-sensitive-evidence",
+        "rust/product-surface-boundary-reviews",
+        "tooling/evidence-affected-map"
+      ]
+    },
+    {
+      "artifactPath": "rust/release-print-sensitive-evidence.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/release-print-sensitive-evidence.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputPaths": [],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "docs/releases/PROCESS.md",
+        "scripts/check-release-print-sensitive-evidence.ts"
+      ],
+      "consumerGateIds": ["release/check/release-print-sensitive-evidence"]
     },
     {
       "artifactPath": "server/engine-core-ts/src/contracts/engine-napi-boundary-idl.generated.ts",
@@ -6303,6 +6352,18 @@
       "gateIds": ["tooling/evidence-affected-map"]
     },
     {
+      "ownerId": "scripts/check-release-rehearsal-crate-dry-run.ts",
+      "kind": "environment",
+      "detail": "process environment is read by the governed module",
+      "gateIds": ["release/rehearsal/crate-dry-run"]
+    },
+    {
+      "ownerId": "scripts/check-release-rehearsal-npm-pack.ts",
+      "kind": "environment",
+      "detail": "process environment is read by the governed module",
+      "gateIds": ["release/rehearsal/npm-pack"]
+    },
+    {
       "ownerId": "scripts/check-rust-omena-custom-property-fixed-point-formalization.ts",
       "kind": "environment",
       "detail": "process environment is read by the governed module",
@@ -6322,6 +6383,12 @@
       "kind": "git-history",
       "detail": "git rev-list history is read by the governed module",
       "gateIds": ["tooling/evidence-affected-map"]
+    },
+    {
+      "ownerId": "scripts/check-release-print-sensitive-evidence.ts",
+      "kind": "git-history",
+      "detail": "git rev-list history is read by the governed module",
+      "gateIds": ["release/check/release-print-sensitive-evidence"]
     },
     {
       "ownerId": "scripts/check-rust-omena-crate-boundary-reviews.ts",

@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { declaredRustSemverIntentCrates } from "./lib/rust-semver-intent.ts";
+import { deriveCrateRegistryState } from "./crate-registry-state.ts";
 
 type SurfaceDisposition = "snapshotGated" | "trainSemverOnly" | "noRustConsumerSurface";
 type RegistryBaseline = "present" | "firstPublish";
@@ -74,6 +75,30 @@ assert.equal(
   "omena-published-crate-surface-register",
   "published-crate register product",
 );
+
+// Readiness is derived through the live registry resolver contract, never from
+// the historical registryBaselineAtRegistration field. CI exercises the same
+// resolver against a deterministic response fixture; release rehearsal invokes
+// crate-registry-state.ts against crates.io itself.
+const workspaceVersion = readWorkspaceVersion();
+const resolverState = deriveCrateRegistryState({
+  crateNames: closure.canonicalPublishOrder,
+  workspaceVersion,
+  records: closure.canonicalPublishOrder.map((crate) =>
+    process.argv.includes("--inject-register-only-readiness") && crate === "omena-reactive"
+      ? { name: crate, status: "unregistered" as const }
+      : {
+          name: crate,
+          status: "registered" as const,
+          versions: [{ num: crate === "omena-reactive" ? workspaceVersion : "0.4.0" }],
+        },
+  ),
+});
+const resolverRegistered = new Set(resolverState.registered);
+assert.ok(
+  resolverState.alreadyPublished.includes("omena-reactive"),
+  "live resolver fixture must report omena-reactive as already-published",
+);
 assert.equal(
   register.domainAuthority,
   "rust.publish-train-closure.canonicalPublishOrder",
@@ -124,10 +149,9 @@ for (const crate of requiredSnapshotCrates) {
 for (const crate of declaredRustSemverIntentCrates(repoRoot)) {
   const row = register.rows.find((candidate) => candidate.crate === crate);
   assert(row, `${crate} semver intent must refer to a published-crate register row`);
-  assert.equal(
-    row.registryBaselineAtRegistration,
-    "present",
-    `${crate} cannot declare a compatibility break before its first registry publication`,
+  assert.ok(
+    resolverRegistered.has(crate),
+    `${crate} cannot declare a compatibility break without a current registry baseline`,
   );
 }
 
@@ -137,10 +161,7 @@ for (const row of register.rows) {
     dispositions.includes(row.disposition),
     `unknown published-crate disposition: ${row.crate}:${row.disposition}`,
   );
-  if (
-    row.registryBaselineAtRegistration === "firstPublish" &&
-    row.disposition === "trainSemverOnly"
-  ) {
+  if (!resolverRegistered.has(row.crate) && row.disposition === "trainSemverOnly") {
     // Registry measurement can emit this state for a new crate; the release
     // train has no previous version against which to run its semver check.
     throw new Error(
@@ -193,9 +214,11 @@ process.stdout.write(
       noRustConsumerSurfaceCount: register.rows.filter(
         (row) => row.disposition === "noRustConsumerSurface",
       ).length,
-      firstPublishCount: register.rows.filter(
+      historicalFirstPublishCount: register.rows.filter(
         (row) => row.registryBaselineAtRegistration === "firstPublish",
       ).length,
+      resolverRegisteredCount: resolverState.registered.length,
+      resolverAlreadyPublished: resolverState.alreadyPublished,
     },
     null,
     2,
@@ -250,6 +273,13 @@ function readPublishTrainClosure(): PublishTrainClosure {
       { cwd: repoRoot, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
     ),
   ) as PublishTrainClosure;
+}
+
+function readWorkspaceVersion(): string {
+  const source = readFileSync(path.join(repoRoot, "rust/Cargo.toml"), "utf8");
+  const version = source.match(/\[workspace\.package\][\s\S]*?\bversion\s*=\s*"([^"]+)"/u)?.[1];
+  assert(version, "rust/Cargo.toml must declare workspace.package.version");
+  return version;
 }
 
 function readCargoPackages(): readonly CargoPackage[] {

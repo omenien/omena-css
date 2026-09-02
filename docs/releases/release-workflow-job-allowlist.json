@@ -1,0 +1,303 @@
+{
+  "schemaVersion": "0",
+  "product": "release.non-publishing-workflow-jobs",
+  "expectedEnvironmentProtection": false,
+  "entryCount": 59,
+  "entries": [
+    {
+      "workflow": "_build-native-binaries.yml",
+      "job": "build",
+      "semanticDigest": "be5d6e28eda0bd599d1f877906fe41e82bd5f01a7af87ce17f91fc5bf302175d"
+    },
+    {
+      "workflow": "_publish-crate-train.yml",
+      "job": "release-integrity",
+      "semanticDigest": "7d07055d8eee5df5fd847dd0434d8ec01523fb696f07c1e1b5397c866f26fc94"
+    },
+    {
+      "workflow": "_publish-npm.yml",
+      "job": "release-integrity",
+      "semanticDigest": "8fbecdaca83396f5b3d91ea5952d7c7a6fd7616e9352278bf79b5a0182bb5aee"
+    },
+    {
+      "workflow": "_publish-npm.yml",
+      "job": "napi-binaries",
+      "semanticDigest": "0acae39f0860c291d13e35e11ac1d8dd30dd0bf258272c676b12ee87235f709e"
+    },
+    {
+      "workflow": "benchmark-regression.yml",
+      "job": "instruction-count-advisory",
+      "semanticDigest": "1cc5da00d2871801335a8c1d9c244959ea4668dc84d176924ae263aa781cb1f6"
+    },
+    {
+      "workflow": "benchmark-regression.yml",
+      "job": "parser-edit-slope",
+      "semanticDigest": "9fbcb5141db5bf7c9f36d8c6f56379a50ea0b88f10d22c2d3d5039c3054df7fa"
+    },
+    {
+      "workflow": "benchmark-regression.yml",
+      "job": "wpt-case-count-advisory",
+      "semanticDigest": "917e23d81443fc65b1be67b1e391b86f4abdcf96f8ea680620b0a1b9af92a97b"
+    },
+    {
+      "workflow": "ci-probe.yml",
+      "job": "linux",
+      "semanticDigest": "7bc30a76d228f3296c56d1878438d59163ebdd90af446922a9627d6d617f804c"
+    },
+    {
+      "workflow": "ci-probe.yml",
+      "job": "cli-matrix",
+      "semanticDigest": "282400c6ff2df5940c1f9c41130870465f52d84e2c5cde77eef7f81ef0cd0338"
+    },
+    {
+      "workflow": "ci.yml",
+      "job": "preflight",
+      "semanticDigest": "8000256f421764e76b5477777b5ac463a1c5080511f2908a1bc1bc86c71ccab4"
+    },
+    {
+      "workflow": "ci.yml",
+      "job": "verify-core",
+      "semanticDigest": "ee8799774215c6ca2830c1ca595e3df8960878f24ab6f73a3abbf02ee943b696"
+    },
+    {
+      "workflow": "ci.yml",
+      "job": "verify-native-linux",
+      "semanticDigest": "f0f8b58ab70835df07cde223a461557675bce4f02050d6944ac7b8ec0bb9fc8c"
+    },
+    {
+      "workflow": "ci.yml",
+      "job": "build-output",
+      "semanticDigest": "d0b4cd14941f86af38598165d708a2467319c9c8e615f3ba95dce1da1643f892"
+    },
+    {
+      "workflow": "ci.yml",
+      "job": "protocol-matrix",
+      "semanticDigest": "e11bfbb94436a64bdcc3860f5c468515033d29dd9430faaec6875db8423703ac"
+    },
+    {
+      "workflow": "ci.yml",
+      "job": "native-runner-matrix",
+      "semanticDigest": "c58225369f91686de25d2d8c8ed4374b9bbc7d02a23ac4802ac7cff382494f0a"
+    },
+    {
+      "workflow": "ci.yml",
+      "job": "rust-static",
+      "semanticDigest": "43601c3a2a79c1d2e208409f23ef57e8adabceed5555dbef11547f8c1e1bf7c5"
+    },
+    {
+      "workflow": "ci.yml",
+      "job": "rust-contracts",
+      "semanticDigest": "4c1740dc47eb7cb1de4df19f174970a4e7dedf9e089dc662a318c2cb7fbfdb51"
+    },
+    {
+      "workflow": "ci.yml",
+      "job": "rust-product-test-crates",
+      "semanticDigest": "7678ef6b9e1f919ff24eaf2a1e6211cb15dcf6d196ff4398536d74ba139349d5"
+    },
+    {
+      "workflow": "ci.yml",
+      "job": "rust-product-test-contracts",
+      "semanticDigest": "5552da44f516fd40c6aecf2c76690adc49bbe85455d5f6149ae0f0f69e10a097"
+    },
+    {
+      "workflow": "ci.yml",
+      "job": "resolver-path-identity-advisory",
+      "semanticDigest": "ed857cd596a90a93d13e99f36dcaf293901132fa1b94947b504cf29ec7be402e"
+    },
+    {
+      "workflow": "ci.yml",
+      "job": "benchmark-contracts",
+      "semanticDigest": "111d232eb4d7b0530df7f3877b2712e9b3862b021d72512b5eb199339d2cc9ff"
+    },
+    {
+      "workflow": "ci.yml",
+      "job": "benchmark-instructions",
+      "semanticDigest": "1711d63bc3c1942e95acb15cf4793a53db9881e48263d678e7a496dcf92b7455"
+    },
+    {
+      "workflow": "ci.yml",
+      "job": "benchmark-complexity",
+      "semanticDigest": "02af191779a28abd946d9eac314d1869d7a81e885858cd9ce1f74f7700478f66"
+    },
+    {
+      "workflow": "ci.yml",
+      "job": "plugin-consumers",
+      "semanticDigest": "fb193b7b1b0c29b92b1bb30443a4e5e39bc0dc7951fc08048bfb9238f79687bb"
+    },
+    {
+      "workflow": "ci.yml",
+      "job": "closure-fast-shards",
+      "semanticDigest": "e98eed8251954dcba6c36d329d88cc21c2af9e42d032ef4d7cfa896904b6e23f"
+    },
+    {
+      "workflow": "ci.yml",
+      "job": "rust-identifier-authority-matrix",
+      "semanticDigest": "934c5396f68b621e04eba590a1b5bacaec562ab5bb5e634e0e7b25938e239b2e"
+    },
+    {
+      "workflow": "ci.yml",
+      "job": "rust-identifier-authority-mutations",
+      "semanticDigest": "d1975b5ff1c5235459a718f66f139a17336f3282fae623e7cf733139363ac8c8"
+    },
+    {
+      "workflow": "ci.yml",
+      "job": "extension-host-smoke",
+      "semanticDigest": "a37b013566081a59bd58e03f05ae4c17d391895c67b742080cd8bca4d832cd35"
+    },
+    {
+      "workflow": "ci.yml",
+      "job": "package",
+      "semanticDigest": "b458d51800e651bd02b6ab1d65c82a89a6cf09cf4f482848249ad91bc788ece9"
+    },
+    {
+      "workflow": "ci.yml",
+      "job": "ci-required",
+      "semanticDigest": "25ba495887bce4026288cb3a00747f50da3553857c019206e3f237f198f66958"
+    },
+    {
+      "workflow": "docs-pages.yml",
+      "job": "build",
+      "semanticDigest": "f50334b79b970b2d879343919154d1d0f4fca31cbffc7fd4d25bb37aa18e86b7"
+    },
+    {
+      "workflow": "docs-pages.yml",
+      "job": "deploy",
+      "semanticDigest": "94986c0b8a973d37a52ce1bef7da4525c36ac2a343e2d26c581f1b80d754b91c"
+    },
+    {
+      "workflow": "nightly-soak.yml",
+      "job": "native-api",
+      "semanticDigest": "00fe96c7c8cafecbd5d361ddb33ee7931986e07d3e06790a3478612a00752f30"
+    },
+    {
+      "workflow": "nightly-soak.yml",
+      "job": "vite-bundler-host-hmr",
+      "semanticDigest": "de105b411bfbadc473464c10d420f2a3e7865ab242154600b324615385d474a3"
+    },
+    {
+      "workflow": "nightly-soak.yml",
+      "job": "sdk-cross-surface-parity",
+      "semanticDigest": "8e4398a189a071ca9564f3171300142b7d629b8d11aa5d81d5bf7524dd2e2859"
+    },
+    {
+      "workflow": "nightly-soak.yml",
+      "job": "tsgo-operational",
+      "semanticDigest": "e82cf78cedc71125a7cf8ebe49b57f433b1ecb122be5920ce9a6b0cc37f6a3d6"
+    },
+    {
+      "workflow": "nightly-soak.yml",
+      "job": "ts7-phase-a",
+      "semanticDigest": "16c1f5a7d067f870db68abd56fd6b47e31db42f7c1dfbf1115c02ed332af60fd"
+    },
+    {
+      "workflow": "nightly-soak.yml",
+      "job": "selected-query-default",
+      "semanticDigest": "5b68fea872e27960bdb69882b1c53098c43c32033c80fd4373ddd7289e64a3ce"
+    },
+    {
+      "workflow": "nightly-soak.yml",
+      "job": "checker-release-gate",
+      "semanticDigest": "2486a7050cdb7e50eecf1e0ecd6d78cf1f4fae459b54b633fefffd0f41ae5bfc"
+    },
+    {
+      "workflow": "nightly-soak.yml",
+      "job": "sass-spec-conformance",
+      "semanticDigest": "548f70c3f3535e804fcfc6f93602b20f4b9290329d155ecd887f9813bb3bc868"
+    },
+    {
+      "workflow": "nightly-soak.yml",
+      "job": "oss-corpus-farm",
+      "semanticDigest": "79ad4e1723b59997dc063b30f7f4552b16b5b814e1eb4f5098c8d4481a07cd92"
+    },
+    {
+      "workflow": "nightly-soak.yml",
+      "job": "demand-sliced-monotone-fact-propagation-settle-soak",
+      "semanticDigest": "b2eff09df4111cd5ac1a409b8da3f92a7ee669c7374d6e41b5b6af7e612894db"
+    },
+    {
+      "workflow": "nightly-soak.yml",
+      "job": "benchmark-instructions",
+      "semanticDigest": "75992caeb751d9aea6758dd34e255cdcee1d95eb12b2957fbc082e1131500017"
+    },
+    {
+      "workflow": "nightly-soak.yml",
+      "job": "benchmark-complexity",
+      "semanticDigest": "109ae0064ebe10b4efabcad622b49229178f0b7d8fcb3a1a80a75f7c794a4f82"
+    },
+    {
+      "workflow": "nightly-soak.yml",
+      "job": "protocol-windows",
+      "semanticDigest": "e23fb0c6e7929d936036633f93dd42f52074722efc7a7a868e8a3ccc84f36fa3"
+    },
+    {
+      "workflow": "omena-css-drift.yml",
+      "job": "drift-shards",
+      "semanticDigest": "3c1f543c15c3fa3dd546a0eeceaff56a547adc37cc9c972a15582c34bda479cb"
+    },
+    {
+      "workflow": "omena-css-drift.yml",
+      "job": "drift",
+      "semanticDigest": "0ef1d0a13db40c7e587650d8c1f26e51137b59c01410327f62ae4641319534b7"
+    },
+    {
+      "workflow": "postcss-compatibility-soak.yml",
+      "job": "postcss-compatibility",
+      "semanticDigest": "b53fe803d9e367c96686e69ff432b2877cabfaf67f4938d1da9c151593226d20"
+    },
+    {
+      "workflow": "precision-floor-mutations.yml",
+      "job": "mutation-suite",
+      "semanticDigest": "d79cf2d8d87949901ca7213801a30539354f3ee9c6826c6f49c0e89f89b6e0e5"
+    },
+    {
+      "workflow": "publish-extension.yml",
+      "job": "native-runner-matrix",
+      "semanticDigest": "e09d6a05690e1cb748a171a766366a355af2486f3e29765e9ac3bb567824fb5f"
+    },
+    {
+      "workflow": "release-cli.yml",
+      "job": "build",
+      "semanticDigest": "387f0e6ba6318bdff50d62225f46e4d28ceaa7b8d6236c3635094cd834f79d41"
+    },
+    {
+      "workflow": "release-cli.yml",
+      "job": "stage",
+      "semanticDigest": "18aafbda8c3792451063fb15e43591f20fd5be899cdadd48c51725440c315721"
+    },
+    {
+      "workflow": "release-rehearsal.yml",
+      "job": "rehearsal",
+      "semanticDigest": "3b0942e108470aac6ffa388d40a426728285a5fb03015b37e16085123494e640"
+    },
+    {
+      "workflow": "release-plan.yml",
+      "job": "release-plan",
+      "semanticDigest": "81da814873b77d60385489c894cda82245cabdbd87640c1aeb7edfbdd0ef0cb7"
+    },
+    {
+      "workflow": "sccache-divergence.yml",
+      "job": "divergence",
+      "semanticDigest": "cfcd7ddc7190b195882593f69e79c3b425cee443d684061e12bd288cd91b7326"
+    },
+    {
+      "workflow": "security-audit.yml",
+      "job": "npm-audit",
+      "semanticDigest": "eabe4f4d98f522d05c2c539af38a491e38e9edd2537b6d9c580dc8882b63619c"
+    },
+    {
+      "workflow": "security-audit.yml",
+      "job": "audit",
+      "semanticDigest": "b7e78d369f18699dedc3b648ffc0f42b62a7aa6939371244a1463cc50321937c"
+    },
+    {
+      "workflow": "workflow-security.yml",
+      "job": "actionlint",
+      "semanticDigest": "41415957c72ac41cb4c3f60a85097ed76213c27e574a337ff4556e48bda14dc2"
+    },
+    {
+      "workflow": "workflow-security.yml",
+      "job": "zizmor",
+      "semanticDigest": "5ce0ea792a9755368b8e1ce1501357af6e0c108aea1034214af03336aa482511"
+    }
+  ]
+}

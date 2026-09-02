@@ -2,7 +2,7 @@
   "schemaVersion": "0",
   "generatedBy": "pnpm omena-check evidence-surfaces --write",
   "detector": {
-    "fileCount": 97,
+    "fileCount": 99,
     "patternSha256": "3d142b359e06a0b85d1d9713cda4a6405e573a53f1eafb8d95f01ca3d4ddcf0d"
   },
   "resolverSha256": "96ff29a3b9af567b042806d6ae5d2694ae2529ba06365b1bbb1c026fb8445e8a",
@@ -470,6 +470,34 @@
         "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
       },
       "gateIds": ["editor/provider-host-routing-boundary"]
+    },
+    {
+      "scannerPath": "scripts/check-release-print-sensitive-evidence.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-release-print-sensitive-evidence.surface.ts",
+      "surfaceModuleSha256": "f15d7f4dcf935bd5fe0a49dd48a3dc875278e6a304f02a8cb2d81dbf7d8f85cb",
+      "spec": {
+        "scannerPath": "scripts/check-release-print-sensitive-evidence.ts",
+        "mode": "index",
+        "pathspecs": ["**"],
+        "includeUntracked": true,
+        "excludes": ["personal-docs"]
+      },
+      "gateIds": ["release/check/release-print-sensitive-evidence"]
+    },
+    {
+      "scannerPath": "scripts/check-release-tag-grammar.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-release-tag-grammar.surface.ts",
+      "surfaceModuleSha256": "979d90cfb1fc17f03d8d77bae00ca6666a35b7c96152fdacf1bc7041faf9177d",
+      "spec": {
+        "scannerPath": "scripts/check-release-tag-grammar.ts",
+        "mode": "workingTree",
+        "pathspecs": [".github/workflows/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": ["release/check/release-tag-grammar"]
     },
     {
       "scannerPath": "scripts/check-rust-benchmark-ci-reachability.ts",

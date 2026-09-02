@@ -20,6 +20,12 @@ export interface CrateRegistryState {
   readonly latestPublishedVersions: Readonly<Record<string, string>>;
 }
 
+export interface CrateRegistryRecord {
+  readonly name: string;
+  readonly status: "registered" | "unregistered";
+  readonly versions?: readonly { readonly num?: string; readonly yanked?: boolean }[];
+}
+
 export interface SemverBaselinePlan {
   readonly eligible: readonly string[];
   readonly noCheckableLibraryBaseline: readonly string[];
@@ -42,17 +48,14 @@ export async function classifyCrateRegistryState({
   readonly fetchRegistry?: FetchRegistry;
   readonly apiBase?: string;
 }): Promise<CrateRegistryState> {
-  const registered: string[] = [];
-  const unregistered: string[] = [];
-  const alreadyPublished: string[] = [];
-  const latestPublishedVersions: Record<string, string> = {};
+  const records: CrateRegistryRecord[] = [];
 
   for (const name of crateNames) {
     const response = await fetchRegistry(`${apiBase}/${encodeURIComponent(name)}`, {
       headers: { "User-Agent": USER_AGENT },
     });
     if (response.status === 404) {
-      unregistered.push(name);
+      records.push({ name, status: "unregistered" });
       continue;
     }
     if (!response.ok) {
@@ -65,15 +68,43 @@ export async function classifyCrateRegistryState({
     if (!Array.isArray(payload.versions)) {
       throw new Error(`crates.io response for ${name} has no versions array`);
     }
-    const latestVersion = selectLatestStableVersion(payload.versions);
-    if (!latestVersion) {
-      throw new Error(`crates.io response for ${name} has no stable published version`);
+    records.push({ name, status: "registered", versions: payload.versions });
+  }
+
+  return deriveCrateRegistryState({ crateNames, workspaceVersion, records });
+}
+
+export function deriveCrateRegistryState({
+  crateNames,
+  workspaceVersion,
+  records,
+}: {
+  readonly crateNames: readonly string[];
+  readonly workspaceVersion: string;
+  readonly records: readonly CrateRegistryRecord[];
+}): CrateRegistryState {
+  const recordByName = new Map(records.map((record) => [record.name, record]));
+  assertCompleteRegistryRecords(crateNames, recordByName);
+  const registered: string[] = [];
+  const unregistered: string[] = [];
+  const alreadyPublished: string[] = [];
+  const latestPublishedVersions: Record<string, string> = {};
+
+  for (const name of crateNames) {
+    const record = recordByName.get(name)!;
+    if (record.status === "unregistered") {
+      unregistered.push(name);
+      continue;
     }
+    const versions = record.versions;
+    if (!Array.isArray(versions))
+      throw new Error(`crates.io response for ${name} has no versions array`);
+    const latestVersion = selectLatestStableVersion(versions);
+    if (!latestVersion)
+      throw new Error(`crates.io response for ${name} has no stable published version`);
     registered.push(name);
     latestPublishedVersions[name] = latestVersion;
-    if (payload.versions.some((version) => version.num === workspaceVersion)) {
-      alreadyPublished.push(name);
-    }
+    if (versions.some((version) => version.num === workspaceVersion)) alreadyPublished.push(name);
   }
 
   const alreadySet = new Set(alreadyPublished);
@@ -86,6 +117,21 @@ export async function classifyCrateRegistryState({
     remaining: crateNames.filter((name) => !alreadySet.has(name)),
     latestPublishedVersions,
   };
+}
+
+export function renderCrateResumeExcludeArgs(alreadyPublished: readonly string[]): string {
+  return alreadyPublished.map((name) => `--exclude ${name}`).join(" ");
+}
+
+function assertCompleteRegistryRecords(
+  crateNames: readonly string[],
+  recordByName: ReadonlyMap<string, CrateRegistryRecord>,
+): void {
+  const expected = [...crateNames].toSorted();
+  const actual = [...recordByName.keys()].toSorted();
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error("registry resolver records must cover every publishable crate exactly once");
+  }
 }
 
 export async function deriveSemverBaselinePlan({
@@ -204,7 +250,7 @@ async function main(): Promise<void> {
     writeFileSync(outputPath, serialized);
   }
   if (process.env.GITHUB_OUTPUT) {
-    const excludeArgs = registryState.alreadyPublished.map((name) => `--exclude ${name}`).join(" ");
+    const excludeArgs = renderCrateResumeExcludeArgs(registryState.alreadyPublished);
     const outputs = [
       `registered_count=${registryState.registered.length}`,
       `unregistered_count=${registryState.unregistered.length}`,

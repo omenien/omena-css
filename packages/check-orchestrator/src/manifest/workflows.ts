@@ -1948,6 +1948,53 @@ export interface WorkflowLifecycleView {
   readonly triggers: readonly WorkflowTriggerFacts[];
 }
 
+export interface ParsedWorkflowJobView {
+  readonly workflowFile: string;
+  readonly jobName: string;
+  readonly events: readonly string[];
+  readonly workflowPermissions: unknown;
+  readonly workflowEnv: unknown;
+  readonly workflowCallInputs: unknown;
+  readonly job: Readonly<Record<string, unknown>>;
+}
+
+/** Parsed workflow jobs for structural gates that must inspect complete YAML
+ * values. This deliberately complements the lifecycle façade instead of
+ * widening its line-oriented gate-invocation contract. */
+export function collectParsedWorkflowJobs(rootDir: string): readonly ParsedWorkflowJobView[] {
+  const workflowsDir = path.join(rootDir, ".github/workflows");
+  if (!existsSync(workflowsDir)) return [];
+
+  const evidenceScanSurface = workflowScanSurface(rootDir);
+  return evidenceScanSurface
+    .readdirSync(workflowsDir)
+    .filter((fileName) => /\.ya?ml$/u.test(fileName))
+    .toSorted()
+    .flatMap((workflowFile) => {
+      const document = asRecord(
+        parseYaml(readFileSync(path.join(workflowsDir, workflowFile), "utf8")),
+      );
+      const jobs = asRecord(document.jobs);
+      const events = workflowEventNames(document.on);
+      const workflowCall = asRecord(asRecord(document.on).workflow_call);
+      return Object.entries(jobs).map(([jobName, job]) => ({
+        workflowFile,
+        jobName,
+        events,
+        workflowPermissions: document.permissions,
+        workflowEnv: document.env,
+        workflowCallInputs: workflowCall.inputs,
+        job: asRecord(job),
+      }));
+    });
+}
+
+function workflowEventNames(value: unknown): readonly string[] {
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) return value.map(String).toSorted();
+  return Object.keys(asRecord(value)).toSorted();
+}
+
 export function collectWorkflowLifecycleView(
   rootDir: string,
   gates: readonly CheckGate[],

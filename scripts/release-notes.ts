@@ -170,20 +170,31 @@ function checkCommand(args: readonly string[]): void {
     "release-plan must not use removed Changesets v1 input names",
   );
 
-  const workflows = [
-    ".github/workflows/publish-extension.yml",
-    ".github/workflows/release-cli.yml",
-    ".github/workflows/_publish-crate-train.yml",
-  ].map((relativePath) => [relativePath, workflowSourceForCheck(relativePath, args)] as const);
-  for (const [relativePath, workflow] of workflows) {
+  const workflowRoles = [
+    [".github/workflows/publish-extension.yml", "render"],
+    [".github/workflows/release-cli.yml", "export"],
+    [".github/workflows/_publish-crate-train.yml", "render"],
+  ] as const;
+  const workflows = workflowRoles.map(
+    ([relativePath, role]) =>
+      [relativePath, workflowSourceForCheck(relativePath, args), role] as const,
+  );
+  for (const [relativePath, workflow, role] of workflows) {
     assert.ok(
       workflow.includes("release-notes.md"),
-      `${relativePath} must render and publish release-notes.md`,
+      `${relativePath} must carry the canonical release-notes.md handoff`,
     );
-    assert.ok(
-      workflow.includes("--changelog"),
-      `${relativePath} must render the generated changelog section`,
-    );
+    if (role === "render") {
+      assert.ok(
+        workflow.includes("--changelog"),
+        `${relativePath} must render the generated changelog section`,
+      );
+    } else {
+      assert.ok(
+        workflow.includes("export-github"),
+        `${relativePath} must export the existing GitHub Release body`,
+      );
+    }
     assert.ok(
       workflow.includes("body_path: release-notes.md"),
       `${relativePath} must use the canonical rendered body`,
@@ -220,24 +231,64 @@ function checkCommand(args: readonly string[]): void {
     ([relativePath]) => relativePath === ".github/workflows/release-cli.yml",
   )?.[1];
   assert.ok(cliWorkflow);
-  const cliChangelogStep = namedWorkflowStep(cliWorkflow, "Render canonical release notes");
+  const cliExportStep = namedWorkflowStep(cliWorkflow, "Export existing GitHub Release notes");
   assert.ok(
-    cliChangelogStep.source.includes("GH_TOKEN: ${{ github.token }}"),
-    "release-cli changelog rendering must authenticate its gh compare request",
+    cliExportStep.source.includes("GH_TOKEN: ${{ github.token }}"),
+    "release-cli release-body export must authenticate its GitHub API request",
   );
-  const cliBuildJob = cliWorkflow.slice(
-    cliWorkflow.indexOf("  build:"),
-    cliWorkflow.indexOf("  release:"),
-  );
-  const cliReleaseJob = cliWorkflow.slice(cliWorkflow.indexOf("  release:"));
+  const cliBuildJob = yamlJobSource(cliWorkflow, "build");
+  const cliStageJob = yamlJobSource(cliWorkflow, "stage");
+  const cliUploadJob = yamlJobSource(cliWorkflow, "upload");
   assert.ok(
     cliBuildJob.includes("ref: ${{ inputs.tag || github.ref }}"),
     "historical CLI binaries must be built from the requested immutable tag",
   );
   assert.ok(
-    cliReleaseJob.includes("github.event.repository.default_branch") &&
-      cliReleaseJob.includes("export-github"),
-    "historical CLI rebuilds must use current tooling and preserve the existing release body",
+    cliStageJob.includes("github.event.repository.default_branch") &&
+      cliStageJob.includes("export-github") &&
+      cliStageJob.includes("name: omena-cli-release-notes"),
+    "CLI stage must use current tooling, fail-closed export, and upload the notes artifact",
+  );
+  assert.ok(
+    cliStageJob.indexOf("Export existing GitHub Release notes") <
+      cliStageJob.indexOf("name: omena-cli-release-notes"),
+    "CLI stage must export a real release body before uploading the handoff artifact",
+  );
+  for (const marker of [
+    "if: ${{ !inputs.dry_run }}",
+    "needs: stage",
+    "environment: release",
+    "github.event.repository.default_branch",
+    "./.github/actions/setup-pnpm",
+    "pattern: omena-cli-*",
+    "name: omena-cli-release-notes",
+    "softprops/action-gh-release@",
+    "verify-github",
+  ]) {
+    assert.ok(cliUploadJob.includes(marker), `CLI upload shape must include ${marker}`);
+  }
+  assert.ok(
+    cliUploadJob.indexOf("name: omena-cli-release-notes") <
+      cliUploadJob.indexOf("softprops/action-gh-release@") &&
+      cliUploadJob.indexOf("softprops/action-gh-release@") < cliUploadJob.indexOf("verify-github"),
+    "CLI upload must re-download notes, mutate the release, then verify persistence",
+  );
+  const ownSource = readFileSync(fileURLToPath(import.meta.url), "utf8");
+  let exportSource = ownSource.slice(
+    ownSource.lastIndexOf("function exportGitHubCommand"),
+    ownSource.lastIndexOf("function backfillCommand"),
+  );
+  if (args.includes("--inject-cli-export-empty-success")) {
+    exportSource = exportSource.replace(
+      "assert.ok(body.length > 0, `GitHub Release ${tag} has no body to preserve`);",
+      "// injected: empty GitHub Release body accepted",
+    );
+  }
+  assert.ok(
+    exportSource.includes(
+      "assert.ok(body.length > 0, `GitHub Release ${tag} has no body to preserve`);",
+    ),
+    "GitHub release export must fail closed when the tag has no persisted body",
   );
   const crateWorkflow = workflows.find(
     ([relativePath]) => relativePath === ".github/workflows/_publish-crate-train.yml",
@@ -414,6 +465,9 @@ function checkCommand(args: readonly string[]): void {
         registeredReleaseCount: manifest.releases.length,
         releaseAxes: [...new Set(manifest.releases.map((entry) => entry.axis))].toSorted(),
         workflowCount: workflows.length,
+        workflowReleaseNoteRoles: Object.fromEntries(
+          workflows.map(([relativePath, , role]) => [relativePath, role]),
+        ),
         persistedBodyVerificationRequired: true,
         provenanceSourceGuardChecks: provenanceGuardReceipts,
         provenanceRuntimeSelfTests: {
@@ -510,21 +564,46 @@ function assertProvenanceSourceGuard(input: ProvenanceGuardCheckInput): Provenan
 
 function workflowSourceForCheck(relativePath: string, args: readonly string[]): string {
   let source = readFileSync(path.join(repoRoot, relativePath), "utf8");
+  assert.ok(
+    !args.includes("--inject-cli-changelog-token-deletion"),
+    "retired CLI changelog mutation is invalid after the export-only redesign; use --inject-cli-export-token-deletion",
+  );
   const releaseMutationFlags = [
-    "--inject-cli-changelog-token-deletion",
+    "--inject-cli-export-token-deletion",
+    "--inject-cli-render-branch-restoration",
+    "--inject-cli-job-rename",
     "--inject-crate-changelog-token-deletion",
     "--inject-crate-recovery-source-bypass",
   ].filter((flag) => args.includes(flag));
   assert.ok(releaseMutationFlags.length <= 1, "select at most one release workflow mutation");
   const [releaseMutation] = releaseMutationFlags;
   if (
-    releaseMutation === "--inject-cli-changelog-token-deletion" &&
+    releaseMutation === "--inject-cli-export-token-deletion" &&
     relativePath === ".github/workflows/release-cli.yml"
   ) {
     source = deleteStepLine(
       source,
-      "Render canonical release notes",
+      "Export existing GitHub Release notes",
       "GH_TOKEN: ${{ github.token }}",
+    );
+  }
+  if (
+    releaseMutation === "--inject-cli-job-rename" &&
+    relativePath === ".github/workflows/release-cli.yml"
+  ) {
+    assert.ok(source.includes("\n  stage:\n"), "CLI stage rename mutation target is absent");
+    source = source.replace("\n  stage:\n", "\n  assemble:\n");
+  }
+  if (
+    releaseMutation === "--inject-cli-render-branch-restoration" &&
+    relativePath === ".github/workflows/release-cli.yml"
+  ) {
+    const exportCommand =
+      'release/release/notes -- export-github --tag "${{ steps.tag.outputs.tag }}" --output release-notes.md';
+    assert.ok(source.includes(exportCommand), "CLI render-branch mutation target is absent");
+    source = source.replace(
+      exportCommand,
+      'release/release/notes -- render --tag "${{ steps.tag.outputs.tag }}" --changelog --output release-notes.md',
     );
   }
   if (

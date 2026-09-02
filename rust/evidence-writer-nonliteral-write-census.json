@@ -3,7 +3,7 @@
   "generatedBy": "pnpm omena-check evidence-writers --write",
   "scope": {
     "pathspecs": ["scripts/**", "packages/check-orchestrator/src/**"],
-    "scannedScriptCount": 495,
+    "scannedScriptCount": 507,
     "registryWriterScriptCount": 75,
     "declaredWriterScriptCount": 31,
     "broadWriterScriptCountWithNonLiteralSites": 122,
@@ -2101,7 +2101,7 @@
     {
       "fingerprint": "eba34238d5c5889b96a053e85f91637dc40497c277ffdb72c295b22f7a094aa9",
       "writerScript": "scripts/check-rust-published-crate-surface-register.ts",
-      "line": 171,
+      "line": 192,
       "writeApi": "writeFileSync",
       "writeExpression": "snapshotPath",
       "disposition": "declared-writer-sweep"
@@ -2109,7 +2109,7 @@
     {
       "fingerprint": "237886e59fa0424eccc0f656f419c355a4a80270a8589987c636b88999659fe4",
       "writerScript": "scripts/check-rust-published-crate-surface-register.ts",
-      "line": 238,
+      "line": 261,
       "writeApi": "writeFileSync",
       "writeExpression": "registerPath",
       "disposition": "declared-writer-sweep"
@@ -2253,7 +2253,7 @@
     {
       "fingerprint": "572498426a8bb03210e4f17119ed242eff73cc192634978728668c920ea41f7c",
       "writerScript": "scripts/crate-registry-state.ts",
-      "line": 204,
+      "line": 250,
       "writeApi": "writeFileSync",
       "writeExpression": "outputPath",
       "disposition": "outside-registry-writer"
@@ -2261,7 +2261,7 @@
     {
       "fingerprint": "eb6c9861b21f51afb1d3b953d57a334233bbb740c5591382e6e5321281c110c3",
       "writerScript": "scripts/crate-registry-state.ts",
-      "line": 221,
+      "line": 267,
       "writeApi": "appendFileSync",
       "writeExpression": "process.env.GITHUB_OUTPUT",
       "disposition": "outside-registry-writer"
@@ -2701,7 +2701,7 @@
     {
       "fingerprint": "79c55bc9529239b68494b143e98692465f8bbf78ab4a29c8a994aebb20559fed",
       "writerScript": "scripts/release-notes.ts",
-      "line": 640,
+      "line": 719,
       "writeApi": "writeFileSync",
       "writeExpression": "output",
       "disposition": "outside-registry-writer"

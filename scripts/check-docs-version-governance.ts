@@ -24,6 +24,8 @@ interface PackageManifest {
 interface TagGrammarReport {
   readonly crateTrainTagPrefix: string;
   readonly vsixTagPrefix: string;
+  readonly pushedReleaseTagsStartPublication: false;
+  readonly frozenReleaseEventCount: number;
 }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -177,7 +179,10 @@ function readTagGrammarReport(): TagGrammarReport {
     { cwd: repoRoot, encoding: "utf8" },
   );
   assert.equal(result.status, 0, result.stderr);
-  return JSON.parse(result.stdout) as TagGrammarReport;
+  const report = JSON.parse(result.stdout) as TagGrammarReport;
+  assert.equal(report.pushedReleaseTagsStartPublication, false);
+  assert.equal(report.frozenReleaseEventCount, 0);
+  return report;
 }
 
 function semverMajor(version: string): number {

@@ -1,0 +1,67 @@
+name: Release Rehearsal
+
+on:
+  schedule:
+    - cron: "20 6 * * 3"
+  workflow_dispatch:
+
+concurrency:
+  group: release-rehearsal-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+
+env:
+  RELEASE_REHEARSAL_ESCALATION_TITLE: "CI failure: Release Rehearsal"
+
+jobs:
+  rehearsal:
+    # omena-ci-tier: scheduled
+    name: release rehearsal
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/setup-rust-pinned
+      - uses: ./.github/actions/cache-rust
+        with:
+          shared-key: release-rehearsal
+      - name: Rehearse crate train dry path
+        run: pnpm omena-check run release/rehearsal/crate-dry-run
+      - name: Render latest published release notes
+        if: always()
+        run: pnpm omena-check run release/rehearsal/notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Rehearse npm pack dry path
+        if: always()
+        run: pnpm omena-check run release/rehearsal/npm-pack
+      - name: Run release lifecycle checkers
+        if: always()
+        run: pnpm omena-check run release/rehearsal/lifecycle
+      - name: Check release environment protection
+        if: always()
+        run: pnpm omena-check run release/rehearsal/environment-protection
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Escalate release rehearsal failure
+        if: failure()
+        uses: ./.github/actions/escalate-ci-failure
+        with:
+          title: ${{ env.RELEASE_REHEARSAL_ESCALATION_TITLE }}
+          body: The standing release rehearsal found a blocker before release day.
+          workflow-name: Release Rehearsal
+          job-name: release rehearsal
+          run-url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      - name: Check release rehearsal retirement ladder
+        if: always()
+        run: pnpm omena-check run release/rehearsal/retirement -- --live
+        env:
+          GH_TOKEN: ${{ github.token }}

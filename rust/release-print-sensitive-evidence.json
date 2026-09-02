@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "0",
+  "product": "omena.release-print-sensitive-evidence",
+  "entries": [
+    {
+      "artifact": "rust/omena-domain-claim-census.json",
+      "kind": "writerBacked",
+      "checker": "rust/domain-claim-census",
+      "rerunCommand": "pnpm check:rust-domain-claim-census -- --write"
+    },
+    {
+      "artifact": "rust/product-surface-boundary-reviews.json",
+      "kind": "writerlessNumeric",
+      "checker": "rust/product-surface-boundary-reviews",
+      "rerunCommand": "pnpm check:rust-product-surface-boundary-reviews"
+    },
+    {
+      "artifact": "docs/releases/manifest.json",
+      "kind": "authoringRequired",
+      "checker": "release/check/release-notes",
+      "rerunCommand": "pnpm omena-check run release/check/release-notes"
+    }
+  ]
+}
