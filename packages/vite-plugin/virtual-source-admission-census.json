@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-vite.virtual-source-admission-census",
+  "package": "@omena/vite-plugin",
+  "semverIntent": "next-pre-1.0-minor",
+  "rows": [
+    {
+      "key": "examples-disk-backed",
+      "provenanceClass": "disk-backed",
+      "admission": "existing",
+      "source": "examples/",
+      "section": "tracked module style inputs",
+      "count": 27
+    },
+    {
+      "key": "real-project-corpus-disk-backed",
+      "provenanceClass": "disk-backed",
+      "admission": "existing",
+      "source": "test/_fixtures/real-project-corpus/",
+      "section": "tracked module style inputs",
+      "count": 6
+    },
+    {
+      "key": "examples-upstream-transform",
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "source": "examples/vite.config.ts",
+      "section": "plugins: upstreamVirtualSource()",
+      "count": 1
+    },
+    {
+      "key": "virtual-only-regression",
+      "provenanceClass": "virtual-only",
+      "admission": "newly-admitted",
+      "source": "test/unit/vite-plugin/vite-plugin.test.ts",
+      "section": "analyzes a virtual-only source when no disk mapping is available",
+      "count": 1
+    }
+  ],
+  "totals": {
+    "existing": 33,
+    "newlyAdmitted": 2,
+    "total": 35
+  }
+}
