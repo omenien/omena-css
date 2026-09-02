@@ -1070,13 +1070,16 @@ pub fn execute_omena_query_consumer_build_style_source_with_context_and_options(
     context: &TransformExecutionContextV0,
     options: &OmenaQueryConsumerBuildOptionsV0,
 ) -> OmenaQueryConsumerBuildSummaryV0 {
+    let explicit_reachability_precision =
+        closed_reachability_class_value(context.reachable_class_names.iter().cloned())
+            .map(|value| analysis_precision_from_class_value(&value));
     execute_omena_query_consumer_build_style_source_with_context_and_reachability_precision(
         style_path,
         style_source,
         requested_pass_ids,
         context,
-        &[],
-        false,
+        explicit_reachability_precision.as_slice(),
+        explicit_reachability_precision.is_some(),
         options,
     )
 }
@@ -1381,8 +1384,8 @@ fn closed_world_bound_reachability_precision(
         return fallback;
     }
 
-    let value = AbstractClassValueV0::FiniteSet {
-        values: enumerated_class_names.into_iter().collect(),
+    let Some(value) = closed_reachability_class_value(enumerated_class_names) else {
+        return fallback;
     };
     let witness = OmenaAbstractValuePrecisionWitnessV0 {
         direction: OmenaAbstractValueCoverageDirectionV0::SupersetOfProducible,
@@ -1400,6 +1403,18 @@ fn closed_world_bound_reachability_precision(
         })
         .reduce(FactPrecision::bounded_by)
         .unwrap_or(fallback)
+}
+
+fn closed_reachability_class_value(
+    class_names: impl IntoIterator<Item = String>,
+) -> Option<AbstractClassValueV0> {
+    let class_names = class_names.into_iter().collect::<BTreeSet<_>>();
+    match class_names.len() {
+        0 => None,
+        _ => Some(AbstractClassValueV0::FiniteSet {
+            values: class_names.into_iter().collect(),
+        }),
+    }
 }
 
 #[cfg(test)]

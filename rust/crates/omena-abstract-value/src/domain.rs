@@ -279,7 +279,7 @@ pub fn closed_world_precision_witness_from_class_value(
 ) -> Option<OmenaClosedWorldPrecisionWitnessV1> {
     match value {
         AbstractClassValueV0::FiniteSet { values }
-            if closed_set_precision_witness_is_sound(values, external_witness) =>
+            if closed_world_enumeration_witness_is_sound(values, external_witness) =>
         {
             Some(OmenaClosedWorldPrecisionWitnessV1 {
                 value_domain: Some(ValueDomainPrecisionV1::ExactClassValue),
@@ -390,14 +390,28 @@ fn closed_set_precision_witness_is_sound(
     witness: Option<&OmenaAbstractValuePrecisionWitnessV0>,
 ) -> bool {
     (2..=MAX_FINITE_CLASS_VALUES).contains(&values.len())
-        && matches!(
-            witness,
-            Some(OmenaAbstractValuePrecisionWitnessV0 {
-                direction: OmenaAbstractValueCoverageDirectionV0::SupersetOfProducible,
-                basis: OmenaAbstractValuePrecisionBasisV0::ClosedSetEnumeration,
-                authority_digest: Some(authority_digest),
-            }) if !authority_digest.is_empty()
-        )
+        && closed_world_precision_witness_metadata_is_sound(witness)
+}
+
+fn closed_world_enumeration_witness_is_sound(
+    values: &[String],
+    witness: Option<&OmenaAbstractValuePrecisionWitnessV0>,
+) -> bool {
+    (1..=MAX_FINITE_CLASS_VALUES).contains(&values.len())
+        && closed_world_precision_witness_metadata_is_sound(witness)
+}
+
+fn closed_world_precision_witness_metadata_is_sound(
+    witness: Option<&OmenaAbstractValuePrecisionWitnessV0>,
+) -> bool {
+    matches!(
+        witness,
+        Some(OmenaAbstractValuePrecisionWitnessV0 {
+            direction: OmenaAbstractValueCoverageDirectionV0::SupersetOfProducible,
+            basis: OmenaAbstractValuePrecisionBasisV0::ClosedSetEnumeration,
+            authority_digest: Some(authority_digest),
+        }) if !authority_digest.is_empty()
+    )
 }
 
 pub(crate) fn normalize_char_set(chars: impl AsRef<str>) -> String {
@@ -620,6 +634,21 @@ mod precision_witness_tests {
         };
         let witness = closed_world_precision_witness_from_class_value(&value, Some(&external))
             .ok_or_else(|| "a non-empty validated closed set must produce a witness".to_string())?;
+
+        let singleton_value = AbstractClassValueV0::FiniteSet {
+            values: vec!["card".to_string()],
+        };
+        let singleton_witness =
+            closed_world_precision_witness_from_class_value(&singleton_value, Some(&external))
+                .ok_or_else(|| {
+                    "a validated singleton enumeration must produce a witness".to_string()
+                })?;
+        assert_eq!(
+            fact_precision_from_analysis_precision(
+                &singleton_witness.apply_to(analysis_precision_from_class_value(&singleton_value))
+            ),
+            FactPrecision::Exact
+        );
 
         let original = AnalysisPrecisionV1 {
             provider_completeness: ProviderCompletenessV1::Unresolved,

@@ -103,6 +103,32 @@ fn closed_world_request_open_world_downgrades_and_skips_tree_shake() {
 }
 
 #[test]
+fn explicit_reachable_class_context_supplies_closed_set_precision() {
+    let context = OmenaQueryTransformExecutionContextV0 {
+        reachable_class_names: vec!["used".to_string()],
+        ..OmenaQueryTransformExecutionContextV0::default()
+    };
+    let summary = execute_omena_query_consumer_build_style_source_with_context(
+        "Button.module.css",
+        ".used { color: blue; } .dead { color: red; }",
+        &["tree-shake-class".to_string()],
+        &context,
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"tree-shake-class"),
+        "{summary:#?}"
+    );
+    assert!(summary.execution.planned_only_pass_ids.is_empty());
+    assert_eq!(summary.semantic_removal_count, 1);
+    assert!(summary.execution.output_css.contains(".used"));
+    assert!(!summary.execution.output_css.contains(".dead"));
+}
+
+#[test]
 fn closed_world_boundary_request_open_world_downgrades_and_skips_tree_shake() {
     let input = EngineInputV2 {
         version: "2".to_string(),
