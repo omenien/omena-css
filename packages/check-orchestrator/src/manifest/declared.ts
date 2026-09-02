@@ -808,6 +808,23 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/evidence-graph-single-authority", "gate", "rust"),
   declaredClosurePackageGate("rust/obligation-family-closure", "gate", "rust"),
   declaredClosurePackageGate("rust/precision-floor", "gate", "rust"),
+  {
+    id: "rust/precision-floor-mutations",
+    kind: "gate",
+    scope: "rust",
+    command: [
+      "node",
+      "--import",
+      "tsx",
+      "./scripts/check-rust-precision-floor-mutation.ts",
+      "--all",
+    ],
+    tags: ["precision", "mutation", "falsifier"],
+    ciTier: "manual",
+    ciGroup: "rust",
+    ciReason:
+      "The sequential source-mutation suite is an explicit manual falsifier and restores each source before continuing.",
+  },
   declaredClosurePackageGate("rust/omena-plugin-consumption-law", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-plugin-abi-stability", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-tsgo-type-flags-abi", "gate", "rust"),
