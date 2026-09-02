@@ -1536,7 +1536,7 @@ function cfgDerivedTestFiles(
   let changed = true;
   while (changed) {
     changed = false;
-    for (const file of [...derived]) {
+    for (const file of Array.from(derived)) {
       const source = sourceOverrides.get(file) ?? read(file);
       const structural = maskRustCommentsAndLiterals(source);
       for (const match of structural.matchAll(/\bmod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/gu)) {
