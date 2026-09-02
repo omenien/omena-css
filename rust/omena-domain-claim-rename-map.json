@@ -162,7 +162,7 @@
     {
       "familyId": "f05",
       "sourcePath": "rust/crates/omena-query/src/style.rs",
-      "line": 402,
+      "line": 406,
       "lineSha256": "479bc2dd379c9125d3e06f7bb952706121038068f2f2a87d7f263ce501c2b778",
       "occurrenceInLine": 0,
       "justification": "The manual identity implementation names the deprecated query outcome compatibility carrier so its property field delegates to standard-property identity."
