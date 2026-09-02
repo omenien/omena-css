@@ -483,7 +483,7 @@ Total gates: 592
 | `rust/parser/split-boundary` | alias | package | nightly | advisory | `check:rust-parser-split-boundary` | `check:rust-parser-public-product` |  |
 | `rust/phase-2-swap-readiness` | bundle | package | manual | advisory | `check:rust-phase-2-swap-readiness` | `check:provider-host-routing-boundary`, `check:rust-checker-release-gate-shadow`, `check:rust-lsp-runtime-loop`, `check:rust-omena-lsp-server-lane`, `check:rust-selected-query-default-candidate` |  |
 | `rust/precision-floor` | gate | package+declared | push | blocking | `check:rust-precision-floor` |  | ci `closure-fast`; group `closure-fast` |
-| `rust/precision-floor-mutations` | gate | package | manual | advisory | `check:rust-precision-floor-mutations` |  |  |
+| `rust/precision-floor-mutations` | gate | declared | manual | advisory | `@declared/rust/precision-floor-mutations` |  | ci `manual`; group `rust`; reason The sequential source-mutation suite is an explicit manual falsifier and restores each source before continuing. |
 | `rust/producer-boundary` | bundle | package | nightly | advisory | `check:rust-producer-boundary` | `check:rust-semantic-lane`, `check:rust-source-side-lane` |  |
 | `rust/product-facing-capability` | alias | declared | push | blocking | `@declared/rust/product-facing-capability` | `check:rust-m2-product-facing-capability` | replaces `rust/m2-product-facing-capability`, `check:rust-m2-product-facing-capability`; ci `closure-fast`; group `closure-fast` |
 | `rust/product-lab-closure` | gate | package+declared | push | blocking | `check:rust-product-lab-closure` |  | ci `closure-fast`; group `closure-fast` |
