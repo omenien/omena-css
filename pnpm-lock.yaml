@@ -341,6 +341,9 @@ importers:
       '@omena/css-build-adapter':
         specifier: workspace:*
         version: link:../css-build-adapter
+      source-map-js:
+        specifier: ^1.2.1
+        version: 1.2.1
       vite:
         specifier: 8.2.2
         version: 8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.0)(sass@1.102.0)(tsx@4.23.12)(yaml@2.9.0)

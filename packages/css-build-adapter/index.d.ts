@@ -71,6 +71,28 @@ export interface OmenaBuildState {
   enginePromise: Promise<unknown> | null;
 }
 
+export interface OmenaBuildSourceProvenanceIdentityV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-vite.virtual-source-provenance";
+  readonly classification: "virtual-with-map" | "virtual-only";
+  readonly diskDigest: string | null;
+  readonly upstreamMapPresent: boolean;
+  readonly upstreamMap: OmenaBuildUpstreamSourceMapV0 | null;
+}
+
+export interface OmenaBuildUpstreamSourceMapV0 {
+  readonly version: 3;
+  readonly file?: string;
+  readonly sources: readonly string[];
+  readonly sourcesContent?: readonly (string | null)[];
+  readonly names: readonly string[];
+  readonly mappings: string;
+}
+
+export interface OmenaBuildIdentityContext {
+  readonly sourceProvenance?: OmenaBuildSourceProvenanceIdentityV0;
+}
+
 export interface OmenaSourceMapV3V0 {
   readonly version: 3;
   readonly file?: string;
@@ -266,13 +288,21 @@ export declare function rebuildAndCache(
   source: string,
   options: OmenaBuildAdapterBundleOptions,
   state: OmenaBuildState,
+  identityContext?: OmenaBuildIdentityContext,
 ): Promise<OmenaBundleBuildOutput>;
 export declare function rebuildAndCache(
   filePath: string,
   source: string,
   options: OmenaBuildAdapterOptions,
   state: OmenaBuildState,
+  identityContext?: OmenaBuildIdentityContext,
 ): Promise<OmenaBuildOutput>;
+export declare function resolveOmenaSourceContentDigest(
+  filePath: string,
+  source: string,
+  options: OmenaBuildAdapterOptions,
+  state: OmenaBuildState,
+): Promise<string>;
 export declare function runOmenaBuild(
   filePath: string,
   source: string,

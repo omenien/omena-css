@@ -330,6 +330,24 @@ function createBoundaryEngine(fixture: ParityCase) {
   > = [];
   return {
     classNameRewriteCalls,
+    buildSnapshotIdentity(input: {
+      readonly targetPath: string;
+      readonly styleSources: readonly {
+        readonly stylePath: string;
+        readonly styleSource: string;
+      }[];
+    }) {
+      const targetSource = input.styleSources.find(
+        ({ stylePath }) => stylePath === input.targetPath,
+      )?.styleSource;
+      return {
+        schemaVersion: "0",
+        product: "omena-query.build-snapshot-digest",
+        contentHashAlgorithm: "blake3",
+        digest: `blake3:bundler-parity-${JSON.stringify(input)}`,
+        targetSourceDigest: `blake3:bundler-parity-source-${JSON.stringify(targetSource)}`,
+      };
+    },
     summarizeTransformBundleFromSourceJson: () =>
       JSON.stringify({
         plannedPassIds: ["composes-resolution", "css-modules-class-hashing"],

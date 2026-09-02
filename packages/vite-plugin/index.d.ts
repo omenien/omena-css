@@ -12,6 +12,7 @@ export interface OmenaVitePluginOptions {
   readonly legacyEmission?: boolean;
   readonly closedStyleWorld?: boolean;
   readonly sourceMap?: boolean;
+  /** Require transform input to match an existing disk file. Defaults to false. */
   readonly requireDiskSource?: boolean;
   readonly sources?: readonly string[];
   readonly packageManifests?: readonly string[];

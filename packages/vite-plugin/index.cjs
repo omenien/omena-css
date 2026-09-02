@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const { SourceMapConsumer } = require("source-map-js");
 const {
   DEFAULT_INCLUDE,
   MINIFY_PASS_IDS,
@@ -9,6 +10,7 @@ const {
   matchesInclude,
   normalizeFilePath,
   rebuildAndCache,
+  resolveOmenaSourceContentDigest,
   resolveEffectiveOptions,
   summarizeCache,
 } = require("@omena/css-build-adapter");
@@ -44,7 +46,7 @@ function omenaCss(options = {}) {
     },
     async load(id) {
       if (id === RESOLVED_VIRTUAL_MODULE_ID) {
-        return `export default ${JSON.stringify(summarizeCache(state.cache))};\n`;
+        return `export default ${JSON.stringify(summarizeViteCache(state.cache))};\n`;
       }
       if (!isDevRuntimeId(id)) return null;
 
@@ -53,7 +55,7 @@ function omenaCss(options = {}) {
 
       const fileId = fromDevRuntimeId(id);
       const source = await fs.promises.readFile(fileId, "utf8");
-      const output = await rebuildAndCache(fileId, source, effectiveOptions, state);
+      const output = await rebuildViteSource(fileId, source, source, null, effectiveOptions, state);
       registerBuildDependencies(this, state, fileId);
       reportBundlerHostDiagnostics(this, output, pluginName);
       return {
@@ -68,18 +70,26 @@ function omenaCss(options = {}) {
       const effectiveOptions = await resolveEffectiveOptions(options, state);
       const include = effectiveOptions.include ?? DEFAULT_INCLUDE;
       if (!matchesInclude(fileId, include)) return null;
-      if (!fs.existsSync(fileId)) return null;
-      if (effectiveOptions.requireDiskSource !== false) {
-        const diskSource = fs.readFileSync(fileId, "utf8");
-        if (diskSource !== code) {
-          this.warn?.(
-            `[${pluginName}] skipped ${fileId}: transform input differs from disk source; set requireDiskSource=false to allow disk-backed transforms.`,
-          );
-          return null;
-        }
+      const diskSource = fs.existsSync(fileId) ? fs.readFileSync(fileId, "utf8") : null;
+      if (effectiveOptions.requireDiskSource === true && diskSource !== code) {
+        const reason =
+          diskSource == null ? "has no corresponding disk source" : "differs from disk source";
+        this.warn?.(
+          `[${pluginName}] skipped ${fileId} in strict disk-source mode: transform input ${reason}.`,
+        );
+        return null;
       }
 
-      const output = await rebuildAndCache(fileId, code, effectiveOptions, state);
+      const upstreamMap =
+        diskSource !== code ? usableUpstreamSourceMap(this, fileId, diskSource) : null;
+      const output = await rebuildViteSource(
+        fileId,
+        code,
+        diskSource,
+        upstreamMap,
+        effectiveOptions,
+        state,
+      );
       registerBuildDependencies(this, state, fileId);
       reportBundlerHostDiagnostics(this, output, pluginName);
       if (output.code === code) return null;
@@ -102,7 +112,14 @@ function omenaCss(options = {}) {
         targetPaths.filter(fs.existsSync).map(async (targetPath) => {
           const source = await fs.promises.readFile(targetPath, "utf8");
           const previousOutput = state.cache.get(targetPath)?.output;
-          const output = await rebuildAndCache(targetPath, source, effectiveOptions, state);
+          const output = await rebuildViteSource(
+            targetPath,
+            source,
+            source,
+            null,
+            effectiveOptions,
+            state,
+          );
           return { output, previousOutput, targetPath };
         }),
       );
@@ -151,6 +168,120 @@ function omenaCss(options = {}) {
       return uniqueModules;
     },
   };
+}
+
+async function rebuildViteSource(fileId, source, diskSource, upstreamMap, effectiveOptions, state) {
+  const isDiskBacked = diskSource === source;
+  const diskDigest = isDiskBacked
+    ? null
+    : diskSource == null
+      ? null
+      : await resolveOmenaSourceContentDigest(fileId, diskSource, effectiveOptions, state);
+  const classification = isDiskBacked
+    ? "disk-backed"
+    : upstreamMap == null
+      ? "virtual-only"
+      : "virtual-with-map";
+  const identityContext = isDiskBacked
+    ? undefined
+    : {
+        sourceProvenance: {
+          schemaVersion: "0",
+          product: "omena-vite.virtual-source-provenance",
+          classification,
+          diskDigest,
+          upstreamMapPresent: upstreamMap != null,
+          upstreamMap,
+        },
+      };
+  const output = await rebuildAndCache(fileId, source, effectiveOptions, state, identityContext);
+  const entry = state.cache.get(fileId);
+  if (entry?.output === output) {
+    const inputDigest = entry.buildSnapshotIdentity?.targetSourceDigest;
+    if (typeof inputDigest !== "string" || !inputDigest.startsWith("blake3:")) {
+      throw new Error(
+        `[omena-css] ${fileId} is missing the g136 build-snapshot source-content digest.`,
+      );
+    }
+    entry.sourceProvenance = {
+      schemaVersion: "0",
+      product: "omena-vite.virtual-source-provenance",
+      classification,
+      diskDigest: isDiskBacked ? inputDigest : diskDigest,
+      inputDigest,
+      upstreamMapPresent: upstreamMap != null,
+      upstreamMapSources: upstreamMap?.sources ?? [],
+    };
+  }
+  return output;
+}
+
+function usableUpstreamSourceMap(pluginContext, fileId, diskSource) {
+  if (diskSource == null || typeof pluginContext.getCombinedSourcemap !== "function") return null;
+  let candidate;
+  try {
+    candidate = pluginContext.getCombinedSourcemap();
+  } catch {
+    return null;
+  }
+  const map = normalizeSourceMap(candidate);
+  if (!map || !map.sourcesContent?.includes(diskSource)) return null;
+
+  let hasMappedSegment = false;
+  let hasNonIdentitySegment = false;
+  const consumer = new SourceMapConsumer(map);
+  try {
+    consumer.eachMapping((mapping) => {
+      if (mapping.originalLine == null || mapping.originalColumn == null) return;
+      hasMappedSegment = true;
+      if (
+        mapping.generatedLine !== mapping.originalLine ||
+        mapping.generatedColumn !== mapping.originalColumn
+      ) {
+        hasNonIdentitySegment = true;
+      }
+    });
+  } finally {
+    consumer.destroy?.();
+  }
+  if (!hasMappedSegment || !hasNonIdentitySegment) return null;
+  return {
+    ...map,
+    file: map.file ?? fileId,
+  };
+}
+
+function normalizeSourceMap(candidate) {
+  if (
+    candidate?.version !== 3 ||
+    !Array.isArray(candidate.sources) ||
+    !Array.isArray(candidate.names) ||
+    typeof candidate.mappings !== "string" ||
+    candidate.mappings.length === 0
+  ) {
+    return null;
+  }
+  return {
+    version: 3,
+    ...(typeof candidate.file === "string" ? { file: candidate.file } : {}),
+    sources: candidate.sources.map(String),
+    ...(Array.isArray(candidate.sourcesContent)
+      ? {
+          sourcesContent: candidate.sourcesContent.map((source) =>
+            source == null ? null : String(source),
+          ),
+        }
+      : {}),
+    names: candidate.names.map(String),
+    mappings: candidate.mappings,
+  };
+}
+
+function summarizeViteCache(cache) {
+  return summarizeCache(cache).map((entry) => ({
+    ...entry,
+    sourceProvenance: cache.get(entry.filePath)?.sourceProvenance ?? null,
+  }));
 }
 
 function registerBuildDependencies(pluginContext, state, targetPath) {

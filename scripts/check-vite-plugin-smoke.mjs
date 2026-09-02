@@ -12,6 +12,18 @@ const warnings = [];
 
 function createSmokeEngine() {
   return {
+    buildSnapshotIdentity: (input) => {
+      const targetSource = input.styleSources.find(
+        ({ stylePath }) => stylePath === input.targetPath,
+      )?.styleSource;
+      return {
+        schemaVersion: "0",
+        product: "omena-query.build-snapshot-digest",
+        contentHashAlgorithm: "blake3",
+        digest: `blake3:smoke-${JSON.stringify(input)}`,
+        targetSourceDigest: `blake3:smoke-source-${JSON.stringify(targetSource)}`,
+      };
+    },
     bundlerHostCapabilitiesJson: () =>
       JSON.stringify({
         protocolVersion: "0",

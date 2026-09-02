@@ -10,6 +10,15 @@ type ViteTransformResult = null | {
   readonly map: unknown;
 };
 
+type SourceMapV3 = {
+  readonly version: 3;
+  readonly file?: string;
+  readonly sources: readonly string[];
+  readonly sourcesContent?: readonly (string | null)[];
+  readonly names: readonly string[];
+  readonly mappings: string;
+};
+
 type BuildSource = {
   readonly stylePath: string;
   readonly styleSource: string;
@@ -21,6 +30,7 @@ type OmenaVitePlugin = {
     this: {
       readonly warn?: (message: string) => void;
       readonly addWatchFile?: (file: string) => void;
+      readonly getCombinedSourcemap?: () => SourceMapV3;
     },
     code: string,
     id: string,
@@ -71,12 +81,25 @@ function bundlerHostMock(
   valueExports: Readonly<Record<string, string>> = {},
 ) {
   return {
-    buildSnapshotIdentity: (input: unknown) => ({
-      schemaVersion: "0",
-      product: "omena-query.build-snapshot-digest",
-      contentHashAlgorithm: "blake3",
-      digest: `blake3:test-${JSON.stringify(input)}`,
-    }),
+    buildSnapshotIdentity: (input: unknown) => {
+      const request = input as {
+        readonly targetPath?: string;
+        readonly styleSources?: readonly {
+          readonly stylePath: string;
+          readonly styleSource: string;
+        }[];
+      };
+      const targetSource = request.styleSources?.find(
+        ({ stylePath }) => stylePath === request.targetPath,
+      )?.styleSource;
+      return {
+        schemaVersion: "0",
+        product: "omena-query.build-snapshot-digest",
+        contentHashAlgorithm: "blake3",
+        digest: `blake3:test-${JSON.stringify(input)}`,
+        targetSourceDigest: `blake3:test-source-${JSON.stringify(targetSource)}`,
+      };
+    },
     bundlerHostCapabilitiesJson: () =>
       JSON.stringify({
         protocolVersion: "0",
@@ -149,6 +172,24 @@ function closedWorldEvidence(stylePath: string) {
       sourcePrecision: null,
     },
   };
+}
+
+async function readBuildSummary(plugin: OmenaVitePlugin) {
+  const resolvedId = await plugin.resolveId(VIRTUAL_MODULE_ID);
+  const loaded = await plugin.load(resolvedId!);
+  if (typeof loaded !== "string" || !loaded.startsWith("export default ")) {
+    throw new Error(`Expected build summary module, got ${JSON.stringify(loaded)}`);
+  }
+  return JSON.parse(loaded.slice("export default ".length, -2)) as Array<{
+    readonly filePath: string;
+    readonly sourceProvenance?: {
+      readonly classification: "disk-backed" | "virtual-with-map" | "virtual-only";
+      readonly diskDigest: string | null;
+      readonly inputDigest: string;
+      readonly upstreamMapPresent: boolean;
+      readonly upstreamMapSources: readonly string[];
+    };
+  }>;
 }
 
 afterEach(() => {
@@ -307,6 +348,131 @@ describe("@omena/vite-plugin", () => {
     for (const minifyPass of MINIFY_PASS_IDS) {
       expect(passIds).toContain(minifyPass);
     }
+  });
+
+  it("analyzes an upstream virtual source by default and records mapped provenance", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-virtual-map-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "Button.module.css");
+    const diskSource = ".root { color: red; }\n";
+    const marker = ":root { --upstream-virtual-marker: active; }\n";
+    const virtualSource = `${marker}${diskSource}`;
+    const buildInputs: string[] = [];
+    fs.writeFileSync(stylePath, diskSource);
+    const host = bundlerHostMock({ root: "_root_0" });
+    const buildSnapshotIdentity = vi.fn(host.buildSnapshotIdentity);
+    const engine = {
+      ...host,
+      buildSnapshotIdentity,
+      summarizeTransformBundleFromSourceJson: () => JSON.stringify({ plannedPassIds: [] }),
+      buildStyleSourcesWithContextJson: (_targetPath: string, sourcesJson: string) => {
+        const [source] = JSON.parse(sourcesJson) as BuildSource[];
+        buildInputs.push(source!.styleSource);
+        return JSON.stringify({
+          execution: {
+            outputCss: `${source!.styleSource}:root { --omena-output: analyzed; }\n`,
+            executedPassIds: [],
+          },
+        });
+      },
+    };
+    const plugin = omenaCss({ cwd: root, engine, configFile: false });
+    const result = await plugin.transform.call(
+      {
+        getCombinedSourcemap: () => ({
+          version: 3,
+          file: stylePath,
+          sources: [stylePath],
+          sourcesContent: [diskSource],
+          names: [],
+          mappings: ";AAAA",
+        }),
+      },
+      virtualSource,
+      stylePath,
+    );
+
+    expect(result?.code).toContain("--upstream-virtual-marker: active");
+    expect(buildInputs).toEqual([virtualSource]);
+    expect(buildSnapshotIdentity).toHaveBeenCalledTimes(2);
+    expect(buildSnapshotIdentity.mock.calls[1]?.[0]).toMatchObject({
+      adapterEnvironment: {
+        sourceProvenance: {
+          classification: "virtual-with-map",
+          upstreamMapPresent: true,
+          upstreamMap: { mappings: ";AAAA", sourcesContent: [diskSource] },
+        },
+      },
+    });
+    const [summary] = await readBuildSummary(plugin);
+    expect(summary?.sourceProvenance).toMatchObject({
+      classification: "virtual-with-map",
+      upstreamMapPresent: true,
+      upstreamMapSources: [stylePath],
+    });
+    expect(summary?.sourceProvenance?.diskDigest).toMatch(/^blake3:/u);
+    expect(summary?.sourceProvenance?.inputDigest).toMatch(/^blake3:/u);
+    expect(summary?.sourceProvenance?.inputDigest).not.toBe(summary?.sourceProvenance?.diskDigest);
+  });
+
+  it("analyzes a virtual-only source when no disk mapping is available", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-virtual-only-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "Button.module.css");
+    const diskSource = ".root { color: red; }\n";
+    const virtualSource = `:root { --virtual-only-marker: active; }\n${diskSource}`;
+    const engine = {
+      ...bundlerHostMock({ root: "_root_0" }),
+      summarizeTransformBundleFromSourceJson: () => JSON.stringify({ plannedPassIds: [] }),
+      buildStyleSourcesWithContextJson: (_targetPath: string, sourcesJson: string) => {
+        const [source] = JSON.parse(sourcesJson) as BuildSource[];
+        return JSON.stringify({
+          execution: {
+            outputCss: `${source!.styleSource}:root { --omena-output: analyzed; }\n`,
+            executedPassIds: [],
+          },
+        });
+      },
+    };
+    const plugin = omenaCss({ cwd: root, engine, configFile: false });
+
+    const result = await plugin.transform.call({}, virtualSource, stylePath);
+
+    expect(result?.code).toContain("--virtual-only-marker: active");
+    const [summary] = await readBuildSummary(plugin);
+    expect(summary?.sourceProvenance).toMatchObject({
+      classification: "virtual-only",
+      diskDigest: null,
+      upstreamMapPresent: false,
+      upstreamMapSources: [],
+    });
+  });
+
+  it("retains disk-source matching as an explicit strict opt-in", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-strict-disk-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "Button.module.css");
+    const diskSource = ".root { color: red; }\n";
+    const virtualSource = `:root { --strict-marker: active; }\n${diskSource}`;
+    const warn = vi.fn();
+    const build = vi.fn(() =>
+      JSON.stringify({ execution: { outputCss: virtualSource, executedPassIds: [] } }),
+    );
+    fs.writeFileSync(stylePath, diskSource);
+    const plugin = omenaCss({
+      cwd: root,
+      configFile: false,
+      requireDiskSource: true,
+      engine: {
+        ...bundlerHostMock({ root: "_root_0" }),
+        summarizeTransformBundleFromSourceJson: () => JSON.stringify({ plannedPassIds: [] }),
+        buildStyleSourcesWithContextJson: build,
+      },
+    });
+
+    await expect(plugin.transform.call({ warn }, virtualSource, stylePath)).resolves.toBeNull();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("strict disk-source mode"));
+    expect(build).not.toHaveBeenCalled();
   });
 
   it("pushes value changes and invalidates only the runtime dependency set on shape changes", async () => {

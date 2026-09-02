@@ -39,11 +39,11 @@ function createOmenaBuildState(options = {}, overrides = {}) {
   };
 }
 
-async function rebuildAndCache(filePath, source, options, state) {
+async function rebuildAndCache(filePath, source, options, state, identityContext = {}) {
   const generation = (state.generations.get(filePath) ?? 0) + 1;
   state.generations.set(filePath, generation);
   const prepared = await prepareOmenaBuild(filePath, source, options, state);
-  const snapshot = await resolveBuildSnapshotIdentity(prepared, options, state);
+  const snapshot = await resolveBuildSnapshotIdentity(prepared, options, state, identityContext);
   const cached = state.cache.get(filePath);
   if (
     snapshot.cacheable &&
@@ -80,6 +80,18 @@ async function rebuildAndCache(filePath, source, options, state) {
 async function runOmenaBuild(filePath, source, options, state) {
   const prepared = await prepareOmenaBuild(filePath, source, options, state);
   return executePreparedOmenaBuild(prepared, options, state);
+}
+
+async function resolveOmenaSourceContentDigest(filePath, source, options, state) {
+  const prepared = await prepareOmenaBuild(filePath, source, options, state);
+  const snapshot = await resolveBuildSnapshotIdentity(prepared, options, state);
+  const targetSourceDigest = snapshot.identity?.targetSourceDigest;
+  if (!snapshot.cacheable || typeof targetSourceDigest !== "string") {
+    throw new Error(
+      `[omena-css] source-content identity requires the native build-snapshot digest (${snapshot.reason ?? "missingTargetSourceDigest"}).`,
+    );
+  }
+  return targetSourceDigest;
 }
 
 async function prepareOmenaBuild(filePath, source, options, state) {
@@ -160,7 +172,7 @@ async function executePreparedOmenaBuild(prepared, options, state) {
   };
 }
 
-async function resolveBuildSnapshotIdentity(prepared, options, state) {
+async function resolveBuildSnapshotIdentity(prepared, options, state, identityContext = {}) {
   const configSnapshot = options[BUILD_CONFIG_SNAPSHOT] ?? directConfigSnapshot(options);
   if (!configSnapshot.cacheable) {
     return { cacheable: false, reason: configSnapshot.reason };
@@ -182,7 +194,7 @@ async function resolveBuildSnapshotIdentity(prepared, options, state) {
       passIds: prepared.passIds,
       targetQuery: options.targetQuery ?? undefined,
       targetOptions: options.targetOptions ?? {},
-      adapterEnvironment: buildAdapterEnvironment(options, state),
+      adapterEnvironment: buildAdapterEnvironment(options, state, identityContext),
     });
     state.cacheMetrics.digestComputations += 1;
     state.cacheMetrics.digestComputeNanoseconds += process.hrtime.bigint() - startedAt;
@@ -215,7 +227,7 @@ function directConfigSnapshot(options) {
   };
 }
 
-function buildAdapterEnvironment(options, state) {
+function buildAdapterEnvironment(options, state, identityContext = {}) {
   return {
     schemaVersion: "0",
     product: "omena-css-build-adapter.environment",
@@ -229,6 +241,9 @@ function buildAdapterEnvironment(options, state) {
     moduleInterface: options.moduleInterface !== false,
     devRuntime: Boolean(options.devRuntime),
     context: options.context ?? null,
+    ...(identityContext.sourceProvenance
+      ? { sourceProvenance: identityContext.sourceProvenance }
+      : {}),
   };
 }
 
@@ -905,6 +920,7 @@ module.exports = {
   matchesInclude,
   normalizeFilePath,
   rebuildAndCache,
+  resolveOmenaSourceContentDigest,
   resolveEffectiveOptions,
   runOmenaBuild,
   summarizeCache,
