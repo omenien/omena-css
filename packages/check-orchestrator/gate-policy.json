@@ -7,10 +7,10 @@
   },
   "costSource": "static-enumeration-2026-08-18",
   "escapeHatch": {
-    "maxGateCount": 159,
+    "maxGateCount": 160,
     "owner": "check-orchestrator maintainers",
-    "reviewedAt": "2026-08-29",
-    "reviewAfter": "2026-11-27"
+    "reviewedAt": "2026-09-02",
+    "reviewAfter": "2026-12-01"
   },
   "lanes": {
     "bundles": ["rust/closure-fast", "rust/contracts", "rust/product-test-contracts"],
@@ -26,11 +26,11 @@
   },
   "governedLeafCriteria": {
     "compat-alias-with-retirement-window": 10,
-    "declared-none-or-manual": 32,
+    "declared-none-or-manual": 33,
     "manual-tool-with-named-consumer": 65,
     "research-evidence": 52
   },
-  "governedLeafCriteriaDigest": "eb2a78fc8d5c720deed9c6bede589c26e37cad8ed1ad38074d48511f46ab3ad3",
+  "governedLeafCriteriaDigest": "2b0470f2dcb7079f3b0b83cdea43466befc5ecb8170c0bd317f491ddcddd3af5",
   "records": [
     {
       "gateId": "contract/parity-v2-golden",
