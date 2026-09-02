@@ -9,6 +9,26 @@ const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url);
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
+const rawArguments = process.argv.slice(2);
+const mutationArguments = rawArguments[0] === "--" ? rawArguments.slice(1) : rawArguments;
+if (mutationArguments.includes("--mutations") || mutationArguments.includes("--mutation")) {
+  const mutationIndex = mutationArguments.indexOf("--mutation");
+  const mutationId = mutationArguments.includes("--mutations")
+    ? "--all"
+    : mutationArguments[mutationIndex + 1];
+  assert.ok(
+    mutationId !== undefined &&
+      (mutationArguments.length === 1 || (mutationArguments.length === 2 && mutationIndex === 0)),
+    "usage: check-rust-precision-floor.ts [--mutations|--mutation <probe-id>]",
+  );
+  const mutationRun = spawnSync(
+    process.execPath,
+    ["--import", "tsx", "./scripts/rust-precision-floor-mutations.ts", mutationId],
+    { cwd: repoRoot, stdio: "inherit", env: process.env },
+  );
+  process.exit(mutationRun.status ?? 1);
+}
+
 function read(relativePath: string): string {
   return fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
 }
