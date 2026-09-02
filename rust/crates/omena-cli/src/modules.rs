@@ -474,7 +474,7 @@ fn apply_or_check_module_artifacts(
                 let postcondition = if plan.kind == "moduleInterfaceJson" {
                     WorkspaceEditPostconditionV0::json_reparse()
                 } else {
-                    WorkspaceEditPostconditionV0::text_reparse_for_path(plan.path.as_path())
+                    WorkspaceEditPostconditionV0::text_reparse_for_destination()
                 };
                 transaction = transaction.expect(expected).edit(
                     FileEditV0::new(plan.path.as_path(), plan.content.as_bytes())

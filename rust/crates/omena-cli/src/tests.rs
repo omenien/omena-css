@@ -201,6 +201,53 @@ fn bundle_command_emits_css_and_deterministic_evidence() -> Result<(), String> {
 }
 
 #[test]
+fn bundle_command_publishes_no_artifact_when_one_destination_is_locked() -> Result<(), String> {
+    let root = temp_dir("bundle-command-atomic-output-lock");
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let entry = root.join("app.css");
+    let css_out = root.join("bundle.css");
+    let evidence = root.join("bundle.evidence.json");
+    let css_original = b".original {}\n";
+    let evidence_original = b"{\"original\":true}\n";
+    fs::write(&entry, ".app { color: green; }").map_err(|error| error.to_string())?;
+    fs::write(&css_out, css_original).map_err(|error| error.to_string())?;
+    fs::write(&evidence, evidence_original).map_err(|error| error.to_string())?;
+    let css_lock = root.join(".bundle.css.omena-workspace-edit.lock");
+    fs::write(&css_lock, "foreign-lock\n").map_err(|error| error.to_string())?;
+
+    let result = run(Cli {
+        command: Command::Bundle {
+            entry: Some(entry),
+            css_out: Some(css_out.clone()),
+            evidence: Some(evidence.clone()),
+            source_paths: Vec::new(),
+            package_manifest_paths: Vec::new(),
+            sif_paths: Vec::new(),
+            lockfile: None,
+        },
+    });
+    let error = match result {
+        Ok(()) => {
+            return Err("a foreign lock unexpectedly allowed the bundle output transaction".into());
+        }
+        Err(error) => error,
+    };
+    assert!(error.contains("refused concurrent or unrecovered transaction"));
+    assert_eq!(
+        fs::read(&css_out).map_err(|error| error.to_string())?,
+        css_original
+    );
+    assert_eq!(
+        fs::read(&evidence).map_err(|error| error.to_string())?,
+        evidence_original,
+        "locking one bundle destination must publish neither artifact"
+    );
+    fs::remove_file(css_lock).map_err(|error| error.to_string())?;
+    cleanup_dir(&root);
+    Ok(())
+}
+
+#[test]
 fn bundle_command_rewrites_non_ascii_module_classes() -> Result<(), String> {
     let root = temp_dir("bundle-command-non-ascii-module-class");
     fs::create_dir_all(&root).map_err(|error| error.to_string())?;

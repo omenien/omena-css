@@ -19,8 +19,9 @@ use crate::{
     commands::LintProfile,
     config::find_omena_config_for_path,
     diagnostics::{workspace_source_diagnostics_summaries, workspace_style_diagnostics_summaries},
-    output::{CliOutputMetadataV0, print_json},
+    output::{CliOutputMetadataV0, commit_json_artifact, print_json},
     paths::path_string,
+    workspace_edit_transaction::{ExpectedContentDigestV0, WorkspaceEditSafetyClassV0},
 };
 
 mod fixes;
@@ -226,14 +227,16 @@ fn write_ranked_set_loss_capture(
     let path = env::var_os("OMENA_RANKED_SET_LOSS_CENSUS_PATH")
         .map(PathBuf::from)
         .ok_or_else(|| "ranked-set loss census path is missing".to_string())?;
-    let rendered = serde_json::to_string_pretty(capture)
-        .map_err(|error| format!("failed to serialize ranked-set loss census: {error}"))?;
-    fs::write(&path, format!("{rendered}\n")).map_err(|error| {
-        format!(
-            "failed to write ranked-set loss census {}: {error}",
-            path_string(&path)
-        )
-    })
+    let expected = ExpectedContentDigestV0::observe(path.as_path())
+        .map_err(|error| format!("failed to inspect ranked-set loss census: {error}"))?;
+    commit_json_artifact(
+        path.as_path(),
+        expected,
+        WorkspaceEditSafetyClassV0::EvidenceRequired,
+        capture,
+        None,
+    )
+    .map(|_| ())
 }
 
 fn build_lint_report(

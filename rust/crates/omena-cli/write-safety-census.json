@@ -8,100 +8,149 @@
   "productSourceWriteCallers": 2,
   "writeSites": [
     {
+      "path": "rust/crates/omena-cli/src/build.rs",
+      "function": "crate::build::emit_bundle_code_split_outputs",
+      "writeCount": 1,
+      "classification": "directory-preparation",
+      "owner": "bundle code-split output directory preparation"
+    },
+    {
       "path": "rust/crates/omena-cli/src/daemon.rs",
-      "function": "write_endpoint",
-      "writeCount": 2,
+      "function": "crate::daemon::write_endpoint",
+      "writeCount": 3,
       "classification": "bookkeeping",
       "owner": "workspace daemon endpoint state"
     },
     {
+      "path": "rust/crates/omena-cli/src/daemon.rs",
+      "function": "crate::daemon::cleanup_endpoint",
+      "writeCount": 1,
+      "classification": "bookkeeping",
+      "owner": "workspace daemon endpoint cleanup"
+    },
+    {
       "path": "rust/crates/omena-cli/src/lock.rs",
-      "function": "lock_add",
+      "function": "crate::lock::lock_add",
       "writeCount": 1,
       "classification": "bookkeeping",
       "owner": "lock state"
     },
     {
       "path": "rust/crates/omena-cli/src/lock.rs",
-      "function": "lock_fetch_provenance",
+      "function": "crate::lock::lock_fetch_provenance",
       "writeCount": 1,
       "classification": "bookkeeping",
       "owner": "lock provenance state"
     },
     {
       "path": "rust/crates/omena-cli/src/lock.rs",
-      "function": "lock_record_verification",
+      "function": "crate::lock::lock_record_verification",
       "writeCount": 1,
       "classification": "bookkeeping",
       "owner": "lock verification state"
     },
     {
       "path": "rust/crates/omena-cli/src/lock.rs",
-      "function": "lock_update",
+      "function": "crate::lock::lock_update",
       "writeCount": 1,
       "classification": "bookkeeping",
       "owner": "lock state"
     },
     {
       "path": "rust/crates/omena-cli/src/lock.rs",
-      "function": "lock_verify_attestation",
+      "function": "crate::lock::lock_verify_attestation",
       "writeCount": 1,
       "classification": "bookkeeping",
       "owner": "lock attestation state"
     },
     {
       "path": "rust/crates/omena-cli/src/lock.rs",
-      "function": "publish_immutable_recorded_shard_verdict",
-      "writeCount": 3,
+      "function": "crate::lock::write_recorded_shard_verdicts",
+      "writeCount": 1,
+      "classification": "bookkeeping",
+      "owner": "recorded SIF trust verdict directory"
+    },
+    {
+      "path": "rust/crates/omena-cli/src/lock.rs",
+      "function": "crate::lock::write_recorded_sigstore_bundle",
+      "writeCount": 1,
+      "classification": "bookkeeping",
+      "owner": "recorded Sigstore bundle directory"
+    },
+    {
+      "path": "rust/crates/omena-cli/src/lock.rs",
+      "function": "crate::lock::publish_immutable_recorded_shard_verdict",
+      "writeCount": 9,
       "classification": "bookkeeping",
       "owner": "recorded SIF trust verdict sidecar"
     },
     {
-      "path": "rust/crates/omena-cli/src/lint.rs",
-      "function": "write_ranked_set_loss_capture",
+      "path": "rust/crates/omena-cli/src/modules.rs",
+      "function": "crate::modules::apply_or_check_module_artifacts",
       "writeCount": 1,
-      "classification": "bookkeeping",
-      "owner": "ranked-set loss census sidecar"
+      "classification": "directory-preparation",
+      "owner": "CSS Modules artifact directory preparation"
     },
     {
       "path": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
-      "function": "prepare_rollback_backup",
+      "function": "crate::workspace_edit_transaction::prepare_rollback_backup",
       "writeCount": 2,
       "classification": "bookkeeping",
       "owner": "transaction rollback backup preparation"
     },
     {
       "path": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
-      "function": "rename_all",
+      "function": "crate::workspace_edit_transaction::WorkspaceEditTransaction::rename_all",
       "writeCount": 1,
       "classification": "transaction-staging",
       "owner": "transaction staged product publication"
     },
     {
       "path": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
-      "function": "rollback_and_cleanup",
+      "function": "crate::workspace_edit_transaction::TransactionLockGuard::drop",
       "writeCount": 1,
       "classification": "bookkeeping",
+      "owner": "transaction concurrency lock cleanup"
+    },
+    {
+      "path": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+      "function": "crate::workspace_edit_transaction::rollback_and_cleanup",
+      "writeCount": 2,
+      "classification": "transaction-rollback",
       "owner": "transaction rollback restoration"
     },
     {
       "path": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
-      "function": "write_staged_product_bytes",
-      "writeCount": 3,
+      "function": "crate::workspace_edit_transaction::cleanup_staged",
+      "writeCount": 2,
+      "classification": "bookkeeping",
+      "owner": "transaction staged sidecar cleanup"
+    },
+    {
+      "path": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+      "function": "crate::workspace_edit_transaction::remove_if_exists",
+      "writeCount": 1,
+      "classification": "bookkeeping",
+      "owner": "transaction sidecar cleanup"
+    },
+    {
+      "path": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+      "function": "crate::workspace_edit_transaction::write_staged_product_bytes",
+      "writeCount": 5,
       "classification": "transaction-staging",
       "owner": "transaction staged product bytes"
     },
     {
       "path": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
-      "function": "write_transaction_journal_file",
-      "writeCount": 3,
+      "function": "crate::workspace_edit_transaction::write_transaction_journal_file",
+      "writeCount": 4,
       "classification": "bookkeeping",
       "owner": "transaction rollback journal sidecar"
     },
     {
       "path": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
-      "function": "write_transaction_lock_file",
-      "writeCount": 2,
+      "function": "crate::workspace_edit_transaction::write_transaction_lock_file",
+      "writeCount": 4,
       "classification": "bookkeeping",
       "owner": "transaction concurrency lock sidecar"
     }

@@ -581,7 +581,6 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
                 )
                 .with_postcondition(
                     WorkspaceEditPostconditionV0::style_reparse_for_admitted_output(
-                        output_path.as_path(),
                         summary.execution.output_css.as_bytes(),
                     ),
                 )
@@ -951,7 +950,6 @@ fn emit_bundle_code_split_outputs(
             FileEditV0::new(output_path.as_path(), output_css.as_bytes())
                 .with_postcondition(
                     WorkspaceEditPostconditionV0::style_reparse_for_admitted_output(
-                        output_path.as_path(),
                         output_css.as_bytes(),
                     ),
                 )

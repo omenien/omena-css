@@ -169,7 +169,7 @@ fn invalid_style_refuses_mixed_style_and_tsx_plan_without_writes() -> Result<(),
     let error = apply_migration_plan(MigrationCodemodV0::CssModulesRename, &plan_path, false)
         .err()
         .ok_or_else(|| "invalid staged style unexpectedly committed".to_string())?;
-    assert!(error.contains("styleReparse"), "{error}");
+    assert!(error.contains("destinationTextReparse"), "{error}");
     assert_eq!(
         fs::read_to_string(&style_path).map_err(|error| error.to_string())?,
         style_source

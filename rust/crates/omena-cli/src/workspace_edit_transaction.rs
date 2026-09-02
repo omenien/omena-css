@@ -81,37 +81,53 @@ impl WorkspaceEditPostconditionV0 {
         })
     }
 
-    pub(crate) fn text_reparse_for_path(path: &Path) -> Self {
-        match text_syntax_for_path(path) {
-            WorkspaceEditTextSyntaxV0::Style(dialect) => Self::style_reparse(dialect),
-            WorkspaceEditTextSyntaxV0::Utf8 => Self::utf8_text(),
-        }
+    pub(crate) fn text_reparse_for_destination() -> Self {
+        Self::new(
+            "destinationTextReparse",
+            |destination, content| match text_syntax_for_path(destination) {
+                WorkspaceEditTextSyntaxV0::Style(dialect) => {
+                    Self::check_style_reparse(content, dialect)
+                }
+                WorkspaceEditTextSyntaxV0::Utf8 => std::str::from_utf8(content)
+                    .map(|_| ())
+                    .map_err(|error| format!("staged text output is not UTF-8: {error}")),
+                WorkspaceEditTextSyntaxV0::UnsupportedNonAsciiExtension(extension) => Err(format!(
+                    "non-ASCII destination extension '{extension}' is refused"
+                )),
+            },
+        )
     }
 
-    pub(crate) fn style_reparse_for_admitted_output(path: &Path, admitted: &[u8]) -> Self {
-        match text_syntax_for_path(path) {
-            WorkspaceEditTextSyntaxV0::Style(dialect)
-                if style_bytes_reparse_cleanly(admitted, dialect) =>
-            {
-                Self::style_reparse(dialect)
-            }
-            WorkspaceEditTextSyntaxV0::Style(_) => {
-                Self::new("partialStyleOutputUtf8", |_path, content| {
+    pub(crate) fn style_reparse_for_admitted_output(admitted: &[u8]) -> Self {
+        let admitted = admitted.to_vec();
+        Self::new(
+            "destinationStyleReparse",
+            move |destination, content| match text_syntax_for_path(destination) {
+                WorkspaceEditTextSyntaxV0::Style(dialect)
+                    if style_bytes_reparse_cleanly(admitted.as_slice(), dialect) =>
+                {
+                    Self::check_style_reparse(content, dialect)
+                }
+                WorkspaceEditTextSyntaxV0::Style(_) | WorkspaceEditTextSyntaxV0::Utf8 => {
                     std::str::from_utf8(content).map(|_| ()).map_err(|error| {
                         format!("staged partial style output is not UTF-8: {error}")
                     })
-                })
-            }
-            WorkspaceEditTextSyntaxV0::Utf8 => Self::utf8_text(),
-        }
+                }
+                WorkspaceEditTextSyntaxV0::UnsupportedNonAsciiExtension(extension) => Err(format!(
+                    "non-ASCII destination extension '{extension}' is refused"
+                )),
+            },
+        )
     }
 
-    pub(crate) fn utf8_text() -> Self {
-        Self::new("utf8Text", |_path, content| {
-            std::str::from_utf8(content)
-                .map(|_| ())
-                .map_err(|error| format!("staged text output is not UTF-8: {error}"))
-        })
+    fn check_style_reparse(content: &[u8], dialect: OmenaParserStyleDialect) -> Result<(), String> {
+        let source = std::str::from_utf8(content)
+            .map_err(|error| format!("staged style output is not UTF-8: {error}"))?;
+        let tree = parse_style_document_typed_v0(source, dialect);
+        if parse_tree_has_error(&tree) {
+            return Err("staged style output did not reparse cleanly".to_string());
+        }
+        Ok(())
     }
 
     pub(crate) fn json_reparse() -> Self {
@@ -332,23 +348,17 @@ impl WorkspaceEditTransaction {
             }
             let stage_path = sidecar_path(edit.path.as_path(), "stage", transaction_id, index);
             let backup_path = sidecar_path(edit.path.as_path(), "backup", transaction_id, index);
-            let stage_result =
-                write_staged_product_bytes(stage_path.as_path(), edit.content.as_slice());
+            let destination_permissions = fs::metadata(edit.path.as_path())
+                .ok()
+                .map(|metadata| metadata.permissions());
+            let stage_result = write_staged_product_bytes(
+                stage_path.as_path(),
+                edit.content.as_slice(),
+                destination_permissions,
+            );
             if let Err(error) = stage_result {
                 cleanup_staged(staged.as_slice());
                 return Err(error);
-            }
-            if let Ok(metadata) = fs::metadata(edit.path.as_path())
-                && let Err(error) =
-                    fs::set_permissions(stage_path.as_path(), metadata.permissions())
-            {
-                cleanup_staged(staged.as_slice());
-                remove_if_exists(stage_path.as_path())?;
-                return Err(io_error(
-                    "preserve destination permissions",
-                    &stage_path,
-                    error,
-                ));
             }
             staged.push(StagedEditV0 {
                 destination: edit.path.clone(),
@@ -370,15 +380,14 @@ impl WorkspaceEditTransaction {
             let staged_content = fs::read(staged_edit.stage.as_path())
                 .map_err(|error| io_error("read staged content", &staged_edit.stage, error))?;
             for postcondition in &edit.postconditions {
-                (postcondition.check)(staged_edit.stage.as_path(), staged_content.as_slice())
-                    .map_err(
-                        |message| WorkspaceEditTransactionErrorV0::PostconditionFailed {
-                            destination: edit.path.to_string_lossy().into_owned(),
-                            staged_path: staged_edit.stage.to_string_lossy().into_owned(),
-                            postcondition: postcondition.name,
-                            message,
-                        },
-                    )?;
+                (postcondition.check)(edit.path.as_path(), staged_content.as_slice()).map_err(
+                    |message| WorkspaceEditTransactionErrorV0::PostconditionFailed {
+                        destination: edit.path.to_string_lossy().into_owned(),
+                        staged_path: staged_edit.stage.to_string_lossy().into_owned(),
+                        postcondition: postcondition.name,
+                        message,
+                    },
+                )?;
             }
         }
         Ok(())
@@ -761,6 +770,7 @@ enum WorkspaceEditFailpointV0 {
 fn write_staged_product_bytes(
     path: &Path,
     content: &[u8],
+    destination_permissions: Option<fs::Permissions>,
 ) -> Result<(), WorkspaceEditTransactionErrorV0> {
     let mut file = OpenOptions::new()
         .write(true)
@@ -769,6 +779,10 @@ fn write_staged_product_bytes(
         .map_err(|error| io_error("create staged file", path, error))?;
     file.write_all(content)
         .map_err(|error| io_error("write staged file", path, error))?;
+    if let Some(permissions) = destination_permissions {
+        fs::set_permissions(path, permissions)
+            .map_err(|error| io_error("preserve destination permissions", path, error))?;
+    }
     file.sync_all()
         .map_err(|error| io_error("sync staged file", path, error))
 }
@@ -912,13 +926,17 @@ fn parse_tree_has_error(node: &OmenaQueryParseTreeNodeV0) -> bool {
 enum WorkspaceEditTextSyntaxV0 {
     Style(OmenaParserStyleDialect),
     Utf8,
+    UnsupportedNonAsciiExtension(String),
 }
 
 fn text_syntax_for_path(path: &Path) -> WorkspaceEditTextSyntaxV0 {
-    let extension = path
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .map(str::to_ascii_lowercase);
+    let extension = path.extension().and_then(|extension| extension.to_str());
+    if let Some(extension) = extension
+        && !extension.is_ascii()
+    {
+        return WorkspaceEditTextSyntaxV0::UnsupportedNonAsciiExtension(extension.to_string());
+    }
+    let extension = extension.map(str::to_ascii_lowercase);
     match extension.as_deref() {
         Some("css") => WorkspaceEditTextSyntaxV0::Style(OmenaParserStyleDialect::Css),
         Some("scss") => WorkspaceEditTextSyntaxV0::Style(OmenaParserStyleDialect::Scss),
@@ -1158,7 +1176,7 @@ mod tests {
                     .expect(ExpectedContentDigestV0::from_bytes(&path, original))
                     .edit(
                         FileEditV0::new(&path, b".corrupt {".to_vec()).with_postcondition(
-                            WorkspaceEditPostconditionV0::text_reparse_for_path(path.as_path()),
+                            WorkspaceEditPostconditionV0::text_reparse_for_destination(),
                         ),
                     )
                     .commit();
@@ -1171,7 +1189,7 @@ mod tests {
             assert!(matches!(
                 error,
                 WorkspaceEditTransactionErrorV0::PostconditionFailed {
-                    postcondition: "styleReparse",
+                    postcondition: "destinationTextReparse",
                     ..
                 }
             ));
@@ -1182,6 +1200,42 @@ mod tests {
             assert_no_transaction_sidecars(&root)?;
             fs::remove_dir_all(root).map_err(|error| error.to_string())?;
         }
+        Ok(())
+    }
+
+    #[test]
+    fn non_ascii_extension_spelling_is_refused() -> Result<(), String> {
+        let root = fixture_root("non-ascii-style-extension");
+        fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+        let path = root.join("a.cſs");
+        let original = b".original {}\n";
+        fs::write(&path, original).map_err(|error| error.to_string())?;
+        let result =
+            WorkspaceEditTransaction::new(None, WorkspaceEditSafetyClassV0::FormattingOnly)
+                .expect(ExpectedContentDigestV0::from_bytes(&path, original))
+                .edit(
+                    FileEditV0::new(&path, b".replacement {}\n".to_vec()).with_postcondition(
+                        WorkspaceEditPostconditionV0::text_reparse_for_destination(),
+                    ),
+                )
+                .commit();
+        let Err(error) = result else {
+            fs::remove_dir_all(root).map_err(|error| error.to_string())?;
+            return Err("a non-ASCII extension spelling unexpectedly published".to_string());
+        };
+        assert!(matches!(
+            error,
+            WorkspaceEditTransactionErrorV0::PostconditionFailed {
+                postcondition: "destinationTextReparse",
+                ..
+            }
+        ));
+        assert_eq!(
+            fs::read(&path).map_err(|error| error.to_string())?,
+            original
+        );
+        assert_no_transaction_sidecars(&root)?;
+        fs::remove_dir_all(root).map_err(|error| error.to_string())?;
         Ok(())
     }
 

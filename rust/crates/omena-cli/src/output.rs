@@ -49,17 +49,26 @@ pub(crate) fn commit_json_artifact<T: Serialize>(
     expected: ExpectedContentDigestV0,
     safety_class: WorkspaceEditSafetyClassV0,
     value: &T,
-) -> Result<(), String> {
+    transaction: Option<WorkspaceEditTransaction>,
+) -> Result<Option<WorkspaceEditTransaction>, String> {
     let mut json = serde_json::to_string_pretty(value)
         .map_err(|error| format!("failed to serialize {}: {error}", path.display()))?;
     json.push('\n');
-    commit_artifact(
-        path,
-        expected,
-        safety_class,
-        json.as_bytes(),
-        WorkspaceEditPostconditionV0::json_reparse(),
-    )
+    let commit_now = transaction.is_none();
+    let transaction = transaction
+        .unwrap_or_else(|| WorkspaceEditTransaction::new(None, safety_class))
+        .expect(expected)
+        .edit(
+            FileEditV0::new(path, json.as_bytes())
+                .with_postcondition(WorkspaceEditPostconditionV0::json_reparse())
+                .with_postcondition(WorkspaceEditPostconditionV0::byte_identity(json.as_bytes())),
+        );
+    if commit_now {
+        transaction.commit().map_err(|error| error.to_string())?;
+        Ok(None)
+    } else {
+        Ok(Some(transaction))
+    }
 }
 
 pub(crate) fn commit_text_artifact(
@@ -68,32 +77,28 @@ pub(crate) fn commit_text_artifact(
     safety_class: WorkspaceEditSafetyClassV0,
     content: &[u8],
 ) -> Result<(), String> {
-    commit_artifact(
+    stage_text_artifact(
+        WorkspaceEditTransaction::new(None, safety_class),
         path,
         expected,
-        safety_class,
         content,
-        WorkspaceEditPostconditionV0::text_reparse_for_path(path),
     )
+    .commit()
+    .map(|_| ())
+    .map_err(|error| error.to_string())
 }
 
-fn commit_artifact(
+pub(crate) fn stage_text_artifact(
+    transaction: WorkspaceEditTransaction,
     path: &Path,
     expected: ExpectedContentDigestV0,
-    safety_class: WorkspaceEditSafetyClassV0,
     content: &[u8],
-    postcondition: WorkspaceEditPostconditionV0,
-) -> Result<(), String> {
-    WorkspaceEditTransaction::new(None, safety_class)
-        .expect(expected)
-        .edit(
-            FileEditV0::new(path, content)
-                .with_postcondition(postcondition)
-                .with_postcondition(WorkspaceEditPostconditionV0::byte_identity(content)),
-        )
-        .commit()
-        .map(|_| ())
-        .map_err(|error| error.to_string())
+) -> WorkspaceEditTransaction {
+    transaction.expect(expected).edit(
+        FileEditV0::new(path, content)
+            .with_postcondition(WorkspaceEditPostconditionV0::text_reparse_for_destination())
+            .with_postcondition(WorkspaceEditPostconditionV0::byte_identity(content)),
+    )
 }
 
 fn serialize_json_envelope<T: Serialize>(
@@ -132,7 +137,14 @@ fn serialize_json_error_envelope(product: &str, error: serde_json::Error) -> Str
 #[cfg(test)]
 pub(crate) fn write_json_artifact<T: Serialize>(path: &Path, value: &T) -> Result<(), String> {
     let expected = ExpectedContentDigestV0::observe(path).map_err(|error| error.to_string())?;
-    commit_json_artifact(path, expected, WorkspaceEditSafetyClassV0::PlanFirst, value)
+    commit_json_artifact(
+        path,
+        expected,
+        WorkspaceEditSafetyClassV0::PlanFirst,
+        value,
+        None,
+    )
+    .map(|_| ())
 }
 
 #[cfg(test)]

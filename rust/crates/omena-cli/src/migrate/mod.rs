@@ -1051,6 +1051,7 @@ fn run_migration_mode(
                 expected_plan_digest,
                 WorkspaceEditSafetyClassV0::PlanFirst,
                 &plan,
+                None,
             )?;
             if mode.json {
                 print_json(CliOutputMetadataV0::new("omena-cli.migrate.plan"), &plan)?;

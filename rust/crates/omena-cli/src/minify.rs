@@ -245,9 +245,9 @@ pub(crate) fn minify_source(
             })?)
             .edit(
                 FileEditV0::new(output.as_path(), report.output_css.as_bytes())
-                    .with_postcondition(WorkspaceEditPostconditionV0::text_reparse_for_path(
-                        output.as_path(),
-                    ))
+                    .with_postcondition(
+                        WorkspaceEditPostconditionV0::text_reparse_for_destination(),
+                    )
                     .with_postcondition(WorkspaceEditPostconditionV0::byte_identity(
                         report.output_css.as_bytes(),
                     )),

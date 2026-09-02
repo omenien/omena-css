@@ -1132,11 +1132,11 @@
       },
       "current": {
         "authority": 729,
-        "authoredEscape": 459,
+        "authoredEscape": 458,
         "writeInto": 68,
         "residualConsumer": 254
       },
-      "removedRowCount": 73,
+      "removedRowCount": 74,
       "reason": "The four inventory builders now consume the same #[cfg(test)]-masked production source set. Removed rows are test-only scope corrections, not accepted product decreases."
     },
     "authoritySiteCount": 729,
@@ -12836,7 +12836,7 @@
         "escape-position"
       ],
       "externalLeafTypes": [],
-      "escapeSiteCount": 459,
+      "escapeSiteCount": 458,
       "escapeSites": [
         {
           "path": "rust/crates/engine-shadow-runner/src/main.rs",
@@ -14964,7 +14964,7 @@
         },
         {
           "path": "rust/crates/omena-cli/src/build.rs",
-          "line": 934,
+          "line": 933,
           "function": "emit_bundle_code_split_outputs",
           "escapeId": "serde-json-to-string-pretty",
           "evidence": "let source_map_json = serde_json::to_string_pretty(&source_map_v3)",
@@ -14976,7 +14976,7 @@
         },
         {
           "path": "rust/crates/omena-cli/src/build.rs",
-          "line": 987,
+          "line": 985,
           "function": "emit_bundle_code_split_outputs",
           "escapeId": "serde-json-to-string-pretty",
           "evidence": "let manifest_json = serde_json::to_string_pretty(&manifest)",
@@ -14988,7 +14988,7 @@
         },
         {
           "path": "rust/crates/omena-cli/src/bundle.rs",
-          "line": 72,
+          "line": 60,
           "function": "bundle_command",
           "escapeId": "serde-json-to-string",
           "evidence": "let blockers = serde_json::to_string(blockers)",
@@ -15422,19 +15422,7 @@
         },
         {
           "path": "rust/crates/omena-cli/src/lint.rs",
-          "line": 229,
-          "function": "write_ranked_set_loss_capture",
-          "escapeId": "serde-json-to-string-pretty",
-          "evidence": "let rendered = serde_json::to_string_pretty(capture)",
-          "operandClasses": ["authored-bearing"],
-          "operandDerivation": "capture=>authored-bearing",
-          "disposition": "egress",
-          "resultBindings": ["rendered"],
-          "reachingIdentitySinks": []
-        },
-        {
-          "path": "rust/crates/omena-cli/src/lint.rs",
-          "line": 253,
+          "line": 256,
           "function": "build_lint_report",
           "escapeId": "debug-format-spec",
           "evidence": "return Err(format!(",
@@ -15488,7 +15476,7 @@
         },
         {
           "path": "rust/crates/omena-cli/src/output.rs",
-          "line": 53,
+          "line": 54,
           "function": "commit_json_artifact",
           "escapeId": "serde-json-to-string-pretty",
           "evidence": "let mut json = serde_json::to_string_pretty(value)",
@@ -15500,7 +15488,7 @@
         },
         {
           "path": "rust/crates/omena-cli/src/output.rs",
-          "line": 103,
+          "line": 108,
           "function": "serialize_json_envelope",
           "escapeId": "serde-json-to-value",
           "evidence": "let payload = serde_json::to_value(value)",
@@ -15512,7 +15500,7 @@
         },
         {
           "path": "rust/crates/omena-cli/src/output.rs",
-          "line": 105,
+          "line": 110,
           "function": "serialize_json_envelope",
           "escapeId": "serde-json-to-string-pretty",
           "evidence": "serde_json::to_string_pretty(&OmenaCliResponseEnvelopeV0 {",
@@ -15524,7 +15512,7 @@
         },
         {
           "path": "rust/crates/omena-cli/src/output.rs",
-          "line": 127,
+          "line": 132,
           "function": "serialize_json_error_envelope",
           "escapeId": "serde-json-to-string",
           "evidence": "serde_json::to_string(&envelope).unwrap_or_else(|_| {",
@@ -18472,7 +18460,7 @@
           "reachingIdentitySinks": []
         }
       ],
-      "escapeSiteDigest": "sha256:a1fbe71cad29ab32506254e27ecf18ef05e0897dc811a43330440dea00cbe1b9",
+      "escapeSiteDigest": "sha256:0a8d309d0dba446e42a58de605d2d340bc6dde7f8813e99483815811d69a904f",
       "identityFlowCount": 16,
       "identityFlows": [
         {
@@ -27407,7 +27395,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1194,
+              "line": 1192,
               "function": "merge_cli_transform_context",
               "operation": "place-expression-argument:&mut",
               "evidence": "&mut base.reachable_class_names,",
@@ -27416,7 +27404,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1198,
+              "line": 1196,
               "function": "merge_cli_transform_context",
               "operation": "place-expression-argument:&mut",
               "evidence": "&mut base.reachable_keyframe_names,",
@@ -27425,7 +27413,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1202,
+              "line": 1200,
               "function": "merge_cli_transform_context",
               "operation": "place-expression-argument:&mut",
               "evidence": "&mut base.reachable_value_names,",
@@ -27434,7 +27422,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1205,
+              "line": 1203,
               "function": "merge_cli_transform_context",
               "operation": "place-expression-receiver:extend",
               "evidence": "base.reachable_custom_property_names",
@@ -27443,7 +27431,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1217,
+              "line": 1215,
               "function": "append_tree_shake_build_passes",
               "operation": "place-expression-argument:&mut",
               "evidence": "fn append_tree_shake_build_passes(pass_ids: &mut Vec<String>) {",
@@ -27452,7 +27440,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1231,
+              "line": 1229,
               "function": "append_bundle_build_passes",
               "operation": "place-expression-argument:&mut",
               "evidence": "pass_ids: &mut Vec<String>,",
@@ -27461,7 +27449,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1247,
+              "line": 1245,
               "function": "append_minify_build_passes",
               "operation": "place-expression-argument:&mut",
               "evidence": "fn append_minify_build_passes(pass_ids: &mut Vec<String>) {",
@@ -27470,7 +27458,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1269,
+              "line": 1267,
               "function": "push_ready_surface",
               "operation": "place-expression-argument:&mut",
               "evidence": "fn push_ready_surface(surfaces: &mut Vec<&'static str>, surface: &'static str) {",
@@ -27479,7 +27467,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1275,
+              "line": 1273,
               "function": "merge_cli_context_list",
               "operation": "place-expression-argument:&mut",
               "evidence": "fn merge_cli_context_list(target: &mut Vec<String>, additional: &[String]) {",
@@ -27677,7 +27665,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/lint.rs",
-              "line": 480,
+              "line": 483,
               "function": "print_text_report",
               "operation": "place-expression-receiver:push",
               "evidence": ".or_default()",
@@ -27758,7 +27746,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/migrate/apply.rs",
-              "line": 146,
+              "line": 144,
               "function": "prepare_migration_writes",
               "operation": "place-expression-receiver:push",
               "evidence": ".or_default()",
@@ -27938,7 +27926,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
-              "line": 550,
+              "line": 559,
               "function": "fmt",
               "operation": "place-expression-argument:&mut",
               "evidence": "fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {",
@@ -35515,7 +35503,7 @@
               "reason": "A mutable argument is a field, index, dereference, or call-chain place rather than a bare binding or named alias."
             }
           ],
-          "siteDigest": "sha256:f109345f3cc803b647debe94ab6edf0d9945c64fc05f6b600a30110e3f5f152e",
+          "siteDigest": "sha256:a1f9649003f1e507fb35b1fb3208f13b4c864c4669251e71ed928630f1074afa",
           "reason": "The mutable-flow resolver follows bare bindings and named aliases. Index, field, call-chain, dereference, and other place-expression receivers or mutable arguments are a conservative product-closure upper bound that also includes type-annotation `&mut` fragments and pure temporaries."
         },
         {
@@ -37479,7 +37467,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 700,
+              "line": 699,
               "function": "compose_source_map_with_input_source_maps",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": "let Some(input_source_map) = input_source_maps.get(&source_path) else {",
@@ -37488,7 +37476,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1040,
+              "line": 1038,
               "function": "rewrite_bundle_code_split_imports_for_source",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": "let Some(source_path) = source_path_lookup.get(target_path.as_str()) else {",
@@ -37497,7 +37485,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1043,
+              "line": 1041,
               "function": "rewrite_bundle_code_split_imports_for_source",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": "let Some(target_file_name) = file_name_by_path.get(source_path.as_str()) else {",
@@ -37506,7 +37494,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1092,
+              "line": 1090,
               "function": "bundle_code_split_manifest_imports_for_source",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": "let Some(source_path) = source_path_lookup.get(target_path.as_str()) else {",
@@ -37515,7 +37503,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1095,
+              "line": 1093,
               "function": "bundle_code_split_manifest_imports_for_source",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": "let Some(file_name) = file_name_by_path.get(source_path.as_str()) else {",
@@ -37524,7 +37512,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1224,
+              "line": 1222,
               "function": "append_tree_shake_build_passes",
               "operation": "non-string-container-egress:Vec.iter",
               "evidence": "if !pass_ids.iter().any(|existing| existing == pass_id) {",
@@ -37533,7 +37521,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1241,
+              "line": 1239,
               "function": "append_bundle_build_passes",
               "operation": "non-string-container-egress:Vec.iter",
               "evidence": "if !pass_ids.iter().any(|existing| existing == pass_id) {",
@@ -37542,7 +37530,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/build.rs",
-              "line": 1249,
+              "line": 1247,
               "function": "append_minify_build_passes",
               "operation": "non-string-container-egress:Vec.iter",
               "evidence": "if !pass_ids.iter().any(|existing| existing == pass_id) {",
@@ -37614,7 +37602,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/lint.rs",
-              "line": 369,
+              "line": 372,
               "function": "build_lint_report",
               "operation": "non-string-container-egress:Vec.iter",
               "evidence": "let tier_findings = findings",
@@ -37623,7 +37611,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/lint.rs",
-              "line": 397,
+              "line": 400,
               "function": "build_lint_report",
               "operation": "non-string-container-egress:BTreeSet.into_iter",
               "evidence": "unmapped_diagnostic_codes: unmapped_diagnostic_codes.into_iter().collect(),",
@@ -37668,7 +37656,7 @@
             },
             {
               "path": "rust/crates/omena-cli/src/migrate/apply.rs",
-              "line": 193,
+              "line": 191,
               "function": "prepare_migration_writes",
               "operation": "non-string-container-egress:BTreeMap.get",
               "evidence": ".filter_map(|edit| assessments.get(edit.id.as_str()))",
@@ -43607,7 +43595,7 @@
               "reason": "A known non-String container method can return an element or iterator, but container taint is not generally transferred to that scalar result."
             }
           ],
-          "siteDigest": "sha256:b639133421fead336dca38f386804e09a2b71c7c7918a0138b05fadfefb5fff2",
+          "siteDigest": "sha256:f1e95f805c63c2fe60848b646224a1297b0f5bc953e2a14daa6a681825d6cd99",
           "reason": "The flow engine tracks authored sources into known non-String containers but does not generally transfer a container source back into scalars returned by these egress methods."
         },
         {

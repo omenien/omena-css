@@ -123,7 +123,7 @@
         "compatCount": 247,
         "identityEscalationCount": 222,
         "governanceDataCount": 79,
-        "siteSetSha256": "394f7f9ed3d27b9f7d65f8c3b3f33de080ac32d03709145b58209975b706202a"
+        "siteSetSha256": "0e42a335aa76fc8521ea6e5487ef883251c3210c6595d2c384919b290451716e"
       },
       {
         "familyId": "f04",
@@ -132,7 +132,7 @@
         "compatCount": 265,
         "identityEscalationCount": 201,
         "governanceDataCount": 98,
-        "siteSetSha256": "acac8a11ccf80d2f6fa32240c9156356d47043b66afce459110b327b765e155e"
+        "siteSetSha256": "9e5e2be34bdebe1ebf06ea50838f03168921986c92d3875cae3738a42e87727b"
       },
       {
         "familyId": "f05",
@@ -141,7 +141,7 @@
         "compatCount": 191,
         "identityEscalationCount": 0,
         "governanceDataCount": 72,
-        "siteSetSha256": "8ea6645ef0e986e4dbecefbef9714f50e0fab03a80a5770c73fe0e3c7182496a"
+        "siteSetSha256": "c7ee7443dbf7e10fc0c74125761cada4f690c6d663ae26e5f318e55aab5d0f4d"
       },
       {
         "familyId": "f06",
@@ -150,11 +150,11 @@
         "compatCount": 170,
         "identityEscalationCount": 127,
         "governanceDataCount": 58,
-        "siteSetSha256": "49b3abca8a0ea52972c47843d447e38089e1d32614bc45bc7b4cf848173b1f64"
+        "siteSetSha256": "2aed34a112c13543824c56c34aee47fe20eba4df4dfbb94652b04aff75850487"
       }
     ],
-    "siteSetSha256": "c060c2577a1293283052b820a30bc8f0290638713eda09396bc8f58a6770282c",
-    "claimSiteSetSha256": "e75d554eff4da918f4c54e32636861320eee93852743e4db4bb5780ebc7a5c2c",
+    "siteSetSha256": "ec547b9d527aed8030ac7915bf0eb7f20afbb7a447adf4c40b0e534714264e0c",
+    "claimSiteSetSha256": "5c1046d4dc58448df8df7532fbf7e59ec2e105dda6a24ed143cb90f7bc47ba86",
     "compatDeclarationSetSha256": "c0244e16276ed50a5ba34e3ac4baf38841dc7af7b355cf08bdff605de63d1dc9",
     "identityCrateSetSha256": "301477ffa6f128519a55a9aa55d336d35400f48ae4fd73cd66b4d2fcc60ae772",
     "governanceRuleSetSha256": "7c10bd4fa049f70b4f38411296bda0c58ed6689fd594de131f04466b92cba246"

@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use omena_query::{
     OmenaQueryBundleEvidenceManifestV0, OmenaQueryBundleExecutionScopeEvidenceV0,
@@ -20,9 +20,11 @@ use crate::{
         resolve_cli_external_sif_authority,
     },
     io::{read_package_manifests, read_source, read_workspace_sources},
-    output::{commit_json_artifact, commit_text_artifact},
+    output::{commit_json_artifact, stage_text_artifact},
     paths::path_string,
-    workspace_edit_transaction::{ExpectedContentDigestV0, WorkspaceEditSafetyClassV0},
+    workspace_edit_transaction::{
+        ExpectedContentDigestV0, WorkspaceEditSafetyClassV0, WorkspaceEditTransaction,
+    },
 };
 
 pub(crate) struct BundleCommandOptions {
@@ -54,40 +56,83 @@ pub(crate) fn bundle_command(options: BundleCommandOptions) -> Result<(), String
         .transpose()
         .map_err(|error| error.to_string())?;
     let plan = plan_bundle(&options)?;
-    if let Some(evidence_path) = options.evidence_path.as_deref() {
-        commit_json_artifact(
-            evidence_path,
-            expected_evidence_digest.ok_or_else(|| {
-                "bundle evidence digest was not captured before analysis".to_string()
-            })?,
-            WorkspaceEditSafetyClassV0::EvidenceRequired,
-            &BundleEvidenceOutputV0 {
-                evidence: &plan.evidence,
-                execution_scope: plan.execution_scope.as_ref(),
-            },
-        )?;
-    }
-
     if let OmenaQueryClosedWorldOutcomeV0::Open { blockers } = &plan.result.closed_world_outcome {
         let blockers = serde_json::to_string(blockers)
             .map_err(|error| format!("failed to serialize bundle blockers: {error}"))?;
+        if options.css_out.is_some() {
+            return Err(format!(
+                "closed-world bundle admission failed with typed blockers: {blockers}"
+            ));
+        }
+        if let Some(evidence_path) = options.evidence_path.as_deref() {
+            stage_bundle_evidence(
+                WorkspaceEditTransaction::new(None, WorkspaceEditSafetyClassV0::EvidenceRequired),
+                evidence_path,
+                expected_evidence_digest.ok_or_else(|| {
+                    "bundle evidence digest was not captured before analysis".to_string()
+                })?,
+                &plan,
+            )?
+            .commit()
+            .map_err(|error| error.to_string())?;
+        }
         return Err(format!(
             "closed-world bundle admission failed with typed blockers: {blockers}"
         ));
     }
 
+    let mut transaction =
+        WorkspaceEditTransaction::new(None, WorkspaceEditSafetyClassV0::EvidenceRequired);
+    let mut artifact_count = 0usize;
+    if let Some(evidence_path) = options.evidence_path.as_deref() {
+        transaction = stage_bundle_evidence(
+            transaction,
+            evidence_path,
+            expected_evidence_digest.ok_or_else(|| {
+                "bundle evidence digest was not captured before analysis".to_string()
+            })?,
+            &plan,
+        )?;
+        artifact_count += 1;
+    }
+
     if let Some(css_out) = options.css_out.as_deref() {
-        commit_text_artifact(
+        transaction = stage_text_artifact(
+            transaction,
             css_out,
             expected_css_digest
                 .ok_or_else(|| "bundle CSS digest was not captured before analysis".to_string())?,
-            WorkspaceEditSafetyClassV0::EvidenceRequired,
             plan.result.artifact.output_css.as_bytes(),
-        )?;
+        );
+        artifact_count += 1;
     } else {
         print!("{}", plan.result.artifact.output_css);
     }
+    if artifact_count > 0 {
+        transaction.commit().map_err(|error| error.to_string())?;
+    }
     Ok(())
+}
+
+fn stage_bundle_evidence(
+    transaction: WorkspaceEditTransaction,
+    evidence_path: &Path,
+    expected_evidence_digest: ExpectedContentDigestV0,
+    plan: &BundlePlanV0,
+) -> Result<WorkspaceEditTransaction, String> {
+    match commit_json_artifact(
+        evidence_path,
+        expected_evidence_digest,
+        WorkspaceEditSafetyClassV0::EvidenceRequired,
+        &BundleEvidenceOutputV0 {
+            evidence: &plan.evidence,
+            execution_scope: plan.execution_scope.as_ref(),
+        },
+        Some(transaction),
+    )? {
+        Some(transaction) => Ok(transaction),
+        None => Err("bundle evidence unexpectedly committed before CSS staging".to_string()),
+    }
 }
 
 pub(crate) fn plan_bundle(options: &BundleCommandOptions) -> Result<BundlePlanV0, String> {

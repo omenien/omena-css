@@ -71,6 +71,18 @@ assert.throws(
   "modules emit bypassing WorkspaceEditTransaction must remain RED",
 );
 
+const compositeFilesystemBypassMutation = replaceRequired(
+  cliSource,
+  "    for plan in plans {",
+  '    for plan in plans {\n        let _ = fs::write(plan.path.as_path(), b"mutation control");',
+  "modules artifact loop",
+);
+assert.throws(
+  () => assertModulesEmitUsesTransactionAuthority(compositeFilesystemBypassMutation),
+  /modules emit must not contain a bare filesystem write/u,
+  "a bare filesystem write inside the modules emit loop must remain RED",
+);
+
 const transactionPreservingControl = replaceRequired(
   cliSource,
   "WorkspaceEditTransaction::new(None, WorkspaceEditSafetyClassV0::EvidenceRequired)",
@@ -103,6 +115,7 @@ process.stdout.write(
       summaryPlaneView: true,
       moduleEmitTransactionAuthority: true,
       moduleEmitTransactionBypassMutation: "red",
+      moduleEmitCompositeFilesystemBypassMutation: "red",
       moduleEmitTransactionPreservingControl: "green",
     },
     null,
@@ -115,7 +128,7 @@ function read(relativePath: string): string {
 }
 
 function assertModulesEmitUsesTransactionAuthority(source: string): void {
-  const body = functionRegion(source, "apply_or_check_module_artifacts", "compile_include_globs");
+  const body = functionRegion(source, "apply_or_check_module_artifacts");
   assert.match(
     body,
     /WorkspaceEditTransaction::new\(\s*None,\s*WorkspaceEditSafetyClassV0::EvidenceRequired,?\s*\)/u,
@@ -136,16 +149,91 @@ function assertModulesEmitUsesTransactionAuthority(source: string): void {
     /\bwrite_module_artifact\s*\(/u,
     "modules emit must not bypass WorkspaceEditTransaction through the retired artifact writer",
   );
+  assert.doesNotMatch(
+    maskRustCommentsAndLiterals(body),
+    /\b(?:(?:std::)?fs::(?:write|copy|rename|hard_link|remove_file)|std::os::[a-z_]+::fs::symlink)\s*\(|\b(?:std::fs::)?(?:File|OpenOptions)::(?:create|create_new|options|new)\s*\(|\.write(?:_all)?\s*\(/gu,
+    "modules emit must not contain a bare filesystem write",
+  );
 }
 
-function functionRegion(source: string, name: string, nextName: string): string {
-  const startMarker = `fn ${name}(`;
-  const endMarker = `\nfn ${nextName}(`;
-  const start = source.indexOf(startMarker);
-  assert.notEqual(start, -1, `missing function: ${name}`);
-  const end = source.indexOf(endMarker, start);
-  assert.notEqual(end, -1, `missing function boundary after ${name}: ${nextName}`);
-  return source.slice(start, end);
+function functionRegion(source: string, name: string): string {
+  const structural = maskRustCommentsAndLiterals(source);
+  const match = new RegExp(`\\bfn\\s+${name}\\s*\\(`, "u").exec(structural);
+  assert.ok(match?.index !== undefined, `missing function: ${name}`);
+  const open = structural.indexOf("{", match.index);
+  assert.notEqual(open, -1, `missing function body: ${name}`);
+  return source.slice(match.index, matchingBrace(structural, open, `function ${name}`) + 1);
+}
+
+function matchingBrace(source: string, open: number, label: string): number {
+  let depth = 0;
+  for (let index = open; index < source.length; index += 1) {
+    if (source[index] === "{") depth += 1;
+    else if (source[index] === "}") {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  assert.fail(`${label} has an unterminated body`);
+}
+
+function maskRustCommentsAndLiterals(source: string): string {
+  const masked = source.split("");
+  const blank = (start: number, end: number): void => {
+    for (let index = start; index < end; index += 1) {
+      if (masked[index] !== "\n" && masked[index] !== "\r") masked[index] = " ";
+    }
+  };
+  let index = 0;
+  while (index < source.length) {
+    if (source.startsWith("//", index)) {
+      const end = source.indexOf("\n", index + 2);
+      blank(index, end < 0 ? source.length : end);
+      index = end < 0 ? source.length : end;
+      continue;
+    }
+    if (source.startsWith("/*", index)) {
+      const start = index;
+      let depth = 1;
+      index += 2;
+      while (index < source.length && depth > 0) {
+        if (source.startsWith("/*", index)) {
+          depth += 1;
+          index += 2;
+        } else if (source.startsWith("*/", index)) {
+          depth -= 1;
+          index += 2;
+        } else index += 1;
+      }
+      blank(start, index);
+      continue;
+    }
+    const raw = source.slice(index).match(/^(?:br|r)(#*)"/u);
+    if (raw) {
+      const start = index;
+      const terminator = `"${raw[1] ?? ""}`;
+      index += raw[0].length;
+      const end = source.indexOf(terminator, index);
+      index = end < 0 ? source.length : end + terminator.length;
+      blank(start, index);
+      continue;
+    }
+    if (source[index] === '"') {
+      const start = index;
+      index += 1;
+      let escaped = false;
+      while (index < source.length) {
+        const current = source[index++]!;
+        if (escaped) escaped = false;
+        else if (current === "\\") escaped = true;
+        else if (current === '"') break;
+      }
+      blank(start, index);
+      continue;
+    }
+    index += 1;
+  }
+  return masked.join("");
 }
 
 function replaceRequired(

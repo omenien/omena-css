@@ -84,9 +84,7 @@ pub(super) fn apply_migration_plan(
         .map_err(|error| error.to_string())?;
         transaction = transaction.expect(write.expected_digest).edit(
             FileEditV0::new(write.path.as_path(), write.content.as_bytes())
-                .with_postcondition(WorkspaceEditPostconditionV0::text_reparse_for_path(
-                    write.path.as_path(),
-                ))
+                .with_postcondition(WorkspaceEditPostconditionV0::text_reparse_for_destination())
                 .with_postcondition(WorkspaceEditPostconditionV0::byte_identity(
                     write.content.as_bytes(),
                 )),
