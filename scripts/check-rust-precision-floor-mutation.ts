@@ -13,18 +13,25 @@ const authority = JSON.parse(
 
 interface MutationProbe {
   readonly id: string;
+  readonly sourcePath?: string;
+  readonly from?: string;
+  readonly to?: string;
+  readonly changes?: readonly MutationChange[];
+  readonly command: readonly string[];
+  readonly expectedFailure: string;
+}
+
+interface MutationChange {
   readonly sourcePath: string;
   readonly from: string;
   readonly to: string;
-  readonly command: readonly string[];
-  readonly expectedFailure: string;
 }
 
 interface MutationResult {
   readonly schemaVersion: "1";
   readonly product: "omena-transform.precision-floor-source-mutation";
   readonly probeId: string;
-  readonly sourcePath: string;
+  readonly sourcePaths: readonly string[];
   readonly command: readonly string[];
   readonly observedExit: number | null;
   readonly expectedFailure: string;
@@ -59,16 +66,27 @@ process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
 
 function runProbe(probe: MutationProbe): MutationResult {
   assert.ok(probe.command[0] !== undefined, `${probe.id} must declare a command`);
-  const sourcePath = path.join(repoRoot, probe.sourcePath);
-  const original = fs.readFileSync(sourcePath, "utf8");
+  const changes = mutationChanges(probe);
+  const originals = changes.map((change) => {
+    const absolutePath = path.join(repoRoot, change.sourcePath);
+    const original = fs.readFileSync(absolutePath, "utf8");
+    assert.equal(
+      original.split(change.from).length - 1,
+      1,
+      `${probe.id} source must match exactly once before mutation`,
+    );
+    const mutated = original.replace(change.from, change.to);
+    assert.notEqual(mutated, original, `${probe.id} must change the source`);
+    return { change, absolutePath, original, mutated };
+  });
   assert.equal(
-    original.split(probe.from).length - 1,
-    1,
-    `${probe.id} source must match exactly once before mutation`,
+    new Set(originals.map(({ absolutePath }) => absolutePath)).size,
+    originals.length,
+    `${probe.id} must declare at most one mutation per source path`,
   );
-  const mutated = original.replace(probe.from, probe.to);
-  assert.notEqual(mutated, original, `${probe.id} must change the source`);
-  const mutationPatch = unifiedPatch(probe.sourcePath, original, mutated);
+  const mutationPatch = originals
+    .map(({ change, original, mutated }) => unifiedPatch(change.sourcePath, original, mutated))
+    .join("");
 
   let transcript = "";
   let status: number | null = null;
@@ -101,19 +119,37 @@ function runProbe(probe: MutationProbe): MutationResult {
     transcript.includes(probe.expectedFailure),
     `${probe.id} failed for the wrong reason; expected ${probe.expectedFailure}:\n${transcript}`,
   );
-  assert.equal(fs.readFileSync(sourcePath, "utf8"), original, `${probe.id} source restore failed`);
+  for (const { absolutePath, original } of originals) {
+    assert.equal(
+      fs.readFileSync(absolutePath, "utf8"),
+      original,
+      `${probe.id} source restore failed`,
+    );
+  }
 
   return {
     schemaVersion: "1",
     product: "omena-transform.precision-floor-source-mutation",
     probeId: probe.id,
-    sourcePath: probe.sourcePath,
+    sourcePaths: changes.map((change) => change.sourcePath),
     command: probe.command,
     observedExit: status,
     expectedFailure: probe.expectedFailure,
     restored: true,
     red: true,
   };
+}
+
+function mutationChanges(probe: MutationProbe): readonly MutationChange[] {
+  if (probe.changes !== undefined) {
+    assert.ok(probe.changes.length > 0, `${probe.id} must mutate at least one source`);
+    return probe.changes;
+  }
+  assert.ok(
+    probe.sourcePath !== undefined && probe.from !== undefined && probe.to !== undefined,
+    `${probe.id} must declare one source mutation or a changes list`,
+  );
+  return [{ sourcePath: probe.sourcePath, from: probe.from, to: probe.to }];
 }
 
 function unifiedPatch(relativePath: string, before: string, after: string): string {

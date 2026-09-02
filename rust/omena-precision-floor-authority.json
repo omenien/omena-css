@@ -1,111 +1,348 @@
 {
-  "schemaVersion": "1",
+  "schemaVersion": "2",
   "executableManifestTest": "tests::precision_floor_manifest::precision_floor_executable_manifest_from_real_product_fixtures",
-  "directLiteralJustifications": [
+  "gateRederivationTest": "tests::precision_floor_manifest::precision_floor_gate_rederives_challenged_context_observation",
+  "precisionEmissionPoints": [
     {
+      "id": "analysisPrecisionConstructor:rust/crates/omena-abstract-value/src/domain.rs:apply_to:1",
+      "kind": "analysisPrecisionConstructor",
+      "sourcePath": "rust/crates/omena-abstract-value/src/domain.rs",
+      "function": "apply_to",
+      "literals": [],
+      "disposition": {
+        "kind": "sweepRow",
+        "output": "closedSetFiniteReachability.nonEnumeratedPrecision"
+      },
+      "reason": "coveredBySweep:closedSetFiniteReachability.nonEnumeratedPrecision"
+    },
+    {
+      "id": "analysisPrecisionConstructor:rust/crates/omena-abstract-value/src/domain.rs:analysis_precision_from_class_value_with_witness:1",
+      "kind": "analysisPrecisionConstructor",
+      "sourcePath": "rust/crates/omena-abstract-value/src/domain.rs",
+      "function": "analysis_precision_from_class_value_with_witness",
+      "literals": [],
+      "disposition": {
+        "kind": "sweepRow",
+        "output": "closedSetFiniteReachability.openWorldPrecision"
+      },
+      "reason": "coveredBySweep:closedSetFiniteReachability.openWorldPrecision"
+    },
+    {
+      "id": "analysisPrecisionConstructor:rust/crates/omena-query-core/src/lib.rs:summarize_omena_query_expression_domain_incremental_flow_analysis_result:1",
+      "kind": "analysisPrecisionConstructor",
       "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
-      "constructor": "summarize_omena_query_expression_domain_incremental_flow_analysis_result",
-      "field": "value_domain",
-      "expression": "ValueDomainPrecisionV1::ClassValueFlow",
-      "reason": "The result is produced by the incremental class-value flow runtime."
+      "function": "summarize_omena_query_expression_domain_incremental_flow_analysis_result",
+      "literals": [
+        {
+          "axis": "value_domain",
+          "expression": "ValueDomainPrecisionV1::ClassValueFlow"
+        },
+        {
+          "axis": "context",
+          "expression": "ContextPrecisionV1::PerExpressionGraph"
+        }
+      ],
+      "disposition": {
+        "kind": "literalFixture",
+        "bindingId": "producerArm:provider.missingTypeFacts"
+      },
+      "reason": "exercisedBy:producerArm:provider.missingTypeFacts"
     },
     {
-      "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
-      "constructor": "summarize_omena_query_expression_domain_incremental_flow_analysis_result",
-      "field": "context",
-      "expression": "ContextPrecisionV1::PerExpressionGraph",
-      "reason": "Each incremental result is scoped to one expression graph."
-    },
-    {
+      "id": "analysisPrecisionConstructor:rust/crates/omena-bridge/src/style_intelligence.rs:provider_analysis_precision:1",
+      "kind": "analysisPrecisionConstructor",
       "sourcePath": "rust/crates/omena-bridge/src/style_intelligence.rs",
-      "constructor": "provider_analysis_precision",
-      "field": "value_domain",
-      "expression": "ValueDomainPrecisionV1::StyleModuleResolution",
-      "reason": "Bridge provider metadata summarizes resolved style-module targets."
+      "function": "provider_analysis_precision",
+      "literals": [
+        {
+          "axis": "value_domain",
+          "expression": "ValueDomainPrecisionV1::StyleModuleResolution"
+        },
+        {
+          "axis": "flow",
+          "expression": "FlowPrecisionV1::ProviderObservation"
+        },
+        {
+          "axis": "context",
+          "expression": "ContextPrecisionV1::ProviderScoped"
+        },
+        {
+          "axis": "revision",
+          "expression": "RevisionIdentityV1::Current"
+        }
+      ],
+      "disposition": {
+        "kind": "literalFixture",
+        "bindingId": "fixture:bridge.providerRegistry"
+      },
+      "reason": "exercisedBy:fixture:bridge.providerRegistry"
     },
     {
-      "sourcePath": "rust/crates/omena-bridge/src/style_intelligence.rs",
-      "constructor": "provider_analysis_precision",
-      "field": "flow",
-      "expression": "FlowPrecisionV1::ProviderObservation",
-      "reason": "Bridge metadata is derived from an observed provider target census."
-    },
-    {
-      "sourcePath": "rust/crates/omena-bridge/src/style_intelligence.rs",
-      "constructor": "provider_analysis_precision",
-      "field": "context",
-      "expression": "ContextPrecisionV1::ProviderScoped",
-      "reason": "The metadata is scoped to the selected provider."
-    },
-    {
-      "sourcePath": "rust/crates/omena-bridge/src/style_intelligence.rs",
-      "constructor": "provider_analysis_precision",
-      "field": "revision",
-      "expression": "RevisionIdentityV1::Current",
-      "reason": "The bridge summary and provider census are created in the same call."
-    },
-    {
+      "id": "analysisPrecisionConstructor:rust/crates/omena-query/src/types.rs:source_diagnostic_precision:1",
+      "kind": "analysisPrecisionConstructor",
       "sourcePath": "rust/crates/omena-query/src/types.rs",
-      "constructor": "source_diagnostic_precision",
-      "field": "revision",
-      "expression": "RevisionIdentityV1::QuerySourceDiagnosticsInput",
-      "reason": "Source diagnostic axes are projected from the current diagnostics input."
+      "function": "source_diagnostic_precision",
+      "literals": [
+        {
+          "axis": "revision",
+          "expression": "RevisionIdentityV1::QuerySourceDiagnosticsInput"
+        }
+      ],
+      "disposition": {
+        "kind": "literalFixture",
+        "bindingId": "observation:missing-module.precision"
+      },
+      "reason": "exercisedBy:observation:missing-module.precision"
     },
     {
+      "id": "analysisPrecisionConstructor:rust/crates/omena-query/src/style/cascade_position.rs:cascade_at_position_analysis_result:1",
+      "kind": "analysisPrecisionConstructor",
       "sourcePath": "rust/crates/omena-query/src/style/cascade_position.rs",
-      "constructor": "cascade_at_position_analysis_result",
-      "field": "value_domain",
-      "expression": "ValueDomainPrecisionV1::CascadeAtPosition",
-      "reason": "The constructor wraps the cascade-at-position product result."
+      "function": "cascade_at_position_analysis_result",
+      "literals": [
+        {
+          "axis": "value_domain",
+          "expression": "ValueDomainPrecisionV1::CascadeAtPosition"
+        },
+        {
+          "axis": "flow",
+          "expression": "FlowPrecisionV1::PositionScopedCascade"
+        },
+        {
+          "axis": "context",
+          "expression": "ContextPrecisionV1::StyleSemanticGraph"
+        },
+        {
+          "axis": "revision",
+          "expression": "RevisionIdentityV1::EvaluationRuntimeExpressionDomain"
+        }
+      ],
+      "disposition": {
+        "kind": "literalFixture",
+        "bindingId": "observation:cascadeAtPosition.precision"
+      },
+      "reason": "exercisedBy:observation:cascadeAtPosition.precision"
     },
     {
-      "sourcePath": "rust/crates/omena-query/src/style/cascade_position.rs",
-      "constructor": "cascade_at_position_analysis_result",
-      "field": "flow",
-      "expression": "FlowPrecisionV1::PositionScopedCascade",
-      "reason": "The cascade computation is scoped to the requested source position."
-    },
-    {
-      "sourcePath": "rust/crates/omena-query/src/style/cascade_position.rs",
-      "constructor": "cascade_at_position_analysis_result",
-      "field": "context",
-      "expression": "ContextPrecisionV1::StyleSemanticGraph",
-      "reason": "Cascade resolution consumes the style semantic graph."
-    },
-    {
-      "sourcePath": "rust/crates/omena-query/src/style/cascade_position.rs",
-      "constructor": "cascade_at_position_analysis_result",
-      "field": "revision",
-      "expression": "RevisionIdentityV1::EvaluationRuntimeExpressionDomain",
-      "reason": "The result carries the evaluation runtime expression-domain revision."
-    },
-    {
+      "id": "analysisPrecisionConstructor:rust/crates/omena-query/src/style/diagnostics/source_usage.rs:summarize_omena_query_css_modules_export_usage:1",
+      "kind": "analysisPrecisionConstructor",
       "sourcePath": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-      "constructor": "summarize_omena_query_css_modules_export_usage",
-      "field": "value_domain",
-      "expression": "ValueDomainPrecisionV1::StyleModuleResolution",
-      "reason": "Unused-export analysis operates over resolved CSS Module exports."
+      "function": "summarize_omena_query_css_modules_export_usage",
+      "literals": [
+        {
+          "axis": "value_domain",
+          "expression": "ValueDomainPrecisionV1::StyleModuleResolution"
+        },
+        {
+          "axis": "flow",
+          "expression": "FlowPrecisionV1::SourceSelectorUsage"
+        },
+        {
+          "axis": "context",
+          "expression": "ContextPrecisionV1::PerModuleExport"
+        },
+        {
+          "axis": "revision",
+          "expression": "RevisionIdentityV1::WorkspaceSnapshot"
+        }
+      ],
+      "disposition": {
+        "kind": "literalFixture",
+        "bindingId": "observation:cssModulesUnusedExportFlow.safeGhost.precision"
+      },
+      "reason": "exercisedBy:observation:cssModulesUnusedExportFlow.safeGhost.precision"
     },
     {
-      "sourcePath": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-      "constructor": "summarize_omena_query_css_modules_export_usage",
-      "field": "flow",
-      "expression": "FlowPrecisionV1::SourceSelectorUsage",
-      "reason": "Export status is derived from source selector usage."
+      "id": "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/source.rs:resolve_omena_query_source_precision_for_source:1",
+      "kind": "sourceDiagnosticArgumentSite",
+      "sourcePath": "rust/crates/omena-query/src/source.rs",
+      "function": "resolve_omena_query_source_precision_for_source",
+      "literals": [
+        {
+          "axis": "value_domain",
+          "expression": "ValueDomainPrecisionV1::ClassValueResolution"
+        },
+        {
+          "axis": "flow",
+          "expression": "FlowPrecisionV1::SourceControlFlow"
+        },
+        {
+          "axis": "context",
+          "expression": "ContextPrecisionV1::SameFile"
+        }
+      ],
+      "disposition": {
+        "kind": "literalFixture",
+        "bindingId": "observation:sourcePrecisionReference.precision"
+      },
+      "reason": "exercisedBy:observation:sourcePrecisionReference.precision"
     },
     {
-      "sourcePath": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-      "constructor": "summarize_omena_query_css_modules_export_usage",
-      "field": "context",
-      "expression": "ContextPrecisionV1::PerModuleExport",
-      "reason": "Each emitted precision label belongs to one module export."
+      "id": "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_missing_selector_diagnostic_with_insertion_range:1",
+      "kind": "sourceDiagnosticArgumentSite",
+      "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
+      "function": "summarize_omena_query_missing_selector_diagnostic_with_insertion_range",
+      "literals": [
+        {
+          "axis": "value_domain",
+          "expression": "ValueDomainPrecisionV1::ClassValueResolution"
+        },
+        {
+          "axis": "flow",
+          "expression": "FlowPrecisionV1::SourceSyntaxIndex"
+        },
+        {
+          "axis": "context",
+          "expression": "ContextPrecisionV1::PerSourceReference"
+        }
+      ],
+      "disposition": {
+        "kind": "literalFixture",
+        "bindingId": "fixture:sourceDiagnostic.missingSelector"
+      },
+      "reason": "exercisedBy:fixture:sourceDiagnostic.missingSelector"
     },
     {
-      "sourcePath": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-      "constructor": "summarize_omena_query_css_modules_export_usage",
-      "field": "revision",
-      "expression": "RevisionIdentityV1::WorkspaceSnapshot",
-      "reason": "The usage report is computed from one workspace input snapshot."
+      "id": "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_global_class_fallthrough_diagnostic:1",
+      "kind": "sourceDiagnosticArgumentSite",
+      "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
+      "function": "summarize_omena_query_global_class_fallthrough_diagnostic",
+      "literals": [
+        {
+          "axis": "value_domain",
+          "expression": "ValueDomainPrecisionV1::ClassValueResolution"
+        },
+        {
+          "axis": "flow",
+          "expression": "FlowPrecisionV1::GlobalClassUniverse"
+        },
+        {
+          "axis": "context",
+          "expression": "ContextPrecisionV1::PerSourceReference"
+        }
+      ],
+      "disposition": {
+        "kind": "literalFixture",
+        "bindingId": "observation:globalClassFallthrough.precision"
+      },
+      "reason": "exercisedBy:observation:globalClassFallthrough.precision"
+    },
+    {
+      "id": "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth:1",
+      "kind": "sourceDiagnosticArgumentSite",
+      "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
+      "function": "summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth",
+      "literals": [
+        {
+          "axis": "value_domain",
+          "expression": "ValueDomainPrecisionV1::StyleModuleResolution"
+        },
+        {
+          "axis": "flow",
+          "expression": "FlowPrecisionV1::SourceImportResolution"
+        },
+        {
+          "axis": "context",
+          "expression": "ContextPrecisionV1::PerImportSpecifier"
+        }
+      ],
+      "disposition": {
+        "kind": "literalFixture",
+        "bindingId": "observation:missing-module.precision"
+      },
+      "reason": "exercisedBy:observation:missing-module.precision"
+    },
+    {
+      "id": "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_type_fact_provider_unavailable_diagnostics:1",
+      "kind": "sourceDiagnosticArgumentSite",
+      "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
+      "function": "summarize_omena_query_type_fact_provider_unavailable_diagnostics",
+      "literals": [
+        {
+          "axis": "value_domain",
+          "expression": "ValueDomainPrecisionV1::Unknown"
+        },
+        {
+          "axis": "flow",
+          "expression": "FlowPrecisionV1::TypeOracleProviderUnavailable"
+        },
+        {
+          "axis": "context",
+          "expression": "ContextPrecisionV1::PerTypeFactTarget"
+        }
+      ],
+      "disposition": {
+        "kind": "literalFixture",
+        "bindingId": "fixture:sourceDiagnostic.providerUnavailable"
+      },
+      "reason": "exercisedBy:fixture:sourceDiagnostic.providerUnavailable"
+    },
+    {
+      "id": "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_domain_class_reference_diagnostics:1",
+      "kind": "sourceDiagnosticArgumentSite",
+      "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
+      "function": "summarize_omena_query_domain_class_reference_diagnostics",
+      "literals": [
+        {
+          "axis": "value_domain",
+          "expression": "ValueDomainPrecisionV1::ClassValueUniverse"
+        },
+        {
+          "axis": "flow",
+          "expression": "FlowPrecisionV1::SourceDomainReference"
+        },
+        {
+          "axis": "context",
+          "expression": "ContextPrecisionV1::PerDomainAxis"
+        }
+      ],
+      "disposition": {
+        "kind": "literalFixture",
+        "bindingId": "fixture:sourceDiagnostic.missingClassValueOption"
+      },
+      "reason": "exercisedBy:fixture:sourceDiagnostic.missingClassValueOption"
+    },
+    {
+      "id": "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_unresolved_source_reference_diagnostic:1",
+      "kind": "sourceDiagnosticArgumentSite",
+      "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
+      "function": "summarize_omena_query_unresolved_source_reference_diagnostic",
+      "literals": [
+        {
+          "axis": "value_domain",
+          "expression": "ValueDomainPrecisionV1::ClassValueResolution"
+        },
+        {
+          "axis": "flow",
+          "expression": "FlowPrecisionV1::SourceSelectorReference"
+        }
+      ],
+      "disposition": {
+        "kind": "literalFixture",
+        "bindingId": "observation:missingResolvedClassDomain.precision"
+      },
+      "reason": "exercisedBy:observation:missingResolvedClassDomain.precision"
+    },
+    {
+      "id": "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/dynamic_classname.rs:collect_omena_query_dynamic_classname_m_tier_diagnostics:1",
+      "kind": "sourceDiagnosticArgumentSite",
+      "sourcePath": "rust/crates/omena-query/src/style/dynamic_classname.rs",
+      "function": "collect_omena_query_dynamic_classname_m_tier_diagnostics",
+      "literals": [
+        {
+          "axis": "value_domain",
+          "expression": "ValueDomainPrecisionV1::ClassValueFlow"
+        },
+        {
+          "axis": "flow",
+          "expression": "FlowPrecisionV1::KLimitedCallSiteFlow"
+        }
+      ],
+      "disposition": {
+        "kind": "literalFixture",
+        "bindingId": "observation:analysisPrecision.contextSensitivity"
+      },
+      "reason": "exercisedBy:observation:analysisPrecision.contextSensitivity"
     }
   ],
   "producerGateArms": [
@@ -179,7 +416,7 @@
       "from": "flow: FlowPrecisionV1::from_dataflow_mode(complete_dataflow),",
       "to": "flow: FlowPrecisionV1::IncrementalDataflow,",
       "command": ["pnpm", "exec", "tsx", "scripts/check-rust-precision-floor.ts"],
-      "expectedFailure": "direct literal justification authority"
+      "expectedFailure": "production precision emission point census"
     },
     {
       "id": "query-core-unresolved-provider-count-fold",
@@ -250,6 +487,55 @@
         "--exact"
       ],
       "expectedFailure": "css_modules_interface_unresolved_edges_skip_unused_export_claims"
+    },
+    {
+      "id": "missing-selector-context-drift",
+      "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
+      "from": "FlowPrecisionV1::SourceSyntaxIndex,\n            ContextPrecisionV1::PerSourceReference,",
+      "to": "FlowPrecisionV1::SourceSyntaxIndex,\n            ContextPrecisionV1::ContextInsensitive,",
+      "command": ["pnpm", "exec", "tsx", "scripts/check-rust-precision-floor.ts"],
+      "expectedFailure": "production precision emission point census"
+    },
+    {
+      "id": "self-constructor-census-injection",
+      "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
+      "from": "            revision: RevisionIdentityV1::Unknown,\n        }\n    }\n\n    pub const fn effective_precision(self) -> EffectivePrecisionV1 {",
+      "to": "            revision: RevisionIdentityV1::Unknown,\n        }\n    }\n\n    pub const fn fully_favorable_probe() -> Self {\n        Self {\n            value_domain: ValueDomainPrecisionV1::ExactClassValue,\n            flow: FlowPrecisionV1::RepresentationBound,\n            context: ContextPrecisionV1::ValueLocal,\n            provider_completeness: ProviderCompletenessV1::Complete,\n            world_assumption: WorldAssumptionV1::Closed,\n            revision: RevisionIdentityV1::Current,\n        }\n    }\n\n    pub const fn effective_precision(self) -> EffectivePrecisionV1 {",
+      "command": ["pnpm", "exec", "tsx", "scripts/check-rust-precision-floor.ts"],
+      "expectedFailure": "AnalysisPrecisionV1 Self constructor census"
+    },
+    {
+      "id": "literal-reason-machine-binding",
+      "sourcePath": "rust/omena-precision-floor-authority.json",
+      "from": "\"reason\": \"exercisedBy:fixture:bridge.providerRegistry\"",
+      "to": "\"reason\": \"q\"",
+      "command": ["pnpm", "exec", "tsx", "scripts/check-rust-precision-floor.ts"],
+      "expectedFailure": "literal reason must be machine-bound"
+    },
+    {
+      "id": "favorable-literal-fabricated-reason",
+      "changes": [
+        {
+          "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
+          "from": "value_domain: ValueDomainPrecisionV1::ClassValueFlow,",
+          "to": "value_domain: ValueDomainPrecisionV1::ExactClassValue,"
+        },
+        {
+          "sourcePath": "rust/omena-precision-floor-authority.json",
+          "from": "\"expression\": \"ValueDomainPrecisionV1::ClassValueFlow\"\n        },\n        {\n          \"axis\": \"context\",\n          \"expression\": \"ContextPrecisionV1::PerExpressionGraph\"\n        }\n      ],\n      \"disposition\": {\n        \"kind\": \"literalFixture\",\n        \"bindingId\": \"producerArm:provider.missingTypeFacts\"\n      },\n      \"reason\": \"exercisedBy:producerArm:provider.missingTypeFacts\"",
+          "to": "\"expression\": \"ValueDomainPrecisionV1::ExactClassValue\"\n        },\n        {\n          \"axis\": \"context\",\n          \"expression\": \"ContextPrecisionV1::PerExpressionGraph\"\n        }\n      ],\n      \"disposition\": {\n        \"kind\": \"literalFixture\",\n        \"bindingId\": \"producerArm:provider.missingTypeFacts\"\n      },\n      \"reason\": \"fabricated favorable literal\""
+        }
+      ],
+      "command": ["pnpm", "exec", "tsx", "scripts/check-rust-precision-floor.ts"],
+      "expectedFailure": "literal reason must be machine-bound"
+    },
+    {
+      "id": "literalized-executable-manifest",
+      "sourcePath": "rust/crates/omena-query/src/tests/precision_floor_manifest.rs",
+      "from": "fn observation(output: &str, after: impl Into<String>) -> Value {\n    json!({ \"output\": output, \"after\": after.into() })\n}",
+      "to": "fn observation(output: &str, after: impl Into<String>) -> Value {\n    let _derived = after.into();\n    let after = match output {\n        \"closedSetFiniteReachability.openWorldPrecision\" => \"heuristic\",\n        \"closedSetFiniteReachability.nonEnumeratedPrecision\" => \"heuristic\",\n        \"closedSetFiniteReachability.missingMemberPrecision\" => \"heuristic\",\n        \"cssModulesUnusedExportFlow.safeGhost.precision\" => \"conservative\",\n        \"globalClassFallthrough.precision\" => \"heuristic\",\n        \"missing-module.precision\" => \"unknown\",\n        \"missingResolvedClassDomain.precision\" => \"unknown\",\n        \"sourcePrecisionReference.precision\" => \"unknown\",\n        \"cascadeAtPosition.precision\" => \"exact\",\n        \"closedSetFiniteReachability.emptyInputPrecision\" => \"unknown\",\n        \"cascadeAtPosition.unresolved.precision\" => \"unknown\",\n        \"analysisPrecision.contextSensitivity\" => \"k-cfa\",\n        _ => panic!(\"unregistered literal manifest output: {output}\"),\n    };\n    json!({ \"output\": output, \"after\": after })\n}",
+      "command": ["pnpm", "exec", "tsx", "scripts/check-rust-precision-floor.ts"],
+      "expectedFailure": "challenged executable manifest observation"
     }
   ]
 }

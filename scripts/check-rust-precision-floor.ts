@@ -64,6 +64,11 @@ interface StructLiteralEntry {
   readonly start: number;
 }
 
+interface CallEntry {
+  readonly body: string;
+  readonly start: number;
+}
+
 function structLiteralEntries(source: string, typeName: string): StructLiteralEntry[] {
   const entries: StructLiteralEntry[] = [];
   const pattern = new RegExp(`\\b${typeName}\\s*\\{`, "gu");
@@ -86,6 +91,44 @@ function structLiteralBodies(source: string, typeName: string): string[] {
   return structLiteralEntries(source, typeName).map((entry) => entry.body);
 }
 
+function precisionStructLiteralEntries(source: string): StructLiteralEntry[] {
+  const aliases = new Set(["AnalysisPrecisionV1"]);
+  for (const match of source.matchAll(/\bAnalysisPrecisionV1\s+as\s+([A-Z][A-Za-z0-9_]*)/gu)) {
+    if (match[1] !== undefined) aliases.add(match[1]);
+  }
+  for (const match of source.matchAll(
+    /\btype\s+([A-Z][A-Za-z0-9_]*)\s*=\s*AnalysisPrecisionV1\s*;/gu,
+  )) {
+    if (match[1] !== undefined) aliases.add(match[1]);
+  }
+  return [...aliases].flatMap((typeName) =>
+    structLiteralEntries(source, typeName).filter(({ start }) => {
+      const prefix = source.slice(Math.max(0, start - 32), start);
+      return !/(?:struct|enum|union|impl)\s*$/u.test(prefix) && !/->\s*$/u.test(prefix);
+    }),
+  );
+}
+
+function functionCallEntries(source: string, functionName: string): CallEntry[] {
+  const entries: CallEntry[] = [];
+  const pattern = new RegExp(`\\b${functionName}\\s*\\(`, "gu");
+  for (const match of source.matchAll(pattern)) {
+    const prefix = source.slice(Math.max(0, match.index - 32), match.index);
+    if (/(?:const\s+)?fn\s*$/u.test(prefix)) continue;
+    const open = source.indexOf("(", match.index);
+    let depth = 1;
+    let cursor = open + 1;
+    while (cursor < source.length && depth > 0) {
+      if (source[cursor] === "(") depth += 1;
+      if (source[cursor] === ")") depth -= 1;
+      cursor += 1;
+    }
+    assert.equal(depth, 0, `unterminated ${functionName} call`);
+    entries.push({ body: source.slice(open + 1, cursor - 1), start: match.index });
+  }
+  return entries;
+}
+
 function enclosingFunctionName(source: string, offset: number): string {
   const prefix = source.slice(0, offset);
   const functions = [
@@ -103,8 +146,7 @@ function normalizedExpression(expression: string): string {
   return expression.replaceAll(/\s+/gu, "");
 }
 
-function topLevelFieldExpressions(body: string): ReadonlyMap<string, string> {
-  const fields = new Map<string, string>();
+function topLevelSegments(body: string): string[] {
   let start = 0;
   let round = 0;
   let square = 0;
@@ -128,7 +170,12 @@ function topLevelFieldExpressions(body: string): ReadonlyMap<string, string> {
       start = index + 1;
     }
   }
-  for (const segment of segments) {
+  return segments.filter((segment) => segment.length > 0);
+}
+
+function topLevelFieldExpressions(body: string): ReadonlyMap<string, string> {
+  const fields = new Map<string, string>();
+  for (const segment of topLevelSegments(body)) {
     const match = segment.match(/^([a-z_]+)\s*:\s*([\s\S]+)$/u);
     if (match?.[1] && match[2]) fields.set(match[1], match[2].trim());
   }
@@ -226,11 +273,20 @@ const precisionCalibration = JSON.parse(read("rust/omena-precision-calibration-r
     }[];
   };
 };
-interface DirectLiteralJustification {
-  readonly sourcePath: string;
-  readonly constructor: string;
-  readonly field: string;
+interface PrecisionEmissionLiteral {
+  readonly axis: string;
   readonly expression: string;
+}
+interface PrecisionEmissionPoint {
+  readonly id: string;
+  readonly kind: "analysisPrecisionConstructor" | "sourceDiagnosticArgumentSite";
+  readonly sourcePath: string;
+  readonly function: string;
+  readonly literals: readonly PrecisionEmissionLiteral[];
+  readonly disposition:
+    | { readonly kind: "sweepRow"; readonly output: string }
+    | { readonly kind: "literalFixture"; readonly bindingId: string }
+    | { readonly kind: "gatedExclusion"; readonly probeId: string };
   readonly reason: string;
 }
 interface ProducerGateArm {
@@ -242,19 +298,27 @@ interface ProducerGateArm {
   readonly requiredFloor: string;
   readonly gateOpen: boolean;
 }
+interface MutationChange {
+  readonly sourcePath: string;
+  readonly from: string;
+  readonly to: string;
+}
+interface MutationProbe {
+  readonly id: string;
+  readonly sourcePath?: string;
+  readonly from?: string;
+  readonly to?: string;
+  readonly changes?: readonly MutationChange[];
+  readonly command: readonly string[];
+  readonly expectedFailure: string;
+}
 const precisionAuthority = JSON.parse(read("rust/omena-precision-floor-authority.json")) as {
   readonly schemaVersion: string;
   readonly executableManifestTest: string;
-  readonly directLiteralJustifications: readonly DirectLiteralJustification[];
+  readonly gateRederivationTest: string;
+  readonly precisionEmissionPoints: readonly PrecisionEmissionPoint[];
   readonly producerGateArms: readonly ProducerGateArm[];
-  readonly mutationProbes: readonly {
-    readonly id: string;
-    readonly sourcePath: string;
-    readonly from: string;
-    readonly to: string;
-    readonly command: readonly string[];
-    readonly expectedFailure: string;
-  }[];
+  readonly mutationProbes: readonly MutationProbe[];
 };
 const semverIntent = JSON.parse(read("rust/omena-rust-semver-intent.json")) as {
   readonly intents: readonly {
@@ -313,6 +377,34 @@ for (const [field, axisType] of [
   assert.match(analysisPrecision, new RegExp(`pub ${field}: ${axisType}`, "u"));
 }
 const analysisPrecisionImpl = blockBody(evidenceGraph, "impl AnalysisPrecisionV1");
+const analysisPrecisionSelfConstructors = structLiteralEntries(analysisPrecisionImpl, "Self")
+  .filter(
+    ({ start }) => !/->\s*$/u.test(analysisPrecisionImpl.slice(Math.max(0, start - 16), start)),
+  )
+  .map(({ body, start }) => ({
+    function: enclosingFunctionName(analysisPrecisionImpl, start),
+    fields: topLevelFieldExpressions(body),
+  }));
+assert.equal(
+  analysisPrecisionSelfConstructors.length,
+  1,
+  "AnalysisPrecisionV1 Self constructor census must contain only the canonical unknown floor",
+);
+assert.equal(analysisPrecisionSelfConstructors[0]?.function, "unknown");
+assert.deepEqual(
+  [...(analysisPrecisionSelfConstructors[0]?.fields ?? new Map()).entries()].map(
+    ([axis, expression]) => [axis, normalizedExpression(expression)],
+  ),
+  [
+    ["value_domain", "ValueDomainPrecisionV1::Unknown"],
+    ["flow", "FlowPrecisionV1::Unknown"],
+    ["context", "ContextPrecisionV1::Unknown"],
+    ["provider_completeness", "ProviderCompletenessV1::Unknown"],
+    ["world_assumption", "WorldAssumptionV1::Unknown"],
+    ["revision", "RevisionIdentityV1::Unknown"],
+  ],
+  "the canonical non-emission Self constructor must remain the all-Unknown floor",
+);
 const effectivePrecision = blockBody(
   analysisPrecisionImpl,
   "pub const fn effective_precision(self)",
@@ -377,13 +469,11 @@ const precisionAxisFields = [
   "revision",
 ] as const;
 const analysisPrecisionConstructors = productionPrecisionEntries.flatMap((entry) =>
-  structLiteralEntries(entry.source, "AnalysisPrecisionV1")
-    .map(({ body, start }) => ({
-      sourcePath: entry.relativePath,
-      constructor: enclosingFunctionName(entry.source, start),
-      fields: topLevelFieldExpressions(body),
-    }))
-    .filter((constructor) => constructor.fields.size > 0),
+  precisionStructLiteralEntries(entry.source).map(({ body, start }) => ({
+    sourcePath: entry.relativePath,
+    constructor: enclosingFunctionName(entry.source, start),
+    fields: topLevelFieldExpressions(body),
+  })),
 );
 const analysisPrecisionAxisAssignments = analysisPrecisionConstructors.flatMap((constructor) =>
   precisionAxisFields.flatMap((field) => {
@@ -396,41 +486,124 @@ const typedJustifiedAxisAssignments = analysisPrecisionAxisAssignments.filter(({
     expression,
   ),
 );
-assert.equal(precisionAuthority.schemaVersion, "1");
-const authorizedDirectLiterals = precisionAuthority.directLiteralJustifications.map(
-  ({ sourcePath, constructor, field, expression, reason }) => {
-    assert.ok(reason.trim().length > 0, `${sourcePath}:${constructor}.${field} needs a reason`);
-    return {
+const sourceDiagnosticArgumentSites = productionPrecisionEntries.flatMap((entry) =>
+  functionCallEntries(entry.source, "source_diagnostic_precision").map(({ body, start }) => ({
+    sourcePath: entry.relativePath,
+    function: enclosingFunctionName(entry.source, start),
+    arguments: topLevelSegments(body),
+  })),
+);
+assert.equal(
+  analysisPrecisionConstructors.length,
+  7,
+  `production constructor census drifted: ${JSON.stringify(
+    analysisPrecisionConstructors.map(({ sourcePath, constructor }) => ({
       sourcePath,
       constructor,
-      field,
-      expression: normalizedExpression(expression),
-    };
-  },
+    })),
+  )}`,
 );
-const discoveredDirectLiterals = typedJustifiedAxisAssignments.map(
-  ({ sourcePath, constructor, field, expression }) => ({
+assert.equal(
+  sourceDiagnosticArgumentSites.length,
+  8,
+  "source diagnostic argument-site census drifted",
+);
+
+function isTypedAxisLiteral(expression: string): boolean {
+  return /^(?:(?:[a-z_][A-Za-z0-9_]*|crate|super)::)*(?:ValueDomainPrecisionV1|FlowPrecisionV1|ContextPrecisionV1|ProviderCompletenessV1|WorldAssumptionV1|RevisionIdentityV1)::[A-Z][A-Za-z0-9]*$/u.test(
+    normalizedExpression(expression),
+  );
+}
+
+const pointOrdinals = new Map<string, number>();
+function emissionPointId(
+  kind: PrecisionEmissionPoint["kind"],
+  sourcePath: string,
+  functionName: string,
+): string {
+  const base = `${kind}:${sourcePath}:${functionName}`;
+  const ordinal = (pointOrdinals.get(base) ?? 0) + 1;
+  pointOrdinals.set(base, ordinal);
+  return `${base}:${ordinal}`;
+}
+
+const discoveredPrecisionEmissionPoints = [
+  ...analysisPrecisionConstructors.map(({ sourcePath, constructor, fields }) => ({
+    id: emissionPointId("analysisPrecisionConstructor", sourcePath, constructor),
+    kind: "analysisPrecisionConstructor" as const,
     sourcePath,
-    constructor,
-    field,
-    expression: normalizedExpression(expression),
-  }),
-);
-const directLiteralSort = (entry: {
+    function: constructor,
+    literals: precisionAxisFields.flatMap((axis) => {
+      const expression = fields.get(axis);
+      return expression !== undefined && isTypedAxisLiteral(expression)
+        ? [{ axis, expression: normalizedExpression(expression) }]
+        : [];
+    }),
+  })),
+  ...sourceDiagnosticArgumentSites.map(
+    ({ sourcePath, function: functionName, arguments: args }) => ({
+      id: emissionPointId("sourceDiagnosticArgumentSite", sourcePath, functionName),
+      kind: "sourceDiagnosticArgumentSite" as const,
+      sourcePath,
+      function: functionName,
+      literals: ["value_domain", "flow", "context"].flatMap((axis, index) => {
+        const expression = args[index];
+        return expression !== undefined && isTypedAxisLiteral(expression)
+          ? [{ axis, expression: normalizedExpression(expression) }]
+          : [];
+      }),
+    }),
+  ),
+];
+assert.equal(discoveredPrecisionEmissionPoints.length, 15);
+assert.equal(precisionAuthority.schemaVersion, "2");
+const canonicalEmissionPoint = (point: {
+  readonly id: string;
+  readonly kind: PrecisionEmissionPoint["kind"];
   readonly sourcePath: string;
-  readonly constructor: string;
-  readonly field: string;
-  readonly expression: string;
-}) => `${entry.sourcePath}\u0000${entry.constructor}\u0000${entry.field}\u0000${entry.expression}`;
+  readonly function: string;
+  readonly literals: readonly PrecisionEmissionLiteral[];
+}) => ({
+  id: point.id,
+  kind: point.kind,
+  sourcePath: point.sourcePath,
+  function: point.function,
+  literals: point.literals.map(({ axis, expression }) => ({
+    axis,
+    expression: normalizedExpression(expression),
+  })),
+});
 assert.deepEqual(
-  discoveredDirectLiterals.toSorted((left, right) =>
-    directLiteralSort(left).localeCompare(directLiteralSort(right)),
-  ),
-  authorizedDirectLiterals.toSorted((left, right) =>
-    directLiteralSort(left).localeCompare(directLiteralSort(right)),
-  ),
-  "production direct literal assignments must have a bijective direct literal justification authority",
+  discoveredPrecisionEmissionPoints
+    .map(canonicalEmissionPoint)
+    .toSorted((left, right) => left.id.localeCompare(right.id)),
+  precisionAuthority.precisionEmissionPoints
+    .map(canonicalEmissionPoint)
+    .toSorted((left, right) => left.id.localeCompare(right.id)),
+  "production precision emission point census must be a bijective authority",
 );
+for (const point of precisionAuthority.precisionEmissionPoints) {
+  if (point.disposition.kind === "sweepRow") {
+    assert.equal(
+      point.reason,
+      `coveredBySweep:${point.disposition.output}`,
+      `${point.id} sweep reason must be machine-bound`,
+    );
+  } else if (point.disposition.kind === "literalFixture") {
+    assert.ok(point.literals.length > 0, `${point.id} literal row must bind a typed literal`);
+    assert.equal(
+      point.reason,
+      `exercisedBy:${point.disposition.bindingId}`,
+      `${point.id} literal reason must be machine-bound`,
+    );
+  } else {
+    assert.equal(
+      point.reason,
+      `guardedBy:${point.disposition.probeId}`,
+      `${point.id} exclusion reason must be machine-bound`,
+    );
+  }
+}
 const derivedAxisAssignments = analysisPrecisionAxisAssignments.filter(
   (assignment) => !typedJustifiedAxisAssignments.includes(assignment),
 );
@@ -665,56 +838,93 @@ assert.equal(
   precisionAuthority.mutationProbes.length,
   "precision mutation probe ids must be unique",
 );
-for (const probe of precisionAuthority.mutationProbes) {
-  const source = read(probe.sourcePath);
-  if (process.env.OMENA_PRECISION_MUTATION_PROBE === probe.id) {
-    assert.ok(source.includes(probe.to), `${probe.id} active mutation must be present`);
-  } else {
-    assert.equal(
-      source.split(probe.from).length - 1,
-      1,
-      `${probe.id} mutation source must match exactly once`,
-    );
+function mutationChanges(probe: MutationProbe): readonly MutationChange[] {
+  if (probe.changes !== undefined) {
+    assert.ok(probe.changes.length > 0, `${probe.id} must mutate at least one source`);
+    return probe.changes;
   }
-  assert.notEqual(probe.from, probe.to, `${probe.id} mutation must change its source`);
+  assert.ok(
+    probe.sourcePath !== undefined && probe.from !== undefined && probe.to !== undefined,
+    `${probe.id} must declare one source mutation or a changes list`,
+  );
+  return [{ sourcePath: probe.sourcePath, from: probe.from, to: probe.to }];
+}
+for (const probe of precisionAuthority.mutationProbes) {
+  for (const change of mutationChanges(probe)) {
+    const source = read(change.sourcePath);
+    if (process.env.OMENA_PRECISION_MUTATION_PROBE === probe.id) {
+      assert.ok(source.includes(change.to), `${probe.id} active mutation must be present`);
+    } else {
+      assert.equal(
+        source.split(change.from).length - 1,
+        1,
+        `${probe.id} mutation source must match exactly once`,
+      );
+    }
+    assert.notEqual(change.from, change.to, `${probe.id} mutation must change its source`);
+  }
   assert.ok(probe.command.length > 0, `${probe.id} mutation command must be executable`);
   assert.ok(probe.expectedFailure.length > 0, `${probe.id} must bind an expected failure`);
 }
 
-const executableManifestRun = spawnSync(
-  "cargo",
-  [
-    "test",
-    "--manifest-path",
-    "rust/Cargo.toml",
-    "-p",
-    "omena-query",
-    precisionAuthority.executableManifestTest,
-    "--",
-    "--exact",
-    "--nocapture",
-  ],
-  { cwd: repoRoot, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
-);
-const executableManifestTranscript = `${executableManifestRun.stdout ?? ""}\n${executableManifestRun.stderr ?? ""}`;
-assert.equal(
-  executableManifestRun.status,
-  0,
-  `executable precision manifest failed:\n${executableManifestTranscript}`,
-);
+const mutationProbeIds = new Set(precisionAuthority.mutationProbes.map((probe) => probe.id));
+const sweepOutputs = new Set(precisionSweepRows.map((row) => row.output));
+for (const point of precisionAuthority.precisionEmissionPoints) {
+  if (point.disposition.kind === "sweepRow") {
+    assert.ok(
+      sweepOutputs.has(point.disposition.output),
+      `${point.id} must name an existing sweep row`,
+    );
+  }
+  if (point.disposition.kind === "gatedExclusion") {
+    assert.ok(
+      mutationProbeIds.has(point.disposition.probeId),
+      `${point.id} must name a registered gated exclusion`,
+    );
+  }
+}
+
 const executableManifestPrefix = "OMENA_PRECISION_FLOOR_EXECUTABLE_MANIFEST=";
-const executableManifestLines = executableManifestTranscript
-  .split(/\r?\n/gu)
-  .filter((line) => line.startsWith(executableManifestPrefix));
-assert.equal(executableManifestLines.length, 1, "the executable precision manifest must emit once");
-const executableManifest = JSON.parse(
-  executableManifestLines[0]!.slice(executableManifestPrefix.length),
-) as {
+interface ExecutableManifest {
   readonly schemaVersion: string;
   readonly test: string;
   readonly observations: readonly { readonly output: string; readonly after: string }[];
   readonly producerGateArms: readonly ProducerGateArm[];
-};
+  readonly fixtures: readonly { readonly id: string; readonly observed: string }[];
+}
+function runExecutableManifest(
+  extraEnvironment: Readonly<Record<string, string>> = {},
+): ExecutableManifest {
+  const run = spawnSync(
+    "cargo",
+    [
+      "test",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "omena-query",
+      precisionAuthority.executableManifestTest,
+      "--",
+      "--exact",
+      "--nocapture",
+    ],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      maxBuffer: 16 * 1024 * 1024,
+      env: { ...process.env, ...extraEnvironment },
+    },
+  );
+  const transcript = `${run.stdout ?? ""}\n${run.stderr ?? ""}`;
+  assert.equal(run.status, 0, `executable precision manifest failed:\n${transcript}`);
+  const lines = transcript
+    .split(/\r?\n/gu)
+    .filter((line) => line.startsWith(executableManifestPrefix));
+  assert.equal(lines.length, 1, "the executable precision manifest must emit once");
+  return JSON.parse(lines[0]!.slice(executableManifestPrefix.length)) as ExecutableManifest;
+}
+
+const executableManifest = runExecutableManifest();
 assert.equal(executableManifest.schemaVersion, "1");
 assert.equal(executableManifest.test, precisionAuthority.executableManifestTest);
 assert.deepEqual(
@@ -734,6 +944,24 @@ const rowsByOutput = new Map(precisionSweepRows.map((row) => [row.output, row]))
 const executableByOutput = new Map(
   executableManifest.observations.map((observation) => [observation.output, observation.after]),
 );
+assert.equal(
+  new Set(executableManifest.fixtures.map((fixture) => fixture.id)).size,
+  executableManifest.fixtures.length,
+  "executable fixture ids must be unique",
+);
+const executableBindingIds = new Set([
+  ...executableManifest.observations.map((observation) => `observation:${observation.output}`),
+  ...executableManifest.producerGateArms.map((arm) => `producerArm:${arm.id}`),
+  ...executableManifest.fixtures.map((fixture) => `fixture:${fixture.id}`),
+]);
+for (const point of precisionAuthority.precisionEmissionPoints) {
+  if (point.disposition.kind === "literalFixture") {
+    assert.ok(
+      executableBindingIds.has(point.disposition.bindingId),
+      `${point.id} must name an executed arm or fixture`,
+    );
+  }
+}
 const exactObservationKeys = [...rowsByOutput.keys()].toSorted();
 assert.deepEqual(
   [...baselineByOutput.keys()].toSorted(),
@@ -757,6 +985,53 @@ for (const [output, row] of rowsByOutput) {
     `${output} executable observation changed without a matching disclosure row`,
   );
 }
+
+const challengeEnvironment = { OMENA_PRECISION_FLOOR_CONTEXT_DEPTH: "0" };
+const challengedManifest = runExecutableManifest(challengeEnvironment);
+const challengedManifestObservation = challengedManifest.observations.find(
+  (observation) => observation.output === "analysisPrecision.contextSensitivity",
+);
+assert.ok(challengedManifestObservation !== undefined);
+const gateRederivationRun = spawnSync(
+  "cargo",
+  [
+    "test",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "omena-query",
+    precisionAuthority.gateRederivationTest,
+    "--",
+    "--exact",
+    "--nocapture",
+  ],
+  {
+    cwd: repoRoot,
+    encoding: "utf8",
+    maxBuffer: 16 * 1024 * 1024,
+    env: { ...process.env, ...challengeEnvironment },
+  },
+);
+const gateRederivationTranscript = `${gateRederivationRun.stdout ?? ""}\n${gateRederivationRun.stderr ?? ""}`;
+assert.equal(
+  gateRederivationRun.status,
+  0,
+  `precision gate re-derivation failed:\n${gateRederivationTranscript}`,
+);
+const gateRederivationPrefix = "OMENA_PRECISION_FLOOR_GATE_REDERIVATION=";
+const gateRederivationLines = gateRederivationTranscript
+  .split(/\r?\n/gu)
+  .filter((line) => line.startsWith(gateRederivationPrefix));
+assert.equal(gateRederivationLines.length, 1, "the gate re-derivation must emit once");
+const gateRederivation = JSON.parse(
+  gateRederivationLines[0]!.slice(gateRederivationPrefix.length),
+) as { readonly output: string; readonly after: string };
+assert.equal(gateRederivation.output, challengedManifestObservation.output);
+assert.equal(
+  gateRederivation.after,
+  challengedManifestObservation.after,
+  "challenged executable manifest observation must equal the gate's independent fixture re-derivation",
+);
 const sweptPrecisionChanges = precisionSweepRows
   .filter(
     (row) => row.before !== row.after && row.output !== "analysisPrecision.contextSensitivity",
@@ -876,6 +1151,8 @@ process.stdout.write(
       typedAxisProducerCount: executableManifest.producerGateArms.length,
       precisionConsumerCrateCount: precisionConsumerCrates.length,
       analysisPrecisionConstructorCount: analysisPrecisionConstructors.length,
+      sourceDiagnosticArgumentSiteCount: sourceDiagnosticArgumentSites.length,
+      precisionEmissionPointCount: discoveredPrecisionEmissionPoints.length,
       productionAxisAssignmentCount: analysisPrecisionAxisAssignments.length,
       typedJustifiedAxisAssignmentCount: typedJustifiedAxisAssignments.length,
       derivedAxisAssignmentCount: derivedAxisAssignments.length,
@@ -886,6 +1163,8 @@ process.stdout.write(
       producerToClosedGateAxisArms: executableManifest.producerGateArms.length,
       disclosedPrecisionLabelDropCount: precisionLabelDrops.length,
       executableDifferentialObservationCount: executableManifest.observations.length,
+      executablePrecisionFixtureCount: executableManifest.fixtures.length,
+      independentlyRederivedObservationCount: 1,
       registeredSourceMutationProbeCount: precisionAuthority.mutationProbes.length,
       differentialSweepRowCount: precisionSweepRows.length,
       differentialSweepChangedRowCount: precisionSweepRows.filter((row) => row.before !== row.after)

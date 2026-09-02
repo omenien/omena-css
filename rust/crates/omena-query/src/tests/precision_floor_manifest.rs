@@ -2,7 +2,9 @@ use super::dynamic_classname::dynamic_classname_input;
 use super::*;
 use crate::{
     AbstractClassValueV0, AnalysisPrecisionV1, FactPrecision, OmenaQueryAnalysisPrecisionV0,
-    OmenaQuerySourceDocumentInputV0, OmenaQueryStyleSourceInputV0, ParserPositionV0, ParserRangeV0,
+    OmenaQuerySourceDocumentInputV0, OmenaQuerySourceImportedStyleBindingV0,
+    OmenaQuerySourceSyntaxIndexV0, OmenaQuerySourceTypeFactProviderUnavailableFactV0,
+    OmenaQueryStyleSourceInputV0, ParserByteSpanV0, ParserPositionV0, ParserRangeV0,
     RevisionIdentityV1, analysis_precision_from_class_value,
     read_omena_query_cascade_at_position_analysis_result,
     resolve_omena_query_source_precision_for_source,
@@ -10,8 +12,11 @@ use crate::{
     summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth,
     summarize_omena_query_evaluation_runtime,
     summarize_omena_query_global_class_fallthrough_diagnostic,
+    summarize_omena_query_missing_selector_diagnostic,
     summarize_omena_query_source_diagnostics_for_workspace_file,
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index,
 };
+use omena_bridge::StyleIntelligenceProvider;
 use serde::Serialize;
 use serde_json::{Value, json};
 
@@ -31,6 +36,27 @@ fn observation(output: &str, after: impl Into<String>) -> Value {
     json!({ "output": output, "after": after.into() })
 }
 
+fn fixture(id: &str, observed: impl Into<String>) -> Value {
+    json!({ "id": id, "observed": observed.into() })
+}
+
+fn challenged_context_observation() -> Result<String, String> {
+    let context_depth = std::env::var("OMENA_PRECISION_FLOOR_CONTEXT_DEPTH")
+        .ok()
+        .map(|value| value.parse::<usize>().map_err(|error| error.to_string()))
+        .transpose()?
+        .unwrap_or(2);
+    let report = summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth(
+        &dynamic_classname_input(context_depth),
+    );
+    let precision = report
+        .diagnostics
+        .first()
+        .and_then(|diagnostic| diagnostic.precision.as_ref())
+        .ok_or_else(|| "challenged context fixture must produce a diagnostic".to_string())?;
+    wire(precision.axes.context)
+}
+
 fn producer_arm(
     id: &str,
     axis: &str,
@@ -47,6 +73,19 @@ fn producer_arm(
         "requiredFloor": FactPrecision::Conservative.describe(),
         "gateOpen": precision.satisfies(FactPrecision::Conservative),
     })
+}
+
+#[test]
+fn precision_floor_gate_rederives_challenged_context_observation() -> Result<(), String> {
+    let after = challenged_context_observation()?;
+    println!(
+        "OMENA_PRECISION_FLOOR_GATE_REDERIVATION={}",
+        json!({
+            "output": "analysisPrecision.contextSensitivity",
+            "after": after,
+        })
+    );
+    Ok(())
 }
 
 #[test]
@@ -89,21 +128,32 @@ export const App = () => <div className={styles.composed} />;"#
         .find(|diagnostic| diagnostic.export_name == "ghost")
         .ok_or_else(|| "safe ghost diagnostic must exist".to_string())?;
 
+    let source_reference_range = ParserRangeV0 {
+        start: ParserPositionV0 {
+            line: 0,
+            character: 0,
+        },
+        end: ParserPositionV0 {
+            line: 0,
+            character: 11,
+        },
+    };
+    let missing_selector = summarize_omena_query_missing_selector_diagnostic(
+        "file:///workspace/App.module.css",
+        ".local {}",
+        "missing",
+        source_reference_range,
+    );
+    let missing_selector_precision = missing_selector
+        .precision
+        .as_ref()
+        .ok_or_else(|| "missing selector precision must exist".to_string())?;
     let global = summarize_omena_query_global_class_fallthrough_diagnostic(
         "global-only",
         "file:///workspace/global.css",
         "file:///workspace/App.module.css",
         ".local {}",
-        ParserRangeV0 {
-            start: ParserPositionV0 {
-                line: 0,
-                character: 0,
-            },
-            end: ParserPositionV0 {
-                line: 0,
-                character: 11,
-            },
-        },
+        source_reference_range,
     );
     let global_precision = global
         .precision
@@ -128,6 +178,73 @@ export function App({ suffix }) {
         }],
         &[],
     );
+    let recipe_report = summarize_omena_query_source_diagnostics_for_workspace_file(
+        "/workspace/src/Recipe.tsx",
+        r#"import { cva } from "class-variance-authority";
+const button = cva("btn", { variants: { intent: { primary: "btn-primary" } } });
+button({ intent: "ghost" });"#,
+        &[],
+        &[],
+    );
+    let recipe_precision = recipe_report
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "missingClassValueOption")
+        .and_then(|diagnostic| diagnostic.precision.as_ref())
+        .ok_or_else(|| "recipe option precision must exist".to_string())?;
+
+    let provider_source = "const className = cx(size);";
+    let provider_size_start = provider_source.find("size").unwrap_or_default();
+    let provider_style_uri = "/workspace/src/App.module.scss";
+    let provider_report =
+        summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index(
+            "/workspace/src/Provider.tsx",
+            provider_source,
+            &OmenaQuerySourceSyntaxIndexV0 {
+                schema_version: "0",
+                product: "omena-bridge.source-syntax-index",
+                imported_style_bindings: vec![OmenaQuerySourceImportedStyleBindingV0 {
+                    binding: "styles".to_string(),
+                    style_uri: provider_style_uri.to_string(),
+                }],
+                class_string_literals: Vec::new(),
+                style_property_accesses: Vec::new(),
+                inline_style_declarations: Vec::new(),
+                selector_references: Vec::new(),
+                type_fact_targets: Vec::new(),
+                type_fact_target_skipped: Vec::new(),
+                type_fact_target_skipped_count: 0,
+                type_fact_provider_unavailable: vec![
+                    OmenaQuerySourceTypeFactProviderUnavailableFactV0 {
+                        byte_span: ParserByteSpanV0 {
+                            start: provider_size_start,
+                            end: provider_size_start + "size".len(),
+                        },
+                        expression_id: "expr-size".to_string(),
+                        target_style_uri: Some(provider_style_uri.to_string()),
+                        provider_id: "tsgo",
+                        reason: "unresolvable",
+                    },
+                ],
+                class_value_universes: Vec::new(),
+                domain_class_references: Vec::new(),
+                source_elements: Vec::new(),
+                element_parent_edges: Vec::new(),
+            },
+            &[OmenaQueryStyleSourceInputV0 {
+                style_path: provider_style_uri.to_string(),
+                style_source: ".small {}".to_string(),
+            }],
+        );
+    let provider_precision = provider_report
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "unknownClassValueDomain")
+        .and_then(|diagnostic| diagnostic.precision.as_ref())
+        .ok_or_else(|| "provider-unavailable precision must exist".to_string())?;
+    let bridge_provider =
+        omena_bridge::built_in_style_intelligence_provider("tailwind-uno-utility-domain")
+            .ok_or_else(|| "bridge precision provider must exist".to_string())?;
     let source_precision = |code: &str| -> Result<FactPrecision, String> {
         let precision = source_report
             .diagnostics
@@ -231,6 +348,7 @@ export function App({ suffix }) {
         ..first_revision.precision.axes
     };
     let stale_effective = omena_query_core::fact_precision_from_precision_axes(&stale_axes);
+    let challenged_context_after = challenged_context_observation()?;
 
     let observations = vec![
         observation(
@@ -279,7 +397,26 @@ export function App({ suffix }) {
         ),
         observation(
             "analysisPrecision.contextSensitivity",
-            wire(two_cfa_precision.axes.context)?,
+            challenged_context_after,
+        ),
+    ];
+
+    let fixtures = vec![
+        fixture(
+            "bridge.providerRegistry",
+            bridge_provider.metadata().precision.describe(),
+        ),
+        fixture(
+            "sourceDiagnostic.missingSelector",
+            effective(missing_selector_precision).describe(),
+        ),
+        fixture(
+            "sourceDiagnostic.providerUnavailable",
+            effective(provider_precision).describe(),
+        ),
+        fixture(
+            "sourceDiagnostic.missingClassValueOption",
+            effective(recipe_precision).describe(),
         ),
     ];
 
@@ -333,6 +470,7 @@ export function App({ suffix }) {
         "test": "tests::precision_floor_manifest::precision_floor_executable_manifest_from_real_product_fixtures",
         "observations": observations,
         "producerGateArms": producer_gate_arms,
+        "fixtures": fixtures,
     });
     println!("OMENA_PRECISION_FLOOR_EXECUTABLE_MANIFEST={manifest}");
     Ok(())
