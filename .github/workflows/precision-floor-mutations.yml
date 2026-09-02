@@ -17,4 +17,4 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
-      - run: pnpm exec tsx scripts/check-rust-precision-floor-mutation.ts --all
+      - run: pnpm omena-check run rust/precision-floor-mutations

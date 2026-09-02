@@ -790,6 +790,17 @@ export const DECLARED_CHECK_GATES = [
     ciTier: "rust-workspace",
     ciGroup: "rust-workspace",
   },
+  {
+    id: "rust/precision-floor-mutations",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "check:rust-precision-floor-mutations",
+    tags: ["precision", "mutation", "manual"],
+    ciTier: "manual",
+    ciReason:
+      "The complete mutation corpus is a manual diagnostic lane; the blocking precision-floor gate independently re-derives a challenged fixture on every push.",
+    timeoutMinutes: 20,
+  },
   declaredClosurePackageGate("rust/omena-cascade/boundary", "bundle", "rust", 25),
   declaredClosurePackageGate("rust/omena-diff-test-core", "bundle", "rust"),
   declaredClosurePackageGate("rust/omena-diff-test-wpt", "bundle", "rust"),
