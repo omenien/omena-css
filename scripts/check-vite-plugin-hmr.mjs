@@ -13,6 +13,7 @@ const ROOT_TOKEN_SHAPE = /^_[A-Za-z0-9_-]{6}_root$/u;
 async function main() {
   await runHookConvergenceGate();
   await runBrowserDevHmrGate();
+  await runExamplesTransitiveClosureGate();
 }
 
 async function runHookConvergenceGate() {
@@ -262,6 +263,101 @@ async function runBrowserDevHmrGate() {
     }
     await server?.close();
     fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+async function runExamplesTransitiveClosureGate() {
+  const examplesRoot = path.join(process.cwd(), "examples");
+  const stylePath = path.join(examplesRoot, "src/hmr-closure/Closure.module.scss");
+  const initialSource = fs.readFileSync(stylePath, "utf8");
+  const warnings = [];
+  let server;
+  let chrome;
+  let page;
+
+  try {
+    const chromePath = findChromeBinary();
+    if (!chromePath) {
+      throw new Error(
+        "Chrome/Chromium executable not found. Set CHROME_BIN to run the Vite HMR gate.",
+      );
+    }
+    server = await createServer({
+      root: examplesRoot,
+      configFile: path.join(examplesRoot, "vite.config.ts"),
+      logLevel: "silent",
+      server: {
+        host: "127.0.0.1",
+        port: 0,
+      },
+    });
+    await server.listen();
+    const address = server.httpServer.address();
+    const url = `http://127.0.0.1:${address.port}/`;
+
+    chrome = await launchChrome(chromePath, examplesRoot);
+    page = await openCdpPage(chrome.debugPort);
+    const browserDiagnostics = collectBrowserDiagnostics(page);
+    await navigateCdpPage(page, url);
+    await waitForValue(
+      () =>
+        evaluate(
+          page,
+          `typeof window.__readOmenaHmrClosure === "function" ? window.__readOmenaHmrClosure() : null`,
+        ),
+      (value) => typeof value === "string" && ROOT_TOKEN_SHAPE.test(value),
+      10_000,
+    );
+
+    const omenaPlugin = server.config.plugins.find(({ name }) => name === "omena-css");
+    const hotUpdateHook = omenaPlugin?.handleHotUpdate;
+    const handleHotUpdate =
+      typeof hotUpdateHook === "function" ? hotUpdateHook : hotUpdateHook?.handler;
+    if (typeof handleHotUpdate !== "function") {
+      throw new Error("Examples Vite config did not expose the Omena hot-update hook.");
+    }
+    await server.watcher.unwatch(stylePath);
+    fs.writeFileSync(stylePath, `${initialSource}\n.added {\n  display: block;\n}\n`, "utf8");
+    const invalidated = await handleHotUpdate.call(
+      {
+        addWatchFile() {},
+        warn(message) {
+          warnings.push(message);
+        },
+      },
+      {
+        file: stylePath,
+        modules: [...(server.moduleGraph.getModulesByFile(stylePath) ?? [])],
+        server,
+      },
+    );
+    const invalidatedIds = (invalidated ?? []).map(({ id }) => id ?? "");
+    const requiredImporterSuffixes = [
+      "/src/hmr-closure/leaf.ts",
+      "/src/hmr-closure/middle.ts",
+      "/src/main.tsx",
+    ];
+    const missingImporters = requiredImporterSuffixes.filter(
+      (suffix) => !invalidatedIds.some((id) => id.split("?", 1)[0].endsWith(suffix)),
+    );
+    if (missingImporters.length > 0) {
+      throw new Error(
+        `Examples HMR shape change missed transitive importers ${missingImporters.join(", ")}; invalidated=${JSON.stringify(invalidatedIds)}`,
+      );
+    }
+    if (warnings.length > 0 || browserDiagnostics.length > 0) {
+      throw new Error(
+        `Examples HMR closure emitted diagnostics: ${[...warnings, ...browserDiagnostics].join(" | ")}`,
+      );
+    }
+  } finally {
+    fs.writeFileSync(stylePath, initialSource, "utf8");
+    page?.close();
+    if (chrome) {
+      await stopChrome(chrome.process);
+      fs.rmSync(chrome.userDataDir, { recursive: true, force: true });
+    }
+    await server?.close();
   }
 }
 

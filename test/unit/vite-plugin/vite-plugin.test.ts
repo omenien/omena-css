@@ -539,6 +539,59 @@ describe("@omena/vite-plugin", () => {
     expect(invalidateModule).toHaveBeenCalledWith(runtimeImporter);
   });
 
+  it("invalidates the transitive runtime importer closure on shape changes", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-export-closure-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "Button.module.css");
+    fs.writeFileSync(stylePath, ".used { color: red; }");
+    const thirdHop = { id: path.join(root, "entry.ts") };
+    const secondHop = { id: path.join(root, "middle.ts"), importers: new Set([thirdHop]) };
+    const firstHop = { id: path.join(root, "leaf.ts"), importers: new Set([secondHop]) };
+    const runtimeModule = { id: "runtime", importers: new Set([firstHop]) };
+    const invalidateModule = vi.fn();
+    const engine = {
+      ...bundlerHostMock((request) => {
+        const source = request.styleSources[0]?.styleSource ?? "";
+        return source.includes("shape")
+          ? { used: "_used_red", added: "_added_0" }
+          : { used: "_used_red" };
+      }),
+      summarizeTransformBundleFromSourceJson: () =>
+        JSON.stringify({ plannedPassIds: ["class-name-rewrite"] }),
+      buildStyleSourcesWithContextJson: (_targetPath: string, sourcesJson: string) => {
+        const [source] = JSON.parse(sourcesJson) as BuildSource[];
+        return JSON.stringify({
+          execution: { outputCss: source!.styleSource, executedPassIds: ["class-name-rewrite"] },
+          sourceMapV3: { version: 3, sources: [stylePath], names: [], mappings: "AAAA" },
+        });
+      },
+    };
+    const plugin = omenaCss({ cwd: root, engine, configFile: false });
+    plugin.configResolved({ root, command: "serve" });
+    const runtimeId = await plugin.resolveId(stylePath);
+    await plugin.load(runtimeId!);
+    fs.writeFileSync(stylePath, ".used { color: shape; } .added { display: block; }");
+
+    const invalidated = await plugin.handleHotUpdate({
+      file: stylePath,
+      modules: [],
+      server: {
+        moduleGraph: {
+          getModuleById: () => runtimeModule,
+          invalidateModule,
+        },
+      },
+    });
+
+    expect(invalidated).toEqual([runtimeModule, firstHop, secondHop, thirdHop]);
+    expect(invalidateModule.mock.calls.map(([module]) => module)).toEqual([
+      runtimeModule,
+      firstHop,
+      secondHop,
+      thirdHop,
+    ]);
+  });
+
   it("exposes colliding class and value exports through distinct runtime families", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-export-families-"));
     tempRoots.push(root);

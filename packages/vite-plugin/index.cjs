@@ -432,9 +432,17 @@ function reportBundlerHostDiagnostics(context, output, pluginName) {
 
 function collectAffectedRuntimeModules(runtimeModule) {
   if (!runtimeModule) return [];
-  const affected = [runtimeModule];
-  for (const importer of runtimeModule.importers ?? []) {
-    if (!affected.includes(importer)) affected.push(importer);
+  const affected = [];
+  const pending = [runtimeModule];
+  const seen = new Set();
+  while (pending.length > 0) {
+    const current = pending.shift();
+    if (!current || seen.has(current)) continue;
+    seen.add(current);
+    affected.push(current);
+    for (const importer of current.importers ?? []) {
+      if (!seen.has(importer)) pending.push(importer);
+    }
   }
   return affected;
 }
