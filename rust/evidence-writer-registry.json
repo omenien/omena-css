@@ -4717,7 +4717,7 @@
         "scripts/check-rust-precision-floor-mutation.ts",
         "scripts/check-rust-precision-floor.ts"
       ],
-      "consumerGateIds": ["rust/precision-floor"]
+      "consumerGateIds": ["rust/precision-floor", "rust/precision-floor-mutations"]
     },
     {
       "artifactPath": "rust/omena-precision-witness-census.json",
