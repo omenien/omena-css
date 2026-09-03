@@ -30,9 +30,15 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/setup-rust-pinned
+        with:
+          targets: wasm32-unknown-unknown
       - uses: ./.github/actions/cache-rust
         with:
           shared-key: release-rehearsal
+      - uses: ./.github/actions/setup-wasm-pack
+      - uses: ./.github/actions/install-rust-api-tools
+        with:
+          tool: cargo-public-api@0.52.0
       - name: Rehearse crate train dry path
         run: pnpm omena-check run release/rehearsal/crate-dry-run
       - name: Render latest published release notes
