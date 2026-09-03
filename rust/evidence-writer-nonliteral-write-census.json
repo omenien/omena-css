@@ -461,7 +461,7 @@
     {
       "fingerprint": "2aad501b53f1e1de0e19f37f1b6ff20114bf7d536c77c59260ed7844d1a5bc92",
       "writerScript": "scripts/check-js-bundler-host-parity.ts",
-      "line": 447,
+      "line": 429,
       "writeApi": "writeFileSync",
       "writeExpression": "consumerPath",
       "disposition": "outside-registry-writer"
@@ -2245,7 +2245,7 @@
     {
       "fingerprint": "13da20d3650d634fd4f39646d89a689fc937f4edae63da33a0dbfeab756802e2",
       "writerScript": "scripts/check-vite-plugin-smoke.mjs",
-      "line": 82,
+      "line": 71,
       "writeApi": "writeFileSync",
       "writeExpression": "stylePath",
       "disposition": "outside-registry-writer"
