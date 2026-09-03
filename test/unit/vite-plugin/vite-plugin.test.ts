@@ -578,10 +578,8 @@ describe("@omena/vite-plugin", () => {
     expect(measured).toEqual(readPublishedVirtualSourceAdmissionCensus());
   });
 
-  const diskByteBaseline = process.env.OMENA_VITE_DISK_BYTE_BASELINE;
-  const diskByteIdentityTest = diskByteBaseline ? it : it.skip;
-  diskByteIdentityTest("preserves disk-backed output bytes across git pins", async () => {
-    const baseline = resolveCommit(diskByteBaseline!);
+  it("preserves disk-backed output bytes across git pins", async () => {
+    const baseline = resolveCommit("14047e6cbc043cdce78b8850ac2c4eea81ad61da");
     const current = resolveCommit("HEAD");
     const baselineFiles = listStyleModulesAt(baseline);
     const currentFiles = listStyleModulesAt(current);
@@ -621,7 +619,7 @@ describe("@omena/vite-plugin", () => {
     process.stdout.write(
       `Vite disk-backed byte identity: compared=${baselineFiles.length} identical=${baselineFiles.length} engineClasses=2 added=${added.length} removed=${removed.length} baseline=${baseline} current=${current}\n`,
     );
-  });
+  }, 10_000);
 
   it("classifies semantic export deltas into three hot-update decisions", () => {
     expect(classifyCssModuleExportDelta({ root: "_root_0" }, { root: "_root_0" })).toBe(

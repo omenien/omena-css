@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -107,30 +106,4 @@ try {
   }
 } finally {
   fs.rmSync(tempRoot, { recursive: true, force: true });
-}
-
-const byteIdentity = spawnSync(
-  process.execPath,
-  [
-    path.join(process.cwd(), "node_modules/vitest/vitest.mjs"),
-    "run",
-    "test/unit/vite-plugin/vite-plugin.test.ts",
-    "-t",
-    "preserves disk-backed output bytes across git pins",
-    "--reporter=verbose",
-  ],
-  {
-    cwd: process.cwd(),
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      OMENA_VITE_DISK_BYTE_BASELINE: "14047e6cbc043cdce78b8850ac2c4eea81ad61da",
-    },
-    maxBuffer: 64 * 1024 * 1024,
-  },
-);
-process.stdout.write(byteIdentity.stdout ?? "");
-process.stderr.write(byteIdentity.stderr ?? "");
-if (byteIdentity.status !== 0) {
-  throw new Error(`Vite disk-backed byte identity probe failed with ${byteIdentity.status}.`);
 }

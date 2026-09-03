@@ -2245,7 +2245,7 @@
     {
       "fingerprint": "13da20d3650d634fd4f39646d89a689fc937f4edae63da33a0dbfeab756802e2",
       "writerScript": "scripts/check-vite-plugin-smoke.mjs",
-      "line": 71,
+      "line": 70,
       "writeApi": "writeFileSync",
       "writeExpression": "stylePath",
       "disposition": "outside-registry-writer"
