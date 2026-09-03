@@ -223,9 +223,9 @@ async function rebuildViteSource(fileId, source, diskSource, upstreamMap, effect
     const inputDigest = entry.buildSnapshotIdentity?.targetSourceDigest;
     const hasInputDigest = typeof inputDigest === "string" && inputDigest.startsWith("blake3:");
     const reason = hasInputDigest ? null : (entry.cacheBypassReason ?? "missingTargetSourceDigest");
-    if (!isDiskBacked && !hasInputDigest) {
+    if (inputDigest != null && !hasInputDigest) {
       throw new Error(
-        `[omena-css] ${fileId} is missing the build-snapshot target-source digest (${reason}).`,
+        `[omena-css] ${fileId} returned an invalid build-snapshot target-source digest.`,
       );
     }
     entry.sourceProvenance = {

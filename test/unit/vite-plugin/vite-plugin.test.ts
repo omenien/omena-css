@@ -326,6 +326,7 @@ function diskByteProbeBuildSnapshotIdentity() {
 
 function diskByteProbeEngine(withBuildSnapshotIdentity = true) {
   const engine = {
+    summarizeTransformBundleFromSourceJson: () => JSON.stringify({ plannedPassIds: [] }),
     buildStyleSourcesWithContextJson(targetPath: string, sourcesJson: string) {
       const [source] = JSON.parse(sourcesJson) as BuildSource[];
       return JSON.stringify({
@@ -348,19 +349,33 @@ function diskByteProbeEngine(withBuildSnapshotIdentity = true) {
 }
 
 function byteOutputEngine(withBuildSnapshotIdentity: boolean) {
-  const buildStyleSourcesWithContextJson = (_targetPath: string, sourcesJson: string) => {
-    const [source] = JSON.parse(sourcesJson) as BuildSource[];
-    return JSON.stringify({
-      execution: {
-        outputCss: source!.styleSource.replace(/\s+/gu, "").replace("}", "}\n"),
-        executedPassIds: [],
-      },
-    });
+  const engine = {
+    summarizeTransformBundleFromSourceJson: () => JSON.stringify({ plannedPassIds: [] }),
+    buildStyleSourcesWithContextJson: (_targetPath: string, sourcesJson: string) => {
+      const [source] = JSON.parse(sourcesJson) as BuildSource[];
+      return JSON.stringify({
+        execution: {
+          outputCss: source!.styleSource.replace(/\s+/gu, "").replace("}", "}\n"),
+          executedPassIds: [],
+        },
+      });
+    },
   };
-  if (!withBuildSnapshotIdentity) return { buildStyleSourcesWithContextJson };
+  if (!withBuildSnapshotIdentity) return engine;
   return {
+    ...engine,
     buildSnapshotIdentity: diskByteProbeBuildSnapshotIdentity,
-    buildStyleSourcesWithContextJson,
+  };
+}
+
+function upstreamRewriteMap(filePath: string, diskSource: string): SourceMapV3 {
+  return {
+    version: 3,
+    file: filePath,
+    sources: [filePath],
+    sourcesContent: [diskSource],
+    names: [],
+    mappings: ";AAAA",
   };
 }
 
@@ -381,6 +396,34 @@ async function transformDiskBytes(
   const result = await plugin.transform.call(
     { warn: (message) => warnings.push(String(message)) },
     source,
+    filePath,
+  );
+  expect(warnings).toEqual([]);
+  expect(result).not.toBeNull();
+  return Buffer.from(`${JSON.stringify({ code: result!.code, map: result!.map })}\n`, "utf8");
+}
+
+async function transformVirtualBytes(
+  createPlugin: (options?: Record<string, unknown>) => OmenaVitePlugin,
+  filePath: string,
+  diskSource: string,
+): Promise<Buffer> {
+  const virtualSource = `:root { --dual-pin-virtual-input: active; }\n${diskSource}`;
+  const warnings: string[] = [];
+  const plugin = createPlugin({
+    configFile: false,
+    cwd: process.cwd(),
+    engine: diskByteProbeEngine(false),
+    moduleInterface: false,
+    passes: [],
+    requireDiskSource: false,
+  });
+  const result = await plugin.transform.call(
+    {
+      warn: (message) => warnings.push(String(message)),
+      getCombinedSourcemap: () => upstreamRewriteMap(filePath, diskSource),
+    },
+    virtualSource,
     filePath,
   );
   expect(warnings).toEqual([]);
@@ -616,8 +659,23 @@ describe("@omena/vite-plugin", () => {
         }),
       );
     }
+    const virtualRelativePath = baselineFiles.find((file) => file.endsWith(".module.scss"));
+    expect(virtualRelativePath).toBeDefined();
+    const virtualFilePath = path.join(process.cwd(), virtualRelativePath!);
+    const virtualDiskSource = fs.readFileSync(virtualFilePath, "utf8");
+    const baselineVirtualBytes = await transformVirtualBytes(
+      baselinePlugin,
+      virtualFilePath,
+      virtualDiskSource,
+    );
+    const currentVirtualBytes = await transformVirtualBytes(
+      currentPlugin,
+      virtualFilePath,
+      virtualDiskSource,
+    );
+    expect(currentVirtualBytes.equals(baselineVirtualBytes)).toBe(true);
     process.stdout.write(
-      `Vite disk-backed byte identity: compared=${baselineFiles.length} identical=${baselineFiles.length} engineClasses=2 added=${added.length} removed=${removed.length} baseline=${baseline} current=${current}\n`,
+      `Vite disk-backed byte identity: compared=${baselineFiles.length} identical=${baselineFiles.length} engineClasses=2 fallbackVirtualCompared=1 fallbackVirtualIdentical=1 added=${added.length} removed=${removed.length} baseline=${baseline} current=${current}\n`,
     );
   }, 10_000);
 
@@ -797,6 +855,97 @@ describe("@omena/vite-plugin", () => {
       reason: "engineMissingBuildSnapshotIdentity",
     });
   });
+
+  it.each([
+    ["default transform-input mode", {}],
+    ["explicit requireDiskSource false", { requireDiskSource: false }],
+  ])(
+    "builds virtual-with-map bytes through a WASM-shaped engine in %s",
+    async (_mode, strictOptions) => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-wasm-virtual-"));
+      tempRoots.push(root);
+      const stylePath = path.join(root, "Button.module.css");
+      const diskSource = ".root { color: red; }\n";
+      const virtualSource = `:root { --upstream-virtual-marker: active; }\n${diskSource}`;
+      fs.writeFileSync(stylePath, diskSource);
+      const engine = byteOutputEngine(false);
+      expect("summarizeTransformBundleFromSourceJson" in engine).toBe(true);
+      expect("buildSnapshotIdentity" in engine).toBe(false);
+      const plugin = omenaCss({
+        cwd: root,
+        configFile: false,
+        engine,
+        moduleInterface: false,
+        sourceMap: false,
+        ...strictOptions,
+      });
+      const warnings: string[] = [];
+
+      const result = await plugin.transform.call(
+        {
+          warn: (message) => warnings.push(String(message)),
+          getCombinedSourcemap: () => upstreamRewriteMap(stylePath, diskSource),
+        },
+        virtualSource,
+        stylePath,
+      );
+
+      expect(warnings).toEqual([]);
+      expect(Buffer.from(result!.code)).toEqual(
+        Buffer.from(virtualSource.replace(/\s+/gu, "").replace("}", "}\n")),
+      );
+      expect(result?.map).toBeNull();
+      const [summary] = await readBuildSummary(plugin);
+      expect(summary?.sourceProvenance).toMatchObject({
+        classification: "virtual-with-map",
+        diskDigest: null,
+        inputDigest: null,
+        reason: "engineMissingBuildSnapshotIdentity",
+        upstreamMapPresent: true,
+        upstreamMapSources: [stylePath],
+      });
+    },
+  );
+
+  it.each([
+    ["disk-backed", false],
+    ["virtual-with-map", true],
+  ])(
+    "rejects a malformed target-source digest returned by an engine for %s input",
+    async (_classification, useVirtualInput) => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-invalid-digest-"));
+      tempRoots.push(root);
+      const stylePath = path.join(root, "Button.module.css");
+      const diskSource = ".root { color: red; }\n";
+      const virtualSource = `:root { --upstream-virtual-marker: active; }\n${diskSource}`;
+      fs.writeFileSync(stylePath, diskSource);
+      const engine = {
+        ...byteOutputEngine(true),
+        buildSnapshotIdentity: () => ({
+          ...diskByteProbeBuildSnapshotIdentity(),
+          targetSourceDigest: "sha256:not-the-shared-digest-vocabulary",
+        }),
+      };
+      const plugin = omenaCss({
+        cwd: root,
+        configFile: false,
+        engine,
+        moduleInterface: false,
+        requireDiskSource: false,
+        sourceMap: false,
+      });
+
+      await expect(
+        plugin.transform.call(
+          useVirtualInput
+            ? { getCombinedSourcemap: () => upstreamRewriteMap(stylePath, diskSource) }
+            : {},
+          useVirtualInput ? virtualSource : diskSource,
+          stylePath,
+        ),
+      ).rejects.toThrow("returned an invalid build-snapshot target-source digest");
+    },
+  );
 
   it("builds disk-backed bytes with a dynamic omena.config.cjs", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-dynamic-config-"));

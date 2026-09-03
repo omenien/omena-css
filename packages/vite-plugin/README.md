@@ -78,9 +78,9 @@ nullable `diskDigest`, a nullable `reason`, `upstreamMapPresent`, and
 `upstreamMapSources`. The input digest is the target-source digest already owned
 by the build-snapshot identity. A disk-backed input still builds when the engine
 or a dynamic configuration cannot seal that identity; its digests are `null`
-and `reason` names the cache-bypass cause. A non-disk-backed input still requires
-the build-snapshot target-source digest because there is no safe disk identity
-to fall back to.
+and `reason` names the cache-bypass cause. On an engine without build-snapshot
+identity support, disk-backed and virtual inputs still build with
+`inputDigest: null`, and `reason` is `engineMissingBuildSnapshotIdentity`.
 
 A source map is accepted as upstream provenance only when one unambiguous
 `sources[i]` normalizes to the transformed file, `sourcesContent[i]` is the
