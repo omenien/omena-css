@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
 import type * as ChildProcess from "node:child_process";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -68,6 +69,9 @@ type OmenaPluginExports = {
 };
 
 const require = createRequire(import.meta.url);
+const vitePackageRequire = createRequire(
+  path.join(process.cwd(), "packages/vite-plugin/index.cjs"),
+);
 const { MINIFY_PASS_IDS, VIRTUAL_MODULE_ID, classifyCssModuleExportDelta, omenaCss } =
   require("../../../packages/vite-plugin/index.cjs") as OmenaPluginExports;
 
@@ -105,7 +109,7 @@ type PreChainResult = {
 async function measureVirtualSourceAdmissionCensus(
   configFile = path.join(process.cwd(), "examples/vite.config.ts"),
 ) {
-  const { resolveConfig } = await import("vite");
+  const { resolveConfig } = await import(pathToFileURL(vitePackageRequire.resolve("vite")).href);
   const examplesRoot = path.join(process.cwd(), "examples");
   const config = await resolveConfig(
     { configFile, logLevel: "silent", root: examplesRoot },
@@ -286,6 +290,8 @@ function evaluateCommonJs(
 function loadPluginAt(ref: string): (options?: Record<string, unknown>) => OmenaVitePlugin {
   const adapterFilename = path.join(process.cwd(), "packages/css-build-adapter/index.cjs");
   const pluginFilename = path.join(process.cwd(), "packages/vite-plugin/index.cjs");
+  const adapterRequire = createRequire(adapterFilename);
+  const pluginRequire = createRequire(pluginFilename);
   const semanticPassIds = JSON.parse(
     readFileAt(ref, "packages/css-build-adapter/semantic-minify-pass-ids.json"),
   );
@@ -294,7 +300,7 @@ function loadPluginAt(ref: string): (options?: Record<string, unknown>) => Omena
     adapterFilename,
     (specifier) => {
       if (specifier === "./semantic-minify-pass-ids.json") return semanticPassIds;
-      return require(specifier);
+      return adapterRequire(specifier);
     },
   );
   const plugin = evaluateCommonJs(
@@ -302,7 +308,7 @@ function loadPluginAt(ref: string): (options?: Record<string, unknown>) => Omena
     pluginFilename,
     (specifier) => {
       if (specifier === "@omena/css-build-adapter") return adapter;
-      return require(specifier);
+      return pluginRequire(specifier);
     },
   ) as { readonly omenaCss: (options?: Record<string, unknown>) => OmenaVitePlugin };
   return plugin.omenaCss;
