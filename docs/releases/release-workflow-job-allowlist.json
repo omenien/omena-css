@@ -1,7 +1,7 @@
 {
   "schemaVersion": "0",
   "product": "release.non-publishing-workflow-jobs",
-  "expectedEnvironmentProtection": false,
+  "expectedEnvironmentProtection": true,
   "entryCount": 59,
   "entries": [
     {
