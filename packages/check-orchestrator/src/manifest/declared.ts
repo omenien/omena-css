@@ -1126,8 +1126,8 @@ export const DECLARED_CHECK_GATES = [
     scope: "plugin",
     packageTarget: "plugin/vite-plugin-hmr",
     tags: ["plugin", "vite", "browser", "bundler-host"],
-    ciTier: "scheduled",
-    ciGroup: "nightly-soak",
+    ciTier: "plugin",
+    ciGroup: "plugin-consumers",
   },
   {
     id: "rust/oss-corpus-farm",

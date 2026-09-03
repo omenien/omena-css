@@ -13,7 +13,7 @@ Total gates: 601
 | tsgo | 6 | 1 | 1 | 0 | 0 | 6 | 2 | 3 |
 | ts7 | 17 | 7 | 0 | 0 | 1 | 16 | 2 | 11 |
 | rust | 460 | 49 | 13 | 27 | 223 | 237 | 238 | 115 |
-| plugin | 12 | 1 | 0 | 0 | 11 | 1 | 11 | 1 |
+| plugin | 12 | 1 | 0 | 0 | 12 | 0 | 12 | 0 |
 | contract | 14 | 1 | 0 | 1 | 10 | 4 | 10 | 0 |
 | docs | 10 | 1 | 0 | 1 | 9 | 1 | 9 | 0 |
 | editor | 13 | 1 | 0 | 3 | 7 | 6 | 7 | 1 |
@@ -582,7 +582,7 @@ Total gates: 601
 | --- | ---- | ------ | ------- | -------- | ------ | ---------- | ------ |
 | `plugin/bundler-product-gate` | gate | package | push | blocking | `check:plugin-bundler-product-gate` |  |  |
 | `plugin/consumer-example` | gate | package | push | blocking | `check:plugin-consumer-example` |  |  |
-| `plugin/consumers` | bundle | package | push | blocking | `check:plugin-consumers` | `check:eslint-plugin-smoke`, `check:eslint-plugin-workspace-session`, `check:oxlint-plugin-smoke`, `check:plugin-bundler-product-gate`, `check:plugin-consumer-example`, `check:plugin-package-staging`, `check:postcss-plugin-consumer-build`, `check:postcss-plugin-smoke`, `check:stylelint-plugin-smoke`, `check:vite-plugin-smoke` |  |
+| `plugin/consumers` | bundle | package | push | blocking | `check:plugin-consumers` | `check:eslint-plugin-smoke`, `check:eslint-plugin-workspace-session`, `check:oxlint-plugin-smoke`, `check:plugin-bundler-product-gate`, `check:plugin-consumer-example`, `check:plugin-package-staging`, `check:postcss-plugin-consumer-build`, `check:postcss-plugin-smoke`, `check:stylelint-plugin-smoke`, `check:vite-plugin-hmr`, `check:vite-plugin-smoke` |  |
 | `plugin/eslint-plugin-smoke` | gate | package | push | blocking | `check:eslint-plugin-smoke` |  |  |
 | `plugin/eslint-plugin-workspace-session` | gate | package | push | blocking | `check:eslint-plugin-workspace-session` | `build:omena-napi` |  |
 | `plugin/oxlint-plugin-smoke` | gate | package | push | blocking | `check:oxlint-plugin-smoke` |  |  |
@@ -590,7 +590,7 @@ Total gates: 601
 | `plugin/postcss-plugin-consumer-build` | gate | package | push | blocking | `check:postcss-plugin-consumer-build` |  |  |
 | `plugin/postcss-plugin-smoke` | gate | package | push | blocking | `check:postcss-plugin-smoke` |  |  |
 | `plugin/stylelint-plugin-smoke` | gate | package | push | blocking | `check:stylelint-plugin-smoke` |  |  |
-| `plugin/vite-plugin-hmr` | gate | package+declared | nightly | advisory | `check:vite-plugin-hmr` |  | ci `scheduled`; group `nightly-soak` |
+| `plugin/vite-plugin-hmr` | gate | package+declared | push | blocking | `check:vite-plugin-hmr` |  | ci `plugin`; group `plugin-consumers` |
 | `plugin/vite-plugin-smoke` | gate | package | push | blocking | `check:vite-plugin-smoke` |  |  |
 
 ## contract
