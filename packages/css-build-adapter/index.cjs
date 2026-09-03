@@ -87,9 +87,7 @@ async function resolveOmenaSourceContentDigest(filePath, source, options, state)
   const snapshot = await resolveBuildSnapshotIdentity(prepared, options, state);
   const targetSourceDigest = snapshot.identity?.targetSourceDigest;
   if (!snapshot.cacheable || typeof targetSourceDigest !== "string") {
-    throw new Error(
-      `[omena-css] source-content identity requires the native build-snapshot digest (${snapshot.reason ?? "missingTargetSourceDigest"}).`,
-    );
+    return null;
   }
   return targetSourceDigest;
 }

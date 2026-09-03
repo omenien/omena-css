@@ -72,81 +72,154 @@ const { MINIFY_PASS_IDS, VIRTUAL_MODULE_ID, classifyCssModuleExportDelta, omenaC
   require("../../../packages/vite-plugin/index.cjs") as OmenaPluginExports;
 
 const tempRoots: string[] = [];
+const tempFiles: string[] = [];
+const SOURCE_ADMISSION_INSPECTION = Symbol.for("omena-css.vite.source-admission-inspection");
 
-function countStyleModules(root: string): number {
-  let count = 0;
-  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-    if (entry.name === "dist" || entry.name === "node_modules") continue;
-    const entryPath = path.join(root, entry.name);
-    if (entry.isDirectory()) {
-      count += countStyleModules(entryPath);
-    } else if (/\.module\.(?:css|less|scss)$/u.test(entry.name)) {
-      count += 1;
-    }
-  }
-  return count;
-}
+type ResolvedTransformPlugin = {
+  readonly name: string;
+  readonly transform?:
+    | ((this: unknown, code: string, id: string) => unknown)
+    | { readonly handler: (this: unknown, code: string, id: string) => unknown };
+};
 
-function measureVirtualSourceAdmissionCensus() {
-  const examplesConfig = fs.readFileSync(
-    path.join(process.cwd(), "examples/vite.config.ts"),
-    "utf8",
+type SourceAdmissionInspection = {
+  readonly included: boolean;
+  readonly provenanceClass: "disk-backed" | "virtual-with-map" | "virtual-only" | "not-included";
+};
+
+type SourceAdmissionInspectionApi = {
+  readonly inspect: (input: {
+    readonly code: string;
+    readonly id: string;
+    readonly diskSource: string;
+    readonly upstreamMap: SourceMapV3 | null;
+  }) => Promise<SourceAdmissionInspection>;
+};
+
+type PreChainResult = {
+  readonly code: string;
+  readonly upstreamMap: SourceMapV3 | null;
+  readonly upstreamTransforms: readonly string[];
+};
+
+async function measureVirtualSourceAdmissionCensus(
+  configFile = path.join(process.cwd(), "examples/vite.config.ts"),
+) {
+  const { resolveConfig } = await import("vite");
+  const examplesRoot = path.join(process.cwd(), "examples");
+  const config = await resolveConfig(
+    { configFile, logLevel: "silent", root: examplesRoot },
+    "build",
+    "production",
   );
-  const viteUnit = fs.readFileSync(import.meta.filename, "utf8");
-  const rows = [
-    {
-      key: "examples-disk-backed",
-      provenanceClass: "disk-backed",
-      admission: "existing",
-      source: "examples/",
-      section: "tracked module style inputs",
-      count: countStyleModules(path.join(process.cwd(), "examples")),
-    },
-    {
-      key: "real-project-corpus-disk-backed",
-      provenanceClass: "disk-backed",
-      admission: "existing",
-      source: "test/_fixtures/real-project-corpus/",
-      section: "tracked module style inputs",
-      count: countStyleModules(path.join(process.cwd(), "test/_fixtures/real-project-corpus")),
-    },
-    {
-      key: "examples-upstream-transform",
-      provenanceClass: "virtual-with-map",
-      admission: "newly-admitted",
-      source: "examples/vite.config.ts",
-      section: "plugins: upstreamVirtualSource()",
-      count: examplesConfig.match(/^\s{4}upstreamVirtualSource\(\),$/gmu)?.length ?? 0,
-    },
-    {
-      key: "virtual-only-regression",
-      provenanceClass: "virtual-only",
-      admission: "newly-admitted",
-      source: "test/unit/vite-plugin/vite-plugin.test.ts",
-      section: "analyzes a virtual-only source when no disk mapping is available",
-      count:
-        viteUnit.match(/it\("analyzes a virtual-only source when no disk mapping is available"/gu)
-          ?.length ?? 0,
-    },
-  ];
-  const existing = rows
-    .filter(({ admission }) => admission === "existing")
-    .reduce((sum, { count }) => sum + count, 0);
-  const newlyAdmitted = rows
-    .filter(({ admission }) => admission === "newly-admitted")
-    .reduce((sum, { count }) => sum + count, 0);
+  const plugins = config.plugins as unknown as ResolvedTransformPlugin[];
+  const omenaIndex = plugins.findIndex((plugin) =>
+    Reflect.has(plugin as object, SOURCE_ADMISSION_INSPECTION),
+  );
+  if (omenaIndex < 0) throw new Error("Resolved examples config has no Omena admission inspector");
+  const omenaPlugin = plugins[omenaIndex]!;
+  const inspectionApi = Reflect.get(
+    omenaPlugin as object,
+    SOURCE_ADMISSION_INSPECTION,
+  ) as SourceAdmissionInspectionApi;
+  const upstreamPlugins = plugins.slice(0, omenaIndex);
+  const rows = [];
+
+  for (const relativePath of listTrackedStyleModuleInputs()) {
+    const fileId = path.join(process.cwd(), relativePath);
+    const diskSource = fs.readFileSync(fileId, "utf8");
+    const transformed = await runResolvedPreChain(upstreamPlugins, diskSource, fileId);
+    const inspection = await inspectionApi.inspect({
+      code: transformed.code,
+      id: fileId,
+      diskSource,
+      upstreamMap: transformed.upstreamMap,
+    });
+    rows.push({
+      input: relativePath,
+      population: relativePath.startsWith("examples/") ? "examples" : "real-project-corpus",
+      included: inspection.included,
+      provenanceClass: inspection.provenanceClass,
+      admission: inspection.included
+        ? inspection.provenanceClass === "disk-backed"
+          ? "existing"
+          : "newly-admitted"
+        : "not-included",
+      upstreamTransforms: transformed.upstreamTransforms,
+    });
+  }
+
+  const count = (predicate: (row: (typeof rows)[number]) => boolean) =>
+    rows.filter(predicate).length;
   return {
-    schemaVersion: "0",
+    schemaVersion: "1",
     product: "omena-vite.virtual-source-admission-census",
     package: "@omena/vite-plugin",
+    countUnit: "inputs",
     semverIntent: "next-pre-1.0-minor",
+    laneScope: {
+      build: "resolved Vite pre-transform chain",
+      serveDevRuntime: "disk file",
+    },
     rows,
     totals: {
-      existing,
-      newlyAdmitted,
-      total: existing + newlyAdmitted,
+      trackedInputs: rows.length,
+      included: count((row) => row.included),
+      notIncluded: count((row) => !row.included),
+      existing: count((row) => row.admission === "existing"),
+      newlyAdmitted: count((row) => row.admission === "newly-admitted"),
+      byProvenance: {
+        diskBacked: count((row) => row.provenanceClass === "disk-backed"),
+        virtualWithMap: count((row) => row.provenanceClass === "virtual-with-map"),
+        virtualOnly: count((row) => row.provenanceClass === "virtual-only"),
+      },
     },
   };
+}
+
+async function runResolvedPreChain(
+  plugins: readonly ResolvedTransformPlugin[],
+  diskSource: string,
+  fileId: string,
+): Promise<PreChainResult> {
+  let code = diskSource;
+  let upstreamMap: SourceMapV3 | null = null;
+  const upstreamTransforms: string[] = [];
+  for (const plugin of plugins) {
+    const hook =
+      typeof plugin.transform === "function" ? plugin.transform : plugin.transform?.handler;
+    if (!hook) continue;
+    const result = (await hook.call({}, code, fileId)) as
+      | string
+      | { readonly code?: string; readonly map?: SourceMapV3 | null }
+      | null
+      | undefined;
+    if (result == null) continue;
+    const nextCode = typeof result === "string" ? result : (result.code ?? code);
+    const nextMap = typeof result === "string" ? null : (result.map ?? null);
+    if (nextCode !== code || nextMap != null) upstreamTransforms.push(plugin.name);
+    code = nextCode;
+    if (nextMap != null) upstreamMap = nextMap;
+  }
+  return { code, upstreamMap, upstreamTransforms };
+}
+
+function listTrackedStyleModuleInputs(): string[] {
+  return gitOutput(["ls-files", "-z", "--", "examples", "test/_fixtures/real-project-corpus"])
+    .split("\0")
+    .filter((file) => /\.module\.(?:css|less|scss)$/u.test(file))
+    .toSorted();
+}
+
+function writeExamplesConfigVariant(source: string): string {
+  const configPath = path.join(
+    process.cwd(),
+    "examples",
+    `.vite-admission-${process.pid}-${Math.random().toString(16).slice(2)}.config.ts`,
+  );
+  fs.writeFileSync(configPath, source);
+  tempFiles.push(configPath);
+  return configPath;
 }
 
 function readPublishedVirtualSourceAdmissionCensus(): unknown {
@@ -235,17 +308,18 @@ function loadPluginAt(ref: string): (options?: Record<string, unknown>) => Omena
   return plugin.omenaCss;
 }
 
-function diskByteProbeEngine() {
+function diskByteProbeBuildSnapshotIdentity() {
   return {
-    buildSnapshotIdentity() {
-      return {
-        schemaVersion: "0",
-        product: "omena-query.build-snapshot-digest",
-        contentHashAlgorithm: "blake3",
-        digest: "blake3:test-probe-snapshot",
-        targetSourceDigest: "blake3:test-probe-target-source",
-      };
-    },
+    schemaVersion: "0",
+    product: "omena-query.build-snapshot-digest",
+    contentHashAlgorithm: "blake3",
+    digest: "blake3:test-probe-snapshot",
+    targetSourceDigest: "blake3:test-probe-target-source",
+  };
+}
+
+function diskByteProbeEngine(withBuildSnapshotIdentity = true) {
+  const engine = {
     buildStyleSourcesWithContextJson(targetPath: string, sourcesJson: string) {
       const [source] = JSON.parse(sourcesJson) as BuildSource[];
       return JSON.stringify({
@@ -262,18 +336,39 @@ function diskByteProbeEngine() {
       });
     },
   };
+  return withBuildSnapshotIdentity
+    ? { ...engine, buildSnapshotIdentity: diskByteProbeBuildSnapshotIdentity }
+    : engine;
+}
+
+function byteOutputEngine(withBuildSnapshotIdentity: boolean) {
+  const buildStyleSourcesWithContextJson = (_targetPath: string, sourcesJson: string) => {
+    const [source] = JSON.parse(sourcesJson) as BuildSource[];
+    return JSON.stringify({
+      execution: {
+        outputCss: source!.styleSource.replace(/\s+/gu, "").replace("}", "}\n"),
+        executedPassIds: [],
+      },
+    });
+  };
+  if (!withBuildSnapshotIdentity) return { buildStyleSourcesWithContextJson };
+  return {
+    buildSnapshotIdentity: diskByteProbeBuildSnapshotIdentity,
+    buildStyleSourcesWithContextJson,
+  };
 }
 
 async function transformDiskBytes(
   createPlugin: (options?: Record<string, unknown>) => OmenaVitePlugin,
   filePath: string,
   source: string,
+  withBuildSnapshotIdentity: boolean,
 ): Promise<Buffer> {
   const warnings: string[] = [];
   const plugin = createPlugin({
     configFile: false,
     cwd: process.cwd(),
-    engine: diskByteProbeEngine(),
+    engine: diskByteProbeEngine(withBuildSnapshotIdentity),
     moduleInterface: false,
     passes: [],
   });
@@ -400,7 +495,8 @@ async function readBuildSummary(plugin: OmenaVitePlugin) {
     readonly sourceProvenance?: {
       readonly classification: "disk-backed" | "virtual-with-map" | "virtual-only";
       readonly diskDigest: string | null;
-      readonly inputDigest: string;
+      readonly inputDigest: string | null;
+      readonly reason: string | null;
       readonly upstreamMapPresent: boolean;
       readonly upstreamMapSources: readonly string[];
     };
@@ -409,16 +505,71 @@ async function readBuildSummary(plugin: OmenaVitePlugin) {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  for (const file of tempFiles.splice(0)) {
+    fs.rmSync(file, { force: true });
+  }
   for (const root of tempRoots.splice(0)) {
     fs.rmSync(root, { force: true, recursive: true });
   }
 });
 
 describe("@omena/vite-plugin", () => {
-  it("pins the reviewed virtual-source admission census", () => {
-    expect(readPublishedVirtualSourceAdmissionCensus()).toEqual(
-      measureVirtualSourceAdmissionCensus(),
+  it("pins the reviewed virtual-source admission census", async () => {
+    const measured = await measureVirtualSourceAdmissionCensus();
+    if (process.env.OMENA_VITE_PRINT_ADMISSION_CENSUS === "1") {
+      process.stdout.write(`OMENA_VITE_ADMISSION_CENSUS=${JSON.stringify(measured, null, 2)}\n`);
+    }
+    expect(readPublishedVirtualSourceAdmissionCensus()).toEqual(measured);
+  });
+
+  it("detects a differently named upstream source rewriter by resolved behavior", async () => {
+    const original = fs.readFileSync(path.join(process.cwd(), "examples/vite.config.ts"), "utf8");
+    const rewriter = [
+      "function alternateSourceRewriter() {",
+      "  return {",
+      '    name: "examples-alternate-source-rewriter",',
+      '    enforce: "pre" as const,',
+      "    transform(code: string, id: string) {",
+      "      if (!/\\.module\\.scss(?:\\?|$)/u.test(id)) return null;",
+      "      return { code: `${code}\\n:root { --alternate-source-rewriter: active; }\\n`, map: null };",
+      "    },",
+      "  };",
+      "}",
+      "",
+    ].join("\n");
+    const mutated = original
+      .replace(
+        "function assertVirtualSourceComposition() {",
+        `${rewriter}function assertVirtualSourceComposition() {`,
+      )
+      .replace("    omenaCss({", "    alternateSourceRewriter(),\n    omenaCss({");
+    expect(mutated).not.toBe(original);
+
+    const measured = await measureVirtualSourceAdmissionCensus(writeExamplesConfigVariant(mutated));
+
+    expect(measured).not.toEqual(readPublishedVirtualSourceAdmissionCensus());
+    expect(
+      measured.rows.some(({ upstreamTransforms }) =>
+        upstreamTransforms.includes("examples-alternate-source-rewriter"),
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps the admission sweep stable across pure config re-indentation", async () => {
+    const original = fs.readFileSync(path.join(process.cwd(), "examples/vite.config.ts"), "utf8");
+    const reindented = original.replace(
+      "    upstreamVirtualSource(),",
+      "          upstreamVirtualSource(),",
     );
+    expect(reindented).not.toBe(original);
+
+    const [baseline, measured] = await Promise.all([
+      measureVirtualSourceAdmissionCensus(),
+      measureVirtualSourceAdmissionCensus(writeExamplesConfigVariant(reindented)),
+    ]);
+
+    expect(measured).toEqual(baseline);
+    expect(measured).toEqual(readPublishedVirtualSourceAdmissionCensus());
   });
 
   const diskByteBaseline = process.env.OMENA_VITE_DISK_BYTE_BASELINE;
@@ -436,18 +587,33 @@ describe("@omena/vite-plugin", () => {
     expect(removed).toEqual([]);
     const baselinePlugin = loadPluginAt(baseline);
     const currentPlugin = loadPluginAt(current);
-    await Promise.all(
-      baselineFiles.map(async (relativePath) => {
-        const filePath = path.join(process.cwd(), relativePath);
-        const source = fs.readFileSync(filePath, "utf8");
-        expect(source).toBe(readFileAt(current, relativePath));
-        const baselineBytes = await transformDiskBytes(baselinePlugin, filePath, source);
-        const currentBytes = await transformDiskBytes(currentPlugin, filePath, source);
-        expect(currentBytes.equals(baselineBytes), relativePath).toBe(true);
-      }),
-    );
+    for (const withBuildSnapshotIdentity of [true, false]) {
+      await Promise.all(
+        baselineFiles.map(async (relativePath) => {
+          const filePath = path.join(process.cwd(), relativePath);
+          const source = fs.readFileSync(filePath, "utf8");
+          expect(source).toBe(readFileAt(current, relativePath));
+          const baselineBytes = await transformDiskBytes(
+            baselinePlugin,
+            filePath,
+            source,
+            withBuildSnapshotIdentity,
+          );
+          const currentBytes = await transformDiskBytes(
+            currentPlugin,
+            filePath,
+            source,
+            withBuildSnapshotIdentity,
+          );
+          expect(
+            currentBytes.equals(baselineBytes),
+            `${relativePath} engine=${withBuildSnapshotIdentity ? "build-snapshot" : "fallback"}`,
+          ).toBe(true);
+        }),
+      );
+    }
     process.stdout.write(
-      `Vite disk-backed byte identity: compared=${baselineFiles.length} identical=${baselineFiles.length} added=${added.length} removed=${removed.length} baseline=${baseline} current=${current}\n`,
+      `Vite disk-backed byte identity: compared=${baselineFiles.length} identical=${baselineFiles.length} engineClasses=2 added=${added.length} removed=${removed.length} baseline=${baseline} current=${current}\n`,
     );
   });
 
@@ -601,6 +767,60 @@ describe("@omena/vite-plugin", () => {
     }
   });
 
+  it("builds disk-backed bytes when the engine cannot seal a build-snapshot identity", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-no-snapshot-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "Button.module.css");
+    const diskSource = ".root { color: red; }\n";
+    fs.writeFileSync(stylePath, diskSource);
+    const plugin = omenaCss({
+      cwd: root,
+      configFile: false,
+      engine: byteOutputEngine(false),
+      moduleInterface: false,
+      sourceMap: false,
+    });
+
+    const result = await plugin.transform.call({}, diskSource, stylePath);
+
+    expect(Buffer.from(result!.code)).toEqual(Buffer.from(".root{color:red;}\n"));
+    expect(result?.map).toBeNull();
+    const [summary] = await readBuildSummary(plugin);
+    expect(summary?.sourceProvenance).toMatchObject({
+      classification: "disk-backed",
+      diskDigest: null,
+      inputDigest: null,
+      reason: "engineMissingBuildSnapshotIdentity",
+    });
+  });
+
+  it("builds disk-backed bytes with a dynamic omena.config.cjs", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-dynamic-config-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "Button.module.css");
+    const diskSource = ".root { color: red; }\n";
+    fs.writeFileSync(stylePath, diskSource);
+    fs.writeFileSync(path.join(root, "omena.config.cjs"), "module.exports = { passes: [] };\n");
+    const plugin = omenaCss({
+      cwd: root,
+      engine: byteOutputEngine(true),
+      moduleInterface: false,
+      sourceMap: false,
+    });
+
+    const result = await plugin.transform.call({}, diskSource, stylePath);
+
+    expect(Buffer.from(result!.code)).toEqual(Buffer.from(".root{color:red;}\n"));
+    expect(result?.map).toBeNull();
+    const [summary] = await readBuildSummary(plugin);
+    expect(summary?.sourceProvenance).toMatchObject({
+      classification: "disk-backed",
+      diskDigest: null,
+      inputDigest: null,
+      reason: "dynamicBuildConfigurationDependencies",
+    });
+  });
+
   it("analyzes an upstream virtual source by default and records mapped provenance", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-virtual-map-"));
     tempRoots.push(root);
@@ -672,6 +892,7 @@ describe("@omena/vite-plugin", () => {
     const stylePath = path.join(root, "Button.module.css");
     const diskSource = ".root { color: red; }\n";
     const virtualSource = `:root { --virtual-only-marker: active; }\n${diskSource}`;
+    fs.writeFileSync(stylePath, diskSource);
     const engine = {
       ...bundlerHostMock({ root: "root-token" }),
       summarizeTransformBundleFromSourceJson: () => JSON.stringify({ plannedPassIds: [] }),
@@ -693,7 +914,98 @@ describe("@omena/vite-plugin", () => {
     const [summary] = await readBuildSummary(plugin);
     expect(summary?.sourceProvenance).toMatchObject({
       classification: "virtual-only",
-      diskDigest: null,
+      upstreamMapPresent: false,
+      upstreamMapSources: [],
+    });
+    expect(summary?.sourceProvenance?.diskDigest).toMatch(/^blake3:/u);
+  });
+
+  it("rejects a foreign mapped source even when its sourcesContent matches disk", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-foreign-map-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "Button.module.css");
+    const foreignPath = path.join(root, "Foreign.module.css");
+    const diskSource = ".root { color: red; }\n";
+    const virtualSource = `:root { --foreign-map-marker: active; }\n${diskSource}`;
+    fs.writeFileSync(stylePath, diskSource);
+    const plugin = omenaCss({
+      cwd: root,
+      engine: {
+        ...bundlerHostMock({ root: "root-token" }),
+        summarizeTransformBundleFromSourceJson: () => JSON.stringify({ plannedPassIds: [] }),
+        buildStyleSourcesWithContextJson: (_targetPath: string, sourcesJson: string) => {
+          const [source] = JSON.parse(sourcesJson) as BuildSource[];
+          return JSON.stringify({
+            execution: { outputCss: `${source!.styleSource}/* analyzed */\n`, executedPassIds: [] },
+          });
+        },
+      },
+      configFile: false,
+    });
+
+    await plugin.transform.call(
+      {
+        getCombinedSourcemap: () => ({
+          version: 3,
+          file: stylePath,
+          sources: [stylePath, foreignPath],
+          sourcesContent: [diskSource, diskSource],
+          names: [],
+          mappings: ";ACAA",
+        }),
+      },
+      virtualSource,
+      stylePath,
+    );
+
+    const [summary] = await readBuildSummary(plugin);
+    expect(summary?.sourceProvenance).toMatchObject({
+      classification: "virtual-only",
+      upstreamMapPresent: false,
+      upstreamMapSources: [],
+    });
+  });
+
+  it("rejects an identity source map as upstream rewrite provenance", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-identity-map-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "Button.module.css");
+    const diskSource = ".root { color: red; }\n";
+    const virtualSource = `${diskSource}/* virtual tail */\n`;
+    fs.writeFileSync(stylePath, diskSource);
+    const plugin = omenaCss({
+      cwd: root,
+      engine: {
+        ...bundlerHostMock({ root: "root-token" }),
+        summarizeTransformBundleFromSourceJson: () => JSON.stringify({ plannedPassIds: [] }),
+        buildStyleSourcesWithContextJson: (_targetPath: string, sourcesJson: string) => {
+          const [source] = JSON.parse(sourcesJson) as BuildSource[];
+          return JSON.stringify({
+            execution: { outputCss: `${source!.styleSource}/* analyzed */\n`, executedPassIds: [] },
+          });
+        },
+      },
+      configFile: false,
+    });
+
+    await plugin.transform.call(
+      {
+        getCombinedSourcemap: () => ({
+          version: 3,
+          file: stylePath,
+          sources: [stylePath],
+          sourcesContent: [diskSource],
+          names: [],
+          mappings: "AAAA",
+        }),
+      },
+      virtualSource,
+      stylePath,
+    );
+
+    const [summary] = await readBuildSummary(plugin);
+    expect(summary?.sourceProvenance).toMatchObject({
+      classification: "virtual-only",
       upstreamMapPresent: false,
       upstreamMapSources: [],
     });
@@ -724,6 +1036,56 @@ describe("@omena/vite-plugin", () => {
     await expect(plugin.transform.call({ warn }, virtualSource, stylePath)).resolves.toBeNull();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("strict disk-source mode"));
     expect(build).not.toHaveBeenCalled();
+  });
+
+  it("pins build composition and serve dev-runtime disk input as distinct lanes", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-lane-scope-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "Button.module.css");
+    const diskSource = ".root { color: red; }\n";
+    const virtualSource = `:root { --build-lane-marker: active; }\n${diskSource}`;
+    const buildInputs: string[] = [];
+    fs.writeFileSync(stylePath, diskSource);
+    const engine = {
+      ...bundlerHostMock({ root: "root-token" }),
+      summarizeTransformBundleFromSourceJson: () => JSON.stringify({ plannedPassIds: [] }),
+      buildStyleSourcesWithContextJson: (_targetPath: string, sourcesJson: string) => {
+        const [source] = JSON.parse(sourcesJson) as BuildSource[];
+        buildInputs.push(source!.styleSource);
+        return JSON.stringify({
+          execution: {
+            outputCss: `${source!.styleSource}/* analyzed */\n`,
+            executedPassIds: [],
+          },
+        });
+      },
+    };
+    const servePlugin = omenaCss({ cwd: root, configFile: false, engine });
+    servePlugin.configResolved({ root, command: "serve" });
+    const runtimeId = await servePlugin.resolveId(stylePath);
+    const runtimeModule = await servePlugin.load(runtimeId!);
+
+    expect((runtimeModule as ViteTransformResult)?.code).not.toContain("--build-lane-marker");
+
+    const buildPlugin = omenaCss({ cwd: root, configFile: false, engine });
+    buildPlugin.configResolved({ root, command: "build" });
+    const buildResult = await buildPlugin.transform.call(
+      {
+        getCombinedSourcemap: () => ({
+          version: 3,
+          file: stylePath,
+          sources: [stylePath],
+          sourcesContent: [diskSource],
+          names: [],
+          mappings: ";AAAA",
+        }),
+      },
+      virtualSource,
+      stylePath,
+    );
+
+    expect(buildInputs).toEqual([diskSource, virtualSource]);
+    expect(buildResult?.code).toContain("--build-lane-marker");
   });
 
   it("pushes value changes and invalidates only the runtime dependency set on shape changes", async () => {

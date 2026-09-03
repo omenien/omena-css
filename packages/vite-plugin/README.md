@@ -73,66 +73,321 @@ second source-identity hash:
 | `virtual-with-map` | The input differs and has a usable upstream combined map.     |
 | `virtual-only`     | The input differs, or has no disk file, without a usable map. |
 
-The summary includes `classification`, the BLAKE3 `inputDigest`, a nullable
-`diskDigest`, `upstreamMapPresent`, and `upstreamMapSources`. The input digest is
-the target-source digest already owned by the build-snapshot identity. A source
-map is accepted as upstream provenance only when it maps back to the matching
-disk contents; Vite's synthesized identity fallback is not presented as proof
-of an upstream transform.
+The summary includes `classification`, a nullable BLAKE3 `inputDigest`, a
+nullable `diskDigest`, a nullable `reason`, `upstreamMapPresent`, and
+`upstreamMapSources`. The input digest is the target-source digest already owned
+by the build-snapshot identity. A disk-backed input still builds when the engine
+or a dynamic configuration cannot seal that identity; its digests are `null`
+and `reason` names the cache-bypass cause. A non-disk-backed input still requires
+the build-snapshot target-source digest because there is no safe disk identity
+to fall back to.
+
+A source map is accepted as upstream provenance only when one unambiguous
+`sources[i]` normalizes to the transformed file, `sourcesContent[i]` is the
+matching disk source, and a non-identity mapped segment names that same source.
+Foreign-source and identity-only maps remain `virtual-only`; Vite's synthesized
+identity fallback is not presented as proof of an upstream transform.
 
 Changing the default from strict disk matching to transform-input analysis is a
-user-visible behavior change intended for the next pre-1.0 minor release. This
-repository change does not publish a package; publication remains part of the
-normal release train. The published census below separates existing disk-backed
-inputs from newly admitted mapped and virtual-only inputs. The focused plugin
-unit gate measures the named source populations and rejects unreviewed drift.
+user-visible behavior change intended for the next pre-1.0 minor release. The
+transform-input default applies to the build lane; `serve` + `devRuntime`
+analyzes the disk file because its Omena-owned virtual module resolves before
+Vite's transform chain. The repository fixture pins that limit so build and
+serve cannot be presented as equivalent. Set `devRuntime: false` only when the
+downstream Vite CSS pipeline, rather than Omena's dev runtime, should own serve.
+
+This repository change does not publish a package; publication remains part of
+the normal release train. The input-unit census below loads the examples config
+through Vite's resolved plugin list, executes the pre-Omena transform chain for
+every tracked examples and real-project-corpus style input, and compares the
+observed input with disk bytes. All 29 included `.module.scss` inputs are
+rewritten with an identity-bearing map and newly admitted; the three remaining
+CSS/Less inputs are outside the configured include. A separate unit fixture
+pins the `virtual-only` behavior, but it is not counted as a tracked corpus
+input.
 
 <!-- omena-vite-virtual-source-admission-census:start -->
 
 ```json
 {
-  "schemaVersion": "0",
+  "schemaVersion": "1",
   "product": "omena-vite.virtual-source-admission-census",
   "package": "@omena/vite-plugin",
+  "countUnit": "inputs",
   "semverIntent": "next-pre-1.0-minor",
+  "laneScope": {
+    "build": "resolved Vite pre-transform chain",
+    "serveDevRuntime": "disk file"
+  },
   "rows": [
     {
-      "key": "examples-disk-backed",
-      "provenanceClass": "disk-backed",
-      "admission": "existing",
-      "source": "examples/",
-      "section": "tracked module style inputs",
-      "count": 26
-    },
-    {
-      "key": "real-project-corpus-disk-backed",
-      "provenanceClass": "disk-backed",
-      "admission": "existing",
-      "source": "test/_fixtures/real-project-corpus/",
-      "section": "tracked module style inputs",
-      "count": 6
-    },
-    {
-      "key": "examples-upstream-transform",
+      "input": "examples/plugin-consumers/src/App.module.scss",
+      "population": "examples",
+      "included": true,
       "provenanceClass": "virtual-with-map",
       "admission": "newly-admitted",
-      "source": "examples/vite.config.ts",
-      "section": "plugins: upstreamVirtualSource()",
-      "count": 1
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
     },
     {
-      "key": "virtual-only-regression",
-      "provenanceClass": "virtual-only",
+      "input": "examples/src/scenarios/01-basic/Button.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
       "admission": "newly-admitted",
-      "source": "test/unit/vite-plugin/vite-plugin.test.ts",
-      "section": "analyzes a virtual-only source when no disk mapping is available",
-      "count": 1
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/02-multi-binding/Button.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/02-multi-binding/Card.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/03-multiline/MultilineForm.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/04-dynamic/DynamicKeys.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/05-global-local/GlobalLocal.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/06-alias/Alias.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/07-function-scoped/FunctionScoped.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/08-css-only/CssOnly.module.css",
+      "population": "examples",
+      "included": false,
+      "provenanceClass": "not-included",
+      "admission": "not-included",
+      "upstreamTransforms": []
+    },
+    {
+      "input": "examples/src/scenarios/09-large/Large.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/10-clsx/Clsx.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/11-ts-path/TsPath.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/12-nested-style-facts/NestedStyleFacts.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/13-shadowing/Shadowing.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/14-non-finite-dynamic/NonFiniteDynamic.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/15-composes/Base.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/15-composes/Composes.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/16-diagnostics-recovery/BrokenComposes.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/16-diagnostics-recovery/DiagnosticsRecovery.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/16-diagnostics-recovery/DiagnosticsRecoveryBase.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/17-bracket-access/BracketAccess.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/18-less-module/LessModule.module.less",
+      "population": "examples",
+      "included": false,
+      "provenanceClass": "not-included",
+      "admission": "not-included",
+      "upstreamTransforms": []
+    },
+    {
+      "input": "examples/src/scenarios/19-keyframes/Keyframes.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/20-value/Value.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "examples/src/scenarios/20-value/ValueTokens.module.scss",
+      "population": "examples",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "test/_fixtures/real-project-corpus/AnalyticsGrid.module.less",
+      "population": "real-project-corpus",
+      "included": false,
+      "provenanceClass": "not-included",
+      "admission": "not-included",
+      "upstreamTransforms": []
+    },
+    {
+      "input": "test/_fixtures/real-project-corpus/ButtonVariants.module.scss",
+      "population": "real-project-corpus",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "test/_fixtures/real-project-corpus/MarketingCard.module.scss",
+      "population": "real-project-corpus",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "test/_fixtures/real-project-corpus/MarketingCardBase.module.scss",
+      "population": "real-project-corpus",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "test/_fixtures/real-project-corpus/StatusChip.module.scss",
+      "population": "real-project-corpus",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
+    },
+    {
+      "input": "test/_fixtures/real-project-corpus/StatusChipTokens.module.scss",
+      "population": "real-project-corpus",
+      "included": true,
+      "provenanceClass": "virtual-with-map",
+      "admission": "newly-admitted",
+      "upstreamTransforms": ["examples-upstream-virtual-source"]
     }
   ],
   "totals": {
-    "existing": 32,
-    "newlyAdmitted": 2,
-    "total": 34
+    "trackedInputs": 32,
+    "included": 29,
+    "notIncluded": 3,
+    "existing": 0,
+    "newlyAdmitted": 29,
+    "byProvenance": {
+      "diskBacked": 0,
+      "virtualWithMap": 29,
+      "virtualOnly": 0
+    }
   }
 }
 ```

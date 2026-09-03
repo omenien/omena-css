@@ -35,6 +35,12 @@ type AdapterExports = {
     options: Record<string, unknown>,
     state: OmenaBuildState,
   ) => Promise<Record<string, unknown>>;
+  readonly resolveOmenaSourceContentDigest: (
+    filePath: string,
+    source: string,
+    options: Record<string, unknown>,
+    state: OmenaBuildState,
+  ) => Promise<string | null>;
   readonly rebuildAndCache: (
     filePath: string,
     source: string,
@@ -60,8 +66,13 @@ type AdapterExports = {
 };
 
 const require = createRequire(import.meta.url);
-const { MINIFY_PASS_IDS, createOmenaBuildState, rebuildAndCache, resolveEffectiveOptions } =
-  require("../../../packages/css-build-adapter/index.cjs") as AdapterExports;
+const {
+  MINIFY_PASS_IDS,
+  createOmenaBuildState,
+  rebuildAndCache,
+  resolveEffectiveOptions,
+  resolveOmenaSourceContentDigest,
+} = require("../../../packages/css-build-adapter/index.cjs") as AdapterExports;
 
 const tempRoots: string[] = [];
 const SEMANTIC_MINIFY_PASS_IDS = JSON.parse(
@@ -1114,6 +1125,27 @@ source-map = true
       buildSnapshotDigest: null,
       cacheBypassReason: "engineMissingBuildSnapshotIdentity",
     });
+  });
+
+  it("returns null when the engine cannot seal a source-content identity", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-build-adapter-null-digest-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "App.module.css");
+    const source = ".button { color: red; }";
+    const options = {
+      cwd: root,
+      configFile: false,
+      engine: {
+        buildStyleSourcesWithContextJson: () =>
+          JSON.stringify({ execution: { outputCss: source, executedPassIds: [] } }),
+      },
+      moduleInterface: false,
+    };
+    const state = createOmenaBuildState(options);
+
+    await expect(
+      resolveOmenaSourceContentDigest(stylePath, source, options, state),
+    ).resolves.toBeNull();
   });
 });
 

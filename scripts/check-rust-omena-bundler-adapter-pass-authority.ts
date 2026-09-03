@@ -172,24 +172,6 @@ function createRecordingEngine(
   return {
     passIdCalls,
     plannerCalls,
-    buildSnapshotIdentity(input: {
-      readonly targetPath: string;
-      readonly styleSources: readonly {
-        readonly stylePath: string;
-        readonly styleSource: string;
-      }[];
-    }) {
-      const targetSource = input.styleSources.find(
-        ({ stylePath: candidate }) => candidate === input.targetPath,
-      )?.styleSource;
-      return {
-        schemaVersion: "0",
-        product: "omena-query.build-snapshot-digest",
-        contentHashAlgorithm: "blake3",
-        digest: `blake3:pass-authority-${JSON.stringify(input)}`,
-        targetSourceDigest: `blake3:pass-authority-source-${JSON.stringify(targetSource)}`,
-      };
-    },
     bundlerHostCapabilitiesJson() {
       return JSON.stringify({
         protocolVersion: "0",

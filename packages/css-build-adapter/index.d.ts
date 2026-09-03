@@ -302,7 +302,7 @@ export declare function resolveOmenaSourceContentDigest(
   source: string,
   options: OmenaBuildAdapterOptions,
   state: OmenaBuildState,
-): Promise<string>;
+): Promise<string | null>;
 export declare function runOmenaBuild(
   filePath: string,
   source: string,

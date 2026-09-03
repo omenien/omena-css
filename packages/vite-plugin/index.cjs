@@ -19,6 +19,7 @@ const VIRTUAL_MODULE_ID = "virtual:omena-css/build-summary";
 const RESOLVED_VIRTUAL_MODULE_ID = `\0${VIRTUAL_MODULE_ID}`;
 const DEV_RUNTIME_ID_PREFIX = "\0omena-vite-style:";
 const DEV_RUNTIME_MARKER = "/* @omena/vite-plugin dev runtime */";
+const SOURCE_ADMISSION_INSPECTION = Symbol.for("omena-css.vite.source-admission-inspection");
 
 function omenaCss(options = {}) {
   const pluginName = options.name ?? "omena-css";
@@ -27,6 +28,28 @@ function omenaCss(options = {}) {
   return {
     name: pluginName,
     enforce: options.enforce ?? "pre",
+    [SOURCE_ADMISSION_INSPECTION]: {
+      async inspect({ code, id, diskSource, upstreamMap }) {
+        const fileId = cleanViteId(id);
+        const effectiveOptions = await resolveEffectiveOptions(options, state);
+        const include = effectiveOptions.include ?? DEFAULT_INCLUDE;
+        if (!matchesInclude(fileId, include)) {
+          return { included: false, provenanceClass: "not-included" };
+        }
+        if (diskSource === code) {
+          return { included: true, provenanceClass: "disk-backed" };
+        }
+        const usableMap = usableUpstreamSourceMap(
+          { getCombinedSourcemap: () => upstreamMap },
+          fileId,
+          diskSource,
+        );
+        return {
+          included: true,
+          provenanceClass: usableMap == null ? "virtual-only" : "virtual-with-map",
+        };
+      },
+    },
     configResolved(config) {
       state.root = options.cwd ?? config.root ?? state.root;
       state.command = config.command ?? state.command;
@@ -198,17 +221,20 @@ async function rebuildViteSource(fileId, source, diskSource, upstreamMap, effect
   const entry = state.cache.get(fileId);
   if (entry?.output === output) {
     const inputDigest = entry.buildSnapshotIdentity?.targetSourceDigest;
-    if (typeof inputDigest !== "string" || !inputDigest.startsWith("blake3:")) {
+    const hasInputDigest = typeof inputDigest === "string" && inputDigest.startsWith("blake3:");
+    const reason = hasInputDigest ? null : (entry.cacheBypassReason ?? "missingTargetSourceDigest");
+    if (!isDiskBacked && !hasInputDigest) {
       throw new Error(
-        `[omena-css] ${fileId} is missing the g136 build-snapshot source-content digest.`,
+        `[omena-css] ${fileId} is missing the build-snapshot target-source digest (${reason}).`,
       );
     }
     entry.sourceProvenance = {
       schemaVersion: "0",
       product: "omena-vite.virtual-source-provenance",
       classification,
-      diskDigest: isDiskBacked ? inputDigest : diskDigest,
-      inputDigest,
+      diskDigest: isDiskBacked ? (hasInputDigest ? inputDigest : null) : diskDigest,
+      inputDigest: hasInputDigest ? inputDigest : null,
+      reason,
       upstreamMapPresent: upstreamMap != null,
       upstreamMapSources: upstreamMap?.sources ?? [],
     };
@@ -225,7 +251,18 @@ function usableUpstreamSourceMap(pluginContext, fileId, diskSource) {
     return null;
   }
   const map = normalizeSourceMap(candidate);
-  if (!map || !map.sourcesContent?.includes(diskSource)) return null;
+  if (!map) return null;
+
+  const normalizedFileId = normalizeFilePath(fileId);
+  const matchingSourceIndexes = map.sources.flatMap((source, index) =>
+    normalizeFilePath(source) === normalizedFileId ? [index] : [],
+  );
+  if (
+    matchingSourceIndexes.length !== 1 ||
+    map.sourcesContent?.[matchingSourceIndexes[0]] !== diskSource
+  ) {
+    return null;
+  }
 
   let hasMappedSegment = false;
   let hasNonIdentitySegment = false;
@@ -233,6 +270,7 @@ function usableUpstreamSourceMap(pluginContext, fileId, diskSource) {
   try {
     consumer.eachMapping((mapping) => {
       if (mapping.originalLine == null || mapping.originalColumn == null) return;
+      if (mapping.source == null || normalizeFilePath(mapping.source) !== normalizedFileId) return;
       hasMappedSegment = true;
       if (
         mapping.generatedLine !== mapping.originalLine ||
