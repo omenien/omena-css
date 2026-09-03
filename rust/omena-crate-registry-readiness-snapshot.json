@@ -1,0 +1,314 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-crate-registry-readiness-snapshot",
+  "sourceAuthority": "scripts/crate-registry-state.ts#classifyCrateRegistryState",
+  "workspaceVersion": "0.5.0",
+  "records": [
+    {
+      "crate": "omena-abstract-value",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-bridge",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-bundler",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-cascade",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-cascade-proof",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-categorical",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-checker",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-cli",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-cross-file-summary",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-cst-typed",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-engine-input-producers",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-ensemble",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-evidence-graph",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-incremental",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-interner",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-lawvere",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-lsp-server",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-meta-macros",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-parser",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-product-hints",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-query",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-query-checker-orchestrator",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-query-core",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-query-transform-runner",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-reachability-datalog-lab",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-reactive",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-refinement",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-refinement-trait",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-resolver",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-rg-flow",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-scss-eval",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-semantic",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-sif",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-smt",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-spec-audit",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-streaming-ifds",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-syntax",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-testkit",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-transform-bundle",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-transform-cst",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-transform-egg",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-transform-passes",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-transform-print",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-transform-target",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-tsgo-client",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-umbrella",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-value-lattice",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-variational",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-wasm",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-zk-audit",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    },
+    {
+      "crate": "omena-zk-circuit",
+      "status": "registered",
+      "latestStableVersion": "0.5.0",
+      "workspaceVersionPublished": true
+    }
+  ]
+}

@@ -4,8 +4,8 @@
   "scope": {
     "pathspecs": ["scripts/**", "packages/check-orchestrator/src/**"],
     "scannedScriptCount": 507,
-    "registryWriterScriptCount": 75,
-    "declaredWriterScriptCount": 31,
+    "registryWriterScriptCount": 76,
+    "declaredWriterScriptCount": 32,
     "broadWriterScriptCountWithNonLiteralSites": 122,
     "broadNonLiteralWriteSiteCount": 319,
     "unsweptRegistryWriterScriptCount": 44,
@@ -2109,7 +2109,7 @@
     {
       "fingerprint": "237886e59fa0424eccc0f656f419c355a4a80270a8589987c636b88999659fe4",
       "writerScript": "scripts/check-rust-published-crate-surface-register.ts",
-      "line": 261,
+      "line": 263,
       "writeApi": "writeFileSync",
       "writeExpression": "registerPath",
       "disposition": "declared-writer-sweep"
@@ -2253,18 +2253,18 @@
     {
       "fingerprint": "572498426a8bb03210e4f17119ed242eff73cc192634978728668c920ea41f7c",
       "writerScript": "scripts/crate-registry-state.ts",
-      "line": 250,
+      "line": 379,
       "writeApi": "writeFileSync",
       "writeExpression": "outputPath",
-      "disposition": "outside-registry-writer"
+      "disposition": "declared-writer-sweep"
     },
     {
       "fingerprint": "eb6c9861b21f51afb1d3b953d57a334233bbb740c5591382e6e5321281c110c3",
       "writerScript": "scripts/crate-registry-state.ts",
-      "line": 267,
+      "line": 402,
       "writeApi": "appendFileSync",
       "writeExpression": "process.env.GITHUB_OUTPUT",
-      "disposition": "outside-registry-writer"
+      "disposition": "declared-writer-sweep"
     },
     {
       "fingerprint": "e237c699d23fd7a517552aefd4aa29f163aa12756c9f20c1044834ef6b15d2dd",

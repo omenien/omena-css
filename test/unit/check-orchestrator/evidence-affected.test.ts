@@ -179,6 +179,10 @@ const evidenceWriterFixturePaths = [
   "packages/check-orchestrator/src/evidence/writer-registry.ts",
   "rust/evidence-writer-nonliteral-write-census.json",
   "rust/evidence-writer-registry.json",
+  "rust/omena-crate-registry-readiness-snapshot.json",
+  "scripts/check-release-rehearsal-crate-dry-run.ts",
+  "scripts/check-rust-published-crate-surface-register.ts",
+  "scripts/crate-registry-state.ts",
   "test/unit/check-orchestrator/evidence-affected.test.ts",
 ] as const;
 

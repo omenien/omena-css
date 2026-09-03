@@ -26,6 +26,21 @@ export interface CrateRegistryRecord {
   readonly versions?: readonly { readonly num?: string; readonly yanked?: boolean }[];
 }
 
+export interface CrateRegistryReadinessSnapshotRecord {
+  readonly crate: string;
+  readonly status: "registered" | "unregistered";
+  readonly latestStableVersion?: string;
+  readonly workspaceVersionPublished?: boolean;
+}
+
+export interface CrateRegistryReadinessSnapshot {
+  readonly schemaVersion: "0";
+  readonly product: "omena-crate-registry-readiness-snapshot";
+  readonly sourceAuthority: "scripts/crate-registry-state.ts#classifyCrateRegistryState";
+  readonly workspaceVersion: string;
+  readonly records: readonly CrateRegistryReadinessSnapshotRecord[];
+}
+
 export interface SemverBaselinePlan {
   readonly eligible: readonly string[];
   readonly noCheckableLibraryBaseline: readonly string[];
@@ -117,6 +132,120 @@ export function deriveCrateRegistryState({
     remaining: crateNames.filter((name) => !alreadySet.has(name)),
     latestPublishedVersions,
   };
+}
+
+export function renderCrateRegistryReadinessSnapshot(registryState: CrateRegistryState): string {
+  const registered = new Set(registryState.registered);
+  const alreadyPublished = new Set(registryState.alreadyPublished);
+  const records = registryState.publishable
+    .map((crate): CrateRegistryReadinessSnapshotRecord => {
+      if (!registered.has(crate)) return { crate, status: "unregistered" };
+      const latestStableVersion = registryState.latestPublishedVersions[crate];
+      if (!latestStableVersion) {
+        throw new Error(`registered crate ${crate} has no latest stable version for readiness`);
+      }
+      return {
+        crate,
+        status: "registered",
+        latestStableVersion,
+        workspaceVersionPublished: alreadyPublished.has(crate),
+      };
+    })
+    .toSorted((left, right) => left.crate.localeCompare(right.crate));
+  const snapshot: CrateRegistryReadinessSnapshot = {
+    schemaVersion: "0",
+    product: "omena-crate-registry-readiness-snapshot",
+    sourceAuthority: "scripts/crate-registry-state.ts#classifyCrateRegistryState",
+    workspaceVersion: registryState.workspaceVersion,
+    records,
+  };
+  return `${JSON.stringify(snapshot, null, 2)}\n`;
+}
+
+export function registryRecordsFromReadinessSnapshot({
+  snapshot,
+  crateNames,
+  workspaceVersion,
+}: {
+  readonly snapshot: unknown;
+  readonly crateNames: readonly string[];
+  readonly workspaceVersion: string;
+}): readonly CrateRegistryRecord[] {
+  const root = assertJsonObject(snapshot, "registry readiness snapshot");
+  assertExactKeys(
+    root,
+    ["product", "records", "schemaVersion", "sourceAuthority", "workspaceVersion"],
+    "registry readiness snapshot",
+  );
+  if (root.schemaVersion !== "0") throw new Error("registry readiness snapshot schemaVersion");
+  if (root.product !== "omena-crate-registry-readiness-snapshot") {
+    throw new Error("registry readiness snapshot product");
+  }
+  if (root.sourceAuthority !== "scripts/crate-registry-state.ts#classifyCrateRegistryState") {
+    throw new Error("registry readiness snapshot source authority");
+  }
+  if (root.workspaceVersion !== workspaceVersion) {
+    throw new Error(
+      `registry readiness snapshot workspace version ${String(root.workspaceVersion)} does not match ${workspaceVersion}`,
+    );
+  }
+  if (!Array.isArray(root.records)) throw new Error("registry readiness snapshot records");
+
+  const seen = new Set<string>();
+  const records = root.records.map((value, index): CrateRegistryRecord => {
+    const row = assertJsonObject(value, `registry readiness snapshot record ${index}`);
+    if (typeof row.crate !== "string" || row.crate.length === 0) {
+      throw new Error(`registry readiness snapshot record ${index} has no crate`);
+    }
+    if (seen.has(row.crate)) {
+      throw new Error(`registry readiness snapshot duplicates ${row.crate}`);
+    }
+    seen.add(row.crate);
+    if (row.status === "unregistered") {
+      assertExactKeys(row, ["crate", "status"], `registry readiness snapshot ${row.crate}`);
+      return { name: row.crate, status: "unregistered" };
+    }
+    if (row.status !== "registered") {
+      throw new Error(`registry readiness snapshot ${row.crate} has unknown status`);
+    }
+    assertExactKeys(
+      row,
+      ["crate", "latestStableVersion", "status", "workspaceVersionPublished"],
+      `registry readiness snapshot ${row.crate}`,
+    );
+    if (
+      typeof row.latestStableVersion !== "string" ||
+      !/^\d+\.\d+\.\d+$/u.test(row.latestStableVersion)
+    ) {
+      throw new Error(`registry readiness snapshot ${row.crate} has invalid latest stable version`);
+    }
+    if (typeof row.workspaceVersionPublished !== "boolean") {
+      throw new Error(
+        `registry readiness snapshot ${row.crate} has invalid workspace publication state`,
+      );
+    }
+    if (row.latestStableVersion === workspaceVersion && !row.workspaceVersionPublished) {
+      throw new Error(
+        `registry readiness snapshot ${row.crate} contradicts its workspace publication state`,
+      );
+    }
+    const versions = [{ num: row.latestStableVersion }];
+    if (row.workspaceVersionPublished && row.latestStableVersion !== workspaceVersion) {
+      versions.push({ num: workspaceVersion });
+    }
+    if (selectLatestStableVersion(versions) !== row.latestStableVersion) {
+      throw new Error(
+        `registry readiness snapshot ${row.crate} contradicts its latest stable version`,
+      );
+    }
+    return { name: row.crate, status: "registered", versions };
+  });
+  const expected = [...crateNames].toSorted();
+  const actual = records.map((record) => record.name).toSorted();
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error("registry readiness snapshot must cover every publishable crate exactly once");
+  }
+  return records;
 }
 
 export function renderCrateResumeExcludeArgs(alreadyPublished: readonly string[]): string {
@@ -249,6 +378,12 @@ async function main(): Promise<void> {
   if (outputPath) {
     writeFileSync(outputPath, serialized);
   }
+  if (process.argv.includes("--write-readiness-snapshot")) {
+    writeFileSync(
+      "rust/omena-crate-registry-readiness-snapshot.json",
+      renderCrateRegistryReadinessSnapshot(registryState),
+    );
+  }
   if (process.env.GITHUB_OUTPUT) {
     const excludeArgs = renderCrateResumeExcludeArgs(registryState.alreadyPublished);
     const outputs = [
@@ -360,6 +495,24 @@ function readCanonicalOrder(orderPath: string, metadataNames: readonly string[])
     throw new Error(`${orderPath} does not contain the complete publishable workspace crate set`);
   }
   return orderedNames;
+}
+
+function assertJsonObject(value: unknown, label: string): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`${label} must be an object`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function assertExactKeys(
+  value: Readonly<Record<string, unknown>>,
+  expectedKeys: readonly string[],
+  label: string,
+): void {
+  const actualKeys = Object.keys(value).toSorted();
+  if (JSON.stringify(actualKeys) !== JSON.stringify([...expectedKeys].toSorted())) {
+    throw new Error(`${label} has unexpected fields`);
+  }
 }
 
 function readArg(name: string): string | undefined {

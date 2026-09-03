@@ -3,7 +3,10 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   classifyCrateRegistryState,
+  deriveCrateRegistryState,
   deriveSemverBaselinePlan,
+  registryRecordsFromReadinessSnapshot,
+  renderCrateRegistryReadinessSnapshot,
   resolveCratePublishMode,
   semverCheckableLibraryPath,
 } from "../../../scripts/crate-registry-state";
@@ -94,6 +97,46 @@ describe("crate publish registry contract", () => {
         fetchRegistry: async () => new Response("unavailable", { status: 503 }),
       }),
     ).rejects.toThrow("crates.io returned 503 for omena-existing");
+  });
+
+  it("round-trips the tracked readiness carrier through the live resolver contract", () => {
+    const state = deriveCrateRegistryState({
+      crateNames: ["omena-existing", "omena-new", "omena-current"],
+      workspaceVersion: "0.3.0",
+      records: [
+        { name: "omena-existing", status: "registered", versions: [{ num: "0.2.0" }] },
+        { name: "omena-new", status: "unregistered" },
+        { name: "omena-current", status: "registered", versions: [{ num: "0.3.0" }] },
+      ],
+    });
+    const snapshot = JSON.parse(renderCrateRegistryReadinessSnapshot(state)) as unknown;
+    const records = registryRecordsFromReadinessSnapshot({
+      snapshot,
+      crateNames: state.publishable,
+      workspaceVersion: state.workspaceVersion,
+    });
+
+    expect(
+      deriveCrateRegistryState({
+        crateNames: state.publishable,
+        workspaceVersion: state.workspaceVersion,
+        records,
+      }),
+    ).toEqual(state);
+
+    const ambiguous = snapshot as {
+      records: Array<{ crate: string; workspaceVersionPublished?: boolean }>;
+    };
+    const current = ambiguous.records.find((row) => row.crate === "omena-current");
+    expect(current).toBeDefined();
+    current!.workspaceVersionPublished = false;
+    expect(() =>
+      registryRecordsFromReadinessSnapshot({
+        snapshot: ambiguous,
+        crateNames: state.publishable,
+        workspaceVersion: state.workspaceVersion,
+      }),
+    ).toThrow("contradicts its workspace publication state");
   });
 
   it("requires bootstrap auth for an irreversible mixed first-publish train", () => {

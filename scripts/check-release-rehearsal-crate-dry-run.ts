@@ -4,7 +4,11 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { renderCrateResumeExcludeArgs } from "./crate-registry-state.ts";
+import {
+  type CrateRegistryState,
+  renderCrateRegistryReadinessSnapshot,
+  renderCrateResumeExcludeArgs,
+} from "./crate-registry-state.ts";
 
 interface ClosureReport {
   readonly canonicalPublishOrder: readonly string[];
@@ -12,7 +16,7 @@ interface ClosureReport {
   readonly closureViolations: number;
 }
 
-interface RegistryReport {
+interface RegistryReport extends CrateRegistryState {
   readonly publishable: readonly string[];
   readonly registered: readonly string[];
   readonly unregistered: readonly string[];
@@ -54,6 +58,10 @@ try {
   assert.equal(closure.closureViolations, 0);
   assert.equal(closure.canonicalPublishOrder.length, closure.trainCrateCount);
   const registryPath = path.join(tempDir, "crate-registry-state.json");
+  const trackedReadinessSnapshotPath = path.join(
+    repoRoot,
+    "rust/omena-crate-registry-readiness-snapshot.json",
+  );
   const cargoConfigPath = path.join(tempDir, "cargo-publish-workspace.toml");
 
   execFileSync(
@@ -74,6 +82,11 @@ try {
     },
   );
   const registry = JSON.parse(readFileSync(registryPath, "utf8")) as RegistryReport;
+  assert.equal(
+    renderCrateRegistryReadinessSnapshot(registry),
+    readFileSync(trackedReadinessSnapshotPath, "utf8"),
+    "tracked registry readiness snapshot differs from the fresh crates.io resolver result; refresh it with its registered writer",
+  );
   assert.deepEqual(
     [...registry.publishable].toSorted(),
     [...closure.canonicalPublishOrder].toSorted(),
@@ -146,6 +159,7 @@ try {
         registryUnregisteredCount: registry.unregistered.length,
         registryAlreadyPublishedCount: registry.alreadyPublished.length,
         resumeExcludeCount: registry.alreadyPublished.length,
+        trackedRegistryReadinessSnapshotFresh: true,
         uploadAttempted: false,
       },
       null,

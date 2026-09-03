@@ -254,6 +254,13 @@ export const EVIDENCE_WRITER_NON_LITERAL_WRITE_REFUSALS: readonly EvidenceWriter
       reason: "formatter input is staged in a fresh temp file before committed outputs are written",
     },
     {
+      writerScript: "scripts/crate-registry-state.ts",
+      writeExpression: "outputPath",
+      kind: "operator-selected-external-output",
+      reason:
+        "the optional full registry report is written only to the operator-selected --output-file destination",
+    },
+    {
       writerScript: "scripts/oss-corpus-farm.ts",
       writeExpression: 'path.join(fixtureDir, "fixture.omena")',
       kind: "operator-selected-external-output",
@@ -836,6 +843,21 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
       },
     ],
     inputPaths: ["rust/omena-published-crate-surface-register.json"],
+  },
+  {
+    commandId: "crate-registry-readiness-snapshot",
+    writeCommand: [
+      "node",
+      "--import",
+      "tsx",
+      "./scripts/crate-registry-state.ts",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "--write-readiness-snapshot",
+    ],
+    writerScripts: ["scripts/crate-registry-state.ts"],
+    outputPaths: ["rust/omena-crate-registry-readiness-snapshot.json"],
+    inputPaths: ["rust/Cargo.toml"],
   },
   {
     commandId: "documentation-reference-surface",

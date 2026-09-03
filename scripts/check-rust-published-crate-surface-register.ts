@@ -4,7 +4,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { declaredRustSemverIntentCrates } from "./lib/rust-semver-intent.ts";
-import { deriveCrateRegistryState } from "./crate-registry-state.ts";
+import {
+  deriveCrateRegistryState,
+  registryRecordsFromReadinessSnapshot,
+} from "./crate-registry-state.ts";
 
 type SurfaceDisposition = "snapshotGated" | "trainSemverOnly" | "noRustConsumerSurface";
 type RegistryBaseline = "present" | "firstPublish";
@@ -43,6 +46,10 @@ interface RegistryState {
 
 const repoRoot = process.cwd();
 const registerPath = path.join(repoRoot, "rust/omena-published-crate-surface-register.json");
+const readinessSnapshotPath = path.join(
+  repoRoot,
+  "rust/omena-crate-registry-readiness-snapshot.json",
+);
 const writeSnapshots = process.argv.includes("--write-snapshots");
 const initializeFrom = readArg("--initialize-from");
 const requiredSnapshotCrates = new Set([
@@ -76,29 +83,22 @@ assert.equal(
   "published-crate register product",
 );
 
-// Readiness is derived through the live registry resolver contract, never from
-// the historical registryBaselineAtRegistration field. CI exercises the same
-// resolver against a deterministic response fixture; release rehearsal invokes
-// crate-registry-state.ts against crates.io itself.
+// Push-tier readiness comes from a tracked result produced by the same live
+// registry resolver used in release rehearsal. The historical
+// registryBaselineAtRegistration field remains registration-time provenance,
+// not current readiness authority.
 const workspaceVersion = readWorkspaceVersion();
+const readinessSnapshot = JSON.parse(readFileSync(readinessSnapshotPath, "utf8")) as unknown;
 const resolverState = deriveCrateRegistryState({
   crateNames: closure.canonicalPublishOrder,
   workspaceVersion,
-  records: closure.canonicalPublishOrder.map((crate) =>
-    process.argv.includes("--inject-register-only-readiness") && crate === "omena-reactive"
-      ? { name: crate, status: "unregistered" as const }
-      : {
-          name: crate,
-          status: "registered" as const,
-          versions: [{ num: crate === "omena-reactive" ? workspaceVersion : "0.4.0" }],
-        },
-  ),
+  records: registryRecordsFromReadinessSnapshot({
+    snapshot: readinessSnapshot,
+    crateNames: closure.canonicalPublishOrder,
+    workspaceVersion,
+  }),
 });
 const resolverRegistered = new Set(resolverState.registered);
-assert.ok(
-  resolverState.alreadyPublished.includes("omena-reactive"),
-  "live resolver fixture must report omena-reactive as already-published",
-);
 assert.equal(
   register.domainAuthority,
   "rust.publish-train-closure.canonicalPublishOrder",
@@ -217,7 +217,9 @@ process.stdout.write(
       historicalFirstPublishCount: register.rows.filter(
         (row) => row.registryBaselineAtRegistration === "firstPublish",
       ).length,
+      registryReadinessSource: path.relative(repoRoot, readinessSnapshotPath),
       resolverRegisteredCount: resolverState.registered.length,
+      resolverUnregistered: resolverState.unregistered,
       resolverAlreadyPublished: resolverState.alreadyPublished,
     },
     null,

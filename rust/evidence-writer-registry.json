@@ -3,9 +3,9 @@
   "generatedBy": "pnpm omena-check evidence-writers --write",
   "commandAuthority": {
     "modulePath": "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
-    "sha256": "6a4186774e78f37ae1b7604e9350b1fbe922af0a6ac5fb637649b7e53e7743fb",
-    "declaredCommandCount": 26,
-    "declaredOutputCount": 75,
+    "sha256": "ccb241b6b78f0537f9c4027c74692053f7c778e163ea6bdd5e8c11c85e7ce20b",
+    "declaredCommandCount": 27,
+    "declaredOutputCount": 76,
     "declaredStaticWriteOutputCount": 68
   },
   "artifacts": [
@@ -1397,7 +1397,10 @@
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": [],
-      "inputArtifactPaths": ["rust/omena-published-crate-surface-register.json"],
+      "inputArtifactPaths": [
+        "rust/omena-crate-registry-readiness-snapshot.json",
+        "rust/omena-published-crate-surface-register.json"
+      ],
       "writerGateIds": ["rust/omena-bundler/public-surface:update"],
       "consumerPaths": [
         "docs/governance/version-governance.md",
@@ -1533,7 +1536,10 @@
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": [],
-      "inputArtifactPaths": ["rust/omena-published-crate-surface-register.json"],
+      "inputArtifactPaths": [
+        "rust/omena-crate-registry-readiness-snapshot.json",
+        "rust/omena-published-crate-surface-register.json"
+      ],
       "writerGateIds": [],
       "consumerPaths": [
         "docs/governance/version-governance.md",
@@ -2716,7 +2722,10 @@
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": [],
-      "inputArtifactPaths": ["rust/omena-published-crate-surface-register.json"],
+      "inputArtifactPaths": [
+        "rust/omena-crate-registry-readiness-snapshot.json",
+        "rust/omena-published-crate-surface-register.json"
+      ],
       "writerGateIds": [],
       "consumerPaths": [
         "docs/governance/version-governance.md",
@@ -2878,7 +2887,10 @@
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": ["scripts/check-rust-omena-query-public-surface.ts"],
-      "inputArtifactPaths": ["rust/omena-published-crate-surface-register.json"],
+      "inputArtifactPaths": [
+        "rust/omena-crate-registry-readiness-snapshot.json",
+        "rust/omena-published-crate-surface-register.json"
+      ],
       "writerGateIds": ["rust/omena-query/public-surface:update"],
       "consumerPaths": [
         "docs/governance/version-governance.md",
@@ -2985,7 +2997,10 @@
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": [],
-      "inputArtifactPaths": ["rust/omena-published-crate-surface-register.json"],
+      "inputArtifactPaths": [
+        "rust/omena-crate-registry-readiness-snapshot.json",
+        "rust/omena-published-crate-surface-register.json"
+      ],
       "writerGateIds": ["rust/omena-reactive/public-surface:update"],
       "consumerPaths": [
         "docs/governance/version-governance.md",
@@ -3331,7 +3346,10 @@
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": ["scripts/check-rust-line-index-authority.ts"],
-      "inputArtifactPaths": ["rust/omena-published-crate-surface-register.json"],
+      "inputArtifactPaths": [
+        "rust/omena-crate-registry-readiness-snapshot.json",
+        "rust/omena-published-crate-surface-register.json"
+      ],
       "writerGateIds": [],
       "consumerPaths": [
         "docs/governance/version-governance.md",
@@ -3512,7 +3530,10 @@
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": [],
-      "inputArtifactPaths": ["rust/omena-published-crate-surface-register.json"],
+      "inputArtifactPaths": [
+        "rust/omena-crate-registry-readiness-snapshot.json",
+        "rust/omena-published-crate-surface-register.json"
+      ],
       "writerGateIds": [],
       "consumerPaths": [
         "docs/governance/version-governance.md",
@@ -3574,7 +3595,10 @@
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": [],
-      "inputArtifactPaths": ["rust/omena-published-crate-surface-register.json"],
+      "inputArtifactPaths": [
+        "rust/omena-crate-registry-readiness-snapshot.json",
+        "rust/omena-published-crate-surface-register.json"
+      ],
       "writerGateIds": [],
       "consumerPaths": [
         "docs/governance/version-governance.md",
@@ -3973,6 +3997,39 @@
       "writerGateIds": [],
       "consumerPaths": ["scripts/check-rust-omena-cascade-layer-rank-construction.ts"],
       "consumerGateIds": ["rust/omena-cascade/layer-rank-construction"]
+    },
+    {
+      "artifactPath": "rust/omena-crate-registry-readiness-snapshot.json",
+      "classification": "W1",
+      "writerNodeKind": "normal",
+      "freshReproductionRequired": true,
+      "writerScripts": ["scripts/crate-registry-state.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/crate-registry-state.ts",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--write-readiness-snapshot"
+      ],
+      "inputPaths": ["rust/Cargo.toml"],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "scripts/check-release-rehearsal-crate-dry-run.ts",
+        "scripts/check-rust-published-crate-surface-register.ts",
+        "scripts/crate-registry-state.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
+      ],
+      "consumerGateIds": [
+        "release/check/release-crate-registry-state",
+        "release/rehearsal/crate-dry-run",
+        "rust/published-crate-surface-register",
+        "tooling/evidence-affected-map"
+      ]
     },
     {
       "artifactPath": "rust/omena-cross-surface-parity-golden.json",
@@ -4848,7 +4905,7 @@
         "scripts/lib/rust-semver-intent.ts"
       ],
       "inputScannerPaths": [],
-      "inputArtifactPaths": [],
+      "inputArtifactPaths": ["rust/omena-crate-registry-readiness-snapshot.json"],
       "writerGateIds": [],
       "consumerPaths": [
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
