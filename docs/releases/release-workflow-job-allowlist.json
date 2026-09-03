@@ -267,7 +267,7 @@
     {
       "workflow": "release-rehearsal.yml",
       "job": "rehearsal",
-      "semanticDigest": "3de6b511de20a6fc296bf3f6ea44ac91af33f2c5b5fb388b9b5d988c8405f246"
+      "semanticDigest": "e004bc6ac9540e8c65315fd785f29c168e60220ee75ef494f1ab3f506ec6912c"
     },
     {
       "workflow": "release-plan.yml",

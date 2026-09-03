@@ -32,6 +32,9 @@ jobs:
       - uses: ./.github/actions/setup-rust-pinned
         with:
           targets: wasm32-unknown-unknown
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: nightly
       - uses: ./.github/actions/cache-rust
         with:
           shared-key: release-rehearsal
