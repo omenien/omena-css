@@ -612,7 +612,7 @@
   },
   "exit": {
     "sourceRef": "WORKTREE",
-    "sourceFileSha256": "66b6355a8f28e135ef3f9f344d6c72c429ba76db96ff32b7804c8e2261f91039",
+    "sourceFileSha256": "525c1de4092e1ddb2cfdef142744ce72edd3c3d343fd4365f909d5bbf206760d",
     "rowCount": 17,
     "planeCounts": {
       "cascadeObligation": 12,
@@ -865,7 +865,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
           "symbol": "LedgerDischargeWitnessV0::from_discharge_cell_key_v0",
-          "lineHint": 188,
+          "lineHint": 192,
           "lineSha256": "072a6605d742077b3cbffa1b6497a7bdb67089af633241280db8b2dbbe830e1b"
         },
         "plane": "evidenceMint",
