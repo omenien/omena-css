@@ -1096,6 +1096,16 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/omena-config-schema-census", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-write-safety", "gate", "rust"),
   {
+    id: "rust/census-instrument-s0",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/census-instrument-s0",
+    tags: ["rust-workspace", "census", "refusal"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
+    timeoutMinutes: 45,
+  },
+  {
     id: "rust/fs-capability-ban",
     kind: "gate",
     scope: "rust",

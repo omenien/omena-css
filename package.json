@@ -299,6 +299,7 @@
     "check:rust-omena-stylelint-compat": "cargo test --manifest-path rust/Cargo.toml -p omena-cli stylelint_compat && node --import tsx ./scripts/check-rust-omena-stylelint-compat.ts",
     "check:rust-omena-config-schema-census": "node --import tsx ./scripts/check-rust-omena-config-schema-census.ts",
     "check:rust-omena-write-safety": "node --import tsx ./scripts/check-rust-omena-write-safety.ts",
+    "check:rust-census-instrument-s0": "node --import tsx ./scripts/check-rust-census-instrument-s0.ts",
     "check:rust-fs-acquisition-census": "node --import tsx ./scripts/check-rust-fs-acquisition-census.ts",
     "check:rust-fs-capability-ban": "node --import tsx ./scripts/check-rust-fs-capability-partition.ts && node --import tsx ./scripts/check-rust-fs-capability-ban.ts",
     "check:rust-omena-query-adapter-capabilities": "node --import tsx ./scripts/check-rust-omena-query-adapter-capabilities.ts",
