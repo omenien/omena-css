@@ -66,6 +66,27 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const cliRoot = "rust/crates/omena-cli/src";
 const manifestPath = "rust/crates/omena-cli/write-safety-census.json";
 const transactionModulePath = "rust/crates/omena-cli/src/workspace_edit_transaction.rs";
+const sanctionedProductDestinationCalls = [
+  "crate::daemon::watch_endpoint_path",
+  "crate::workspace_edit_transaction::sidecar_path",
+  "crate::workspace_edit_transaction::journal_path",
+  "crate::workspace_edit_transaction::transaction_lock_path",
+] as const;
+const pathPreservingMethods = new Set([
+  "as_path",
+  "as_ref",
+  "clone",
+  "iter",
+  "join",
+  "ok_or_else",
+  "parent",
+  "rev",
+  "to_path_buf",
+  "unwrap_or",
+  "unwrap_or_else",
+  "with_extension",
+]);
+let productDestinationGraphCache: ProductDestinationGraph | undefined;
 const manifest = readWriteSafetyManifest(manifestPath);
 const fixSafetySource = read("rust/crates/omena-checker/src/fix_safety.rs");
 const writeGateSource = read(manifest.sourceMutationGate.path);
@@ -192,6 +213,102 @@ const productSourceBareWriteCount = derivedWriteSites.reduce(
   0,
 );
 assert.equal(productSourceBareWriteCount, 0, "product/source-plane bare write count must be zero");
+const destinationFixtureOptions = {
+  modulePath: "fixture::authority",
+  sanctionedCalls: ["fixture::authority::sidecar_path"],
+  trustedFields: new Set(["fixture::authority::TrustedSidecar.backup"]),
+} as const;
+assertDestinationFixtureAllowed(
+  "a fully resolved sanctioned constructor",
+  `fn emit(product: &Path) {
+    let destination = fixture::authority::sidecar_path(product);
+    let _ = std::fs::write(destination, b"control");
+  }`,
+  destinationFixtureOptions,
+);
+assertDestinationFixtureAllowed(
+  "a type-resolved trusted field",
+  `fn emit(sidecar: TrustedSidecar) {
+    let _ = std::fs::write(sidecar.backup, b"control");
+  }`,
+  destinationFixtureOptions,
+);
+for (const [label, fixture] of [
+  [
+    "an arbitrary function parameter",
+    `fn emit(path: &Path) {
+      let _ = std::fs::write(path, b"control");
+    }`,
+  ],
+  [
+    "a local same-name constructor",
+    `fn emit(product: &Path) {
+      fn sidecar_path(_: &Path) -> PathBuf { PathBuf::from("decoy") }
+      let destination = sidecar_path(product);
+      let _ = std::fs::write(destination, b"control");
+    }`,
+  ],
+  [
+    "a foreign same-name field",
+    `fn emit(sidecar: ForeignSidecar) {
+      let _ = std::fs::write(sidecar.backup, b"control");
+    }`,
+  ],
+  [
+    "a mixed conditional destination",
+    `fn emit(product: &Path, choose_product: bool) {
+      let sidecar = fixture::authority::sidecar_path(product);
+      let destination = if choose_product { product.to_path_buf() } else { sidecar };
+      let _ = std::fs::write(destination, b"control");
+    }`,
+  ],
+  [
+    "a tuple binding",
+    `fn emit(product: &Path) {
+      let (destination, marker) = (fixture::authority::sidecar_path(product), 0);
+      let _ = marker;
+      let _ = std::fs::write(destination, b"control");
+    }`,
+  ],
+  [
+    "a let-else binding",
+    `fn emit(product: &Path) {
+      let Some(destination) = Some(fixture::authority::sidecar_path(product)) else { return; };
+      let _ = std::fs::write(destination, b"control");
+    }`,
+  ],
+  [
+    "a destructuring assignment",
+    `fn emit(product: &Path) {
+      let mut destination = product.to_path_buf();
+      let mut marker = 0;
+      (destination, marker) = (fixture::authority::sidecar_path(product), 1);
+      let _ = marker;
+      let _ = std::fs::write(destination, b"control");
+    }`,
+  ],
+  [
+    "an inner-block binding leak",
+    `fn emit(product: &Path) {
+      let destination = product.to_path_buf();
+      { let destination = fixture::authority::sidecar_path(product); let _ = destination; }
+      let _ = std::fs::write(destination, b"control");
+    }`,
+  ],
+] as const) {
+  assertDestinationFixtureDenied(label, fixture, destinationFixtureOptions);
+}
+assertDestinationFixtureDenied(
+  "a statement macro assignment",
+  `fn emit(product: &Path) {
+    macro_rules! assign_destination { ($target:ident, $value:expr) => { $target = $value; }; }
+    let mut destination = product.to_path_buf();
+    assign_destination!(destination, fixture::authority::sidecar_path(product));
+    let _ = std::fs::write(destination, b"control");
+  }`,
+  destinationFixtureOptions,
+  "statement-macro:assign_destination",
+);
 assert.deepEqual(
   manifest.writeSites.map(siteIdentity).toSorted(),
   derivedWriteSites.map(siteIdentity).toSorted(),
@@ -741,7 +858,11 @@ function deriveProductionWriteSites(
       current.writeCount += 1;
       current.apis.add(mutation.api);
       if (
-        !isProvenNonProductDestination(shortKey, mutation, source.slice(owner.start, owner.end))
+        !isProvenNonProductDestination(
+          key,
+          { ...mutation, offset: mutation.offset - owner.start },
+          source.slice(owner.start, owner.end),
+        )
       ) {
         current.productSourceWriteCount += 1;
       }
@@ -812,95 +933,966 @@ function assertProductSourcePlaneZero(writeSites: readonly WriteSite[]): void {
   );
 }
 
-function nonProductDestinationAuthority(
-  key: string,
-): { readonly destinations: readonly RegExp[]; readonly evidence: readonly RegExp[] } | undefined {
-  return new Map<
-    string,
-    { readonly destinations: readonly RegExp[]; readonly evidence: readonly RegExp[] }
-  >([
-    [
-      "rust/crates/omena-cli/src/daemon.rs#write_endpoint",
-      {
-        destinations: [/^parent$/u, /^&?temporary$/u, /^path$/u],
-        evidence: [/path\.with_extension\(/u, /fs::rename\(&temporary,\s*path\)/u],
-      },
-    ],
-    [
-      "rust/crates/omena-cli/src/daemon.rs#cleanup_endpoint",
-      { destinations: [/^path$/u], evidence: [/fs::remove_file\(path\)/u] },
-    ],
-    ...[
-      "lock_update",
-      "lock_add",
-      "lock_fetch_provenance",
-      "lock_record_verification",
-      "lock_verify_attestation",
-    ].map(
-      (functionName) =>
-        [
-          `rust/crates/omena-cli/src/lock.rs#${functionName}`,
-          { destinations: [/^&?lockfile$/u], evidence: [/write_omena_lock_json_v1/u] },
-        ] as const,
+interface DestinationTransition {
+  readonly offset: number;
+  readonly kind: "let" | "assign";
+  readonly pattern: string;
+  readonly expression: string;
+  readonly letElse: boolean;
+  readonly controlPattern?: "if-let" | "for";
+}
+
+interface DestinationDataflow {
+  readonly derivedByMutation: ReadonlyMap<string, boolean>;
+  readonly unparsedConstructs: readonly string[];
+  readonly calls: readonly {
+    readonly name: string;
+    readonly argumentsDerived: readonly boolean[];
+  }[];
+}
+
+interface DestinationCall {
+  readonly offset: number;
+  readonly name: string;
+  readonly arguments: readonly string[];
+}
+
+function destinationMutationIdentity(mutation: FilesystemMutation): string {
+  return `${mutation.offset}:${mutation.api}`;
+}
+
+function simpleBindingPattern(pattern: string): string | undefined {
+  const normalized = pattern
+    .trim()
+    .replace(/^ref\s+mut\s+/u, "")
+    .replace(/^ref\s+/u, "")
+    .replace(/^mut\s+/u, "")
+    .split(/\s*:\s*/u)[0]!
+    .trim();
+  return /^[A-Za-z_][A-Za-z0-9_]*$/u.test(normalized) ? normalized : undefined;
+}
+
+function topLevelAssignment(source: string): number {
+  let round = 0;
+  let square = 0;
+  let brace = 0;
+  for (let cursor = 0; cursor < source.length; cursor += 1) {
+    const current = source[cursor]!;
+    if (current === "(") round += 1;
+    else if (current === ")") round -= 1;
+    else if (current === "[") square += 1;
+    else if (current === "]") square -= 1;
+    else if (current === "{") brace += 1;
+    else if (current === "}") brace -= 1;
+    else if (
+      current === "=" &&
+      round === 0 &&
+      square === 0 &&
+      brace === 0 &&
+      source[cursor - 1] !== "=" &&
+      source[cursor - 1] !== "!" &&
+      source[cursor - 1] !== "<" &&
+      source[cursor - 1] !== ">" &&
+      source[cursor + 1] !== "=" &&
+      source[cursor + 1] !== ">"
+    ) {
+      return cursor;
+    }
+  }
+  return -1;
+}
+
+function matchingRustDelimiter(
+  source: string,
+  open: number,
+  opening: "(" | "[" | "{",
+  closing: ")" | "]" | "}",
+): number {
+  assert.equal(source[open], opening, `expected ${opening} at Rust delimiter start`);
+  let depth = 0;
+  for (let cursor = open; cursor < source.length; cursor += 1) {
+    if (source[cursor] === opening) depth += 1;
+    else if (source[cursor] === closing) {
+      depth -= 1;
+      if (depth === 0) return cursor;
+    }
+  }
+  throw new Error(`unterminated Rust delimiter ${opening}${closing}`);
+}
+
+function statementEnd(source: string, start: number): number {
+  let round = 0;
+  let square = 0;
+  let brace = 0;
+  for (let cursor = start; cursor < source.length; cursor += 1) {
+    const current = source[cursor]!;
+    if (current === "(") round += 1;
+    else if (current === ")") round -= 1;
+    else if (current === "[") square += 1;
+    else if (current === "]") square -= 1;
+    else if (current === "{") brace += 1;
+    else if (current === "}") brace -= 1;
+    else if (current === ";" && round === 0 && square === 0 && brace === 0) return cursor;
+  }
+  return source.length;
+}
+
+function destinationTransitions(source: string): DestinationTransition[] {
+  const structural = maskRustCommentsAndLiterals(source);
+  const rows: DestinationTransition[] = [];
+  const occupied = new Array<boolean>(source.length).fill(false);
+  for (const match of structural.matchAll(/\blet\b/gu)) {
+    const start = match.index ?? 0;
+    const prefix = structural.slice(Math.max(0, start - 12), start);
+    if (/\b(?:if|while)\s*$/u.test(prefix)) continue;
+    const end = statementEnd(structural, start);
+    const declaration = structural.slice(start + 3, end);
+    const equal = topLevelAssignment(declaration);
+    if (equal < 0) continue;
+    const pattern = declaration.slice(0, equal).trim();
+    let expression = declaration.slice(equal + 1).trim();
+    const letElseMatch = expression.match(/^([\s\S]*?)\s+else\s*\{/u);
+    const letElse = Boolean(letElseMatch);
+    if (letElseMatch) expression = letElseMatch[1]!.trim();
+    rows.push({ offset: end, kind: "let", pattern, expression, letElse });
+    for (let cursor = start; cursor <= Math.min(end, source.length - 1); cursor += 1) {
+      occupied[cursor] = true;
+    }
+  }
+  for (const match of structural.matchAll(/\bif\s+let\s+([^=;{}]+?)\s*=\s*([^;{}]+?)\s*\{/gu)) {
+    const open = (match.index ?? 0) + match[0].lastIndexOf("{");
+    rows.push({
+      offset: open,
+      kind: "let",
+      pattern: match[1]!.trim(),
+      expression: match[2]!.trim(),
+      letElse: false,
+      controlPattern: "if-let",
+    });
+  }
+  for (const match of structural.matchAll(/\bfor\s+([^=;{}]+?)\s+in\s+([^;{}]+?)\s*\{/gu)) {
+    const open = (match.index ?? 0) + match[0].lastIndexOf("{");
+    rows.push({
+      offset: open,
+      kind: "let",
+      pattern: match[1]!.trim(),
+      expression: match[2]!.trim(),
+      letElse: false,
+      controlPattern: "for",
+    });
+  }
+  for (const match of structural.matchAll(/(?:^|[;{}])\s*([^;{}=]+?)\s*(?<![=!<>])=(?!=|>)/gmu)) {
+    const start = (match.index ?? 0) + match[0].lastIndexOf(match[1]!);
+    if (occupied[start]) continue;
+    const end = statementEnd(structural, start);
+    const statement = structural.slice(start, end);
+    const equal = topLevelAssignment(statement);
+    if (equal < 0) continue;
+    rows.push({
+      offset: end,
+      kind: "assign",
+      pattern: statement.slice(0, equal).trim(),
+      expression: statement.slice(equal + 1).trim(),
+      letElse: false,
+    });
+  }
+  return rows.toSorted((left, right) => left.offset - right.offset);
+}
+
+function patternBindings(pattern: string): string[] {
+  return [...pattern.matchAll(/\b([a-z][A-Za-z0-9_]*)\b/gu)]
+    .map((match) => match[1]!)
+    .filter((name) => !new Set(["mut", "ref", "self", "crate", "super"]).has(name));
+}
+
+function functionParameterBindings(source: string): string[] {
+  const structural = maskRustCommentsAndLiterals(source);
+  const fn = structural.match(/\bfn\s+[a-z][a-z0-9_]*\s*(?:<[^;{]*?>\s*)?\(/u);
+  if (fn?.index === undefined) return [];
+  const open = fn.index + fn[0].lastIndexOf("(");
+  let close: number;
+  try {
+    close = matchingRustDelimiter(structural, open, "(", ")");
+  } catch {
+    return [];
+  }
+  return splitTopLevelArguments(structural.slice(open + 1, close)).flatMap((parameter) => {
+    const beforeType = parameter.split(":")[0]!.trim();
+    if (/^(?:&\s*)?(?:mut\s+)?self$/u.test(beforeType)) return ["self"];
+    const binding = simpleBindingPattern(beforeType);
+    return binding ? [binding] : [];
+  });
+}
+
+function resolvedRustTypeIdentity(
+  typeSource: string,
+  modulePath: string,
+  ownerType?: string,
+): string | undefined {
+  const candidates = [
+    ...maskRustCommentsAndLiterals(typeSource).matchAll(
+      /(?:[A-Za-z_][A-Za-z0-9_]*::)*[A-Z][A-Za-z0-9_]*/gu,
     ),
-    [
-      "rust/crates/omena-cli/src/lock.rs#write_recorded_shard_verdicts",
-      {
-        destinations: [/^verdict_dir\.as_path\(\)$/u],
-        evidence: [/\.join\("\.cache"\)/u, /OMENA_SIF_SHARD_VERDICT_DIR_V1/u],
-      },
-    ],
-    [
-      "rust/crates/omena-cli/src/lock.rs#write_recorded_sigstore_bundle",
-      {
-        destinations: [/^bundle_dir\.as_path\(\)$/u],
-        evidence: [/\.join\("\.cache"\)/u, /RECORDED_SIGSTORE_BUNDLE_DIR_V1/u],
-      },
-    ],
-    [
-      "rust/crates/omena-cli/src/lock.rs#publish_immutable_recorded_shard_verdict",
-      {
-        destinations: [/^<receiver-bound>$/u, /^temporary\.as_path\(\)$/u, /^path$/u],
-        evidence: [/create_new\(true\)/u, /temporary/u],
-      },
-    ],
-    [
-      "rust/crates/omena-cli/src/workspace_edit_transaction.rs#prepare_rollback_backup",
-      {
-        destinations: [/^edit\.backup\.as_path\(\)$/u],
-        evidence: [/rollback backup/u],
-      },
-    ],
-    [
-      "rust/crates/omena-cli/src/workspace_edit_transaction.rs#write_transaction_journal_file",
-      {
-        destinations: [/^<receiver-bound>$/u, /^path$/u],
-        evidence: [/create_new\(true\)/u],
-      },
-    ],
-    [
-      "rust/crates/omena-cli/src/workspace_edit_transaction.rs#write_transaction_lock_file",
-      {
-        destinations: [/^<receiver-bound>$/u, /^lock_path$/u],
-        evidence: [/create_new\(true\)/u],
-      },
-    ],
-    [
-      "rust/crates/omena-cli/src/workspace_edit_transaction.rs#drop",
-      { destinations: [/^path$/u], evidence: [/self\.paths\.iter\(\)\.rev\(\)/u] },
-    ],
-    [
-      "rust/crates/omena-cli/src/workspace_edit_transaction.rs#cleanup_staged",
-      {
-        destinations: [/^edit\.(?:stage|backup)\.as_path\(\)$/u],
-        evidence: [/!edit\.backup_ready/u],
-      },
-    ],
-    [
-      "rust/crates/omena-cli/src/workspace_edit_transaction.rs#remove_if_exists",
-      { destinations: [/^path$/u], evidence: [/remove transaction sidecar/u] },
-    ],
-  ]).get(key);
+  ].map((match) => match[0]!);
+  const candidate = candidates.at(-1);
+  if (!candidate) return undefined;
+  if (candidate === "Self") return ownerType;
+  return candidate.includes("::") ? candidate : `${modulePath}::${candidate}`;
+}
+
+function functionOwnerType(functionIdentity: string, modulePath: string): string | undefined {
+  const relative = functionIdentity.startsWith(`${modulePath}::`)
+    ? functionIdentity.slice(modulePath.length + 2)
+    : functionIdentity;
+  const owner = relative.split("::").at(-2);
+  return owner && /^[A-Z]/u.test(owner) ? `${modulePath}::${owner}` : undefined;
+}
+
+function functionParameterTypes(
+  source: string,
+  modulePath: string,
+  ownerType?: string,
+): ReadonlyMap<string, string> {
+  const structural = maskRustCommentsAndLiterals(source);
+  const fn = structural.match(/\bfn\s+[a-z][a-z0-9_]*\s*(?:<[^;{]*?>\s*)?\(/u);
+  if (fn?.index === undefined) return new Map();
+  const open = fn.index + fn[0].lastIndexOf("(");
+  let close: number;
+  try {
+    close = matchingRustDelimiter(structural, open, "(", ")");
+  } catch {
+    return new Map();
+  }
+  const types = new Map<string, string>();
+  for (const parameter of splitTopLevelArguments(structural.slice(open + 1, close))) {
+    const trimmed = parameter.trim();
+    if (/^(?:&\s*)?(?:mut\s+)?self$/u.test(trimmed)) {
+      if (ownerType) types.set("self", ownerType);
+      continue;
+    }
+    const colon = trimmed.indexOf(":");
+    if (colon < 0) continue;
+    const binding = simpleBindingPattern(trimmed.slice(0, colon));
+    const type = resolvedRustTypeIdentity(trimmed.slice(colon + 1), modulePath, ownerType);
+    if (binding && type) types.set(binding, type);
+  }
+  return types;
+}
+
+function functionCalls(source: string): DestinationCall[] {
+  const structural = maskRustCommentsAndLiterals(source);
+  const bodyStart = structural.indexOf("{");
+  const calls: DestinationCall[] = [];
+  for (const match of structural.matchAll(
+    /(?<![A-Za-z0-9_.])((?:[A-Za-z_][A-Za-z0-9_]*::)*[A-Za-z_][A-Za-z0-9_]*)\s*\(/gu,
+  )) {
+    const offset = match.index ?? 0;
+    if (offset <= bodyStart) continue;
+    const open = offset + match[0].lastIndexOf("(");
+    let close: number;
+    try {
+      close = matchingRustDelimiter(structural, open, "(", ")");
+    } catch {
+      continue;
+    }
+    calls.push({
+      offset,
+      name: match[1]!,
+      arguments: splitTopLevelArguments(source.slice(open + 1, close)),
+    });
+  }
+  for (const match of structural.matchAll(/\bself\.([a-z][A-Za-z0-9_]*)\s*\(/gu)) {
+    const offset = match.index ?? 0;
+    const open = offset + match[0].lastIndexOf("(");
+    let close: number;
+    try {
+      close = matchingRustDelimiter(structural, open, "(", ")");
+    } catch {
+      continue;
+    }
+    calls.push({
+      offset,
+      name: `Self::${match[1]!}`,
+      arguments: splitTopLevelArguments(source.slice(open + 1, close)),
+    });
+  }
+  return calls.toSorted((left, right) => left.offset - right.offset);
+}
+
+function splitTopLevelArguments(source: string): string[] {
+  const rows: string[] = [];
+  let start = 0;
+  let round = 0;
+  let square = 0;
+  let angle = 0;
+  for (let cursor = 0; cursor < source.length; cursor += 1) {
+    const current = source[cursor]!;
+    if (current === "(") round += 1;
+    else if (current === ")") round -= 1;
+    else if (current === "[") square += 1;
+    else if (current === "]") square -= 1;
+    else if (current === "<") angle += 1;
+    else if (current === ">") angle = Math.max(0, angle - 1);
+    else if (current === "," && round === 0 && square === 0 && angle === 0) {
+      rows.push(source.slice(start, cursor));
+      start = cursor + 1;
+    }
+  }
+  rows.push(source.slice(start));
+  return rows.filter((row) => row.trim().length > 0);
+}
+
+function braceEvents(source: string): Array<{ offset: number; open: boolean }> {
+  const structural = maskRustCommentsAndLiterals(source);
+  return [...structural].flatMap((character, offset) =>
+    character === "{"
+      ? [{ offset, open: true }]
+      : character === "}"
+        ? [{ offset, open: false }]
+        : [],
+  );
+}
+
+function nearestBinding(scopes: readonly Map<string, boolean>[], name: string): boolean {
+  for (let index = scopes.length - 1; index >= 0; index -= 1) {
+    if (scopes[index]!.has(name)) return scopes[index]!.get(name) ?? false;
+  }
+  return false;
+}
+
+function nearestBindingType(
+  scopes: readonly Map<string, string>[],
+  name: string,
+): string | undefined {
+  for (let index = scopes.length - 1; index >= 0; index -= 1) {
+    if (scopes[index]!.has(name)) return scopes[index]!.get(name);
+  }
+  return undefined;
+}
+
+function setNearestBindingType(
+  scopes: readonly Map<string, string>[],
+  name: string,
+  value: string | undefined,
+): void {
+  for (let index = scopes.length - 1; index >= 0; index -= 1) {
+    if (scopes[index]!.has(name)) {
+      if (value) scopes[index]!.set(name, value);
+      else scopes[index]!.delete(name);
+      return;
+    }
+  }
+  if (value) scopes.at(-1)!.set(name, value);
+}
+
+function setNearestBinding(
+  scopes: readonly Map<string, boolean>[],
+  name: string,
+  value: boolean,
+): void {
+  for (let index = scopes.length - 1; index >= 0; index -= 1) {
+    if (scopes[index]!.has(name)) {
+      scopes[index]!.set(name, value);
+      return;
+    }
+  }
+  scopes.at(-1)!.set(name, value);
+}
+
+function pathBinding(expression: string): string | undefined {
+  let normalized = maskRustCommentsAndLiterals(expression).trim();
+  while (normalized.startsWith("&")) normalized = normalized.slice(1).trim();
+  while (normalized.startsWith("(") && normalized.endsWith(")")) {
+    normalized = normalized.slice(1, -1).trim();
+  }
+  normalized = normalized.replace(/\.(?:as_path|as_ref|clone)\s*\(\s*\)\s*$/u, "");
+  return /^[A-Za-z_][A-Za-z0-9_]*$/u.test(normalized) ? normalized : undefined;
+}
+
+function stripOuterParens(expression: string): string {
+  let current = expression.trim();
+  while (current.startsWith("(") && current.endsWith(")")) {
+    try {
+      if (matchingRustDelimiter(current, 0, "(", ")") !== current.length - 1) break;
+    } catch {
+      break;
+    }
+    current = current.slice(1, -1).trim();
+  }
+  return current;
+}
+
+function hasTopLevelPathMixingOperator(expression: string): boolean {
+  let round = 0;
+  let square = 0;
+  let brace = 0;
+  for (let cursor = 0; cursor < expression.length; cursor += 1) {
+    const current = expression[cursor]!;
+    if (current === "(") round += 1;
+    else if (current === ")") round -= 1;
+    else if (current === "[") square += 1;
+    else if (current === "]") square -= 1;
+    else if (current === "{") brace += 1;
+    else if (current === "}") brace -= 1;
+    else if (round === 0 && square === 0 && brace === 0 && /[,+*/|&]/u.test(current)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function topLevelMethodNames(expression: string): string[] {
+  const methods: string[] = [];
+  let round = 0;
+  let square = 0;
+  let brace = 0;
+  for (let cursor = 0; cursor < expression.length; cursor += 1) {
+    const current = expression[cursor]!;
+    if (current === "." && round === 0 && square === 0 && brace === 0) {
+      const method = expression.slice(cursor).match(/^\.([A-Za-z_][A-Za-z0-9_]*)\s*\(/u)?.[1];
+      if (method) methods.push(method);
+    }
+    if (current === "(") round += 1;
+    else if (current === ")") round -= 1;
+    else if (current === "[") square += 1;
+    else if (current === "]") square -= 1;
+    else if (current === "{") brace += 1;
+    else if (current === "}") brace -= 1;
+  }
+  return methods;
+}
+
+function directCallPath(expression: string): string | undefined {
+  let structural = stripOuterParens(maskRustCommentsAndLiterals(expression));
+  while (structural.startsWith("&")) structural = structural.slice(1).trim();
+  const match = structural.match(/^((?:[A-Za-z_][A-Za-z0-9_]*::)*[A-Za-z_][A-Za-z0-9_]*)\s*\(/u);
+  if (!match) return undefined;
+  const open = match[0].lastIndexOf("(");
+  let close: number;
+  try {
+    close = matchingRustDelimiter(structural, open, "(", ")");
+  } catch {
+    return undefined;
+  }
+  const suffix = structural
+    .slice(close + 1)
+    .trim()
+    .replace(/\?$/u, "");
+  if (suffix && !/^(?:\.[A-Za-z_][A-Za-z0-9_]*\s*\([^;]*\))*$/u.test(suffix)) {
+    return undefined;
+  }
+  return match[1]!;
+}
+
+function resolvedCallIdentity(
+  rawCall: string,
+  source: string,
+  options: DestinationDataflowOptions,
+): string | undefined {
+  const modulePath = options.modulePath ?? "crate";
+  let identity: string;
+  if (rawCall.startsWith("crate::") || rawCall.startsWith("std::")) {
+    identity = rawCall;
+  } else if (rawCall.startsWith("Self::")) {
+    if (!options.ownerType) return undefined;
+    identity = `${options.ownerType}::${rawCall.slice("Self::".length)}`;
+  } else if (rawCall.includes("::")) {
+    const first = rawCall.split("::", 1)[0]!;
+    identity = /^[A-Z]/u.test(first) ? `${modulePath}::${rawCall}` : rawCall;
+  } else {
+    const structural = maskRustCommentsAndLiterals(options.lexicalSource ?? source);
+    const body = structural.slice(Math.max(0, structural.indexOf("{") + 1));
+    const shadow = new RegExp(`\\bfn\\s+${escapeRegExp(rawCall)}\\b`, "u");
+    if (shadow.test(body)) return undefined;
+    identity = `${modulePath}::${rawCall}`;
+  }
+  if (options.knownCalls && !options.knownCalls.has(identity)) return undefined;
+  return identity;
+}
+
+function derivedOpenHandle(
+  expression: string,
+  scopes: readonly Map<string, boolean>[],
+  options: DestinationDataflowOptions,
+  typeScopes: readonly Map<string, string>[],
+): boolean {
+  const structural = maskRustCommentsAndLiterals(expression);
+  const matches = [...structural.matchAll(/\.open\s*\(/gu)];
+  if (matches.length !== 1) return false;
+  const open = (matches[0]!.index ?? 0) + matches[0]![0].lastIndexOf("(");
+  const argument = callArgument(expression, open, 0);
+  return expressionDerived(argument, scopes, options, typeScopes);
+}
+
+interface DestinationDataflowOptions {
+  readonly sanctionedCalls: readonly string[];
+  readonly initialBindings?: readonly string[];
+  readonly trustedFields?: ReadonlySet<string>;
+  readonly knownCalls?: ReadonlySet<string>;
+  readonly bindingTypes?: ReadonlyMap<string, string>;
+  readonly modulePath?: string;
+  readonly ownerType?: string;
+  readonly lexicalSource?: string;
+}
+
+interface ProductDestinationFunction {
+  readonly file: string;
+  readonly key: string;
+  readonly identity: string;
+  readonly shortName: string;
+  readonly source: string;
+  readonly parameters: readonly string[];
+  readonly bindingTypes: ReadonlyMap<string, string>;
+  readonly modulePath: string;
+  readonly ownerType?: string;
+}
+
+interface ProductDestinationGraph {
+  readonly initialBindingsByFunction: ReadonlyMap<string, ReadonlySet<string>>;
+  readonly trustedFields: ReadonlySet<string>;
+  readonly bindingTypesByFunction: ReadonlyMap<string, ReadonlyMap<string, string>>;
+  readonly modulePathByFunction: ReadonlyMap<string, string>;
+  readonly ownerTypeByFunction: ReadonlyMap<string, string | undefined>;
+}
+
+function rustStructBody(source: string, name: string): string {
+  const structural = maskRustCommentsAndLiterals(source);
+  const declaration = new RegExp(
+    `\\bstruct\\s+${escapeRegExp(name)}(?:\\s*<[^>{;]+>)?\\s*\\{`,
+    "u",
+  ).exec(structural);
+  assert.ok(declaration?.index !== undefined, `missing Rust struct ${name}`);
+  const open = declaration.index + declaration[0].lastIndexOf("{");
+  const close = matchingRustDelimiter(structural, open, "{", "}");
+  return structural.slice(open + 1, close);
+}
+
+function deriveProductDestinationGraph(): ProductDestinationGraph {
+  if (productDestinationGraphCache) return productDestinationGraphCache;
+  const files = [
+    "rust/crates/omena-cli/src/daemon.rs",
+    "rust/crates/omena-cli/src/lock.rs",
+    transactionModulePath,
+  ];
+  const sources = new Map(files.map((file) => [file, productionRustSource(read(file))]));
+  const functions: ProductDestinationFunction[] = files.flatMap((file) => {
+    const source = sources.get(file)!;
+    const modulePath = rustModuleIdentifier(file);
+    return namedFunctions(maskRustCommentsAndLiterals(source), file).map((fn) => {
+      const functionSource = source.slice(fn.start, fn.end);
+      const ownerType = functionOwnerType(fn.name, modulePath);
+      return {
+        file,
+        key: `${file}#${fn.name}`,
+        identity: fn.name,
+        shortName: fn.shortName,
+        source: functionSource,
+        parameters: functionParameterBindings(functionSource),
+        bindingTypes: functionParameterTypes(functionSource, modulePath, ownerType),
+        modulePath,
+        ownerType,
+      };
+    });
+  });
+  const byFileAndShort = new Map<string, ProductDestinationFunction[]>();
+  const byIdentity = new Map<string, ProductDestinationFunction[]>();
+  for (const fn of functions) {
+    const indexKey = `${fn.file}#${fn.shortName}`;
+    const rows = byFileAndShort.get(indexKey) ?? [];
+    rows.push(fn);
+    byFileAndShort.set(indexKey, rows);
+    const identities = byIdentity.get(fn.identity) ?? [];
+    identities.push(fn);
+    byIdentity.set(fn.identity, identities);
+  }
+  const trustedFields = new Set<string>();
+  for (const [file, type, field, fieldType] of [
+    [files[0]!, "OmenadArgs", "endpoint_file", "PathBuf"],
+    [files[0]!, "OmenadProcessV0", "endpoint_file", "PathBuf"],
+    [transactionModulePath, "StagedEditV0", "stage", "PathBuf"],
+    [transactionModulePath, "StagedEditV0", "backup", "PathBuf"],
+    [transactionModulePath, "TransactionLockGuard", "paths", "Vec<PathBuf>"],
+  ] as const) {
+    const body = rustStructBody(sources.get(file)!, type);
+    assert.match(
+      body,
+      new RegExp(`(?:^|\\n)\\s*${field}\\s*:\\s*${escapeRegExp(fieldType)}\\s*,`, "u"),
+      `trusted destination field declaration changed ${rustModuleIdentifier(file)}::${type}.${field}`,
+    );
+    trustedFields.add(`${rustModuleIdentifier(file)}::${type}.${field}`);
+  }
+  for (const identity of sanctionedProductDestinationCalls) {
+    assert.equal(
+      byIdentity.get(identity)?.length ?? 0,
+      1,
+      `sanctioned destination constructor not uniquely module-resolved ${identity}`,
+    );
+  }
+  for (const [file, source] of sources) {
+    assert.doesNotMatch(
+      maskRustCommentsAndLiterals(source),
+      /\buse\s+[^;]*::\s*\*\s*;/u,
+      `destination authority does not admit glob imports ${file}`,
+    );
+  }
+  const transaction = maskRustCommentsAndLiterals(sources.get(transactionModulePath)!);
+  for (const field of ["stage", "backup"] as const) {
+    assert.match(
+      transaction,
+      new RegExp(`let\\s+${field}_path\\s*=\\s*sidecar_path\\s*\\(`, "u"),
+      `destination class not derived from a sanctioned-module call ${transactionModulePath}#${field}`,
+    );
+    assert.match(
+      transaction,
+      new RegExp(`${field}\\s*:\\s*${field}_path\\b`, "u"),
+      `destination class not derived from a sanctioned-module call ${transactionModulePath}#${field}`,
+    );
+  }
+  assert.match(
+    transaction,
+    /let\s+lock_path\s*=\s*transaction_lock_path\s*\(/u,
+    `destination class not derived from a sanctioned-module call ${transactionModulePath}#lock_path`,
+  );
+  assert.match(
+    transaction,
+    /paths\.push\s*\(\s*lock_path\.clone\s*\(\s*\)\s*\)/u,
+    `destination class not derived from a sanctioned-module call ${transactionModulePath}#paths`,
+  );
+  const daemon = maskRustCommentsAndLiterals(sources.get(files[0]!)!);
+  assert.match(
+    daemon,
+    /let\s+endpoint_file\s*=\s*watch_endpoint_path\s*\(/u,
+    `destination class not derived from a sanctioned-module call ${files[0]}#endpoint_file`,
+  );
+  assert.match(
+    daemon,
+    /OmenadProcessV0\s*\{[\s\S]*?\bendpoint_file\s*,[\s\S]*?\bdetached\s*:/u,
+    `daemon process endpoint field lost its sanctioned constructor flow ${files[0]}#OmenadProcessV0.endpoint_file`,
+  );
+  const lock = maskRustCommentsAndLiterals(sources.get(files[1]!)!);
+  assert.match(
+    lock,
+    /lock_verify_attestation\s*\(\s*LockVerifyAttestationInput\s*\{[\s\S]*?\blockfile\s*,/u,
+    `destination class not derived from a sanctioned-module call ${files[1]}#lock_verify_attestation`,
+  );
+
+  const bindings = new Map<string, Set<string>>(functions.map((fn) => [fn.key, new Set()]));
+  const root = (file: string, shortName: string, names: readonly string[]): void => {
+    const candidates = byFileAndShort.get(`${file}#${shortName}`) ?? [];
+    assert.equal(candidates.length, 1, `destination root item not resolvable ${file}#${shortName}`);
+    for (const name of names) candidates[0] && bindings.get(candidates[0].key)!.add(name);
+  };
+  root(files[1]!, "lock_command", ["status_lockfile", "lockfile"]);
+  root(files[1]!, "lock_verify_attestation", ["lockfile"]);
+
+  const knownCalls = new Set(functions.map(({ identity }) => identity));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const fn of functions) {
+      const analysis = deriveDestinationDataflow(fn.source, [], {
+        sanctionedCalls: sanctionedProductDestinationCalls,
+        initialBindings: [...bindings.get(fn.key)!],
+        trustedFields,
+        knownCalls,
+        bindingTypes: fn.bindingTypes,
+        modulePath: fn.modulePath,
+        ownerType: fn.ownerType,
+      });
+      for (const call of analysis.calls) {
+        for (const target of byIdentity.get(call.name) ?? []) {
+          if (target.file !== fn.file) continue;
+          const implicitSelf = target.parameters[0] === "self" ? 1 : 0;
+          for (let index = 0; index < call.argumentsDerived.length; index += 1) {
+            const parameter = target.parameters[index + implicitSelf];
+            if (!parameter || !call.argumentsDerived[index]) continue;
+            const targetBindings = bindings.get(target.key)!;
+            if (!targetBindings.has(parameter)) {
+              targetBindings.add(parameter);
+              changed = true;
+            }
+          }
+        }
+      }
+    }
+  }
+  for (const [identity, binding] of [
+    ["crate::daemon::write_endpoint", "path"],
+    ["crate::daemon::cleanup_endpoint", "path"],
+    ["crate::lock::publish_immutable_recorded_shard_verdict", "path"],
+    ["crate::workspace_edit_transaction::write_transaction_lock_file", "lock_path"],
+    ["crate::workspace_edit_transaction::write_transaction_journal_file", "path"],
+    ["crate::workspace_edit_transaction::remove_if_exists", "path"],
+  ] as const) {
+    const candidates = byIdentity.get(identity) ?? [];
+    assert.equal(candidates.length, 1, `destination sink not uniquely resolved ${identity}`);
+    assert.ok(
+      bindings.get(candidates[0]!.key)?.has(binding),
+      `destination sink lost full-call-graph authority ${identity}#${binding}`,
+    );
+  }
+  productDestinationGraphCache = {
+    initialBindingsByFunction: bindings,
+    trustedFields,
+    bindingTypesByFunction: new Map(functions.map((fn) => [fn.key, fn.bindingTypes])),
+    modulePathByFunction: new Map(functions.map((fn) => [fn.key, fn.modulePath])),
+    ownerTypeByFunction: new Map(functions.map((fn) => [fn.key, fn.ownerType])),
+  };
+  return productDestinationGraphCache;
+}
+
+function expressionDerived(
+  expression: string,
+  scopes: readonly Map<string, boolean>[],
+  options: DestinationDataflowOptions,
+  typeScopes: readonly Map<string, string>[] = [new Map(options.bindingTypes ?? [])],
+): boolean {
+  let structural = stripOuterParens(maskRustCommentsAndLiterals(expression));
+  while (structural.startsWith("&")) structural = structural.slice(1).trim();
+  const rawCall = directCallPath(structural);
+  const call = rawCall ? resolvedCallIdentity(rawCall, expression, options) : undefined;
+  if (call && options.sanctionedCalls.includes(call)) return true;
+  if (/\.open\s*\(/u.test(structural)) {
+    return derivedOpenHandle(expression, scopes, options, typeScopes);
+  }
+  if (/\b(?:if|match)\b/u.test(structural)) {
+    return derivedOpenHandle(expression, scopes, options, typeScopes);
+  }
+  if (rawCall && !pathPreservingMethods.has(rawCall.split("::").at(-1)!)) return false;
+  if (hasTopLevelPathMixingOperator(structural)) return false;
+  const root = structural.match(/^([A-Za-z_][A-Za-z0-9_]*)\b/u)?.[1];
+  if (!root) return false;
+  const methods = topLevelMethodNames(structural);
+  if (methods.some((method) => !pathPreservingMethods.has(method) && method !== "open")) {
+    return false;
+  }
+  const field = structural.match(/^[A-Za-z_][A-Za-z0-9_]*\.([A-Za-z_][A-Za-z0-9_]*)\b/u)?.[1];
+  const rootType = nearestBindingType(typeScopes, root);
+  const fieldDerived = Boolean(
+    field && rootType && options.trustedFields?.has(`${rootType}.${field}`),
+  );
+  return nearestBinding(scopes, root) || fieldDerived;
+}
+
+function receiverBinding(source: string, offset: number): string | undefined {
+  const before = maskRustCommentsAndLiterals(source.slice(0, offset));
+  return before.match(/([A-Za-z_][A-Za-z0-9_]*)\s*$/u)?.[1];
+}
+
+function statementContaining(source: string, offset: number): string {
+  const structural = maskRustCommentsAndLiterals(source);
+  let start = offset;
+  let round = 0;
+  let square = 0;
+  while (start > 0) {
+    const current = structural[start - 1]!;
+    if (current === ")") round += 1;
+    else if (current === "(") round -= 1;
+    else if (current === "]") square += 1;
+    else if (current === "[") square -= 1;
+    if ((current === ";" || current === "{") && round <= 0 && square <= 0) break;
+    start -= 1;
+  }
+  const end = statementEnd(structural, start);
+  return source.slice(start, end);
+}
+
+function transitionBindingType(
+  transition: DestinationTransition,
+  typeScopes: readonly Map<string, string>[],
+  options: DestinationDataflowOptions,
+): string | undefined {
+  const colon = transition.pattern.indexOf(":");
+  if (colon >= 0) {
+    const explicit = resolvedRustTypeIdentity(
+      transition.pattern.slice(colon + 1),
+      options.modulePath ?? "crate",
+      options.ownerType,
+    );
+    if (explicit) return explicit;
+  }
+  const structural = stripOuterParens(maskRustCommentsAndLiterals(transition.expression));
+  const root = structural.match(/^&?\s*([A-Za-z_][A-Za-z0-9_]*)\b/u)?.[1];
+  if (root) {
+    const inherited = nearestBindingType(typeScopes, root);
+    if (inherited) return inherited;
+  }
+  return resolvedRustTypeIdentity(
+    structural.match(/^([A-Z][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\s*\{/u)?.[1] ?? "",
+    options.modulePath ?? "crate",
+    options.ownerType,
+  );
+}
+
+function deriveDestinationDataflow(
+  source: string,
+  mutations: readonly FilesystemMutation[],
+  options: DestinationDataflowOptions,
+): DestinationDataflow {
+  const effectiveOptions: DestinationDataflowOptions = { ...options, lexicalSource: source };
+  const transitions = destinationTransitions(source);
+  const braces = braceEvents(source);
+  const calls = functionCalls(source)
+    .flatMap((call) => {
+      const name = resolvedCallIdentity(call.name, source, effectiveOptions);
+      return name ? [{ ...call, name }] : [];
+    })
+    .filter(({ name }) => options.knownCalls?.has(name) ?? false);
+  const scopes: Map<string, boolean>[] = [
+    new Map((options.initialBindings ?? []).map((binding) => [binding, true])),
+  ];
+  const typeScopes: Map<string, string>[] = [new Map(options.bindingTypes ?? [])];
+  const derivedByMutation = new Map<string, boolean>();
+  const observedCalls: Array<{ name: string; argumentsDerived: readonly boolean[] }> = [];
+  const unparsedConstructs: string[] = [];
+  const structural = maskRustCommentsAndLiterals(source);
+  const definedMacros = new Set(
+    [...structural.matchAll(/\bmacro_rules!\s*([A-Za-z_][A-Za-z0-9_]*)/gu)].map(
+      (match) => match[1]!,
+    ),
+  );
+  for (const name of definedMacros) {
+    if (new RegExp(`\\b${escapeRegExp(name)}!\\s*\\(`, "u").test(structural)) {
+      unparsedConstructs.push(`statement-macro:${name}`);
+    }
+  }
+  if (/\buse\s+[^;]*::\s*\*\s*;/u.test(structural)) {
+    unparsedConstructs.push("glob-import");
+  }
+  const events = [
+    ...braces.map((event) => ({ ...event, type: "brace" as const })),
+    ...transitions.map((transition) => ({ ...transition, type: "transition" as const })),
+    ...calls.map((call) => ({ ...call, type: "call" as const })),
+    ...mutations.map((mutation) => ({ ...mutation, type: "mutation" as const })),
+  ].toSorted((left, right) => left.offset - right.offset || (left.type === "brace" ? -1 : 1));
+  for (const event of events) {
+    if (event.type === "brace") {
+      if (event.open) {
+        scopes.push(new Map());
+        typeScopes.push(new Map());
+      } else if (scopes.length > 1) {
+        scopes.pop();
+        typeScopes.pop();
+      }
+      continue;
+    }
+    if (event.type === "call") {
+      observedCalls.push({
+        name: event.name,
+        argumentsDerived: event.arguments.map((argument) =>
+          expressionDerived(argument, scopes, effectiveOptions, typeScopes),
+        ),
+      });
+      continue;
+    }
+    if (event.type === "transition") {
+      const derived = expressionDerived(event.expression, scopes, effectiveOptions, typeScopes);
+      const binding = simpleBindingPattern(event.pattern);
+      const bindingType = transitionBindingType(event, typeScopes, effectiveOptions);
+      if (event.letElse && derived) {
+        unparsedConstructs.push("let-else-pattern");
+      }
+      if (!binding) {
+        if (event.controlPattern) {
+          for (const name of patternBindings(event.pattern)) {
+            scopes.at(-1)!.set(name, derived);
+            if (bindingType) typeScopes.at(-1)!.set(name, bindingType);
+          }
+        } else if (event.pattern.trim() !== "_" && derived) {
+          unparsedConstructs.push(
+            event.kind === "let" ? "non-identifier-pattern" : "non-identifier-lvalue",
+          );
+        }
+        continue;
+      }
+      if (event.kind === "let") {
+        scopes.at(-1)!.set(binding, derived);
+        if (bindingType) typeScopes.at(-1)!.set(binding, bindingType);
+      } else {
+        setNearestBinding(scopes, binding, derived);
+        setNearestBindingType(typeScopes, binding, bindingType);
+      }
+      continue;
+    }
+    const direct = expressionDerived(event.destination, scopes, effectiveOptions, typeScopes);
+    const binding = pathBinding(event.destination);
+    const receiver =
+      event.destination === "<receiver-bound>" ? receiverBinding(source, event.offset) : undefined;
+    const deferredBuilder =
+      event.destination === "<receiver-bound>" &&
+      expressionDerived(
+        statementContaining(source, event.offset),
+        scopes,
+        effectiveOptions,
+        typeScopes,
+      );
+    derivedByMutation.set(
+      destinationMutationIdentity(event),
+      direct ||
+        Boolean(binding && nearestBinding(scopes, binding)) ||
+        Boolean(receiver && nearestBinding(scopes, receiver)) ||
+        deferredBuilder,
+    );
+  }
+  return {
+    derivedByMutation,
+    unparsedConstructs: [...new Set(unparsedConstructs)],
+    calls: observedCalls,
+  };
+}
+
+function destinationFixtureAnalysis(
+  source: string,
+  options: Pick<DestinationDataflowOptions, "modulePath" | "sanctionedCalls" | "trustedFields">,
+): { mutation: FilesystemMutation; analysis: DestinationDataflow } {
+  const mutations = filesystemMutations(source);
+  assert.equal(
+    mutations.length,
+    1,
+    "destination dataflow fixture must contain one write primitive",
+  );
+  const modulePath = options.modulePath ?? "crate";
+  return {
+    mutation: mutations[0]!,
+    analysis: deriveDestinationDataflow(source, mutations, {
+      ...options,
+      bindingTypes: functionParameterTypes(source, modulePath),
+    }),
+  };
+}
+
+function assertDestinationFixtureAllowed(
+  label: string,
+  source: string,
+  options: Pick<DestinationDataflowOptions, "modulePath" | "sanctionedCalls" | "trustedFields">,
+): void {
+  const { mutation, analysis } = destinationFixtureAnalysis(source, options);
+  assert.deepEqual(analysis.unparsedConstructs, [], `${label} must be fully parsed`);
+  assert.equal(
+    analysis.derivedByMutation.get(destinationMutationIdentity(mutation)),
+    true,
+    `${label} must carry non-product destination authority`,
+  );
+}
+
+function assertDestinationFixtureDenied(
+  label: string,
+  source: string,
+  options: Pick<DestinationDataflowOptions, "modulePath" | "sanctionedCalls" | "trustedFields">,
+  expectedUnparsed?: string,
+): void {
+  const { mutation, analysis } = destinationFixtureAnalysis(source, options);
+  assert.equal(
+    analysis.derivedByMutation.get(destinationMutationIdentity(mutation)),
+    false,
+    `${label} must not carry non-product destination authority`,
+  );
+  if (expectedUnparsed) {
+    assert.ok(
+      analysis.unparsedConstructs.includes(expectedUnparsed),
+      `${label} must fail closed as ${expectedUnparsed}`,
+    );
+  }
 }
 
 function isProvenNonProductDestination(
@@ -908,14 +1900,23 @@ function isProvenNonProductDestination(
   mutation: FilesystemMutation,
   functionSource: string,
 ): boolean {
-  const authority = nonProductDestinationAuthority(key);
-  if (!authority) return false;
-  assert.ok(
-    authority.evidence.every((pattern) => pattern.test(functionSource)),
-    `non-product destination evidence changed: ${key}`,
+  const graph = deriveProductDestinationGraph();
+  const initialBindings = [...(graph.initialBindingsByFunction.get(key) ?? [])];
+  const analysis = deriveDestinationDataflow(functionSource, filesystemMutations(functionSource), {
+    sanctionedCalls: sanctionedProductDestinationCalls,
+    initialBindings,
+    trustedFields: graph.trustedFields,
+    bindingTypes: graph.bindingTypesByFunction.get(key),
+    modulePath: graph.modulePathByFunction.get(key),
+    ownerType: graph.ownerTypeByFunction.get(key),
+  });
+  assert.deepEqual(
+    analysis.unparsedConstructs,
+    [],
+    `unparsed destination construct ${analysis.unparsedConstructs[0] ?? "unknown"} ${key}`,
   );
-  const destination = mutation.destination.replaceAll(/\s+/gu, "");
-  return authority.destinations.some((pattern) => pattern.test(destination));
+  const derived = analysis.derivedByMutation.get(destinationMutationIdentity(mutation)) ?? false;
+  return derived;
 }
 
 function assertClassificationRole(site: WriteSite, apis: ReadonlySet<string>): void {
