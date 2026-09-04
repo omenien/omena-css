@@ -279,6 +279,7 @@ if (process.argv.includes("--print-cfg")) {
   process.exit(0);
 }
 
+assertSuppressionGranularity(observed);
 const authority = JSON.parse(readFileSync(authorityPath, "utf8")) as CensusAuthority;
 assert.ok(Array.isArray(authority.acquisitionSites), "census authority lacks acquisitionSites");
 assert.ok(
@@ -309,7 +310,6 @@ for (const site of observed) {
 const removals = authority.acquisitionSites.filter(
   (site) => !observedByIdentity.has(siteIdentity(site)),
 );
-assertSuppressionGranularity(observed);
 
 process.stdout.write(
   `${JSON.stringify(
