@@ -1040,7 +1040,7 @@ function statementEnd(source: string, start: number): number {
 function destinationTransitions(source: string): DestinationTransition[] {
   const structural = maskRustCommentsAndLiterals(source);
   const rows: DestinationTransition[] = [];
-  const occupied = new Array<boolean>(source.length).fill(false);
+  const occupied = Array.from({ length: source.length }, () => false);
   for (const match of structural.matchAll(/\blet\b/gu)) {
     const start = match.index ?? 0;
     const prefix = structural.slice(Math.max(0, start - 12), start);
@@ -1244,7 +1244,7 @@ function splitTopLevelArguments(source: string): string[] {
 
 function braceEvents(source: string): Array<{ offset: number; open: boolean }> {
   const structural = maskRustCommentsAndLiterals(source);
-  return [...structural].flatMap((character, offset) =>
+  return [...structural].flatMap<{ offset: number; open: boolean }>((character, offset) =>
     character === "{"
       ? [{ offset, open: true }]
       : character === "}"
@@ -1580,7 +1580,7 @@ function deriveProductDestinationGraph(): ProductDestinationGraph {
   const root = (file: string, shortName: string, names: readonly string[]): void => {
     const candidates = byFileAndShort.get(`${file}#${shortName}`) ?? [];
     assert.equal(candidates.length, 1, `destination root item not resolvable ${file}#${shortName}`);
-    for (const name of names) candidates[0] && bindings.get(candidates[0].key)!.add(name);
+    for (const name of names) bindings.get(candidates[0]!.key)!.add(name);
   };
   root(files[1]!, "lock_command", ["status_lockfile", "lockfile"]);
   root(files[1]!, "lock_verify_attestation", ["lockfile"]);
