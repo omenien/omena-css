@@ -105,6 +105,10 @@ interface CensusInstrumentAuthority {
   readonly precision: {
     readonly familyCallSites: readonly RegisteredCallSite[];
     readonly deserializationContainers: readonly RegisteredContainer[];
+    readonly birthFloors: {
+      readonly familyCallSites: number;
+      readonly deserializationContainers: number;
+    };
   };
 }
 
@@ -997,6 +1001,252 @@ function familyMembers(leaf: RustSource): Set<string> {
   return new Set(expected);
 }
 
+function outerTypeName(typeSource: string): string | undefined {
+  const normalized = typeSource
+    .trim()
+    .replace(/^&\s*(?:'[A-Za-z_][A-Za-z0-9_]*\s+)?(?:mut\s+)?/u, "")
+    .replace(/^\(\s*/u, "");
+  return normalized.match(
+    /^(?:(?:crate|self|super|[a-z_][a-z0-9_]*)\s*::\s*)*([A-Z][A-Za-z0-9_]*)\b/u,
+  )?.[1];
+}
+
+function directPrecisionType(typeSource: string, aliases: ReadonlySet<string>): boolean {
+  const name = outerTypeName(typeSource);
+  return name !== undefined && aliases.has(name);
+}
+
+type PrecisionAttribution = "precision" | "non-precision" | "unresolved";
+
+function functionVariableTypes(
+  header: string,
+  body: string,
+  functionName: string,
+  aliases: ReadonlySet<string>,
+  members: ReadonlySet<string>,
+  returnTypes: ReadonlyMap<string, string>,
+): Map<string, string> {
+  const types = new Map<string, string>();
+  const parameterBinding =
+    /\b([a-z][a-z0-9_]*)\s*:\s*((?:&\s*(?:'[A-Za-z_][A-Za-z0-9_]*\s+)?(?:mut\s+)?)?(?:(?:crate|self|super|[a-z_][a-z0-9_]*)\s*::\s*)*[A-Z][A-Za-z0-9_]*)/gu;
+  for (const match of header.matchAll(parameterBinding)) types.set(match[1]!, match[2]!);
+  const localBinding =
+    /\blet\s+(?:mut\s+)?([a-z][a-z0-9_]*)\s*:\s*((?:&\s*(?:'[A-Za-z_][A-Za-z0-9_]*\s+)?(?:mut\s+)?)?(?:(?:crate|self|super|[a-z_][a-z0-9_]*)\s*::\s*)*[A-Z][A-Za-z0-9_]*)/gu;
+  for (const match of body.matchAll(localBinding)) types.set(match[1]!, match[2]!);
+
+  if (/\bself\b/u.test(header)) {
+    const owner = functionName.split("::").at(-2);
+    if (owner) types.set("self", owner);
+  }
+  const assignedConstructor =
+    /\blet\s+(?:mut\s+)?([a-z][a-z0-9_]*)\s*=\s*((?:(?:crate|self|super|[a-z_][a-z0-9_]*)\s*::\s*)*[A-Z][A-Za-z0-9_]*)\s*\{/gu;
+  for (const match of body.matchAll(assignedConstructor)) types.set(match[1]!, match[2]!);
+
+  const aliasAlternation = [...aliases].join("|");
+  const memberAlternation = [...members].join("|");
+  const assignedPrecision = new RegExp(
+    `\\blet\\s+(?:mut\\s+)?([a-z][a-z0-9_]*)\\s*=\\s*(?:${aliasAlternation})\\s*::\\s*(?:${memberAlternation})\\s*\\(`,
+    "gu",
+  );
+  for (const match of body.matchAll(assignedPrecision)) {
+    types.set(match[1]!, "AnalysisPrecisionV1");
+  }
+  const assignedCall =
+    /\blet\s+(?:mut\s+)?([a-z][a-z0-9_]*)\s*=\s*(?:(?:crate|self|super|[a-z_][a-z0-9_]*)\s*::\s*)*([a-z][a-z0-9_]*)\s*\(/gu;
+  for (const match of body.matchAll(assignedCall)) {
+    const returnType = returnTypes.get(match[2]!);
+    if (returnType) types.set(match[1]!, returnType);
+  }
+  return types;
+}
+
+function deriveFunctionReturnTypes(sources: readonly RustSource[]): ReadonlyMap<string, string> {
+  const candidates = new Map<string, Set<string>>();
+  for (const entry of sources) {
+    const functions = rustNamedFunctions(entry.source, entry.modulePath).filter(({ start }) =>
+      nodeIsActive(entry, start),
+    );
+    for (const fn of functions) {
+      const header = entry.code.slice(fn.start, fn.bodyStart);
+      const returnType = header.match(
+        /->\s*((?:&\s*(?:'[A-Za-z_][A-Za-z0-9_]*\s+)?(?:mut\s+)?)?(?:(?:crate|self|super|[a-z_][a-z0-9_]*)\s*::\s*)*[A-Z][A-Za-z0-9_]*)/u,
+      )?.[1];
+      if (!returnType) continue;
+      const rows = candidates.get(fn.shortName) ?? new Set<string>();
+      rows.add(returnType);
+      candidates.set(fn.shortName, rows);
+    }
+  }
+  return new Map(
+    [...candidates].flatMap(([name, rows]) =>
+      rows.size === 1 ? ([[name, [...rows][0]!]] as const) : [],
+    ),
+  );
+}
+
+function definitionForType(
+  typeSource: string,
+  entry: RustSource,
+  modulePath: string,
+  definitions: readonly TypeDefinition[],
+): TypeDefinition | undefined {
+  const name = outerTypeName(typeSource);
+  if (!name) return undefined;
+  const candidates = definitions.filter(
+    (definition) => definition.crate === entry.crate && definition.name === name,
+  );
+  const local =
+    candidates.find((definition) => definition.modulePath === modulePath) ??
+    (candidates.length === 1 ? candidates[0] : undefined);
+  if (local) return local;
+  const global = definitions.filter((definition) => definition.name === name);
+  return global.length === 1 ? global[0] : undefined;
+}
+
+function pathReceiverIsPrecision(
+  receiverPath: string,
+  entry: RustSource,
+  modulePath: string,
+  variables: ReadonlyMap<string, string>,
+  aliases: ReadonlySet<string>,
+  definitions: readonly TypeDefinition[],
+  genericParameters: ReadonlySet<string>,
+): PrecisionAttribution {
+  const segments = receiverPath.split(/\s*\.\s*/u);
+  let typeSource = variables.get(segments.shift()!);
+  if (!typeSource) return "unresolved";
+  for (const fieldName of segments) {
+    const definition = definitionForType(typeSource, entry, modulePath, definitions);
+    const field = definition?.fieldTypes.find(({ field }) => field === fieldName);
+    if (!field) return "unresolved";
+    typeSource = field.type;
+  }
+  if (directPrecisionType(typeSource, aliases)) return "precision";
+  const name = outerTypeName(typeSource);
+  if (!name || genericParameters.has(name)) return "unresolved";
+  return definitionForType(typeSource, entry, modulePath, definitions)
+    ? "non-precision"
+    : "unresolved";
+}
+
+function matchingOpenParen(source: string, close: number): number {
+  let depth = 0;
+  for (let index = close; index >= 0; index -= 1) {
+    if (source[index] === ")") depth += 1;
+    else if (source[index] === "(") {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  return -1;
+}
+
+function previousCodeOffset(source: string, from: number): number {
+  let cursor = from;
+  while (cursor >= 0 && /\s/u.test(source[cursor]!)) cursor -= 1;
+  return cursor;
+}
+
+function receiverPrecisionAttribution(
+  body: string,
+  dotOffset: number,
+  entry: RustSource,
+  modulePath: string,
+  variables: ReadonlyMap<string, string>,
+  aliases: ReadonlySet<string>,
+  definitions: readonly TypeDefinition[],
+  members: ReadonlySet<string>,
+  returnTypes: ReadonlyMap<string, string>,
+  genericParameters: ReadonlySet<string>,
+  seen = new Set<number>(),
+): PrecisionAttribution {
+  if (seen.has(dotOffset)) return "unresolved";
+  seen.add(dotOffset);
+  const receiverEnd = previousCodeOffset(body, dotOffset - 1);
+  if (receiverEnd < 0) return "unresolved";
+  if (body[receiverEnd] !== ")") {
+    const suffix = body.slice(Math.max(0, receiverEnd - 512), receiverEnd + 1);
+    const pathMatch = suffix.match(
+      /([A-Za-z_][A-Za-z0-9_]*(?:\s*\.\s*[A-Za-z_][A-Za-z0-9_]*)*)\s*$/u,
+    );
+    return pathMatch
+      ? pathReceiverIsPrecision(
+          pathMatch[1]!,
+          entry,
+          modulePath,
+          variables,
+          aliases,
+          definitions,
+          genericParameters,
+        )
+      : "unresolved";
+  }
+
+  const open = matchingOpenParen(body, receiverEnd);
+  if (open < 0) return "unresolved";
+  const nameEnd = previousCodeOffset(body, open - 1);
+  let nameStart = nameEnd;
+  while (nameStart >= 0 && /[A-Za-z0-9_]/u.test(body[nameStart]!)) nameStart -= 1;
+  nameStart += 1;
+  const calledName = body.slice(nameStart, nameEnd + 1);
+  if (!calledName) {
+    const inner = body.slice(open + 1, receiverEnd);
+    const pathMatch = inner.match(
+      /([A-Za-z_][A-Za-z0-9_]*(?:\s*\.\s*[A-Za-z_][A-Za-z0-9_]*)*)\s*$/u,
+    );
+    return pathMatch
+      ? pathReceiverIsPrecision(
+          pathMatch[1]!,
+          entry,
+          modulePath,
+          variables,
+          aliases,
+          definitions,
+          genericParameters,
+        )
+      : "unresolved";
+  }
+
+  const separator = previousCodeOffset(body, nameStart - 1);
+  if (separator >= 0 && body[separator] === ".") {
+    return members.has(calledName)
+      ? receiverPrecisionAttribution(
+          body,
+          separator,
+          entry,
+          modulePath,
+          variables,
+          aliases,
+          definitions,
+          members,
+          returnTypes,
+          genericParameters,
+          seen,
+        )
+      : "unresolved";
+  }
+  const returnType = returnTypes.get(calledName);
+  if (returnType) {
+    if (directPrecisionType(returnType, aliases)) return "precision";
+    const name = outerTypeName(returnType);
+    if (name && !genericParameters.has(name)) {
+      const definition = definitionForType(returnType, entry, modulePath, definitions);
+      if (definition) return "non-precision";
+    }
+  }
+  if (separator >= 1 && body.slice(separator - 1, separator + 1) === "::") {
+    const typeEnd = previousCodeOffset(body, separator - 2);
+    const prefix = body.slice(Math.max(0, typeEnd - 256), typeEnd + 1);
+    const typePath = prefix.match(
+      /((?:(?:crate|self|super|[a-z_][a-z0-9_]*)\s*::\s*)*[A-Z][A-Za-z0-9_]*)\s*$/u,
+    )?.[1];
+    if (typePath && directPrecisionType(typePath, aliases) && members.has(calledName)) {
+      return "precision";
+    }
+  }
+  return "unresolved";
+}
+
 function deriveFamilyCalls(sources: readonly RustSource[]): RegisteredCallSite[] {
   const leaf = sources.find(({ file }) =>
     file.endsWith("/omena-evidence-graph/src/analysis_precision.rs"),
@@ -1007,6 +1257,8 @@ function deriveFamilyCalls(sources: readonly RustSource[]): RegisteredCallSite[]
     "leaf module has child module",
   );
   const members = familyMembers(leaf);
+  const { definitions } = parseTypes(sources);
+  const returnTypes = deriveFunctionReturnTypes(sources);
   const rows: RegisteredCallSite[] = [];
   for (const entry of sources) {
     if (entry.file === leaf.file) continue;
@@ -1021,39 +1273,61 @@ function deriveFamilyCalls(sources: readonly RustSource[]): RegisteredCallSite[]
     )) {
       typeAliases.add(match[1]!);
     }
-    const staticFamilyCall = new RegExp(
-      `\\b(?:${[...typeAliases].join("|")})\\s*::\\s*([a-z][a-z0-9_]*)\\s*\\(`,
+    const staticFamilyReference = new RegExp(
+      `\\b(?:${[...typeAliases].join("|")})\\s*::\\s*(${[...members].join("|")})\\b`,
       "gu",
     );
     const functions = rustNamedFunctions(entry.source, entry.modulePath).filter(({ start }) =>
       nodeIsActive(entry, start),
     );
+    for (const match of entry.code.matchAll(staticFamilyReference)) {
+      const offset = match.index ?? 0;
+      if (!nodeIsActive(entry, offset)) continue;
+      const owner = functions.findLast(({ bodyStart, end }) => bodyStart < offset && offset < end);
+      assert.ok(
+        owner,
+        `unregistered sealed-family call site ${entry.crate}::${modulePathAt(entry, offset)}::line-${lineNumber(entry.source, offset)}`,
+      );
+    }
     for (const fn of functions) {
       const body = entry.code.slice(fn.bodyStart + 1, fn.end - 1);
-      const parameterNames = new Set<string>();
       const header = entry.code.slice(fn.start, fn.bodyStart);
-      const aliasAlternation = [...typeAliases].join("|");
-      const parameterPattern = new RegExp(
-        `\\b([a-z][a-z0-9_]*)\\s*:\\s*(?:&\\s*)?(?:[A-Za-z0-9_]+::)*(?:${aliasAlternation})\\b`,
-        "gu",
+      const actualModulePath = modulePathAt(entry, fn.start);
+      const variables = functionVariableTypes(
+        header,
+        body,
+        fn.name,
+        typeAliases,
+        members,
+        returnTypes,
       );
-      for (const match of header.matchAll(parameterPattern)) {
-        parameterNames.add(match[1]!);
-      }
+      const genericParameters = genericNames(header);
+      const item = fn.name.replace(entry.modulePath, actualModulePath);
       const found: Array<{ member: string; offset: number }> = [];
-      for (const match of body.matchAll(staticFamilyCall)) {
-        if (members.has(match[1]!)) found.push({ member: match[1]!, offset: match.index ?? 0 });
+      for (const match of body.matchAll(staticFamilyReference)) {
+        found.push({ member: match[1]!, offset: match.index ?? 0 });
       }
-      const precisionContext =
-        parameterNames.size > 0 ||
-        new RegExp(`->[^\\{;]*(?:${aliasAlternation})\\b`, "u").test(header) ||
-        staticFamilyCall.test(body) ||
-        /\bsource_diagnostic_precision\s*\(/u.test(body);
-      staticFamilyCall.lastIndex = 0;
       for (const match of body.matchAll(
         /\.\s*(with_(?:value_domain|flow|context|provider_completeness|world_assumption|revision))\s*\(/gu,
       )) {
-        if (precisionContext) {
+        const attribution = receiverPrecisionAttribution(
+          body,
+          match.index ?? 0,
+          entry,
+          actualModulePath,
+          variables,
+          typeAliases,
+          definitions,
+          members,
+          returnTypes,
+          genericParameters,
+        );
+        assert.notEqual(
+          attribution,
+          "unresolved",
+          `sealed-family call receiver unresolved ${entry.crate}::${item}`,
+        );
+        if (attribution === "precision") {
           found.push({ member: match[1]!, offset: match.index ?? 0 });
         }
       }
@@ -1064,8 +1338,6 @@ function deriveFamilyCalls(sources: readonly RustSource[]): RegisteredCallSite[]
       for (const call of uniqueFound.toSorted((left, right) => left.offset - right.offset)) {
         const ordinal = (ordinals.get(call.member) ?? 0) + 1;
         ordinals.set(call.member, ordinal);
-        const actualModulePath = modulePathAt(entry, fn.start);
-        const item = fn.name.replace(entry.modulePath, actualModulePath);
         rows.push({
           crate: entry.crate,
           file: entry.file,
@@ -1212,6 +1484,14 @@ assert.deepEqual(
   [...registeredContainers].toSorted(compareCodePoint),
   derivedContainers,
   "deserialization container census drift",
+);
+assert.ok(
+  derivedCalls.length >= instrumentAuthority.precision.birthFloors.familyCallSites,
+  "census floor unmet familyCallSites",
+);
+assert.ok(
+  derivedContainers.length >= instrumentAuthority.precision.birthFloors.deserializationContainers,
+  "census floor unmet deserializationContainers",
 );
 
 process.stdout.write(

@@ -484,6 +484,14 @@
       },
       {
         "crate": "omena-query",
+        "file": "rust/crates/omena-query/src/style/transform/context.rs",
+        "item": "crate::style::transform::context::derive_omena_query_transform_context_from_engine_input",
+        "member": "unknown",
+        "ordinal": 1,
+        "owner": "omena-query derive omena query transform context from engine input"
+      },
+      {
+        "crate": "omena-query",
         "file": "rust/crates/omena-query/src/types.rs",
         "item": "crate::types::source_diagnostic_precision",
         "member": "from_axes",
@@ -522,7 +530,7 @@
       }
     ],
     "birthFloors": {
-      "familyCallSites": 9,
+      "familyCallSites": 10,
       "deserializationContainers": 7
     }
   },

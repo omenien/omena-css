@@ -76,16 +76,6 @@ for (const pkg of scopePackages) {
   );
 }
 
-function acceptedExitCodes(kind: "force-warn-json" | "metadata" | "deny"): ReadonlySet<number> {
-  switch (kind) {
-    case "deny":
-      return new Set([0, 101]);
-    case "force-warn-json":
-    case "metadata":
-      return new Set([0]);
-  }
-}
-
 function packageName(packageId: string): string {
   const source = packageId.slice(0, packageId.lastIndexOf("#"));
   return path.basename(source);
@@ -282,10 +272,7 @@ const result = spawnSync("cargo", cargoArgs, {
   maxBuffer: 128 * 1024 * 1024,
 });
 const exit = result.status ?? 127;
-assert.ok(
-  acceptedExitCodes("force-warn-json").has(exit),
-  `force-warn census exited ${exit}:\n${result.stderr}`,
-);
+assert.equal(exit, 0, `force-warn census exited ${exit}:\n${result.stderr}`);
 const observed = deriveAcquisitionSites(result.stdout);
 const cfgCensus = deriveCfgAcquisitionCensus(repoRoot, result.stdout);
 assert.equal(

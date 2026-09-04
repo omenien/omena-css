@@ -14,9 +14,12 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { DECLARED_CHECK_GATES } from "../packages/check-orchestrator/src/manifest/declared";
 import { banGateArgv, rustNamedFunctions } from "./lib/rust-write-authority";
 
 type Home = "compiler" | "clippy" | "instrument";
+
+type FailureMechanism = "cargo-check" | "deny-clippy" | "node-assertion";
 
 type Expected =
   | { readonly code: string; readonly type: string }
@@ -77,8 +80,26 @@ interface S0Row {
 
 interface Authority {
   readonly s0Rows: readonly S0Row[];
+  readonly retiredInstrument: {
+    readonly path: string;
+    readonly pickupSha256: string;
+    readonly firstFailureWitness: string;
+  };
+  readonly countedResidue: readonly {
+    readonly identity: string;
+    readonly kind: string;
+    readonly owner: string;
+  }[];
   readonly precision: {
     readonly familyCallSites: readonly RegisteredCallSite[];
+    readonly deserializationContainers: readonly {
+      readonly identity: string;
+      readonly owner: string;
+    }[];
+    readonly birthFloors: {
+      readonly familyCallSites: number;
+      readonly deserializationContainers: number;
+    };
   };
   readonly baselineWriteSafety: {
     readonly revision: string;
@@ -107,6 +128,15 @@ interface CommandReceipt {
   readonly stderr: string;
 }
 
+interface CommandEvidence {
+  readonly argv: readonly string[];
+  readonly cwd: ".";
+  readonly environment: CommandReceipt["environment"];
+  readonly exitCode: number;
+  readonly stdoutSha256: string;
+  readonly stderrSha256: string;
+}
+
 interface RegisteredCallSite {
   readonly crate: string;
   readonly file: string;
@@ -118,6 +148,34 @@ interface RegisteredCallSite {
 interface FamilyPopulationReceipt {
   readonly command: CommandReceipt;
   readonly newCallSites: readonly RegisteredCallSite[];
+}
+
+interface AuthorityValidationReceipt {
+  readonly retiredInstrument: {
+    readonly path: string;
+    readonly sha256: string;
+    readonly assertCount: number;
+    readonly blockBodyCount: number;
+    readonly firstFailureWitness: string;
+    readonly command: CommandEvidence;
+  };
+  readonly demotion: {
+    readonly id: "rust/precision-floor";
+    readonly ciTier: "manual";
+    readonly cadence: "manual";
+    readonly strength: "advisory";
+    readonly cadenceSource: "derived";
+    readonly strengthSource: "derived";
+    readonly manifestErrorCount: 0;
+    readonly ciWorkflowDirectReferenceCount: 0;
+    readonly listCommand: CommandEvidence;
+    readonly doctorCommand: CommandEvidence;
+  };
+  readonly precision: {
+    readonly familyCallSiteCount: number;
+    readonly deserializationContainerCount: number;
+    readonly command: CommandEvidence;
+  };
 }
 
 interface RowExecutionReceipt {
@@ -160,6 +218,38 @@ function gateHome(gate: Gate): Home {
   return "instrument";
 }
 
+function failureMechanism(gate: Gate): FailureMechanism {
+  switch (gate.kind) {
+    case "compiler":
+      return "cargo-check";
+    case "clippy-ban":
+      return "deny-clippy";
+    case "precision-authority":
+    case "fs-acquisition-census":
+    case "write-safety":
+      return "node-assertion";
+  }
+}
+
+function acceptedExitCodes(mechanism: FailureMechanism): ReadonlySet<number> {
+  switch (mechanism) {
+    case "cargo-check":
+    case "deny-clippy":
+      return new Set([101]);
+    case "node-assertion":
+      return new Set([1]);
+  }
+}
+
+function validateExitCode(receipt: CommandReceipt, gate: Gate): void {
+  const mechanism = failureMechanism(gate);
+  const accepted = acceptedExitCodes(mechanism);
+  assert.ok(
+    accepted.has(receipt.exitCode),
+    `${mechanism} exited ${receipt.exitCode}; accepted ${[...accepted].join(",")}`,
+  );
+}
+
 function validateAuthority(authority: Authority): void {
   assert.ok(authority.s0Rows.length >= 1, "census row table is empty");
   const authorityIds = authority.s0Rows.map(({ id }) => id).toSorted(compareCodePoint);
@@ -177,6 +267,29 @@ function validateAuthority(authority: Authority): void {
     } else {
       assert.equal(row.gate.package, undefined, `non-compiler package present ${row.id}`);
     }
+  }
+  assert.ok(authority.retiredInstrument.path.length >= 1, "retired instrument path is empty");
+  assert.match(
+    authority.retiredInstrument.pickupSha256,
+    /^[0-9a-f]{64}$/u,
+    "retired instrument digest is invalid",
+  );
+  assert.ok(
+    authority.retiredInstrument.firstFailureWitness.length >= 1,
+    "retired instrument witness is empty",
+  );
+  assert.ok(authority.countedResidue.length >= 1, "counted residue is empty");
+  for (const row of authority.countedResidue) {
+    assert.ok(row.identity.length >= 1, "counted residue identity is empty");
+    assert.ok(row.owner.trim().length >= 1, `counted residue owner missing ${row.identity}`);
+  }
+  assert.equal(
+    new Set(authority.countedResidue.map(({ identity }) => identity)).size,
+    authority.countedResidue.length,
+    "counted residue identity is duplicated",
+  );
+  for (const [name, floor] of Object.entries(authority.precision.birthFloors)) {
+    assert.ok(Number.isSafeInteger(floor) && floor >= 1, `precision birth floor invalid ${name}`);
   }
 }
 
@@ -439,6 +552,17 @@ function executeCommand(root: string, spec: CommandSpec): CommandReceipt {
   };
 }
 
+function commandEvidence(receipt: CommandReceipt): CommandEvidence {
+  return {
+    argv: receipt.argv,
+    cwd: receipt.cwd,
+    environment: receipt.environment,
+    exitCode: receipt.exitCode,
+    stdoutSha256: sha256(receipt.stdout),
+    stderrSha256: sha256(receipt.stderr),
+  };
+}
+
 function callIdentity(site: RegisteredCallSite): string {
   return [site.crate, site.file, site.item, site.member, String(site.ordinal)].join("|");
 }
@@ -545,7 +669,8 @@ function validateInstrument(
   return line.slice(line.indexOf(expected.refusalPrefix)).trim();
 }
 
-function validateExpected(receipt: CommandReceipt, expected: Expected): string {
+function validateExpected(receipt: CommandReceipt, expected: Expected, gate: Gate): string {
+  validateExitCode(receipt, gate);
   if ("code" in expected) return validateCompiler(receipt, expected);
   if ("methods" in expected) return validateClippy(receipt, expected);
   return validateInstrument(receipt, expected);
@@ -565,6 +690,187 @@ function firstAssertion(receipt: CommandReceipt): string | null {
       .find((candidate) => candidate.trim().length > 0)
       ?.trim() ?? null
   );
+}
+
+function checkerInventory(
+  checkerPath: string,
+  source: string,
+): Array<{ readonly identity: string; readonly kind: "assert" | "blockBody" }> {
+  const rows: Array<{ identity: string; kind: "assert" | "blockBody" }> = [];
+  for (const [kind, pattern] of [
+    ["assert", /\bassert(?:\.[A-Za-z_$][\w$]*)?\s*\(/gu],
+    ["blockBody", /\bblockBody\s*\(/gu],
+  ] as const) {
+    for (const match of source.matchAll(pattern)) {
+      const line = source.slice(0, match.index).split("\n").length;
+      rows.push({ identity: `${checkerPath}:${line}`, kind });
+    }
+  }
+  return rows.toSorted((left, right) =>
+    compareCodePoint(`${left.kind}\0${left.identity}`, `${right.kind}\0${right.identity}`),
+  );
+}
+
+function validateDemotion(): AuthorityValidationReceipt["demotion"] {
+  const gateId = "rust/precision-floor" as const;
+  const declarations = DECLARED_CHECK_GATES.filter(({ id }) => id === gateId);
+  assert.equal(declarations.length, 1, `demotion declared not derived ${gateId}`);
+  const declaration = declarations[0]!;
+  assert.ok(
+    declaration.ciTier === "manual" &&
+      typeof declaration.ciReason === "string" &&
+      declaration.ciReason.trim().length >= 1 &&
+      !Object.hasOwn(declaration, "strength") &&
+      !Object.hasOwn(declaration, "cadence") &&
+      !Object.hasOwn(declaration, "ciGroup"),
+    `demotion declared not derived ${gateId}`,
+  );
+
+  const cli = "packages/check-orchestrator/src/cli/main.ts";
+  const listArgs = ["--import", "tsx", cli, "list", "--json"];
+  const listCommand = executeCommand(repoRoot, {
+    executable: process.execPath,
+    args: listArgs,
+    argv: ["node", ...listArgs],
+  });
+  assert.equal(listCommand.exitCode, 0, `demotion manifest list failed:\n${listCommand.stderr}`);
+  const listed = JSON.parse(listCommand.stdout) as readonly Record<string, unknown>[];
+  const lifecycleRows = listed.filter(({ id }) => id === gateId);
+  assert.equal(lifecycleRows.length, 1, `demotion declared not derived ${gateId}`);
+  const lifecycle = lifecycleRows[0]!;
+  assert.ok(
+    lifecycle.ciTier === "manual" &&
+      lifecycle.cadence === "manual" &&
+      lifecycle.strength === "advisory" &&
+      lifecycle.cadenceSource === "derived" &&
+      lifecycle.strengthSource === "derived",
+    `demotion declared not derived ${gateId}`,
+  );
+
+  const ciWorkflow = readFileSync(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8");
+  const directReferences = [
+    ...ciWorkflow.matchAll(/(?:^|[\s"'])rust\/precision-floor(?=$|[\s"'])/gmu),
+    ...ciWorkflow.matchAll(/(?:^|[\s"'])check:rust-precision-floor(?=$|[\s"'])/gmu),
+  ];
+  assert.equal(
+    directReferences.length,
+    0,
+    `demotion declared not derived ${gateId}: ci workflow reference`,
+  );
+
+  const doctorArgs = ["--import", "tsx", cli, "doctor", "--json"];
+  const doctorCommand = executeCommand(repoRoot, {
+    executable: process.execPath,
+    args: doctorArgs,
+    argv: ["node", ...doctorArgs],
+  });
+  assert.equal(
+    doctorCommand.exitCode,
+    0,
+    `demotion manifest doctor failed:\n${doctorCommand.stderr}`,
+  );
+  const doctor = JSON.parse(doctorCommand.stdout) as { readonly errorCount: number };
+  assert.equal(doctor.errorCount, 0, `demotion manifest errors ${doctor.errorCount}`);
+
+  return {
+    id: gateId,
+    ciTier: "manual",
+    cadence: "manual",
+    strength: "advisory",
+    cadenceSource: "derived",
+    strengthSource: "derived",
+    manifestErrorCount: 0,
+    ciWorkflowDirectReferenceCount: 0,
+    listCommand: commandEvidence(listCommand),
+    doctorCommand: commandEvidence(doctorCommand),
+  };
+}
+
+function validateCurrentAuthority(authority: Authority): AuthorityValidationReceipt {
+  const checker = safeRelativeFile(repoRoot, authority.retiredInstrument.path);
+  const checkerBytes = readFileSync(checker);
+  const checkerDigest = sha256(checkerBytes);
+  assert.equal(
+    checkerDigest,
+    authority.retiredInstrument.pickupSha256,
+    `retired instrument edited ${authority.retiredInstrument.path}`,
+  );
+
+  const inventory = checkerInventory(authority.retiredInstrument.path, checkerBytes.toString());
+  const declaredInventory = authority.countedResidue
+    .filter(({ kind }) => kind === "assert" || kind === "blockBody")
+    .map(({ identity, kind }) => ({ identity, kind }))
+    .toSorted((left, right) =>
+      compareCodePoint(`${left.kind}\0${left.identity}`, `${right.kind}\0${right.identity}`),
+    );
+  const inventoryKeys = inventory.map(({ identity, kind }) => `${kind}:${identity}`);
+  const declaredKeys = declaredInventory.map(({ identity, kind }) => `${kind}:${identity}`);
+  const inventorySet = new Set(inventoryKeys);
+  const declaredSet = new Set(declaredKeys);
+  const missing = inventoryKeys.find((key) => !declaredSet.has(key));
+  const extra = declaredKeys.find((key) => !inventorySet.has(key));
+  assert.ok(
+    !missing && !extra && inventoryKeys.length === declaredKeys.length,
+    `counted residue not enumerated ${missing ?? extra ?? "row-count"}`,
+  );
+
+  const checkerArgs = ["--import", "tsx", authority.retiredInstrument.path];
+  const checkerCommand = executeCommand(repoRoot, {
+    executable: process.execPath,
+    args: checkerArgs,
+    argv: ["node", ...checkerArgs],
+  });
+  assert.equal(checkerCommand.exitCode, 1, "retired instrument witness did not assert");
+  const witness = firstAssertion(checkerCommand);
+  assert.equal(
+    witness,
+    authority.retiredInstrument.firstFailureWitness,
+    "retired instrument first failure witness drifted",
+  );
+
+  const demotion = validateDemotion();
+  const precisionArgs = ["--import", "tsx", "scripts/check-rust-precision-authority.ts"];
+  const precisionCommand = executeCommand(repoRoot, {
+    executable: process.execPath,
+    args: precisionArgs,
+    argv: ["node", ...precisionArgs],
+  });
+  assert.equal(
+    precisionCommand.exitCode,
+    0,
+    `precision authority baseline failed:\n${precisionCommand.stderr}`,
+  );
+  const precision = JSON.parse(precisionCommand.stdout) as {
+    readonly familyCallSiteCount: number;
+    readonly deserializationContainerCount: number;
+  };
+  assert.equal(
+    precision.familyCallSiteCount,
+    authority.precision.familyCallSites.length,
+    "precision family receipt diverged",
+  );
+  assert.equal(
+    precision.deserializationContainerCount,
+    authority.precision.deserializationContainers.length,
+    "precision container receipt diverged",
+  );
+
+  return {
+    retiredInstrument: {
+      path: authority.retiredInstrument.path,
+      sha256: checkerDigest,
+      assertCount: inventory.filter(({ kind }) => kind === "assert").length,
+      blockBodyCount: inventory.filter(({ kind }) => kind === "blockBody").length,
+      firstFailureWitness: witness,
+      command: commandEvidence(checkerCommand),
+    },
+    demotion,
+    precision: {
+      familyCallSiteCount: precision.familyCallSiteCount,
+      deserializationContainerCount: precision.deserializationContainerCount,
+      command: commandEvidence(precisionCommand),
+    },
+  };
 }
 
 function expectedStrings(expected: Expected): string[] {
@@ -654,7 +960,7 @@ function runRow(
     const inputTreeDigest = treeDigest(files, spec.argv);
     const familyPopulation = familyPopulationReceipt(root, row, authority);
     const command = executeCommand(root, spec);
-    const observedSignature = validateExpected(command, row.expected);
+    const observedSignature = validateExpected(command, row.expected, row.gate);
     assert.deepEqual(inputFiles(root, touched), files, `gate mutated injected inputs ${row.id}`);
     const baselineWriteSafety = needsBaselineWriteSafety(row)
       ? baselineReceipt(root, authority, row.expected)
@@ -696,6 +1002,21 @@ assertNoPerRowControlFlow();
 const authorityBytes = readFileSync(authorityPath);
 const authority = JSON.parse(authorityBytes.toString("utf8")) as Authority;
 validateAuthority(authority);
+const authorityValidation = validateCurrentAuthority(authority);
+if (process.argv.includes("--authority-only")) {
+  process.stdout.write(
+    `${JSON.stringify(
+      {
+        schemaVersion: "0",
+        product: "rust.census-instrument-authority",
+        authorityValidation,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  process.exit(0);
+}
 const authorityIds = new Set(authority.s0Rows.map(({ id }) => id));
 const requested = new Set(argumentValues("--row"));
 for (const id of requested) assert.ok(authorityIds.has(id), `unknown requested row ${id}`);
@@ -807,6 +1128,7 @@ const fullReceipt = {
   executedRowCount: selectedRows.length,
   executionReceiptCount: receipts.length,
   cleanReplayCount: receipts.filter(({ replay }) => replay === 2).length,
+  authorityValidation,
   rows: receipts,
 };
 const writeTargets = argumentValues("--write");
