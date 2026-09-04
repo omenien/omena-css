@@ -375,17 +375,6 @@
           }
         },
         {
-          "lint": "struct_pub_field_missing",
-          "evidenceNeedles": [
-            "field value_domain of struct AnalysisPrecisionV1",
-            "field flow of struct AnalysisPrecisionV1",
-            "field context of struct AnalysisPrecisionV1",
-            "field provider_completeness of struct AnalysisPrecisionV1",
-            "field world_assumption of struct AnalysisPrecisionV1",
-            "field revision of struct AnalysisPrecisionV1"
-          ]
-        },
-        {
           "lint": "struct_missing",
           "evidenceNeedles": [
             "struct omena_query::OmenaQueryStyleFrameRefreshParseCacheV0, previously in file",
