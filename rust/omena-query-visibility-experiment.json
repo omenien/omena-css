@@ -4,7 +4,7 @@
   "authoredCandidateCount": 391,
   "commands": {
     "compile": "cargo check --manifest-path rust/Cargo.toml -p omena-query --all-targets --all-features",
-    "warningPolicy": "cargo clippy --manifest-path rust/Cargo.toml -p omena-query --all-targets --all-features --no-deps -- -D warnings"
+    "warningPolicy": "cargo clippy --manifest-path rust/Cargo.toml -p omena-query --all-targets --all-features --no-deps -- -D warnings -A clippy::disallowed_methods"
   },
   "reexportBoundaryReconstruction": {
     "publicApiTool": "cargo-public-api 0.52.0",

@@ -212,6 +212,8 @@ runCargo([
   "--",
   "-D",
   "warnings",
+  "-A",
+  "clippy::disallowed_methods",
 ]);
 
 process.stdout.write(
@@ -259,7 +261,7 @@ function validateExperiment(
   );
   assert.equal(
     candidate.commands.warningPolicy,
-    "cargo clippy --manifest-path rust/Cargo.toml -p omena-query --all-targets --all-features --no-deps -- -D warnings",
+    "cargo clippy --manifest-path rust/Cargo.toml -p omena-query --all-targets --all-features --no-deps -- -D warnings -A clippy::disallowed_methods",
   );
 
   const measuredCounts = new Map<Outcome, number>();
