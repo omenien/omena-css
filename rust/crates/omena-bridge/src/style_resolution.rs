@@ -671,6 +671,10 @@ fn external_sif_cache_shard_file_path(dir: &Path, key: &str) -> Option<PathBuf> 
     Some(dir.join(format!("{hex}.json")))
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "external-cache owner: remove invalid shard at read boundary"
+)]
 fn load_external_sif_cache_shard(
     dir: &Path,
     key: &str,
@@ -1039,6 +1043,10 @@ fn verify_recorded_shard_verdict(
     .map_err(|_| OmenaBridgeExternalSifShardRefusalV1::RecordedVerdictSignatureVerificationFailed)
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "external-cache owner: retain atomic shard publication"
+)]
 fn write_external_sif_cache_shard_atomically(
     dir: &Path,
     key: &str,
@@ -1064,6 +1072,10 @@ fn write_external_sif_cache_shard_atomically(
     renamed
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "external-cache owner: retain bounded shard eviction"
+)]
 fn enforce_external_sif_cache_caps(dir: &Path) {
     let Ok(entries) = fs::read_dir(dir) else {
         return;

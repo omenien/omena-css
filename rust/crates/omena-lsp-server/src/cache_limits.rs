@@ -16,6 +16,10 @@ pub(crate) const DEFAULT_PERSISTENT_CACHE_LIMITS: PersistentCacheLimitsV0 =
         max_shard_bytes: 8 * 1024 * 1024,
     };
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "persistent-cache owner: remove oversized shards at read boundary"
+)]
 pub(crate) fn read_cache_shard_with_limits(
     path: &Path,
     limits: &PersistentCacheLimitsV0,
@@ -28,6 +32,10 @@ pub(crate) fn read_cache_shard_with_limits(
     fs::read(path).ok()
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "persistent-cache owner: retain atomic bounded shard publication"
+)]
 pub(crate) fn write_cache_shard_atomically_with_limits(
     path: &Path,
     bytes: &[u8],
@@ -56,6 +64,10 @@ pub(crate) fn write_cache_shard_atomically_with_limits(
     renamed
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "persistent-cache owner: retain bounded shard eviction"
+)]
 fn enforce_cache_limits(dir: &Path, limits: &PersistentCacheLimitsV0) {
     let Ok(entries) = fs::read_dir(dir) else {
         return;
@@ -89,6 +101,10 @@ fn enforce_cache_limits(dir: &Path, limits: &PersistentCacheLimitsV0) {
     }
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "persistent-cache owner: retain attribution publication"
+)]
 pub(crate) fn ensure_cache_root_attribution(cache_subdir: &Path, workspace_identity: &str) {
     let Some(cache_root) = cache_subdir.parent() else {
         return;

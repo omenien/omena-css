@@ -1,0 +1,2344 @@
+{
+  "schemaVersion": "0",
+  "product": "rust.fs-capability-partition",
+  "rustcRelease": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+  "notBanned": [
+    {
+      "path": "std::fs::DirBuilder",
+      "reason": "handle"
+    },
+    {
+      "path": "std::fs::DirBuilder::new",
+      "reason": "configuration"
+    },
+    {
+      "path": "std::fs::DirBuilder::recursive",
+      "reason": "configuration"
+    },
+    {
+      "path": "std::fs::DirEntry",
+      "reason": "iteration"
+    },
+    {
+      "path": "std::fs::DirEntry::file_name",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::DirEntry::file_type",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::DirEntry::metadata",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::DirEntry::path",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::File",
+      "reason": "handle"
+    },
+    {
+      "path": "std::fs::File::lock",
+      "reason": "coordination"
+    },
+    {
+      "path": "std::fs::File::lock_shared",
+      "reason": "coordination"
+    },
+    {
+      "path": "std::fs::File::metadata",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::File::open",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::File::options",
+      "reason": "configuration"
+    },
+    {
+      "path": "std::fs::File::sync_all",
+      "reason": "coordination"
+    },
+    {
+      "path": "std::fs::File::sync_data",
+      "reason": "coordination"
+    },
+    {
+      "path": "std::fs::File::try_clone",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::File::try_lock",
+      "reason": "coordination"
+    },
+    {
+      "path": "std::fs::File::try_lock_shared",
+      "reason": "coordination"
+    },
+    {
+      "path": "std::fs::File::unlock",
+      "reason": "coordination"
+    },
+    {
+      "path": "std::fs::FileTimes",
+      "reason": "metadata"
+    },
+    {
+      "path": "std::fs::FileTimes::new",
+      "reason": "configuration"
+    },
+    {
+      "path": "std::fs::FileTimes::set_accessed",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::FileTimes::set_modified",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::FileType",
+      "reason": "metadata"
+    },
+    {
+      "path": "std::fs::FileType::is_dir",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::FileType::is_file",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::FileType::is_symlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::Metadata",
+      "reason": "metadata"
+    },
+    {
+      "path": "std::fs::Metadata::accessed",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::Metadata::created",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::Metadata::file_type",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::Metadata::is_dir",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::Metadata::is_file",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::Metadata::is_symlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::Metadata::len",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::Metadata::modified",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::Metadata::permissions",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::OpenOptions",
+      "reason": "handle"
+    },
+    {
+      "path": "std::fs::OpenOptions::append",
+      "reason": "configuration"
+    },
+    {
+      "path": "std::fs::OpenOptions::create",
+      "reason": "configuration"
+    },
+    {
+      "path": "std::fs::OpenOptions::create_new",
+      "reason": "configuration"
+    },
+    {
+      "path": "std::fs::OpenOptions::new",
+      "reason": "configuration"
+    },
+    {
+      "path": "std::fs::OpenOptions::read",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::OpenOptions::truncate",
+      "reason": "configuration"
+    },
+    {
+      "path": "std::fs::OpenOptions::write",
+      "reason": "configuration"
+    },
+    {
+      "path": "std::fs::Permissions",
+      "reason": "metadata"
+    },
+    {
+      "path": "std::fs::Permissions::readonly",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::Permissions::set_readonly",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::ReadDir",
+      "reason": "iteration"
+    },
+    {
+      "path": "std::fs::TryLockError",
+      "reason": "metadata"
+    },
+    {
+      "path": "std::fs::canonicalize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::exists",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::metadata",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::read",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::read_dir",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::read_link",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::read_to_string",
+      "reason": "observation"
+    },
+    {
+      "path": "std::fs::symlink_metadata",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::aix::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::aix::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::aix::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::aix::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::aix::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::aix::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::aix::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::aix::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::aix::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::aix::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::aix::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::aix::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::aix::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::aix::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::aix::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::aix::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::aix::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::android::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::android::fs::MetadataExt::as_raw_stat",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::android::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::android::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::android::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::android::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::android::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::android::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::android::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::android::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::android::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::android::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::android::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::android::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::android::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::android::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::android::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::android::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::cygwin::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::cygwin::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::cygwin::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::cygwin::fs::MetadataExt::st_birthtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::cygwin::fs::MetadataExt::st_birthtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::cygwin::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::cygwin::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::cygwin::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::cygwin::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::cygwin::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::cygwin::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::cygwin::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::cygwin::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::cygwin::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::cygwin::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::cygwin::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::cygwin::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::cygwin::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::cygwin::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::FileTimesExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::FileTimesExt::set_created",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::as_raw_stat",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_birthtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_birthtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_flags",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_gen",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_lspare",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_qspare",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::darwin::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::dragonfly::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::dragonfly::fs::MetadataExt::as_raw_stat",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::dragonfly::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::dragonfly::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::dragonfly::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::dragonfly::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::dragonfly::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::dragonfly::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::dragonfly::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::dragonfly::fs::MetadataExt::st_flags",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::dragonfly::fs::MetadataExt::st_gen",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::dragonfly::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::dragonfly::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::dragonfly::fs::MetadataExt::st_lspare",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::dragonfly::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::dragonfly::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::dragonfly::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::dragonfly::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::dragonfly::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::dragonfly::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::dragonfly::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::emscripten::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::emscripten::fs::MetadataExt::as_raw_stat",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::emscripten::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::emscripten::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::emscripten::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::emscripten::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::emscripten::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::emscripten::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::emscripten::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::emscripten::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::emscripten::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::emscripten::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::emscripten::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::emscripten::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::emscripten::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::emscripten::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::emscripten::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::emscripten::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::espidf::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::espidf::fs::MetadataExt::as_raw_stat",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::espidf::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::espidf::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::espidf::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::espidf::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::espidf::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::espidf::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::espidf::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::espidf::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::espidf::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::espidf::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::espidf::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::espidf::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::espidf::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::espidf::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::espidf::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::espidf::fs::MetadataExt::st_spare4",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::espidf::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::as_raw_stat",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::st_birthtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::st_birthtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::st_flags",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::st_gen",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::st_lspare",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::freebsd::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::fuchsia::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::fuchsia::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::fuchsia::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::fuchsia::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::fuchsia::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::fuchsia::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::fuchsia::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::fuchsia::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::fuchsia::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::fuchsia::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::fuchsia::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::fuchsia::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::fuchsia::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::fuchsia::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::fuchsia::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::fuchsia::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::fuchsia::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::haiku::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::haiku::fs::MetadataExt::as_raw_stat",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::haiku::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::haiku::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::haiku::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::haiku::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::haiku::fs::MetadataExt::st_crtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::haiku::fs::MetadataExt::st_crtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::haiku::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::haiku::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::haiku::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::haiku::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::haiku::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::haiku::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::haiku::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::haiku::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::haiku::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::haiku::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::haiku::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::haiku::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::horizon::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::horizon::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::horizon::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::horizon::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::horizon::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::horizon::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::horizon::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::horizon::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::horizon::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::horizon::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::horizon::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::horizon::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::horizon::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::horizon::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::horizon::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::horizon::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::horizon::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::hurd::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::hurd::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::hurd::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::hurd::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::hurd::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::hurd::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::hurd::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::hurd::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::hurd::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::hurd::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::hurd::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::hurd::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::hurd::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::hurd::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::hurd::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::hurd::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::hurd::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::illumos::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::illumos::fs::MetadataExt::as_raw_stat",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::illumos::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::illumos::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::illumos::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::illumos::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::illumos::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::illumos::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::illumos::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::illumos::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::illumos::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::illumos::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::illumos::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::illumos::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::illumos::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::illumos::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::illumos::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::illumos::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::l4re::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::l4re::fs::MetadataExt::as_raw_stat",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::l4re::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::l4re::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::l4re::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::l4re::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::l4re::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::l4re::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::l4re::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::l4re::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::l4re::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::l4re::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::l4re::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::l4re::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::l4re::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::l4re::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::l4re::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::l4re::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::linux::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::linux::fs::MetadataExt::as_raw_stat",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::linux::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::linux::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::linux::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::linux::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::linux::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::linux::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::linux::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::linux::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::linux::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::linux::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::linux::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::linux::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::linux::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::linux::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::linux::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::linux::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt::as_raw_stat",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt::st_birthtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt::st_birthtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt::st_flags",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt::st_gen",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::netbsd::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nto::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nto::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nto::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nto::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nto::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nto::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nto::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nto::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nto::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nto::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nto::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nto::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nto::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nto::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nto::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nto::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nto::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nuttx::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nuttx::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nuttx::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nuttx::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nuttx::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nuttx::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nuttx::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nuttx::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nuttx::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nuttx::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nuttx::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nuttx::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nuttx::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nuttx::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nuttx::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nuttx::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::nuttx::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt::as_raw_stat",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt::st_birthtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt::st_birthtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt::st_flags",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt::st_gen",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::openbsd::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::redox::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::redox::fs::MetadataExt::as_raw_stat",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::redox::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::redox::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::redox::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::redox::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::redox::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::redox::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::redox::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::redox::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::redox::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::redox::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::redox::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::redox::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::redox::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::redox::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::redox::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::redox::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::rtems::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::rtems::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::rtems::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::rtems::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::rtems::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::rtems::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::rtems::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::rtems::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::rtems::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::rtems::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::rtems::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::rtems::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::rtems::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::rtems::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::rtems::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::rtems::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::rtems::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::solaris::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::solaris::fs::MetadataExt::as_raw_stat",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::solaris::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::solaris::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::solaris::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::solaris::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::solaris::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::solaris::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::solaris::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::solaris::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::solaris::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::solaris::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::solaris::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::solaris::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::solaris::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::solaris::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::solaris::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::solaris::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::DirBuilderExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::DirBuilderExt::mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::DirEntryExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::DirEntryExt::ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::FileExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::FileExt::read_at",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::FileExt::read_exact_at",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::FileExt::write_all_at",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::FileExt::write_at",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::FileTypeExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::FileTypeExt::is_block_device",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::FileTypeExt::is_char_device",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::FileTypeExt::is_fifo",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::FileTypeExt::is_socket",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::MetadataExt::atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::MetadataExt::atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::MetadataExt::attrib",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::MetadataExt::blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::MetadataExt::blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::MetadataExt::ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::MetadataExt::ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::MetadataExt::dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::MetadataExt::gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::MetadataExt::ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::MetadataExt::mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::MetadataExt::mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::MetadataExt::mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::MetadataExt::nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::MetadataExt::rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::MetadataExt::size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::MetadataExt::uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::OpenOptionsExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::OpenOptionsExt::custom_flags",
+      "reason": "configuration"
+    },
+    {
+      "path": "std::os::unix::fs::OpenOptionsExt::mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::PermissionsExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::PermissionsExt::from_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::PermissionsExt::mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::unix::fs::PermissionsExt::set_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vita::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vita::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vita::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vita::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vita::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vita::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vita::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vita::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vita::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vita::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vita::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vita::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vita::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vita::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vita::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vita::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vita::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vxworks::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vxworks::fs::MetadataExt::st_atime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vxworks::fs::MetadataExt::st_atime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vxworks::fs::MetadataExt::st_attrib",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vxworks::fs::MetadataExt::st_blksize",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vxworks::fs::MetadataExt::st_blocks",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vxworks::fs::MetadataExt::st_ctime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vxworks::fs::MetadataExt::st_ctime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vxworks::fs::MetadataExt::st_dev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vxworks::fs::MetadataExt::st_gid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vxworks::fs::MetadataExt::st_ino",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vxworks::fs::MetadataExt::st_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vxworks::fs::MetadataExt::st_mtime",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vxworks::fs::MetadataExt::st_mtime_nsec",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vxworks::fs::MetadataExt::st_nlink",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vxworks::fs::MetadataExt::st_rdev",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vxworks::fs::MetadataExt::st_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::vxworks::fs::MetadataExt::st_uid",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::windows::fs::FileExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::windows::fs::FileExt::seek_read",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::windows::fs::FileExt::seek_write",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::windows::fs::FileTimesExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::windows::fs::FileTimesExt::set_created",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::windows::fs::FileTypeExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::windows::fs::FileTypeExt::is_symlink_dir",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::windows::fs::FileTypeExt::is_symlink_file",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::windows::fs::MetadataExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::windows::fs::MetadataExt::creation_time",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::windows::fs::MetadataExt::file_attributes",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::windows::fs::MetadataExt::file_size",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::windows::fs::MetadataExt::last_access_time",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::windows::fs::MetadataExt::last_write_time",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::windows::fs::OpenOptionsExt",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::windows::fs::OpenOptionsExt::access_mode",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::windows::fs::OpenOptionsExt::attributes",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::windows::fs::OpenOptionsExt::custom_flags",
+      "reason": "configuration"
+    },
+    {
+      "path": "std::os::windows::fs::OpenOptionsExt::security_qos_flags",
+      "reason": "observation"
+    },
+    {
+      "path": "std::os::windows::fs::OpenOptionsExt::share_mode",
+      "reason": "observation"
+    }
+  ],
+  "excludedUnstable": [
+    "std::fs::Dir",
+    "std::fs::Dir::open",
+    "std::fs::Dir::open_file",
+    "std::fs::File::create_buffered",
+    "std::fs::File::open_buffered",
+    "std::fs::set_permissions_nofollow",
+    "std::fs::set_times",
+    "std::fs::set_times_nofollow",
+    "std::os::unix::fs::DirEntryExt2",
+    "std::os::unix::fs::DirEntryExt2::file_name_ref",
+    "std::os::unix::fs::FileExt::read_buf_at",
+    "std::os::unix::fs::FileExt::read_buf_exact_at",
+    "std::os::unix::fs::FileExt::read_vectored_at",
+    "std::os::unix::fs::FileExt::write_vectored_at",
+    "std::os::unix::fs::mkfifo",
+    "std::os::wasi::fs::DirEntryExt",
+    "std::os::wasi::fs::DirEntryExt::ino",
+    "std::os::wasi::fs::FileExt",
+    "std::os::wasi::fs::FileExt::advise",
+    "std::os::wasi::fs::FileExt::allocate",
+    "std::os::wasi::fs::FileExt::create_directory",
+    "std::os::wasi::fs::FileExt::fdstat_set_flags",
+    "std::os::wasi::fs::FileExt::fdstat_set_rights",
+    "std::os::wasi::fs::FileExt::read_at",
+    "std::os::wasi::fs::FileExt::read_buf_at",
+    "std::os::wasi::fs::FileExt::read_exact_at",
+    "std::os::wasi::fs::FileExt::read_vectored_at",
+    "std::os::wasi::fs::FileExt::remove_directory",
+    "std::os::wasi::fs::FileExt::remove_file",
+    "std::os::wasi::fs::FileExt::write_all_at",
+    "std::os::wasi::fs::FileExt::write_at",
+    "std::os::wasi::fs::FileExt::write_vectored_at",
+    "std::os::wasi::fs::FileTypeExt",
+    "std::os::wasi::fs::FileTypeExt::is_block_device",
+    "std::os::wasi::fs::FileTypeExt::is_char_device",
+    "std::os::wasi::fs::FileTypeExt::is_socket",
+    "std::os::wasi::fs::MetadataExt",
+    "std::os::wasi::fs::MetadataExt::dev",
+    "std::os::wasi::fs::MetadataExt::ino",
+    "std::os::wasi::fs::MetadataExt::nlink",
+    "std::os::wasi::fs::OpenOptionsExt",
+    "std::os::wasi::fs::OpenOptionsExt::custom_flags",
+    "std::os::wasi::fs::link",
+    "std::os::wasi::fs::rename",
+    "std::os::wasi::fs::symlink",
+    "std::os::wasi::fs::symlink_path",
+    "std::os::windows::fs::FileExt::seek_read_buf",
+    "std::os::windows::fs::MetadataExt::change_time",
+    "std::os::windows::fs::MetadataExt::file_index",
+    "std::os::windows::fs::MetadataExt::number_of_links",
+    "std::os::windows::fs::MetadataExt::volume_serial_number",
+    "std::os::windows::fs::OpenOptionsExt2",
+    "std::os::windows::fs::OpenOptionsExt2::freeze_last_access_time",
+    "std::os::windows::fs::OpenOptionsExt2::freeze_last_write_time",
+    "std::os::windows::fs::junction_point"
+  ]
+}

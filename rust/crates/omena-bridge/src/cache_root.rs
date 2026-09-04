@@ -179,6 +179,10 @@ pub(crate) fn external_sif_workspace_root(path: &Path) -> Option<PathBuf> {
     path.parent().map(Path::to_path_buf)
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "cache-root owner: retain standard marker publication"
+)]
 pub(crate) fn ensure_omena_cache_root_markers(cache_subdir: &Path) {
     let Some(omena_root) = cache_subdir.parent() else {
         return;
@@ -193,6 +197,10 @@ pub(crate) fn ensure_omena_cache_root_markers(cache_subdir: &Path) {
     }
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "cache-root owner: retain attribution publication"
+)]
 pub(crate) fn ensure_omena_cache_root_attribution(cache_subdir: &Path, workspace_identity: &str) {
     let Some(cache_root) = cache_subdir.parent() else {
         return;

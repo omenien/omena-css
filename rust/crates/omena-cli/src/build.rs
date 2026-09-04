@@ -801,6 +801,10 @@ struct BundleCodeSplitManifestImportV0 {
     file_name: String,
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "bundle-output owner: prepare the admitted output directory"
+)]
 fn emit_bundle_code_split_outputs(
     options: BundleCodeSplitOutputOptions<'_>,
 ) -> Result<BundleCodeSplitEmissionSummaryV0, String> {

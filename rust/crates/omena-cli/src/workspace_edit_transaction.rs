@@ -449,6 +449,10 @@ impl WorkspaceEditTransaction {
         Ok(journal)
     }
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "transaction owner: publish staged product replacements"
+    )]
     fn rename_all(
         &self,
         staged: &mut [StagedEditV0],
@@ -722,6 +726,10 @@ impl TransactionLockGuard {
 }
 
 impl Drop for TransactionLockGuard {
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "transaction-lock owner: remove owned lock sidecars"
+    )]
     fn drop(&mut self) {
         for path in self.paths.iter().rev() {
             let _ = fs::remove_file(path);
@@ -729,6 +737,10 @@ impl Drop for TransactionLockGuard {
     }
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "transaction-lock owner: retain create-once lock acquisition"
+)]
 fn write_transaction_lock_file(
     lock_path: &Path,
     destination: &Path,
@@ -767,6 +779,10 @@ enum WorkspaceEditFailpointV0 {
     AfterRenames(usize),
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "transaction-staging owner: retain staged byte and permission writes"
+)]
 fn write_staged_product_bytes(
     path: &Path,
     content: &[u8],
@@ -787,6 +803,10 @@ fn write_staged_product_bytes(
         .map_err(|error| io_error("sync staged file", path, error))
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "transaction-journal owner: retain create-once journal acquisition"
+)]
 fn write_transaction_journal_file(
     path: &Path,
     content: &[u8],
@@ -813,6 +833,10 @@ fn cleanup_backups(
     remove_if_exists(journal_path)
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "transaction-rollback owner: restore originals and remove replacements"
+)]
 fn rollback_and_cleanup(mut staged: Vec<StagedEditV0>) -> Vec<String> {
     staged.reverse();
     let mut failures = Vec::new();
@@ -841,6 +865,10 @@ fn rollback_and_cleanup(mut staged: Vec<StagedEditV0>) -> Vec<String> {
     failures
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "transaction-cleanup owner: remove owned staging sidecars"
+)]
 fn cleanup_staged(staged: &[StagedEditV0]) {
     for edit in staged {
         let _ = fs::remove_file(edit.stage.as_path());
@@ -850,6 +878,10 @@ fn cleanup_staged(staged: &[StagedEditV0]) {
     }
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "transaction-cleanup owner: remove an owned transaction sidecar"
+)]
 fn remove_if_exists(path: &Path) -> Result<(), WorkspaceEditTransactionErrorV0> {
     match fs::remove_file(path) {
         Ok(()) => Ok(()),
@@ -859,12 +891,23 @@ fn remove_if_exists(path: &Path) -> Result<(), WorkspaceEditTransactionErrorV0> 
 }
 
 #[cfg(windows)]
+#[cfg_attr(
+    windows,
+    expect(
+        clippy::disallowed_methods,
+        reason = "transaction-rollback owner: move the Windows rollback backup"
+    )
+)]
 fn prepare_rollback_backup(edit: &StagedEditV0) -> Result<(), WorkspaceEditTransactionErrorV0> {
     fs::rename(edit.destination.as_path(), edit.backup.as_path())
         .map_err(|error| io_error("move original to rollback backup", &edit.destination, error))
 }
 
 #[cfg(not(windows))]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "transaction-rollback owner: copy the rollback backup"
+)]
 fn prepare_rollback_backup(edit: &StagedEditV0) -> Result<(), WorkspaceEditTransactionErrorV0> {
     fs::copy(edit.destination.as_path(), edit.backup.as_path())
         .map_err(|error| io_error("copy original to rollback backup", &edit.destination, error))?;

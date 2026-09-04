@@ -443,6 +443,10 @@ impl DiskDiagnosticsCacheSlotV0 {
 /// git-driven tooling skip the tree without touching any user config) and a
 /// standard `CACHEDIR.TAG` (archivers/backup tools skip tagged directories).
 /// Written once, next to whichever cache subsystem touches the root first.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "diagnostics-cache owner: retain standard marker publication"
+)]
 pub(crate) fn ensure_omena_cache_root_markers(cache_subdir: &Path) {
     let Some(omena_root) = cache_subdir.parent() else {
         return;
@@ -626,6 +630,10 @@ pub(crate) fn load_disk_diagnostics_shard_with_limits(
     )
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "diagnostics-cache owner: remove invalid shard metadata"
+)]
 fn load_disk_diagnostics_shard_metadata_with_limits(
     slot: &DiskDiagnosticsCacheSlotV0,
     limits: &DiskDiagnosticsCacheLimitsV0,
@@ -887,6 +895,10 @@ pub(crate) fn sweep_relocated_workspace_cache_roots(state: &mut crate::LspShellS
     }
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "cache-relocation owner: remove empty relocated roots"
+)]
 fn sweep_relocated_workspace_cache_root(omena_root: &Path, remove_current_caches: bool) {
     if !cache_path_is_real_directory(omena_root)
         || !omena_root
@@ -968,6 +980,10 @@ fn relocated_cache_root_contains_only_owned_markers(omena_root: &Path) -> bool {
     })
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "cache-relocation owner: remove a proven owned cache path"
+)]
 fn remove_relocated_owned_cache_path(path: &Path) -> bool {
     let metadata = match fs::symlink_metadata(path) {
         Ok(metadata) => metadata,
@@ -1014,6 +1030,10 @@ fn relocated_marker_is_absent_or_owned(path: &Path, marker: RelocatedOwnedMarker
     }
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "cache-relocation owner: remove a proven owned marker"
+)]
 fn remove_relocated_owned_marker(path: &Path, marker: RelocatedOwnedMarkerV0) -> bool {
     if !relocated_marker_is_absent_or_owned(path, marker) {
         return false;
@@ -1052,6 +1072,10 @@ pub(crate) fn stable_cache_shard_address(product: &str, identity_parts: &[&str])
 /// Returns whether the write CREATED a new shard file (as opposed to
 /// overwriting one in place) — with stable addresses, only creations can
 /// grow the store, so only creations pay the eviction sweep.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "diagnostics-cache owner: retain atomic shard publication"
+)]
 fn write_disk_diagnostics_shard_atomically(
     dir: &Path,
     workspace_identity: &str,
@@ -1089,6 +1113,10 @@ fn write_disk_diagnostics_shard_atomically(
 /// globally-newest shard is retained — under concurrent writers a peer's
 /// newer shard may outrank the one just written here, which is a benign
 /// miss. Best-effort like every other write.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "diagnostics-cache owner: retain bounded shard eviction"
+)]
 fn enforce_disk_diagnostics_cache_caps(dir: &Path, limits: &DiskDiagnosticsCacheLimitsV0) {
     let Ok(entries) = fs::read_dir(dir) else {
         return;

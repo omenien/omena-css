@@ -434,6 +434,10 @@ fn declaration_output_path(
     output
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "module-artifact owner: prepare admitted artifact directories"
+)]
 fn apply_or_check_module_artifacts(
     mode: ModulesMode,
     plans: &[ModuleArtifactPlanV0],

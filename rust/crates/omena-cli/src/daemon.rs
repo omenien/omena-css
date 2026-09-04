@@ -1065,6 +1065,10 @@ pub fn run_omenad(args: OmenadArgs) -> Result<(), String> {
     Ok(())
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "daemon-endpoint owner: retain atomic endpoint publication"
+)]
 fn write_endpoint(path: &Path, endpoint: &OmenadEndpointV0) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| {
@@ -1091,6 +1095,10 @@ fn write_endpoint(path: &Path, endpoint: &OmenadEndpointV0) -> Result<(), String
     })
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "daemon-endpoint owner: remove the owned endpoint sidecar"
+)]
 fn cleanup_endpoint(path: &Path) {
     match fs::remove_file(path) {
         Ok(()) => {}

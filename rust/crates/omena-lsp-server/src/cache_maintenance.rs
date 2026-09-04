@@ -41,6 +41,10 @@ struct LspCacheClearFailureV0 {
     reason: String,
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "cache-maintenance owner: remove only proven owned cache paths"
+)]
 pub(crate) fn clear_owned_cache_paths(state: &LspShellState) -> LspCacheClearReportV0 {
     let targets = resolved_owned_cache_targets(state);
     let mut target_reports = Vec::with_capacity(targets.len());

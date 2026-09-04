@@ -123,6 +123,10 @@ pub(crate) fn lock_command(
     }
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "lockfile owner: retain canonical lockfile publication"
+)]
 fn lock_update(
     lockfile: PathBuf,
     package: Option<String>,
@@ -166,6 +170,10 @@ fn lock_update(
     Ok(())
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "lockfile owner: retain canonical lockfile publication"
+)]
 fn lock_add(
     lockfile: PathBuf,
     package: String,
@@ -217,6 +225,10 @@ fn lock_add(
     Ok(())
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "lockfile owner: retain canonical provenance publication"
+)]
 fn lock_fetch_provenance(
     lockfile: PathBuf,
     package: String,
@@ -278,6 +290,10 @@ fn lock_fetch_provenance(
     Ok(())
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "lockfile owner: retain canonical verification publication"
+)]
 fn lock_record_verification(
     lockfile: PathBuf,
     package: String,
@@ -401,6 +417,10 @@ impl AttestationStatementPolicy {
     }
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "lockfile owner: retain attestation result publication"
+)]
 fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), String> {
     let LockVerifyAttestationInput {
         lockfile,
@@ -996,6 +1016,10 @@ pub(crate) fn build_recorded_shard_verdict(
     Ok(verdict)
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "recorded-verdict owner: prepare the immutable verdict store"
+)]
 pub(crate) fn write_recorded_shard_verdicts(
     lockfile: &Path,
     verdicts: &[OmenaSifShardRecordedVerdictV1],
@@ -1039,6 +1063,10 @@ fn recorded_sigstore_bundle_reference(bundle_bytes: &[u8]) -> String {
     )
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "recorded-bundle owner: prepare the immutable bundle store"
+)]
 fn write_recorded_sigstore_bundle(
     lockfile: &Path,
     reference: &str,
@@ -1069,6 +1097,10 @@ fn write_recorded_sigstore_bundle(
     publish_immutable_recorded_shard_verdict(bundle_path.as_path(), bundle_bytes)
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "recorded-verdict owner: retain create-once publication and cleanup"
+)]
 fn publish_immutable_recorded_shard_verdict(path: &Path, bytes: &[u8]) -> Result<(), String> {
     match fs::read(path) {
         Ok(existing) if existing == bytes => return Ok(()),

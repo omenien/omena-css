@@ -1,0 +1,541 @@
+{
+  "schemaVersion": "0",
+  "product": "rust.fs-acquisition-authority",
+  "acquisitionSites": [
+    {
+      "crate": "omena-bridge",
+      "file": "rust/crates/omena-bridge/src/cache_root.rs",
+      "function": "crate::cache_root::ensure_omena_cache_root_attribution",
+      "api": "std::fs::write",
+      "expressionCount": 1,
+      "owner": "omena-bridge ensure omena cache root attribution",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-bridge",
+      "file": "rust/crates/omena-bridge/src/cache_root.rs",
+      "function": "crate::cache_root::ensure_omena_cache_root_markers",
+      "api": "std::fs::write",
+      "expressionCount": 2,
+      "owner": "omena-bridge ensure omena cache root markers",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-bridge",
+      "file": "rust/crates/omena-bridge/src/style_resolution.rs",
+      "function": "crate::style_resolution::enforce_external_sif_cache_caps",
+      "api": "std::fs::remove_file",
+      "expressionCount": 1,
+      "owner": "omena-bridge enforce external sif cache caps",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-bridge",
+      "file": "rust/crates/omena-bridge/src/style_resolution.rs",
+      "function": "crate::style_resolution::load_external_sif_cache_shard",
+      "api": "std::fs::remove_file",
+      "expressionCount": 2,
+      "owner": "omena-bridge load external sif cache shard",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-bridge",
+      "file": "rust/crates/omena-bridge/src/style_resolution.rs",
+      "function": "crate::style_resolution::write_external_sif_cache_shard_atomically",
+      "api": "std::fs::create_dir_all",
+      "expressionCount": 1,
+      "owner": "omena-bridge write external sif cache shard atomically",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-bridge",
+      "file": "rust/crates/omena-bridge/src/style_resolution.rs",
+      "function": "crate::style_resolution::write_external_sif_cache_shard_atomically",
+      "api": "std::fs::remove_file",
+      "expressionCount": 1,
+      "owner": "omena-bridge write external sif cache shard atomically",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-bridge",
+      "file": "rust/crates/omena-bridge/src/style_resolution.rs",
+      "function": "crate::style_resolution::write_external_sif_cache_shard_atomically",
+      "api": "std::fs::rename",
+      "expressionCount": 1,
+      "owner": "omena-bridge write external sif cache shard atomically",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-bridge",
+      "file": "rust/crates/omena-bridge/src/style_resolution.rs",
+      "function": "crate::style_resolution::write_external_sif_cache_shard_atomically",
+      "api": "std::fs::write",
+      "expressionCount": 1,
+      "owner": "omena-bridge write external sif cache shard atomically",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/build.rs",
+      "function": "crate::build::emit_bundle_code_split_outputs",
+      "api": "std::fs::create_dir_all",
+      "expressionCount": 1,
+      "owner": "omena-cli emit bundle code split outputs",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/daemon.rs",
+      "function": "crate::daemon::cleanup_endpoint",
+      "api": "std::fs::remove_file",
+      "expressionCount": 1,
+      "owner": "omena-cli cleanup endpoint",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/daemon.rs",
+      "function": "crate::daemon::write_endpoint",
+      "api": "std::fs::create_dir_all",
+      "expressionCount": 1,
+      "owner": "omena-cli write endpoint",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/daemon.rs",
+      "function": "crate::daemon::write_endpoint",
+      "api": "std::fs::rename",
+      "expressionCount": 1,
+      "owner": "omena-cli write endpoint",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/daemon.rs",
+      "function": "crate::daemon::write_endpoint",
+      "api": "std::fs::write",
+      "expressionCount": 1,
+      "owner": "omena-cli write endpoint",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/lock.rs",
+      "function": "crate::lock::lock_add",
+      "api": "std::fs::write",
+      "expressionCount": 1,
+      "owner": "omena-cli lock add",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/lock.rs",
+      "function": "crate::lock::lock_fetch_provenance",
+      "api": "std::fs::write",
+      "expressionCount": 1,
+      "owner": "omena-cli lock fetch provenance",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/lock.rs",
+      "function": "crate::lock::lock_record_verification",
+      "api": "std::fs::write",
+      "expressionCount": 1,
+      "owner": "omena-cli lock record verification",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/lock.rs",
+      "function": "crate::lock::lock_update",
+      "api": "std::fs::write",
+      "expressionCount": 1,
+      "owner": "omena-cli lock update",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/lock.rs",
+      "function": "crate::lock::lock_verify_attestation",
+      "api": "std::fs::write",
+      "expressionCount": 1,
+      "owner": "omena-cli lock verify attestation",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/lock.rs",
+      "function": "crate::lock::publish_immutable_recorded_shard_verdict",
+      "api": "std::fs::hard_link",
+      "expressionCount": 1,
+      "owner": "omena-cli publish immutable recorded shard verdict",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/lock.rs",
+      "function": "crate::lock::publish_immutable_recorded_shard_verdict",
+      "api": "std::fs::OpenOptions::open",
+      "expressionCount": 1,
+      "owner": "omena-cli publish immutable recorded shard verdict",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/lock.rs",
+      "function": "crate::lock::publish_immutable_recorded_shard_verdict",
+      "api": "std::fs::remove_file",
+      "expressionCount": 4,
+      "owner": "omena-cli publish immutable recorded shard verdict",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/lock.rs",
+      "function": "crate::lock::write_recorded_shard_verdicts",
+      "api": "std::fs::create_dir_all",
+      "expressionCount": 1,
+      "owner": "omena-cli write recorded shard verdicts",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/lock.rs",
+      "function": "crate::lock::write_recorded_sigstore_bundle",
+      "api": "std::fs::create_dir_all",
+      "expressionCount": 1,
+      "owner": "omena-cli write recorded sigstore bundle",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/modules.rs",
+      "function": "crate::modules::apply_or_check_module_artifacts",
+      "api": "std::fs::create_dir_all",
+      "expressionCount": 1,
+      "owner": "omena-cli apply or check module artifacts",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+      "function": "crate::workspace_edit_transaction::cleanup_staged",
+      "api": "std::fs::remove_file",
+      "expressionCount": 2,
+      "owner": "omena-cli cleanup staged",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+      "function": "crate::workspace_edit_transaction::drop",
+      "api": "std::fs::remove_file",
+      "expressionCount": 1,
+      "owner": "omena-cli drop",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+      "function": "crate::workspace_edit_transaction::prepare_rollback_backup",
+      "api": "std::fs::copy",
+      "expressionCount": 1,
+      "owner": "omena-cli prepare rollback backup",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+      "function": "crate::workspace_edit_transaction::remove_if_exists",
+      "api": "std::fs::remove_file",
+      "expressionCount": 1,
+      "owner": "omena-cli remove if exists",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+      "function": "crate::workspace_edit_transaction::rollback_and_cleanup",
+      "api": "std::fs::remove_file",
+      "expressionCount": 1,
+      "owner": "omena-cli rollback and cleanup",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+      "function": "crate::workspace_edit_transaction::rollback_and_cleanup",
+      "api": "std::fs::rename",
+      "expressionCount": 1,
+      "owner": "omena-cli rollback and cleanup",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+      "function": "crate::workspace_edit_transaction::WorkspaceEditTransaction::rename_all",
+      "api": "std::fs::rename",
+      "expressionCount": 1,
+      "owner": "omena-cli rename all",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+      "function": "crate::workspace_edit_transaction::write_staged_product_bytes",
+      "api": "std::fs::OpenOptions::open",
+      "expressionCount": 1,
+      "owner": "omena-cli write staged product bytes",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+      "function": "crate::workspace_edit_transaction::write_staged_product_bytes",
+      "api": "std::fs::set_permissions",
+      "expressionCount": 1,
+      "owner": "omena-cli write staged product bytes",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+      "function": "crate::workspace_edit_transaction::write_transaction_journal_file",
+      "api": "std::fs::OpenOptions::open",
+      "expressionCount": 1,
+      "owner": "omena-cli write transaction journal file",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+      "function": "crate::workspace_edit_transaction::write_transaction_lock_file",
+      "api": "std::fs::OpenOptions::open",
+      "expressionCount": 1,
+      "owner": "omena-cli write transaction lock file",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+      "function": "crate::workspace_edit_transaction::write_transaction_lock_file",
+      "api": "std::fs::remove_file",
+      "expressionCount": 1,
+      "owner": "omena-cli write transaction lock file",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/cache_limits.rs",
+      "function": "crate::cache_limits::enforce_cache_limits",
+      "api": "std::fs::remove_file",
+      "expressionCount": 1,
+      "owner": "omena-lsp-server enforce cache limits",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/cache_limits.rs",
+      "function": "crate::cache_limits::ensure_cache_root_attribution",
+      "api": "std::fs::write",
+      "expressionCount": 1,
+      "owner": "omena-lsp-server ensure cache root attribution",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/cache_limits.rs",
+      "function": "crate::cache_limits::read_cache_shard_with_limits",
+      "api": "std::fs::remove_file",
+      "expressionCount": 1,
+      "owner": "omena-lsp-server read cache shard with limits",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/cache_limits.rs",
+      "function": "crate::cache_limits::write_cache_shard_atomically_with_limits",
+      "api": "std::fs::create_dir_all",
+      "expressionCount": 1,
+      "owner": "omena-lsp-server write cache shard atomically with limits",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/cache_limits.rs",
+      "function": "crate::cache_limits::write_cache_shard_atomically_with_limits",
+      "api": "std::fs::remove_file",
+      "expressionCount": 1,
+      "owner": "omena-lsp-server write cache shard atomically with limits",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/cache_limits.rs",
+      "function": "crate::cache_limits::write_cache_shard_atomically_with_limits",
+      "api": "std::fs::rename",
+      "expressionCount": 1,
+      "owner": "omena-lsp-server write cache shard atomically with limits",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/cache_limits.rs",
+      "function": "crate::cache_limits::write_cache_shard_atomically_with_limits",
+      "api": "std::fs::write",
+      "expressionCount": 1,
+      "owner": "omena-lsp-server write cache shard atomically with limits",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/cache_maintenance.rs",
+      "function": "crate::cache_maintenance::clear_owned_cache_paths",
+      "api": "std::fs::remove_dir_all",
+      "expressionCount": 1,
+      "owner": "omena-lsp-server clear owned cache paths",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/cache_maintenance.rs",
+      "function": "crate::cache_maintenance::clear_owned_cache_paths",
+      "api": "std::fs::remove_file",
+      "expressionCount": 1,
+      "owner": "omena-lsp-server clear owned cache paths",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/disk_cache.rs",
+      "function": "crate::disk_cache::enforce_disk_diagnostics_cache_caps",
+      "api": "std::fs::remove_file",
+      "expressionCount": 1,
+      "owner": "omena-lsp-server enforce disk diagnostics cache caps",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/disk_cache.rs",
+      "function": "crate::disk_cache::ensure_omena_cache_root_markers",
+      "api": "std::fs::write",
+      "expressionCount": 2,
+      "owner": "omena-lsp-server ensure omena cache root markers",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/disk_cache.rs",
+      "function": "crate::disk_cache::load_disk_diagnostics_shard_metadata_with_limits",
+      "api": "std::fs::remove_file",
+      "expressionCount": 3,
+      "owner": "omena-lsp-server load disk diagnostics shard metadata with limits",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/disk_cache.rs",
+      "function": "crate::disk_cache::remove_relocated_owned_cache_path",
+      "api": "std::fs::remove_dir_all",
+      "expressionCount": 1,
+      "owner": "omena-lsp-server remove relocated owned cache path",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/disk_cache.rs",
+      "function": "crate::disk_cache::remove_relocated_owned_cache_path",
+      "api": "std::fs::remove_file",
+      "expressionCount": 1,
+      "owner": "omena-lsp-server remove relocated owned cache path",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/disk_cache.rs",
+      "function": "crate::disk_cache::remove_relocated_owned_marker",
+      "api": "std::fs::remove_file",
+      "expressionCount": 1,
+      "owner": "omena-lsp-server remove relocated owned marker",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/disk_cache.rs",
+      "function": "crate::disk_cache::sweep_relocated_workspace_cache_root",
+      "api": "std::fs::remove_dir",
+      "expressionCount": 1,
+      "owner": "omena-lsp-server sweep relocated workspace cache root",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/disk_cache.rs",
+      "function": "crate::disk_cache::write_disk_diagnostics_shard_atomically",
+      "api": "std::fs::create_dir_all",
+      "expressionCount": 1,
+      "owner": "omena-lsp-server write disk diagnostics shard atomically",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/disk_cache.rs",
+      "function": "crate::disk_cache::write_disk_diagnostics_shard_atomically",
+      "api": "std::fs::remove_file",
+      "expressionCount": 1,
+      "owner": "omena-lsp-server write disk diagnostics shard atomically",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/disk_cache.rs",
+      "function": "crate::disk_cache::write_disk_diagnostics_shard_atomically",
+      "api": "std::fs::rename",
+      "expressionCount": 1,
+      "owner": "omena-lsp-server write disk diagnostics shard atomically",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/disk_cache.rs",
+      "function": "crate::disk_cache::write_disk_diagnostics_shard_atomically",
+      "api": "std::fs::write",
+      "expressionCount": 1,
+      "owner": "omena-lsp-server write disk diagnostics shard atomically",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/workspace_occurrence_cache.rs",
+      "function": "crate::workspace_occurrence_cache::evict_workspace_occurrence_shard",
+      "api": "std::fs::remove_file",
+      "expressionCount": 1,
+      "owner": "omena-lsp-server evict workspace occurrence shard",
+      "disposition": "retained filesystem lifecycle boundary"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "file": "rust/crates/omena-lsp-server/src/workspace_occurrence_cache.rs",
+      "function": "crate::workspace_occurrence_cache::store_workspace_occurrence_shard",
+      "api": "std::fs::create_dir_all",
+      "expressionCount": 1,
+      "owner": "omena-lsp-server store workspace occurrence shard",
+      "disposition": "retained filesystem lifecycle boundary"
+    }
+  ],
+  "cfgCountedAcquisitions": [
+    {
+      "crate": "omena-cli",
+      "file": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+      "line": 902,
+      "function": "crate::workspace_edit_transaction::prepare_rollback_backup",
+      "api": "std::fs::rename",
+      "effectivePredicate": "windows",
+      "verificationLane": "x86_64-pc-windows-msvc",
+      "owner": "transaction-rollback owner",
+      "disposition": "move the Windows rollback backup"
+    }
+  ]
+}

@@ -122,6 +122,10 @@ pub(crate) fn load_workspace_occurrence_shard(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "occurrence-cache owner: retain bounded shard publication"
+)]
 pub(crate) fn store_workspace_occurrence_shard(
     cache_storage: &LspCacheStorageConfigV0,
     document_workspace_folder_uri: Option<&str>,
@@ -436,6 +440,10 @@ pub(crate) fn with_workspace_occurrence_key_workspace_folder_uri_drop_for_test<R
     })
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "occurrence-cache owner: remove the owned occurrence shard"
+)]
 pub(crate) fn evict_workspace_occurrence_shard(
     cache_storage: &LspCacheStorageConfigV0,
     document_workspace_folder_uri: Option<&str>,
