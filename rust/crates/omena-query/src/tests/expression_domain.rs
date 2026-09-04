@@ -174,11 +174,11 @@ fn wraps_expression_domain_runtime_in_revision_aligned_analysis_result() -> Resu
     assert_eq!(first.revision, 1);
     assert_eq!(first.value.revision, first.revision);
     assert_eq!(
-        first.precision.axes.value_domain,
+        first.precision.axes.value_domain(),
         crate::ValueDomainPrecisionV1::ClassValueFlow,
     );
     assert_eq!(
-        first.precision.axes.revision,
+        first.precision.axes.revision(),
         crate::RevisionIdentityV1::ExpressionDomainFlowRuntime,
     );
     assert!(

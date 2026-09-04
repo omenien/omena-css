@@ -251,25 +251,22 @@ pub struct OmenaClosedWorldPrecisionWitnessV1 {
 
 impl OmenaClosedWorldPrecisionWitnessV1 {
     pub const fn apply_to(self, receiver: AnalysisPrecisionV1) -> AnalysisPrecisionV1 {
-        AnalysisPrecisionV1 {
-            value_domain: match (receiver.value_domain, self.value_domain) {
-                (ValueDomainPrecisionV1::Unknown, _) | (_, None) => receiver.value_domain,
+        receiver
+            .with_value_domain(match (receiver.value_domain(), self.value_domain) {
+                (ValueDomainPrecisionV1::Unknown, _) | (_, None) => receiver.value_domain(),
                 (_, Some(value_domain)) => value_domain,
-            },
-            provider_completeness: match (
-                receiver.provider_completeness,
-                self.provider_completeness,
-            ) {
-                (ProviderCompletenessV1::Unresolved | ProviderCompletenessV1::Unknown, _)
-                | (_, None) => receiver.provider_completeness,
-                (_, Some(provider_completeness)) => provider_completeness,
-            },
-            world_assumption: match (receiver.world_assumption, self.world_assumption) {
-                (WorldAssumptionV1::Unknown, _) | (_, None) => receiver.world_assumption,
+            })
+            .with_provider_completeness(
+                match (receiver.provider_completeness(), self.provider_completeness) {
+                    (ProviderCompletenessV1::Unresolved | ProviderCompletenessV1::Unknown, _)
+                    | (_, None) => receiver.provider_completeness(),
+                    (_, Some(provider_completeness)) => provider_completeness,
+                },
+            )
+            .with_world_assumption(match (receiver.world_assumption(), self.world_assumption) {
+                (WorldAssumptionV1::Unknown, _) | (_, None) => receiver.world_assumption(),
                 (_, Some(world_assumption)) => world_assumption,
-            },
-            ..receiver
-        }
+            })
     }
 }
 
@@ -341,26 +338,26 @@ pub fn analysis_precision_from_class_value_with_witness(
         ),
     };
     let has_known_value = !matches!(value, AbstractClassValueV0::Top { .. });
-    AnalysisPrecisionV1 {
+    AnalysisPrecisionV1::from_axes(
         value_domain,
-        flow: if has_known_value {
+        if has_known_value {
             FlowPrecisionV1::RepresentationBound
         } else {
             FlowPrecisionV1::Unknown
         },
-        context: if has_known_value {
+        if has_known_value {
             ContextPrecisionV1::ValueLocal
         } else {
             ContextPrecisionV1::Unknown
         },
         provider_completeness,
         world_assumption,
-        revision: if has_known_value {
+        if has_known_value {
             RevisionIdentityV1::Current
         } else {
             RevisionIdentityV1::Unknown
         },
-    }
+    )
 }
 
 pub fn fact_precision_from_class_value_with_witness(
@@ -588,14 +585,14 @@ mod precision_witness_tests {
     use super::*;
 
     fn receiver() -> AnalysisPrecisionV1 {
-        AnalysisPrecisionV1 {
-            value_domain: ValueDomainPrecisionV1::ClassValueFlow,
-            flow: FlowPrecisionV1::KLimitedCallSiteFlow,
-            context: ContextPrecisionV1::SameFile,
-            provider_completeness: ProviderCompletenessV1::Partial,
-            world_assumption: WorldAssumptionV1::Open,
-            revision: RevisionIdentityV1::StaleTypeFact,
-        }
+        AnalysisPrecisionV1::from_axes_for_tests(
+            ValueDomainPrecisionV1::ClassValueFlow,
+            FlowPrecisionV1::KLimitedCallSiteFlow,
+            ContextPrecisionV1::SameFile,
+            ProviderCompletenessV1::Partial,
+            WorldAssumptionV1::Open,
+            RevisionIdentityV1::StaleTypeFact,
+        )
     }
 
     #[test]
@@ -609,17 +606,17 @@ mod precision_witness_tests {
         .apply_to(original);
 
         assert_eq!(
-            witnessed.value_domain,
+            witnessed.value_domain(),
             ValueDomainPrecisionV1::ClosedClassValueSet
         );
         assert_eq!(
-            witnessed.provider_completeness,
-            original.provider_completeness
+            witnessed.provider_completeness(),
+            original.provider_completeness()
         );
-        assert_eq!(witnessed.world_assumption, original.world_assumption);
-        assert_eq!(witnessed.flow, original.flow);
-        assert_eq!(witnessed.context, original.context);
-        assert_eq!(witnessed.revision, original.revision);
+        assert_eq!(witnessed.world_assumption(), original.world_assumption());
+        assert_eq!(witnessed.flow(), original.flow());
+        assert_eq!(witnessed.context(), original.context());
+        assert_eq!(witnessed.revision(), original.revision());
     }
 
     #[test]
@@ -650,12 +647,10 @@ mod precision_witness_tests {
             FactPrecision::Exact
         );
 
-        let original = AnalysisPrecisionV1 {
-            provider_completeness: ProviderCompletenessV1::Unresolved,
-            world_assumption: WorldAssumptionV1::Unknown,
-            value_domain: ValueDomainPrecisionV1::Unknown,
-            ..receiver()
-        };
+        let original = receiver()
+            .with_provider_completeness(ProviderCompletenessV1::Unresolved)
+            .with_world_assumption(WorldAssumptionV1::Unknown)
+            .with_value_domain(ValueDomainPrecisionV1::Unknown);
         assert_eq!(witness.apply_to(original), original);
         assert_eq!(
             closed_world_precision_witness_from_class_value(

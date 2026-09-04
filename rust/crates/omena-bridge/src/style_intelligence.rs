@@ -27,16 +27,14 @@ pub struct StyleIntelligenceProviderMetadataV0 {
 
 const fn provider_analysis_precision(import_target_count: usize) -> AnalysisPrecisionV1 {
     let unresolved_provider_count = if import_target_count == 0 { 1 } else { 0 };
-    AnalysisPrecisionV1 {
-        value_domain: ValueDomainPrecisionV1::StyleModuleResolution,
-        flow: FlowPrecisionV1::ProviderObservation,
-        context: ContextPrecisionV1::ProviderScoped,
-        provider_completeness: ProviderCompletenessV1::from_unresolved_count(
-            unresolved_provider_count,
-        ),
-        world_assumption: WorldAssumptionV1::from_closed_world(import_target_count > 0),
-        revision: RevisionIdentityV1::Current,
-    }
+    AnalysisPrecisionV1::from_axes(
+        ValueDomainPrecisionV1::StyleModuleResolution,
+        FlowPrecisionV1::ProviderObservation,
+        ContextPrecisionV1::ProviderScoped,
+        ProviderCompletenessV1::from_unresolved_count(unresolved_provider_count),
+        WorldAssumptionV1::from_closed_world(import_target_count > 0),
+        RevisionIdentityV1::Current,
+    )
 }
 
 const fn provider_fact_precision(import_target_count: usize) -> FactPrecision {
@@ -541,7 +539,7 @@ mod tests {
     fn provider_precision_backing_consumes_completeness_not_only_value_domain() {
         let unresolved = provider_analysis_precision(UTILITY_DOMAIN_IMPORT_TARGETS.len());
         assert_eq!(
-            unresolved.value_domain,
+            unresolved.value_domain(),
             ValueDomainPrecisionV1::StyleModuleResolution,
         );
         assert_eq!(

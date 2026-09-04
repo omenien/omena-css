@@ -210,11 +210,11 @@ export function App({ suffix }) {
             .ok_or_else(|| format!("{code} must carry source diagnostic precision"))?;
         assert_eq!(precision.product, "omena-query.analysis-precision");
         assert_eq!(
-            precision.axes.value_domain,
+            precision.axes.value_domain(),
             crate::ValueDomainPrecisionV1::ClassValueResolution,
         );
         assert_eq!(
-            precision.axes.revision,
+            precision.axes.revision(),
             crate::RevisionIdentityV1::QuerySourceDiagnosticsInput,
         );
     }
@@ -252,11 +252,11 @@ export function App({ suffix }) {
         .as_ref()
         .ok_or_else(|| "missing-module must carry precision".to_string())?;
     assert_eq!(
-        missing_module_precision.axes.provider_completeness,
+        missing_module_precision.axes.provider_completeness(),
         crate::ProviderCompletenessV1::Unresolved
     );
     assert_eq!(
-        missing_module_precision.axes.world_assumption,
+        missing_module_precision.axes.world_assumption(),
         crate::WorldAssumptionV1::Open
     );
     assert_eq!(
@@ -287,11 +287,11 @@ fn source_precision_without_a_real_flow_capture_closes_the_precision_floor() {
     );
     assert_eq!(reference.top_cause, Some("noFlowCapture"));
     assert_eq!(
-        reference.precision.axes.provider_completeness,
+        reference.precision.axes.provider_completeness(),
         crate::ProviderCompletenessV1::Unresolved
     );
     assert_eq!(
-        reference.precision.axes.world_assumption,
+        reference.precision.axes.world_assumption(),
         crate::WorldAssumptionV1::Open
     );
     let effective = omena_query_core::fact_precision_from_analysis_precision(&reference.precision);
@@ -617,11 +617,11 @@ fn source_diagnostics_tag_tsgo_unavailable_type_fact_as_unknown_precision()
         .as_ref()
         .ok_or_else(|| std::io::Error::other("unknown provider diagnostic must carry precision"))?;
     assert_eq!(
-        precision.axes.value_domain,
+        precision.axes.value_domain(),
         crate::ValueDomainPrecisionV1::Unknown,
     );
     assert_eq!(
-        precision.axes.flow,
+        precision.axes.flow(),
         crate::FlowPrecisionV1::TypeOracleProviderUnavailable,
     );
     assert!(

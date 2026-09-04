@@ -5,6 +5,10 @@ use serde::{Deserialize, Serialize};
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 
+mod analysis_precision;
+
+pub use analysis_precision::AnalysisPrecisionV1;
+
 pub const EVIDENCE_GRAPH_SCHEMA_VERSION_V0: &str = "0";
 pub const EVIDENCE_GRAPH_PRODUCT_V0: &str = "omena-evidence-graph.graph";
 
@@ -1160,43 +1164,6 @@ impl RevisionIdentityV1 {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AnalysisPrecisionV1 {
-    pub value_domain: ValueDomainPrecisionV1,
-    #[serde(rename = "flowSensitivity")]
-    pub flow: FlowPrecisionV1,
-    #[serde(rename = "contextSensitivity")]
-    pub context: ContextPrecisionV1,
-    pub provider_completeness: ProviderCompletenessV1,
-    pub world_assumption: WorldAssumptionV1,
-    #[serde(rename = "revisionAxis")]
-    pub revision: RevisionIdentityV1,
-}
-
-impl AnalysisPrecisionV1 {
-    pub const fn unknown() -> Self {
-        Self {
-            value_domain: ValueDomainPrecisionV1::Unknown,
-            flow: FlowPrecisionV1::Unknown,
-            context: ContextPrecisionV1::Unknown,
-            provider_completeness: ProviderCompletenessV1::Unknown,
-            world_assumption: WorldAssumptionV1::Unknown,
-            revision: RevisionIdentityV1::Unknown,
-        }
-    }
-
-    pub const fn effective_precision(self) -> EffectivePrecisionV1 {
-        self.value_domain
-            .effective_precision()
-            .meet(self.flow.effective_precision())
-            .meet(self.context.effective_precision())
-            .meet(self.provider_completeness.effective_precision())
-            .meet(self.world_assumption.effective_precision())
-            .meet(self.revision.effective_precision())
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EvidenceAnalysisPrecisionV0 {
@@ -1753,14 +1720,14 @@ mod tests {
     #[test]
     fn graph_preserves_optional_precision_payload() -> Result<(), &'static str> {
         let key = EvidenceNodeKeyV0::new("source_diagnostic_precision", "missingSelector");
-        let axes = AnalysisPrecisionV1 {
-            value_domain: ValueDomainPrecisionV1::ClassValueResolution,
-            flow: FlowPrecisionV1::SourceSyntaxIndex,
-            context: ContextPrecisionV1::PerSourceReference,
-            provider_completeness: ProviderCompletenessV1::from_unresolved_count(0),
-            world_assumption: WorldAssumptionV1::from_closed_world(true),
-            revision: RevisionIdentityV1::from_revisions(7, 7),
-        };
+        let axes = AnalysisPrecisionV1::from_axes_for_tests(
+            ValueDomainPrecisionV1::ClassValueResolution,
+            FlowPrecisionV1::SourceSyntaxIndex,
+            ContextPrecisionV1::PerSourceReference,
+            ProviderCompletenessV1::from_unresolved_count(0),
+            WorldAssumptionV1::from_closed_world(true),
+            RevisionIdentityV1::from_revisions(7, 7),
+        );
         let graph = build_salsa_demand_evidence_graph_v0(
             [EvidenceNodeSeedV0::with_precision(
                 key.clone(),
@@ -1831,61 +1798,49 @@ mod tests {
 
     #[test]
     fn every_axis_can_lower_an_exact_bundle() {
-        let exact = AnalysisPrecisionV1 {
-            value_domain: ValueDomainPrecisionV1::CascadeAtPosition,
-            flow: FlowPrecisionV1::IncrementalDataflow,
-            context: ContextPrecisionV1::KLimitedCallSite,
-            provider_completeness: ProviderCompletenessV1::from_unresolved_count(0),
-            world_assumption: WorldAssumptionV1::from_closed_world(true),
-            revision: RevisionIdentityV1::from_revisions(9, 9),
-        };
+        let exact = AnalysisPrecisionV1::from_axes_for_tests(
+            ValueDomainPrecisionV1::CascadeAtPosition,
+            FlowPrecisionV1::IncrementalDataflow,
+            ContextPrecisionV1::KLimitedCallSite,
+            ProviderCompletenessV1::from_unresolved_count(0),
+            WorldAssumptionV1::from_closed_world(true),
+            RevisionIdentityV1::from_revisions(9, 9),
+        );
         assert_eq!(exact.effective_precision(), EffectivePrecisionV1::Exact);
         assert_eq!(
-            AnalysisPrecisionV1 {
-                value_domain: ValueDomainPrecisionV1::ClassValueFlow,
-                ..exact
-            }
-            .effective_precision(),
+            exact
+                .with_value_domain(ValueDomainPrecisionV1::ClassValueFlow)
+                .effective_precision(),
             EffectivePrecisionV1::Heuristic,
         );
         assert_eq!(
-            AnalysisPrecisionV1 {
-                provider_completeness: ProviderCompletenessV1::from_unresolved_count(1),
-                ..exact
-            }
-            .effective_precision(),
+            exact
+                .with_provider_completeness(ProviderCompletenessV1::from_unresolved_count(1))
+                .effective_precision(),
             EffectivePrecisionV1::Unknown,
         );
         assert_eq!(
-            AnalysisPrecisionV1 {
-                world_assumption: WorldAssumptionV1::from_closed_world(false),
-                ..exact
-            }
-            .effective_precision(),
+            exact
+                .with_world_assumption(WorldAssumptionV1::from_closed_world(false))
+                .effective_precision(),
             EffectivePrecisionV1::Heuristic,
         );
         assert_eq!(
-            AnalysisPrecisionV1 {
-                revision: RevisionIdentityV1::from_revisions(8, 9),
-                ..exact
-            }
-            .effective_precision(),
+            exact
+                .with_revision(RevisionIdentityV1::from_revisions(8, 9))
+                .effective_precision(),
             EffectivePrecisionV1::Heuristic,
         );
         assert_eq!(
-            AnalysisPrecisionV1 {
-                context: ContextPrecisionV1::from_max_context_depth(1),
-                ..exact
-            }
-            .effective_precision(),
+            exact
+                .with_context(ContextPrecisionV1::from_max_context_depth(1))
+                .effective_precision(),
             EffectivePrecisionV1::Heuristic,
         );
         assert_eq!(
-            AnalysisPrecisionV1 {
-                flow: FlowPrecisionV1::KLimitedCallSiteFlow,
-                ..exact
-            }
-            .effective_precision(),
+            exact
+                .with_flow(FlowPrecisionV1::KLimitedCallSiteFlow)
+                .effective_precision(),
             EffectivePrecisionV1::Heuristic,
         );
     }

@@ -129,18 +129,14 @@ pub fn summarize_omena_query_css_modules_export_usage(
         let effective_precision = omena_query_core::fact_precision_from_analysis_precision(
             &OmenaQueryAnalysisPrecisionV0::new(
                 "omena-query.analysis-precision",
-                AnalysisPrecisionV1 {
-                    value_domain: ValueDomainPrecisionV1::StyleModuleResolution,
-                    flow: FlowPrecisionV1::SourceSelectorUsage,
-                    context: ContextPrecisionV1::PerModuleExport,
-                    provider_completeness: ProviderCompletenessV1::from_unresolved_count(
-                        unresolved_provider_count,
-                    ),
-                    world_assumption: WorldAssumptionV1::from_closed_world(
-                        unresolved_provider_count == 0,
-                    ),
-                    revision: RevisionIdentityV1::WorkspaceSnapshot,
-                },
+                AnalysisPrecisionV1::from_axes(
+                    ValueDomainPrecisionV1::StyleModuleResolution,
+                    FlowPrecisionV1::SourceSelectorUsage,
+                    ContextPrecisionV1::PerModuleExport,
+                    ProviderCompletenessV1::from_unresolved_count(unresolved_provider_count),
+                    WorldAssumptionV1::from_closed_world(unresolved_provider_count == 0),
+                    RevisionIdentityV1::WorkspaceSnapshot,
+                ),
             ),
         );
         let used_in_module = shared

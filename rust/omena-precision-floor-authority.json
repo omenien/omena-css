@@ -413,24 +413,24 @@
     {
       "id": "direct-flow-literal-without-authority",
       "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
-      "from": "flow: FlowPrecisionV1::from_dataflow_mode(complete_dataflow),",
-      "to": "flow: FlowPrecisionV1::IncrementalDataflow,",
+      "from": "AnalysisPrecisionV1::from_axes(\n                ValueDomainPrecisionV1::ClassValueFlow,\n                FlowPrecisionV1::from_dataflow_mode(complete_dataflow),",
+      "to": "AnalysisPrecisionV1::from_axes(\n                ValueDomainPrecisionV1::ClassValueFlow,\n                FlowPrecisionV1::IncrementalDataflow,",
       "command": ["pnpm", "exec", "tsx", "scripts/check-rust-precision-floor.ts"],
       "expectedFailure": "production precision emission point census"
     },
     {
       "id": "query-core-unresolved-provider-count-fold",
       "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
-      "from": "provider_completeness: ProviderCompletenessV1::from_unresolved_count(\n                    input\n                        .sources\n                        .iter()\n                        .flat_map(|source| &source.document.class_expressions)\n                        .filter(|expression| {\n                            !input\n                                .type_facts\n                                .iter()\n                                .any(|fact| fact.expression_id == expression.id)\n                        })\n                        .count(),\n                ),",
-      "to": "provider_completeness: ProviderCompletenessV1::from_unresolved_count(0),",
+      "from": "ProviderCompletenessV1::from_unresolved_count(\n                    input\n                        .sources\n                        .iter()\n                        .flat_map(|source| &source.document.class_expressions)\n                        .filter(|expression| {\n                            !input\n                                .type_facts\n                                .iter()\n                                .any(|fact| fact.expression_id == expression.id)\n                        })\n                        .count(),\n                ),",
+      "to": "ProviderCompletenessV1::from_unresolved_count(0),",
       "command": ["pnpm", "exec", "tsx", "scripts/check-rust-precision-floor.ts"],
       "expectedFailure": "provider.missingTypeFacts"
     },
     {
       "id": "query-core-closed-world-derivation-fold",
       "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
-      "from": "world_assumption: WorldAssumptionV1::from_closed_world(input.sources.iter().all(\n                    |source| {\n                        source.document.class_expressions.iter().all(|expression| {\n                            input\n                                .styles\n                                .iter()\n                                .any(|style| style.file_path == expression.scss_module_path)\n                        })\n                    },\n                )),",
-      "to": "world_assumption: WorldAssumptionV1::from_closed_world(true),",
+      "from": "WorldAssumptionV1::from_closed_world(input.sources.iter().all(|source| {\n                    source.document.class_expressions.iter().all(|expression| {\n                        input\n                            .styles\n                            .iter()\n                            .any(|style| style.file_path == expression.scss_module_path)\n                    })\n                })),",
+      "to": "WorldAssumptionV1::from_closed_world(true),",
       "command": ["pnpm", "exec", "tsx", "scripts/check-rust-precision-floor.ts"],
       "expectedFailure": "world.missingStyles"
     },
@@ -498,9 +498,9 @@
     },
     {
       "id": "self-constructor-census-injection",
-      "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "from": "            revision: RevisionIdentityV1::Unknown,\n        }\n    }\n\n    pub const fn effective_precision(self) -> EffectivePrecisionV1 {",
-      "to": "            revision: RevisionIdentityV1::Unknown,\n        }\n    }\n\n    pub const fn fully_favorable_probe() -> Self {\n        Self {\n            value_domain: ValueDomainPrecisionV1::ExactClassValue,\n            flow: FlowPrecisionV1::RepresentationBound,\n            context: ContextPrecisionV1::ValueLocal,\n            provider_completeness: ProviderCompletenessV1::Complete,\n            world_assumption: WorldAssumptionV1::Closed,\n            revision: RevisionIdentityV1::Current,\n        }\n    }\n\n    pub const fn effective_precision(self) -> EffectivePrecisionV1 {",
+      "sourcePath": "rust/crates/omena-evidence-graph/src/analysis_precision.rs",
+      "from": "            RevisionIdentityV1::Unknown,\n        )\n    }\n\n    pub const fn from_axes(",
+      "to": "            RevisionIdentityV1::Unknown,\n        )\n    }\n\n    pub const fn fully_favorable_probe() -> Self {\n        Self {\n            value_domain: ValueDomainPrecisionV1::ExactClassValue,\n            flow: FlowPrecisionV1::RepresentationBound,\n            context: ContextPrecisionV1::ValueLocal,\n            provider_completeness: ProviderCompletenessV1::Complete,\n            world_assumption: WorldAssumptionV1::Closed,\n            revision: RevisionIdentityV1::Current,\n        }\n    }\n\n    pub const fn from_axes(",
       "command": ["pnpm", "exec", "tsx", "scripts/check-rust-precision-floor.ts"],
       "expectedFailure": "AnalysisPrecisionV1 Self constructor census"
     },
@@ -517,8 +517,8 @@
       "changes": [
         {
           "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
-          "from": "value_domain: ValueDomainPrecisionV1::ClassValueFlow,",
-          "to": "value_domain: ValueDomainPrecisionV1::ExactClassValue,"
+          "from": "AnalysisPrecisionV1::from_axes(\n                ValueDomainPrecisionV1::ClassValueFlow,",
+          "to": "AnalysisPrecisionV1::from_axes(\n                ValueDomainPrecisionV1::ExactClassValue,"
         },
         {
           "sourcePath": "rust/omena-precision-floor-authority.json",

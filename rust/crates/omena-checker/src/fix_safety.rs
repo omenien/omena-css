@@ -198,14 +198,14 @@ mod tests {
 
     #[test]
     fn fix_safety_closes_when_any_meet_axis_lowers_an_exact_domain() {
-        let exact = AnalysisPrecisionV1 {
-            value_domain: ValueDomainPrecisionV1::CascadeAtPosition,
-            flow: FlowPrecisionV1::IncrementalDataflow,
-            context: ContextPrecisionV1::KLimitedCallSite,
-            provider_completeness: ProviderCompletenessV1::from_unresolved_count(0),
-            world_assumption: WorldAssumptionV1::from_closed_world(true),
-            revision: RevisionIdentityV1::from_revisions(6, 6),
-        };
+        let exact = AnalysisPrecisionV1::from_axes_for_tests(
+            ValueDomainPrecisionV1::CascadeAtPosition,
+            FlowPrecisionV1::IncrementalDataflow,
+            ContextPrecisionV1::KLimitedCallSite,
+            ProviderCompletenessV1::from_unresolved_count(0),
+            WorldAssumptionV1::from_closed_world(true),
+            RevisionIdentityV1::from_revisions(6, 6),
+        );
         let assess = |precision: AnalysisPrecisionV1| {
             compute_fix_safety(FixSafetyEvidenceInputV0 {
                 reference_precision: Some(fact_precision_from_analysis_precision(&precision)),
@@ -215,26 +215,11 @@ mod tests {
 
         assert_eq!(assess(exact).safety, FixSafetyV0::Safe);
         for lowered in [
-            AnalysisPrecisionV1 {
-                provider_completeness: ProviderCompletenessV1::from_unresolved_count(1),
-                ..exact
-            },
-            AnalysisPrecisionV1 {
-                world_assumption: WorldAssumptionV1::from_closed_world(false),
-                ..exact
-            },
-            AnalysisPrecisionV1 {
-                revision: RevisionIdentityV1::from_revisions(5, 6),
-                ..exact
-            },
-            AnalysisPrecisionV1 {
-                context: ContextPrecisionV1::from_max_context_depth(1),
-                ..exact
-            },
-            AnalysisPrecisionV1 {
-                flow: FlowPrecisionV1::KLimitedCallSiteFlow,
-                ..exact
-            },
+            exact.with_provider_completeness(ProviderCompletenessV1::from_unresolved_count(1)),
+            exact.with_world_assumption(WorldAssumptionV1::from_closed_world(false)),
+            exact.with_revision(RevisionIdentityV1::from_revisions(5, 6)),
+            exact.with_context(ContextPrecisionV1::from_max_context_depth(1)),
+            exact.with_flow(FlowPrecisionV1::KLimitedCallSiteFlow),
         ] {
             assert_ne!(assess(lowered).safety, FixSafetyV0::Safe);
         }

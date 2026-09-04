@@ -2813,16 +2813,14 @@ pub(crate) fn source_diagnostic_precision(
     unresolved_provider_count: usize,
     closed_world: bool,
 ) -> OmenaQueryAnalysisPrecisionV0 {
-    let axes = AnalysisPrecisionV1 {
+    let axes = AnalysisPrecisionV1::from_axes(
         value_domain,
         flow,
         context,
-        provider_completeness: ProviderCompletenessV1::from_unresolved_count(
-            unresolved_provider_count,
-        ),
-        world_assumption: WorldAssumptionV1::from_closed_world(closed_world),
-        revision: RevisionIdentityV1::QuerySourceDiagnosticsInput,
-    };
+        ProviderCompletenessV1::from_unresolved_count(unresolved_provider_count),
+        WorldAssumptionV1::from_closed_world(closed_world),
+        RevisionIdentityV1::QuerySourceDiagnosticsInput,
+    );
     let precision = source_diagnostic_precision_node(axes);
     OmenaQueryAnalysisPrecisionV0::new(precision.product, precision.axes)
 }

@@ -73,18 +73,14 @@ fn cascade_at_position_analysis_result(
         value,
         OmenaQueryAnalysisPrecisionV0::new(
             "omena-query.analysis-precision",
-            AnalysisPrecisionV1 {
-                value_domain: ValueDomainPrecisionV1::CascadeAtPosition,
-                flow: FlowPrecisionV1::PositionScopedCascade,
-                context: ContextPrecisionV1::StyleSemanticGraph,
-                provider_completeness: ProviderCompletenessV1::from_unresolved_count(
-                    unresolved_provider_count,
-                ),
-                world_assumption: WorldAssumptionV1::from_closed_world(
-                    unresolved_provider_count == 0,
-                ),
-                revision: RevisionIdentityV1::EvaluationRuntimeExpressionDomain,
-            },
+            AnalysisPrecisionV1::from_axes(
+                ValueDomainPrecisionV1::CascadeAtPosition,
+                FlowPrecisionV1::PositionScopedCascade,
+                ContextPrecisionV1::StyleSemanticGraph,
+                ProviderCompletenessV1::from_unresolved_count(unresolved_provider_count),
+                WorldAssumptionV1::from_closed_world(unresolved_provider_count == 0),
+                RevisionIdentityV1::EvaluationRuntimeExpressionDomain,
+            ),
         ),
         vec![
             "omena-query.read-cascade-at-position".to_string(),

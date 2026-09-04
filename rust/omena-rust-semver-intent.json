@@ -51,7 +51,13 @@
             "field value_domain of struct EvidenceAnalysisPrecisionV0",
             "field flow_sensitivity of struct EvidenceAnalysisPrecisionV0",
             "field context_sensitivity of struct EvidenceAnalysisPrecisionV0",
-            "field revision_axis of struct EvidenceAnalysisPrecisionV0"
+            "field revision_axis of struct EvidenceAnalysisPrecisionV0",
+            "field value_domain of struct AnalysisPrecisionV1",
+            "field flow of struct AnalysisPrecisionV1",
+            "field context of struct AnalysisPrecisionV1",
+            "field provider_completeness of struct AnalysisPrecisionV1",
+            "field world_assumption of struct AnalysisPrecisionV1",
+            "field revision of struct AnalysisPrecisionV1"
           ]
         }
       ],
@@ -63,10 +69,15 @@
           "reason": "The flattened wire object retains the existing value-domain, flow, and revision labels, adds provider-completeness and world-assumption labels, and normalizes numeric context depths at or above two from the former '<n>-cfa' spelling to the typed 'k-cfa' label.",
           "evidence": [
             {
+              "sourcePath": "rust/crates/omena-evidence-graph/src/analysis_precision.rs",
+              "needles": [
+                "provider_completeness: ProviderCompletenessV1",
+                "world_assumption: WorldAssumptionV1"
+              ]
+            },
+            {
               "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
               "needles": [
-                "pub provider_completeness: ProviderCompletenessV1",
-                "pub world_assumption: WorldAssumptionV1",
                 "#[serde(rename = \"k-cfa\")]",
                 "#[serde(flatten)]"
               ]
@@ -90,7 +101,13 @@
             "field value_domain of struct OmenaQueryAnalysisPrecisionV0",
             "field flow_sensitivity of struct OmenaQueryAnalysisPrecisionV0",
             "field context_sensitivity of struct OmenaQueryAnalysisPrecisionV0",
-            "field revision_axis of struct OmenaQueryAnalysisPrecisionV0"
+            "field revision_axis of struct OmenaQueryAnalysisPrecisionV0",
+            "field value_domain of struct AnalysisPrecisionV1",
+            "field flow of struct AnalysisPrecisionV1",
+            "field context of struct AnalysisPrecisionV1",
+            "field provider_completeness of struct AnalysisPrecisionV1",
+            "field world_assumption of struct AnalysisPrecisionV1",
+            "field revision of struct AnalysisPrecisionV1"
           ]
         }
       ],
@@ -356,6 +373,17 @@
               "OMENA_QUERY_FRAGILE_GUARDED_WINNER_THRESHOLD_V0"
             ]
           }
+        },
+        {
+          "lint": "struct_pub_field_missing",
+          "evidenceNeedles": [
+            "field value_domain of struct AnalysisPrecisionV1",
+            "field flow of struct AnalysisPrecisionV1",
+            "field context of struct AnalysisPrecisionV1",
+            "field provider_completeness of struct AnalysisPrecisionV1",
+            "field world_assumption of struct AnalysisPrecisionV1",
+            "field revision of struct AnalysisPrecisionV1"
+          ]
         },
         {
           "lint": "struct_missing",
@@ -655,7 +683,9 @@
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-              "needles": ["flow: FlowPrecisionV1::SourceSelectorUsage"]
+              "needles": [
+                "AnalysisPrecisionV1::from_axes(\n                    ValueDomainPrecisionV1::StyleModuleResolution,\n                    FlowPrecisionV1::SourceSelectorUsage,"
+              ]
             },
             {
               "sourcePath": "rust/crates/omena-query/src/style/diagnostics/tests/source_usage.rs",

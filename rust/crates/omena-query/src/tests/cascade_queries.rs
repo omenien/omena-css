@@ -153,23 +153,23 @@ fn read_cascade_at_position_analysis_result_carries_revision_aligned_precision()
     assert_eq!(first.value.product, "omena-query.read-cascade-at-position");
     assert_eq!(first.precision.product, "omena-query.analysis-precision");
     assert_eq!(
-        first.precision.axes.value_domain,
+        first.precision.axes.value_domain(),
         crate::ValueDomainPrecisionV1::CascadeAtPosition,
     );
     assert_eq!(
-        first.precision.axes.flow,
+        first.precision.axes.flow(),
         crate::FlowPrecisionV1::PositionScopedCascade,
     );
     assert_eq!(
-        first.precision.axes.revision,
+        first.precision.axes.revision(),
         crate::RevisionIdentityV1::EvaluationRuntimeExpressionDomain,
     );
     assert_eq!(
-        first.precision.axes.provider_completeness,
+        first.precision.axes.provider_completeness(),
         crate::ProviderCompletenessV1::Complete,
     );
     assert_eq!(
-        first.precision.axes.world_assumption,
+        first.precision.axes.world_assumption(),
         crate::WorldAssumptionV1::Closed,
     );
     assert_eq!(
@@ -229,11 +229,11 @@ fn unresolved_cascade_provider_keeps_the_position_gate_unknown() {
     .expect("unresolved cascade position result");
     assert_eq!(result.value.status, "unresolved");
     assert_eq!(
-        result.precision.axes.provider_completeness,
+        result.precision.axes.provider_completeness(),
         crate::ProviderCompletenessV1::Unresolved
     );
     assert_eq!(
-        result.precision.axes.world_assumption,
+        result.precision.axes.world_assumption(),
         crate::WorldAssumptionV1::Open
     );
     let effective = omena_query_core::fact_precision_from_analysis_precision(&result.precision);

@@ -196,14 +196,14 @@ fn tree_shake_precision_floor_consumes_the_full_axis_meet() {
         TransformPassKind::TreeShakeClass,
         TransformPassKind::PrintCss,
     ];
-    let exact = AnalysisPrecisionV1 {
-        value_domain: ValueDomainPrecisionV1::CascadeAtPosition,
-        flow: FlowPrecisionV1::IncrementalDataflow,
-        context: ContextPrecisionV1::KLimitedCallSite,
-        provider_completeness: ProviderCompletenessV1::from_unresolved_count(0),
-        world_assumption: WorldAssumptionV1::from_closed_world(true),
-        revision: RevisionIdentityV1::from_revisions(12, 12),
-    };
+    let exact = AnalysisPrecisionV1::from_axes_for_tests(
+        ValueDomainPrecisionV1::CascadeAtPosition,
+        FlowPrecisionV1::IncrementalDataflow,
+        ContextPrecisionV1::KLimitedCallSite,
+        ProviderCompletenessV1::from_unresolved_count(0),
+        WorldAssumptionV1::from_closed_world(true),
+        RevisionIdentityV1::from_revisions(12, 12),
+    );
     let execute = |precision| {
         execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_and_precision(
             source,
@@ -216,42 +216,28 @@ fn tree_shake_precision_floor_consumes_the_full_axis_meet() {
     };
 
     assert_eq!(execute(exact).mutation_count, 1);
-    let imprecise_value_domain = AnalysisPrecisionV1 {
-        value_domain: ValueDomainPrecisionV1::ClassValueFlow,
-        ..exact
-    };
+    let imprecise_value_domain = exact.with_value_domain(ValueDomainPrecisionV1::ClassValueFlow);
     assert_eq!(
-        imprecise_value_domain.value_domain,
+        imprecise_value_domain.value_domain(),
         ValueDomainPrecisionV1::ClassValueFlow
     );
-    let unresolved_provider = AnalysisPrecisionV1 {
-        provider_completeness: ProviderCompletenessV1::from_unresolved_count(1),
-        ..exact
-    };
+    let unresolved_provider =
+        exact.with_provider_completeness(ProviderCompletenessV1::from_unresolved_count(1));
     assert_eq!(
-        unresolved_provider.provider_completeness,
+        unresolved_provider.provider_completeness(),
         ProviderCompletenessV1::Unresolved
     );
-    let open_world = AnalysisPrecisionV1 {
-        world_assumption: WorldAssumptionV1::from_closed_world(false),
-        ..exact
-    };
-    assert_eq!(open_world.world_assumption, WorldAssumptionV1::Open);
-    let stale_revision = AnalysisPrecisionV1 {
-        revision: RevisionIdentityV1::from_revisions(11, 12),
-        ..exact
-    };
-    assert_eq!(stale_revision.revision, RevisionIdentityV1::StaleTypeFact);
-    let shallow_context = AnalysisPrecisionV1 {
-        context: ContextPrecisionV1::from_max_context_depth(1),
-        ..exact
-    };
-    assert_eq!(shallow_context.context, ContextPrecisionV1::ShallowCallSite);
-    let non_dataflow = AnalysisPrecisionV1 {
-        flow: FlowPrecisionV1::from_dataflow_mode(false),
-        ..exact
-    };
-    assert_eq!(non_dataflow.flow, FlowPrecisionV1::KLimitedCallSiteFlow);
+    let open_world = exact.with_world_assumption(WorldAssumptionV1::from_closed_world(false));
+    assert_eq!(open_world.world_assumption(), WorldAssumptionV1::Open);
+    let stale_revision = exact.with_revision(RevisionIdentityV1::from_revisions(11, 12));
+    assert_eq!(stale_revision.revision(), RevisionIdentityV1::StaleTypeFact);
+    let shallow_context = exact.with_context(ContextPrecisionV1::from_max_context_depth(1));
+    assert_eq!(
+        shallow_context.context(),
+        ContextPrecisionV1::ShallowCallSite
+    );
+    let non_dataflow = exact.with_flow(FlowPrecisionV1::from_dataflow_mode(false));
+    assert_eq!(non_dataflow.flow(), FlowPrecisionV1::KLimitedCallSiteFlow);
     for lowered in [
         imprecise_value_domain,
         unresolved_provider,

@@ -78,12 +78,12 @@ fn dynamic_classname_m_tier_query_diagnostics_change_with_context_depth() -> Res
     assert_eq!(two_cfa.file_kind, "source");
     assert!(zero_cfa.diagnostics.iter().all(|diagnostic| {
         diagnostic.precision.as_ref().is_some_and(|precision| {
-            precision.axes.context == crate::ContextPrecisionV1::ContextInsensitive
+            precision.axes.context() == crate::ContextPrecisionV1::ContextInsensitive
         })
     }));
     assert!(two_cfa.diagnostics.iter().all(|diagnostic| {
         diagnostic.precision.as_ref().is_some_and(|precision| {
-            precision.axes.context == crate::ContextPrecisionV1::KLimitedCallSite
+            precision.axes.context() == crate::ContextPrecisionV1::KLimitedCallSite
         })
     }));
     let two_cfa_wire = serde_json::to_value(&two_cfa).map_err(|error| error.to_string())?;

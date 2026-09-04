@@ -500,11 +500,11 @@ pub fn summarize_omena_query_expression_domain_incremental_flow_analysis_result(
         value,
         OmenaQueryAnalysisPrecisionV0::new(
             "omena-query.analysis-precision",
-            AnalysisPrecisionV1 {
-                value_domain: ValueDomainPrecisionV1::ClassValueFlow,
-                flow: FlowPrecisionV1::from_dataflow_mode(complete_dataflow),
-                context: ContextPrecisionV1::PerExpressionGraph,
-                provider_completeness: ProviderCompletenessV1::from_unresolved_count(
+            AnalysisPrecisionV1::from_axes(
+                ValueDomainPrecisionV1::ClassValueFlow,
+                FlowPrecisionV1::from_dataflow_mode(complete_dataflow),
+                ContextPrecisionV1::PerExpressionGraph,
+                ProviderCompletenessV1::from_unresolved_count(
                     input
                         .sources
                         .iter()
@@ -517,21 +517,16 @@ pub fn summarize_omena_query_expression_domain_incremental_flow_analysis_result(
                         })
                         .count(),
                 ),
-                world_assumption: WorldAssumptionV1::from_closed_world(input.sources.iter().all(
-                    |source| {
-                        source.document.class_expressions.iter().all(|expression| {
-                            input
-                                .styles
-                                .iter()
-                                .any(|style| style.file_path == expression.scss_module_path)
-                        })
-                    },
-                )),
-                revision: RevisionIdentityV1::expression_domain_runtime(
-                    revision,
-                    runtime.revision(),
-                ),
-            },
+                WorldAssumptionV1::from_closed_world(input.sources.iter().all(|source| {
+                    source.document.class_expressions.iter().all(|expression| {
+                        input
+                            .styles
+                            .iter()
+                            .any(|style| style.file_path == expression.scss_module_path)
+                    })
+                })),
+                RevisionIdentityV1::expression_domain_runtime(revision, runtime.revision()),
+            ),
         ),
         vec![
             "omena-query-core.expression-domain-runtime".to_string(),
@@ -1336,14 +1331,14 @@ mod tests {
     #[test]
     fn analysis_precision_view_projects_the_meet_and_round_trips_typed_axes()
     -> serde_json::Result<()> {
-        let exact_axes = AnalysisPrecisionV1 {
-            value_domain: ValueDomainPrecisionV1::CascadeAtPosition,
-            flow: FlowPrecisionV1::IncrementalDataflow,
-            context: ContextPrecisionV1::KLimitedCallSite,
-            provider_completeness: ProviderCompletenessV1::from_unresolved_count(0),
-            world_assumption: WorldAssumptionV1::from_closed_world(true),
-            revision: RevisionIdentityV1::from_revisions(4, 4),
-        };
+        let exact_axes = AnalysisPrecisionV1::from_axes_for_tests(
+            ValueDomainPrecisionV1::CascadeAtPosition,
+            FlowPrecisionV1::IncrementalDataflow,
+            ContextPrecisionV1::KLimitedCallSite,
+            ProviderCompletenessV1::from_unresolved_count(0),
+            WorldAssumptionV1::from_closed_world(true),
+            RevisionIdentityV1::from_revisions(4, 4),
+        );
         let precision =
             |axes| OmenaQueryAnalysisPrecisionV0::new("omena-query.analysis-precision", axes);
 
@@ -1352,38 +1347,34 @@ mod tests {
             FactPrecision::Exact,
         );
         assert_eq!(
-            fact_precision_from_analysis_precision(&precision(AnalysisPrecisionV1 {
-                provider_completeness: ProviderCompletenessV1::from_unresolved_count(1),
-                ..exact_axes
-            })),
+            fact_precision_from_analysis_precision(&precision(
+                exact_axes
+                    .with_provider_completeness(ProviderCompletenessV1::from_unresolved_count(1),)
+            )),
             FactPrecision::Unknown,
         );
         assert_eq!(
-            fact_precision_from_analysis_precision(&precision(AnalysisPrecisionV1 {
-                world_assumption: WorldAssumptionV1::from_closed_world(false),
-                ..exact_axes
-            })),
+            fact_precision_from_analysis_precision(&precision(
+                exact_axes.with_world_assumption(WorldAssumptionV1::from_closed_world(false)),
+            )),
             FactPrecision::Heuristic,
         );
         assert_eq!(
-            fact_precision_from_analysis_precision(&precision(AnalysisPrecisionV1 {
-                revision: RevisionIdentityV1::from_revisions(3, 4),
-                ..exact_axes
-            })),
+            fact_precision_from_analysis_precision(&precision(
+                exact_axes.with_revision(RevisionIdentityV1::from_revisions(3, 4)),
+            )),
             FactPrecision::Heuristic,
         );
         assert_eq!(
-            fact_precision_from_analysis_precision(&precision(AnalysisPrecisionV1 {
-                context: ContextPrecisionV1::from_max_context_depth(1),
-                ..exact_axes
-            })),
+            fact_precision_from_analysis_precision(&precision(
+                exact_axes.with_context(ContextPrecisionV1::from_max_context_depth(1)),
+            )),
             FactPrecision::Heuristic,
         );
         assert_eq!(
-            fact_precision_from_analysis_precision(&precision(AnalysisPrecisionV1 {
-                flow: FlowPrecisionV1::KLimitedCallSiteFlow,
-                ..exact_axes
-            })),
+            fact_precision_from_analysis_precision(&precision(
+                exact_axes.with_flow(FlowPrecisionV1::KLimitedCallSiteFlow),
+            )),
             FactPrecision::Heuristic,
         );
 
@@ -1402,19 +1393,19 @@ mod tests {
             &mut complete_runtime,
         );
         assert_eq!(
-            complete.precision.axes.provider_completeness,
+            complete.precision.axes.provider_completeness(),
             ProviderCompletenessV1::Complete
         );
         assert_eq!(
-            complete.precision.axes.world_assumption,
+            complete.precision.axes.world_assumption(),
             WorldAssumptionV1::Closed
         );
         assert_eq!(
-            complete.precision.axes.flow,
+            complete.precision.axes.flow(),
             FlowPrecisionV1::IncrementalDataflow
         );
         assert_eq!(
-            complete.precision.axes.revision,
+            complete.precision.axes.revision(),
             RevisionIdentityV1::ExpressionDomainFlowRuntime
         );
 
@@ -1426,7 +1417,7 @@ mod tests {
             &mut unresolved_runtime,
         );
         assert_eq!(
-            unresolved.precision.axes.provider_completeness,
+            unresolved.precision.axes.provider_completeness(),
             ProviderCompletenessV1::Unresolved,
             "a real expression without a type-fact provider must lower completeness"
         );
@@ -1442,7 +1433,7 @@ mod tests {
             &mut open_world_runtime,
         );
         assert_eq!(
-            open_world.precision.axes.world_assumption,
+            open_world.precision.axes.world_assumption(),
             WorldAssumptionV1::Open,
             "a real expression whose style provider is absent must keep the world open"
         );

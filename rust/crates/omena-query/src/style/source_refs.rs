@@ -2144,8 +2144,8 @@ pub(crate) mod global_class_fallthrough_label_tests {
         let precision = diagnostic
             .precision
             .ok_or_else(|| "fallthrough precision".to_string())?;
-        assert_eq!(precision.axes.flow, FlowPrecisionV1::GlobalClassUniverse);
-        assert_eq!(precision.axes.world_assumption, WorldAssumptionV1::Open);
+        assert_eq!(precision.axes.flow(), FlowPrecisionV1::GlobalClassUniverse);
+        assert_eq!(precision.axes.world_assumption(), WorldAssumptionV1::Open);
         assert_eq!(
             omena_query_core::fact_precision_from_analysis_precision(&precision),
             FactPrecision::Heuristic,

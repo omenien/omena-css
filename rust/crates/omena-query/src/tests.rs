@@ -509,14 +509,14 @@ fn custom_property_occurrence_index_preserves_exact_ranges_and_fallback_precisio
 fn evidence_precision_reuses_the_query_precision_view() {
     let precision = EvidenceAnalysisPrecisionV0::new(
         "omena-query.analysis-precision",
-        crate::AnalysisPrecisionV1 {
-            value_domain: crate::ValueDomainPrecisionV1::ClassValueFlow,
-            flow: crate::FlowPrecisionV1::Fixture,
-            context: crate::ContextPrecisionV1::Fixture,
-            provider_completeness: crate::ProviderCompletenessV1::from_unresolved_count(0),
-            world_assumption: crate::WorldAssumptionV1::from_closed_world(true),
-            revision: crate::RevisionIdentityV1::Current,
-        },
+        crate::AnalysisPrecisionV1::from_axes_for_tests(
+            crate::ValueDomainPrecisionV1::ClassValueFlow,
+            crate::FlowPrecisionV1::Fixture,
+            crate::ContextPrecisionV1::Fixture,
+            crate::ProviderCompletenessV1::from_unresolved_count(0),
+            crate::WorldAssumptionV1::from_closed_world(true),
+            crate::RevisionIdentityV1::Current,
+        ),
     );
 
     assert_eq!(

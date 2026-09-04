@@ -1,7 +1,7 @@
 use super::dynamic_classname::dynamic_classname_input;
 use super::*;
 use crate::{
-    AbstractClassValueV0, AnalysisPrecisionV1, FactPrecision, OmenaQueryAnalysisPrecisionV0,
+    AbstractClassValueV0, FactPrecision, OmenaQueryAnalysisPrecisionV0,
     OmenaQuerySourceDocumentInputV0, OmenaQuerySourceImportedStyleBindingV0,
     OmenaQuerySourceSyntaxIndexV0, OmenaQuerySourceTypeFactProviderUnavailableFactV0,
     OmenaQueryStyleSourceInputV0, ParserByteSpanV0, ParserPositionV0, ParserRangeV0,
@@ -54,7 +54,7 @@ fn challenged_context_observation() -> Result<String, String> {
         .first()
         .and_then(|diagnostic| diagnostic.precision.as_ref())
         .ok_or_else(|| "challenged context fixture must produce a diagnostic".to_string())?;
-    wire(precision.axes.context)
+    wire(precision.axes.context())
 }
 
 fn producer_arm(
@@ -340,13 +340,14 @@ button({ intent: "ghost" });"#,
         &edited_input,
         &mut revision_runtime,
     );
-    let stale_axes = AnalysisPrecisionV1 {
-        revision: RevisionIdentityV1::expression_domain_runtime(
-            first_revision.revision,
-            revision_runtime.revision(),
-        ),
-        ..first_revision.precision.axes
-    };
+    let stale_axes =
+        first_revision
+            .precision
+            .axes
+            .with_revision(RevisionIdentityV1::expression_domain_runtime(
+                first_revision.revision,
+                revision_runtime.revision(),
+            ));
     let stale_effective = omena_query_core::fact_precision_from_precision_axes(&stale_axes);
     let challenged_context_after = challenged_context_observation()?;
 
@@ -425,42 +426,42 @@ button({ intent: "ghost" });"#,
             "valueDomain.closedSet",
             "valueDomain",
             "omena-abstract-value.analysis_precision_from_class_value",
-            wire(value_axes.value_domain)?,
+            wire(value_axes.value_domain())?,
             value_effective,
         ),
         producer_arm(
             "flow.dynamicClassname",
             "flow",
             "omena-query.dynamic-classname-product-fixture",
-            wire(two_cfa_precision.axes.flow)?,
+            wire(two_cfa_precision.axes.flow())?,
             effective(two_cfa_precision),
         ),
         producer_arm(
             "context.zeroCfa",
             "context",
             "omena-query.dynamic-classname-product-fixture",
-            wire(zero_cfa_precision.axes.context)?,
+            wire(zero_cfa_precision.axes.context())?,
             effective(zero_cfa_precision),
         ),
         producer_arm(
             "provider.missingTypeFacts",
             "providerCompleteness",
             "omena-query-core.incremental-expression-domain",
-            wire(unresolved.precision.axes.provider_completeness)?,
+            wire(unresolved.precision.axes.provider_completeness())?,
             unresolved_effective,
         ),
         producer_arm(
             "world.missingStyles",
             "worldAssumption",
             "omena-query-core.incremental-expression-domain",
-            wire(open.precision.axes.world_assumption)?,
+            wire(open.precision.axes.world_assumption())?,
             open_effective,
         ),
         producer_arm(
             "revision.staleRuntime",
             "revision",
             "omena-query-core.expression-domain-runtime",
-            wire(stale_axes.revision)?,
+            wire(stale_axes.revision())?,
             stale_effective,
         ),
     ];
