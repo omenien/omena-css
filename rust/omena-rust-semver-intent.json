@@ -77,10 +77,7 @@
             },
             {
               "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-              "needles": [
-                "#[serde(rename = \"k-cfa\")]",
-                "#[serde(flatten)]"
-              ]
+              "needles": ["#[serde(rename = \"k-cfa\")]", "#[serde(flatten)]"]
             }
           ]
         }
