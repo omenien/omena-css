@@ -120,8 +120,10 @@ into a narrow claim.
 The pre-push hook adds `--preview`. It runs only check-mode gates, cheapest
 ledger-priced gates first, up to a fixed 60-second estimated budget. Unpriced or
 over-budget gates are printed in the skipped list and remain for CI. A selected
-gate failure blocks the push. `OMENA_EVIDENCE_SWEEP=0` skips only this preview;
-`LEFTHOOK=0` remains the documented whole-hook emergency override.
+gate failure blocks the push. Gates assigned to the `manual` or `none` CI tiers
+are listed as non-automatic omissions instead of being executed.
+`OMENA_EVIDENCE_SWEEP=0` skips only this preview; `LEFTHOOK=0` remains the
+documented whole-hook emergency override.
 
 Writers are opt-in and never run from pre-push:
 

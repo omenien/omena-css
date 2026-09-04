@@ -308,6 +308,9 @@ async function printAffectedEvidence(
     for (const gateId of preview.budget.notPreviewableSkippedGateIds) {
       console.log(`  NOT-PREVIEWABLE-SKIPPED ${gateId}`);
     }
+    for (const gateId of preview.budget.omittedNonAutomaticGateIds) {
+      console.log(`  PREVIEW-OMITTED-NON-AUTOMATIC ${gateId}`);
+    }
     for (const gateId of preview.budget.omittedWriteModeGateIds) {
       console.log(`  PREVIEW-OMITTED-WRITE-MODE ${gateId}`);
     }

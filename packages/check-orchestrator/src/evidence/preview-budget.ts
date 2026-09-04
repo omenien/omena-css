@@ -17,6 +17,7 @@ export interface EvidencePreviewBudgetPlanV0 {
   readonly ranPrefix: readonly EvidencePreviewEntryV0[];
   readonly skipped: readonly EvidencePreviewEntryV0[];
   readonly notPreviewableSkippedGateIds: readonly string[];
+  readonly omittedNonAutomaticGateIds: readonly string[];
   readonly omittedWriteModeGateIds: readonly string[];
 }
 
@@ -42,6 +43,7 @@ export function buildEvidencePreviewBudgetPlan(
   const p95ByGate = new Map(ledger.gates.map((row) => [row.gateId, row.p95Ms]));
   const notPreviewableGateIdSet = new Set(notPreviewableGateIds);
   const notPreviewableSkippedGateIds: string[] = [];
+  const omittedNonAutomaticGateIds: string[] = [];
   const omittedWriteModeGateIds: string[] = [];
   const candidates: EvidencePreviewEntryV0[] = [];
   for (const gateId of [...new Set(gateIds)].toSorted()) {
@@ -49,6 +51,10 @@ export function buildEvidencePreviewBudgetPlan(
     if (!gate) throw new Error(`evidence preview references unknown gate: ${gateId}`);
     if (notPreviewableGateIdSet.has(gateId)) {
       notPreviewableSkippedGateIds.push(gateId);
+      continue;
+    }
+    if (gate.ciTier === "manual" || gate.ciTier === "none") {
+      omittedNonAutomaticGateIds.push(gateId);
       continue;
     }
     if (!isEvidencePreviewCheckGate(gate)) {
@@ -88,6 +94,7 @@ export function buildEvidencePreviewBudgetPlan(
     ranPrefix,
     skipped,
     notPreviewableSkippedGateIds: notPreviewableSkippedGateIds.toSorted(),
+    omittedNonAutomaticGateIds: omittedNonAutomaticGateIds.toSorted(),
     omittedWriteModeGateIds: omittedWriteModeGateIds.toSorted(),
   };
 }

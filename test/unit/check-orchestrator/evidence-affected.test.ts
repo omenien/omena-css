@@ -3011,6 +3011,8 @@ describe("pre-push evidence budget", () => {
     gate("b"),
     gate("a"),
     gate("large"),
+    { ...gate("manual"), ciTier: "manual" as const, ciReason: "manual diagnostic" },
+    { ...gate("none"), ciTier: "none" as const, ciReason: "not automated" },
     gate("unmeasured"),
     gate("writer", "node writer.mjs --write"),
   ];
@@ -3051,6 +3053,7 @@ describe("pre-push evidence budget", () => {
       { gateId: "unmeasured", p95Ms: null },
     ]);
     expect(plan.omittedWriteModeGateIds).toEqual(["writer"]);
+    expect(plan.omittedNonAutomaticGateIds).toEqual(["manual", "none"]);
     expect(plan.notPreviewableSkippedGateIds).toEqual([]);
     expect(isEvidencePreviewCheckGate(gates.at(-1)!)).toBe(false);
     for (const command of [
