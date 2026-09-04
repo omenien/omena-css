@@ -82,7 +82,7 @@
     {
       "workflow": "ci.yml",
       "job": "rust-static",
-      "semanticDigest": "43601c3a2a79c1d2e208409f23ef57e8adabceed5555dbef11547f8c1e1bf7c5"
+      "semanticDigest": "240b9c957ccd31e8ba7e1f3406fe721e293fbe796ab71195592cb5d43248a1ea"
     },
     {
       "workflow": "ci.yml",
