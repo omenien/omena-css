@@ -1,7 +1,8 @@
 import { execFileSync } from "node:child_process";
 import { strict as assert } from "node:assert";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
+import { resolveScanSurfaceForScanner } from "../../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import {
   compareCodePoint,
   deriveWriteScope,
@@ -499,10 +500,13 @@ function resolveExternalModule(
   return candidates[0]!;
 }
 
-function walk(directory: string): string[] {
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+function walk(
+  surface: ReturnType<typeof resolveScanSurfaceForScanner>,
+  directory: string,
+): string[] {
+  return surface.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const item = path.join(directory, entry.name);
-    return entry.isDirectory() ? walk(item) : [item];
+    return entry.isDirectory() ? walk(surface, item) : [item];
   });
 }
 
@@ -513,10 +517,13 @@ function isTestNamedSource(file: string, sourceRoot: string): boolean {
 
 function discoverSupportedTargets(repoRoot: string): string[] {
   const workflowRoot = path.join(repoRoot, ".github/workflows");
+  const surface = resolveScanSurfaceForScanner(import.meta.url, repoRoot);
   const targets = new Set<string>();
   const pattern =
     /\b(?:aarch64|x86_64|wasm32)-(?:apple-darwin|unknown-linux-gnu|pc-windows-msvc|unknown-unknown)\b/gu;
-  for (const file of walk(workflowRoot).filter((candidate) => /\.ya?ml$/u.test(candidate))) {
+  for (const file of walk(surface, workflowRoot).filter((candidate) =>
+    /\.ya?ml$/u.test(candidate),
+  )) {
     for (const match of readFileSync(file, "utf8").matchAll(pattern)) targets.add(match[0]);
   }
   assert.ok(targets.has("wasm32-unknown-unknown"), "supported target derivation lacks wasm32");
@@ -605,6 +612,7 @@ export function deriveRustModuleContexts(
   repoRoot: string,
   packages: readonly CargoPackage[],
 ): RustModuleContextCensus {
+  const surface = resolveScanSurfaceForScanner(import.meta.url, repoRoot);
   const roots: ModuleContext[] = [];
   for (const pkg of packages) {
     const packageRoot = path.dirname(pkg.manifest_path);
@@ -676,7 +684,7 @@ export function deriveRustModuleContexts(
   const testNamedOrphans: string[] = [];
   for (const pkg of packages) {
     const sourceRoot = path.join(path.dirname(pkg.manifest_path), "src");
-    for (const file of walk(sourceRoot).filter((candidate) => candidate.endsWith(".rs"))) {
+    for (const file of walk(surface, sourceRoot).filter((candidate) => candidate.endsWith(".rs"))) {
       if (reached.has(file)) continue;
       const relative = path.relative(repoRoot, file).split(path.sep).join("/");
       if (isTestNamedSource(file, sourceRoot)) testNamedOrphans.push(relative);

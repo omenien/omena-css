@@ -1,17 +1,10 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { resolveUnmigratedScanRootForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "..");
 const BASELINE_PIN = "cfaf03e5a09fd6e0a5f5293c30b44903411f1af4";
@@ -349,7 +342,15 @@ function runProductCommand(binaryPath: string, commandId: ProductCommandId): Cap
     ...outputPaths,
   ]);
   assert.deepEqual(
-    listRelativeFiles(commandRoot),
+    listRelativeFiles(
+      resolveUnmigratedScanRootForScanner(
+        import.meta.url,
+        "non-repo-temp-tree",
+        REPO_ROOT,
+        commandRoot,
+      ),
+      commandRoot,
+    ),
     [...allowedWorkspacePaths].toSorted(),
     `omena ${commandId} emitted an unexpected or incomplete file set`,
   );
@@ -547,13 +548,17 @@ function productCommandIds(): ProductCommandId[] {
   return ["format", "minify", "build", "sif", "bundle"];
 }
 
-function listRelativeFiles(root: string, relativeDirectory = ""): string[] {
+function listRelativeFiles(
+  surface: ReturnType<typeof resolveUnmigratedScanRootForScanner>,
+  root: string,
+  relativeDirectory = "",
+): string[] {
   const directory = relativeDirectory ? resolveRelative(root, relativeDirectory) : root;
   const files: string[] = [];
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+  for (const entry of surface.readdirSync(directory, { withFileTypes: true })) {
     const relativePath = relativeDirectory ? `${relativeDirectory}/${entry.name}` : entry.name;
     if (entry.isDirectory()) {
-      files.push(...listRelativeFiles(root, relativePath));
+      files.push(...listRelativeFiles(surface, root, relativePath));
     } else {
       assert.ok(entry.isFile(), `unexpected non-file output ${relativePath}`);
       files.push(relativePath);

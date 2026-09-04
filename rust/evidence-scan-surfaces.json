@@ -2,7 +2,7 @@
   "schemaVersion": "0",
   "generatedBy": "pnpm omena-check evidence-surfaces --write",
   "detector": {
-    "fileCount": 99,
+    "fileCount": 102,
     "patternSha256": "3d142b359e06a0b85d1d9713cda4a6405e573a53f1eafb8d95f01ca3d4ddcf0d"
   },
   "resolverSha256": "96ff29a3b9af567b042806d6ae5d2694ae2529ba06365b1bbb1c026fb8445e8a",
@@ -316,6 +316,15 @@
         "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
       },
       "gateIds": ["docs/version-strings"]
+    },
+    {
+      "scannerPath": "scripts/check-dual-pin-product-bytes.ts",
+      "disposition": "UNMIGRATED",
+      "effectiveSurface": "**",
+      "reason": "non-repo-temp-tree",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-dual-pin-product-bytes.surface.ts",
+      "surfaceModuleSha256": "7b76e85b676ee7c8de1e6aeb1f4e9602dee6903e3766121b4ccc4f74fe4b05e4",
+      "gateIds": []
     },
     {
       "scannerPath": "scripts/check-engine-v2-contract-idl-fixtures.ts",
@@ -1268,6 +1277,20 @@
       "gateIds": ["rust/omena-write-safety"]
     },
     {
+      "scannerPath": "scripts/check-rust-precision-authority.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-check-rust-precision-authority.surface.ts",
+      "surfaceModuleSha256": "e8d76b4c64d270182aa2796f5d15f53a141690a1e026d5302cd21a54022cb6e3",
+      "spec": {
+        "scannerPath": "scripts/check-rust-precision-authority.ts",
+        "mode": "workingTree",
+        "pathspecs": ["rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
+      },
+      "gateIds": []
+    },
+    {
       "scannerPath": "scripts/check-rust-precision-floor.ts",
       "disposition": "MIGRATED",
       "surfaceModulePath": "scripts/surfaces/scripts-check-rust-precision-floor.surface.ts",
@@ -1454,6 +1477,20 @@
         "pathspecs": ["**"],
         "includeUntracked": false,
         "excludes": ["git-metadata", "node-modules", "rust-build-output"]
+      },
+      "gateIds": []
+    },
+    {
+      "scannerPath": "scripts/lib/rust-cfg-acquisition.ts",
+      "disposition": "MIGRATED",
+      "surfaceModulePath": "scripts/surfaces/scripts-lib-rust-cfg-acquisition.surface.ts",
+      "surfaceModuleSha256": "3dfb110645746f0db6a2f4c47269531cf8f808f76b6614f9360b2698280e74ef",
+      "spec": {
+        "scannerPath": "scripts/lib/rust-cfg-acquisition.ts",
+        "mode": "workingTree",
+        "pathspecs": [".github/workflows/**", "rust/**"],
+        "includeUntracked": false,
+        "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
       },
       "gateIds": []
     },

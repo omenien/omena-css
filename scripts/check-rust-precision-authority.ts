@@ -1,8 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { strict as assert } from "node:assert";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import {
   compareCodePoint,
   maskRustCommentsAndLiterals,
@@ -28,6 +29,7 @@ import {
 interface CargoTarget {
   readonly name: string;
   readonly kind: readonly string[];
+  readonly crate_types: readonly string[];
   readonly src_path: string;
 }
 
@@ -35,6 +37,7 @@ interface CargoPackage {
   readonly id: string;
   readonly name: string;
   readonly manifest_path: string;
+  readonly publish: readonly string[] | null;
   readonly targets: readonly CargoTarget[];
   readonly features: Readonly<Record<string, readonly string[]>>;
 }
@@ -157,8 +160,14 @@ interface AliasDefinition {
 }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const evidenceScanSurface = resolveScanSurfaceForScanner(import.meta.url, repoRoot);
 const precisionAuthorityPath = path.join(repoRoot, "rust/omena-precision-floor-authority.json");
 const instrumentAuthorityPath = path.join(repoRoot, "rust/census-instrument-s0.json");
+const declaredRustPaths = new Set(walk(path.join(repoRoot, "rust")));
+assert.ok(
+  declaredRustPaths.has(precisionAuthorityPath) && declaredRustPaths.has(instrumentAuthorityPath),
+  "precision authority inputs must be present in the declared scan surface",
+);
 
 function lineNumber(source: string, offset: number): number {
   return source.slice(0, offset).split("\n").length;
@@ -182,7 +191,7 @@ function productionRustSource(file: string, source: string): string | undefined 
 }
 
 function walk(directory: string): string[] {
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+  return evidenceScanSurface.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const absolute = path.join(directory, entry.name);
     return entry.isDirectory() ? walk(absolute) : [absolute];
   });
