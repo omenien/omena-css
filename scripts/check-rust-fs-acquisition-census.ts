@@ -8,6 +8,7 @@ import {
   deriveWriteScope,
   forceWarnCensusArgv,
   maskRustCommentsAndLiterals,
+  readCargoMetadata,
   matchingRustDelimiter,
   rustNamedFunctions,
   type RustNamedFunction,
@@ -51,6 +52,25 @@ interface CensusAuthority {
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const authorityPath = path.join(repoRoot, "rust/omena-fs-acquisition-census.json");
+
+const writeScope = deriveWriteScope(repoRoot);
+assert.ok(writeScope.scope.length >= 1, "write scope package set is empty");
+const scopePackages = readCargoMetadata(repoRoot).packages.filter(({ name }) =>
+  writeScope.scope.includes(name),
+);
+assert.deepEqual(
+  scopePackages.map(({ name }) => name).toSorted(),
+  writeScope.scope,
+  "write scope package set diverged from cargo metadata",
+);
+for (const pkg of scopePackages) {
+  const manifest = readFileSync(pkg.manifest_path, "utf8");
+  assert.match(
+    manifest,
+    /\[lints\]\s*workspace\s*=\s*true\b/u,
+    `crate ${pkg.name} does not inherit the workspace lint table`,
+  );
+}
 
 function acceptedExitCodes(kind: "force-warn-json" | "metadata" | "deny"): ReadonlySet<number> {
   switch (kind) {
@@ -244,6 +264,11 @@ assert.ok(
 );
 const observed = deriveAcquisitionSites(result.stdout);
 const cfgCensus = deriveCfgAcquisitionCensus(repoRoot, result.stdout);
+assert.equal(
+  cfgCensus.preOrderEvaluatedAttributeNodeCount,
+  cfgCensus.attributeNodeCount,
+  "cfg attribute node pre-order evaluation is incomplete",
+);
 
 if (process.argv.includes("--print-baseline")) {
   process.stdout.write(`${JSON.stringify(observed, null, 2)}\n`);
@@ -271,18 +296,9 @@ const registeredByIdentity = new Map(
   authority.acquisitionSites.map((site) => [siteIdentity(site), site]),
 );
 const observedByIdentity = new Map(observed.map((site) => [siteIdentity(site), site]));
-const admittedGrowthFiles = new Set([
-  "rust/crates/omena-cli/src/lock.rs",
-  "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
-]);
-const growth: AcquisitionSite[] = [];
 for (const site of observed) {
   const registered = registeredByIdentity.get(siteIdentity(site));
   if (!registered) {
-    if (admittedGrowthFiles.has(site.file)) {
-      growth.push(site);
-      continue;
-    }
     assert.fail(`unregistered acquisition site ${site.crate}::${site.function}::${site.api}`);
   }
   assert.ok(
@@ -308,12 +324,12 @@ process.stdout.write(
       observedKeyCount: observed.length,
       observedExpressionCount: observed.reduce((count, site) => count + site.expressionCount, 0),
       removals: removals.map(siteIdentity),
-      admittedGrowth: growth.map(siteIdentity),
       cfgCountedAcquisitionCount: cfgCensus.cfgCounted.length,
       reachedProductionFiles: cfgCensus.reachedProductionFiles,
       testNamedOrphans: cfgCensus.testNamedOrphans,
       supportedTargets: cfgCensus.supportedTargets,
       attributeNodeCount: cfgCensus.attributeNodeCount,
+      preOrderEvaluatedAttributeNodeCount: cfgCensus.preOrderEvaluatedAttributeNodeCount,
     },
     null,
     2,

@@ -14,34 +14,44 @@ import {
   type CargoPackage,
 } from "./rust-write-authority";
 
-type CfgExpr =
+export type CfgExpr =
   | { readonly kind: "atom"; readonly name: string }
   | { readonly kind: "value"; readonly name: string; readonly value: string }
   | { readonly kind: "all" | "any"; readonly operands: readonly CfgExpr[] }
   | { readonly kind: "not"; readonly operand: CfgExpr };
 
-interface CfgSet {
+export interface CfgSet {
   readonly atoms: ReadonlySet<string>;
   readonly values: ReadonlyMap<string, ReadonlySet<string>>;
 }
 
-interface Attribute {
+export interface Attribute {
   readonly start: number;
   readonly end: number;
   readonly text: string;
   readonly inner: boolean;
 }
 
-interface AttributeRegion {
+export interface AttributeRegion {
   readonly attribute: Attribute;
   readonly start: number;
   readonly end: number;
   readonly predicates: readonly CfgExpr[];
 }
 
-interface ModuleContext {
+export interface AttributeNode {
+  readonly start: number;
+  readonly end: number;
+  readonly attributes: readonly Attribute[];
+  readonly predicates: readonly CfgExpr[];
+}
+
+export interface ModuleContext {
   readonly crate: string;
   readonly packageRoot: string;
+  readonly targetName: string;
+  readonly targetRoot: string;
+  readonly targetKind: readonly string[];
   readonly file: string;
   readonly modulePath: string;
   readonly inheritedPredicates: readonly CfgExpr[];
@@ -71,6 +81,7 @@ export interface CfgAcquisitionCensus {
   readonly reachedProductionFiles: number;
   readonly testNamedOrphans: readonly string[];
   readonly attributeNodeCount: number;
+  readonly preOrderEvaluatedAttributeNodeCount: number;
   readonly compiledSpellingCount: number;
   readonly testGatedSpellingCount: number;
   readonly cfgCounted: readonly CfgCountedAcquisition[];
@@ -161,11 +172,11 @@ class CfgParser {
   }
 }
 
-function parseCfg(input: string): CfgExpr {
+export function parseCfg(input: string): CfgExpr {
   return new CfgParser(input.trim()).parse();
 }
 
-function renderCfg(expression: CfgExpr): string {
+export function renderCfg(expression: CfgExpr): string {
   switch (expression.kind) {
     case "atom":
       return expression.name;
@@ -179,7 +190,7 @@ function renderCfg(expression: CfgExpr): string {
   }
 }
 
-function evaluateCfg(expression: CfgExpr, cfg: CfgSet): boolean {
+export function evaluateCfg(expression: CfgExpr, cfg: CfgSet): boolean {
   switch (expression.kind) {
     case "atom":
       return cfg.atoms.has(expression.name);
@@ -194,7 +205,7 @@ function evaluateCfg(expression: CfgExpr, cfg: CfgSet): boolean {
   }
 }
 
-function parseRustcCfg(output: string): CfgSet {
+export function parseRustcCfg(output: string): CfgSet {
   const atoms = new Set<string>();
   const values = new Map<string, Set<string>>();
   for (const line of output.trim().split("\n").filter(Boolean)) {
@@ -215,7 +226,11 @@ function parseRustcCfg(output: string): CfgSet {
   return { atoms, values };
 }
 
-function withPackageCfg(base: CfgSet, pkg: CargoPackage, buildCfgs: readonly string[]): CfgSet {
+export function withPackageCfg(
+  base: CfgSet,
+  pkg: CargoPackage,
+  buildCfgs: readonly string[],
+): CfgSet {
   const atoms = new Set(base.atoms);
   const values = new Map([...base.values].map(([name, rows]) => [name, new Set(rows)]));
   const featureValues = values.get("feature") ?? new Set<string>();
@@ -235,14 +250,14 @@ function withPackageCfg(base: CfgSet, pkg: CargoPackage, buildCfgs: readonly str
   return { atoms, values };
 }
 
-function withTest(cfg: CfgSet, enabled: boolean): CfgSet {
+export function withTest(cfg: CfgSet, enabled: boolean): CfgSet {
   const atoms = new Set(cfg.atoms);
   if (enabled) atoms.add("test");
   else atoms.delete("test");
   return { atoms, values: cfg.values };
 }
 
-function attributes(source: string): Attribute[] {
+export function attributes(source: string): Attribute[] {
   const code = maskRustCommentsAndLiterals(source);
   const rows: Attribute[] = [];
   for (let cursor = 0; cursor < code.length; cursor += 1) {
@@ -258,7 +273,7 @@ function attributes(source: string): Attribute[] {
   return rows;
 }
 
-function cfgPredicates(attribute: Attribute): CfgExpr[] {
+export function cfgPredicates(attribute: Attribute): CfgExpr[] {
   const direct = attribute.text.match(/^#!?\s*\[\s*cfg\s*\(([\s\S]*)\)\s*\]$/u);
   if (direct) return [parseCfg(direct[1]!)];
   const cfgAttr = attribute.text.match(/^#!?\s*\[\s*cfg_attr\s*\(([\s\S]*)\)\s*\]$/u);
@@ -341,7 +356,7 @@ function nodeEnd(code: string, start: number): number {
   assert.fail(`cfg predicate undecidable attribute node at byte ${start}`);
 }
 
-function attributeRegions(source: string): AttributeRegion[] {
+export function attributeRegions(source: string): AttributeRegion[] {
   const code = maskRustCommentsAndLiterals(source);
   return attributes(source)
     .filter(({ inner }) => !inner)
@@ -351,7 +366,47 @@ function attributeRegions(source: string): AttributeRegion[] {
     });
 }
 
-function moduleDeclarations(
+/**
+ * Group adjacent attributes by the Rust node they govern. Source order is a
+ * pre-order walk for nested Rust nodes: an enclosing node's attributes precede
+ * every attributed node in its body. The flat collection is intentional so a
+ * cfg-false parent never prunes discovery of attributed descendants.
+ */
+export function attributeNodes(source: string): AttributeNode[] {
+  const grouped = new Map<string, AttributeNode>();
+  for (const region of attributeRegions(source)) {
+    const key = `${region.start}:${region.end}`;
+    const current = grouped.get(key);
+    grouped.set(key, {
+      start: region.start,
+      end: region.end,
+      attributes: [...(current?.attributes ?? []), region.attribute],
+      predicates: [...(current?.predicates ?? []), ...region.predicates],
+    });
+  }
+  return [...grouped.values()].toSorted((left, right) => {
+    const leftAttribute = left.attributes[0]!.start;
+    const rightAttribute = right.attributes[0]!.start;
+    return leftAttribute - rightAttribute || right.end - left.end;
+  });
+}
+
+export function effectiveCfgPredicatesAt(
+  inheritedPredicates: readonly CfgExpr[],
+  innerPredicates: readonly CfgExpr[],
+  regions: readonly AttributeRegion[],
+  offset: number,
+): CfgExpr[] {
+  return [
+    ...inheritedPredicates,
+    ...innerPredicates,
+    ...regions
+      .filter(({ start, end }) => start <= offset && offset < end)
+      .flatMap(({ predicates }) => predicates),
+  ];
+}
+
+export function moduleDeclarations(
   source: string,
   start: number,
   end: number,
@@ -530,38 +585,38 @@ function lexicalAcquisitions(context: ModuleContext, source: string): LexicalAcq
   return rows.toSorted((left, right) => left.offset - right.offset);
 }
 
-function combinePredicates(predicates: readonly CfgExpr[]): CfgExpr {
+export function combinePredicates(predicates: readonly CfgExpr[]): CfgExpr {
   return predicates.length === 1 ? predicates[0]! : { kind: "all", operands: predicates };
 }
 
-export function deriveCfgAcquisitionCensus(
+export interface RustModuleContextCensus {
+  readonly contexts: readonly ModuleContext[];
+  readonly reachedProductionFiles: number;
+  readonly testNamedOrphans: readonly string[];
+}
+
+/**
+ * Walk every library and binary module root compiled by the production lint
+ * invocation. Each external file carries the effective cfg predicates inherited
+ * from its declaring module; inline-node predicates remain available through
+ * attributeRegions() at the consumer's exact offset.
+ */
+export function deriveRustModuleContexts(
   repoRoot: string,
-  cargoStdout: string,
-): CfgAcquisitionCensus {
-  const metadata = readCargoMetadata(repoRoot);
-  const writeScope = new Set(deriveWriteScope(repoRoot).scope);
-  const packages = metadata.packages.filter(({ name }) => writeScope.has(name));
-  const runnerOutput = execFileSync("rustc", ["--print", "cfg"], { encoding: "utf8" });
-  const runnerBase = parseRustcCfg(runnerOutput);
-  const supportedTargets = discoverSupportedTargets(repoRoot);
-  const targetBases = new Map(
-    supportedTargets.map((target) => [
-      target,
-      parseRustcCfg(
-        execFileSync("rustc", ["--print", "cfg", "--target", target], { encoding: "utf8" }),
-      ),
-    ]),
-  );
-  const buildCfgByCrate = buildScriptCfgs(cargoStdout);
-  const contexts: ModuleContext[] = [];
+  packages: readonly CargoPackage[],
+): RustModuleContextCensus {
+  const roots: ModuleContext[] = [];
   for (const pkg of packages) {
     const packageRoot = path.dirname(pkg.manifest_path);
     for (const target of pkg.targets.filter(
       (target) => isCargoLibraryTarget(target) || target.kind.includes("bin"),
     )) {
-      contexts.push({
+      roots.push({
         crate: pkg.name,
         packageRoot,
+        targetName: target.name,
+        targetRoot: path.resolve(target.src_path),
+        targetKind: target.kind,
         file: path.resolve(target.src_path),
         modulePath: "crate",
         inheritedPredicates: [],
@@ -570,8 +625,8 @@ export function deriveCfgAcquisitionCensus(
   }
 
   const reached = new Set<string>();
-  const contextRows: ModuleContext[] = [];
-  const queue = [...contexts];
+  const contexts: ModuleContext[] = [];
+  const queue = [...roots];
   const visited = new Set<string>();
   while (queue.length > 0) {
     const context = queue.shift()!;
@@ -579,7 +634,7 @@ export function deriveCfgAcquisitionCensus(
     if (visited.has(visitKey)) continue;
     visited.add(visitKey);
     reached.add(context.file);
-    contextRows.push(context);
+    contexts.push(context);
     const source = readFileSync(context.file, "utf8");
     const scanModules = (
       start: number,
@@ -628,8 +683,37 @@ export function deriveCfgAcquisitionCensus(
       else assert.fail(`production file not reached by module walk ${relative}`);
     }
   }
+  return {
+    contexts,
+    reachedProductionFiles: reached.size,
+    testNamedOrphans: testNamedOrphans.toSorted(),
+  };
+}
+
+export function deriveCfgAcquisitionCensus(
+  repoRoot: string,
+  cargoStdout: string,
+): CfgAcquisitionCensus {
+  const metadata = readCargoMetadata(repoRoot);
+  const writeScope = new Set(deriveWriteScope(repoRoot).scope);
+  const packages = metadata.packages.filter(({ name }) => writeScope.has(name));
+  const runnerOutput = execFileSync("rustc", ["--print", "cfg"], { encoding: "utf8" });
+  const runnerBase = parseRustcCfg(runnerOutput);
+  const supportedTargets = discoverSupportedTargets(repoRoot);
+  const targetBases = new Map(
+    supportedTargets.map((target) => [
+      target,
+      parseRustcCfg(
+        execFileSync("rustc", ["--print", "cfg", "--target", target], { encoding: "utf8" }),
+      ),
+    ]),
+  );
+  const buildCfgByCrate = buildScriptCfgs(cargoStdout);
+  const moduleCensus = deriveRustModuleContexts(repoRoot, packages);
+  const contextRows = moduleCensus.contexts;
 
   let attributeNodeCount = 0;
+  let preOrderEvaluatedAttributeNodeCount = 0;
   let compiledSpellingCount = 0;
   let testGatedSpellingCount = 0;
   const candidateStates = new Map<
@@ -649,19 +733,33 @@ export function deriveCfgAcquisitionCensus(
     if (isTestNamedSource(context.file, sourceRoot)) continue;
     const source = readFileSync(context.file, "utf8");
     const regions = attributeRegions(source);
-    attributeNodeCount += regions.length;
+    const nodes = attributeNodes(source);
+    attributeNodeCount += nodes.length;
     const innerPredicates = attributes(source)
       .filter(({ inner }) => inner)
       .flatMap(cfgPredicates);
     const runnerCfg = withPackageCfg(runnerBase, pkg, buildCfgByCrate.get(pkg.name) ?? []);
+    for (const node of nodes) {
+      const predicate = combinePredicates(
+        effectiveCfgPredicatesAt(context.inheritedPredicates, innerPredicates, regions, node.start),
+      );
+      evaluateCfg(predicate, withTest(runnerCfg, false));
+      evaluateCfg(predicate, withTest(runnerCfg, true));
+      for (const targetCfg of targetBases.values()) {
+        evaluateCfg(
+          predicate,
+          withTest(withPackageCfg(targetCfg, pkg, buildCfgByCrate.get(pkg.name) ?? []), false),
+        );
+      }
+      preOrderEvaluatedAttributeNodeCount += 1;
+    }
     for (const acquisition of lexicalAcquisitions(context, source)) {
-      const predicates = [
-        ...context.inheritedPredicates,
-        ...innerPredicates,
-        ...regions
-          .filter(({ start, end }) => start <= acquisition.offset && acquisition.offset < end)
-          .flatMap(({ predicates: rows }) => rows),
-      ];
+      const predicates = effectiveCfgPredicatesAt(
+        context.inheritedPredicates,
+        innerPredicates,
+        regions,
+        acquisition.offset,
+      );
       const predicate = combinePredicates(predicates);
       const runner = evaluateCfg(predicate, withTest(runnerCfg, false));
       const testGated =
@@ -715,9 +813,10 @@ export function deriveCfgAcquisitionCensus(
   return {
     runnerCfg: runnerOutput.trim().split("\n"),
     supportedTargets,
-    reachedProductionFiles: reached.size,
-    testNamedOrphans: testNamedOrphans.toSorted(),
+    reachedProductionFiles: moduleCensus.reachedProductionFiles,
+    testNamedOrphans: moduleCensus.testNamedOrphans,
     attributeNodeCount,
+    preOrderEvaluatedAttributeNodeCount,
     compiledSpellingCount,
     testGatedSpellingCount,
     cfgCounted: cfgCounted.toSorted((left, right) =>
