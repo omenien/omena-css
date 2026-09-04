@@ -13,11 +13,21 @@ use super::{
 /// A downstream crate cannot add an inherent constructor (`E0116`):
 ///
 /// ```compile_fail,E0116
-/// use omena_evidence_graph::AnalysisPrecisionV1;
+/// use omena_evidence_graph::{
+///     AnalysisPrecisionV1, ContextPrecisionV1, FlowPrecisionV1, ProviderCompletenessV1,
+///     RevisionIdentityV1, ValueDomainPrecisionV1, WorldAssumptionV1,
+/// };
 ///
 /// impl AnalysisPrecisionV1 {
 ///     fn forged() -> Self {
-///         Self::unknown()
+///         Self {
+///             value_domain: ValueDomainPrecisionV1::Unknown,
+///             flow: FlowPrecisionV1::Unknown,
+///             context: ContextPrecisionV1::Unknown,
+///             provider_completeness: ProviderCompletenessV1::Unknown,
+///             world_assumption: WorldAssumptionV1::Unknown,
+///             revision: RevisionIdentityV1::Unknown,
+///         }
 ///     }
 /// }
 /// ```

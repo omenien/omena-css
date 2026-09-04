@@ -13,7 +13,11 @@ import {
   rustNamedFunctions,
   type RustNamedFunction,
 } from "./lib/rust-write-authority";
-import { deriveCfgAcquisitionCensus, type CfgCountedAcquisition } from "./lib/rust-cfg-acquisition";
+import {
+  attributeNodes,
+  deriveCfgAcquisitionCensus,
+  type CfgCountedAcquisition,
+} from "./lib/rust-cfg-acquisition";
 
 interface CompilerSpan {
   readonly file_name: string;
@@ -202,6 +206,25 @@ function onlyAttributesAndWhitespace(source: string): boolean {
   return code.join("").trim().length === 0;
 }
 
+function attributedNonFunctionItem(source: string, suppression: RustAttribute): string {
+  const node = attributeNodes(source).find(({ attributes }) =>
+    attributes.some(({ start }) => start === suppression.start),
+  );
+  if (!node) {
+    const line = source.slice(0, suppression.start).split("\n").length;
+    return `line-${line}`;
+  }
+  const header = maskRustCommentsAndLiterals(source.slice(node.start, node.end));
+  const named = header.match(
+    /^\s*(?:pub(?:\([^)]*\))?\s+)?(mod|trait|struct|enum|union)\s+([A-Za-z_][A-Za-z0-9_]*)/u,
+  );
+  if (named) return `${named[1]} ${named[2]}`;
+  const implementation = header.match(/^\s*(impl)\b([^<{]*)/u);
+  if (implementation) return `${implementation[1]} ${implementation[2]!.trim()}`;
+  const line = source.slice(0, suppression.start).split("\n").length;
+  return `line-${line}`;
+}
+
 function assertSuppressionGranularity(sites: readonly AcquisitionSite[]): void {
   const files = [...new Set(sites.map(({ file }) => file))];
   for (const file of files) {
@@ -225,8 +248,9 @@ function assertSuppressionGranularity(sites: readonly AcquisitionSite[]): void {
           onlyAttributesAndWhitespace(source.slice(suppression.end, start)),
       );
       if (!owner) {
-        const line = source.slice(0, suppression.start).split("\n").length;
-        assert.fail(`suppression above fn granularity ${file}:${line}`);
+        assert.fail(
+          `suppression above fn granularity ${file}:${attributedNonFunctionItem(source, suppression)}`,
+        );
       }
       assert.match(
         suppression.text,

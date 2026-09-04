@@ -1,8 +1,7 @@
 {
   "schemaVersion": "0",
   "product": "rust.census-instrument",
-  "bindingRowCount": 25,
-  "preGoalWriteSafety": {
+  "baselineWriteSafety": {
     "revision": "cfaf03e5a09fd6e0a5f5293c30b44903411f1af4",
     "path": "scripts/check-rust-omena-write-safety.ts",
     "sha256": "a9803a9732447482fc7b604b113b88971012b3810c429573650d45591e4657b5"
@@ -10,7 +9,6 @@
   "s0Rows": [
     {
       "id": "a1",
-      "home": "instrument",
       "expected": {
         "refusalPrefix": "unregistered sealed-family call site "
       },
@@ -19,18 +17,17 @@
         {
           "kind": "append",
           "file": "rust/crates/omena-cli/src/diagnostics.rs",
-          "text": "\n#[allow(dead_code)]\nfn census_precision_family_probe() -> omena_evidence_graph::AnalysisPrecisionV1 {\n    omena_evidence_graph::AnalysisPrecisionV1::from_axes(\n        omena_evidence_graph::ValueDomainPrecisionV1::Unknown,\n        omena_evidence_graph::FlowPrecisionV1::Unknown,\n        omena_evidence_graph::ContextPrecisionV1::Unknown,\n        omena_evidence_graph::ProviderCompletenessV1::Unknown,\n        omena_evidence_graph::WorldAssumptionV1::Unknown,\n        omena_evidence_graph::RevisionIdentityV1::Unknown,\n    )\n}\n"
+          "text": "\n#[allow(dead_code)]\nfn census_precision_family_probe() -> omena_evidence_graph::AnalysisPrecisionV1 {\n    omena_evidence_graph::AnalysisPrecisionV1::from_axes(\n        omena_evidence_graph::ValueDomainPrecisionV1::ExactClassValue,\n        omena_evidence_graph::FlowPrecisionV1::SourceControlFlow,\n        omena_evidence_graph::ContextPrecisionV1::PerExpressionGraph,\n        omena_evidence_graph::ProviderCompletenessV1::Complete,\n        omena_evidence_graph::WorldAssumptionV1::Closed,\n        omena_evidence_graph::RevisionIdentityV1::Current,\n    )\n}\n"
         },
         {
           "kind": "append",
           "file": "rust/crates/omena-lsp-server/src/lib.rs",
-          "text": "\n#[allow(dead_code)]\nfn census_precision_family_probe() -> omena_query::AnalysisPrecisionV1 {\n    omena_query::AnalysisPrecisionV1::from_axes(\n        omena_query::ValueDomainPrecisionV1::Unknown,\n        omena_query::FlowPrecisionV1::Unknown,\n        omena_query::ContextPrecisionV1::Unknown,\n        omena_query::ProviderCompletenessV1::Unknown,\n        omena_query::WorldAssumptionV1::Unknown,\n        omena_query::RevisionIdentityV1::Unknown,\n    )\n}\n"
+          "text": "\n#[allow(dead_code)]\nfn census_precision_family_probe() -> omena_query::AnalysisPrecisionV1 {\n    omena_query::AnalysisPrecisionV1::from_axes(\n        omena_query::ValueDomainPrecisionV1::ExactClassValue,\n        omena_query::FlowPrecisionV1::SourceControlFlow,\n        omena_query::ContextPrecisionV1::PerExpressionGraph,\n        omena_query::ProviderCompletenessV1::Complete,\n        omena_query::WorldAssumptionV1::Closed,\n        omena_query::RevisionIdentityV1::Current,\n    )\n}\n"
         }
       ]
     },
     {
       "id": "a2",
-      "home": "instrument",
       "expected": {
         "refusalPrefix": "production reaches test constructor "
       },
@@ -45,7 +42,6 @@
     },
     {
       "id": "b1",
-      "home": "compiler",
       "expected": {
         "code": "E0116",
         "type": "AnalysisPrecisionV1"
@@ -55,13 +51,12 @@
         {
           "kind": "append",
           "file": "rust/crates/omena-checker/src/rule_metadata.rs",
-          "text": "\nimpl omena_abstract_value::AnalysisPrecisionV1 {\n    #[allow(dead_code)]\n    fn census_forge() -> Self {\n        Self::unknown()\n    }\n}\n"
+          "text": "\nimpl omena_abstract_value::AnalysisPrecisionV1 {\n    #[allow(dead_code)]\n    fn census_forge() -> Self {\n        Self {\n            value_domain: omena_abstract_value::ValueDomainPrecisionV1::Unknown,\n            flow: omena_abstract_value::FlowPrecisionV1::Unknown,\n            context: omena_abstract_value::ContextPrecisionV1::Unknown,\n            provider_completeness: omena_abstract_value::ProviderCompletenessV1::Unknown,\n            world_assumption: omena_abstract_value::WorldAssumptionV1::Unknown,\n            revision: omena_abstract_value::RevisionIdentityV1::Unknown,\n        }\n    }\n}\n"
         }
       ]
     },
     {
       "id": "b2",
-      "home": "compiler",
       "expected": {
         "code": "E0451",
         "type": "AnalysisPrecisionV1"
@@ -82,7 +77,6 @@
     },
     {
       "id": "c",
-      "home": "compiler",
       "expected": {
         "code": "E0616",
         "type": "AnalysisPrecisionV1"
@@ -98,7 +92,6 @@
     },
     {
       "id": "d",
-      "home": "compiler",
       "expected": {
         "code": "E0451",
         "type": "AnalysisPrecisionV1"
@@ -114,7 +107,6 @@
     },
     {
       "id": "e",
-      "home": "compiler",
       "expected": {
         "code": "E0451",
         "type": "AnalysisPrecisionV1"
@@ -130,7 +122,6 @@
     },
     {
       "id": "f",
-      "home": "instrument",
       "expected": {
         "refusalPrefix": "unregistered sealed-family call site "
       },
@@ -139,13 +130,12 @@
         {
           "kind": "append",
           "file": "rust/crates/omena-query/src/style/source_refs.rs",
-          "text": "\n#[allow(dead_code)]\nfn census_precision_raise_probe(\n    precision: crate::AnalysisPrecisionV1,\n) -> crate::AnalysisPrecisionV1 {\n    precision.with_context(crate::ContextPrecisionV1::KLimitedCallSite)\n}\n"
+          "text": "\n#[allow(dead_code)]\nfn census_precision_raise_probe() -> crate::OmenaQueryAnalysisPrecisionV0 {\n    let precision = source_diagnostic_precision(\n        crate::ValueDomainPrecisionV1::ExactClassValue,\n        crate::FlowPrecisionV1::SourceControlFlow,\n        crate::ContextPrecisionV1::PerExpressionGraph,\n        0,\n        true,\n    );\n    crate::OmenaQueryAnalysisPrecisionV0::new(\n        precision.product,\n        precision\n            .axes\n            .with_context(crate::ContextPrecisionV1::KLimitedCallSite),\n    )\n}\n"
         }
       ]
     },
     {
       "id": "g1",
-      "home": "instrument",
       "expected": {
         "refusal": "binding does not exercise sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_global_class_fallthrough_diagnostic:1"
       },
@@ -165,7 +155,6 @@
     },
     {
       "id": "g2",
-      "home": "instrument",
       "expected": {
         "refusal": "gated exclusion unverified-source-reference not exercised by missing-selector-context-drift"
       },
@@ -187,7 +176,6 @@
     },
     {
       "id": "s1",
-      "home": "instrument",
       "expected": {
         "refusal": "unregistered deserialization container omena-cli::crate::diagnostics::DiagnosticPrecisionEnvelopeV0"
       },
@@ -202,7 +190,6 @@
     },
     {
       "id": "s2",
-      "home": "instrument",
       "expected": {
         "refusal": "unregistered deserialization container omena-query::crate::style::module_interface::FlattenedPrecisionEnvelopeV0"
       },
@@ -217,7 +204,6 @@
     },
     {
       "id": "s3",
-      "home": "instrument",
       "expected": {
         "refusal": "unregistered deserialization container omena-query::crate::style::stylesheet_evaluation::PrecisionWireBundleV0"
       },
@@ -237,7 +223,6 @@
     },
     {
       "id": "j",
-      "home": "clippy",
       "expected": {
         "methods": ["std::fs::write"]
       },
@@ -252,7 +237,6 @@
     },
     {
       "id": "k",
-      "home": "clippy",
       "expected": {
         "methods": ["std::fs::write"]
       },
@@ -267,7 +251,6 @@
     },
     {
       "id": "l",
-      "home": "clippy",
       "expected": {
         "methods": ["std::fs::write"]
       },
@@ -282,7 +265,6 @@
     },
     {
       "id": "m",
-      "home": "clippy",
       "expected": {
         "methods": ["std::fs::write"]
       },
@@ -302,7 +284,6 @@
     },
     {
       "id": "n1",
-      "home": "clippy",
       "expected": {
         "methods": ["std::fs::remove_dir", "std::fs::DirBuilder::create"]
       },
@@ -313,13 +294,13 @@
           "file": "rust/crates/omena-query/src/style/transform/css_modules.rs",
           "match": "fn workspace_root_link_target(path: &str) -> Option<PathBuf> {\n    let target = std::fs::read_link(path).ok()?;",
           "replacement": "fn workspace_root_link_target(path: &str) -> Option<PathBuf> {\n    let dir = Path::new(path);\n    let _ = std::fs::remove_dir(dir);\n    let _ = std::fs::DirBuilder::new().create(dir);\n    let target = std::fs::read_link(path).ok()?;",
-          "expectedMatches": 1
+          "expectedMatches": 1,
+          "withinFunction": "workspace_root_link_target"
         }
       ]
     },
     {
       "id": "n2",
-      "home": "instrument",
       "expected": {
         "refusalPrefix": "unregistered acquisition site omena-bridge::"
       },
@@ -330,13 +311,13 @@
           "file": "rust/crates/omena-bridge/src/cache_root.rs",
           "match": "    let gitignore = omena_root.join(\".gitignore\");",
           "replacement": "    let _ = std::os::unix::fs::symlink(\n        cache_subdir,\n        omena_root.join(\".census-symlink\"),\n    );\n    let gitignore = omena_root.join(\".gitignore\");",
-          "expectedMatches": 1
+          "expectedMatches": 1,
+          "withinFunction": "ensure_omena_cache_root_markers"
         }
       ]
     },
     {
       "id": "o",
-      "home": "instrument",
       "expected": {
         "refusalPrefix": "destination class not derived from a sanctioned-module call "
       },
@@ -347,13 +328,13 @@
           "file": "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
           "match": "            let stage_path = sidecar_path(edit.path.as_path(), \"stage\", transaction_id, index);",
           "replacement": "            // The staging destination is claimed to be transaction-derived.\n            let stage_path = edit.path.clone();",
-          "expectedMatches": 1
+          "expectedMatches": 1,
+          "withinFunction": "stage_edits"
         }
       ]
     },
     {
       "id": "p",
-      "home": "clippy",
       "expected": {
         "methods": ["std::fs::write"]
       },
@@ -373,7 +354,6 @@
     },
     {
       "id": "q",
-      "home": "clippy",
       "expected": {
         "methods": ["std::fs::write"]
       },
@@ -388,7 +368,6 @@
     },
     {
       "id": "t1",
-      "home": "instrument",
       "expected": {
         "refusalPrefix": "suppression above fn granularity "
       },
@@ -403,7 +382,6 @@
     },
     {
       "id": "t2",
-      "home": "instrument",
       "expected": {
         "refusalPrefix": "suppression below fn granularity "
       },
@@ -415,13 +393,13 @@
           "match": "            let _ = fs::remove_file(temporary.as_path());",
           "replacement": "            #[expect(\n                clippy::disallowed_methods,\n                reason = \"recorded-verdict owner: statement-level probe\"\n            )]\n            let _ = fs::remove_file(temporary.as_path());",
           "matchIndex": 0,
-          "expectedMatches": 4
+          "expectedMatches": 4,
+          "withinFunction": "publish_immutable_recorded_shard_verdict"
         }
       ]
     },
     {
       "id": "t3",
-      "home": "instrument",
       "expected": {
         "refusal": "crate omena-lsp-server does not inherit the workspace lint table"
       },

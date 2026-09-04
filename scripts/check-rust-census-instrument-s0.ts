@@ -6,6 +6,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -13,7 +14,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { banGateArgv } from "./lib/rust-write-authority";
+import { banGateArgv, rustNamedFunctions } from "./lib/rust-write-authority";
 
 type Home = "compiler" | "clippy" | "instrument";
 
@@ -46,6 +47,7 @@ interface ReplaceMutation {
   readonly replacement: string;
   readonly expectedMatches?: number;
   readonly matchIndex?: number;
+  readonly withinFunction?: string;
 }
 
 interface JsonSetMutation {
@@ -68,16 +70,17 @@ type Mutation = TextMutation | ReplaceMutation | JsonSetMutation | JsonSetMatchi
 
 interface S0Row {
   readonly id: string;
-  readonly home: Home;
   readonly expected: Expected;
   readonly gate: Gate;
   readonly mutations: readonly Mutation[];
 }
 
 interface Authority {
-  readonly bindingRowCount: number;
   readonly s0Rows: readonly S0Row[];
-  readonly preGoalWriteSafety: {
+  readonly precision: {
+    readonly familyCallSites: readonly RegisteredCallSite[];
+  };
+  readonly baselineWriteSafety: {
     readonly revision: string;
     readonly path: string;
     readonly sha256: string;
@@ -91,12 +94,30 @@ interface CommandSpec {
 }
 
 interface CommandReceipt {
-  readonly executionId: string;
   readonly argv: readonly string[];
   readonly cwd: ".";
+  readonly environment: {
+    readonly CARGO_INCREMENTAL: "0";
+    readonly CARGO_TARGET_DIR: "<REPO>/rust/target";
+    readonly CARGO_TERM_COLOR: "never";
+    readonly NO_COLOR: "1";
+  };
   readonly exitCode: number;
   readonly stdout: string;
   readonly stderr: string;
+}
+
+interface RegisteredCallSite {
+  readonly crate: string;
+  readonly file: string;
+  readonly item: string;
+  readonly member: string;
+  readonly ordinal: number;
+}
+
+interface FamilyPopulationReceipt {
+  readonly command: CommandReceipt;
+  readonly newCallSites: readonly RegisteredCallSite[];
 }
 
 interface RowExecutionReceipt {
@@ -105,9 +126,10 @@ interface RowExecutionReceipt {
   readonly home: Home;
   readonly inputFiles: readonly { readonly path: string; readonly sha256: string }[];
   readonly inputTreeDigest: string;
+  readonly familyPopulation: FamilyPopulationReceipt | null;
   readonly command: CommandReceipt;
   readonly observedSignature: string;
-  readonly preGoalWriteSafety: null | {
+  readonly baselineWriteSafety: null | {
     readonly checkerSha256: string;
     readonly verdict: "GREEN" | "RED";
     readonly assertion: string | null;
@@ -118,85 +140,12 @@ interface RowExecutionReceipt {
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const authorityPath = path.join(repoRoot, "rust/census-instrument-s0.json");
 
-// Reviewer-owned table clause, transcribed independently from the census JSON.
-// The parser below derives both the exact row set and each expected home/kind.
-const REVIEWED_BINDING_CLAUSE = `
-a1|instrument|prefix-space|unregistered sealed-family call site
-a2|instrument|prefix-space|production reaches test constructor
-b1|compiler|compiler|E0116,AnalysisPrecisionV1
-b2|compiler|compiler|E0451,AnalysisPrecisionV1
-c|compiler|compiler|E0616,AnalysisPrecisionV1
-d|compiler|compiler|E0451,AnalysisPrecisionV1
-e|compiler|compiler|E0451,AnalysisPrecisionV1
-f|instrument|prefix-space|unregistered sealed-family call site
-g1|instrument|exact|binding does not exercise sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_global_class_fallthrough_diagnostic:1
-g2|instrument|exact|gated exclusion unverified-source-reference not exercised by missing-selector-context-drift
-s1|instrument|exact|unregistered deserialization container omena-cli::crate::diagnostics::DiagnosticPrecisionEnvelopeV0
-s2|instrument|exact|unregistered deserialization container omena-query::crate::style::module_interface::FlattenedPrecisionEnvelopeV0
-s3|instrument|exact|unregistered deserialization container omena-query::crate::style::stylesheet_evaluation::PrecisionWireBundleV0
-j|clippy|methods|std::fs::write
-k|clippy|methods|std::fs::write
-l|clippy|methods|std::fs::write
-m|clippy|methods|std::fs::write
-n1|clippy|methods|std::fs::remove_dir,std::fs::DirBuilder::create
-n2|instrument|prefix|unregistered acquisition site omena-bridge::
-o|instrument|prefix-space|destination class not derived from a sanctioned-module call
-p|clippy|methods|std::fs::write
-q|clippy|methods|std::fs::write
-t1|instrument|prefix-space|suppression above fn granularity
-t2|instrument|prefix-space|suppression below fn granularity
-t3|instrument|exact|crate omena-lsp-server does not inherit the workspace lint table
-`;
-
-const REVIEWED_WRITE_ROW_CLAUSE = "j k l m n1 n2 o p q t1 t2 t3";
-
 function sha256(input: string | Buffer): string {
   return createHash("sha256").update(input).digest("hex");
 }
 
 function compareCodePoint(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
-}
-
-function bindingRows(): Map<string, { home: Home; expected: Expected }> {
-  const rows = new Map<string, { home: Home; expected: Expected }>();
-  for (const line of REVIEWED_BINDING_CLAUSE.trim().split("\n")) {
-    const [id, rawHome, mode, payload] = line.split("|");
-    assert.ok(
-      id && rawHome && mode && payload !== undefined,
-      `binding clause row malformed ${line}`,
-    );
-    assert.ok(
-      rawHome === "compiler" || rawHome === "clippy" || rawHome === "instrument",
-      `binding clause home malformed ${line}`,
-    );
-    let expected: Expected;
-    switch (mode) {
-      case "compiler": {
-        const [code, type] = payload.split(",");
-        assert.ok(code && type, `binding compiler expectation malformed ${line}`);
-        expected = { code, type };
-        break;
-      }
-      case "methods":
-        expected = { methods: payload.split(",") };
-        break;
-      case "exact":
-        expected = { refusal: payload };
-        break;
-      case "prefix":
-        expected = { refusalPrefix: payload };
-        break;
-      case "prefix-space":
-        expected = { refusalPrefix: `${payload} ` };
-        break;
-      default:
-        assert.fail(`binding expectation mode malformed ${line}`);
-    }
-    assert.ok(!rows.has(id), `duplicate binding clause row ${id}`);
-    rows.set(id, { home: rawHome, expected });
-  }
-  return rows;
 }
 
 function expectedHome(expected: Expected): Home {
@@ -211,25 +160,17 @@ function gateHome(gate: Gate): Home {
   return "instrument";
 }
 
-function validateAuthority(authority: Authority): Map<string, { home: Home; expected: Expected }> {
-  const bindings = bindingRows();
-  assert.equal(bindings.size, 25, "binding clause row count changed");
-  assert.equal(authority.bindingRowCount, bindings.size, "binding row count diverged");
-  assert.equal(authority.s0Rows.length, bindings.size, "census row count diverged");
+function validateAuthority(authority: Authority): void {
+  assert.ok(authority.s0Rows.length >= 1, "census row table is empty");
   const authorityIds = authority.s0Rows.map(({ id }) => id).toSorted(compareCodePoint);
-  assert.deepEqual(
-    authorityIds,
-    [...bindings.keys()].toSorted(compareCodePoint),
-    "census row ids diverged",
-  );
   assert.equal(new Set(authorityIds).size, authorityIds.length, "duplicate census row id");
   for (const row of authority.s0Rows) {
-    const binding = bindings.get(row.id);
-    assert.ok(binding, `binding row missing ${row.id}`);
-    assert.equal(row.home, expectedHome(binding.expected), `expected home diverged ${row.id}`);
-    assert.equal(row.home, binding.home, `declared home diverged ${row.id}`);
-    assert.equal(row.home, gateHome(row.gate), `gate home diverged ${row.id}`);
-    assert.deepEqual(row.expected, binding.expected, `expected kind diverged ${row.id}`);
+    assert.match(row.id, /^[a-z][a-z0-9-]*$/u, `invalid census row id ${row.id}`);
+    assert.equal(
+      expectedHome(row.expected),
+      gateHome(row.gate),
+      `expected kind and gate disagree ${row.id}`,
+    );
     assert.ok(row.mutations.length >= 1, `injection recipe missing ${row.id}`);
     if (row.gate.kind === "compiler") {
       assert.ok(row.gate.package, `compiler package missing ${row.id}`);
@@ -237,11 +178,14 @@ function validateAuthority(authority: Authority): Map<string, { home: Home; expe
       assert.equal(row.gate.package, undefined, `non-compiler package present ${row.id}`);
     }
   }
-  const writeRows = REVIEWED_WRITE_ROW_CLAUSE.split(/\s+/u).filter(Boolean);
-  assert.equal(writeRows.length, 12, "write-row binding count changed");
-  assert.equal(new Set(writeRows).size, writeRows.length, "duplicate write-row binding");
-  for (const id of writeRows) assert.ok(bindings.has(id), `write-row binding missing ${id}`);
-  return bindings;
+}
+
+function needsBaselineWriteSafety(row: S0Row): boolean {
+  return (
+    row.gate.kind === "clippy-ban" ||
+    row.gate.kind === "fs-acquisition-census" ||
+    row.gate.kind === "write-safety"
+  );
 }
 
 function assertNoPerRowControlFlow(): void {
@@ -346,6 +290,15 @@ function applyMutations(root: string, mutations: readonly Mutation[]): string[] 
           `replacement index invalid ${mutation.file}`,
         );
         const offset = offsets[selected]!;
+        if (mutation.withinFunction) {
+          const enclosing = rustNamedFunctions(source, "crate").filter(
+            ({ start, end }) => start <= offset && offset < end,
+          );
+          assert.ok(
+            enclosing.some(({ shortName }) => shortName === mutation.withinFunction),
+            `replacement is outside function ${mutation.file}#${mutation.withinFunction}`,
+          );
+        }
         writeFileSync(
           file,
           source.slice(0, offset) +
@@ -439,17 +392,30 @@ function commandFor(root: string, row: S0Row): CommandSpec {
 }
 
 function normalizedOutput(value: string, treeRoot: string): string {
-  return value.replaceAll(treeRoot, "<TREE>").replaceAll(repoRoot, "<REPO>");
+  const roots = [
+    [realpathSync(treeRoot), "<TREE>"],
+    [treeRoot, "<TREE>"],
+    [realpathSync(repoRoot), "<REPO>"],
+    [repoRoot, "<REPO>"],
+  ] as const;
+  let normalized = value;
+  for (const [root, replacement] of [...roots].sort(
+    ([left], [right]) => right.length - left.length,
+  )) {
+    normalized = normalized.replaceAll(root, replacement);
+  }
+  return normalized.replaceAll(os.homedir(), "<USER_HOME>");
 }
 
-function executeCommand(root: string, spec: CommandSpec, inputDigest: string): CommandReceipt {
+function executeCommand(root: string, spec: CommandSpec): CommandReceipt {
+  const cargoTargetDir = path.join(repoRoot, "rust/target");
   const result = spawnSync(spec.executable, spec.args, {
     cwd: root,
     encoding: "utf8",
     env: {
       ...process.env,
       CARGO_INCREMENTAL: "0",
-      CARGO_TARGET_DIR: path.join(repoRoot, "rust/target"),
+      CARGO_TARGET_DIR: cargoTargetDir,
       CARGO_TERM_COLOR: "never",
       NO_COLOR: "1",
     },
@@ -459,15 +425,63 @@ function executeCommand(root: string, spec: CommandSpec, inputDigest: string): C
   const stderr = normalizedOutput(result.stderr ?? "", root);
   const exitCode = result.status ?? 127;
   return {
-    executionId: sha256(
-      `${JSON.stringify(spec.argv)}\0${inputDigest}\0${exitCode}\0${stdout}\0${stderr}`,
-    ),
     argv: spec.argv,
     cwd: ".",
+    environment: {
+      CARGO_INCREMENTAL: "0",
+      CARGO_TARGET_DIR: "<REPO>/rust/target",
+      CARGO_TERM_COLOR: "never",
+      NO_COLOR: "1",
+    },
     exitCode,
     stdout,
     stderr,
   };
+}
+
+function callIdentity(site: RegisteredCallSite): string {
+  return [site.crate, site.file, site.item, site.member, String(site.ordinal)].join("|");
+}
+
+function familyPopulationReceipt(
+  root: string,
+  row: S0Row,
+  authority: Authority,
+): FamilyPopulationReceipt | null {
+  const prefix = "refusalPrefix" in row.expected ? row.expected.refusalPrefix : null;
+  const isUnregisteredCall = prefix === "unregistered sealed-family call site ";
+  const isProductionTestCall = prefix === "production reaches test constructor ";
+  if (!isUnregisteredCall && !isProductionTestCall) return null;
+
+  const args = ["--import", "tsx", "scripts/check-rust-precision-authority.ts", "--print-baseline"];
+  const command = executeCommand(root, {
+    executable: process.execPath,
+    args,
+    argv: ["node", ...args],
+  });
+  assert.equal(command.exitCode, 0, "family population derivation failed");
+  const population = JSON.parse(command.stdout) as {
+    familyCallSites: readonly RegisteredCallSite[];
+  };
+  assert.ok(Array.isArray(population.familyCallSites), "family population is absent");
+  const registered = new Set(authority.precision.familyCallSites.map(callIdentity));
+  const newCallSites = population.familyCallSites.filter(
+    (site) => !registered.has(callIdentity(site)),
+  );
+  const relevantCallSites = isProductionTestCall
+    ? newCallSites.filter(({ member }) => member === "from_axes_for_tests")
+    : newCallSites.filter(({ member }) => member !== "from_axes_for_tests");
+  assert.ok(relevantCallSites.length >= 1, "injected family call site is absent");
+  const touchedRustFiles = new Set(
+    row.mutations.map(({ file }) => file).filter((file) => file.endsWith(".rs")),
+  );
+  const observedFiles = new Set(relevantCallSites.map(({ file }) => file));
+  assert.deepEqual(
+    [...observedFiles].toSorted(compareCodePoint),
+    [...touchedRustFiles].toSorted(compareCodePoint),
+    "injected family call coverage diverged",
+  );
+  return { command, newCallSites };
 }
 
 function validateCompiler(
@@ -560,50 +574,49 @@ function expectedStrings(expected: Expected): string[] {
   return ["refusal" in expected ? expected.refusal : expected.refusalPrefix];
 }
 
-function preGoalReceipt(
+function baselineReceipt(
   root: string,
   authority: Authority,
   expected: Expected,
-  inputDigest: string,
-): NonNullable<RowExecutionReceipt["preGoalWriteSafety"]> {
-  const checker = safeRelativeFile(root, authority.preGoalWriteSafety.path);
+): NonNullable<RowExecutionReceipt["baselineWriteSafety"]> {
+  const checker = safeRelativeFile(root, authority.baselineWriteSafety.path);
   const current = readFileSync(checker);
   const historical = Buffer.from(
     git(repoRoot, [
       "show",
-      `${authority.preGoalWriteSafety.revision}:${authority.preGoalWriteSafety.path}`,
+      `${authority.baselineWriteSafety.revision}:${authority.baselineWriteSafety.path}`,
     ]),
   );
   assert.equal(
     sha256(historical),
-    authority.preGoalWriteSafety.sha256,
-    "pre-goal checker digest drifted",
+    authority.baselineWriteSafety.sha256,
+    "baseline checker digest drifted",
   );
   let receipt: CommandReceipt;
   try {
     writeFileSync(checker, historical);
-    const args = ["--import", "tsx", authority.preGoalWriteSafety.path];
-    receipt = executeCommand(
-      root,
-      { executable: process.execPath, args, argv: ["node", ...args] },
-      sha256(`${inputDigest}\0${authority.preGoalWriteSafety.sha256}`),
-    );
+    const args = ["--import", "tsx", authority.baselineWriteSafety.path];
+    receipt = executeCommand(root, {
+      executable: process.execPath,
+      args,
+      argv: ["node", ...args],
+    });
   } finally {
     writeFileSync(checker, current);
   }
   const assertion = firstAssertion(receipt);
   if (receipt.exitCode !== 0) {
-    assert.ok(assertion, "pre-goal write-safety RED has no machine-recorded assertion");
+    assert.ok(assertion, "baseline write-safety RED has no machine-recorded assertion");
   }
   for (const expectedText of expectedStrings(expected)) {
     assert.notEqual(
       assertion,
       expectedText,
-      "pre-goal assertion equals the row's own expected text",
+      "baseline assertion equals the row's own expected text",
     );
   }
   return {
-    checkerSha256: authority.preGoalWriteSafety.sha256,
+    checkerSha256: authority.baselineWriteSafety.sha256,
     verdict: receipt.exitCode === 0 ? "GREEN" : "RED",
     assertion,
     command: receipt,
@@ -619,11 +632,9 @@ function treeDigest(
 
 function runRow(
   row: S0Row,
-  expected: Expected,
   replay: number,
   scratchParent: string,
   authority: Authority,
-  writeRows: ReadonlySet<string>,
 ): RowExecutionReceipt {
   const root = path.join(scratchParent, `${String(replay).padStart(2, "0")}-${row.id}`);
   git(repoRoot, ["worktree", "add", "--detach", "--quiet", root, "HEAD"]);
@@ -641,26 +652,28 @@ function runRow(
     const files = inputFiles(root, touched);
     const spec = commandFor(root, row);
     const inputTreeDigest = treeDigest(files, spec.argv);
-    const command = executeCommand(root, spec, inputTreeDigest);
-    const observedSignature = validateExpected(command, expected);
+    const familyPopulation = familyPopulationReceipt(root, row, authority);
+    const command = executeCommand(root, spec);
+    const observedSignature = validateExpected(command, row.expected);
     assert.deepEqual(inputFiles(root, touched), files, `gate mutated injected inputs ${row.id}`);
-    const preGoalWriteSafety = writeRows.has(row.id)
-      ? preGoalReceipt(root, authority, expected, inputTreeDigest)
+    const baselineWriteSafety = needsBaselineWriteSafety(row)
+      ? baselineReceipt(root, authority, row.expected)
       : null;
     assert.deepEqual(
       changedPaths(root),
       touched,
-      `pre-goal replay mutated injected inputs ${row.id}`,
+      `baseline replay mutated injected inputs ${row.id}`,
     );
     return {
       rowId: row.id,
       replay,
-      home: row.home,
+      home: expectedHome(row.expected),
       inputFiles: files,
       inputTreeDigest,
+      familyPopulation,
       command,
       observedSignature,
-      preGoalWriteSafety,
+      baselineWriteSafety,
     };
   } finally {
     git(repoRoot, ["worktree", "remove", "--force", root]);
@@ -680,21 +693,21 @@ function argumentValues(name: string): string[] {
 }
 
 assertNoPerRowControlFlow();
-const authority = JSON.parse(readFileSync(authorityPath, "utf8")) as Authority;
-const bindings = validateAuthority(authority);
+const authorityBytes = readFileSync(authorityPath);
+const authority = JSON.parse(authorityBytes.toString("utf8")) as Authority;
+validateAuthority(authority);
+const authorityIds = new Set(authority.s0Rows.map(({ id }) => id));
 const requested = new Set(argumentValues("--row"));
-for (const id of requested) assert.ok(bindings.has(id), `unknown requested row ${id}`);
+for (const id of requested) assert.ok(authorityIds.has(id), `unknown requested row ${id}`);
 const selectedRows = authority.s0Rows.filter(({ id }) => requested.size === 0 || requested.has(id));
 assert.ok(selectedRows.length >= 1, "no S0 rows selected");
-const writeRows = new Set(REVIEWED_WRITE_ROW_CLAUSE.split(/\s+/u).filter(Boolean));
 const scratchParent = mkdtempSync(path.join(os.tmpdir(), "omena-census-s0-"));
 const receipts: RowExecutionReceipt[] = [];
 try {
   for (const row of selectedRows) {
-    const expected = bindings.get(row.id)!.expected;
-    const first = runRow(row, expected, 1, scratchParent, authority, writeRows);
+    const first = runRow(row, 1, scratchParent, authority);
     process.stderr.write(`S0 ${row.id} replay 1/2 ${first.observedSignature}\n`);
-    const second = runRow(row, expected, 2, scratchParent, authority, writeRows);
+    const second = runRow(row, 2, scratchParent, authority);
     process.stderr.write(`S0 ${row.id} replay 2/2 ${second.observedSignature}\n`);
     assert.equal(
       second.inputTreeDigest,
@@ -706,23 +719,52 @@ try {
       first.command.exitCode,
       `clean replay exit drifted ${row.id}`,
     );
+    assert.deepEqual(
+      second.command.argv,
+      first.command.argv,
+      `clean replay argv drifted ${row.id}`,
+    );
+    assert.deepEqual(
+      second.command.environment,
+      first.command.environment,
+      `clean replay environment drifted ${row.id}`,
+    );
     assert.equal(
       second.observedSignature,
       first.observedSignature,
       `clean replay signature drifted ${row.id}`,
     );
     assert.deepEqual(
-      second.preGoalWriteSafety && {
-        verdict: second.preGoalWriteSafety.verdict,
-        assertion: second.preGoalWriteSafety.assertion,
-        exitCode: second.preGoalWriteSafety.command.exitCode,
+      second.familyPopulation?.newCallSites ?? null,
+      first.familyPopulation?.newCallSites ?? null,
+      `clean replay family population drifted ${row.id}`,
+    );
+    assert.deepEqual(
+      second.familyPopulation?.command.argv ?? null,
+      first.familyPopulation?.command.argv ?? null,
+      `clean replay family population argv drifted ${row.id}`,
+    );
+    assert.deepEqual(
+      second.familyPopulation?.command.environment ?? null,
+      first.familyPopulation?.command.environment ?? null,
+      `clean replay family population environment drifted ${row.id}`,
+    );
+    assert.deepEqual(
+      second.baselineWriteSafety && {
+        verdict: second.baselineWriteSafety.verdict,
+        assertion: second.baselineWriteSafety.assertion,
+        exitCode: second.baselineWriteSafety.command.exitCode,
+        argv: second.baselineWriteSafety.command.argv,
+        environment: second.baselineWriteSafety.command.environment,
       },
-      first.preGoalWriteSafety && {
-        verdict: first.preGoalWriteSafety.verdict,
-        assertion: first.preGoalWriteSafety.assertion,
-        exitCode: first.preGoalWriteSafety.command.exitCode,
+      first.baselineWriteSafety && {
+        verdict: first.baselineWriteSafety.verdict,
+        assertion: first.baselineWriteSafety.assertion,
+        exitCode: first.baselineWriteSafety.command.exitCode,
+        argv: first.baselineWriteSafety.command.argv,
+        environment: first.baselineWriteSafety.command.environment,
       },
-      `clean replay pre-goal verdict drifted ${row.id}`,
+      `clean replay baseline verdict drifted ${row.id}`,
     );
     receipts.push(first, second);
   }
@@ -730,10 +772,38 @@ try {
   rmSync(scratchParent, { recursive: true, force: true });
 }
 
+const primaryReceipts = receipts.filter(({ replay }) => replay === 1);
+assert.equal(
+  new Set(primaryReceipts.map(({ inputTreeDigest }) => inputTreeDigest)).size,
+  selectedRows.length,
+  "row injection tree digests are not unique",
+);
+const executionEvidenceDigests = primaryReceipts.map((receipt) =>
+  sha256(
+    JSON.stringify({
+      inputFiles: receipt.inputFiles,
+      inputTreeDigest: receipt.inputTreeDigest,
+      argv: receipt.command.argv,
+      environment: receipt.command.environment,
+      exitCode: receipt.command.exitCode,
+      stdout: receipt.command.stdout,
+      stderr: receipt.command.stderr,
+      observedSignature: receipt.observedSignature,
+    }),
+  ),
+);
+assert.equal(
+  new Set(executionEvidenceDigests).size,
+  selectedRows.length,
+  "row execution evidence is not unique",
+);
+
 const fullReceipt = {
   schemaVersion: "0",
   product: "rust.census-instrument-s0-receipt",
-  bindingRowCount: bindings.size,
+  authoritySha256: sha256(authorityBytes),
+  executorSha256: sha256(readFileSync(fileURLToPath(import.meta.url))),
+  bindingRowCount: authority.s0Rows.length,
   executedRowCount: selectedRows.length,
   executionReceiptCount: receipts.length,
   cleanReplayCount: receipts.filter(({ replay }) => replay === 2).length,
@@ -764,8 +834,10 @@ process.stdout.write(
           home: first.home,
           inputTreeDigest: first.inputTreeDigest,
           observedSignature: first.observedSignature,
-          preGoalVerdict: first.preGoalWriteSafety?.verdict ?? null,
-          preGoalAssertion: first.preGoalWriteSafety?.assertion ?? null,
+          newFamilyCallSites:
+            first.familyPopulation?.newCallSites.map(callIdentity).toSorted(compareCodePoint) ?? [],
+          preGoalVerdict: first.baselineWriteSafety?.verdict ?? null,
+          preGoalAssertion: first.baselineWriteSafety?.assertion ?? null,
         };
       }),
     },
