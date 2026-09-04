@@ -536,7 +536,7 @@
   },
   "retiredInstrument": {
     "path": "scripts/check-rust-precision-floor.ts",
-    "pickupSha256": "8aba26444165abb45ff47fc01271a4df7ab6cec9e70c8692a7c5bb01446ba0c6",
+    "baselineSha256": "8aba26444165abb45ff47fc01271a4df7ab6cec9e70c8692a7c5bb01446ba0c6",
     "firstFailureWitness": "missing pub struct AnalysisPrecisionV1"
   },
   "countedResidue": [

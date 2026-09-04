@@ -82,7 +82,7 @@ interface Authority {
   readonly s0Rows: readonly S0Row[];
   readonly retiredInstrument: {
     readonly path: string;
-    readonly pickupSha256: string;
+    readonly baselineSha256: string;
     readonly firstFailureWitness: string;
   };
   readonly countedResidue: readonly {
@@ -270,7 +270,7 @@ function validateAuthority(authority: Authority): void {
   }
   assert.ok(authority.retiredInstrument.path.length >= 1, "retired instrument path is empty");
   assert.match(
-    authority.retiredInstrument.pickupSha256,
+    authority.retiredInstrument.baselineSha256,
     /^[0-9a-f]{64}$/u,
     "retired instrument digest is invalid",
   );
@@ -792,7 +792,7 @@ function validateCurrentAuthority(authority: Authority): AuthorityValidationRece
   const checkerDigest = sha256(checkerBytes);
   assert.equal(
     checkerDigest,
-    authority.retiredInstrument.pickupSha256,
+    authority.retiredInstrument.baselineSha256,
     `retired instrument edited ${authority.retiredInstrument.path}`,
   );
 
