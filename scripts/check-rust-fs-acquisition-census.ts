@@ -321,6 +321,26 @@ for (const site of observed) {
 const removals = authority.acquisitionSites.filter(
   (site) => !observedByIdentity.has(siteIdentity(site)),
 );
+const birthExpressionCount = authority.acquisitionSites.reduce(
+  (count, site) => count + site.expressionCount,
+  0,
+);
+const observedExpressionCount = observed.reduce((count, site) => count + site.expressionCount, 0);
+const removedExpressionCount = authority.acquisitionSites.reduce(
+  (count, site) =>
+    count +
+    site.expressionCount -
+    (observedByIdentity.get(siteIdentity(site))?.expressionCount ?? 0),
+  0,
+);
+const admittedExpressionCount = observed
+  .filter((site) => !registeredByIdentity.has(siteIdentity(site)))
+  .reduce((count, site) => count + site.expressionCount, 0);
+assert.equal(
+  observedExpressionCount,
+  birthExpressionCount - removedExpressionCount + admittedExpressionCount,
+  "acquisition population must equal birth minus removals plus admissions",
+);
 
 process.stdout.write(
   `${JSON.stringify(
@@ -333,7 +353,21 @@ process.stdout.write(
       messagePackageSet: [...new Set(observed.map(({ crate: crateName }) => crateName))].toSorted(),
       registeredKeyCount: authority.acquisitionSites.length,
       observedKeyCount: observed.length,
-      observedExpressionCount: observed.reduce((count, site) => count + site.expressionCount, 0),
+      observedExpressionCount,
+      birthPopulation: {
+        source: "rust/omena-fs-acquisition-census.json#acquisitionSites",
+        keyCount: authority.acquisitionSites.length,
+        expressionCount: birthExpressionCount,
+      },
+      populationEquation: {
+        count: observedExpressionCount,
+        birth: birthExpressionCount,
+        removals: removedExpressionCount,
+        admissions: admittedExpressionCount,
+        holds:
+          observedExpressionCount ===
+          birthExpressionCount - removedExpressionCount + admittedExpressionCount,
+      },
       removals: removals.map(siteIdentity),
       cfgCountedAcquisitionCount: cfgCensus.cfgCounted.length,
       reachedProductionFiles: cfgCensus.reachedProductionFiles,

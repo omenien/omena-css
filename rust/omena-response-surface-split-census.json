@@ -5224,7 +5224,7 @@
       "crate": "omena-evidence-graph",
       "typeName": "AnalysisPrecisionV1",
       "sourcePath": "rust/crates/omena-evidence-graph/src/analysis_precision.rs",
-      "line": 147
+      "line": 221
     },
     {
       "crate": "omena-evidence-graph",

@@ -2,6 +2,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { maskRustCommentsAndLiterals, matchingRustDelimiter } from "./rust-write-authority";
 
 interface ExpectedCargoSemverDiagnostic {
   readonly lint: string;
@@ -25,6 +26,7 @@ interface ExpectedRuntimeValueChange {
   readonly reason: string;
   readonly evidence: readonly {
     readonly sourcePath: string;
+    readonly struct?: string;
     readonly needles: readonly string[];
   }[];
 }
@@ -158,7 +160,7 @@ export function validateRustSemverIntentRegister(repoRoot: string): {
         const source = readFileSync(path.join(repoRoot, evidence.sourcePath), "utf8");
         for (const needle of evidence.needles) {
           assert.ok(
-            source.includes(needle),
+            hasRuntimeEvidence(source, needle, evidence.struct),
             `${intent.crate}:${change.id} is missing evidence ${JSON.stringify(needle)} in ${evidence.sourcePath}`,
           );
         }
@@ -179,6 +181,37 @@ export function validateRustSemverIntentRegister(repoRoot: string): {
     honestySelftestMutationCount: 2,
     lifecycleSelftestMutationCount: 3,
   };
+}
+
+export function hasRuntimeEvidence(source: string, needle: string, struct?: string): boolean {
+  const structural = maskRustCommentsAndLiterals(source);
+  const field = /^(?:pub\s+)?[a-z_][a-z0-9_]*\s*:\s*[A-Za-z_][A-Za-z0-9_:]*$/u.test(needle);
+  if (field) {
+    assert.ok(
+      struct && /^[A-Za-z_][A-Za-z0-9_]*$/u.test(struct),
+      "field evidence requires a struct declaration operand",
+    );
+    const declarations = [
+      ...structural.matchAll(new RegExp("\\bstruct\\s+" + struct + "\\s*\\{", "gu")),
+    ];
+    if (declarations.length !== 1) return false;
+    const declaration = declarations[0]!;
+    const open = declaration.index + declaration[0].lastIndexOf("{");
+    const close = matchingRustDelimiter(structural, open, "{", "}");
+    const body = structural.slice(open + 1, close);
+    const escaped = needle.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    return new RegExp("^\\s*" + escaped + "\\s*,?\\s*$", "mu").test(body);
+  }
+  // A source needle must begin in executable/declarative Rust, never a comment,
+  // doctest, or a string containing a transcription of the claimed evidence.
+  const activeSource = maskRustCommentsAndLiterals(source, true);
+  let start = activeSource.indexOf(needle);
+  while (start >= 0) {
+    if (needle.startsWith('"') || structural.slice(start, start + 1) === needle.slice(0, 1))
+      return true;
+    start = activeSource.indexOf(needle, start + needle.length);
+  }
+  return false;
 }
 
 function validateDiagnosticWitnessPolicy(

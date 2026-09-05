@@ -1,0 +1,49 @@
+name: Census Instrument Proofs
+
+on:
+  schedule:
+    - cron: "23 17 * * *"
+
+concurrency:
+  group: census-instrument-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  census-instrument:
+    # omena-ci-tier: scheduled
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - run: pnpm omena-check run rust/census-instrument-s0 --summary
+      - name: Preserve complete replay evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: census-instrument-evidence
+          path: |
+            .omena-ci/census-instrument-receipt.json
+            .omena-ci/check-summary-*.json
+            .omena-ci/check-output/**
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: error
+      - name: Escalate scheduled failure
+        if: ${{ failure() }}
+        uses: ./.github/actions/escalate-ci-failure
+        with:
+          title: "CI failure: census instrument proofs"
+          body: |
+            The Rust census maintainers' complete replay and proof controls failed.
+          workflow-name: Census Instrument Proofs
+          job-name: census-instrument
+          run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

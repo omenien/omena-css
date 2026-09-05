@@ -3,7 +3,7 @@
   "generatedBy": "pnpm omena-check evidence-writers --write",
   "scope": {
     "pathspecs": ["scripts/**", "packages/check-orchestrator/src/**"],
-    "scannedScriptCount": 518,
+    "scannedScriptCount": 519,
     "registryWriterScriptCount": 76,
     "declaredWriterScriptCount": 32,
     "broadWriterScriptCountWithNonLiteralSites": 124,
@@ -197,7 +197,7 @@
     {
       "fingerprint": "91f39368183ba0a9fd6abf2f5db122763967d031d96ac9174c531eeaf2079eaa",
       "writerScript": "packages/check-orchestrator/src/cli/main.ts",
-      "line": 819,
+      "line": 826,
       "writeApi": "writeFileSync",
       "writeExpression": "artifactPath",
       "disposition": "declared-writer-sweep"
@@ -205,7 +205,7 @@
     {
       "fingerprint": "2f5020e2a47017b5b4a629679e3e16ffb89a4037fe8e2dc146a2f8a034730752",
       "writerScript": "packages/check-orchestrator/src/cli/main.ts",
-      "line": 866,
+      "line": 873,
       "writeApi": "appendFileSync",
       "writeExpression": "stepSummaryPath",
       "disposition": "declared-writer-sweep"
@@ -213,7 +213,7 @@
     {
       "fingerprint": "08f64c1fb66d950e9d78e5b464d51185832f81c4ffdb61b0535c9d38378984cc",
       "writerScript": "packages/check-orchestrator/src/cli/main.ts",
-      "line": 1415,
+      "line": 1428,
       "writeApi": "writeFileSync",
       "writeExpression": "costLedgerPath(rootDir)",
       "disposition": "declared-writer-sweep"
@@ -221,7 +221,7 @@
     {
       "fingerprint": "ba3f5f272f0822487ab1d5e39434a2f26f383a3a5f2692263d8d0c2f8795f736",
       "writerScript": "packages/check-orchestrator/src/cli/main.ts",
-      "line": 1496,
+      "line": 1509,
       "writeApi": "writeFileSync",
       "writeExpression": "inventoryPath",
       "disposition": "declared-writer-sweep"
@@ -229,7 +229,7 @@
     {
       "fingerprint": "5100bfea9e6848ab6e1d40304f8a835822c9a67f0129e42f59d00434a0897fb3",
       "writerScript": "packages/check-orchestrator/src/cli/main.ts",
-      "line": 1521,
+      "line": 1534,
       "writeApi": "writeFileSync",
       "writeExpression": "manifestPath",
       "disposition": "declared-writer-sweep"
@@ -237,7 +237,7 @@
     {
       "fingerprint": "be69bbce2a7436cfaaff8828a6d17db0331a3de63870742ee80a1c3ed5ad961c",
       "writerScript": "packages/check-orchestrator/src/cli/main.ts",
-      "line": 1567,
+      "line": 1580,
       "writeApi": "writeFileSync",
       "writeExpression": "output.path",
       "disposition": "declared-writer-sweep"
@@ -413,7 +413,7 @@
     {
       "fingerprint": "a38d88a17bf11c7369588f0ee0c3125d2f9d4cd7b8b6ece423719c72cbbfceca",
       "writerScript": "scripts/check-dual-pin-product-bytes.ts",
-      "line": 465,
+      "line": 517,
       "writeApi": "writeFileSync",
       "writeExpression": "fixturePath",
       "disposition": "outside-registry-writer"
@@ -589,7 +589,7 @@
     {
       "fingerprint": "1cec002bb02c7f9e0d8beef66e51bc035ca55e71a7833dd9a31e696a9b15118f",
       "writerScript": "scripts/check-rust-census-instrument-s0.ts",
-      "line": 384,
+      "line": 392,
       "writeApi": "writeFileSync",
       "writeExpression": "file",
       "disposition": "outside-registry-writer"
@@ -597,7 +597,7 @@
     {
       "fingerprint": "a0870938ce472af731c6c037ab2eea638244f2ea5ce41c580ca1a5edcb5b0221",
       "writerScript": "scripts/check-rust-census-instrument-s0.ts",
-      "line": 390,
+      "line": 398,
       "writeApi": "writeFileSync",
       "writeExpression": "file",
       "disposition": "outside-registry-writer"
@@ -605,7 +605,7 @@
     {
       "fingerprint": "a7181fcf7bb4b4b36bdf77b1052e0f8eaaf3a76c0c94b82e707ba7da5506287e",
       "writerScript": "scripts/check-rust-census-instrument-s0.ts",
-      "line": 416,
+      "line": 424,
       "writeApi": "writeFileSync",
       "writeExpression": "file",
       "disposition": "outside-registry-writer"
@@ -613,7 +613,7 @@
     {
       "fingerprint": "3f2cad229dc64c6f58312c03c33e67bc7a1e8cc8e763d02ff01ad95ded40e288",
       "writerScript": "scripts/check-rust-census-instrument-s0.ts",
-      "line": 427,
+      "line": 435,
       "writeApi": "writeFileSync",
       "writeExpression": "file",
       "disposition": "outside-registry-writer"
@@ -621,7 +621,7 @@
     {
       "fingerprint": "33e022ff8b15f504eafe6e3f627ed7f051f2f6b25f040a3fa7a780874c6396c3",
       "writerScript": "scripts/check-rust-census-instrument-s0.ts",
-      "line": 437,
+      "line": 445,
       "writeApi": "writeFileSync",
       "writeExpression": "file",
       "disposition": "outside-registry-writer"
@@ -629,7 +629,7 @@
     {
       "fingerprint": "2851b0739b13e55078e2b786252216e0a674f549582c400fac919860f11b5c63",
       "writerScript": "scripts/check-rust-census-instrument-s0.ts",
-      "line": 908,
+      "line": 910,
       "writeApi": "writeFileSync",
       "writeExpression": "checker",
       "disposition": "outside-registry-writer"
@@ -637,7 +637,7 @@
     {
       "fingerprint": "f8a2a830fc782fbfbdef9aa2e41bb06aea1d752984e0f989e887aa11f995f2fc",
       "writerScript": "scripts/check-rust-census-instrument-s0.ts",
-      "line": 916,
+      "line": 918,
       "writeApi": "writeFileSync",
       "writeExpression": "checker",
       "disposition": "outside-registry-writer"
@@ -645,7 +645,7 @@
     {
       "fingerprint": "61515795dad5499d655698ea35795bc08c0c675d45d799b889a77bddee96bdfe",
       "writerScript": "scripts/check-rust-census-instrument-s0.ts",
-      "line": 956,
+      "line": 959,
       "writeApi": "symlinkSync",
       "writeExpression": "nodeModules",
       "disposition": "outside-registry-writer"
@@ -653,7 +653,7 @@
     {
       "fingerprint": "700292dcfa6e5e1ba8a05fb8a658266814d288e17b9fd326ddd443c545bc11d1",
       "writerScript": "scripts/check-rust-census-instrument-s0.ts",
-      "line": 1144,
+      "line": 1390,
       "writeApi": "writeFileSync",
       "writeExpression": "target",
       "disposition": "outside-registry-writer"

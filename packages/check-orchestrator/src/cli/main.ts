@@ -21,14 +21,21 @@ import {
 import { buildEvidenceAffectedPlan } from "../evidence/affected-evidence";
 import { resolveEvidenceWriterCommand, runDigestPinnedWriter } from "../evidence/writer-runner";
 import { loadEvidenceScanSurfaceManifest } from "../evidence/scan-surface-manifest";
-import { resolveScanSurface } from "../evidence/scan-surface";
+import { clearScanSurfaceResolverSnapshot, resolveScanSurface } from "../evidence/scan-surface";
 import { detectScannerFiles } from "../evidence/scanner-analysis";
 import {
   EVIDENCE_PREVIEW_EMPTY_BUDGET_MS,
   runEvidenceAffectedPreview,
 } from "../evidence/preview-budget";
 import { spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { buildAffectedCheckPlan } from "../affected";
 import {
@@ -1339,19 +1346,21 @@ function runCostLedgerCommand(parsed: ParsedArgs): void {
     const gateSamples = new Map<string, number[]>();
     const downloadRoot = path.join(rootDir, ".omena-ci", "cost-ledger-artifacts");
     if (!reusedLedger) {
+      mkdirSync(downloadRoot, { recursive: true });
       for (const runId of sourceRunIds) {
-        const runDir = path.join(downloadRoot, runId);
-        mkdirSync(runDir, { recursive: true });
+        const runDir = mkdtempSync(path.join(downloadRoot, runId + "-"));
         const download = spawnSync(
           "gh",
           ["run", "download", runId, "--pattern", "*summary*", "--dir", runDir],
           { cwd: rootDir, encoding: "utf8" },
         );
         if (download.status !== 0) continue; // runs predating S0 carry no summary artifacts
+        clearScanSurfaceResolverSnapshot();
+        const downloadedEvidenceSurface = resolveScanSurfaceForScanner(import.meta.url);
         const stack = [runDir];
         while (stack.length > 0) {
           const dir = stack.pop()!;
-          for (const entry of evidenceScanSurface.readdirSync(dir, { withFileTypes: true })) {
+          for (const entry of downloadedEvidenceSurface.readdirSync(dir, { withFileTypes: true })) {
             const full = path.join(dir, entry.name);
             if (entry.isDirectory()) stack.push(full);
             else if (/^check-summary-.*\.json$/.test(entry.name)) {
@@ -1378,6 +1387,10 @@ function runCostLedgerCommand(parsed: ParsedArgs): void {
           }
         }
       }
+    }
+
+    if (!reusedLedger && gateSamples.size === 0) {
+      fail("no passing gate summary receipts were read; refusing to replace the cost ledger");
     }
 
     // Completed-run job metadata remains queryable, but summary artifacts can expire.

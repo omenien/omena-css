@@ -86,7 +86,7 @@ const pathPreservingMethods = new Set([
   "unwrap_or_else",
   "with_extension",
 ]);
-let productDestinationGraphCache: ProductDestinationGraph | undefined;
+const productDestinationGraphCache = new Map<string, ProductDestinationGraph>();
 const manifest = readWriteSafetyManifest(manifestPath);
 const fixSafetySource = read("rust/crates/omena-checker/src/fix_safety.rs");
 const writeGateSource = read(manifest.sourceMutationGate.path);
@@ -206,7 +206,7 @@ assertProductSourcePlaneZero(derivedWriteSites);
 const productSourceBareWriteCount = derivedWriteSites.reduce(
   (count, site) =>
     count +
-    (site.classification === "artifact" || site.classification === "bookkeeping"
+    (requiresNonProductDestination(site)
       ? ((site as WriteSite & { readonly productSourceWriteCount?: number })
           .productSourceWriteCount ?? 0)
       : 0),
@@ -449,6 +449,54 @@ assert.throws(
 );
 
 const transactionSource = read(transactionModulePath);
+for (const [label, from, to] of [
+  [
+    "staging call destination",
+    "write_staged_product_bytes(\n                stage_path.as_path(),",
+    "write_staged_product_bytes(\n                edit.path.as_path(),",
+  ],
+  [
+    "mixed staging callers",
+    "let stage_result = write_staged_product_bytes(",
+    "let _ = write_staged_product_bytes(edit.path.as_path(), edit.content.as_slice(), None);\n            let stage_result = write_staged_product_bytes(",
+  ],
+  ["staging field destination", "stage: stage_path,", "stage: edit.path.clone(),"],
+  ["backup field destination", "backup: backup_path,", "backup: edit.path.clone(),"],
+  [
+    "lock collection destination",
+    "paths.push(lock_path.clone());",
+    "paths.push(destination.clone());",
+  ],
+] as const) {
+  const mutant = transactionSource.replace(from, to);
+  assert.notEqual(mutant, transactionSource, `destination mutation did not apply ${label}`);
+  assert.throws(
+    () => deriveProductDestinationGraph(new Map([[transactionModulePath, mutant]])),
+    /destination (?:sink|field) lost/u,
+    `${label} must be refused by owner-function destination derivation`,
+  );
+}
+const stagingFunction = topLevelFunctionSource(transactionSource, "write_staged_product_bytes");
+const unprovenStagingFunction = stagingFunction.replace(
+  ".open(path)",
+  '.open(Path::new("product.css"))',
+);
+assert.notEqual(unprovenStagingFunction, stagingFunction, "staging handle mutation did not apply");
+assert.throws(
+  () =>
+    assertProductSourcePlaneZero(
+      deriveProductionWriteSites(
+        new Map([
+          [
+            transactionModulePath,
+            transactionSource.replace(stagingFunction, unprovenStagingFunction),
+          ],
+        ]),
+      ),
+    ),
+  /product\/source-plane bare writes must be zero/u,
+  "transaction-staging classification must not exempt an unproven byte destination",
+);
 const minifySource = read("rust/crates/omena-cli/src/minify.rs");
 const buildSource = read("rust/crates/omena-cli/src/build.rs");
 const modulesPath = "rust/crates/omena-cli/src/modules.rs";
@@ -811,6 +859,7 @@ function deriveProductionWriteSites(
   registeredWriteSites: readonly WriteSite[] = manifest.writeSites,
 ): WriteSite[] {
   validateWriteSites(registeredWriteSites);
+  const destinationGraph = deriveProductDestinationGraph(sourceOverrides);
   const derived = new Map<
     string,
     {
@@ -862,6 +911,7 @@ function deriveProductionWriteSites(
           key,
           { ...mutation, offset: mutation.offset - owner.start },
           source.slice(owner.start, owner.end),
+          destinationGraph,
         )
       ) {
         current.productSourceWriteCount += 1;
@@ -925,11 +975,19 @@ function assertProductSourcePlaneZero(writeSites: readonly WriteSite[]): void {
     writeSites.filter(
       (site) =>
         ((site as WriteSite & { readonly productSourceWriteCount?: number })
-          .productSourceWriteCount ?? 1) > 0 &&
-        (site.classification === "artifact" || site.classification === "bookkeeping"),
+          .productSourceWriteCount ?? 1) > 0 && requiresNonProductDestination(site),
     ).length,
     0,
     "product/source-plane bare writes must be zero",
+  );
+}
+
+function requiresNonProductDestination(site: WriteSite): boolean {
+  if (site.classification === "artifact" || site.classification === "bookkeeping") return true;
+  if (site.classification !== "transaction-staging") return false;
+  return !(
+    site.path === transactionModulePath &&
+    site.function === "crate::workspace_edit_transaction::WorkspaceEditTransaction::rename_all"
   );
 }
 
@@ -945,6 +1003,7 @@ interface DestinationTransition {
 interface DestinationDataflow {
   readonly derivedByMutation: ReadonlyMap<string, boolean>;
   readonly unparsedConstructs: readonly string[];
+  readonly fieldWrites: readonly { readonly identity: string; readonly derived: boolean }[];
   readonly calls: readonly {
     readonly name: string;
     readonly argumentsDerived: readonly boolean[];
@@ -1220,20 +1279,24 @@ function functionCalls(source: string): DestinationCall[] {
 }
 
 function splitTopLevelArguments(source: string): string[] {
+  const structural = maskRustCommentsAndLiterals(source);
   const rows: string[] = [];
   let start = 0;
   let round = 0;
   let square = 0;
   let angle = 0;
+  let brace = 0;
   for (let cursor = 0; cursor < source.length; cursor += 1) {
-    const current = source[cursor]!;
+    const current = structural[cursor]!;
     if (current === "(") round += 1;
     else if (current === ")") round -= 1;
     else if (current === "[") square += 1;
     else if (current === "]") square -= 1;
+    else if (current === "{") brace += 1;
+    else if (current === "}") brace -= 1;
     else if (current === "<") angle += 1;
     else if (current === ">") angle = Math.max(0, angle - 1);
-    else if (current === "," && round === 0 && square === 0 && angle === 0) {
+    else if (current === "," && round === 0 && square === 0 && angle === 0 && brace === 0) {
       rows.push(source.slice(start, cursor));
       start = cursor + 1;
     }
@@ -1429,6 +1492,7 @@ interface DestinationDataflowOptions {
   readonly initialBindings?: readonly string[];
   readonly trustedFields?: ReadonlySet<string>;
   readonly knownCalls?: ReadonlySet<string>;
+  readonly fieldTypes?: ReadonlyMap<string, string>;
   readonly bindingTypes?: ReadonlyMap<string, string>;
   readonly modulePath?: string;
   readonly ownerType?: string;
@@ -1448,6 +1512,7 @@ interface ProductDestinationFunction {
 }
 
 interface ProductDestinationGraph {
+  readonly fieldTypes: ReadonlyMap<string, string>;
   readonly initialBindingsByFunction: ReadonlyMap<string, ReadonlySet<string>>;
   readonly trustedFields: ReadonlySet<string>;
   readonly bindingTypesByFunction: ReadonlyMap<string, ReadonlyMap<string, string>>;
@@ -1467,14 +1532,20 @@ function rustStructBody(source: string, name: string): string {
   return structural.slice(open + 1, close);
 }
 
-function deriveProductDestinationGraph(): ProductDestinationGraph {
-  if (productDestinationGraphCache) return productDestinationGraphCache;
+function deriveProductDestinationGraph(
+  sourceOverrides: ReadonlyMap<string, string> = new Map(),
+): ProductDestinationGraph {
   const files = [
     "rust/crates/omena-cli/src/daemon.rs",
     "rust/crates/omena-cli/src/lock.rs",
     transactionModulePath,
   ];
-  const sources = new Map(files.map((file) => [file, productionRustSource(read(file))]));
+  const sources = new Map(
+    files.map((file) => [file, productionRustSource(sourceOverrides.get(file) ?? read(file))]),
+  );
+  const cacheKey = JSON.stringify([...sources]);
+  const cached = productDestinationGraphCache.get(cacheKey);
+  if (cached) return cached;
   const functions: ProductDestinationFunction[] = files.flatMap((file) => {
     const source = sources.get(file)!;
     const modulePath = rustModuleIdentifier(file);
@@ -1505,13 +1576,15 @@ function deriveProductDestinationGraph(): ProductDestinationGraph {
     identities.push(fn);
     byIdentity.set(fn.identity, identities);
   }
-  const trustedFields = new Set<string>();
+  const fieldTypes = new Map<string, string>();
+  const trustedFields = new Set<string>(["crate::daemon::OmenadArgs.endpoint_file"]);
   for (const [file, type, field, fieldType] of [
     [files[0]!, "OmenadArgs", "endpoint_file", "PathBuf"],
     [files[0]!, "OmenadProcessV0", "endpoint_file", "PathBuf"],
     [transactionModulePath, "StagedEditV0", "stage", "PathBuf"],
     [transactionModulePath, "StagedEditV0", "backup", "PathBuf"],
     [transactionModulePath, "TransactionLockGuard", "paths", "Vec<PathBuf>"],
+    [files[1]!, "LockVerifyAttestationInput", "lockfile", "PathBuf"],
   ] as const) {
     const body = rustStructBody(sources.get(file)!, type);
     assert.match(
@@ -1519,7 +1592,7 @@ function deriveProductDestinationGraph(): ProductDestinationGraph {
       new RegExp(`(?:^|\\n)\\s*${field}\\s*:\\s*${escapeRegExp(fieldType)}\\s*,`, "u"),
       `trusted destination field declaration changed ${rustModuleIdentifier(file)}::${type}.${field}`,
     );
-    trustedFields.add(`${rustModuleIdentifier(file)}::${type}.${field}`);
+    fieldTypes.set(`${rustModuleIdentifier(file)}::${type}.${field}`, fieldType);
   }
   for (const identity of sanctionedProductDestinationCalls) {
     assert.equal(
@@ -1535,46 +1608,6 @@ function deriveProductDestinationGraph(): ProductDestinationGraph {
       `destination authority does not admit glob imports ${file}`,
     );
   }
-  const transaction = maskRustCommentsAndLiterals(sources.get(transactionModulePath)!);
-  for (const field of ["stage", "backup"] as const) {
-    assert.match(
-      transaction,
-      new RegExp(`let\\s+${field}_path\\s*=\\s*sidecar_path\\s*\\(`, "u"),
-      `destination class not derived from a sanctioned-module call ${transactionModulePath}#${field}`,
-    );
-    assert.match(
-      transaction,
-      new RegExp(`${field}\\s*:\\s*${field}_path\\b`, "u"),
-      `destination class not derived from a sanctioned-module call ${transactionModulePath}#${field}`,
-    );
-  }
-  assert.match(
-    transaction,
-    /let\s+lock_path\s*=\s*transaction_lock_path\s*\(/u,
-    `destination class not derived from a sanctioned-module call ${transactionModulePath}#lock_path`,
-  );
-  assert.match(
-    transaction,
-    /paths\.push\s*\(\s*lock_path\.clone\s*\(\s*\)\s*\)/u,
-    `destination class not derived from a sanctioned-module call ${transactionModulePath}#paths`,
-  );
-  const daemon = maskRustCommentsAndLiterals(sources.get(files[0]!)!);
-  assert.match(
-    daemon,
-    /let\s+endpoint_file\s*=\s*watch_endpoint_path\s*\(/u,
-    `destination class not derived from a sanctioned-module call ${files[0]}#endpoint_file`,
-  );
-  assert.match(
-    daemon,
-    /OmenadProcessV0\s*\{[\s\S]*?\bendpoint_file\s*,[\s\S]*?\bdetached\s*:/u,
-    `daemon process endpoint field lost its sanctioned constructor flow ${files[0]}#OmenadProcessV0.endpoint_file`,
-  );
-  const lock = maskRustCommentsAndLiterals(sources.get(files[1]!)!);
-  assert.match(
-    lock,
-    /lock_verify_attestation\s*\(\s*LockVerifyAttestationInput\s*\{[\s\S]*?\blockfile\s*,/u,
-    `destination class not derived from a sanctioned-module call ${files[1]}#lock_verify_attestation`,
-  );
 
   const bindings = new Map<string, Set<string>>(functions.map((fn) => [fn.key, new Set()]));
   const root = (file: string, shortName: string, names: readonly string[]): void => {
@@ -1583,44 +1616,72 @@ function deriveProductDestinationGraph(): ProductDestinationGraph {
     for (const name of names) bindings.get(candidates[0]!.key)!.add(name);
   };
   root(files[1]!, "lock_command", ["status_lockfile", "lockfile"]);
-  root(files[1]!, "lock_verify_attestation", ["lockfile"]);
 
   const knownCalls = new Set(functions.map(({ identity }) => identity));
   let changed = true;
   while (changed) {
     changed = false;
+    const incoming = new Map<string, boolean[]>();
+    const fieldWrites = new Map<string, boolean[]>();
     for (const fn of functions) {
       const analysis = deriveDestinationDataflow(fn.source, [], {
         sanctionedCalls: sanctionedProductDestinationCalls,
         initialBindings: [...bindings.get(fn.key)!],
         trustedFields,
+        fieldTypes,
         knownCalls,
         bindingTypes: fn.bindingTypes,
         modulePath: fn.modulePath,
         ownerType: fn.ownerType,
       });
+      for (const write of analysis.fieldWrites) {
+        const values = fieldWrites.get(write.identity) ?? [];
+        values.push(write.derived);
+        fieldWrites.set(write.identity, values);
+      }
       for (const call of analysis.calls) {
         for (const target of byIdentity.get(call.name) ?? []) {
           if (target.file !== fn.file) continue;
           const implicitSelf = target.parameters[0] === "self" ? 1 : 0;
-          for (let index = 0; index < call.argumentsDerived.length; index += 1) {
-            const parameter = target.parameters[index + implicitSelf];
-            if (!parameter || !call.argumentsDerived[index]) continue;
-            const targetBindings = bindings.get(target.key)!;
-            if (!targetBindings.has(parameter)) {
-              targetBindings.add(parameter);
-              changed = true;
-            }
+          for (let index = implicitSelf; index < target.parameters.length; index += 1) {
+            const key = target.key + "#" + target.parameters[index]!;
+            const values = incoming.get(key) ?? [];
+            values.push(call.argumentsDerived[index - implicitSelf] ?? false);
+            incoming.set(key, values);
           }
         }
       }
     }
+    // A parameter is trusted only when EVERY incoming argument carries authority.
+    // Start with the declared roots; recursion without an independent seed stays false.
+    for (const fn of functions) {
+      for (const parameter of fn.parameters) {
+        const values = incoming.get(fn.key + "#" + parameter);
+        if (values?.length && values.every(Boolean) && !bindings.get(fn.key)!.has(parameter)) {
+          bindings.get(fn.key)!.add(parameter);
+          changed = true;
+        }
+      }
+    }
+    for (const [identity, values] of fieldWrites) {
+      if (values.length && values.every(Boolean) && !trustedFields.has(identity)) {
+        trustedFields.add(identity);
+        changed = true;
+      }
+    }
+  }
+  for (const identity of fieldTypes.keys()) {
+    assert.ok(
+      trustedFields.has(identity),
+      `destination field lost owner-function authority ${identity}`,
+    );
   }
   for (const [identity, binding] of [
     ["crate::daemon::write_endpoint", "path"],
     ["crate::daemon::cleanup_endpoint", "path"],
     ["crate::lock::publish_immutable_recorded_shard_verdict", "path"],
     ["crate::workspace_edit_transaction::write_transaction_lock_file", "lock_path"],
+    ["crate::workspace_edit_transaction::write_staged_product_bytes", "path"],
     ["crate::workspace_edit_transaction::write_transaction_journal_file", "path"],
     ["crate::workspace_edit_transaction::remove_if_exists", "path"],
   ] as const) {
@@ -1631,14 +1692,16 @@ function deriveProductDestinationGraph(): ProductDestinationGraph {
       `destination sink lost full-call-graph authority ${identity}#${binding}`,
     );
   }
-  productDestinationGraphCache = {
+  const graph: ProductDestinationGraph = {
+    fieldTypes,
     initialBindingsByFunction: bindings,
     trustedFields,
     bindingTypesByFunction: new Map(functions.map((fn) => [fn.key, fn.bindingTypes])),
     modulePathByFunction: new Map(functions.map((fn) => [fn.key, fn.modulePath])),
     ownerTypeByFunction: new Map(functions.map((fn) => [fn.key, fn.ownerType])),
   };
-  return productDestinationGraphCache;
+  productDestinationGraphCache.set(cacheKey, graph);
+  return graph;
 }
 
 function expressionDerived(
@@ -1724,6 +1787,81 @@ function transitionBindingType(
   );
 }
 
+function destinationFieldInitializers(
+  source: string,
+  options: DestinationDataflowOptions,
+): Array<{
+  offset: number;
+  identity: string;
+  expression: string;
+}> {
+  const structural = maskRustCommentsAndLiterals(source);
+  const rows: Array<{ offset: number; identity: string; expression: string }> = [];
+  for (const match of structural.matchAll(
+    /\b((?:[A-Za-z_][A-Za-z0-9_]*::)*[A-Z][A-Za-z0-9_]*)\s*\{/gu,
+  )) {
+    const type = resolvedRustTypeIdentity(
+      match[1]!,
+      options.modulePath ?? "crate",
+      options.ownerType,
+    );
+    if (!type || ![...(options.fieldTypes?.keys() ?? [])].some((key) => key.startsWith(type + ".")))
+      continue;
+    const open = match.index + match[0].lastIndexOf("{");
+    const close = matchingRustDelimiter(structural, open, "{", "}");
+    if (/^\s*=/u.test(structural.slice(close + 1))) continue;
+    let offset = open + 1;
+    const seen = new Set<string>();
+    for (const entry of splitTopLevelArguments(source.slice(open + 1, close))) {
+      const spelling = maskRustCommentsAndLiterals(entry).trim();
+      const field = spelling.match(/^([a-z_][a-z0-9_]*)(?:\s*:(?!:)|$)/u)?.[1];
+      if (field) {
+        const identity = type + "." + field;
+        if (options.fieldTypes?.has(identity)) {
+          seen.add(identity);
+          const colon = spelling.indexOf(":");
+          rows.push({
+            offset,
+            identity,
+            expression: colon < 0 ? field : spelling.slice(colon + 1),
+          });
+        }
+      }
+      offset += entry.length + 1;
+    }
+    for (const identity of options.fieldTypes?.keys() ?? []) {
+      if (identity.startsWith(type + ".") && !seen.has(identity)) {
+        rows.push({ offset: open, identity, expression: "<unresolved-field-initializer>" });
+      }
+    }
+  }
+  return rows;
+}
+
+function destinationCollectionWrites(source: string): Array<{
+  offset: number;
+  receiver: string;
+  method: string;
+  expression: string;
+}> {
+  const structural = maskRustCommentsAndLiterals(source);
+  return [
+    ...structural.matchAll(
+      /\b([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)?)\.(push|insert|extend)\s*\(/gu,
+    ),
+  ].map((match) => {
+    const open = match.index + match[0].lastIndexOf("(");
+    const close = matchingRustDelimiter(structural, open, "(", ")");
+    const arguments_ = splitTopLevelArguments(source.slice(open + 1, close));
+    return {
+      offset: match.index,
+      receiver: match[1]!,
+      method: match[2]!,
+      expression: arguments_[match[2] === "insert" ? 1 : 0] ?? "<missing-collection-value>",
+    };
+  });
+}
+
 function deriveDestinationDataflow(
   source: string,
   mutations: readonly FilesystemMutation[],
@@ -1742,6 +1880,29 @@ function deriveDestinationDataflow(
     new Map((options.initialBindings ?? []).map((binding) => [binding, true])),
   ];
   const typeScopes: Map<string, string>[] = [new Map(options.bindingTypes ?? [])];
+  const fieldAliasScopes: Map<string, string>[] = [new Map()];
+  const fieldWrites: Array<{ identity: string; derived: boolean }> = [];
+  const fieldIdentity = (expression: string): string | undefined => {
+    const spelling = stripOuterParens(maskRustCommentsAndLiterals(expression))
+      .replace(/^&\s*(?:mut\s+)?/u, "")
+      .trim();
+    const alias = nearestBindingType(fieldAliasScopes, spelling);
+    if (alias) return alias;
+    const access = spelling.match(/^([a-z_][a-z0-9_]*)\.([a-z_][a-z0-9_]*)$/u);
+    const type = access && nearestBindingType(typeScopes, access[1]!);
+    const identity = type && type + "." + access![2]!;
+    return identity && options.fieldTypes?.has(identity) ? identity : undefined;
+  };
+  const observeField = (identity: string, expression: string): void => {
+    const emptyCollection =
+      options.fieldTypes?.get(identity) === "Vec<PathBuf>" &&
+      /^\s*Vec::new\s*\(\s*\)\s*$/u.test(expression);
+    fieldWrites.push({
+      identity,
+      derived:
+        emptyCollection || expressionDerived(expression, scopes, effectiveOptions, typeScopes),
+    });
+  };
   const derivedByMutation = new Map<string, boolean>();
   const observedCalls: Array<{ name: string; argumentsDerived: readonly boolean[] }> = [];
   const unparsedConstructs: string[] = [];
@@ -1763,6 +1924,14 @@ function deriveDestinationDataflow(
     ...braces.map((event) => ({ ...event, type: "brace" as const })),
     ...transitions.map((transition) => ({ ...transition, type: "transition" as const })),
     ...calls.map((call) => ({ ...call, type: "call" as const })),
+    ...destinationFieldInitializers(source, options).map((field) => ({
+      ...field,
+      type: "field" as const,
+    })),
+    ...destinationCollectionWrites(source).map((write) => ({
+      ...write,
+      type: "collection" as const,
+    })),
     ...mutations.map((mutation) => ({ ...mutation, type: "mutation" as const })),
   ].toSorted((left, right) => left.offset - right.offset || (left.type === "brace" ? -1 : 1));
   for (const event of events) {
@@ -1770,10 +1939,21 @@ function deriveDestinationDataflow(
       if (event.open) {
         scopes.push(new Map());
         typeScopes.push(new Map());
+        fieldAliasScopes.push(new Map());
       } else if (scopes.length > 1) {
         scopes.pop();
         typeScopes.pop();
+        fieldAliasScopes.pop();
       }
+      continue;
+    }
+    if (event.type === "field") {
+      observeField(event.identity, event.expression);
+      continue;
+    }
+    if (event.type === "collection") {
+      const identity = fieldIdentity(event.receiver);
+      if (identity) observeField(identity, event.expression);
       continue;
     }
     if (event.type === "call") {
@@ -1789,6 +1969,31 @@ function deriveDestinationDataflow(
       const derived = expressionDerived(event.expression, scopes, effectiveOptions, typeScopes);
       const binding = simpleBindingPattern(event.pattern);
       const bindingType = transitionBindingType(event, typeScopes, effectiveOptions);
+      const destructure = event.pattern.match(/^([A-Z][A-Za-z0-9_:]*)\s*\{([^{}]+)\}$/u);
+      if (destructure) {
+        const type = resolvedRustTypeIdentity(
+          destructure[1]!,
+          options.modulePath ?? "crate",
+          options.ownerType,
+        );
+        for (const item of splitTopLevelArguments(destructure[2]!)) {
+          const field = item
+            .trim()
+            .match(/^([a-z_][a-z0-9_]*)(?:\s*:\s*(?:ref\s+)?(?:mut\s+)?([a-z_][a-z0-9_]*))?$/u);
+          if (!field || !type) continue;
+          const identity = type + "." + field[1]!;
+          const name = field[2] ?? field[1]!;
+          if (options.fieldTypes?.has(identity)) {
+            fieldAliasScopes.at(-1)!.set(name, identity);
+            scopes.at(-1)!.set(name, options.trustedFields?.has(identity) ?? false);
+          }
+        }
+        continue;
+      }
+      if (event.kind === "assign") {
+        const identity = fieldIdentity(event.pattern);
+        if (identity) observeField(identity, event.expression);
+      }
       if (event.letElse && derived) {
         unparsedConstructs.push("let-else-pattern");
       }
@@ -1808,6 +2013,8 @@ function deriveDestinationDataflow(
       if (event.kind === "let") {
         scopes.at(-1)!.set(binding, derived);
         if (bindingType) typeScopes.at(-1)!.set(binding, bindingType);
+        const identity = fieldIdentity(event.expression);
+        if (identity) fieldAliasScopes.at(-1)!.set(binding, identity);
       } else {
         setNearestBinding(scopes, binding, derived);
         setNearestBindingType(typeScopes, binding, bindingType);
@@ -1838,6 +2045,7 @@ function deriveDestinationDataflow(
     derivedByMutation,
     unparsedConstructs: [...new Set(unparsedConstructs)],
     calls: observedCalls,
+    fieldWrites,
   };
 }
 
@@ -1899,13 +2107,14 @@ function isProvenNonProductDestination(
   key: string,
   mutation: FilesystemMutation,
   functionSource: string,
+  graph: ProductDestinationGraph,
 ): boolean {
-  const graph = deriveProductDestinationGraph();
   const initialBindings = [...(graph.initialBindingsByFunction.get(key) ?? [])];
   const analysis = deriveDestinationDataflow(functionSource, filesystemMutations(functionSource), {
     sanctionedCalls: sanctionedProductDestinationCalls,
     initialBindings,
     trustedFields: graph.trustedFields,
+    fieldTypes: graph.fieldTypes,
     bindingTypes: graph.bindingTypesByFunction.get(key),
     modulePath: graph.modulePathByFunction.get(key),
     ownerType: graph.ownerTypeByFunction.get(key),
@@ -1928,6 +2137,13 @@ function assertClassificationRole(site: WriteSite, apis: ReadonlySet<string>): v
     );
   }
   if (site.classification === "transaction-staging") {
+    if (!requiresNonProductDestination(site)) {
+      assert.deepEqual(
+        [...apis],
+        ["rename"],
+        "transaction publication may only rename staged bytes",
+      );
+    }
     assert.ok(
       new Set([
         `${transactionModulePath}#crate::workspace_edit_transaction::WorkspaceEditTransaction::rename_all`,

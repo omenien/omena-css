@@ -878,7 +878,7 @@ export const DECLARED_CHECK_GATES = [
     tags: ["precision", "mutation", "manual"],
     ciTier: "manual",
     ciReason:
-      "The complete mutation corpus is a manual diagnostic lane; the blocking precision-floor gate independently re-derives a challenged fixture on every push.",
+      "Manual diagnostic mutations of the advisory precision-floor checker; its assertions are counted pending retirement and do not establish push-time precision enforcement.",
     timeoutMinutes: 20,
   },
   declaredClosurePackageGate("rust/omena-cascade/boundary", "bundle", "rust", 25),
@@ -1119,9 +1119,9 @@ export const DECLARED_CHECK_GATES = [
     kind: "gate",
     scope: "rust",
     packageTarget: "rust/census-instrument-s0",
-    tags: ["rust-workspace", "census", "refusal"],
-    ciTier: "rust-workspace",
-    ciGroup: "rust-workspace",
+    tags: ["rust", "census", "refusal", "scheduled"],
+    ciTier: "scheduled",
+    ciGroup: "census",
     timeoutMinutes: 45,
   },
   {

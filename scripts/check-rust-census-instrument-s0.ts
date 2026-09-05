@@ -17,6 +17,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DECLARED_CHECK_GATES } from "../packages/check-orchestrator/src/manifest/declared";
 import { banGateArgv, rustNamedFunctions } from "./lib/rust-write-authority";
+import {
+  RETIRED_INSTRUMENT,
+  CENSUS_ROW_IDS,
+  assertCensusPopulation,
+  assertNoLiteralRowSelection,
+  checkerInventory,
+} from "./lib/census-instrument-evidence";
 
 type Home = "compiler" | "clippy" | "instrument";
 
@@ -33,9 +40,11 @@ interface Gate {
     | "compiler"
     | "clippy-ban"
     | "precision-authority"
+    | "precision-family"
     | "fs-acquisition-census"
     | "write-safety";
   readonly package?: string;
+  readonly familyMemberKind?: "production" | "test";
 }
 
 interface TextMutation {
@@ -225,6 +234,7 @@ function failureMechanism(gate: Gate): FailureMechanism {
       return "cargo-check";
     case "clippy-ban":
       return "deny-clippy";
+    case "precision-family":
     case "precision-authority":
     case "fs-acquisition-census":
     case "write-safety":
@@ -252,7 +262,7 @@ function validateExitCode(receipt: CommandReceipt, gate: Gate): void {
 }
 
 function validateAuthority(authority: Authority): void {
-  assert.ok(authority.s0Rows.length >= 1, "census row table is empty");
+  assertCensusPopulation(authority.s0Rows.map(({ id }) => id));
   const authorityIds = authority.s0Rows.map(({ id }) => id).toSorted(compareCodePoint);
   assert.equal(new Set(authorityIds).size, authorityIds.length, "duplicate census row id");
   for (const row of authority.s0Rows) {
@@ -263,6 +273,11 @@ function validateAuthority(authority: Authority): void {
       `expected kind and gate disagree ${row.id}`,
     );
     assert.ok(row.mutations.length >= 1, `injection recipe missing ${row.id}`);
+    assert.equal(
+      row.gate.familyMemberKind === "production" || row.gate.familyMemberKind === "test",
+      row.gate.kind === "precision-family",
+      `family population mechanism missing or misplaced ${row.id}`,
+    );
     if (row.gate.kind === "compiler") {
       assert.ok(row.gate.package, `compiler package missing ${row.id}`);
     } else {
@@ -303,14 +318,7 @@ function needsBaselineWriteSafety(row: S0Row): boolean {
 }
 
 function assertNoPerRowControlFlow(): void {
-  const source = readFileSync(fileURLToPath(import.meta.url), "utf8");
-  const literalBranch = new RegExp(
-    "\\b(?:if|else\\s+if)\\s*\\([^\\n]*(?:row\\s*\\.\\s*id|rowId)\\s*={2,3}\\s*[\"']",
-    "u",
-  );
-  const literalSwitch = new RegExp("\\bswitch\\s*\\(\\s*(?:row\\s*\\.\\s*id|rowId)\\s*\\)", "u");
-  assert.doesNotMatch(source, literalBranch, "per-row literal branch is forbidden");
-  assert.doesNotMatch(source, literalSwitch, "per-row switch is forbidden");
+  assertNoLiteralRowSelection(readFileSync(fileURLToPath(import.meta.url), "utf8"));
 }
 
 function safeRelativeFile(root: string, relative: string): string {
@@ -494,6 +502,7 @@ function commandFor(root: string, row: S0Row): CommandSpec {
       const args = [...banGateArgv(root).cargoArgs];
       return { executable: "cargo", args, argv: ["cargo", ...args] };
     }
+    case "precision-family":
     case "precision-authority": {
       const args = ["--import", "tsx", "scripts/check-rust-precision-authority.ts"];
       return { executable: process.execPath, args, argv: ["node", ...args] };
@@ -577,10 +586,7 @@ function familyPopulationReceipt(
   row: S0Row,
   authority: Authority,
 ): FamilyPopulationReceipt | null {
-  const prefix = "refusalPrefix" in row.expected ? row.expected.refusalPrefix : null;
-  const isUnregisteredCall = prefix === "unregistered sealed-family call site ";
-  const isProductionTestCall = prefix === "production reaches test constructor ";
-  if (!isUnregisteredCall && !isProductionTestCall) return null;
+  if (row.gate.kind !== "precision-family") return null;
 
   const args = ["--import", "tsx", "scripts/check-rust-precision-authority.ts", "--print-baseline"];
   const command = executeCommand(root, {
@@ -597,9 +603,10 @@ function familyPopulationReceipt(
   const newCallSites = population.familyCallSites.filter(
     (site) => !registered.has(callIdentity(site)),
   );
-  const relevantCallSites = isProductionTestCall
-    ? newCallSites.filter(({ member }) => member === "from_axes_for_tests")
-    : newCallSites.filter(({ member }) => member !== "from_axes_for_tests");
+  const relevantCallSites =
+    row.gate.familyMemberKind === "test"
+      ? newCallSites.filter(({ member }) => member === "from_axes_for_tests")
+      : newCallSites.filter(({ member }) => member !== "from_axes_for_tests");
   assert.ok(relevantCallSites.length >= 1, "injected family call site is absent");
   const touchedRustFiles = new Set(
     row.mutations.map(({ file }) => file).filter((file) => file.endsWith(".rs")),
@@ -697,25 +704,6 @@ function firstAssertion(receipt: CommandReceipt): string | null {
   );
 }
 
-function checkerInventory(
-  checkerPath: string,
-  source: string,
-): Array<{ readonly identity: string; readonly kind: "assert" | "blockBody" }> {
-  const rows: Array<{ identity: string; kind: "assert" | "blockBody" }> = [];
-  for (const [kind, pattern] of [
-    ["assert", /\bassert(?:\.[A-Za-z_$][\w$]*)?\s*\(/gu],
-    ["blockBody", /\bblockBody\s*\(/gu],
-  ] as const) {
-    for (const match of source.matchAll(pattern)) {
-      const line = source.slice(0, match.index).split("\n").length;
-      rows.push({ identity: `${checkerPath}:${line}`, kind });
-    }
-  }
-  return rows.toSorted((left, right) =>
-    compareCodePoint(`${left.kind}\0${left.identity}`, `${right.kind}\0${right.identity}`),
-  );
-}
-
 function validateDemotion(): AuthorityValidationReceipt["demotion"] {
   const gateId = "rust/precision-floor" as const;
   const declarations = DECLARED_CHECK_GATES.filter(({ id }) => id === gateId);
@@ -792,13 +780,27 @@ function validateDemotion(): AuthorityValidationReceipt["demotion"] {
 }
 
 function validateCurrentAuthority(authority: Authority): AuthorityValidationReceipt {
-  const checker = safeRelativeFile(repoRoot, authority.retiredInstrument.path);
+  assert.equal(
+    authority.retiredInstrument.path,
+    RETIRED_INSTRUMENT.path,
+    "retired instrument path drifted",
+  );
+  const checker = safeRelativeFile(repoRoot, RETIRED_INSTRUMENT.path);
   const checkerBytes = readFileSync(checker);
   const checkerDigest = sha256(checkerBytes);
+  const pinnedBytes = git(repoRoot, [
+    "show",
+    `${RETIRED_INSTRUMENT.pin}:${RETIRED_INSTRUMENT.path}`,
+  ]);
   assert.equal(
     checkerDigest,
+    sha256(pinnedBytes),
+    `retired instrument edited ${RETIRED_INSTRUMENT.path}`,
+  );
+  assert.equal(
     authority.retiredInstrument.baselineSha256,
-    `retired instrument edited ${authority.retiredInstrument.path}`,
+    sha256(pinnedBytes),
+    "retired instrument metadata digest drifted",
   );
 
   const inventory = checkerInventory(authority.retiredInstrument.path, checkerBytes.toString());
@@ -941,16 +943,17 @@ function treeDigest(
   return sha256(`${JSON.stringify(files)}\0${JSON.stringify(argv)}`);
 }
 
-function runRow(
-  row: S0Row,
+function withScratchMutation<T>(
+  label: string,
   replay: number,
   scratchParent: string,
-  authority: Authority,
-): RowExecutionReceipt {
-  const root = path.join(scratchParent, `${String(replay).padStart(2, "0")}-${row.id}`);
+  mutations: readonly Mutation[],
+  run: (root: string, touched: readonly string[]) => T,
+): T {
+  const root = path.join(scratchParent, `${String(replay).padStart(2, "0")}-${label}`);
   git(repoRoot, ["worktree", "add", "--detach", "--quiet", root, "HEAD"]);
   try {
-    assert.deepEqual(changedPaths(root), [], `scratch baseline is dirty ${row.id}`);
+    assert.deepEqual(changedPaths(root), [], `scratch baseline is dirty ${label}`);
     const nodeModules = path.join(repoRoot, "node_modules");
     assert.ok(existsSync(nodeModules), "workspace node_modules is unavailable");
     symlinkSync(
@@ -958,8 +961,23 @@ function runRow(
       path.join(root, "node_modules"),
       process.platform === "win32" ? "junction" : "dir",
     );
-    const touched = applyMutations(root, row.mutations);
-    assert.deepEqual(changedPaths(root), touched, `injected file set diverged ${row.id}`);
+    const touched = applyMutations(root, mutations);
+    assert.deepEqual(changedPaths(root), touched, `injected file set diverged ${label}`);
+    const result = run(root, touched);
+    assert.deepEqual(changedPaths(root), touched, `control mutated injected file set ${label}`);
+    return result;
+  } finally {
+    git(repoRoot, ["worktree", "remove", "--force", root]);
+  }
+}
+
+function runRow(
+  row: S0Row,
+  replay: number,
+  scratchParent: string,
+  authority: Authority,
+): RowExecutionReceipt {
+  return withScratchMutation(row.id, replay, scratchParent, row.mutations, (root, touched) => {
     const files = inputFiles(root, touched);
     const spec = commandFor(root, row);
     const inputTreeDigest = treeDigest(files, spec.argv);
@@ -986,9 +1004,223 @@ function runRow(
       observedSignature,
       baselineWriteSafety,
     };
-  } finally {
-    git(repoRoot, ["worktree", "remove", "--force", root]);
+  });
+}
+
+interface ProofControl {
+  readonly id: string;
+  readonly mutations: readonly Mutation[];
+  readonly command: CommandSpec;
+  readonly expectedExit: number;
+  readonly expectedText: string;
+  readonly mustCompile?: CommandSpec;
+}
+
+function proofControls(authority: Authority): ProofControl[] {
+  const nodeCommand = (script: string, ...options: string[]): CommandSpec => {
+    const args = ["--import", "tsx", script, ...options];
+    return { executable: process.execPath, args, argv: ["node", ...args] };
+  };
+  const cargoCommand = (
+    operation: string,
+    packageName: string,
+    ...options: string[]
+  ): CommandSpec => {
+    const args = [operation, "--manifest-path", "rust/Cargo.toml", "-p", packageName, ...options];
+    return { executable: "cargo", args, argv: ["cargo", ...args] };
+  };
+  const authorityCommand = nodeCommand(
+    "scripts/check-rust-census-instrument-s0.ts",
+    "--authority-only",
+  );
+  const precisionPath = "rust/crates/omena-evidence-graph/src/analysis_precision.rs";
+  const doctests = cargoCommand("test", "omena-evidence-graph", "--doc");
+  const controls: ProofControl[] = [
+    {
+      id: "axis-positive-twins",
+      mutations: [],
+      command: doctests,
+      expectedExit: 0,
+      expectedText: "test result: ok.",
+    },
+  ];
+  for (const [field, type] of [
+    ["value_domain", "ValueDomainPrecisionV1"],
+    ["flow", "FlowPrecisionV1"],
+    ["context", "ContextPrecisionV1"],
+    ["provider_completeness", "ProviderCompletenessV1"],
+    ["world_assumption", "WorldAssumptionV1"],
+    ["revision", "RevisionIdentityV1"],
+  ] as const) {
+    controls.push({
+      id: "axis-public-" + field,
+      mutations: [
+        {
+          kind: "replace",
+          file: precisionPath,
+          match: "\n    " + field + ": " + type + ",",
+          replacement: "\n    pub " + field + ": " + type + ",",
+        },
+      ],
+      mustCompile: cargoCommand("check", "omena-evidence-graph", "--lib"),
+      command: doctests,
+      expectedExit: 101,
+      expectedText: "Test compiled successfully, but it's marked `compile_fail`.",
+    });
   }
+  for (const [field, type] of [
+    ["provider_completeness", "ProviderCompletenessV1"],
+    ["world_assumption", "WorldAssumptionV1"],
+  ] as const) {
+    controls.push({
+      id: "semver-declaration-" + field,
+      mutations: [
+        {
+          kind: "replace",
+          file: precisionPath,
+          match: "\n    " + field + ": " + type + ",",
+          replacement: "",
+        },
+      ],
+      command: nodeCommand("scripts/check-rust-release-semver.ts", "--validate-intents-only"),
+      expectedExit: 1,
+      expectedText: 'is missing evidence "' + field + ": " + type + '"',
+    });
+  }
+  for (const missing of CENSUS_ROW_IDS) {
+    controls.push({
+      id: "population-without-" + missing,
+      mutations: [
+        {
+          kind: "json-set",
+          file: "rust/census-instrument-s0.json",
+          valuePath: ["s0Rows"],
+          value: authority.s0Rows.filter(({ id }) => id !== missing),
+        },
+      ],
+      command: authorityCommand,
+      expectedExit: 1,
+      expectedText: "census row missing " + missing,
+    });
+  }
+  const checkerSource = readFileSync(path.join(repoRoot, RETIRED_INSTRUMENT.path), "utf8");
+  const assertFrom =
+    "assert.match(analysisPrecision, new RegExp(" +
+    String.fromCharCode(96) +
+    "pub ${field}: ${axisType}" +
+    String.fromCharCode(96) +
+    ', "u"));';
+  const assertTo = 'assert.match(analysisPrecision, new RegExp("", "u"));';
+  const mutatedChecker = checkerSource.replace(assertFrom, assertTo);
+  assert.notEqual(mutatedChecker, checkerSource, "retired instrument control did not apply");
+  controls.push({
+    id: "retired-instrument-self-digest",
+    mutations: [
+      { kind: "replace", file: RETIRED_INSTRUMENT.path, match: assertFrom, replacement: assertTo },
+      {
+        kind: "json-set",
+        file: "rust/census-instrument-s0.json",
+        valuePath: ["retiredInstrument", "baselineSha256"],
+        value: sha256(mutatedChecker),
+      },
+    ],
+    command: authorityCommand,
+    expectedExit: 1,
+    expectedText: "retired instrument edited " + RETIRED_INSTRUMENT.path,
+  });
+  const tick = String.fromCharCode(96);
+  for (const [index, selection] of [
+    'return row.id == "a1";',
+    'return row.id === "a1";',
+    'return "a1" === row.id;',
+    'return ["a1"].includes((row.id));',
+    'switch ((row.id)) { case "a1": return true; }',
+    "return " + tick + "f" + tick + " === (row.id);",
+    'return row.expected.refusal === "binding does not exercise";',
+    'const id = "a1"; return row.id === id;',
+    'const ids = ["a1"]; return ids.includes(row.id);',
+  ].entries()) {
+    controls.push({
+      id: "literal-row-selector-" + index,
+      mutations: [
+        {
+          kind: "append",
+          file: "scripts/check-rust-census-instrument-s0.ts",
+          text: "\nfunction injectedSelector(row: any) { " + selection + " }\n",
+        },
+      ],
+      command: authorityCommand,
+      expectedExit: 1,
+      expectedText: "per-row literal selection is forbidden",
+    });
+  }
+  controls.push({
+    id: "literal-row-shared-constant",
+    mutations: [
+      {
+        kind: "append",
+        file: "scripts/check-rust-census-instrument-s0.ts",
+        text: '\nconst sharedRowId = "a1";\nfunction injectedSharedSelector(row: any) { return row.id === sharedRowId; }\n',
+      },
+    ],
+    command: authorityCommand,
+    expectedExit: 1,
+    expectedText: "per-row literal selection is forbidden",
+  });
+  controls.push({
+    id: "staging-destination-rewired",
+    mutations: [
+      {
+        kind: "replace",
+        file: "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+        match: "write_staged_product_bytes(\n                stage_path.as_path(),",
+        replacement: "write_staged_product_bytes(\n                edit.path.as_path(),",
+      },
+    ],
+    mustCompile: cargoCommand("check", "omena-cli"),
+    command: nodeCommand("scripts/check-rust-omena-write-safety.ts"),
+    expectedExit: 1,
+    expectedText:
+      "destination sink lost full-call-graph authority crate::workspace_edit_transaction::write_staged_product_bytes#path",
+  });
+  return controls;
+}
+
+function runProofControl(control: ProofControl, scratchParent: string) {
+  return withScratchMutation(control.id, 0, scratchParent, control.mutations, (root, touched) => {
+    const files = inputFiles(root, touched);
+    const compilation = control.mustCompile ? executeCommand(root, control.mustCompile) : null;
+    if (compilation)
+      assert.equal(
+        compilation.exitCode,
+        0,
+        "control stopped compiling " + control.id + "\n" + compilation.stderr,
+      );
+    const command = executeCommand(root, control.command);
+    assert.equal(
+      command.exitCode,
+      control.expectedExit,
+      "proof control lost refusal " + control.id + "\n" + command.stdout + command.stderr,
+    );
+    assert.ok(
+      (command.stdout + command.stderr).includes(control.expectedText),
+      "proof control signature missing " + control.id + "\n" + command.stdout + command.stderr,
+    );
+    assert.deepEqual(
+      inputFiles(root, touched),
+      files,
+      "proof control mutated its operands " + control.id,
+    );
+    return {
+      id: control.id,
+      inputFiles: files,
+      inputTreeDigest: treeDigest(files, control.command.argv),
+      compilation,
+      command,
+      expectedExit: control.expectedExit,
+      expectedText: control.expectedText,
+    };
+  });
 }
 
 function argumentValues(name: string): string[] {
@@ -1025,11 +1257,24 @@ if (process.argv.includes("--authority-only")) {
 const authorityIds = new Set(authority.s0Rows.map(({ id }) => id));
 const requested = new Set(argumentValues("--row"));
 for (const id of requested) assert.ok(authorityIds.has(id), `unknown requested row ${id}`);
-const selectedRows = authority.s0Rows.filter(({ id }) => requested.size === 0 || requested.has(id));
-assert.ok(selectedRows.length >= 1, "no S0 rows selected");
+const controlsOnly = process.argv.includes("--controls-only");
+assert.ok(!controlsOnly || requested.size === 0, "--controls-only cannot select rows");
+const selectedRows = controlsOnly
+  ? []
+  : authority.s0Rows.filter(({ id }) => requested.size === 0 || requested.has(id));
+assert.ok(controlsOnly || selectedRows.length >= 1, "no S0 rows selected");
 const scratchParent = mkdtempSync(path.join(os.tmpdir(), "omena-census-s0-"));
 const receipts: RowExecutionReceipt[] = [];
+const controlReceipts: ReturnType<typeof runProofControl>[] = [];
 try {
+  if (requested.size === 0) {
+    for (const control of proofControls(authority)) {
+      controlReceipts.push(runProofControl(control, scratchParent));
+      process.stderr.write(
+        `proof control ${control.id} observed declared exit ${control.expectedExit}\n`,
+      );
+    }
+  }
   for (const row of selectedRows) {
     const first = runRow(row, 1, scratchParent, authority);
     process.stderr.write(`S0 ${row.id} replay 1/2 ${first.observedSignature}\n`);
@@ -1135,6 +1380,7 @@ const fullReceipt = {
   cleanReplayCount: receipts.filter(({ replay }) => replay === 2).length,
   authorityValidation,
   rows: receipts,
+  controls: controlReceipts,
 };
 const writeTargets = argumentValues("--write");
 assert.ok(writeTargets.length <= 1, "--write may be specified at most once");
@@ -1154,6 +1400,8 @@ process.stdout.write(
       executionReceiptCount: fullReceipt.executionReceiptCount,
       cleanReplayCount: fullReceipt.cleanReplayCount,
       receiptSha256: sha256(JSON.stringify(fullReceipt)),
+      executorSha256: fullReceipt.executorSha256,
+      controlExecutionCount: controlReceipts.length,
       rows: selectedRows.map(({ id }) => {
         const first = receipts.find((receipt) => receipt.rowId === id && receipt.replay === 1)!;
         return {

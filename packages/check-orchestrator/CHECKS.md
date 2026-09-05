@@ -12,7 +12,7 @@ Total gates: 606
 | release | 31 | 2 | 0 | 8 | 15 | 16 | 16 | 7 |
 | tsgo | 6 | 1 | 1 | 0 | 0 | 6 | 2 | 3 |
 | ts7 | 17 | 7 | 0 | 0 | 1 | 16 | 2 | 11 |
-| rust | 465 | 49 | 13 | 27 | 226 | 239 | 241 | 115 |
+| rust | 465 | 49 | 13 | 27 | 225 | 240 | 240 | 116 |
 | plugin | 12 | 1 | 0 | 0 | 12 | 0 | 12 | 0 |
 | contract | 14 | 1 | 0 | 1 | 10 | 4 | 10 | 0 |
 | docs | 10 | 1 | 0 | 1 | 9 | 1 | 9 | 0 |
@@ -127,7 +127,7 @@ Total gates: 606
 | `rust/benchmark/z5/macro` | alias | package | push | blocking | `benchmark:z5:macro` | `check:rust-omena-lsp-server-runtime-loop` |  |
 | `rust/benchmark/z5/micro` | command | package | manual | advisory | `benchmark:z5:micro` |  |  |
 | `rust/bundler-productization-benchmark` | gate | package | push | blocking | `check:rust-bundler-productization-benchmark` |  |  |
-| `rust/census-instrument-s0` | gate | package+declared | push | blocking | `check:rust-census-instrument-s0` |  | ci `rust-workspace`; group `rust-workspace` |
+| `rust/census-instrument-s0` | gate | package+declared | nightly | advisory | `check:rust-census-instrument-s0` |  | ci `scheduled`; group `census` |
 | `rust/checker-source-missing/canonical-candidate` | gate | package | nightly | advisory | `check:rust-checker-source-missing-canonical-candidate` |  |  |
 | `rust/checker-source-missing/canonical-producer` | gate | package | nightly | advisory | `check:rust-checker-source-missing-canonical-producer` |  |  |
 | `rust/checker-source-missing/consumer-boundary` | gate | package | nightly | advisory | `check:rust-checker-source-missing-consumer-boundary` |  |  |
@@ -497,7 +497,7 @@ Total gates: 606
 | `rust/phase-2-swap-readiness` | bundle | package | manual | advisory | `check:rust-phase-2-swap-readiness` | `check:provider-host-routing-boundary`, `check:rust-checker-release-gate-shadow`, `check:rust-lsp-runtime-loop`, `check:rust-omena-lsp-server-lane`, `check:rust-selected-query-default-candidate` |  |
 | `rust/precision-authority` | gate | package+declared | push | blocking | `check:rust-precision-authority` |  | ci `rust-workspace`; group `rust-workspace` |
 | `rust/precision-floor` | gate | package+declared | manual | advisory | `check:rust-precision-floor` |  | ci `manual`; reason Rust diagnostics maintainers retain the legacy spelling-based precision checker as an advisory manual diagnostic while its assertions are counted for successor instrumentation. |
-| `rust/precision-floor-mutations` | gate | package+declared | manual | advisory | `check:rust-precision-floor-mutations` |  | ci `manual`; reason The complete mutation corpus is a manual diagnostic lane; the blocking precision-floor gate independently re-derives a challenged fixture on every push. |
+| `rust/precision-floor-mutations` | gate | package+declared | manual | advisory | `check:rust-precision-floor-mutations` |  | ci `manual`; reason Manual diagnostic mutations of the advisory precision-floor checker; its assertions are counted pending retirement and do not establish push-time precision enforcement. |
 | `rust/producer-boundary` | bundle | package | nightly | advisory | `check:rust-producer-boundary` | `check:rust-semantic-lane`, `check:rust-source-side-lane` |  |
 | `rust/product-facing-capability` | alias | declared | push | blocking | `@declared/rust/product-facing-capability` | `check:rust-m2-product-facing-capability` | replaces `rust/m2-product-facing-capability`, `check:rust-m2-product-facing-capability`; ci `closure-fast`; group `closure-fast` |
 | `rust/product-lab-closure` | gate | package+declared | push | blocking | `check:rust-product-lab-closure` |  | ci `closure-fast`; group `closure-fast` |

@@ -301,7 +301,7 @@
     "check:rust-omena-write-safety": "node --import tsx ./scripts/check-rust-omena-write-safety.ts",
     "check:rust-precision-authority": "node --import tsx ./scripts/check-rust-precision-authority.ts",
     "check:dual-pin-product-bytes": "node --import tsx ./scripts/check-dual-pin-product-bytes.ts",
-    "check:rust-census-instrument-s0": "node --import tsx ./scripts/check-rust-census-instrument-s0.ts",
+    "check:rust-census-instrument-s0": "node --import tsx ./scripts/check-rust-census-instrument-s0.ts --write .omena-ci/census-instrument-receipt.json",
     "check:rust-fs-acquisition-census": "node --import tsx ./scripts/check-rust-fs-acquisition-census.ts",
     "check:rust-fs-capability-ban": "node --import tsx ./scripts/check-rust-fs-capability-partition.ts && node --import tsx ./scripts/check-rust-fs-capability-ban.ts",
     "check:rust-omena-query-adapter-capabilities": "node --import tsx ./scripts/check-rust-omena-query-adapter-capabilities.ts",

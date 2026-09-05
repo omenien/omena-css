@@ -49,7 +49,7 @@ use super::{
 /// assert_eq!(QueryPrecision::floor(), AnalysisPrecisionV1::unknown());
 /// ```
 ///
-/// An axis cannot be assigned directly (`E0616`):
+/// The context axis cannot be assigned directly (`E0616`):
 ///
 /// ```compile_fail,E0616
 /// use omena_evidence_graph::{AnalysisPrecisionV1, ContextPrecisionV1};
@@ -66,6 +66,80 @@ use super::{
 /// let precision = AnalysisPrecisionV1::unknown()
 ///     .with_context(ContextPrecisionV1::KLimitedCallSite);
 /// assert_eq!(precision.context(), ContextPrecisionV1::KLimitedCallSite);
+/// ```
+///
+/// Each other axis has its own assignment refusal and public setter twin. A
+/// compile-fail block mentions only one private field, so another private field
+/// cannot accidentally keep the proof green when that axis becomes public.
+///
+/// Value domain:
+///
+/// ```compile_fail,E0616
+/// use omena_evidence_graph::{AnalysisPrecisionV1, ValueDomainPrecisionV1};
+/// let mut precision = AnalysisPrecisionV1::unknown();
+/// precision.value_domain = ValueDomainPrecisionV1::Unknown;
+/// ```
+///
+/// ```
+/// use omena_evidence_graph::{AnalysisPrecisionV1, ValueDomainPrecisionV1};
+/// let precision = AnalysisPrecisionV1::unknown().with_value_domain(ValueDomainPrecisionV1::Unknown);
+/// assert_eq!(precision.value_domain(), ValueDomainPrecisionV1::Unknown);
+/// ```
+///
+/// Flow sensitivity:
+///
+/// ```compile_fail,E0616
+/// use omena_evidence_graph::{AnalysisPrecisionV1, FlowPrecisionV1};
+/// let mut precision = AnalysisPrecisionV1::unknown();
+/// precision.flow = FlowPrecisionV1::Unknown;
+/// ```
+///
+/// ```
+/// use omena_evidence_graph::{AnalysisPrecisionV1, FlowPrecisionV1};
+/// let precision = AnalysisPrecisionV1::unknown().with_flow(FlowPrecisionV1::Unknown);
+/// assert_eq!(precision.flow(), FlowPrecisionV1::Unknown);
+/// ```
+///
+/// Provider completeness:
+///
+/// ```compile_fail,E0616
+/// use omena_evidence_graph::{AnalysisPrecisionV1, ProviderCompletenessV1};
+/// let mut precision = AnalysisPrecisionV1::unknown();
+/// precision.provider_completeness = ProviderCompletenessV1::Unknown;
+/// ```
+///
+/// ```
+/// use omena_evidence_graph::{AnalysisPrecisionV1, ProviderCompletenessV1};
+/// let precision = AnalysisPrecisionV1::unknown().with_provider_completeness(ProviderCompletenessV1::Unknown);
+/// assert_eq!(precision.provider_completeness(), ProviderCompletenessV1::Unknown);
+/// ```
+///
+/// World assumption:
+///
+/// ```compile_fail,E0616
+/// use omena_evidence_graph::{AnalysisPrecisionV1, WorldAssumptionV1};
+/// let mut precision = AnalysisPrecisionV1::unknown();
+/// precision.world_assumption = WorldAssumptionV1::Unknown;
+/// ```
+///
+/// ```
+/// use omena_evidence_graph::{AnalysisPrecisionV1, WorldAssumptionV1};
+/// let precision = AnalysisPrecisionV1::unknown().with_world_assumption(WorldAssumptionV1::Unknown);
+/// assert_eq!(precision.world_assumption(), WorldAssumptionV1::Unknown);
+/// ```
+///
+/// Revision identity:
+///
+/// ```compile_fail,E0616
+/// use omena_evidence_graph::{AnalysisPrecisionV1, RevisionIdentityV1};
+/// let mut precision = AnalysisPrecisionV1::unknown();
+/// precision.revision = RevisionIdentityV1::Unknown;
+/// ```
+///
+/// ```
+/// use omena_evidence_graph::{AnalysisPrecisionV1, RevisionIdentityV1};
+/// let precision = AnalysisPrecisionV1::unknown().with_revision(RevisionIdentityV1::Unknown);
+/// assert_eq!(precision.revision(), RevisionIdentityV1::Unknown);
 /// ```
 ///
 /// A trait implementation in another crate cannot return a struct expression (`E0451`):

@@ -83,12 +83,12 @@
   "exit": {
     "sourceRef": null,
     "domain": {
-      "trackedFileCount": 2798,
-      "textualFileCount": 2798,
+      "trackedFileCount": 2801,
+      "textualFileCount": 2801,
       "nulExcludedCount": 0,
       "bootstrapUntrackedFileCount": 0,
       "deletedTrackedFileCount": 0,
-      "fileListSha256": "307550b68efdb787760df7e08cedc3543155a27d44f90cadaeff947bb5e39e8b"
+      "fileListSha256": "12f09dd47d890b7d0f653e0dacec52a9cffe742d9dfbe47904eba008e17091a7"
     },
     "occurrenceCount": 1869,
     "dispositionCounts": {

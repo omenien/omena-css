@@ -238,7 +238,7 @@ function lineNumber(source: string, offset: number): number {
   return source.slice(0, offset).split("\n").length;
 }
 
-export function maskRustCommentsAndLiterals(source: string): string {
+export function maskRustCommentsAndLiterals(source: string, preserveLiterals = false): string {
   const output = source.split("");
   const blank = (start: number, end: number): void => {
     for (let index = start; index < end; index += 1) {
@@ -279,7 +279,7 @@ export function maskRustCommentsAndLiterals(source: string): string {
       cursor += raw[0].length;
       const end = source.indexOf(terminator, cursor);
       cursor = end < 0 ? source.length : end + terminator.length;
-      blank(start, cursor);
+      if (!preserveLiterals) blank(start, cursor);
       continue;
     }
     if (source[cursor] === '"') {
@@ -292,7 +292,7 @@ export function maskRustCommentsAndLiterals(source: string): string {
         else if (current === "\\") escaped = true;
         else if (current === '"') break;
       }
-      blank(start, cursor);
+      if (!preserveLiterals) blank(start, cursor);
       continue;
     }
     const character = source
@@ -301,7 +301,7 @@ export function maskRustCommentsAndLiterals(source: string): string {
     if (character) {
       const start = cursor;
       cursor += character[0].length;
-      blank(start, cursor);
+      if (!preserveLiterals) blank(start, cursor);
       continue;
     }
     cursor += 1;

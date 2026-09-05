@@ -86,6 +86,7 @@ interface SplitManifest {
 }
 
 interface CapturedOutput {
+  readonly receiptPath: string;
   readonly relativePath: string;
   readonly bytes: Buffer;
 }
@@ -129,13 +130,25 @@ try {
     headPrecision.producerGateArms,
   );
   compareProductSnapshots(baselineProduct, headProduct);
+  const relocatedProduct = captureProductSnapshot(
+    headTree,
+    cargoTargetDir,
+    "relocated HEAD",
+    "relocated",
+  );
+  for (const command of productCommandIds()) {
+    assert.deepEqual(
+      headProduct[command].map(({ receiptPath }) => receiptPath),
+      relocatedProduct[command].map(({ receiptPath }) => receiptPath),
+      `receipt identities depend on the corpus root ${command}`,
+    );
+  }
   const outputDriftMutation = exerciseOutputDriftMutation(baselineProduct, headProduct);
 
   const productOutputs = productCommandIds().flatMap((commandId) =>
     baselineProduct[commandId].map((output) => ({
       command: commandId,
-      path: output.relativePath,
-      sha256: sha256(output.bytes),
+      path: output.receiptPath,
     })),
   );
   process.stdout.write(
@@ -159,6 +172,10 @@ try {
           producerArmSha256: sha256(baselinePrecision.producerGateArms),
         },
         productBytes: {
+          comparisonBasis: "unmodified bytes at the same corpus root on both pins",
+          receiptBasis:
+            "path identities only: corpus-relative outputs and manifest-derived split names; path-bearing content hashes are not recorded",
+          rootRelocationChecked: true,
           commandCount: productCommandIds().length,
           outputCount: productOutputs.length,
           outputs: productOutputs,
@@ -279,6 +296,7 @@ function captureProductSnapshot(
   treeRoot: string,
   cargoTargetDir: string,
   label: string,
+  location = "shared",
 ): ProductSnapshot {
   runChecked(
     `${label} omena build`,
@@ -300,16 +318,20 @@ function captureProductSnapshot(
   assert.ok(existsSync(binaryPath), `${label} omena binary was not built`);
 
   return {
-    format: runProductCommand(binaryPath, "format"),
-    minify: runProductCommand(binaryPath, "minify"),
-    build: runProductCommand(binaryPath, "build"),
-    sif: runProductCommand(binaryPath, "sif"),
-    bundle: runProductCommand(binaryPath, "bundle"),
+    format: runProductCommand(binaryPath, "format", location),
+    minify: runProductCommand(binaryPath, "minify", location),
+    build: runProductCommand(binaryPath, "build", location),
+    sif: runProductCommand(binaryPath, "sif", location),
+    bundle: runProductCommand(binaryPath, "bundle", location),
   };
 }
 
-function runProductCommand(binaryPath: string, commandId: ProductCommandId): CapturedOutput[] {
-  const commandRoot = path.join(scratchParent, "product-workspaces", commandId);
+function runProductCommand(
+  binaryPath: string,
+  commandId: ProductCommandId,
+  location: string,
+): CapturedOutput[] {
+  const commandRoot = path.join(scratchParent, "product-workspaces", location, commandId);
   rmSync(commandRoot, { force: true, recursive: true });
   mkdirSync(commandRoot, { recursive: true });
   materializeCorpus(commandRoot);
@@ -353,10 +375,40 @@ function runProductCommand(binaryPath: string, commandId: ProductCommandId): Cap
     [...allowedWorkspacePaths].toSorted(),
     `omena ${commandId} emitted an unexpected or incomplete file set`,
   );
-  return outputPaths.toSorted().map((relativePath) => ({
-    relativePath,
-    bytes: readFileSync(resolveRelative(commandRoot, relativePath)),
-  }));
+  const aliases = new Map<string, string>();
+  if (commandId === "build") {
+    const manifest = JSON.parse(
+      readFileSync(
+        resolveRelative(commandRoot, "out/split/omena.bundle-split.manifest.json"),
+        "utf8",
+      ),
+    ) as SplitManifest;
+    for (const output of manifest.outputs) {
+      const sourceIdentity = path
+        .relative(commandRoot, output.sourcePath)
+        .split(path.sep)
+        .join("/");
+      assert.ok(
+        CORPUS_FILES.some(({ relativePath }) => relativePath === sourceIdentity),
+        "unregistered split receipt source",
+      );
+      aliases.set(output.fileName, sourceIdentity.replaceAll("/", "."));
+    }
+  }
+  return outputPaths
+    .map((relativePath) => {
+      let receiptPath = relativePath;
+      for (const [fileName, identity] of aliases)
+        receiptPath = receiptPath.replaceAll(fileName, identity);
+      return {
+        relativePath,
+        receiptPath,
+        bytes: readFileSync(resolveRelative(commandRoot, relativePath)),
+      };
+    })
+    .sort((left, right) =>
+      left.receiptPath < right.receiptPath ? -1 : left.receiptPath > right.receiptPath ? 1 : 0,
+    );
 }
 
 function productCommandArgs(
@@ -533,7 +585,7 @@ function exerciseOutputDriftMutation(
     /^bundle:out\/bundle\.css byte drift: baseline=[0-9a-f]{64} HEAD=[0-9a-f]{64}$/u,
     "output-drift mutation did not fire the byte comparator",
   );
-  return { command, relativePath, expectedFailure };
+  return { command, relativePath, expectedFailure: `${command}:${relativePath} byte drift` };
 }
 
 function assertByteIdentity(label: string, baseline: Buffer, head: Buffer): void {

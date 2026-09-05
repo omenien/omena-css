@@ -12,7 +12,10 @@
       "expected": {
         "refusalPrefix": "unregistered sealed-family call site "
       },
-      "gate": { "kind": "precision-authority" },
+      "gate": {
+        "kind": "precision-family",
+        "familyMemberKind": "production"
+      },
       "mutations": [
         {
           "kind": "append",
@@ -31,7 +34,10 @@
       "expected": {
         "refusalPrefix": "production reaches test constructor "
       },
-      "gate": { "kind": "precision-authority" },
+      "gate": {
+        "kind": "precision-family",
+        "familyMemberKind": "test"
+      },
       "mutations": [
         {
           "kind": "append",
@@ -46,7 +52,10 @@
         "code": "E0116",
         "type": "AnalysisPrecisionV1"
       },
-      "gate": { "kind": "compiler", "package": "omena-checker" },
+      "gate": {
+        "kind": "compiler",
+        "package": "omena-checker"
+      },
       "mutations": [
         {
           "kind": "append",
@@ -61,7 +70,10 @@
         "code": "E0451",
         "type": "AnalysisPrecisionV1"
       },
-      "gate": { "kind": "compiler", "package": "omena-evidence-graph" },
+      "gate": {
+        "kind": "compiler",
+        "package": "omena-evidence-graph"
+      },
       "mutations": [
         {
           "kind": "append",
@@ -81,7 +93,10 @@
         "code": "E0616",
         "type": "AnalysisPrecisionV1"
       },
-      "gate": { "kind": "compiler", "package": "omena-cli" },
+      "gate": {
+        "kind": "compiler",
+        "package": "omena-cli"
+      },
       "mutations": [
         {
           "kind": "append",
@@ -96,7 +111,10 @@
         "code": "E0451",
         "type": "AnalysisPrecisionV1"
       },
-      "gate": { "kind": "compiler", "package": "omena-query" },
+      "gate": {
+        "kind": "compiler",
+        "package": "omena-query"
+      },
       "mutations": [
         {
           "kind": "append",
@@ -111,7 +129,10 @@
         "code": "E0451",
         "type": "AnalysisPrecisionV1"
       },
-      "gate": { "kind": "compiler", "package": "omena-abstract-value" },
+      "gate": {
+        "kind": "compiler",
+        "package": "omena-abstract-value"
+      },
       "mutations": [
         {
           "kind": "append",
@@ -125,7 +146,10 @@
       "expected": {
         "refusalPrefix": "unregistered sealed-family call site "
       },
-      "gate": { "kind": "precision-authority" },
+      "gate": {
+        "kind": "precision-family",
+        "familyMemberKind": "production"
+      },
       "mutations": [
         {
           "kind": "append",
@@ -139,7 +163,9 @@
       "expected": {
         "refusal": "binding does not exercise sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_global_class_fallthrough_diagnostic:1"
       },
-      "gate": { "kind": "precision-authority" },
+      "gate": {
+        "kind": "precision-authority"
+      },
       "mutations": [
         {
           "kind": "json-set-matching",
@@ -158,7 +184,9 @@
       "expected": {
         "refusal": "gated exclusion unverified-source-reference not exercised by missing-selector-context-drift"
       },
-      "gate": { "kind": "precision-authority" },
+      "gate": {
+        "kind": "precision-authority"
+      },
       "mutations": [
         {
           "kind": "json-set",
@@ -179,7 +207,9 @@
       "expected": {
         "refusal": "unregistered deserialization container omena-cli::crate::diagnostics::DiagnosticPrecisionEnvelopeV0"
       },
-      "gate": { "kind": "precision-authority" },
+      "gate": {
+        "kind": "precision-authority"
+      },
       "mutations": [
         {
           "kind": "append",
@@ -193,7 +223,9 @@
       "expected": {
         "refusal": "unregistered deserialization container omena-query::crate::style::module_interface::FlattenedPrecisionEnvelopeV0"
       },
-      "gate": { "kind": "precision-authority" },
+      "gate": {
+        "kind": "precision-authority"
+      },
       "mutations": [
         {
           "kind": "append",
@@ -207,7 +239,9 @@
       "expected": {
         "refusal": "unregistered deserialization container omena-query::crate::style::stylesheet_evaluation::PrecisionWireBundleV0"
       },
-      "gate": { "kind": "precision-authority" },
+      "gate": {
+        "kind": "precision-authority"
+      },
       "mutations": [
         {
           "kind": "append",
@@ -226,7 +260,9 @@
       "expected": {
         "methods": ["std::fs::write"]
       },
-      "gate": { "kind": "clippy-ban" },
+      "gate": {
+        "kind": "clippy-ban"
+      },
       "mutations": [
         {
           "kind": "append",
@@ -240,7 +276,9 @@
       "expected": {
         "methods": ["std::fs::write"]
       },
-      "gate": { "kind": "clippy-ban" },
+      "gate": {
+        "kind": "clippy-ban"
+      },
       "mutations": [
         {
           "kind": "append",
@@ -254,7 +292,9 @@
       "expected": {
         "methods": ["std::fs::write"]
       },
-      "gate": { "kind": "clippy-ban" },
+      "gate": {
+        "kind": "clippy-ban"
+      },
       "mutations": [
         {
           "kind": "append",
@@ -268,7 +308,9 @@
       "expected": {
         "methods": ["std::fs::write"]
       },
-      "gate": { "kind": "clippy-ban" },
+      "gate": {
+        "kind": "clippy-ban"
+      },
       "mutations": [
         {
           "kind": "append",
@@ -287,7 +329,9 @@
       "expected": {
         "methods": ["std::fs::remove_dir", "std::fs::DirBuilder::create"]
       },
-      "gate": { "kind": "clippy-ban" },
+      "gate": {
+        "kind": "clippy-ban"
+      },
       "mutations": [
         {
           "kind": "replace",
@@ -304,7 +348,9 @@
       "expected": {
         "refusalPrefix": "unregistered acquisition site omena-bridge::"
       },
-      "gate": { "kind": "fs-acquisition-census" },
+      "gate": {
+        "kind": "fs-acquisition-census"
+      },
       "mutations": [
         {
           "kind": "replace",
@@ -319,9 +365,11 @@
     {
       "id": "o",
       "expected": {
-        "refusalPrefix": "destination class not derived from a sanctioned-module call "
+        "refusal": "destination field lost owner-function authority crate::workspace_edit_transaction::StagedEditV0.stage"
       },
-      "gate": { "kind": "write-safety" },
+      "gate": {
+        "kind": "write-safety"
+      },
       "mutations": [
         {
           "kind": "replace",
@@ -338,7 +386,9 @@
       "expected": {
         "methods": ["std::fs::write"]
       },
-      "gate": { "kind": "clippy-ban" },
+      "gate": {
+        "kind": "clippy-ban"
+      },
       "mutations": [
         {
           "kind": "append",
@@ -357,7 +407,9 @@
       "expected": {
         "methods": ["std::fs::write"]
       },
-      "gate": { "kind": "clippy-ban" },
+      "gate": {
+        "kind": "clippy-ban"
+      },
       "mutations": [
         {
           "kind": "append",
@@ -371,7 +423,9 @@
       "expected": {
         "refusalPrefix": "suppression above fn granularity "
       },
-      "gate": { "kind": "fs-acquisition-census" },
+      "gate": {
+        "kind": "fs-acquisition-census"
+      },
       "mutations": [
         {
           "kind": "append",
@@ -385,7 +439,9 @@
       "expected": {
         "refusalPrefix": "suppression below fn granularity "
       },
-      "gate": { "kind": "fs-acquisition-census" },
+      "gate": {
+        "kind": "fs-acquisition-census"
+      },
       "mutations": [
         {
           "kind": "replace",
@@ -403,7 +459,9 @@
       "expected": {
         "refusal": "crate omena-lsp-server does not inherit the workspace lint table"
       },
-      "gate": { "kind": "fs-acquisition-census" },
+      "gate": {
+        "kind": "fs-acquisition-census"
+      },
       "mutations": [
         {
           "kind": "replace",
@@ -541,612 +599,612 @@
   },
   "countedResidue": [
     {
-      "identity": "scripts/check-rust-precision-floor.ts:84",
+      "identity": "scripts/check-rust-precision-floor.ts:84#57b02a23469321bfedc1bda99e92dae3945e36ea57a10d236c93ce3a458041a5",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:126",
+      "identity": "scripts/check-rust-precision-floor.ts:126#8fd69057fe4c13df00d6c8bd2fd6def46d7b16ad95aabc9243868d182f56384f",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:138",
+      "identity": "scripts/check-rust-precision-floor.ts:138#b399f1448f42001dba6eafa916c0881b38af0b06c881911da0f102416f7f8d7d",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:185",
+      "identity": "scripts/check-rust-precision-floor.ts:185#b474ea7e7ece5b2d691d56babb815cd701f9f18a2e0ed8376aa0d9191aa3a77b",
       "kind": "blockBody",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:187",
+      "identity": "scripts/check-rust-precision-floor.ts:187#a0dfa00ce785d10b83e32217c1d7d958e3015f3e13124acf03fffaa63553e4a2",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:189",
+      "identity": "scripts/check-rust-precision-floor.ts:189#ac2252c6e36b7ba0ebd23fa6b1508e90bb16c6d8a7f8ae532a9d1bf254f5100a",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:200",
+      "identity": "scripts/check-rust-precision-floor.ts:200#fb36d7678adc0763f525db19cc07555257a389fbca2f351bd1da757fd6118e1b",
       "kind": "blockBody",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:331",
+      "identity": "scripts/check-rust-precision-floor.ts:331#5663538eacdb1f42f8c21b4f93e65e9ab21a70adec835656107ef27e21ba3462",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:334",
+      "identity": "scripts/check-rust-precision-floor.ts:334#037802ed7bb1794083957f8c1cc025a0b36de9f737e015e67272099905290c53",
       "kind": "blockBody",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:345",
+      "identity": "scripts/check-rust-precision-floor.ts:345#d3558f94afcceef4f4e81b4f38289eade7a488b71f14b7ffc2efb50af8fecf67",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:346",
+      "identity": "scripts/check-rust-precision-floor.ts:346#729c5c53c417adb127c6377567636e3ce1d889002ab7c0e3ed84d30c104cf4ea",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:357",
+      "identity": "scripts/check-rust-precision-floor.ts:357#4d04db3fa26b48bbd092906cd8bbd3f679d5605ae638cb1032c6473a16f11c09",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:366",
+      "identity": "scripts/check-rust-precision-floor.ts:366#bf068c412dc885b06cd256b16237e9d899275a272a5ab6df0ab9b446f7abd8d7",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:368",
+      "identity": "scripts/check-rust-precision-floor.ts:368#84a12c2436db4668ed4ddcd63c406a42711e878951691151c04184d0da95f517",
       "kind": "blockBody",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:377",
+      "identity": "scripts/check-rust-precision-floor.ts:377#7ddd99500f404cfbc8e6194f5b90f95fd15fedb47a5ffd6fafa3715f6e4b9d86",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:379",
+      "identity": "scripts/check-rust-precision-floor.ts:379#2d314339b9e4f0e058520f6c0feac9f10e3a5ecd3bad35caff53af6fd9d548f2",
       "kind": "blockBody",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:388",
+      "identity": "scripts/check-rust-precision-floor.ts:388#e9631bf3ec26fd74a30e7f1ef8bf2f40563e929dbba7eae53f5646c97a7a96ec",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:393",
+      "identity": "scripts/check-rust-precision-floor.ts:393#e686bae08cb4eb282145bc83ac61968f531c577352a0432f240fd26e93b73349",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:394",
+      "identity": "scripts/check-rust-precision-floor.ts:394#9986149373bb3d2c17aefe8f4f611e3621756fe4f43107a144ea146b51a560ae",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:408",
+      "identity": "scripts/check-rust-precision-floor.ts:408#52ebcd9717ddc63133df88e8a7b18939041c5dab4db77e614ed4d99c7c8bb9d7",
       "kind": "blockBody",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:420",
+      "identity": "scripts/check-rust-precision-floor.ts:420#acee8db1ca548f07753a00e6b7dc993756ef404d512bd05edf51d7aa200fcf66",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:422",
+      "identity": "scripts/check-rust-precision-floor.ts:422#f92f8e78c0a5ea873f9077dc71fa7f5a8452760c8283226bcf4aa1d28de851eb",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:423",
+      "identity": "scripts/check-rust-precision-floor.ts:423#99397de502619297e5c5061b731662cda03b7505aa26b3b27db432448622b7c4",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:448",
+      "identity": "scripts/check-rust-precision-floor.ts:448#20c9a38c5494923b667635bfdbcf7daa1de4dd62c62c60175996a0f607bc86a3",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:462",
+      "identity": "scripts/check-rust-precision-floor.ts:462#314b9cb01265cf38854113a7640d5c1910eed4905284376c84189790c6b23e63",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:496",
+      "identity": "scripts/check-rust-precision-floor.ts:496#abffe3782ef6cad86891899c3cab7503105647ee93280dcce4e43227d1eaed2b",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:506",
+      "identity": "scripts/check-rust-precision-floor.ts:506#48d61799988b76edbebbe0571c4471110e103514a3df129c04c01cdff71f1d64",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:558",
+      "identity": "scripts/check-rust-precision-floor.ts:558#0d5ee0a533534594d1b4cd9088b732834561eef543e5d941fa61520a88b1381c",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:559",
+      "identity": "scripts/check-rust-precision-floor.ts:559#19c33c0fc51e81a365cf3fff8ba5a92ce3b123f8822218b4ab020238f46d8962",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:576",
+      "identity": "scripts/check-rust-precision-floor.ts:576#ec86c83086e82024c904719b199501b99ec05c6597cd00e67e48c621fc67d11f",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:587",
+      "identity": "scripts/check-rust-precision-floor.ts:587#e947ce1c47a0bd754310eafda00d69833565c0e35407075d5224c3996d2b23b8",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:593",
+      "identity": "scripts/check-rust-precision-floor.ts:593#0641ff880dfa71b5fb9cacc083c44c025d57a0f792a06a62201bb59d9686bf48",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:594",
+      "identity": "scripts/check-rust-precision-floor.ts:594#b42e7b652b712c3cc73a003fa1150338d0bb8060d88a3352d51be3c5b092af68",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:600",
+      "identity": "scripts/check-rust-precision-floor.ts:600#96e7ac86bf258cb4bbe2981f8aff70f7238ee54bf2667462917df55a89c5334e",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:610",
+      "identity": "scripts/check-rust-precision-floor.ts:610#641b3d8f42e1b8921a5ac2198ee9ec5dac2a48654c66b59cbf20952415b5996b",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:614",
+      "identity": "scripts/check-rust-precision-floor.ts:614#e723aa53796a6dc2913fa247393e97480e8f3b7ba9c8f46b8ba227f3d362dfda",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:619",
+      "identity": "scripts/check-rust-precision-floor.ts:619#b88eb046549ff5301d0e31c7d150a667e643ff5235db803f76884be18a46bdf7",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:625",
+      "identity": "scripts/check-rust-precision-floor.ts:625#c4c0239779818e800d2769ee1ba5fbdf52b5d9f533fb80027a69671501c8c6c3",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:649",
+      "identity": "scripts/check-rust-precision-floor.ts:649#69d0d4e584d5f90fcda06b28a33dbc53ff7728a6d2fa50bb7cf692ad94758b85",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:654",
+      "identity": "scripts/check-rust-precision-floor.ts:654#57770297999301011dbc03355e64cba9bf2dcc714f09f982482eaded5e21f40a",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:671",
+      "identity": "scripts/check-rust-precision-floor.ts:671#dd3ddcae7a1878dbcb2fdae6e755e55b8db9a22a8efef78500f98095da45e0cb",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:676",
+      "identity": "scripts/check-rust-precision-floor.ts:676#27946b73ed87982a55517e8718b05f81692d6a8d5b4aa49fedf2bda77bc2c622",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:684",
+      "identity": "scripts/check-rust-precision-floor.ts:684#ac62e41abb96b3bea542be878dfd06c192264c70e3714be52144c917d8937335",
       "kind": "blockBody",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:685",
+      "identity": "scripts/check-rust-precision-floor.ts:685#fabfee76321924cb75df1fc75fa2f434cfcb632b245a913164dffd946d5b1f35",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:689",
+      "identity": "scripts/check-rust-precision-floor.ts:689#8921b8824db253f6b5968c80eb0555608e65fa44bcb452a88d1b898e387d5f6f",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:693",
+      "identity": "scripts/check-rust-precision-floor.ts:693#a506926507a978baf4918d187586005f620a94bac4cf20916d27586d69a410db",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:694",
+      "identity": "scripts/check-rust-precision-floor.ts:694#3b1b7798bae427d1a1187b1e77c15773741e9ae8f456f009cc556fee6ea1da4d",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:695",
+      "identity": "scripts/check-rust-precision-floor.ts:695#9ed4347591cee2cbcb7a9d2ccfe3f667b65064edb98b104118be46fbcd2c3b5f",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:696",
+      "identity": "scripts/check-rust-precision-floor.ts:696#9e0107a694aae8c85263fc9c8654dbc43f1f0e706c9a799b365e3ca28e5e7121",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:697",
+      "identity": "scripts/check-rust-precision-floor.ts:697#92891d27e472d91203ec26808447433e5843c62a6add307a7ced6c93bc486c5c",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:702",
+      "identity": "scripts/check-rust-precision-floor.ts:702#466bd951b193bfe4174616916a7ff16d3e836afad762b1cf3dd55cd3b91c4f34",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:707",
+      "identity": "scripts/check-rust-precision-floor.ts:707#c44f566e52889fa4f806d953069743c88ddae74c9937b4a142cb137ef020ed07",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:708",
+      "identity": "scripts/check-rust-precision-floor.ts:708#8c4714f6a0869afaf0203c5ac148627e6506c9b87b45e4c359bc7b2216adb24c",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:713",
+      "identity": "scripts/check-rust-precision-floor.ts:713#236fdf5aa219e471eb7746465ef19a18552e3fec843e2de512be903d9308946c",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:714",
+      "identity": "scripts/check-rust-precision-floor.ts:714#c2bba8ccd9b4fc924083c82752e647c81cd15a474e49d6e4878cbca208b49795",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:731",
+      "identity": "scripts/check-rust-precision-floor.ts:731#b1e1903114bc0cd91ddbb234fc5b67132955561a5b7b76e510ee17600446ab2f",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:737",
+      "identity": "scripts/check-rust-precision-floor.ts:737#08b7d58f8eccc413805d1fc587bc55f32ec4e185604bd9ff81470615361cde46",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:739",
+      "identity": "scripts/check-rust-precision-floor.ts:739#c6d08d1e4465292dc2e3a59cf44aee0b1649cb89c54fce1fb43af88c7b9b53f9",
       "kind": "blockBody",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:748",
+      "identity": "scripts/check-rust-precision-floor.ts:748#1b22f1ba6d6388e602554577df81c4aa5a940465eaf6ff76be525461cfedde44",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:753",
+      "identity": "scripts/check-rust-precision-floor.ts:753#46d44074d3ad15128849bbd5a33f9f8b6875f6bb6987d9b90bb9c8cfbf401adf",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:761",
+      "identity": "scripts/check-rust-precision-floor.ts:761#a5ad2217a6b8af7980b3dea98555ff64934f8e946240ea684fcfbd60caf9d3a8",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:772",
+      "identity": "scripts/check-rust-precision-floor.ts:772#5f9387c4b48eca7b05ca9268dc4cad71440a1d936144be42b22d61f13d36c84d",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:776",
+      "identity": "scripts/check-rust-precision-floor.ts:776#bcfefbc212a54652f073c8f1130098f966d22be2626437650b94f4876f0f8585",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:786",
+      "identity": "scripts/check-rust-precision-floor.ts:786#36d6cc232af44146cc72cc564241e027cd54fdff20e46ae2ab23193f4863756b",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:797",
+      "identity": "scripts/check-rust-precision-floor.ts:797#da60ae5992e940d24dd639f444d7d6dd81e6ae411b2dab2525caf128b6ff9353",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:798",
+      "identity": "scripts/check-rust-precision-floor.ts:798#c72b177a3f3850140ed7d0c925e2a65efbde205a20fde37a835f27e402e4728c",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:799",
+      "identity": "scripts/check-rust-precision-floor.ts:799#987019616d47c54c660c7cf811c8369165db37b3754c8806e5a4ac8dbfd10300",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:800",
+      "identity": "scripts/check-rust-precision-floor.ts:800#af1a13a423aa6a4fb8b2b53294cd569cb9e2c41e04d369c1a20680927962ce45",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:805",
+      "identity": "scripts/check-rust-precision-floor.ts:805#8720a177b37c3fb2d6e65a2f449fca0b3fcf2ef6b90d6a2a943f3ff0969a16cf",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:806",
+      "identity": "scripts/check-rust-precision-floor.ts:806#324507b9907accc0b516fd51b6db753614ebdaa3a6121159c8c42b3ec36b3673",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:807",
+      "identity": "scripts/check-rust-precision-floor.ts:807#2c35a5c9b5c0439b3912568681d57ee6ecc0737b54ef558e4d4573c4053fcb10",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:817",
+      "identity": "scripts/check-rust-precision-floor.ts:817#1541d96c23080a4974afa37028a89b0b30e9035180de85500068ea249e57ba0c",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:822",
+      "identity": "scripts/check-rust-precision-floor.ts:822#16ad94603093eafc493fba86e73f7024714d00ebb3017e25098222ed78724fb5",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:827",
+      "identity": "scripts/check-rust-precision-floor.ts:827#bd4d7487423c679d0a4c681b9358a3c8fb1fc0231752f8d6abb09a4ab116e525",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:833",
+      "identity": "scripts/check-rust-precision-floor.ts:833#81f1fefab5864060920e579b56b7133d554327de3b72a92b700ff37c9b331724",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:834",
+      "identity": "scripts/check-rust-precision-floor.ts:834#f662c3e63fb667e1d222c8bc04464ec354e349cbcf1240e711dec51843be7791",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:836",
+      "identity": "scripts/check-rust-precision-floor.ts:836#048e4be88117755514418fdd5206acb5ea0b269d74e789d68cc9c219bd6b57fd",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:843",
+      "identity": "scripts/check-rust-precision-floor.ts:843#002fa1da6f460157a94685e8fda02349351f2c8220d201bb098088e601343f4d",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:846",
+      "identity": "scripts/check-rust-precision-floor.ts:846#98ad0f26332caf70f34cf4ce3185aa027ea44c3055b0d5162e14e65c683e273a",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:856",
+      "identity": "scripts/check-rust-precision-floor.ts:856#605c92119c9775ef919bb49243de5b16625bbb399e7b3cf75f1b389463e56ddf",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:858",
+      "identity": "scripts/check-rust-precision-floor.ts:858#7282436fedb971799ac1fb90bfdbcd6282e8cf703870361fa7f4c7c9319247c4",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:864",
+      "identity": "scripts/check-rust-precision-floor.ts:864#cd464730bb45ae9cd80f95b50e31fc122f7a4e32fd5b62a265f91a8efcd7146d",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:866",
+      "identity": "scripts/check-rust-precision-floor.ts:866#b124fe538cb8e1fade1883367bcbb8dcbca107ac41652f5b9e79068986639cd5",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:867",
+      "identity": "scripts/check-rust-precision-floor.ts:867#90af0a9bbe23ecb8a8bc6113b7c6d2851b78f767af395ede7d23b92557eca94c",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:874",
+      "identity": "scripts/check-rust-precision-floor.ts:874#29e221dfc9f39ee3bed065c4de73275f809dc656501138d2383ab4acda15574d",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:880",
+      "identity": "scripts/check-rust-precision-floor.ts:880#fbc7da967f8ebd2bb355425c53188646c6f05db6da9e0d45d2f40ccc57a2d135",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:919",
+      "identity": "scripts/check-rust-precision-floor.ts:919#013e5d14e541e48ff62ed3ac89a2aa1abf91d957a665a17ea6ffd482acdf4452",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:923",
+      "identity": "scripts/check-rust-precision-floor.ts:923#213fec5857f8d7835d109e2c0de54c1dd509d7df14a53930da2225db47944252",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:928",
+      "identity": "scripts/check-rust-precision-floor.ts:928#3fdfc15b4473504530b6864b88939d9b38ecf0f45710b6ff795856655c117550",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:929",
+      "identity": "scripts/check-rust-precision-floor.ts:929#1d28b50816e03193aa6fc9fef21db44274ac3248d4755765ac1ba5dbcb2c4384",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:930",
+      "identity": "scripts/check-rust-precision-floor.ts:930#671108a399e66f768d889d8bafccdc8b21fb90a2b54c63598d7c9b64d5100ae5",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:935",
+      "identity": "scripts/check-rust-precision-floor.ts:935#dc7cf7e0adf5f27907a172b3665cdb89f786a70472f701c4dd0b7f26a465e0b7",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:947",
+      "identity": "scripts/check-rust-precision-floor.ts:947#9c8549b8d54e17e0a4524a07d93623c9833899219504a91746f27e163ddc36b7",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:959",
+      "identity": "scripts/check-rust-precision-floor.ts:959#7facb952d385443824b99f77d3894f0970cdf11a60080ce2f713469124831189",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:966",
+      "identity": "scripts/check-rust-precision-floor.ts:966#a5f4459454eebcfe2391b22ef68ef6d148df9dcf13ca481dc0ea4e68e8a0801c",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:971",
+      "identity": "scripts/check-rust-precision-floor.ts:971#472c11cd0a07d8ddbcb4a5f89a1aadfb566075c24b71f381e1e20d8378f9ec54",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:977",
+      "identity": "scripts/check-rust-precision-floor.ts:977#b68882e47bade74b68776008903d3e24759fc4f49120a1e22f6a3d0f58234ea8",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:982",
+      "identity": "scripts/check-rust-precision-floor.ts:982#95b0d877bec0a90624dd1d716d7a4de8846cc960d15f851250335fe149b47682",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:994",
+      "identity": "scripts/check-rust-precision-floor.ts:994#838bd21ed96a5ec92bd59c9bc5e7cb7f7717acf5457e9b0ae5d853feca1cca7f",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1016",
+      "identity": "scripts/check-rust-precision-floor.ts:1016#fcb7b516300dac3dd60e07ce1ac162e8048bce73e39fee9d00553586822a9293",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1025",
+      "identity": "scripts/check-rust-precision-floor.ts:1025#8317b15056c37f4a26e4975947e21038bf0575baafaddc8d277ce282e094a392",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1029",
+      "identity": "scripts/check-rust-precision-floor.ts:1029#480ddf329632e98d6805f631661e3e3c2f67972178d7b37301653bbce8c1c829",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1030",
+      "identity": "scripts/check-rust-precision-floor.ts:1030#7ad8c1f558a2f5e0eac2828ecb954b86ad747962b40d49e680b77dfb1ec1312f",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1044",
+      "identity": "scripts/check-rust-precision-floor.ts:1044#d9a1a52d7a94d4678fff4394b7982d55b189a7ed14824d0bb37497c737f532e2",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1054",
+      "identity": "scripts/check-rust-precision-floor.ts:1054#e0a6f49a9e518667c8463da2a07065755678a6f5da4c0fae1a7d9b96cc65f919",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1057",
+      "identity": "scripts/check-rust-precision-floor.ts:1057#67b4b6e6bcb7a8c30431092536863dfdca3e0ade8cf5e675ab62d8c064f5f707",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1059",
+      "identity": "scripts/check-rust-precision-floor.ts:1059#22d7e8566ad6f5a942acf51ac935ab23fa9090b2536305bf99754c6fdd3ee765",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1072",
+      "identity": "scripts/check-rust-precision-floor.ts:1072#8d900eca32c02b4e9bcfeb7193df1fd4414260d09b9d09aa9d2bee73a1de63c8",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1075",
+      "identity": "scripts/check-rust-precision-floor.ts:1075#90bdd11fa831b47f52472c1a36e307fceabe849715876f5f3a802a051c5053cc",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1077",
+      "identity": "scripts/check-rust-precision-floor.ts:1077#5fc3e8b659d716e1e687b10231b55015eb0b5d7a14cf291f8b71eb9abbd1da99",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1086",
+      "identity": "scripts/check-rust-precision-floor.ts:1086#b5505adb38b28430d884b7bb85208586802f8a4c0d83aa899b2cad546f47b2ab",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1097",
+      "identity": "scripts/check-rust-precision-floor.ts:1097#097c7c23f7271d88d80347ff68ef8bd5adce092ee50ea1b5587d0bed1a8f205c",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1106",
+      "identity": "scripts/check-rust-precision-floor.ts:1106#ba392e555489cd157c2d55ec3987da31b8d67686ffeacdb74ef279a63d9c9a1a",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1108",
+      "identity": "scripts/check-rust-precision-floor.ts:1108#caeaa2a650f30dcd5742e2e365a6f689775b7701498f954e2019151314dad0b2",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1115",
+      "identity": "scripts/check-rust-precision-floor.ts:1115#bb76a35de752507ca9166e96bc9cf3a40a05c880a6fb65f43b814ff128be5de7",
       "kind": "blockBody",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1120",
+      "identity": "scripts/check-rust-precision-floor.ts:1120#bb76a35de752507ca9166e96bc9cf3a40a05c880a6fb65f43b814ff128be5de7",
       "kind": "blockBody",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1123",
+      "identity": "scripts/check-rust-precision-floor.ts:1123#3274c66545d0bb8499f40b15c78f67bac342977f723ea3d19e9c8b1e0a9cc891",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1124",
+      "identity": "scripts/check-rust-precision-floor.ts:1124#c8a3a170922ac4160cd9f6232372a6168fe1c43d38b0116f7df4d6199c0e617f",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1127",
+      "identity": "scripts/check-rust-precision-floor.ts:1127#9dfe0fcd126064a2b4f392dce1f4c414e1c142280b26332d302b9394610aea68",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1128",
+      "identity": "scripts/check-rust-precision-floor.ts:1128#8cbfa917db9c31182d360a80c908ec8f1ff974f715531f3682695d0a8877d84f",
       "kind": "blockBody",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1129",
+      "identity": "scripts/check-rust-precision-floor.ts:1129#b253d906a72f7950830a0d30aadee553d251a764cc9f9e386761833851ba8008",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },
     {
-      "identity": "scripts/check-rust-precision-floor.ts:1135",
+      "identity": "scripts/check-rust-precision-floor.ts:1135#974fa1ccbe58e7a910c99070a5cf057d48856b17cec6c627b776aec42ebc0810",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"
     },

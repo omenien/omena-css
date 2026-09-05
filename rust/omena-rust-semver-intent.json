@@ -73,7 +73,8 @@
               "needles": [
                 "provider_completeness: ProviderCompletenessV1",
                 "world_assumption: WorldAssumptionV1"
-              ]
+              ],
+              "struct": "AnalysisPrecisionV1"
             },
             {
               "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
@@ -120,7 +121,8 @@
               "needles": [
                 "pub axes: AnalysisPrecisionV1",
                 "project_fact_precision_from_analysis_precision(&precision.axes)"
-              ]
+              ],
+              "struct": "OmenaQueryAnalysisPrecisionV0"
             },
             {
               "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
