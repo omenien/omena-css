@@ -631,7 +631,7 @@
     "css-tree": "3.2.1",
     "eslint": "^10.9.0",
     "fast-glob": "^3.3.3",
-    "json-schema-to-typescript": "15.0.4",
+    "json-schema-to-typescript": "16.0.0",
     "lefthook": "^2.1.10",
     "less": "4.9.0",
     "lightningcss": "1.33.0",
