@@ -180,6 +180,7 @@ const evidenceWriterFixturePaths = [
   "rust/evidence-writer-nonliteral-write-census.json",
   "rust/evidence-writer-registry.json",
   "rust/omena-crate-registry-readiness-snapshot.json",
+  "scripts/check-dual-pin-product-bytes.ts",
   "scripts/check-release-rehearsal-crate-dry-run.ts",
   "scripts/check-rust-published-crate-surface-register.ts",
   "scripts/crate-registry-state.ts",
@@ -1348,6 +1349,45 @@ describe("scan surface falsifiers", () => {
 });
 
 describe("writer registry portability", () => {
+  it.each([
+    'spawnSync("git", ["fetch", "origin"]);',
+    'execFileSync("git", ["clone", repository, checkout]);',
+    'childProcess.spawn("git", ["fetch", "--no-tags", "origin"]);',
+    'run("git", ["-C", checkout, "fetch", "--depth", "1", "origin", pin]);',
+    'runChecked("checkout corpus", "git", ["clone", repository, checkout]);',
+    'runGit(["clone", "--filter=blob:none", repository, checkout], root);',
+    'git(["-c", "protocol.version=2", "fetch", "origin"]);',
+    'import { spawnSync as launch } from "node:child_process"; launch("git", ["fetch", "origin"]);',
+  ])("recognizes a git checkout command: %s", (source) => {
+    expect(detectNotPreviewableInputSeedsForSource("scripts/checkout.ts", source)).toContainEqual(
+      expect.objectContaining({ kind: "network-or-external-checkout" }),
+    );
+  });
+
+  it.each([
+    'const methods = new Set(["as_path", "clone", "join"]);',
+    'initialize(() => new Set(["clone", "fetch"]));',
+    'register({ method: "clone", operation: "fetch" });',
+    'console.log("git", ["clone", "fetch"]);',
+    'spawnSync("node", ["clone", "fetch"]);',
+    'run("git", ["log", "--grep", "clone"]);',
+    'runGit(["-C", "clone", "status"], root);',
+    'run("git", ["status"], { label: "fetch" });',
+    'run("git", chooseArguments({ label: "clone" }));',
+  ])("keeps ordinary checkout words previewable: %s", (source) => {
+    expect(
+      detectNotPreviewableInputSeedsForSource("scripts/local.ts", source).map((row) => row.kind),
+    ).not.toContain("network-or-external-checkout");
+  });
+
+  it("keeps the filesystem method vocabulary previewable", () => {
+    const sourcePath = "scripts/check-rust-omena-write-safety.ts";
+    const source = readFileSync(path.resolve(import.meta.dirname, "../../..", sourcePath), "utf8");
+    expect(detectNotPreviewableInputSeedsForSource(sourcePath, source)).not.toContainEqual(
+      expect.objectContaining({ kind: "network-or-external-checkout" }),
+    );
+  });
+
   it("derives every detectable non-previewable class from source markers", () => {
     const detected = detectNotPreviewableInputSeedsForSource(
       "scripts/check-rust-omena-diff-test-derived-inputs.ts",

@@ -208,6 +208,7 @@ jobs:
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run rust/workspace --summary
+      - run: pnpm omena-check run rust/precision-authority --summary
       - run: pnpm omena-check run rust/census-instrument-s0 --summary
       - run: pnpm omena-check run rust/fs-capability-ban --summary
       - run: pnpm omena-check run rust/fs-acquisition-census --summary

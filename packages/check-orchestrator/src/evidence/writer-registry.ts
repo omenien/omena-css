@@ -363,9 +363,9 @@ export function buildEvidenceWriterNonLiteralWriteCensus(
       unsweptRegistryNonLiteralWriteSiteCount: unsweptSites.length,
     },
     reviewerBaseline: {
-      pin: "ba7308df84bf501b6cf3a13347dcf47571b0eb61",
-      broadWriterScriptCountWithNonLiteralSites: 122,
-      broadNonLiteralWriteSiteCount: 319,
+      pin: "52493f43ad8d5a9ee76be131df75ad1d38ca2c12",
+      broadWriterScriptCountWithNonLiteralSites: 124,
+      broadNonLiteralWriteSiteCount: 329,
       unsweptRegistryWriterScriptsWithNonLiteralSites: 44,
     },
     runtimeVariableOutputPaths: EVIDENCE_RUNTIME_VARIABLE_OUTPUT_PATHS,
@@ -2686,7 +2686,7 @@ export function detectNotPreviewableInputSeedsForSource(
     });
   }
   if (
-    sourceContainsCalledStringLiteral(sourceFile, new Set(["clone", "fetch"])) ||
+    sourceInvokesGitCheckout(sourceFile) ||
     sourceContainsArgumentFlagUse(
       sourceFile,
       new Set(["--corpus-root", "--identity-manifest", "--wpt-root"]),
@@ -2784,6 +2784,74 @@ function sourceContainsCalledStringLiteral(
     ) {
       found = true;
       return;
+    }
+    if (!found) ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return found;
+}
+
+function literalGitArgument(expression: tsTypes.Expression): string | null {
+  const value = unwrapStaticDataExpression(expression);
+  return ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value) ? value.text : null;
+}
+
+function sourceInvokesGitCheckout(sourceFile: tsTypes.SourceFile): boolean {
+  const processCalls = new Set([
+    "spawn",
+    "spawnSync",
+    "execFile",
+    "execFileSync",
+    "run",
+    "runChecked",
+  ]);
+  const gitCalls = new Set(["git", "runGit"]);
+  const valueOptions = new Set([
+    "-C",
+    "-c",
+    "--git-dir",
+    "--work-tree",
+    "--namespace",
+    "--config-env",
+  ]);
+  for (const statement of sourceFile.statements) {
+    if (
+      !ts.isImportDeclaration(statement) ||
+      !ts.isStringLiteral(statement.moduleSpecifier) ||
+      !["node:child_process", "child_process"].includes(statement.moduleSpecifier.text) ||
+      !statement.importClause?.namedBindings ||
+      !ts.isNamedImports(statement.importClause.namedBindings)
+    )
+      continue;
+    for (const binding of statement.importClause.namedBindings.elements) {
+      if (processCalls.has((binding.propertyName ?? binding.name).text)) {
+        processCalls.add(binding.name.text);
+      }
+    }
+  }
+  const isCheckout = (expression: tsTypes.Expression | undefined): boolean => {
+    if (!expression) return false;
+    const argv = unwrapStaticDataExpression(expression);
+    if (!ts.isArrayLiteralExpression(argv)) return false;
+    for (let index = 0; index < argv.elements.length; index += 1) {
+      const value = literalGitArgument(argv.elements[index]!);
+      if (value === null) return false;
+      if (valueOptions.has(value)) index += 1;
+      else if (!value.startsWith("-")) return value === "clone" || value === "fetch";
+    }
+    return false;
+  };
+  let found = false;
+  const visit = (node: tsTypes.Node): void => {
+    if (ts.isCallExpression(node)) {
+      const name = callName(node.expression);
+      if (name && gitCalls.has(name)) found ||= isCheckout(node.arguments[0]);
+      else if (name && processCalls.has(name)) {
+        const commandIndex = node.arguments.findIndex(
+          (argument) => literalGitArgument(argument) === "git",
+        );
+        if (commandIndex >= 0) found ||= isCheckout(node.arguments[commandIndex + 1]);
+      }
     }
     if (!found) ts.forEachChild(node, visit);
   };

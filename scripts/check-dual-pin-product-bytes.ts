@@ -138,8 +138,7 @@ try {
       sha256: sha256(output.bytes),
     })),
   );
-  writeFileSync(
-    process.stdout.fd,
+  process.stdout.write(
     `${JSON.stringify(
       {
         schemaVersion: "0",

@@ -324,7 +324,7 @@
       "reason": "non-repo-temp-tree",
       "surfaceModulePath": "scripts/surfaces/scripts-check-dual-pin-product-bytes.surface.ts",
       "surfaceModuleSha256": "7b76e85b676ee7c8de1e6aeb1f4e9602dee6903e3766121b4ccc4f74fe4b05e4",
-      "gateIds": []
+      "gateIds": ["rust/dual-pin-product-bytes"]
     },
     {
       "scannerPath": "scripts/check-engine-v2-contract-idl-fixtures.ts",
@@ -1288,7 +1288,7 @@
         "includeUntracked": false,
         "excludes": ["git-metadata", "personal-docs", "node-modules", "rust-build-output"]
       },
-      "gateIds": []
+      "gateIds": ["rust/precision-authority"]
     },
     {
       "scannerPath": "scripts/check-rust-precision-floor.ts",

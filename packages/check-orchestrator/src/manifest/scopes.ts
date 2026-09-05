@@ -74,10 +74,14 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
     matches: (scriptName) =>
       scriptName.startsWith("check:rust-") ||
       scriptName.startsWith("update:rust-") ||
+      scriptName === "check:dual-pin-product-bytes" ||
       scriptName === "acquire:sif-npm-provenance" ||
       scriptName.startsWith("benchmark:z5:") ||
       scriptName === "benchmark:bundler-productization",
     toGateId: (scriptName) => {
+      if (scriptName === "check:dual-pin-product-bytes") {
+        return "rust/dual-pin-product-bytes";
+      }
       if (scriptName === "acquire:sif-npm-provenance") {
         return "rust/omena-sif/npm-provenance-acquisition:acquire";
       }

@@ -57,6 +57,7 @@
         "rust/evidence-writer-nonliteral-write-census.json",
         "scripts/check-plugin-bundler-product-gate.mjs",
         "scripts/check-rust-benchmark-ci-reachability.ts",
+        "scripts/check-rust-census-instrument-s0.ts",
         "scripts/check-rust-closure-fast-aggregation-complete.ts",
         "scripts/check-rust-omena-reactive-public-surface-clean.ts",
         "scripts/check-rust-product-test-coverage-classguard.ts",
@@ -74,6 +75,7 @@
       "consumerGateIds": [
         "plugin/bundler-product-gate",
         "rust/benchmark/ci-reachability",
+        "rust/census-instrument-s0",
         "rust/closure-fast-aggregation-complete",
         "rust/omena-reactive/public-surface-clean",
         "rust/product-test-coverage-classguard",
@@ -1046,6 +1048,27 @@
         "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
       "consumerGateIds": ["rust/contract-shape-census", "tooling/evidence-affected-map"]
+    },
+    {
+      "artifactPath": "rust/census-instrument-s0.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/census-instrument-s0.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputPaths": [],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "scripts/check-rust-census-instrument-s0.ts",
+        "scripts/check-rust-precision-authority.ts"
+      ],
+      "consumerGateIds": ["rust/census-instrument-s0", "rust/precision-authority"]
     },
     {
       "artifactPath": "rust/crates/omena-abstract-value/data/closed-world-builtin-token-profiles.json",
@@ -2443,6 +2466,7 @@
         "rust/omena-product-path-matrix.json",
         "rust/omena-source-type-fact-shape-census.json",
         "rust/release-print-sensitive-evidence.json",
+        "scripts/check-dual-pin-product-bytes.ts",
         "scripts/check-release-print-sensitive-evidence.ts",
         "scripts/check-rust-m4-axis-a-closure-audit.ts",
         "scripts/check-rust-omena-cli-bundle-origin-chain.ts",
@@ -2476,6 +2500,7 @@
         "release/check/release-notes",
         "release/check/release-print-sensitive-evidence",
         "release/release/notes",
+        "rust/dual-pin-product-bytes",
         "rust/lint-finding-census",
         "rust/lint-finding-census:update",
         "rust/m4-axis-a-closure-audit",
@@ -3802,6 +3827,7 @@
         "scripts/check-docs-site-smoke.mjs",
         "scripts/check-docs-version-governance.ts",
         "scripts/check-docs-version-strings.ts",
+        "scripts/check-dual-pin-product-bytes.ts",
         "scripts/check-engine-v2-contract-idl-fixtures.ts",
         "scripts/check-gate-falsifier-disclosure.ts",
         "scripts/check-js-bundler-host-no-regex-classmap.ts",
@@ -3868,6 +3894,7 @@
         "scripts/check-rust-omena-verification-targets.ts",
         "scripts/check-rust-omena-wpt-attribution.ts",
         "scripts/check-rust-omena-write-safety.ts",
+        "scripts/check-rust-precision-authority.ts",
         "scripts/check-rust-precision-floor.ts",
         "scripts/check-rust-proof-kernel.ts",
         "scripts/check-rust-ranked-set-loss-census.ts",
@@ -3882,6 +3909,7 @@
         "scripts/generate-sass-spec-conformance-corpus.ts",
         "scripts/generate-sass-spec-corpus.ts",
         "scripts/lib/oss-corpus-local-workspace-files.ts",
+        "scripts/lib/rust-cfg-acquisition.ts",
         "scripts/measure-css-module-token-shapes.ts",
         "scripts/measure-rust-omena-diagnostic-transition-attribution.ts",
         "scripts/merge-engine-shadow-runner-artifacts.mjs",
@@ -4357,6 +4385,42 @@
       "consumerGateIds": ["rust/omena-ffi-boundary-typing-census", "tooling/evidence-affected-map"]
     },
     {
+      "artifactPath": "rust/omena-fs-acquisition-census.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-fs-acquisition-census.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputPaths": [],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": ["scripts/check-rust-fs-acquisition-census.ts"],
+      "consumerGateIds": ["rust/fs-acquisition-census"]
+    },
+    {
+      "artifactPath": "rust/omena-fs-capability-partition.json",
+      "classification": "W3",
+      "writerNodeKind": "normal",
+      "writerScripts": [],
+      "procedure": [
+        "hand-edit rust/omena-fs-capability-partition.json",
+        "run every consuming check listed by the orchestrator",
+        "review semantic diff",
+        "commit evidence"
+      ],
+      "inputPaths": [],
+      "inputScannerPaths": [],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": ["scripts/check-rust-fs-capability-partition.ts"],
+      "consumerGateIds": ["rust/fs-capability-ban"]
+    },
+    {
       "artifactPath": "rust/omena-identifier-authority-census.json",
       "classification": "W1",
       "writerNodeKind": "self-ratchet",
@@ -4794,10 +4858,16 @@
       "inputArtifactPaths": [],
       "writerGateIds": [],
       "consumerPaths": [
+        "rust/census-instrument-s0.json",
+        "scripts/check-rust-precision-authority.ts",
         "scripts/check-rust-precision-floor-mutation.ts",
         "scripts/check-rust-precision-floor.ts"
       ],
-      "consumerGateIds": ["rust/precision-floor", "rust/precision-floor-mutations"]
+      "consumerGateIds": [
+        "rust/precision-authority",
+        "rust/precision-floor",
+        "rust/precision-floor-mutations"
+      ]
     },
     {
       "artifactPath": "rust/omena-precision-witness-census.json",
