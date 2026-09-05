@@ -177,9 +177,9 @@ export interface EvidenceWriterNonLiteralWriteCensusV0 {
     readonly unsweptRegistryNonLiteralWriteSiteCount: number;
   };
   readonly reviewerBaseline: {
-    readonly pin: "ba7308df84bf501b6cf3a13347dcf47571b0eb61";
-    readonly broadWriterScriptCountWithNonLiteralSites: 122;
-    readonly broadNonLiteralWriteSiteCount: 319;
+    readonly pin: "52493f43ad8d5a9ee76be131df75ad1d38ca2c12";
+    readonly broadWriterScriptCountWithNonLiteralSites: 124;
+    readonly broadNonLiteralWriteSiteCount: 329;
     readonly unsweptRegistryWriterScriptsWithNonLiteralSites: 44;
   };
   readonly runtimeVariableOutputPaths: typeof EVIDENCE_RUNTIME_VARIABLE_OUTPUT_PATHS;

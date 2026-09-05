@@ -3,6 +3,7 @@ import { strict as assert } from "node:assert";
 import { createHash } from "node:crypto";
 import {
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -457,6 +458,10 @@ function changedPaths(root: string): string[] {
     .split("\n")
     .filter(Boolean)
     .map((line) => line.slice(3).split(" -> ").at(-1)!)
+    .filter(
+      (relative) =>
+        relative !== "node_modules" || !lstatSync(path.join(root, relative)).isSymbolicLink(),
+    )
     .toSorted(compareCodePoint);
 }
 

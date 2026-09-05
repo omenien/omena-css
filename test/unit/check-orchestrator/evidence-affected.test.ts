@@ -182,6 +182,7 @@ const evidenceWriterFixturePaths = [
   "rust/omena-crate-registry-readiness-snapshot.json",
   "scripts/check-dual-pin-product-bytes.ts",
   "scripts/check-release-rehearsal-crate-dry-run.ts",
+  "scripts/check-rust-census-instrument-s0.ts",
   "scripts/check-rust-published-crate-surface-register.ts",
   "scripts/crate-registry-state.ts",
   "test/unit/check-orchestrator/evidence-affected.test.ts",

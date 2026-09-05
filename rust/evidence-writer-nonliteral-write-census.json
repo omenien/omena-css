@@ -589,7 +589,7 @@
     {
       "fingerprint": "1cec002bb02c7f9e0d8beef66e51bc035ca55e71a7833dd9a31e696a9b15118f",
       "writerScript": "scripts/check-rust-census-instrument-s0.ts",
-      "line": 383,
+      "line": 384,
       "writeApi": "writeFileSync",
       "writeExpression": "file",
       "disposition": "outside-registry-writer"
@@ -597,7 +597,7 @@
     {
       "fingerprint": "a0870938ce472af731c6c037ab2eea638244f2ea5ce41c580ca1a5edcb5b0221",
       "writerScript": "scripts/check-rust-census-instrument-s0.ts",
-      "line": 389,
+      "line": 390,
       "writeApi": "writeFileSync",
       "writeExpression": "file",
       "disposition": "outside-registry-writer"
@@ -605,7 +605,7 @@
     {
       "fingerprint": "a7181fcf7bb4b4b36bdf77b1052e0f8eaaf3a76c0c94b82e707ba7da5506287e",
       "writerScript": "scripts/check-rust-census-instrument-s0.ts",
-      "line": 415,
+      "line": 416,
       "writeApi": "writeFileSync",
       "writeExpression": "file",
       "disposition": "outside-registry-writer"
@@ -613,7 +613,7 @@
     {
       "fingerprint": "3f2cad229dc64c6f58312c03c33e67bc7a1e8cc8e763d02ff01ad95ded40e288",
       "writerScript": "scripts/check-rust-census-instrument-s0.ts",
-      "line": 426,
+      "line": 427,
       "writeApi": "writeFileSync",
       "writeExpression": "file",
       "disposition": "outside-registry-writer"
@@ -621,7 +621,7 @@
     {
       "fingerprint": "33e022ff8b15f504eafe6e3f627ed7f051f2f6b25f040a3fa7a780874c6396c3",
       "writerScript": "scripts/check-rust-census-instrument-s0.ts",
-      "line": 436,
+      "line": 437,
       "writeApi": "writeFileSync",
       "writeExpression": "file",
       "disposition": "outside-registry-writer"
@@ -629,7 +629,7 @@
     {
       "fingerprint": "2851b0739b13e55078e2b786252216e0a674f549582c400fac919860f11b5c63",
       "writerScript": "scripts/check-rust-census-instrument-s0.ts",
-      "line": 903,
+      "line": 908,
       "writeApi": "writeFileSync",
       "writeExpression": "checker",
       "disposition": "outside-registry-writer"
@@ -637,7 +637,7 @@
     {
       "fingerprint": "f8a2a830fc782fbfbdef9aa2e41bb06aea1d752984e0f989e887aa11f995f2fc",
       "writerScript": "scripts/check-rust-census-instrument-s0.ts",
-      "line": 911,
+      "line": 916,
       "writeApi": "writeFileSync",
       "writeExpression": "checker",
       "disposition": "outside-registry-writer"
@@ -645,7 +645,7 @@
     {
       "fingerprint": "61515795dad5499d655698ea35795bc08c0c675d45d799b889a77bddee96bdfe",
       "writerScript": "scripts/check-rust-census-instrument-s0.ts",
-      "line": 951,
+      "line": 956,
       "writeApi": "symlinkSync",
       "writeExpression": "nodeModules",
       "disposition": "outside-registry-writer"
@@ -653,7 +653,7 @@
     {
       "fingerprint": "700292dcfa6e5e1ba8a05fb8a658266814d288e17b9fd326ddd443c545bc11d1",
       "writerScript": "scripts/check-rust-census-instrument-s0.ts",
-      "line": 1139,
+      "line": 1144,
       "writeApi": "writeFileSync",
       "writeExpression": "target",
       "disposition": "outside-registry-writer"
