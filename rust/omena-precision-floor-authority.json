@@ -10,10 +10,10 @@
       "function": "apply_to",
       "literals": [],
       "disposition": {
-        "kind": "sweepRow",
-        "output": "closedSetFiniteReachability.nonEnumeratedPrecision"
+        "kind": "probeBinding",
+        "bindingId": "witness-preserves-unresolved-axes"
       },
-      "reason": "coveredBySweep:closedSetFiniteReachability.nonEnumeratedPrecision"
+      "reason": "boundTo:witness-preserves-unresolved-axes"
     },
     {
       "id": "analysisPrecisionConstructor:rust/crates/omena-abstract-value/src/domain.rs:analysis_precision_from_class_value_with_witness:1",
@@ -22,10 +22,10 @@
       "function": "analysis_precision_from_class_value_with_witness",
       "literals": [],
       "disposition": {
-        "kind": "sweepRow",
-        "output": "closedSetFiniteReachability.openWorldPrecision"
+        "kind": "probeBinding",
+        "bindingId": "unwitnessed-finite-set-keeps-open-world"
       },
-      "reason": "coveredBySweep:closedSetFiniteReachability.openWorldPrecision"
+      "reason": "boundTo:unwitnessed-finite-set-keeps-open-world"
     },
     {
       "id": "analysisPrecisionConstructor:rust/crates/omena-query-core/src/lib.rs:summarize_omena_query_expression_domain_incremental_flow_analysis_result:1",
@@ -43,10 +43,10 @@
         }
       ],
       "disposition": {
-        "kind": "literalFixture",
-        "bindingId": "producerArm:provider.missingTypeFacts"
+        "kind": "probeBinding",
+        "bindingId": "incremental-flow-keeps-expression-context"
       },
-      "reason": "exercisedBy:producerArm:provider.missingTypeFacts"
+      "reason": "boundTo:incremental-flow-keeps-expression-context"
     },
     {
       "id": "analysisPrecisionConstructor:rust/crates/omena-bridge/src/style_intelligence.rs:provider_analysis_precision:1",
@@ -72,10 +72,10 @@
         }
       ],
       "disposition": {
-        "kind": "literalFixture",
-        "bindingId": "fixture:bridge.providerRegistry"
+        "kind": "probeBinding",
+        "bindingId": "provider-without-target-keeps-unresolved-axes"
       },
-      "reason": "exercisedBy:fixture:bridge.providerRegistry"
+      "reason": "boundTo:provider-without-target-keeps-unresolved-axes"
     },
     {
       "id": "analysisPrecisionConstructor:rust/crates/omena-query/src/types.rs:source_diagnostic_precision:1",
@@ -89,10 +89,10 @@
         }
       ],
       "disposition": {
-        "kind": "literalFixture",
-        "bindingId": "observation:missing-module.precision"
+        "kind": "probeBinding",
+        "bindingId": "source-diagnostic-keeps-input-revision"
       },
-      "reason": "exercisedBy:observation:missing-module.precision"
+      "reason": "boundTo:source-diagnostic-keeps-input-revision"
     },
     {
       "id": "analysisPrecisionConstructor:rust/crates/omena-query/src/style/cascade_position.rs:cascade_at_position_analysis_result:1",
@@ -118,10 +118,10 @@
         }
       ],
       "disposition": {
-        "kind": "literalFixture",
-        "bindingId": "observation:cascadeAtPosition.precision"
+        "kind": "probeBinding",
+        "bindingId": "unresolved-cascade-keeps-provider-unresolved"
       },
-      "reason": "exercisedBy:observation:cascadeAtPosition.precision"
+      "reason": "boundTo:unresolved-cascade-keeps-provider-unresolved"
     },
     {
       "id": "analysisPrecisionConstructor:rust/crates/omena-query/src/style/diagnostics/source_usage.rs:summarize_omena_query_css_modules_export_usage:1",
@@ -147,10 +147,10 @@
         }
       ],
       "disposition": {
-        "kind": "literalFixture",
-        "bindingId": "observation:cssModulesUnusedExportFlow.safeGhost.precision"
+        "kind": "probeBinding",
+        "bindingId": "unresolved-export-usage-keeps-provider-unresolved"
       },
-      "reason": "exercisedBy:observation:cssModulesUnusedExportFlow.safeGhost.precision"
+      "reason": "boundTo:unresolved-export-usage-keeps-provider-unresolved"
     },
     {
       "id": "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/source.rs:resolve_omena_query_source_precision_for_source:1",
@@ -172,10 +172,10 @@
         }
       ],
       "disposition": {
-        "kind": "literalFixture",
-        "bindingId": "observation:sourcePrecisionReference.precision"
+        "kind": "probeBinding",
+        "bindingId": "missing-source-capture-keeps-provider-unresolved"
       },
-      "reason": "exercisedBy:observation:sourcePrecisionReference.precision"
+      "reason": "boundTo:missing-source-capture-keeps-provider-unresolved"
     },
     {
       "id": "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_missing_selector_diagnostic_with_insertion_range:1",
@@ -197,10 +197,10 @@
         }
       ],
       "disposition": {
-        "kind": "literalFixture",
-        "bindingId": "fixture:sourceDiagnostic.missingSelector"
+        "kind": "probeBinding",
+        "bindingId": "missing-selector-keeps-reference-context"
       },
-      "reason": "exercisedBy:fixture:sourceDiagnostic.missingSelector"
+      "reason": "boundTo:missing-selector-keeps-reference-context"
     },
     {
       "id": "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_global_class_fallthrough_diagnostic:1",
@@ -222,10 +222,10 @@
         }
       ],
       "disposition": {
-        "kind": "literalFixture",
-        "bindingId": "observation:globalClassFallthrough.precision"
+        "kind": "probeBinding",
+        "bindingId": "global-class-fallthrough-keeps-open-world"
       },
-      "reason": "exercisedBy:observation:globalClassFallthrough.precision"
+      "reason": "boundTo:global-class-fallthrough-keeps-open-world"
     },
     {
       "id": "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth:1",
@@ -247,10 +247,10 @@
         }
       ],
       "disposition": {
-        "kind": "literalFixture",
-        "bindingId": "observation:missing-module.precision"
+        "kind": "probeBinding",
+        "bindingId": "missing-style-import-keeps-provider-unresolved"
       },
-      "reason": "exercisedBy:observation:missing-module.precision"
+      "reason": "boundTo:missing-style-import-keeps-provider-unresolved"
     },
     {
       "id": "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_type_fact_provider_unavailable_diagnostics:1",
@@ -272,10 +272,10 @@
         }
       ],
       "disposition": {
-        "kind": "literalFixture",
-        "bindingId": "fixture:sourceDiagnostic.providerUnavailable"
+        "kind": "probeBinding",
+        "bindingId": "unavailable-type-provider-keeps-provider-unresolved"
       },
-      "reason": "exercisedBy:fixture:sourceDiagnostic.providerUnavailable"
+      "reason": "boundTo:unavailable-type-provider-keeps-provider-unresolved"
     },
     {
       "id": "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_domain_class_reference_diagnostics:1",
@@ -297,10 +297,10 @@
         }
       ],
       "disposition": {
-        "kind": "literalFixture",
-        "bindingId": "fixture:sourceDiagnostic.missingClassValueOption"
+        "kind": "probeBinding",
+        "bindingId": "domain-class-reference-keeps-domain-context"
       },
-      "reason": "exercisedBy:fixture:sourceDiagnostic.missingClassValueOption"
+      "reason": "boundTo:domain-class-reference-keeps-domain-context"
     },
     {
       "id": "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_unresolved_source_reference_diagnostic:1",
@@ -318,10 +318,10 @@
         }
       ],
       "disposition": {
-        "kind": "literalFixture",
-        "bindingId": "observation:missingResolvedClassDomain.precision"
+        "kind": "probeBinding",
+        "bindingId": "unresolved-class-reference-keeps-reference-context"
       },
-      "reason": "exercisedBy:observation:missingResolvedClassDomain.precision"
+      "reason": "boundTo:unresolved-class-reference-keeps-reference-context"
     },
     {
       "id": "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/dynamic_classname.rs:collect_omena_query_dynamic_classname_m_tier_diagnostics:1",
@@ -339,10 +339,10 @@
         }
       ],
       "disposition": {
-        "kind": "literalFixture",
-        "bindingId": "observation:analysisPrecision.contextSensitivity"
+        "kind": "probeBinding",
+        "bindingId": "dynamic-classname-keeps-context-depth"
       },
-      "reason": "exercisedBy:observation:analysisPrecision.contextSensitivity"
+      "reason": "boundTo:dynamic-classname-keeps-context-depth"
     }
   ],
   "producerGateArms": [
@@ -507,7 +507,7 @@
     {
       "id": "literal-reason-machine-binding",
       "sourcePath": "rust/omena-precision-floor-authority.json",
-      "from": "\"reason\": \"exercisedBy:fixture:bridge.providerRegistry\"",
+      "from": "\"reason\": \"boundTo:provider-without-target-keeps-unresolved-axes\"",
       "to": "\"reason\": \"q\"",
       "command": ["pnpm", "exec", "tsx", "scripts/check-rust-precision-floor.ts"],
       "expectedFailure": "literal reason must be machine-bound"
@@ -522,8 +522,8 @@
         },
         {
           "sourcePath": "rust/omena-precision-floor-authority.json",
-          "from": "\"expression\": \"ValueDomainPrecisionV1::ClassValueFlow\"\n        },\n        {\n          \"axis\": \"context\",\n          \"expression\": \"ContextPrecisionV1::PerExpressionGraph\"\n        }\n      ],\n      \"disposition\": {\n        \"kind\": \"literalFixture\",\n        \"bindingId\": \"producerArm:provider.missingTypeFacts\"\n      },\n      \"reason\": \"exercisedBy:producerArm:provider.missingTypeFacts\"",
-          "to": "\"expression\": \"ValueDomainPrecisionV1::ExactClassValue\"\n        },\n        {\n          \"axis\": \"context\",\n          \"expression\": \"ContextPrecisionV1::PerExpressionGraph\"\n        }\n      ],\n      \"disposition\": {\n        \"kind\": \"literalFixture\",\n        \"bindingId\": \"producerArm:provider.missingTypeFacts\"\n      },\n      \"reason\": \"fabricated favorable literal\""
+          "from": "\"expression\": \"ValueDomainPrecisionV1::ClassValueFlow\"\n        },\n        {\n          \"axis\": \"context\",\n          \"expression\": \"ContextPrecisionV1::PerExpressionGraph\"\n        }\n      ],\n      \"disposition\": {\n        \"kind\": \"probeBinding\",\n        \"bindingId\": \"incremental-flow-keeps-expression-context\"\n      },\n      \"reason\": \"boundTo:incremental-flow-keeps-expression-context\"",
+          "to": "\"expression\": \"ValueDomainPrecisionV1::ExactClassValue\"\n        },\n        {\n          \"axis\": \"context\",\n          \"expression\": \"ContextPrecisionV1::PerExpressionGraph\"\n        }\n      ],\n      \"disposition\": {\n        \"kind\": \"probeBinding\",\n        \"bindingId\": \"incremental-flow-keeps-expression-context\"\n      },\n      \"reason\": \"fabricated favorable literal\""
         }
       ],
       "command": ["pnpm", "exec", "tsx", "scripts/check-rust-precision-floor.ts"],
@@ -536,6 +536,98 @@
       "to": "fn observation(output: &str, after: impl Into<String>) -> Value {\n    let _derived = after.into();\n    let after = match output {\n        \"closedSetFiniteReachability.openWorldPrecision\" => \"heuristic\",\n        \"closedSetFiniteReachability.nonEnumeratedPrecision\" => \"heuristic\",\n        \"closedSetFiniteReachability.missingMemberPrecision\" => \"heuristic\",\n        \"cssModulesUnusedExportFlow.safeGhost.precision\" => \"conservative\",\n        \"globalClassFallthrough.precision\" => \"heuristic\",\n        \"missing-module.precision\" => \"unknown\",\n        \"missingResolvedClassDomain.precision\" => \"unknown\",\n        \"sourcePrecisionReference.precision\" => \"unknown\",\n        \"cascadeAtPosition.precision\" => \"exact\",\n        \"closedSetFiniteReachability.emptyInputPrecision\" => \"unknown\",\n        \"cascadeAtPosition.unresolved.precision\" => \"unknown\",\n        \"analysisPrecision.contextSensitivity\" => \"k-cfa\",\n        _ => panic!(\"unregistered literal manifest output: {output}\"),\n    };\n    json!({ \"output\": output, \"after\": after })\n}",
       "command": ["pnpm", "exec", "tsx", "scripts/check-rust-precision-floor.ts"],
       "expectedFailure": "challenged executable manifest observation"
+    }
+  ],
+  "bindingProbes": [
+    {
+      "id": "witness-preserves-unresolved-axes",
+      "sourcePath": "rust/crates/omena-abstract-value/src/domain.rs",
+      "from": "(ProviderCompletenessV1::Unresolved | ProviderCompletenessV1::Unknown, _)",
+      "to": "(ProviderCompletenessV1::Unknown, _)"
+    },
+    {
+      "id": "unwitnessed-finite-set-keeps-open-world",
+      "sourcePath": "rust/crates/omena-abstract-value/src/domain.rs",
+      "from": "AbstractClassValueV0::FiniteSet { .. } => (\n            ValueDomainPrecisionV1::ClosedClassValueSet,\n            ProviderCompletenessV1::Partial,\n            WorldAssumptionV1::Open,",
+      "to": "AbstractClassValueV0::FiniteSet { .. } => (\n            ValueDomainPrecisionV1::ClosedClassValueSet,\n            ProviderCompletenessV1::Partial,\n            WorldAssumptionV1::Closed,"
+    },
+    {
+      "id": "incremental-flow-keeps-expression-context",
+      "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
+      "from": "FlowPrecisionV1::from_dataflow_mode(complete_dataflow),\n                ContextPrecisionV1::PerExpressionGraph,",
+      "to": "FlowPrecisionV1::from_dataflow_mode(complete_dataflow),\n                ContextPrecisionV1::ContextInsensitive,"
+    },
+    {
+      "id": "provider-without-target-keeps-unresolved-axes",
+      "sourcePath": "rust/crates/omena-bridge/src/style_intelligence.rs",
+      "from": "let unresolved_provider_count = if import_target_count == 0 { 1 } else { 0 };",
+      "to": "let unresolved_provider_count = if import_target_count == 0 { 0 } else { 0 };"
+    },
+    {
+      "id": "source-diagnostic-keeps-input-revision",
+      "sourcePath": "rust/crates/omena-query/src/types.rs",
+      "from": "WorldAssumptionV1::from_closed_world(closed_world),\n        RevisionIdentityV1::QuerySourceDiagnosticsInput,",
+      "to": "WorldAssumptionV1::from_closed_world(closed_world),\n        RevisionIdentityV1::Current,"
+    },
+    {
+      "id": "unresolved-cascade-keeps-provider-unresolved",
+      "sourcePath": "rust/crates/omena-query/src/style/cascade_position.rs",
+      "from": "let unresolved_provider_count = usize::from(value.status == \"unresolved\");",
+      "to": "let unresolved_provider_count = 0;"
+    },
+    {
+      "id": "unresolved-export-usage-keeps-provider-unresolved",
+      "sourcePath": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
+      "from": "let unresolved_provider_count = skip_reasons.len();",
+      "to": "let unresolved_provider_count = 0;"
+    },
+    {
+      "id": "missing-source-capture-keeps-provider-unresolved",
+      "sourcePath": "rust/crates/omena-query/src/source.rs",
+      "from": "ContextPrecisionV1::SameFile,\n        usize::from(capture.is_none()),",
+      "to": "ContextPrecisionV1::SameFile,\n        0,"
+    },
+    {
+      "id": "missing-selector-keeps-reference-context",
+      "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
+      "from": "FlowPrecisionV1::SourceSyntaxIndex,\n            ContextPrecisionV1::PerSourceReference,",
+      "to": "FlowPrecisionV1::SourceSyntaxIndex,\n            ContextPrecisionV1::ContextInsensitive,"
+    },
+    {
+      "id": "global-class-fallthrough-keeps-open-world",
+      "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
+      "from": "FlowPrecisionV1::GlobalClassUniverse,\n            ContextPrecisionV1::PerSourceReference,\n            0,\n            false,",
+      "to": "FlowPrecisionV1::GlobalClassUniverse,\n            ContextPrecisionV1::PerSourceReference,\n            0,\n            true,"
+    },
+    {
+      "id": "missing-style-import-keeps-provider-unresolved",
+      "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
+      "from": "FlowPrecisionV1::SourceImportResolution,\n                    ContextPrecisionV1::PerImportSpecifier,\n                    1,",
+      "to": "FlowPrecisionV1::SourceImportResolution,\n                    ContextPrecisionV1::PerImportSpecifier,\n                    0,"
+    },
+    {
+      "id": "unavailable-type-provider-keeps-provider-unresolved",
+      "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
+      "from": "FlowPrecisionV1::TypeOracleProviderUnavailable,\n            ContextPrecisionV1::PerTypeFactTarget,\n            1,",
+      "to": "FlowPrecisionV1::TypeOracleProviderUnavailable,\n            ContextPrecisionV1::PerTypeFactTarget,\n            0,"
+    },
+    {
+      "id": "domain-class-reference-keeps-domain-context",
+      "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
+      "from": "FlowPrecisionV1::SourceDomainReference,\n                ContextPrecisionV1::PerDomainAxis,",
+      "to": "FlowPrecisionV1::SourceDomainReference,\n                ContextPrecisionV1::ContextInsensitive,"
+    },
+    {
+      "id": "unresolved-class-reference-keeps-reference-context",
+      "sourcePath": "rust/crates/omena-query/src/style/source_refs.rs",
+      "from": "_ => ContextPrecisionV1::PerSourceReference,\n            },\n            usize::from(value_domain_size == 0),",
+      "to": "_ => ContextPrecisionV1::ContextInsensitive,\n            },\n            usize::from(value_domain_size == 0),"
+    },
+    {
+      "id": "dynamic-classname-keeps-context-depth",
+      "sourcePath": "rust/crates/omena-query/src/style/dynamic_classname.rs",
+      "from": "FlowPrecisionV1::KLimitedCallSiteFlow,\n                        ContextPrecisionV1::from_max_context_depth(max_context_depth),",
+      "to": "FlowPrecisionV1::KLimitedCallSiteFlow,\n                        ContextPrecisionV1::ContextInsensitive,"
     }
   ]
 }
