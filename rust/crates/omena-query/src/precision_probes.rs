@@ -1,5 +1,6 @@
 use crate::*;
 
+#[cfg(test)]
 fn assert_emitted_axes(probe_id: &str, actual: AnalysisPrecisionV1, expected: AnalysisPrecisionV1) {
     eprintln!(
         "OMENA_PRECISION_VECTOR {}",

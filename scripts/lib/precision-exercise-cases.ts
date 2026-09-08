@@ -22,7 +22,7 @@ export const PRECISION_EXERCISE_CASES: readonly PrecisionExerciseCase[] = [
       "analysisPrecisionConstructor:rust/crates/omena-abstract-value/src/domain.rs:apply_to:1",
     owningCrate: "omena-abstract-value",
     fixtureFile: "rust/crates/omena-abstract-value/src/domain_precision_probes.rs",
-    fixtureSha256: "6ceaac7be8ef917d4244b228fe9d3c97237ffe65e08f2aba6e254f230fb10621",
+    fixtureSha256: "e3761dedc00cf11c4b577fa40495ac8f36f7e1445fb505df5cfa8337cd3c198b",
     testPath: "domain::precision_probe_tests::witness_preserves_unresolved_axes",
     mutation: {
       id: "witness-preserves-unresolved-axes",
@@ -37,7 +37,7 @@ export const PRECISION_EXERCISE_CASES: readonly PrecisionExerciseCase[] = [
       "analysisPrecisionConstructor:rust/crates/omena-abstract-value/src/domain.rs:analysis_precision_from_class_value_with_witness:1",
     owningCrate: "omena-abstract-value",
     fixtureFile: "rust/crates/omena-abstract-value/src/domain_precision_probes.rs",
-    fixtureSha256: "6ceaac7be8ef917d4244b228fe9d3c97237ffe65e08f2aba6e254f230fb10621",
+    fixtureSha256: "e3761dedc00cf11c4b577fa40495ac8f36f7e1445fb505df5cfa8337cd3c198b",
     testPath: "domain::precision_probe_tests::unwitnessed_finite_set_keeps_open_world",
     mutation: {
       id: "unwitnessed-finite-set-keeps-open-world",
@@ -52,7 +52,7 @@ export const PRECISION_EXERCISE_CASES: readonly PrecisionExerciseCase[] = [
       "analysisPrecisionConstructor:rust/crates/omena-query-core/src/lib.rs:summarize_omena_query_expression_domain_incremental_flow_analysis_result:1",
     owningCrate: "omena-query-core",
     fixtureFile: "rust/crates/omena-query-core/src/precision_probes.rs",
-    fixtureSha256: "342b9d972379d26e2d100eb466d7bb9a29ea08206835a94f9ad770a761efc9ca",
+    fixtureSha256: "f352c4a366e2b3b62867551095dfed9b2ad11681f7e72e4d68d6fdf7b73d3358",
     testPath: "precision_probe_tests::incremental_flow_keeps_expression_context",
     mutation: {
       id: "incremental-flow-keeps-expression-context",
@@ -67,7 +67,7 @@ export const PRECISION_EXERCISE_CASES: readonly PrecisionExerciseCase[] = [
       "analysisPrecisionConstructor:rust/crates/omena-bridge/src/style_intelligence.rs:provider_analysis_precision:1",
     owningCrate: "omena-bridge",
     fixtureFile: "rust/crates/omena-bridge/src/style_intelligence_precision_probes.rs",
-    fixtureSha256: "e926cc0fac3aeb45c8aa94bdf822013c7c60673d7f40c5c62bea1c3d3ad609ac",
+    fixtureSha256: "f0705aa6d75578e0658a96072511f01e13b5baa812fdbd03491c62f41e8c10cf",
     testPath:
       "style_intelligence::precision_probe_tests::provider_without_target_keeps_unresolved_axes",
     mutation: {
@@ -83,7 +83,7 @@ export const PRECISION_EXERCISE_CASES: readonly PrecisionExerciseCase[] = [
       "analysisPrecisionConstructor:rust/crates/omena-query/src/types.rs:source_diagnostic_precision:1",
     owningCrate: "omena-query",
     fixtureFile: "rust/crates/omena-query/src/precision_probes.rs",
-    fixtureSha256: "d98e1dbd5dca0f987031b90a3ab7e7f2470605d99af58139b1bdca2ab1f4d8f7",
+    fixtureSha256: "4aff61494691f25a9803d8c0e9d522baf9600fc490fda3ec397d66fe115ab49e",
     testPath: "precision_probe_tests::source_diagnostic_keeps_input_revision",
     mutation: {
       id: "source-diagnostic-keeps-input-revision",
@@ -98,7 +98,7 @@ export const PRECISION_EXERCISE_CASES: readonly PrecisionExerciseCase[] = [
       "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/source.rs:resolve_omena_query_source_precision_for_source:1",
     owningCrate: "omena-query",
     fixtureFile: "rust/crates/omena-query/src/precision_probes.rs",
-    fixtureSha256: "d98e1dbd5dca0f987031b90a3ab7e7f2470605d99af58139b1bdca2ab1f4d8f7",
+    fixtureSha256: "4aff61494691f25a9803d8c0e9d522baf9600fc490fda3ec397d66fe115ab49e",
     testPath: "precision_probe_tests::missing_source_capture_keeps_provider_unresolved",
     mutation: {
       id: "missing-source-capture-keeps-provider-unresolved",
@@ -113,7 +113,7 @@ export const PRECISION_EXERCISE_CASES: readonly PrecisionExerciseCase[] = [
       "analysisPrecisionConstructor:rust/crates/omena-query/src/style/cascade_position.rs:cascade_at_position_analysis_result:1",
     owningCrate: "omena-query",
     fixtureFile: "rust/crates/omena-query/src/style/cascade_precision_probes.rs",
-    fixtureSha256: "587606a494b2c196e7cbc0c07b261140802dbe4014a04b59b9e846fbe4ead932",
+    fixtureSha256: "a782e9aa2192be3b1cb4ad63b6a4820ff91d37f1767b81d1a59a901bf80f27e6",
     testPath:
       "style::cascade_position::precision_probe_tests::unresolved_cascade_keeps_provider_unresolved",
     mutation: {
@@ -129,7 +129,7 @@ export const PRECISION_EXERCISE_CASES: readonly PrecisionExerciseCase[] = [
       "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_missing_selector_diagnostic_with_insertion_range:1",
     owningCrate: "omena-query",
     fixtureFile: "rust/crates/omena-query/src/style/source_refs_precision_probes.rs",
-    fixtureSha256: "3e35e4b880e29aaaa77fa8afc8cea778be0d451a8825e2933e39e76bead00a13",
+    fixtureSha256: "b18616548eb794855ce6889b21417a8d6f7f9e5963dc32e6e5d58130c9f13177",
     testPath: "style::source_refs::precision_probe_tests::missing_selector_keeps_reference_context",
     mutation: {
       id: "missing-selector-keeps-reference-context",
@@ -144,7 +144,7 @@ export const PRECISION_EXERCISE_CASES: readonly PrecisionExerciseCase[] = [
       "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_global_class_fallthrough_diagnostic:1",
     owningCrate: "omena-query",
     fixtureFile: "rust/crates/omena-query/src/style/source_refs_precision_probes.rs",
-    fixtureSha256: "3e35e4b880e29aaaa77fa8afc8cea778be0d451a8825e2933e39e76bead00a13",
+    fixtureSha256: "b18616548eb794855ce6889b21417a8d6f7f9e5963dc32e6e5d58130c9f13177",
     testPath:
       "style::source_refs::precision_probe_tests::global_class_fallthrough_keeps_open_world",
     mutation: {
@@ -160,7 +160,7 @@ export const PRECISION_EXERCISE_CASES: readonly PrecisionExerciseCase[] = [
       "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth:1",
     owningCrate: "omena-query",
     fixtureFile: "rust/crates/omena-query/src/style/source_refs_precision_probes.rs",
-    fixtureSha256: "3e35e4b880e29aaaa77fa8afc8cea778be0d451a8825e2933e39e76bead00a13",
+    fixtureSha256: "b18616548eb794855ce6889b21417a8d6f7f9e5963dc32e6e5d58130c9f13177",
     testPath:
       "style::source_refs::precision_probe_tests::missing_style_import_keeps_provider_unresolved",
     mutation: {
@@ -176,7 +176,7 @@ export const PRECISION_EXERCISE_CASES: readonly PrecisionExerciseCase[] = [
       "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_type_fact_provider_unavailable_diagnostics:1",
     owningCrate: "omena-query",
     fixtureFile: "rust/crates/omena-query/src/style/source_refs_precision_probes.rs",
-    fixtureSha256: "3e35e4b880e29aaaa77fa8afc8cea778be0d451a8825e2933e39e76bead00a13",
+    fixtureSha256: "b18616548eb794855ce6889b21417a8d6f7f9e5963dc32e6e5d58130c9f13177",
     testPath:
       "style::source_refs::precision_probe_tests::unavailable_type_provider_keeps_provider_unresolved",
     mutation: {
@@ -192,7 +192,7 @@ export const PRECISION_EXERCISE_CASES: readonly PrecisionExerciseCase[] = [
       "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_domain_class_reference_diagnostics:1",
     owningCrate: "omena-query",
     fixtureFile: "rust/crates/omena-query/src/style/source_refs_precision_probes.rs",
-    fixtureSha256: "3e35e4b880e29aaaa77fa8afc8cea778be0d451a8825e2933e39e76bead00a13",
+    fixtureSha256: "b18616548eb794855ce6889b21417a8d6f7f9e5963dc32e6e5d58130c9f13177",
     testPath:
       "style::source_refs::precision_probe_tests::domain_class_reference_keeps_domain_context",
     mutation: {
@@ -208,7 +208,7 @@ export const PRECISION_EXERCISE_CASES: readonly PrecisionExerciseCase[] = [
       "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_unresolved_source_reference_diagnostic:1",
     owningCrate: "omena-query",
     fixtureFile: "rust/crates/omena-query/src/style/source_refs_precision_probes.rs",
-    fixtureSha256: "3e35e4b880e29aaaa77fa8afc8cea778be0d451a8825e2933e39e76bead00a13",
+    fixtureSha256: "b18616548eb794855ce6889b21417a8d6f7f9e5963dc32e6e5d58130c9f13177",
     testPath:
       "style::source_refs::precision_probe_tests::unresolved_class_reference_keeps_reference_context",
     mutation: {
@@ -224,7 +224,7 @@ export const PRECISION_EXERCISE_CASES: readonly PrecisionExerciseCase[] = [
       "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/dynamic_classname.rs:collect_omena_query_dynamic_classname_m_tier_diagnostics:1",
     owningCrate: "omena-query",
     fixtureFile: "rust/crates/omena-query/src/style/dynamic_classname_precision_probes.rs",
-    fixtureSha256: "dd48b081cdebc077492a47c3d3d3a0e71145e92895ea8aac55cdaab8aed2d519",
+    fixtureSha256: "2fde81e67b336496917ded89a4898f0b92c44033ccafbcb3d9d3bc4a77a99c5b",
     testPath:
       "style::dynamic_classname::precision_probe_tests::dynamic_classname_keeps_context_depth",
     mutation: {
