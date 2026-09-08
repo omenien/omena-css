@@ -445,6 +445,7 @@ function addManifestOutputPath(
  * be added here, and every path here must still be recovered from its write call.
  */
 export const EVIDENCE_STATIC_WRITE_OUTPUT_AUTHORITY = [
+  "rust/crates/omena-cli/write-safety-census.json",
   "docs/reference/crates.md",
   "packages/css-build-adapter/bundler-host-contract.generated.d.ts",
   "packages/css-build-adapter/interface-member-snapshot.json",

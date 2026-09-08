@@ -1,3 +1,5 @@
+import { precisionExerciseInventory } from "./lib/precision-exercise";
+import { PRECISION_PICKUP_PIN } from "./lib/precision-exercise-baseline";
 import { execFileSync } from "node:child_process";
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
@@ -87,6 +89,7 @@ interface GatedExclusion {
 interface PrecisionAuthority {
   readonly precisionEmissionPoints: readonly PrecisionPoint[];
   readonly mutationProbes: readonly MutationProbe[];
+  readonly bindingProbes?: readonly MutationProbe[];
   readonly gatedExclusions?: readonly GatedExclusion[];
 }
 
@@ -1361,76 +1364,6 @@ function deriveFamilyCalls(sources: readonly RustSource[]): RegisteredCallSite[]
   return rows.toSorted((left, right) => compareCodePoint(callIdentity(left), callIdentity(right)));
 }
 
-function probeChanges(probe: MutationProbe): readonly MutationChange[] {
-  if (probe.changes) return probe.changes;
-  assert.ok(
-    probe.sourcePath && probe.from !== undefined && probe.to !== undefined,
-    `probe span not resolvable ${probe.id}`,
-  );
-  return [{ sourcePath: probe.sourcePath, from: probe.from, to: probe.to }];
-}
-
-function probeSpanByPoint(
-  authority: PrecisionAuthority,
-  sources: readonly RustSource[],
-): Map<string, Set<string>> {
-  const sourcesByFile = new Map(sources.map((entry) => [entry.file, entry]));
-  const pointRegions = new Map<string, { file: string; start: number; end: number }>();
-  for (const point of authority.precisionEmissionPoints) {
-    const entry = sourcesByFile.get(point.sourcePath);
-    assert.ok(entry, `point item not resolvable ${point.id}`);
-    const functions = rustNamedFunctions(entry.source, entry.modulePath).filter(
-      ({ shortName }) => shortName === point.function,
-    );
-    assert.equal(functions.length, 1, `point item not resolvable ${point.id}`);
-    pointRegions.set(point.id, {
-      file: point.sourcePath,
-      start: functions[0]!.start,
-      end: functions[0]!.end,
-    });
-  }
-  const exercised = new Map<string, Set<string>>();
-  for (const probe of authority.mutationProbes) {
-    const points = new Set<string>();
-    for (const change of probeChanges(probe)) {
-      const entry = sourcesByFile.get(change.sourcePath);
-      if (!entry) {
-        const raw = readFileSync(path.join(repoRoot, change.sourcePath), "utf8");
-        const occurrences = raw.split(change.from).length - 1;
-        assert.equal(occurrences, 1, `probe span not resolvable ${probe.id}`);
-        continue;
-      }
-      const occurrences = entry.source.split(change.from).length - 1;
-      assert.equal(occurrences, 1, `probe span not resolvable ${probe.id}`);
-      const offset = entry.source.indexOf(change.from);
-      for (const [pointId, region] of pointRegions) {
-        if (region.file === change.sourcePath && region.start <= offset && offset < region.end)
-          points.add(pointId);
-      }
-    }
-    exercised.set(probe.id, points);
-  }
-  return exercised;
-}
-
-function assertBindings(authority: PrecisionAuthority, sources: readonly RustSource[]): void {
-  const exercised = probeSpanByPoint(authority, sources);
-  const probeIds = new Set(authority.mutationProbes.map(({ id }) => id));
-  for (const point of authority.precisionEmissionPoints) {
-    const binding =
-      point.disposition?.bindingId ??
-      point.reason?.match(/^(?:exercisedBy|coveredBySweep|guardedBy):(.+)$/u)?.[1];
-    if (!binding || !probeIds.has(binding)) continue;
-    assert.ok(exercised.get(binding)?.has(point.id), `binding does not exercise ${point.id}`);
-  }
-  for (const exclusion of authority.gatedExclusions ?? []) {
-    assert.ok(
-      exercised.get(exclusion.probe)?.has(exclusion.pointId),
-      `gated exclusion ${exclusion.id} not exercised by ${exclusion.probe}`,
-    );
-  }
-}
-
 const metadata = readMetadata();
 const scope = precisionScope(metadata);
 const sources = precisionSources(scope);
@@ -1439,7 +1372,7 @@ const derivedContainers = deriveDeserializationContainers(sources);
 const precisionAuthority = JSON.parse(
   readFileSync(precisionAuthorityPath, "utf8"),
 ) as PrecisionAuthority;
-assertBindings(precisionAuthority, sources);
+const exerciseInventory = precisionExerciseInventory(repoRoot, precisionAuthority);
 
 if (process.argv.includes("--print-baseline")) {
   process.stdout.write(
@@ -1462,6 +1395,18 @@ if (process.argv.includes("--print-baseline")) {
 const instrumentAuthority = JSON.parse(
   readFileSync(instrumentAuthorityPath, "utf8"),
 ) as CensusInstrumentAuthority;
+const pickupInstrumentAuthority = JSON.parse(
+  execFileSync("git", ["show", `${PRECISION_PICKUP_PIN}:rust/census-instrument-s0.json`], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  }),
+) as CensusInstrumentAuthority;
+for (const { identity } of pickupInstrumentAuthority.precision.deserializationContainers) {
+  assert.ok(
+    derivedContainers.includes(identity),
+    `census floor unmet deserializationContainers ${identity}`,
+  );
+}
 const registeredCalls = new Map(
   instrumentAuthority.precision.familyCallSites.map((site) => [callIdentity(site), site]),
 );
@@ -1513,6 +1458,11 @@ process.stdout.write(
       deserializationContainerCount: derivedContainers.length,
       emissionPointCount: precisionAuthority.precisionEmissionPoints.length,
       mutationProbeCount: precisionAuthority.mutationProbes.length,
+      authoredPairCandidateCount: exerciseInventory.pairs.length,
+      authoredPairsPerCrate: exerciseInventory.perCrate,
+      noProbePoints: exerciseInventory.noProbe,
+      censusOnlyProbes: exerciseInventory.censusOnly,
+      countedPrecisionRows: exerciseInventory.countedRows,
     },
     null,
     2,

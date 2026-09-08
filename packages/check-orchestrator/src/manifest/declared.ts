@@ -1096,6 +1096,16 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/omena-config-schema-census", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-write-safety", "gate", "rust"),
   {
+    id: "rust/precision-exercise",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "check:rust-precision-exercise",
+    tags: ["rust-workspace", "precision", "mutation"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
+    timeoutMinutes: 15,
+  },
+  {
     id: "rust/precision-authority",
     kind: "gate",
     scope: "rust",

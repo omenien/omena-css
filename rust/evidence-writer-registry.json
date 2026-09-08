@@ -3,10 +3,10 @@
   "generatedBy": "pnpm omena-check evidence-writers --write",
   "commandAuthority": {
     "modulePath": "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
-    "sha256": "ccb241b6b78f0537f9c4027c74692053f7c778e163ea6bdd5e8c11c85e7ce20b",
+    "sha256": "5dcf1bf4b5b0a79d24c6f25be7474573ab426ba11a30351c78f36c81da19f462",
     "declaredCommandCount": 27,
     "declaredOutputCount": 76,
-    "declaredStaticWriteOutputCount": 68
+    "declaredStaticWriteOutputCount": 69
   },
   "artifacts": [
     {
@@ -1066,7 +1066,8 @@
       "writerGateIds": [],
       "consumerPaths": [
         "scripts/check-rust-census-instrument-s0.ts",
-        "scripts/check-rust-precision-authority.ts"
+        "scripts/check-rust-precision-authority.ts",
+        "scripts/lib/precision-exercise.ts"
       ],
       "consumerGateIds": ["rust/census-instrument-s0", "rust/precision-authority"]
     },
@@ -1794,6 +1795,43 @@
         "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
       "consumerGateIds": ["rust/omena-cli-json-output-census", "tooling/evidence-affected-map"]
+    },
+    {
+      "artifactPath": "rust/crates/omena-cli/write-safety-census.json",
+      "classification": "W2",
+      "writerNodeKind": "normal",
+      "writerScripts": ["scripts/check-rust-omena-write-safety.ts"],
+      "writeCommand": [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omena-write-safety.ts",
+        "--write"
+      ],
+      "inputPaths": [
+        "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",
+        "rust/crates/omena-checker/src/fix_safety.rs",
+        "rust/crates/omena-cli/src/build.rs",
+        "rust/crates/omena-cli/src/daemon.rs",
+        "rust/crates/omena-cli/src/lock.rs",
+        "rust/crates/omena-cli/src/migrate/mod.rs",
+        "rust/crates/omena-cli/src/minify.rs",
+        "rust/crates/omena-cli/src/modules.rs",
+        "rust/crates/omena-cli/src/postcss_compat.rs",
+        "rust/crates/omena-cli/src/workspace_edit_transaction.rs",
+        "rust/crates/omena-query-transform-runner/src/lib.rs",
+        "rust/crates/omena-query/src/lib.rs",
+        "scripts/lib/write-safety-census-contract.ts"
+      ],
+      "inputScannerPaths": ["scripts/check-rust-omena-write-safety.ts"],
+      "inputArtifactPaths": [],
+      "writerGateIds": [],
+      "consumerPaths": [
+        "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "rust/omena-product-path-matrix.json",
+        "scripts/check-rust-omena-write-safety.ts"
+      ],
+      "consumerGateIds": ["rust/omena-write-safety"]
     },
     {
       "artifactPath": "rust/crates/omena-diff-test/oss-corpus-farm/baselines.json",
@@ -4860,11 +4898,15 @@
       "consumerPaths": [
         "rust/census-instrument-s0.json",
         "scripts/check-rust-precision-authority.ts",
+        "scripts/check-rust-precision-exercise.ts",
         "scripts/check-rust-precision-floor-mutation.ts",
-        "scripts/check-rust-precision-floor.ts"
+        "scripts/check-rust-precision-floor.ts",
+        "scripts/lib/precision-exercise.ts",
+        "test/unit/check-orchestrator/precision-exercise.test.ts"
       ],
       "consumerGateIds": [
         "rust/precision-authority",
+        "rust/precision-exercise",
         "rust/precision-floor",
         "rust/precision-floor-mutations"
       ]

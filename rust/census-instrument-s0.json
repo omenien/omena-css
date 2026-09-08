@@ -599,6 +599,12 @@
   },
   "countedResidue": [
     {
+      "identity": "precision-no-probe:analysisPrecisionConstructor:rust/crates/omena-query/src/style/diagnostics/source_usage.rs:summarize_omena_query_css_modules_export_usage:1",
+      "kind": "precision-no-probe",
+      "owner": "Rust diagnostics maintainers",
+      "reason": "The six emitted axes are converted to FactPrecision inside the producer; the public result does not expose that vector. Aggregate product tests do not discharge vector exercise."
+    },
+    {
       "identity": "scripts/check-rust-precision-floor.ts:84#57b02a23469321bfedc1bda99e92dae3945e36ea57a10d236c93ce3a458041a5",
       "kind": "assert",
       "owner": "Rust diagnostics maintainers"

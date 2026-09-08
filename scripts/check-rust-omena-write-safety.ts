@@ -1,6 +1,7 @@
 import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
 import { strict as assert } from "node:assert";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
+import { WRITE_SAFETY_CENSUS_CONTRACT } from "./lib/write-safety-census-contract";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -87,7 +88,8 @@ const pathPreservingMethods = new Set([
   "with_extension",
 ]);
 const productDestinationGraphCache = new Map<string, ProductDestinationGraph>();
-const manifest = readWriteSafetyManifest(manifestPath);
+const manifest: WriteSafetyManifest = WRITE_SAFETY_CENSUS_CONTRACT;
+validateWriteSites(manifest.writeSites);
 const fixSafetySource = read("rust/crates/omena-checker/src/fix_safety.rs");
 const writeGateSource = read(manifest.sourceMutationGate.path);
 const queryRunnerSource = read("rust/crates/omena-query-transform-runner/src/lib.rs");
@@ -827,6 +829,43 @@ assert.deepEqual(
     "source-edit:structuralSharingRevalidation",
   ],
 );
+
+const derivedCensus: WriteSafetyManifest = {
+  ...manifest,
+  writeSites: manifest.writeSites.map((registered) => {
+    const {
+      path: sitePath,
+      function: fn,
+      writeCount,
+      classification,
+      owner,
+    } = derivedWriteSites.find(
+      (site) => site.path === registered.path && site.function === registered.function,
+    )!;
+    return {
+      path: sitePath,
+      function: fn,
+      writeCount,
+      classification,
+      owner,
+    };
+  }),
+};
+const censusBytes = `${JSON.stringify(derivedCensus, null, 2)}\n`;
+if (process.argv.includes("--write")) {
+  assert.equal(
+    path.resolve(process.cwd()),
+    repoRoot,
+    "write-safety writer requires the product root",
+  );
+  writeFileSync("rust/crates/omena-cli/write-safety-census.json", censusBytes);
+} else {
+  assert.deepEqual(
+    readWriteSafetyManifest(manifestPath),
+    derivedCensus,
+    "write-safety census drift; run with --write",
+  );
+}
 
 process.stdout.write(
   `${JSON.stringify(
