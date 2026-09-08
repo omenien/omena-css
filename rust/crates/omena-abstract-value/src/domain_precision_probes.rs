@@ -16,6 +16,7 @@ fn assert_emitted_axes(probe_id: &str, actual: AnalysisPrecisionV1, expected: An
     assert_eq!(actual, expected, "emitted precision vector {probe_id}");
 }
 
+#[cfg(test)]
 #[test]
 fn witness_preserves_unresolved_axes() -> Result<(), String> {
     let value = AbstractClassValueV0::FiniteSet {
@@ -51,6 +52,7 @@ fn witness_preserves_unresolved_axes() -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(test)]
 #[test]
 fn unwitnessed_finite_set_keeps_open_world() -> Result<(), String> {
     let value = AbstractClassValueV0::FiniteSet {

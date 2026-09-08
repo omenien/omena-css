@@ -16,6 +16,7 @@ fn assert_emitted_axes(probe_id: &str, actual: AnalysisPrecisionV1, expected: An
     assert_eq!(actual, expected, "emitted precision vector {probe_id}");
 }
 
+#[cfg(test)]
 #[test]
 fn dynamic_classname_keeps_context_depth() -> Result<(), String> {
     let sites = vec![OmenaQueryDynamicClassnameCallSiteV0 {

@@ -16,6 +16,7 @@ fn assert_emitted_axes(probe_id: &str, actual: AnalysisPrecisionV1, expected: An
     assert_eq!(actual, expected, "emitted precision vector {probe_id}");
 }
 
+#[cfg(test)]
 #[test]
 fn source_diagnostic_keeps_input_revision() -> Result<(), String> {
     let result = crate::types::source_diagnostic_precision(
@@ -40,6 +41,7 @@ fn source_diagnostic_keeps_input_revision() -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(test)]
 #[test]
 fn missing_source_capture_keeps_provider_unresolved() -> Result<(), String> {
     let result = resolve_omena_query_source_precision_for_source(

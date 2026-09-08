@@ -16,6 +16,7 @@ fn assert_emitted_axes(probe_id: &str, actual: AnalysisPrecisionV1, expected: An
     assert_eq!(actual, expected, "emitted precision vector {probe_id}");
 }
 
+#[cfg(test)]
 #[test]
 fn unresolved_cascade_keeps_provider_unresolved() -> Result<(), String> {
     let input = EngineInputV2 {

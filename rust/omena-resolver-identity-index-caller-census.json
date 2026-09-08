@@ -1217,7 +1217,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/source_refs_precision_probes.rs",
-      "line": 78,
+      "line": 81,
       "caller": "missing_style_import_keeps_provider_unresolved",
       "callee": "summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth",
       "callOrdinal": 0,
@@ -1276,5 +1276,5 @@
     "justifiedNoneCount": 16,
     "violationCount": 0
   },
-  "siteDigest": "sha256:e2ff6105160b3e3089aee26566a276ed0ff008368a0f22414ebd279ee5922a18"
+  "siteDigest": "sha256:3cef208bae3f6bcf6a4019a63720e355f8a10755c0f6265ea31626aa51982b52"
 }

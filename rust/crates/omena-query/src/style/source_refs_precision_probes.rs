@@ -16,6 +16,7 @@ fn assert_emitted_axes(probe_id: &str, actual: AnalysisPrecisionV1, expected: An
     assert_eq!(actual, expected, "emitted precision vector {probe_id}");
 }
 
+#[cfg(test)]
 #[test]
 fn missing_selector_keeps_reference_context() -> Result<(), String> {
     let diagnostic = summarize_omena_query_missing_selector_diagnostic_with_insertion_range(
@@ -43,6 +44,7 @@ fn missing_selector_keeps_reference_context() -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(test)]
 #[test]
 fn global_class_fallthrough_keeps_open_world() -> Result<(), String> {
     let diagnostic = summarize_omena_query_global_class_fallthrough_diagnostic(
@@ -68,6 +70,7 @@ fn global_class_fallthrough_keeps_open_world() -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(test)]
 #[test]
 fn missing_style_import_keeps_provider_unresolved() -> Result<(), String> {
     let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
@@ -103,6 +106,7 @@ fn missing_style_import_keeps_provider_unresolved() -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(test)]
 #[test]
 fn unavailable_type_provider_keeps_provider_unresolved() -> Result<(), String> {
     let source = "unknown";
@@ -142,6 +146,7 @@ fn unavailable_type_provider_keeps_provider_unresolved() -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(test)]
 #[test]
 fn domain_class_reference_keeps_domain_context() -> Result<(), String> {
     let source = "ghost";
@@ -194,6 +199,7 @@ fn domain_class_reference_keeps_domain_context() -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(test)]
 #[test]
 fn unresolved_class_reference_keeps_reference_context() -> Result<(), String> {
     let source = "ghost";
