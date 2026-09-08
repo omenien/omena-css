@@ -70,9 +70,14 @@ fn global_class_fallthrough_keeps_open_world() -> Result<(), String> {
 
 #[test]
 fn missing_style_import_keeps_provider_unresolved() -> Result<(), String> {
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let resolver_identity_index = build_omena_resolver_style_module_confirmation_identity_index(
+        &BTreeSet::new(),
+        resolution_inputs.disk_style_path_identities.as_slice(),
+    );
     let report = summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth(
         "file:///workspace/Example.tsx", "import styles from './Missing.module.css';", &[], &[],
-        &OmenaQueryStyleResolutionInputsV0::default(), None, 2,
+        &resolution_inputs, Some(&resolver_identity_index), 2,
     );
     let diagnostic = report
         .diagnostics

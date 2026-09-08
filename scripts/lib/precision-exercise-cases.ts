@@ -129,7 +129,7 @@ export const PRECISION_EXERCISE_CASES: readonly PrecisionExerciseCase[] = [
       "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_missing_selector_diagnostic_with_insertion_range:1",
     owningCrate: "omena-query",
     fixtureFile: "rust/crates/omena-query/src/style/source_refs_precision_probes.rs",
-    fixtureSha256: "b18616548eb794855ce6889b21417a8d6f7f9e5963dc32e6e5d58130c9f13177",
+    fixtureSha256: "43aefba7bb3de56318bd2ddb7111e3f27c7130f1b5592645b6f06dd324e75e6a",
     testPath: "style::source_refs::precision_probe_tests::missing_selector_keeps_reference_context",
     mutation: {
       id: "missing-selector-keeps-reference-context",
@@ -144,7 +144,7 @@ export const PRECISION_EXERCISE_CASES: readonly PrecisionExerciseCase[] = [
       "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_global_class_fallthrough_diagnostic:1",
     owningCrate: "omena-query",
     fixtureFile: "rust/crates/omena-query/src/style/source_refs_precision_probes.rs",
-    fixtureSha256: "b18616548eb794855ce6889b21417a8d6f7f9e5963dc32e6e5d58130c9f13177",
+    fixtureSha256: "43aefba7bb3de56318bd2ddb7111e3f27c7130f1b5592645b6f06dd324e75e6a",
     testPath:
       "style::source_refs::precision_probe_tests::global_class_fallthrough_keeps_open_world",
     mutation: {
@@ -160,7 +160,7 @@ export const PRECISION_EXERCISE_CASES: readonly PrecisionExerciseCase[] = [
       "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth:1",
     owningCrate: "omena-query",
     fixtureFile: "rust/crates/omena-query/src/style/source_refs_precision_probes.rs",
-    fixtureSha256: "b18616548eb794855ce6889b21417a8d6f7f9e5963dc32e6e5d58130c9f13177",
+    fixtureSha256: "43aefba7bb3de56318bd2ddb7111e3f27c7130f1b5592645b6f06dd324e75e6a",
     testPath:
       "style::source_refs::precision_probe_tests::missing_style_import_keeps_provider_unresolved",
     mutation: {
@@ -176,7 +176,7 @@ export const PRECISION_EXERCISE_CASES: readonly PrecisionExerciseCase[] = [
       "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_type_fact_provider_unavailable_diagnostics:1",
     owningCrate: "omena-query",
     fixtureFile: "rust/crates/omena-query/src/style/source_refs_precision_probes.rs",
-    fixtureSha256: "b18616548eb794855ce6889b21417a8d6f7f9e5963dc32e6e5d58130c9f13177",
+    fixtureSha256: "43aefba7bb3de56318bd2ddb7111e3f27c7130f1b5592645b6f06dd324e75e6a",
     testPath:
       "style::source_refs::precision_probe_tests::unavailable_type_provider_keeps_provider_unresolved",
     mutation: {
@@ -192,7 +192,7 @@ export const PRECISION_EXERCISE_CASES: readonly PrecisionExerciseCase[] = [
       "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_domain_class_reference_diagnostics:1",
     owningCrate: "omena-query",
     fixtureFile: "rust/crates/omena-query/src/style/source_refs_precision_probes.rs",
-    fixtureSha256: "b18616548eb794855ce6889b21417a8d6f7f9e5963dc32e6e5d58130c9f13177",
+    fixtureSha256: "43aefba7bb3de56318bd2ddb7111e3f27c7130f1b5592645b6f06dd324e75e6a",
     testPath:
       "style::source_refs::precision_probe_tests::domain_class_reference_keeps_domain_context",
     mutation: {
@@ -208,7 +208,7 @@ export const PRECISION_EXERCISE_CASES: readonly PrecisionExerciseCase[] = [
       "sourceDiagnosticArgumentSite:rust/crates/omena-query/src/style/source_refs.rs:summarize_omena_query_unresolved_source_reference_diagnostic:1",
     owningCrate: "omena-query",
     fixtureFile: "rust/crates/omena-query/src/style/source_refs_precision_probes.rs",
-    fixtureSha256: "b18616548eb794855ce6889b21417a8d6f7f9e5963dc32e6e5d58130c9f13177",
+    fixtureSha256: "43aefba7bb3de56318bd2ddb7111e3f27c7130f1b5592645b6f06dd324e75e6a",
     testPath:
       "style::source_refs::precision_probe_tests::unresolved_class_reference_keeps_reference_context",
     mutation: {
