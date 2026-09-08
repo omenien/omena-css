@@ -1216,6 +1216,16 @@
       "disposition": "threaded"
     },
     {
+      "path": "rust/crates/omena-query/src/style/source_refs_precision_probes.rs",
+      "line": 78,
+      "caller": "missing_style_import_keeps_provider_unresolved",
+      "callee": "summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth",
+      "callOrdinal": 0,
+      "identityArgument": "Some(&resolver_identity_index)",
+      "identityFlow": "local-build",
+      "disposition": "threaded"
+    },
+    {
       "path": "rust/crates/omena-query/src/style/transform/context.rs",
       "line": 288,
       "caller": "derive_omena_query_transform_context_from_sources_with_resolution_context",
@@ -1258,13 +1268,13 @@
   ],
   "summary": {
     "acceptingFunctionCount": 47,
-    "callSiteCount": 111,
-    "threadedCount": 95,
+    "callSiteCount": 112,
+    "threadedCount": 96,
     "sharedReuseCount": 74,
-    "localBuildCount": 21,
+    "localBuildCount": 22,
     "freshBuildViolationCount": 0,
     "justifiedNoneCount": 16,
     "violationCount": 0
   },
-  "siteDigest": "sha256:2f8ac13d3b4a9edcd0d07fe16f3b60c1d22bacf4cc620eb969db28d9369260c6"
+  "siteDigest": "sha256:e2ff6105160b3e3089aee26566a276ed0ff008368a0f22414ebd279ee5922a18"
 }
