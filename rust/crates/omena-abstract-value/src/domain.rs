@@ -662,3 +662,7 @@ mod precision_witness_tests {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "domain_precision_probes.rs"]
+mod precision_probe_tests;

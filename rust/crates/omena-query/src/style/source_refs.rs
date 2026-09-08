@@ -2232,3 +2232,7 @@ mod custom_property_moniker_identity_tests {
         assert_ne!(moniker("--FOO"), moniker("--foo"));
     }
 }
+
+#[cfg(test)]
+#[path = "source_refs_precision_probes.rs"]
+mod precision_probe_tests;

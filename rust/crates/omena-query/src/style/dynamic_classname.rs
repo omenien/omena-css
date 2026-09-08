@@ -437,3 +437,7 @@ fn dynamic_classname_m_tier_diagnostic_code(rule_code_name: &str) -> &'static st
         _ => "dynamicClassDomain",
     }
 }
+
+#[cfg(test)]
+#[path = "dynamic_classname_precision_probes.rs"]
+mod precision_probe_tests;

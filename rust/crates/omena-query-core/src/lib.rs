@@ -1441,3 +1441,7 @@ mod tests {
         assert!(!open_world_effective.satisfies(FactPrecision::Conservative));
     }
 }
+
+#[cfg(test)]
+#[path = "precision_probes.rs"]
+mod precision_probe_tests;

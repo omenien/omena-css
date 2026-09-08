@@ -640,3 +640,7 @@ const value = button({ intent: "pri" });"#;
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "style_intelligence_precision_probes.rs"]
+mod precision_probe_tests;

@@ -1060,3 +1060,7 @@ pub(crate) use types::{
     apply_omena_query_checker_product_gate_to_source_diagnostics,
     apply_omena_query_checker_product_gate_to_style_diagnostics, source_diagnostic_precision,
 };
+
+#[cfg(test)]
+#[path = "precision_probes.rs"]
+mod precision_probe_tests;

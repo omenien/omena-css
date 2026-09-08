@@ -674,3 +674,7 @@ mod authored_property_identity_tests {
         assert_ne!(declaration("--foo"), declaration("--FOO"));
     }
 }
+
+#[cfg(test)]
+#[path = "cascade_precision_probes.rs"]
+mod precision_probe_tests;
