@@ -21,7 +21,7 @@ fn assert_emitted_axes(probe_id: &str, actual: AnalysisPrecisionV1, expected: An
 fn provider_without_target_keeps_unresolved_axes() -> Result<(), String> {
     assert_emitted_axes(
         "provider-without-target-keeps-unresolved-axes",
-        provider_analysis_precision(0),
+        crate::style_intelligence::provider_analysis_precision(0),
         AnalysisPrecisionV1::from_axes_for_tests(
             ValueDomainPrecisionV1::StyleModuleResolution,
             FlowPrecisionV1::ProviderObservation,

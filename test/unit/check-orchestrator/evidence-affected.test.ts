@@ -191,18 +191,6 @@ const evidenceWriterFixturePaths = [
 const evidenceWriterRuntimeModulePaths = evidenceWriterFixturePaths.slice(0, 3);
 
 function syncEvidenceWriterFixtureSources(repoRoot: string, worktree: string): void {
-  // A registry and its writer imports must come from the same candidate tree.
-  // Include added index entries so discovery also sees newly registered writers.
-  const candidatePatch = execFileSync("git", ["diff", "--binary", "HEAD"], {
-    cwd: repoRoot,
-  });
-  if (candidatePatch.length > 0) {
-    execFileSync("git", ["apply", "--index", "--whitespace=nowarn", "-"], {
-      cwd: worktree,
-      input: candidatePatch,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-  }
   for (const relativePath of evidenceWriterFixturePaths) {
     const destination = path.join(worktree, relativePath);
     mkdirSync(path.dirname(destination), { recursive: true });

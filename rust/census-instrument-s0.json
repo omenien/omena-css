@@ -1388,6 +1388,24 @@
       "owner": "Rust evidence maintainers",
       "baselineSource": "write-safety-closeout-counted-disclosure",
       "baselineDigest": "fa9cb0f51ca2be0eff9da37e9c4fc6d865754b3d7cb28c233ad46076fd9f9bd6"
+    },
+    {
+      "identity": "legacy-product-probe:closed-world-provider-laundering",
+      "kind": "legacy-product-probe",
+      "owner": "omena-abstract-value precision maintainers",
+      "reason": "Unchanged cargo-test probe inherited from the pickup pin; its command shape alone does not establish an executed precision flip. Retained as counted residue pending a named product vector and baseline/mutation/restoration proof."
+    },
+    {
+      "identity": "legacy-product-probe:closed-world-full-exact-laundering",
+      "kind": "legacy-product-probe",
+      "owner": "omena-query transform maintainers",
+      "reason": "Unchanged cargo-test probe inherited from the pickup pin; its command shape alone does not establish an executed precision flip. Retained as counted residue pending a named product vector and baseline/mutation/restoration proof."
+    },
+    {
+      "identity": "legacy-product-probe:source-usage-unresolved-count-fold",
+      "kind": "legacy-product-probe",
+      "owner": "omena-query source usage maintainers",
+      "reason": "Unchanged cargo-test probe inherited from the pickup pin; its command shape alone does not establish an executed precision flip. Retained as counted residue pending a named product vector and baseline/mutation/restoration proof."
     }
   ]
 }

@@ -44,7 +44,7 @@ fn source_diagnostic_keeps_input_revision() -> Result<(), String> {
 #[cfg(test)]
 #[test]
 fn missing_source_capture_keeps_provider_unresolved() -> Result<(), String> {
-    let result = resolve_omena_query_source_precision_for_source(
+    let result = crate::source::resolve_omena_query_source_precision_for_source(
         "file:///workspace/Example.tsx",
         "export const value = 1;",
         Some("typescript"),

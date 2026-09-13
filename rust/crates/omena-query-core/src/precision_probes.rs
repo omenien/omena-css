@@ -26,7 +26,7 @@ fn incremental_flow_keeps_expression_context() -> Result<(), String> {
         type_facts: vec![],
     };
     let mut runtime = OmenaQueryExpressionDomainFlowRuntimeV0::default();
-    let result = summarize_omena_query_expression_domain_incremental_flow_analysis_result(
+    let result = crate::summarize_omena_query_expression_domain_incremental_flow_analysis_result(
         &input,
         &mut runtime,
     );

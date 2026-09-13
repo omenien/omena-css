@@ -16,7 +16,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DECLARED_CHECK_GATES } from "../packages/check-orchestrator/src/manifest/declared";
-import { banGateArgv, rustNamedFunctions } from "./lib/rust-write-authority";
+import { banGateArgv, matchingRustDelimiter, rustNamedFunctions } from "./lib/rust-write-authority";
 import {
   RETIRED_INSTRUMENT,
   CENSUS_ROW_IDS,
@@ -127,15 +127,12 @@ interface CommandSpec {
 interface CommandReceipt {
   readonly argv: readonly string[];
   readonly cwd: ".";
-  readonly environment: {
-    readonly CARGO_INCREMENTAL: "0";
-    readonly CARGO_TARGET_DIR: "<REPO>/rust/target";
-    readonly CARGO_TERM_COLOR: "never";
-    readonly NO_COLOR: "1";
-  };
+  readonly environment: Readonly<Record<string, string>>;
   readonly exitCode: number;
   readonly stdout: string;
   readonly stderr: string;
+  readonly signal: string | null;
+  readonly spawnError: string | null;
 }
 
 interface CommandEvidence {
@@ -500,6 +497,9 @@ function commandFor(root: string, row: S0Row): CommandSpec {
     }
     case "clippy-ban": {
       const args = [...banGateArgv(root).cargoArgs];
+      const separator = args.indexOf("--");
+      assert.ok(separator >= 0, "clippy command lacks the cargo/rustc separator");
+      args.splice(separator, 0, "--message-format=json");
       return { executable: "cargo", args, argv: ["cargo", ...args] };
     }
     case "precision-family":
@@ -536,34 +536,52 @@ function normalizedOutput(value: string, treeRoot: string): string {
 
 function executeCommand(root: string, spec: CommandSpec): CommandReceipt {
   const cargoTargetDir = path.join(repoRoot, "rust/target");
+  const childEnvironment = {
+    ...process.env,
+    CARGO_INCREMENTAL: "0",
+    CARGO_TARGET_DIR: cargoTargetDir,
+    CARGO_TERM_COLOR: "never",
+    NO_COLOR: "1",
+  };
   const result = spawnSync(spec.executable, spec.args, {
     cwd: root,
     encoding: "utf8",
-    env: {
-      ...process.env,
-      CARGO_INCREMENTAL: "0",
-      CARGO_TARGET_DIR: cargoTargetDir,
-      CARGO_TERM_COLOR: "never",
-      NO_COLOR: "1",
-    },
+    env: childEnvironment,
     maxBuffer: 256 * 1024 * 1024,
   });
   const stdout = normalizedOutput(result.stdout ?? "", root);
   const stderr = normalizedOutput(result.stderr ?? "", root);
   const exitCode = result.status ?? 127;
-  return {
+  const receipt: CommandReceipt = {
     argv: spec.argv,
     cwd: ".",
-    environment: {
-      CARGO_INCREMENTAL: "0",
-      CARGO_TARGET_DIR: "<REPO>/rust/target",
-      CARGO_TERM_COLOR: "never",
-      NO_COLOR: "1",
-    },
+    // Bind inherited compiler, linker, SDK and cache settings handed to spawn.
+    // Sensitive values are digest-bound without publishing credentials.
+    environment: Object.fromEntries(
+      Object.entries(childEnvironment)
+        .filter(
+          ([key, value]) =>
+            value !== undefined &&
+            /^(?:RUST(?:C|DOC|UP)(?:_|$)|RUST(?:DOC)?FLAGS$|CARGO_|SCCACHE_|OMENA_(?:SCCACHE|MACOS_NATIVE_DEVELOPER_DIR)$|DEVELOPER_DIR$|SDKROOT$|MACOSX_DEPLOYMENT_TARGET$|(?:CC|CXX|AR|LD|CFLAGS|CXXFLAGS|LDFLAGS)(?:_|$)|NO_COLOR$|PATH$)/u.test(
+              key,
+            ),
+        )
+        .toSorted(([left], [right]) => compareCodePoint(left, right))
+        .map(([key, value]) => [
+          key,
+          /TOKEN|SECRET|PASSWORD|CREDENTIAL|ACCESS_KEY|PRIVATE_KEY/iu.test(key)
+            ? `<REDACTED_SHA256:${sha256(value!)}>`
+            : normalizedOutput(value!, root),
+        ]),
+    ),
     exitCode,
     stdout,
     stderr,
+    signal: result.signal,
+    spawnError: result.error ? normalizedOutput(String(result.error), root) : null,
   };
+  executionJournal.push({ attempt: currentAttempt, command: receipt });
+  return receipt;
 }
 
 function commandEvidence(receipt: CommandReceipt): CommandEvidence {
@@ -652,12 +670,31 @@ function validateClippy(
   receipt: CommandReceipt,
   expected: Extract<Expected, { methods: readonly string[] }>,
 ): string {
-  assert.ok(receipt.exitCode !== 0, "clippy row unexpectedly passed");
   const output = `${receipt.stdout}\n${receipt.stderr}`;
+  assert.equal(
+    receipt.exitCode,
+    101,
+    `clippy row did not fail with exit 101\n${output.slice(-4_000)}`,
+  );
+  const diagnostics = receipt.stdout.split("\n").flatMap((line) => {
+    try {
+      const entry = JSON.parse(line);
+      return entry.reason === "compiler-message" &&
+        entry.message?.code?.code === "clippy::disallowed_methods"
+        ? [entry.message]
+        : [];
+    } catch {
+      return [];
+    }
+  });
   for (const method of expected.methods) {
     assert.ok(
-      output.includes(`use of a disallowed method \`${method}\``),
-      `clippy DefId diagnostic absent ${method}`,
+      diagnostics.some(
+        (message) =>
+          message.level === "error" &&
+          message.message === `use of a disallowed method \`${method}\``,
+      ),
+      `clippy DefId diagnostic absent ${method}\n${output.slice(-4_000)}`,
     );
   }
   return expected.methods.map((method) => `clippy:${method}`).join(",");
@@ -977,10 +1014,12 @@ function runRow(
   scratchParent: string,
   authority: Authority,
 ): RowExecutionReceipt {
+  currentAttempt = { kind: "row", id: row.id, replay };
   return withScratchMutation(row.id, replay, scratchParent, row.mutations, (root, touched) => {
     const files = inputFiles(root, touched);
     const spec = commandFor(root, row);
     const inputTreeDigest = treeDigest(files, spec.argv);
+    currentAttempt = { ...currentAttempt, inputFiles: files, inputTreeDigest };
     const familyPopulation = familyPopulationReceipt(root, row, authority);
     const command = executeCommand(root, spec);
     const observedSignature = validateExpected(command, row.expected, row.gate);
@@ -1044,6 +1083,142 @@ function proofControls(authority: Authority): ProofControl[] {
       expectedText: "test result: ok.",
     },
   ];
+  const casesPath = "scripts/lib/precision-exercise-cases.ts";
+  const casesSource = readFileSync(path.join(repoRoot, casesPath), "utf8");
+  const firstCase = casesSource.match(
+    /  \{\n    id: "([^"]+)",[\s\S]*?    pointId:\s*"([^"]+)"[\s\S]*?\n  \},\n/u,
+  );
+  assert.ok(firstCase, "precision co-edit control has no authored case");
+  const removedId = firstCase[1]!;
+  const removedPoint = firstCase[2]!;
+  controls.push({
+    id: "precision-no-probe-coedit",
+    mutations: [
+      { kind: "replace", file: casesPath, match: firstCase[0], replacement: "" },
+      {
+        kind: "replace",
+        file: casesPath,
+        match: "export const PRECISION_UNOBSERVABLE_POINTS = [",
+        replacement:
+          "export const PRECISION_UNOBSERVABLE_POINTS = [\n  " + JSON.stringify(removedPoint) + ",",
+      },
+      {
+        kind: "replace",
+        file: "scripts/lib/precision-exercise-baseline.ts",
+        match: "  " + JSON.stringify(removedId) + ",\n",
+        replacement: "",
+      },
+      {
+        kind: "json-set",
+        file: "rust/census-instrument-s0.json",
+        valuePath: ["countedResidue"],
+        value: [
+          ...authority.countedResidue,
+          {
+            identity: "precision-no-probe:" + removedPoint,
+            kind: "precision-no-probe",
+            owner: "Precision co-edit refusal fixture",
+            reason: "Candidate co-edits its former live ratchet operands.",
+          },
+        ],
+      },
+    ],
+    command: nodeCommand("scripts/check-rust-precision-exercise.ts", "--inventory"),
+    expectedExit: 1,
+    expectedText: "no-probe population grew " + removedPoint,
+  });
+  const diagnosticFile = "rust/crates/omena-query/src/types.rs";
+  const diagnosticSource = readFileSync(path.join(repoRoot, diagnosticFile), "utf8");
+  const diagnosticFn = rustNamedFunctions(diagnosticSource, "crate").find(
+    ({ shortName }) => shortName === "source_diagnostic_precision",
+  );
+  assert.ok(diagnosticFn, "precision emission control has no source producer");
+  const extraProducer = diagnosticSource
+    .slice(diagnosticFn.start, diagnosticFn.end)
+    .replace(/\bsource_diagnostic_precision\b/u, "unregistered_precision_return")
+    .replace(/\s+/gu, " ");
+  controls.push({
+    id: "precision-unregistered-emission",
+    mutations: [
+      { kind: "append", file: diagnosticFile, text: "\n" + extraProducer + "\n" },
+      {
+        kind: "json-set",
+        file: "rust/census-instrument-s0.json",
+        valuePath: ["precision", "familyCallSites"],
+        value: [
+          ...authority.precision.familyCallSites,
+          {
+            crate: "omena-query",
+            file: diagnosticFile,
+            item: "crate::types::unregistered_precision_return",
+            member: "from_axes",
+            ordinal: 1,
+            owner: "Precision emission refusal fixture",
+          },
+        ],
+      },
+    ],
+    command: nodeCommand("scripts/check-rust-precision-authority.ts"),
+    expectedExit: 1,
+    expectedText:
+      "unregistered precision emission point omena-query::crate::types::unregistered_precision_return",
+  });
+  const constructorStart = diagnosticSource.indexOf(
+    "AnalysisPrecisionV1::from_axes(",
+    diagnosticFn.bodyStart,
+  );
+  assert.ok(
+    constructorStart > diagnosticFn.bodyStart && constructorStart < diagnosticFn.end,
+    "precision removal control has no constructor",
+  );
+  const constructorOpen = diagnosticSource.indexOf("(", constructorStart);
+  const constructorEnd = matchingRustDelimiter(diagnosticSource, constructorOpen, "(", ")") + 1;
+  controls.push({
+    id: "precision-removed-emission",
+    mutations: [
+      {
+        kind: "replace",
+        file: diagnosticFile,
+        match: diagnosticSource.slice(constructorStart, constructorEnd),
+        replacement: "AnalysisPrecisionV1::unknown()",
+      },
+      {
+        kind: "json-set",
+        file: "rust/census-instrument-s0.json",
+        valuePath: ["precision", "familyCallSites"],
+        value: authority.precision.familyCallSites.map((site) =>
+          site.file === diagnosticFile &&
+          site.item === "crate::types::source_diagnostic_precision" &&
+          site.member === "from_axes"
+            ? { ...site, member: "unknown" }
+            : site,
+        ),
+      },
+    ],
+    command: nodeCommand("scripts/check-rust-precision-authority.ts"),
+    expectedExit: 1,
+    expectedText: "precision emission point census drift",
+  });
+  controls.push({
+    id: "precision-emission-nonproduction-decoys",
+    mutations: [
+      {
+        kind: "append",
+        file: diagnosticFile,
+        text:
+          "\n#[cfg(test)]\n" +
+          extraProducer +
+          "\n/* " +
+          extraProducer +
+          ' */\nconst PRECISION_CENSUS_DECOY: &str = r#"' +
+          extraProducer +
+          '"#;\n',
+      },
+    ],
+    command: nodeCommand("scripts/check-rust-precision-authority.ts"),
+    expectedExit: 0,
+    expectedText: '"product": "rust.precision-authority"',
+  });
   for (const [field, type] of [
     ["value_domain", "ValueDomainPrecisionV1"],
     ["flow", "FlowPrecisionV1"],
@@ -1215,6 +1390,7 @@ function proofControls(authority: Authority): ProofControl[] {
 }
 
 function runProofControl(control: ProofControl, scratchParent: string) {
+  currentAttempt = { kind: "control", id: control.id, replay: 0 };
   return withScratchMutation(control.id, 0, scratchParent, control.mutations, (root, touched) => {
     const files = inputFiles(root, touched);
     const compilation = control.mustCompile ? executeCommand(root, control.mustCompile) : null;
@@ -1263,188 +1439,225 @@ function argumentValues(name: string): string[] {
   return values;
 }
 
-assertNoPerRowControlFlow();
-const authorityBytes = readFileSync(authorityPath);
-const authority = JSON.parse(authorityBytes.toString("utf8")) as Authority;
-validateAuthority(authority);
-const authorityValidation = validateCurrentAuthority(authority);
-if (process.argv.includes("--authority-only")) {
+const receipts: RowExecutionReceipt[] = [];
+const controlReceipts: ReturnType<typeof runProofControl>[] = [];
+let currentAttempt: Record<string, unknown> = { kind: "authority-validation" };
+const executionJournal: { attempt: Record<string, unknown>; command: CommandReceipt }[] = [];
+
+function writeReceipt(receipt: unknown, failure = false): void {
+  const writeTargets = argumentValues("--write");
+  assert.ok(writeTargets.length <= 1, "--write may be specified at most once");
+  const relative =
+    writeTargets[0] ?? (failure ? ".omena-ci/census-instrument-receipt.json" : undefined);
+  if (!relative) return;
+  const target = safeRelativeFile(repoRoot, relative);
+  mkdirSync(path.dirname(target), { recursive: true });
+  writeFileSync(target, `${JSON.stringify(receipt, null, 2)}\n`);
+}
+
+function main(): void {
+  assertNoPerRowControlFlow();
+  const authorityBytes = readFileSync(authorityPath);
+  const authority = JSON.parse(authorityBytes.toString("utf8")) as Authority;
+  validateAuthority(authority);
+  const authorityValidation = validateCurrentAuthority(authority);
+  if (process.argv.includes("--authority-only")) {
+    process.stdout.write(
+      `${JSON.stringify(
+        {
+          schemaVersion: "0",
+          product: "rust.census-instrument-authority",
+          authorityValidation,
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    process.exit(0);
+  }
+  const authorityIds = new Set(authority.s0Rows.map(({ id }) => id));
+  const requested = new Set(argumentValues("--row"));
+  for (const id of requested) assert.ok(authorityIds.has(id), `unknown requested row ${id}`);
+  const controlsOnly = process.argv.includes("--controls-only");
+  assert.ok(!controlsOnly || requested.size === 0, "--controls-only cannot select rows");
+  const selectedRows = controlsOnly
+    ? []
+    : authority.s0Rows.filter(({ id }) => requested.size === 0 || requested.has(id));
+  assert.ok(controlsOnly || selectedRows.length >= 1, "no S0 rows selected");
+  const scratchParent = mkdtempSync(path.join(os.tmpdir(), "omena-census-s0-"));
+  try {
+    if (requested.size === 0) {
+      for (const control of proofControls(authority)) {
+        controlReceipts.push(runProofControl(control, scratchParent));
+        process.stderr.write(
+          `proof control ${control.id} observed declared exit ${control.expectedExit}\n`,
+        );
+      }
+    }
+    for (const row of selectedRows) {
+      const first = runRow(row, 1, scratchParent, authority);
+      receipts.push(first);
+      process.stderr.write(`S0 ${row.id} replay 1/2 ${first.observedSignature}\n`);
+      const second = runRow(row, 2, scratchParent, authority);
+      receipts.push(second);
+      process.stderr.write(`S0 ${row.id} replay 2/2 ${second.observedSignature}\n`);
+      assert.equal(
+        second.inputTreeDigest,
+        first.inputTreeDigest,
+        `clean replay input drifted ${row.id}`,
+      );
+      assert.equal(
+        second.command.exitCode,
+        first.command.exitCode,
+        `clean replay exit drifted ${row.id}`,
+      );
+      assert.deepEqual(
+        second.command.argv,
+        first.command.argv,
+        `clean replay argv drifted ${row.id}`,
+      );
+      assert.deepEqual(
+        second.command.environment,
+        first.command.environment,
+        `clean replay environment drifted ${row.id}`,
+      );
+      assert.equal(
+        second.observedSignature,
+        first.observedSignature,
+        `clean replay signature drifted ${row.id}`,
+      );
+      assert.deepEqual(
+        second.familyPopulation?.newCallSites ?? null,
+        first.familyPopulation?.newCallSites ?? null,
+        `clean replay family population drifted ${row.id}`,
+      );
+      assert.deepEqual(
+        second.familyPopulation?.command.argv ?? null,
+        first.familyPopulation?.command.argv ?? null,
+        `clean replay family population argv drifted ${row.id}`,
+      );
+      assert.deepEqual(
+        second.familyPopulation?.command.environment ?? null,
+        first.familyPopulation?.command.environment ?? null,
+        `clean replay family population environment drifted ${row.id}`,
+      );
+      assert.deepEqual(
+        second.baselineWriteSafety && {
+          verdict: second.baselineWriteSafety.verdict,
+          assertion: second.baselineWriteSafety.assertion,
+          exitCode: second.baselineWriteSafety.command.exitCode,
+          argv: second.baselineWriteSafety.command.argv,
+          environment: second.baselineWriteSafety.command.environment,
+        },
+        first.baselineWriteSafety && {
+          verdict: first.baselineWriteSafety.verdict,
+          assertion: first.baselineWriteSafety.assertion,
+          exitCode: first.baselineWriteSafety.command.exitCode,
+          argv: first.baselineWriteSafety.command.argv,
+          environment: first.baselineWriteSafety.command.environment,
+        },
+        `clean replay baseline verdict drifted ${row.id}`,
+      );
+    }
+  } finally {
+    rmSync(scratchParent, { recursive: true, force: true });
+  }
+
+  const primaryReceipts = receipts.filter(({ replay }) => replay === 1);
+  assert.equal(
+    new Set(primaryReceipts.map(({ inputTreeDigest }) => inputTreeDigest)).size,
+    selectedRows.length,
+    "row injection tree digests are not unique",
+  );
+  const executionEvidenceDigests = primaryReceipts.map((receipt) =>
+    sha256(
+      JSON.stringify({
+        inputFiles: receipt.inputFiles,
+        inputTreeDigest: receipt.inputTreeDigest,
+        argv: receipt.command.argv,
+        environment: receipt.command.environment,
+        exitCode: receipt.command.exitCode,
+        stdout: receipt.command.stdout,
+        stderr: receipt.command.stderr,
+        observedSignature: receipt.observedSignature,
+      }),
+    ),
+  );
+  assert.equal(
+    new Set(executionEvidenceDigests).size,
+    selectedRows.length,
+    "row execution evidence is not unique",
+  );
+
+  const fullReceipt = {
+    schemaVersion: "0",
+    product: "rust.census-instrument-s0-receipt",
+    authoritySha256: sha256(authorityBytes),
+    executorSha256: sha256(readFileSync(fileURLToPath(import.meta.url))),
+    bindingRowCount: authority.s0Rows.length,
+    executedRowCount: selectedRows.length,
+    executionReceiptCount: receipts.length,
+    cleanReplayCount: receipts.filter(({ replay }) => replay === 2).length,
+    authorityValidation,
+    rows: receipts,
+    controls: controlReceipts,
+  };
+  writeReceipt(fullReceipt);
+
   process.stdout.write(
     `${JSON.stringify(
       {
-        schemaVersion: "0",
-        product: "rust.census-instrument-authority",
-        authorityValidation,
+        schemaVersion: fullReceipt.schemaVersion,
+        product: fullReceipt.product,
+        bindingRowCount: fullReceipt.bindingRowCount,
+        executedRowCount: fullReceipt.executedRowCount,
+        executionReceiptCount: fullReceipt.executionReceiptCount,
+        cleanReplayCount: fullReceipt.cleanReplayCount,
+        receiptSha256: sha256(JSON.stringify(fullReceipt)),
+        executorSha256: fullReceipt.executorSha256,
+        controlExecutionCount: controlReceipts.length,
+        rows: selectedRows.map(({ id }) => {
+          const first = receipts.find((receipt) => receipt.rowId === id && receipt.replay === 1)!;
+          return {
+            id,
+            home: first.home,
+            inputTreeDigest: first.inputTreeDigest,
+            observedSignature: first.observedSignature,
+            newFamilyCallSites:
+              first.familyPopulation?.newCallSites.map(callIdentity).toSorted(compareCodePoint) ??
+              [],
+            preGoalVerdict: first.baselineWriteSafety?.verdict ?? null,
+            preGoalAssertion: first.baselineWriteSafety?.assertion ?? null,
+          };
+        }),
       },
       null,
       2,
     )}\n`,
   );
-  process.exit(0);
 }
-const authorityIds = new Set(authority.s0Rows.map(({ id }) => id));
-const requested = new Set(argumentValues("--row"));
-for (const id of requested) assert.ok(authorityIds.has(id), `unknown requested row ${id}`);
-const controlsOnly = process.argv.includes("--controls-only");
-assert.ok(!controlsOnly || requested.size === 0, "--controls-only cannot select rows");
-const selectedRows = controlsOnly
-  ? []
-  : authority.s0Rows.filter(({ id }) => requested.size === 0 || requested.has(id));
-assert.ok(controlsOnly || selectedRows.length >= 1, "no S0 rows selected");
-const scratchParent = mkdtempSync(path.join(os.tmpdir(), "omena-census-s0-"));
-const receipts: RowExecutionReceipt[] = [];
-const controlReceipts: ReturnType<typeof runProofControl>[] = [];
+
 try {
-  if (requested.size === 0) {
-    for (const control of proofControls(authority)) {
-      controlReceipts.push(runProofControl(control, scratchParent));
-      process.stderr.write(
-        `proof control ${control.id} observed declared exit ${control.expectedExit}\n`,
-      );
-    }
-  }
-  for (const row of selectedRows) {
-    const first = runRow(row, 1, scratchParent, authority);
-    process.stderr.write(`S0 ${row.id} replay 1/2 ${first.observedSignature}\n`);
-    const second = runRow(row, 2, scratchParent, authority);
-    process.stderr.write(`S0 ${row.id} replay 2/2 ${second.observedSignature}\n`);
-    assert.equal(
-      second.inputTreeDigest,
-      first.inputTreeDigest,
-      `clean replay input drifted ${row.id}`,
-    );
-    assert.equal(
-      second.command.exitCode,
-      first.command.exitCode,
-      `clean replay exit drifted ${row.id}`,
-    );
-    assert.deepEqual(
-      second.command.argv,
-      first.command.argv,
-      `clean replay argv drifted ${row.id}`,
-    );
-    assert.deepEqual(
-      second.command.environment,
-      first.command.environment,
-      `clean replay environment drifted ${row.id}`,
-    );
-    assert.equal(
-      second.observedSignature,
-      first.observedSignature,
-      `clean replay signature drifted ${row.id}`,
-    );
-    assert.deepEqual(
-      second.familyPopulation?.newCallSites ?? null,
-      first.familyPopulation?.newCallSites ?? null,
-      `clean replay family population drifted ${row.id}`,
-    );
-    assert.deepEqual(
-      second.familyPopulation?.command.argv ?? null,
-      first.familyPopulation?.command.argv ?? null,
-      `clean replay family population argv drifted ${row.id}`,
-    );
-    assert.deepEqual(
-      second.familyPopulation?.command.environment ?? null,
-      first.familyPopulation?.command.environment ?? null,
-      `clean replay family population environment drifted ${row.id}`,
-    );
-    assert.deepEqual(
-      second.baselineWriteSafety && {
-        verdict: second.baselineWriteSafety.verdict,
-        assertion: second.baselineWriteSafety.assertion,
-        exitCode: second.baselineWriteSafety.command.exitCode,
-        argv: second.baselineWriteSafety.command.argv,
-        environment: second.baselineWriteSafety.command.environment,
-      },
-      first.baselineWriteSafety && {
-        verdict: first.baselineWriteSafety.verdict,
-        assertion: first.baselineWriteSafety.assertion,
-        exitCode: first.baselineWriteSafety.command.exitCode,
-        argv: first.baselineWriteSafety.command.argv,
-        environment: first.baselineWriteSafety.command.environment,
-      },
-      `clean replay baseline verdict drifted ${row.id}`,
-    );
-    receipts.push(first, second);
-  }
-} finally {
-  rmSync(scratchParent, { recursive: true, force: true });
-}
-
-const primaryReceipts = receipts.filter(({ replay }) => replay === 1);
-assert.equal(
-  new Set(primaryReceipts.map(({ inputTreeDigest }) => inputTreeDigest)).size,
-  selectedRows.length,
-  "row injection tree digests are not unique",
-);
-const executionEvidenceDigests = primaryReceipts.map((receipt) =>
-  sha256(
-    JSON.stringify({
-      inputFiles: receipt.inputFiles,
-      inputTreeDigest: receipt.inputTreeDigest,
-      argv: receipt.command.argv,
-      environment: receipt.command.environment,
-      exitCode: receipt.command.exitCode,
-      stdout: receipt.command.stdout,
-      stderr: receipt.command.stderr,
-      observedSignature: receipt.observedSignature,
-    }),
-  ),
-);
-assert.equal(
-  new Set(executionEvidenceDigests).size,
-  selectedRows.length,
-  "row execution evidence is not unique",
-);
-
-const fullReceipt = {
-  schemaVersion: "0",
-  product: "rust.census-instrument-s0-receipt",
-  authoritySha256: sha256(authorityBytes),
-  executorSha256: sha256(readFileSync(fileURLToPath(import.meta.url))),
-  bindingRowCount: authority.s0Rows.length,
-  executedRowCount: selectedRows.length,
-  executionReceiptCount: receipts.length,
-  cleanReplayCount: receipts.filter(({ replay }) => replay === 2).length,
-  authorityValidation,
-  rows: receipts,
-  controls: controlReceipts,
-};
-const writeTargets = argumentValues("--write");
-assert.ok(writeTargets.length <= 1, "--write may be specified at most once");
-if (writeTargets[0]) {
-  const target = safeRelativeFile(repoRoot, writeTargets[0]);
-  mkdirSync(path.dirname(target), { recursive: true });
-  writeFileSync(target, `${JSON.stringify(fullReceipt, null, 2)}\n`);
-}
-
-process.stdout.write(
-  `${JSON.stringify(
+  main();
+} catch (error) {
+  writeReceipt(
     {
-      schemaVersion: fullReceipt.schemaVersion,
-      product: fullReceipt.product,
-      bindingRowCount: fullReceipt.bindingRowCount,
-      executedRowCount: fullReceipt.executedRowCount,
-      executionReceiptCount: fullReceipt.executionReceiptCount,
-      cleanReplayCount: fullReceipt.cleanReplayCount,
-      receiptSha256: sha256(JSON.stringify(fullReceipt)),
-      executorSha256: fullReceipt.executorSha256,
-      controlExecutionCount: controlReceipts.length,
-      rows: selectedRows.map(({ id }) => {
-        const first = receipts.find((receipt) => receipt.rowId === id && receipt.replay === 1)!;
-        return {
-          id,
-          home: first.home,
-          inputTreeDigest: first.inputTreeDigest,
-          observedSignature: first.observedSignature,
-          newFamilyCallSites:
-            first.familyPopulation?.newCallSites.map(callIdentity).toSorted(compareCodePoint) ?? [],
-          preGoalVerdict: first.baselineWriteSafety?.verdict ?? null,
-          preGoalAssertion: first.baselineWriteSafety?.assertion ?? null,
-        };
-      }),
+      schemaVersion: "0",
+      product: "rust.census-instrument-s0-receipt",
+      status: "failed",
+      authoritySha256: existsSync(authorityPath) ? sha256(readFileSync(authorityPath)) : null,
+      executorSha256: sha256(readFileSync(fileURLToPath(import.meta.url))),
+      failure:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : { message: String(error) },
+      currentAttempt,
+      executionReceiptCount: receipts.length,
+      rows: receipts,
+      controls: controlReceipts,
+      executionJournal,
     },
-    null,
-    2,
-  )}\n`,
-);
+    true,
+  );
+  throw error;
+}

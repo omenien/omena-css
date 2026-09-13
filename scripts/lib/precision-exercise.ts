@@ -4,13 +4,15 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { PRECISION_EXERCISE_BIRTH_IDS, PRECISION_PICKUP_PIN } from "./precision-exercise-baseline";
-import { rustNamedFunctions } from "./rust-write-authority";
+import { PRECISION_PICKUP_PIN, PRECISION_EXERCISE_BIRTH_PIN } from "./precision-exercise-baseline";
+import { compilerApi as ts } from "../../server/engine-core-ts/src/ts-facade";
 import {
-  PRECISION_EXERCISE_CASES,
-  PRECISION_UNOBSERVABLE_POINTS,
-  type PrecisionExerciseCase,
-} from "./precision-exercise-cases";
+  maskRustCommentsAndLiterals,
+  matchingRustDelimiter,
+  rustNamedFunctions,
+  type CargoPackage,
+} from "./rust-write-authority";
+import { PRECISION_EXERCISE_CASES, type PrecisionExerciseCase } from "./precision-exercise-cases";
 
 export interface PrecisionEmissionPoint {
   readonly id: string;
@@ -45,6 +47,50 @@ export interface PrecisionExerciseAuthority {
 
 export function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+// Parse committed declarations, never evaluate candidate code as a ratchet operand.
+export function precisionExerciseBirth(root: string) {
+  const committed = (file: string) =>
+    execFileSync("git", ["show", `${PRECISION_EXERCISE_BIRTH_PIN}:${file}`], {
+      cwd: root,
+      encoding: "utf8",
+    });
+  const literalArray = (file: string, name: string): readonly string[] => {
+    const tree = ts.createSourceFile(file, committed(file), ts.ScriptTarget.Latest, true);
+    const declarations = tree.statements.flatMap((statement) =>
+      ts.isVariableStatement(statement)
+        ? [...statement.declarationList.declarations].filter(
+            (declaration) => ts.isIdentifier(declaration.name) && declaration.name.text === name,
+          )
+        : [],
+    );
+    assert.equal(declarations.length, 1, `committed precision operand missing ${name}`);
+    let value = declarations[0]!.initializer;
+    if (value && ts.isAsExpression(value)) value = value.expression;
+    assert.ok(value && ts.isArrayLiteralExpression(value), `nonliteral precision operand ${name}`);
+    return value.elements.map((element) => {
+      assert.ok(ts.isStringLiteral(element), `nonliteral precision identity ${name}`);
+      return element.text;
+    });
+  };
+  const instrument = JSON.parse(committed("rust/census-instrument-s0.json")) as {
+    countedResidue: { kind: string; identity: string }[];
+  };
+  return {
+    pin: PRECISION_EXERCISE_BIRTH_PIN,
+    pairIds: literalArray(
+      "scripts/lib/precision-exercise-baseline.ts",
+      "PRECISION_EXERCISE_BIRTH_IDS",
+    ),
+    noProbe: literalArray(
+      "scripts/lib/precision-exercise-cases.ts",
+      "PRECISION_UNOBSERVABLE_POINTS",
+    ),
+    censusOnly: instrument.countedResidue
+      .filter(({ kind }) => kind === "probe-census-only")
+      .map(({ identity }) => identity),
+  };
 }
 
 export function precisionProbeChanges(probe: PrecisionProbe) {
@@ -133,7 +179,7 @@ export function precisionExerciseInventory(
       ["metadata", "--manifest-path", "rust/Cargo.toml", "--no-deps", "--format-version", "1"],
       { cwd: root, encoding: "utf8" },
     ),
-  ) as { readonly packages: readonly { readonly name: string; readonly manifest_path: string }[] };
+  ) as { readonly packages: readonly CargoPackage[] };
   const ownerOf = (relative: string): string => {
     const file = path.resolve(root, relative);
     const owners = metadata.packages.filter((pkg) => {
@@ -175,6 +221,12 @@ export function precisionExerciseInventory(
     );
     const fixture = readFileSync(path.join(root, pair.fixtureFile), "utf8");
     assert.equal(
+      pair.producerPath.split("::").at(-1),
+      point.function,
+      `point producer not resolvable ${pair.pointId}`,
+    );
+    assertPrecisionProducer(fixture, pair);
+    assert.equal(
       sha256(fixture),
       pair.fixtureSha256,
       `authored fixture digest mismatch ${pair.id}`,
@@ -192,16 +244,13 @@ export function precisionExerciseInventory(
     assert.ok(count >= 1, `authored pairs per crate >= 1: ${crate}`);
   const pairIds = new Set(pairs.map(({ id }) => id));
   assert.equal(pairIds.size, pairs.length, "duplicate authored pair identity");
-  for (const id of PRECISION_EXERCISE_BIRTH_IDS)
-    assert.ok(pairIds.has(id), `census floor unmet authoredPairs ${id}`);
+  const birth = precisionExerciseBirth(root);
   const covered = new Set(pairs.map(({ pointId }) => pointId));
   const noProbe = [...points.keys()].filter((id) => !covered.has(id));
-  for (const id of noProbe)
-    assert.ok(
-      (PRECISION_UNOBSERVABLE_POINTS as readonly string[]).includes(id),
-      `no-probe population grew ${id}`,
-    );
-  for (const id of PRECISION_UNOBSERVABLE_POINTS)
+  for (const id of noProbe) assert.ok(birth.noProbe.includes(id), `no-probe population grew ${id}`);
+  for (const id of birth.pairIds)
+    assert.ok(pairIds.has(id), `census floor unmet authoredPairs ${id}`);
+  for (const id of birth.noProbe)
     assert.ok(points.has(id), `census floor unmet emissionPoints ${id}`);
   // A changed command label cannot promote a checker-only probe to product evidence.
   // Preserve only the unchanged product probes measured at pickup outside this suite.
@@ -219,6 +268,7 @@ export function precisionExerciseInventory(
       readonly identity: string;
       readonly kind: string;
       readonly owner: string;
+      readonly reason?: string;
     }[];
   };
   const baselineInstrument = JSON.parse(
@@ -244,6 +294,19 @@ export function precisionExerciseInventory(
   );
   for (const row of rows)
     assert.ok(row.owner.trim().length > 0, `precision counted owner missing ${row.identity}`);
+  const legacyRows = instrument.countedResidue.filter(
+    ({ kind }) => kind === "legacy-product-probe",
+  );
+  assert.deepEqual(
+    legacyRows.map(({ identity }) => identity).toSorted(),
+    existingProductProbes.map(({ id }) => `legacy-product-probe:${id}`).toSorted(),
+    "legacy product probes not counted",
+  );
+  for (const row of legacyRows)
+    assert.ok(
+      row.owner.trim() && row.reason?.trim(),
+      `legacy product probe disposition missing ${row.identity}`,
+    );
   assert.ok(
     instrument.countedResidue.some(
       ({ identity, owner }) =>
@@ -252,7 +315,13 @@ export function precisionExerciseInventory(
     ),
     "precision W3 authority re-homing residue missing",
   );
-  return { pairs, perCrate: Object.fromEntries(perCrate), noProbe, censusOnly, countedRows: rows };
+  return {
+    pairs,
+    perCrate: Object.fromEntries(perCrate),
+    noProbe,
+    censusOnly,
+    countedRows: [...rows, ...legacyRows],
+  };
 }
 
 const AXES = [
@@ -271,6 +340,111 @@ export interface PrecisionVector {
   readonly fixtureSource: string;
   readonly actualAxes: Readonly<Record<string, string>>;
   readonly expectedAxes: Readonly<Record<string, string>>;
+}
+
+// A deliberately closed expression grammar for compiled probe fixtures. Fully
+// qualified Rust calls are resolved against the module walk by the inventory.
+// Only immutable bindings and value-preserving field/Option/iterator projections
+// may connect that call to the assertion's actual argument. Unknown syntax fails.
+export function assertPrecisionProducer(source: string, pair: PrecisionExerciseCase): void {
+  const failure = `asserted precision producer mismatch ${pair.pointId}`;
+  const code = maskRustCommentsAndLiterals(source);
+  const functions = rustNamedFunctions(source, "crate").filter(
+    ({ shortName }) => shortName === pair.testPath.split("::").at(-1),
+  );
+  assert.equal(functions.length, 1, failure);
+  const fn = functions[0]!;
+  const body = code.slice(fn.bodyStart + 1, fn.end - 1);
+  const split = (text: string, separator: string): string[] => {
+    const parts: string[] = [];
+    let start = 0;
+    for (let offset = 0; offset < text.length; offset += 1) {
+      const close = { "(": ")", "[": "]", "{": "}" }[text[offset]!];
+      if (close) offset = matchingRustDelimiter(text, offset, text[offset]!, close);
+      else if (text[offset] === separator) {
+        parts.push(text.slice(start, offset).trim());
+        start = offset + 1;
+      }
+    }
+    parts.push(text.slice(start).trim());
+    return parts;
+  };
+  const statements = split(body, ";");
+  const assertions = statements.filter((statement) => /^assert_emitted_axes\s*\(/u.test(statement));
+  assert.equal(assertions.length, 1, failure);
+  const assertion = assertions[0]!;
+  const assertionIndex = statements.indexOf(assertion);
+  const open = assertion.indexOf("(");
+  const close = matchingRustDelimiter(assertion, open, "(", ")");
+  assert.equal(assertion.slice(close + 1).trim(), "", failure);
+  const args = split(assertion.slice(open + 1, close), ",");
+  assert.ok(args.length === 4 && args[3] === "", failure);
+  const bindings = new Map<string, { expression: string; index: number; mutable: boolean }>();
+  for (const [index, statement] of statements.slice(0, assertionIndex).entries()) {
+    const binding = statement.match(/^let\s+(mut\s+)?([a-z_][a-z0-9_]*)\s*=\s*([\s\S]+)$/u);
+    if (!binding) continue;
+    assert.ok(!bindings.has(binding[2]!), failure);
+    bindings.set(binding[2]!, { expression: binding[3]!, index, mutable: !!binding[1] });
+  }
+  const resolving = new Set<string>();
+  const trace = (expression: string, beforeIndex: number, parameter?: string): void => {
+    const text = expression.trim();
+    const head = text.match(/^(crate(?:::[A-Za-z_][A-Za-z0-9_]*)+|[a-z_][a-z0-9_]*)/u);
+    assert.ok(head, failure);
+    const name = head[0];
+    let offset = name.length;
+    while (/\s/u.test(text[offset] ?? "") && offset < text.length) offset += 1;
+    if (text[offset] === "(") {
+      assert.equal(name, pair.producerPath, failure);
+      offset = matchingRustDelimiter(text, offset, "(", ")") + 1;
+    } else if (name !== parameter) {
+      const binding = bindings.get(name);
+      assert.ok(
+        binding && binding.index < beforeIndex && !binding.mutable && !resolving.has(name),
+        failure,
+      );
+      // An assignment, mutable borrow or shadow would break the immutable origin.
+      const subsequent = statements.slice(binding.index + 1, assertionIndex).join(";");
+      assert.ok(
+        !new RegExp(
+          `\\b${name}\\s*(?:\\.[a-z_][a-z0-9_]*\\s*)*(?:=(?!=)|[+*/-]=)|&\\s*mut\\s+${name}\\b`,
+          "u",
+        ).test(subsequent),
+        failure,
+      );
+      resolving.add(name);
+      trace(binding.expression, binding.index);
+      resolving.delete(name);
+    }
+    while (offset < text.length) {
+      const tail = text.slice(offset);
+      if (/^\s*\?\s*$/u.test(tail)) return;
+      const projection = tail.match(/^\s*\.\s*([a-z_][a-z0-9_]*)\s*/u);
+      assert.ok(projection, failure);
+      const member = projection[1]!;
+      offset += projection[0].length;
+      if (text[offset] !== "(") {
+        assert.ok(["axes", "precision", "diagnostics"].includes(member), failure);
+        continue;
+      }
+      const end = matchingRustDelimiter(text, offset, "(", ")");
+      const argument = text.slice(offset + 1, end).trim();
+      if (["first", "as_ref", "iter"].includes(member)) assert.equal(argument, "", failure);
+      else if (member === "ok_or") {
+        // A masked literal only controls the error branch; it cannot replace Ok.
+        assert.equal(argument, "", failure);
+      } else if (member === "and_then") {
+        const closure = argument.match(/^\|([a-z_][a-z0-9_]*)\|\s*([\s\S]+)$/u);
+        assert.ok(closure, failure);
+        trace(closure[2]!, beforeIndex, closure[1]!);
+      } else if (member === "find") {
+        // find selects an original item; forbid a callback with side effects.
+        assert.ok(/^\|([a-z_][a-z0-9_]*)\|\s*\1\.code\s*==\s*$/u.test(argument), failure);
+      } else assert.fail(failure);
+      offset = end + 1;
+    }
+  };
+  trace(args[1]!, assertionIndex);
 }
 
 export function readPrecisionVector(
@@ -296,6 +470,7 @@ export function readPrecisionVector(
     pair.fixtureSha256,
     `compiled fixture digest mismatch ${pair.id}`,
   );
+  assertPrecisionProducer(row.fixtureSource, pair);
   for (const vector of [row.actualAxes, row.expectedAxes]) {
     assert.deepEqual(Object.keys(vector).toSorted(), AXES, `emitted axes incomplete ${pair.id}`);
     assert.ok(

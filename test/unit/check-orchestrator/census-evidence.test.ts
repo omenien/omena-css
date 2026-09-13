@@ -1,4 +1,9 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { strict as assert } from "node:assert";
+import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
+import { runInNewContext } from "node:vm";
+import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -10,6 +15,7 @@ import {
 import { compilerApi as ts } from "../../../server/engine-core-ts/src/ts-facade";
 import type tsTypes from "../../../server/engine-core-ts/src/ts-facade";
 import { hasRuntimeEvidence } from "../../../scripts/lib/rust-semver-intent";
+import { banGateArgv } from "../../../scripts/lib/rust-write-authority";
 
 const root = path.resolve(__dirname, "../../..");
 const tick = String.fromCharCode(96);
@@ -274,5 +280,223 @@ describe("semver declaration evidence", () => {
         '#[serde(rename = "k-cfa")]',
       ),
     ).toBe(true);
+  });
+});
+
+describe("S0 refusal evidence and child environment", () => {
+  const source = readFileSync(
+    path.join(root, "scripts/check-rust-census-instrument-s0.ts"),
+    "utf8",
+  );
+  const file = ts.createSourceFile("runner.ts", source, ts.ScriptTarget.Latest, true);
+  function harness(directory = root) {
+    const journal: { command: { environment: Record<string, string>; stdout: string } }[] = [];
+    const functions = [
+      "commandFor",
+      "executeCommand",
+      "validateClippy",
+      "writeReceipt",
+      "argumentValues",
+      "sha256",
+      "compareCodePoint",
+    ];
+    const declarations = file.statements.filter(
+      (node) => ts.isFunctionDeclaration(node) && node.name && functions.includes(node.name.text),
+    );
+    expect(declarations).toHaveLength(functions.length);
+    const context = {
+      assert,
+      spawnSync,
+      banGateArgv,
+      path,
+      createHash,
+      writeFileSync,
+      mkdirSync,
+      repoRoot: directory,
+      process,
+      normalizedOutput: (value: string) => value,
+      safeRelativeFile: (base: string, file: string) => path.join(base, file),
+      executionJournal: journal,
+      currentAttempt: { kind: "row", id: "fixture", replay: 1 },
+    };
+    const js = ts.transpileModule(declarations.map((node) => node.getText(file)).join("\n"), {
+      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+    }).outputText;
+    const api = runInNewContext(
+      js + "\n({commandFor,executeCommand,validateClippy,writeReceipt})",
+      context,
+    ) as {
+      commandFor(
+        root: string,
+        row: { gate: { kind: "clippy-ban" } },
+      ): { executable: string; args: string[]; argv: string[] };
+      executeCommand(
+        root: string,
+        spec: { executable: string; args: string[]; argv: string[] },
+      ): { stdout: string; environment: Record<string, string> };
+      validateClippy(
+        receipt: { exitCode: number; stdout: string; stderr: string },
+        expected: { methods: string[] },
+      ): string;
+      writeReceipt(receipt: unknown, failure?: boolean): void;
+    };
+    return { api, journal, context };
+  }
+  const method = "std::fs::write";
+  const diagnostic = {
+    reason: "compiler-message",
+    message: {
+      code: { code: "clippy::disallowed_methods" },
+      level: "error",
+      message: "use of a disallowed method `" + method + "`",
+    },
+  };
+  it("requests JSON diagnostics without changing the canonical clippy gate", () => {
+    const { api } = harness();
+    const command = api.commandFor(root, { gate: { kind: "clippy-ban" } });
+    expect(command.executable).toBe("cargo");
+    expect(command.args).toContain("--message-format=json");
+    expect(command.args.indexOf("--message-format=json")).toBeLessThan(command.args.indexOf("--"));
+    expect(command.args.filter((arg) => arg !== "--message-format=json")).toEqual(
+      banGateArgv(root).cargoArgs,
+    );
+    expect(command.argv).toEqual(["cargo", ...command.args]);
+  });
+  it("accepts only the fired JSON lint with cargo exit 101", () => {
+    const { api } = harness();
+    const good = { exitCode: 101, stdout: JSON.stringify(diagnostic), stderr: "" };
+    expect(api.validateClippy(good, { methods: [method] })).toBe("clippy:" + method);
+    for (const bad of [
+      { ...good, exitCode: 1 },
+      { ...good, exitCode: 0 },
+      { ...good, stdout: "", stderr: diagnostic.message.message },
+      { ...good, stdout: JSON.stringify({ ...diagnostic, reason: "build-script-executed" }) },
+      {
+        ...good,
+        stdout: JSON.stringify({
+          ...diagnostic,
+          message: { ...diagnostic.message, code: { code: "E0425" } },
+        }),
+      },
+      {
+        ...good,
+        stdout: JSON.stringify({
+          ...diagnostic,
+          message: { ...diagnostic.message, level: "warning" },
+        }),
+      },
+    ])
+      expect(() => api.validateClippy(bad, { methods: [method] })).toThrow();
+    expect(() =>
+      api.validateClippy(
+        { ...good, stdout: "", stderr: "DISTINCT_BUILD_FAILURE_PAYLOAD" },
+        { methods: [method] },
+      ),
+    ).toThrow("DISTINCT_BUILD_FAILURE_PAYLOAD");
+  });
+  it("records the actual inherited child values and makes environment drift observable", () => {
+    const { api, journal } = harness();
+    const keys = [
+      "RUSTC_WRAPPER",
+      "SCCACHE_BUCKET",
+      "CARGO_BUILD_JOBS",
+      "CARGO_REGISTRIES_FIXTURE_TOKEN",
+      "DEVELOPER_DIR",
+      "SDKROOT",
+      "RUSTUP_TOOLCHAIN",
+    ];
+    const prior = keys.map((key) => process.env[key]);
+    try {
+      Object.assign(process.env, {
+        RUSTC_WRAPPER: "/tmp/evidence-wrapper",
+        SCCACHE_BUCKET: "fixture-bucket",
+        CARGO_BUILD_JOBS: "7",
+        CARGO_REGISTRIES_FIXTURE_TOKEN: "fixture-secret",
+        DEVELOPER_DIR: "/tmp/fixture-developer",
+        SDKROOT: "/tmp/fixture-sdk",
+        RUSTUP_TOOLCHAIN: "fixture-toolchain",
+      });
+      const args = [
+        "-e",
+        'process.stdout.write(JSON.stringify(Object.fromEntries(["RUSTC_WRAPPER","SCCACHE_BUCKET","CARGO_BUILD_JOBS","DEVELOPER_DIR","SDKROOT","RUSTUP_TOOLCHAIN"].map(k=>[k,process.env[k]]))))',
+      ];
+      const first = api.executeCommand(root, {
+        executable: process.execPath,
+        args,
+        argv: ["node", ...args],
+      });
+      expect(first.environment).toMatchObject(JSON.parse(first.stdout));
+      expect(first.environment.CARGO_REGISTRIES_FIXTURE_TOKEN).toMatch(
+        /^<REDACTED_SHA256:[a-f0-9]{64}>$/u,
+      );
+      process.env.CARGO_BUILD_JOBS = "8";
+      const second = api.executeCommand(root, {
+        executable: process.execPath,
+        args,
+        argv: ["node", ...args],
+      });
+      expect(second.environment).toMatchObject(JSON.parse(second.stdout));
+      expect(() =>
+        assert.deepEqual(second.environment, first.environment, "clean replay environment drifted"),
+      ).toThrow("clean replay environment drifted");
+      expect(journal).toHaveLength(2);
+    } finally {
+      keys.forEach((key, index) => {
+        if (prior[index] === undefined) delete process.env[key];
+        else process.env[key] = prior[index];
+      });
+    }
+  });
+  it("persists the failing command through the actual runner catch and the always-uploaded path", () => {
+    const directory = mkdtempSync(path.join(os.tmpdir(), "census-partial-"));
+    try {
+      const { api, context } = harness(directory);
+      const finalTry = file.statements.at(-1)!;
+      expect(ts.isTryStatement(finalTry)).toBe(true);
+      const js = ts
+        .transpileModule(finalTry.getText(file), {
+          compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+        })
+        .outputText.replaceAll("import.meta.url", '"file:///fixture/runner.ts"');
+      expect(() =>
+        runInNewContext(js, {
+          ...context,
+          exports: {},
+          main() {
+            const args = ["-e", 'process.stderr.write("CHILD_FAILURE_WITNESS");process.exit(101)'];
+            const command = api.executeCommand(directory, {
+              executable: process.execPath,
+              args,
+              argv: ["node", ...args],
+            });
+            api.validateClippy(command as never, { methods: [method] });
+          },
+          writeReceipt: api.writeReceipt,
+          existsSync,
+          authorityPath: "missing-authority",
+          sha256: (bytes: string) => createHash("sha256").update(bytes).digest("hex"),
+          fileURLToPath: () => "fixture",
+          readFileSync: () => source,
+          receipts: [],
+          controlReceipts: [],
+        }),
+      ).toThrow("CHILD_FAILURE_WITNESS");
+      const partial = JSON.parse(
+        readFileSync(path.join(directory, ".omena-ci/census-instrument-receipt.json"), "utf8"),
+      );
+      expect(partial.status).toBe("failed");
+      expect(partial.executionJournal[0].command.stderr).toBe("CHILD_FAILURE_WITNESS");
+      expect(partial.executionJournal[0].command.exitCode).toBe(101);
+      expect(partial.currentAttempt).toMatchObject({ kind: "row", id: "fixture", replay: 1 });
+      const workflow = readFileSync(
+        path.join(root, ".github/workflows/census-instrument.yml"),
+        "utf8",
+      );
+      expect(workflow).toMatch(
+        /if: always\(\)[\s\S]*uses: actions\/upload-artifact@[\s\S]*\.omena-ci\/census-instrument-receipt\.json/u,
+      );
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });

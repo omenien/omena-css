@@ -1259,7 +1259,15 @@ function receiverPrecisionAttribution(
   return "unresolved";
 }
 
-function deriveFamilyCalls(sources: readonly RustSource[]): RegisteredCallSite[] {
+interface DerivedPrecisionPoint extends PrecisionPoint {
+  readonly crate: string;
+  readonly item: string;
+}
+
+function deriveFamilyCalls(
+  sources: readonly RustSource[],
+  emissionPoints: DerivedPrecisionPoint[] = [],
+): RegisteredCallSite[] {
   const leaf = sources.find(({ file }) =>
     file.endsWith("/omena-evidence-graph/src/analysis_precision.rs"),
   );
@@ -1346,6 +1354,36 @@ function deriveFamilyCalls(sources: readonly RustSource[]): RegisteredCallSite[]
       const uniqueFound = [
         ...new Map(found.map((call) => [`${call.offset}|${call.member}`, call])).values(),
       ];
+      // One typed construction expression, including a contiguous with_* chain,
+      // is one emission point. Separate expressions in the same item stay separate.
+      // unknown() is the constant floor, not an axis-bearing construction site.
+      let previousEnd = -1;
+      let emissionOrdinal = 0;
+      for (const call of uniqueFound.toSorted((left, right) => left.offset - right.offset)) {
+        if (call.member === "unknown" || call.member === "from_axes_for_tests") continue;
+        const referenceEnd =
+          call.offset + body.slice(call.offset).indexOf(call.member) + call.member.length;
+        const open = body.indexOf("(", referenceEnd);
+        assert.ok(
+          open >= 0 && body.slice(referenceEnd, open).trim() === "",
+          `unregistered precision emission point ${entry.crate}::${item}: unresolved construction reference`,
+        );
+        const chained =
+          previousEnd >= 0 &&
+          body.slice(previousEnd, call.offset).trim() === "" &&
+          body[call.offset] === ".";
+        if (!chained) {
+          emissionOrdinal += 1;
+          emissionPoints.push({
+            id: `analysisPrecisionConstructor:${entry.file}:${fn.shortName}:${emissionOrdinal}`,
+            sourcePath: entry.file,
+            function: fn.shortName,
+            crate: entry.crate,
+            item,
+          });
+        }
+        previousEnd = matchingRustDelimiter(body, open, "(", ")") + 1;
+      }
       const ordinals = new Map<string, number>();
       for (const call of uniqueFound.toSorted((left, right) => left.offset - right.offset)) {
         const ordinal = (ordinals.get(call.member) ?? 0) + 1;
@@ -1364,15 +1402,53 @@ function deriveFamilyCalls(sources: readonly RustSource[]): RegisteredCallSite[]
   return rows.toSorted((left, right) => compareCodePoint(callIdentity(left), callIdentity(right)));
 }
 
+function deriveDiagnosticEmissionPoints(sources: readonly RustSource[]): DerivedPrecisionPoint[] {
+  const rows: DerivedPrecisionPoint[] = [];
+  for (const entry of sources) {
+    // Track explicit imports as well as qualified/direct calls. A function-value
+    // escape cannot silently turn a call site into a census-free alias.
+    const aliases = new Set(["source_diagnostic_precision"]);
+    for (const match of entry.code.matchAll(
+      /\bsource_diagnostic_precision\s+as\s+([a-z_][a-z0-9_]*)/gu,
+    ))
+      aliases.add(match[1]!);
+    const references = new RegExp(`\\b(?:${[...aliases].join("|")})\\b`, "gu");
+    for (const fn of rustNamedFunctions(entry.source, entry.modulePath)) {
+      if (!nodeIsActive(entry, fn.start)) continue;
+      const item = fn.name.replace(entry.modulePath, modulePathAt(entry, fn.start));
+      const body = entry.code.slice(fn.bodyStart + 1, fn.end - 1);
+      let ordinal = 0;
+      for (const match of body.matchAll(references)) {
+        const offset = fn.bodyStart + 1 + match.index!;
+        if (!nodeIsActive(entry, offset)) continue;
+        const tail = body.slice(match.index! + match[0].length);
+        assert.ok(
+          /^\s*\(/u.test(tail),
+          `unregistered precision emission point ${entry.crate}::${item}: unresolved diagnostic reference`,
+        );
+        ordinal += 1;
+        rows.push({
+          id: `sourceDiagnosticArgumentSite:${entry.file}:${fn.shortName}:${ordinal}`,
+          sourcePath: entry.file,
+          function: fn.shortName,
+          crate: entry.crate,
+          item,
+        });
+      }
+    }
+  }
+  return rows;
+}
+
 const metadata = readMetadata();
 const scope = precisionScope(metadata);
 const sources = precisionSources(scope);
-const derivedCalls = deriveFamilyCalls(sources);
+const derivedPoints = deriveDiagnosticEmissionPoints(sources);
+const derivedCalls = deriveFamilyCalls(sources, derivedPoints);
 const derivedContainers = deriveDeserializationContainers(sources);
 const precisionAuthority = JSON.parse(
   readFileSync(precisionAuthorityPath, "utf8"),
 ) as PrecisionAuthority;
-const exerciseInventory = precisionExerciseInventory(repoRoot, precisionAuthority);
 
 if (process.argv.includes("--print-baseline")) {
   process.stdout.write(
@@ -1380,6 +1456,7 @@ if (process.argv.includes("--print-baseline")) {
       {
         scopeCrates: scope.map(({ name }) => name),
         familyCallSites: derivedCalls,
+        precisionEmissionPoints: derivedPoints,
         deserializationContainers: derivedContainers.map((identity) => ({
           identity,
           owner: `${identity.split("::")[0]} wire-format maintainers`,
@@ -1419,11 +1496,50 @@ for (const call of derivedCalls) {
     `unregistered sealed-family call site ${call.crate}::${call.item}`,
   );
 }
+const registeredPoints = new Map(
+  precisionAuthority.precisionEmissionPoints.map((point) => [point.id, point]),
+);
+for (const point of derivedPoints) {
+  const registered = registeredPoints.get(point.id);
+  assert.ok(registered, `unregistered precision emission point ${point.crate}::${point.item}`);
+  assert.equal(
+    registered.sourcePath,
+    point.sourcePath,
+    `precision emission source drift ${point.id}`,
+  );
+  assert.equal(registered.function, point.function, `precision emission item drift ${point.id}`);
+}
+assert.deepEqual(
+  derivedPoints.map(({ id }) => id).toSorted(compareCodePoint),
+  [...registeredPoints.keys()].toSorted(compareCodePoint),
+  "precision emission point census drift",
+);
 assert.deepEqual(
   [...registeredCalls.keys()].toSorted(compareCodePoint),
   derivedCalls.map(callIdentity).toSorted(compareCodePoint),
   "sealed-family call-site census drift",
 );
+
+const exerciseInventory = precisionExerciseInventory(repoRoot, precisionAuthority);
+for (const pair of exerciseInventory.pairs) {
+  const point = precisionAuthority.precisionEmissionPoints.find(({ id }) => id === pair.pointId)!;
+  const producerNames = new Set(
+    sources
+      .filter(({ crate, file }) => crate === pair.owningCrate && file === point.sourcePath)
+      .flatMap((entry) =>
+        rustNamedFunctions(entry.source, entry.modulePath)
+          .filter(
+            ({ shortName, start }) => shortName === point.function && nodeIsActive(entry, start),
+          )
+          .map(({ name, start }) => name.replace(entry.modulePath, modulePathAt(entry, start))),
+      ),
+  );
+  assert.deepEqual(
+    [...producerNames],
+    [pair.producerPath],
+    `point producer not resolvable ${pair.pointId}`,
+  );
+}
 
 const registeredContainers = new Set(
   instrumentAuthority.precision.deserializationContainers.map(({ identity }) => identity),
@@ -1456,7 +1572,7 @@ process.stdout.write(
       precisionScopeCrateCount: scope.length,
       familyCallSiteCount: derivedCalls.length,
       deserializationContainerCount: derivedContainers.length,
-      emissionPointCount: precisionAuthority.precisionEmissionPoints.length,
+      emissionPointCount: derivedPoints.length,
       mutationProbeCount: precisionAuthority.mutationProbes.length,
       authoredPairCandidateCount: exerciseInventory.pairs.length,
       authoredPairsPerCrate: exerciseInventory.perCrate,

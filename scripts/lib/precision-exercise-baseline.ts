@@ -1,5 +1,5 @@
-// Identity floors measured from restored product mutation executions.
-// These operands are separate from the authored-case table and authority under test.
+// Historical exercise declarations. A separate candidate file is not an external
+// operand: precisionExerciseBirth reads these identities from their committed birth.
 export const PRECISION_EXERCISE_BIRTH_IDS = [
   "domain-class-reference-keeps-domain-context",
   "dynamic-classname-keeps-context-depth",
@@ -18,3 +18,4 @@ export const PRECISION_EXERCISE_BIRTH_IDS = [
 ] as const;
 
 export const PRECISION_PICKUP_PIN = "5adf7a78369546c311d6fccc36947e1c65473294";
+export const PRECISION_EXERCISE_BIRTH_PIN = "2b00ff0cfc0e3b31994ebc92a372a021df598de7";

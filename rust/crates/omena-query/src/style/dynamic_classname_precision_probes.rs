@@ -28,7 +28,11 @@ fn dynamic_classname_keeps_context_depth() -> Result<(), String> {
         reference_range: ParserRangeV0::default(),
     }];
     let diagnostics =
-        collect_omena_query_dynamic_classname_m_tier_diagnostics(&sites, &["card".to_string()], 2);
+        crate::style::dynamic_classname::collect_omena_query_dynamic_classname_m_tier_diagnostics(
+            &sites,
+            &["card".to_string()],
+            2,
+        );
     let precision = diagnostics
         .first()
         .and_then(|diagnostic| diagnostic.precision.as_ref())

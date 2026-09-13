@@ -39,7 +39,7 @@ fn witness_preserves_unresolved_axes() -> Result<(), String> {
     );
     assert_emitted_axes(
         "witness-preserves-unresolved-axes",
-        witness.apply_to(receiver),
+        crate::domain::OmenaClosedWorldPrecisionWitnessV1::apply_to(witness, receiver),
         AnalysisPrecisionV1::from_axes_for_tests(
             ValueDomainPrecisionV1::Unknown,
             FlowPrecisionV1::KLimitedCallSiteFlow,
@@ -60,7 +60,7 @@ fn unwitnessed_finite_set_keeps_open_world() -> Result<(), String> {
     };
     assert_emitted_axes(
         "unwitnessed-finite-set-keeps-open-world",
-        analysis_precision_from_class_value_with_witness(&value, None),
+        crate::domain::analysis_precision_from_class_value_with_witness(&value, None),
         AnalysisPrecisionV1::from_axes_for_tests(
             ValueDomainPrecisionV1::ClosedClassValueSet,
             FlowPrecisionV1::RepresentationBound,

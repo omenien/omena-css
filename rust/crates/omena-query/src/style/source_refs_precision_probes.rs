@@ -19,7 +19,7 @@ fn assert_emitted_axes(probe_id: &str, actual: AnalysisPrecisionV1, expected: An
 #[cfg(test)]
 #[test]
 fn missing_selector_keeps_reference_context() -> Result<(), String> {
-    let diagnostic = summarize_omena_query_missing_selector_diagnostic_with_insertion_range(
+    let diagnostic = crate::style::source_refs::summarize_omena_query_missing_selector_diagnostic_with_insertion_range(
         "file:///workspace/Example.module.css",
         "",
         "ghost",
@@ -47,13 +47,14 @@ fn missing_selector_keeps_reference_context() -> Result<(), String> {
 #[cfg(test)]
 #[test]
 fn global_class_fallthrough_keeps_open_world() -> Result<(), String> {
-    let diagnostic = summarize_omena_query_global_class_fallthrough_diagnostic(
-        "ghost",
-        "file:///workspace/global.css",
-        "file:///workspace/Example.module.css",
-        "",
-        ParserRangeV0::default(),
-    );
+    let diagnostic =
+        crate::style::source_refs::summarize_omena_query_global_class_fallthrough_diagnostic(
+            "ghost",
+            "file:///workspace/global.css",
+            "file:///workspace/Example.module.css",
+            "",
+            ParserRangeV0::default(),
+        );
     let precision = diagnostic.precision.ok_or("fallthrough precision absent")?;
     assert_emitted_axes(
         "global-class-fallthrough-keeps-open-world",
@@ -78,7 +79,7 @@ fn missing_style_import_keeps_provider_unresolved() -> Result<(), String> {
         &BTreeSet::new(),
         resolution_inputs.disk_style_path_identities.as_slice(),
     );
-    let report = summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth(
+    let report = crate::style::source_refs::summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth(
         "file:///workspace/Example.tsx", "import styles from './Missing.module.css';", &[], &[],
         &resolution_inputs, Some(&resolver_identity_index), 2,
     );
@@ -126,7 +127,9 @@ fn unavailable_type_provider_keeps_provider_unresolved() -> Result<(), String> {
         ..Default::default()
     };
     let diagnostics =
-        summarize_omena_query_type_fact_provider_unavailable_diagnostics(source, &index);
+        crate::style::source_refs::summarize_omena_query_type_fact_provider_unavailable_diagnostics(
+            source, &index,
+        );
     let precision = diagnostics
         .first()
         .and_then(|diagnostic| diagnostic.precision.as_ref())
@@ -179,7 +182,10 @@ fn domain_class_reference_keeps_domain_context() -> Result<(), String> {
         }],
         ..Default::default()
     };
-    let diagnostics = summarize_omena_query_domain_class_reference_diagnostics(source, &index);
+    let diagnostics =
+        crate::style::source_refs::summarize_omena_query_domain_class_reference_diagnostics(
+            source, &index,
+        );
     let precision = diagnostics
         .first()
         .and_then(|diagnostic| diagnostic.precision.as_ref())
@@ -213,15 +219,16 @@ fn unresolved_class_reference_keeps_reference_context() -> Result<(), String> {
         target_style_uri: None,
         surface: OmenaQuerySourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex,
     };
-    let diagnostic = summarize_omena_query_unresolved_source_reference_diagnostic(
-        source,
-        &omena_query_line_index(source),
-        &reference,
-        source,
-        None,
-        &[],
-        0,
-    );
+    let diagnostic =
+        crate::style::source_refs::summarize_omena_query_unresolved_source_reference_diagnostic(
+            source,
+            &omena_query_line_index(source),
+            &reference,
+            source,
+            None,
+            &[],
+            0,
+        );
     let precision = diagnostic
         .precision
         .ok_or("unresolved reference precision absent")?;

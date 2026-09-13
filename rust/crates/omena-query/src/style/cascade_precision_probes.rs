@@ -33,7 +33,7 @@ fn unresolved_cascade_keeps_provider_unresolved() -> Result<(), String> {
     )
     .ok_or("cascade fixture missing")?;
     value.status = "unresolved";
-    let result = cascade_at_position_analysis_result(value, 1);
+    let result = crate::style::cascade_position::cascade_at_position_analysis_result(value, 1);
     assert_emitted_axes(
         "unresolved-cascade-keeps-provider-unresolved",
         result.precision.axes,

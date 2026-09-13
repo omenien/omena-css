@@ -4,8 +4,10 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   assertPrecisionFlip,
+  assertPrecisionProducer,
   precisionBindingSpans,
   precisionExerciseInventory,
+  precisionExerciseBirth,
   readPrecisionVector,
   sha256,
   type PrecisionExerciseAuthority,
@@ -41,6 +43,66 @@ describe("precision exercise evidence", () => {
     expect(assertPrecisionFlip(pair, before, after, 101, failure)).toEqual([
       "providerCompleteness",
     ]);
+  });
+
+  it("rejects an assertion of another producer even with a matching compiled fixture digest", () => {
+    const source = before.fixtureSource.replace(
+      "crate::domain::OmenaClosedWorldPrecisionWitnessV1::apply_to(witness, receiver)",
+      "unrelated_precision_producer(receiver)",
+    );
+    expect(source).not.toBe(before.fixtureSource);
+    const changedPair = { ...pair, fixtureSha256: sha256(source) };
+    expect(() =>
+      readPrecisionVector(envelope({ ...before, fixtureSource: source }), changedPair),
+    ).toThrow("asserted precision producer mismatch");
+  });
+
+  it("resolves every compiled assertion argument through its immutable producer value", () => {
+    for (const candidate of PRECISION_EXERCISE_CASES) {
+      const source = readFileSync(
+        path.resolve(__dirname, "../../..", candidate.fixtureFile),
+        "utf8",
+      );
+      expect(() => assertPrecisionProducer(source, candidate)).not.toThrow();
+    }
+  });
+
+  it("does not bind a decoy call, overwritten value, or replacing Option callback", () => {
+    const candidate = PRECISION_EXERCISE_CASES.find(
+      ({ id }) => id === "source-diagnostic-keeps-input-revision",
+    )!;
+    const source = readFileSync(path.resolve(__dirname, "../../..", candidate.fixtureFile), "utf8");
+    for (const changed of [
+      source.replace("        result.axes,", "        unrelated.axes,"),
+      source.replace(
+        "        result.axes,",
+        "        crate::other::source_diagnostic_precision().axes,",
+      ),
+      source.replace(
+        "    assert_emitted_axes(",
+        "    result.axes = unrelated;\n    assert_emitted_axes(",
+      ),
+      source.replace("    let result =", "    let mut result ="),
+    ])
+      expect(() => assertPrecisionProducer(changed, candidate)).toThrow(
+        "asserted precision producer mismatch",
+      );
+    const optionPair = PRECISION_EXERCISE_CASES.find(
+      ({ id }) => id === "unavailable-type-provider-keeps-provider-unresolved",
+    )!;
+    const optionSource = readFileSync(
+      path.resolve(__dirname, "../../..", optionPair.fixtureFile),
+      "utf8",
+    );
+    expect(() =>
+      assertPrecisionProducer(
+        optionSource.replace(
+          ".and_then(|diagnostic| diagnostic.precision.as_ref())",
+          ".and_then(|diagnostic| unrelated_precision())",
+        ),
+        optionPair,
+      ),
+    ).toThrow("asserted precision producer mismatch");
   });
 
   it.each([
@@ -171,8 +233,9 @@ describe("precision identity floors", () => {
     const inventory = precisionExerciseInventory(root, authority);
     expect(Object.values(inventory.perCrate).every((n) => n >= 1)).toBe(true);
     expect(inventory.pairs.length).toBe(PRECISION_EXERCISE_CASES.length);
-    expect(inventory.noProbe).toHaveLength(1);
-    expect(inventory.censusOnly).toHaveLength(9);
+    const birth = precisionExerciseBirth(root);
+    expect(inventory.noProbe.toSorted()).toEqual(birth.noProbe.toSorted());
+    expect(inventory.censusOnly.toSorted()).toEqual(birth.censusOnly.toSorted());
   });
 
   it("does not replace an identity floor with an equal count", () => {
@@ -195,7 +258,7 @@ describe("precision identity floors", () => {
   it("rejects a removed pair while other pairs remain in that crate", () => {
     expect(() =>
       precisionExerciseInventory(root, authority, PRECISION_EXERCISE_CASES.slice(1)),
-    ).toThrow("census floor unmet authoredPairs");
+    ).toThrow("no-probe population grew");
   });
 
   it("refuses counting all points instead of exercising them", () => {
