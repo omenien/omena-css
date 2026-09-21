@@ -596,6 +596,7 @@ pub(super) fn summarize_omena_query_unresolved_sass_import_diagnostics_for_works
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
     substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let Some(target) = style_sources
         .iter()
@@ -615,13 +616,14 @@ pub(super) fn summarize_omena_query_unresolved_sass_import_diagnostics_for_works
         target.style_source.as_str(),
         &target_facts,
         resolution.edges.iter().filter_map(|edge| {
-            (edge.from_style_path == target_style_path).then_some(
-                ResolvedSassImportEdgeForDiagnostic {
-                    source: edge.source.as_str(),
-                    edge_kind: edge.edge_kind,
-                    status: edge.status,
-                },
-            )
+            (edge.from_style_path == target_style_path
+                && !(edge.status == "unresolved"
+                    && super::external_sif::has_admitted_sif_for_edge(edge, external_sifs)))
+            .then_some(ResolvedSassImportEdgeForDiagnostic {
+                source: edge.source.as_str(),
+                edge_kind: edge.edge_kind,
+                status: edge.status,
+            })
         }),
     )
 }

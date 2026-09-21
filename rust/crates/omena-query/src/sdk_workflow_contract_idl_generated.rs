@@ -6,6 +6,51 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OmenaWorkspaceSnapshotSourceV0 {
+    pub source_path: String,
+    pub source_source: String,
+    pub language_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_inputs: Option<crate::OmenaWorkspaceSourceProviderInputsV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OmenaWorkspaceSnapshotTransferV0 {
+    pub sources: Vec<OmenaWorkspaceSnapshotSourceV0>,
+    pub package_manifests: Vec<crate::OmenaQueryStylePackageManifestV0>,
+    pub resolution_inputs: crate::OmenaQueryStyleResolutionInputsV0,
+    pub settings: crate::OmenaWorkspaceSnapshotSettingsV0,
+    pub source_corpus_complete: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OmenaWorkspaceBoundRequestV1 {
+    pub contract_version: String,
+    pub snapshot_binding: crate::OmenaWorkspaceSnapshotBindingV0,
+    pub request: serde_json::Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OmenaWorkspaceBoundResponseV1 {
+    pub contract_version: String,
+    pub snapshot_binding: crate::OmenaWorkspaceSnapshotBindingV0,
+    pub response: serde_json::Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OmenaWorkspaceBoundHandshakeV1 {
+    pub contract_version: String,
+    pub snapshot_binding: crate::OmenaWorkspaceSnapshotBindingV0,
+    pub snapshot_inputs: OmenaWorkspaceSnapshotTransferV0,
+    pub request: OmenaWorkspaceSessionHandshakeRequestV0,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum OmenaSdkResponsePartitionV0 {
@@ -122,6 +167,13 @@ pub struct OmenaSdkDiagnosticsRequestV0 {
     pub snapshot_id: crate::OmenaWorkspaceSnapshotIdV0,
     pub style_path: String,
     pub style_source: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OmenaSdkSourceDiagnosticsRequestV0 {
+    pub snapshot_id: crate::OmenaWorkspaceSnapshotIdV0,
+    pub source_path: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

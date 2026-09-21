@@ -52,12 +52,27 @@ interface SurfaceResult {
   readonly errors: Readonly<Record<ErrorCase, unknown>>;
   readonly publicationSnapshotId?: unknown;
   readonly emptyPathNormalization?: unknown;
+  readonly replacementEntries?: readonly { readonly adapter: string; readonly operation: string }[];
 }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const matrixPath = path.join(repoRoot, "rust/omena-sdk-workflow-parity-matrix.json");
 const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "omena-sdk-workflow-parity-"));
-const targetDir = path.join(repoRoot, "rust/target/sdk-workflow-parity");
+function selectTargetDir(root: string, override: string | undefined): string {
+  return override === undefined
+    ? path.join(root, "rust/target/sdk-workflow-parity")
+    : path.resolve(root, override);
+}
+assert.equal(
+  selectTargetDir(repoRoot, undefined),
+  path.join(repoRoot, "rust/target/sdk-workflow-parity"),
+);
+assert.equal(selectTargetDir(repoRoot, "/owned/parity-target"), "/owned/parity-target");
+assert.equal(
+  selectTargetDir(repoRoot, "owned/parity-target"),
+  path.join(repoRoot, "owned/parity-target"),
+);
+const targetDir = selectTargetDir(repoRoot, process.env.CARGO_TARGET_DIR);
 const workspaceRoot = "file:///virtual/omena-sdk-workspace";
 const stylePath = `${workspaceRoot}/src/card.module.scss`;
 const styleSource = ":root { --known: red; } .card { color: var(--missing); }";
@@ -158,6 +173,22 @@ assert.deepEqual(
   canonicalize((results.lsp.workflows.diagnostics as Record<string, unknown>).snapshotId),
   "LSP diagnostics publication and typed workflow must read the same snapshot",
 );
+
+for (const surface of ["napi", "wasm"] as const) {
+  const entries = results[surface].replacementEntries;
+  assert.ok(entries, `${surface} actual replacement evidence is missing`);
+  assert.deepEqual(
+    entries.map(({ adapter, operation }) => `${adapter}:${operation}`).toSorted(),
+    (surface === "napi" ? ["Workspace", "CachedWorkspace"] : ["Workspace"])
+      .flatMap((adapter) =>
+        ["replaceStyleSources", "replaceStyleResolutionInputs"].map(
+          (operation) => `${adapter}:${operation}`,
+        ),
+      )
+      .toSorted(),
+    `${surface} replacement coverage must include each real adapter and both methods exactly once`,
+  );
+}
 
 const expectedMatrix = buildMatrix();
 if (writeMode) {
@@ -277,6 +308,7 @@ function runNodeSurface(surface: "napi" | "wasm", modulePath: string): SurfaceRe
   );
   const script = `
 const fs=require("fs");
+const assert=require("node:assert/strict");
 const m=require(process.argv[1]);
 const input=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
 const isNapi=process.argv[3]==="napi";
@@ -308,7 +340,49 @@ const emptyWorkspace=new m.Workspace(input.workspaceRoot,isNapi?JSON.stringify(e
 const emptyRequest={snapshotId:{value:1},stylePath:"",styleSource:emptyStyleSources[0].styleSource};
 const emptyResult=emptyWorkspace[isNapi?"diagnosticsJson":"diagnostics"](isNapi?JSON.stringify(emptyRequest):emptyRequest);
 const emptyPathNormalization=isNapi?JSON.parse(emptyResult):emptyResult;
-process.stdout.write(JSON.stringify({workflows,errors,emptyPathNormalization}));`;
+const replacementEntries=[];
+for(const adapter of isNapi?["Workspace","CachedWorkspace"]:["Workspace"]) {
+  for(const operation of ["replaceStyleSources","replaceStyleResolutionInputs"]) {
+    const initialStyles=isNapi?JSON.stringify(input.styleSources):input.styleSources;
+    const instance=adapter==="CachedWorkspace"
+      ?new m.CachedWorkspace(input.workspaceRoot,"replacement-"+operation,initialStyles)
+      :new m.Workspace(input.workspaceRoot,initialStyles);
+    const snapshot=()=>isNapi?JSON.parse(instance.snapshotJson()):instance.snapshot();
+    const replace=(value)=>{
+      const result=instance[isNapi?operation+"Json":operation](isNapi?JSON.stringify(value):value);
+      return isNapi?JSON.parse(result):result;
+    };
+    const before=snapshot();
+    assert.deepEqual(before,workflows.snapshot,adapter+":"+operation+" initial complete payload");
+    const original=operation==="replaceStyleSources"?input.styleSources:{};
+    assert.deepEqual(replace(original),before,adapter+":"+operation+" initial no-op");
+    const replacement=operation==="replaceStyleSources"
+      ?input.styleSources.map((source)=>({...source,styleSource:".changed { color: blue; }"}))
+      :{externalSifCacheFingerprint:"replacement-fixture"};
+    const expected={...before,snapshotId:{value:before.snapshotId.value+1}};
+    const changed=replace(replacement);
+    assert.deepEqual(changed,expected,adapter+":"+operation+" complete changed payload");
+    const noop=replace(replacement);
+    assert.deepEqual(noop,expected,adapter+":"+operation+" complete no-op payload");
+    assert.deepEqual(snapshot(),expected,adapter+":"+operation+" current payload");
+    // This is a real parsing/transport refusal, distinct from private inner MAX/owner fixtures.
+    let parseError;
+    try { replace(operation==="replaceStyleSources"?{invalid:true}:17); }
+    catch(error) { parseError=isNapi?JSON.parse(error.message):error; }
+    assert.ok(parseError&&parseError.error,adapter+":"+operation+" expected parse refusal");
+    assert.deepEqual(Object.keys(parseError).sort(),["error"]);
+    assert.deepEqual(Object.keys(parseError.error).sort(),["class","context","message"]);
+    assert.equal(parseError.error.class,"input");
+    assert.equal(typeof parseError.error.message,"string");
+    assert.ok(parseError.error.message.startsWith("failed to parse "));
+    assert.deepEqual(parseError.error.context,{code:"sdk.request-parse",severity:"error",recoverability:"user-action"});
+    const after=snapshot();
+    assert.deepEqual(after,expected,adapter+":"+operation+" parse refusal preserves state");
+    assert.deepEqual(replace(replacement),expected,adapter+":"+operation+" refused input was not stored");
+    replacementEntries.push({adapter,operation,before,changed,noop,after,parseError});
+  }
+}
+process.stdout.write(JSON.stringify({workflows,errors,emptyPathNormalization,replacementEntries}));`;
   return JSON.parse(
     execFileSync(process.execPath, ["-e", script, modulePath, inputPath, surface], {
       cwd: repoRoot,

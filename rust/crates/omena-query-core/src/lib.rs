@@ -80,8 +80,8 @@ pub use omena_evidence_graph::{
 pub use omena_incremental::{
     IncrementalEditDistancePriorityInputV0, IncrementalGraphInputV0,
     IncrementalInvalidationPriorityPlanV0, IncrementalNodeInputV0, IncrementalRevisionV0,
-    OmenaIncrementalDatabaseV0, OmenaSalsaDatabaseV0, OmenaWorkspaceSnapshotIdV0,
-    snapshot_from_graph_input,
+    OmenaIncrementalDatabaseV0, OmenaSalsaDatabaseV0, OmenaWorkspaceInputCommitmentV0,
+    OmenaWorkspaceSnapshotBindingV0, OmenaWorkspaceSnapshotIdV0, snapshot_from_graph_input,
 };
 pub use omena_refinement::{
     CascadeDimensionalRefinementBridgeV0, RefinementPropertyPredicateV0,

@@ -252,6 +252,7 @@ pub use sass::{
 };
 #[cfg(test)]
 pub(crate) use source_refs::global_class_fallthrough_label_tests::empty_resolved_class_domain_precision_fixture;
+pub(crate) use source_refs::summarize_omena_query_style_selector_definitions;
 pub use source_refs::{
     OmenaWorkspaceMonikerInput, occurrences_for_monikers, omena_workspace_moniker,
     resolve_omena_query_selector_rename_edits, resolve_omena_query_source_candidate_selector_names,

@@ -7,6 +7,7 @@ pub(crate) fn apply_feature_settings(state: &mut LspShellState, features: Option
     let Some(features) = features.and_then(Value::as_object) else {
         return;
     };
+    state.invalidate_sdk_snapshots_before_owner_mutation();
     if let Some(value) = features.get("definition").and_then(Value::as_bool) {
         state.features.definition = value;
     }
@@ -31,6 +32,7 @@ pub(crate) fn apply_diagnostic_settings(
     let Some(diagnostics) = diagnostics.and_then(Value::as_object) else {
         return false;
     };
+    state.invalidate_sdk_snapshots_before_owner_mutation();
     let mut changed = false;
     if let Some(value) = diagnostics
         .get("severity")
@@ -74,6 +76,7 @@ pub(crate) fn apply_resolution_settings(
     let changed = state.resolution.package_manifest_paths != normalized_paths
         || state.resolution.package_manifests != package_manifests;
     if changed {
+        state.invalidate_sdk_snapshots_before_owner_mutation();
         state.resolution.package_manifest_paths = normalized_paths;
         state.resolution.package_manifests = package_manifests;
     }

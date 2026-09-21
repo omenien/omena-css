@@ -788,12 +788,20 @@ export const EVIDENCE_WRITER_COMMAND_DECLARATIONS = [
       "--write",
     ],
     writerScripts: ["scripts/check-rust-omena-query-public-surface.ts"],
-    outputPaths: ["rust/crates/omena-query/tests/snapshots/public-api-all-features.txt"],
+    outputPaths: [
+      "rust/crates/omena-query/tests/snapshots/public-api-all-features.txt",
+      "rust/crates/omena-query/tests/snapshots/wildcard-reexport-baseline.json",
+    ],
     outputWriteWitnesses: [
       {
         outputPaths: ["rust/crates/omena-query/tests/snapshots/public-api-all-features.txt"],
         writerScript: "scripts/check-rust-omena-query-public-surface.ts",
         writeExpression: "snapshotPath",
+      },
+      {
+        outputPaths: ["rust/crates/omena-query/tests/snapshots/wildcard-reexport-baseline.json"],
+        writerScript: "scripts/check-rust-omena-query-public-surface.ts",
+        writeExpression: "wildcardBaselinePath",
       },
     ],
   },

@@ -3,7 +3,7 @@
   "generatedBy": "pnpm omena-check evidence-writers --write",
   "commandAuthority": {
     "modulePath": "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
-    "sha256": "5dcf1bf4b5b0a79d24c6f25be7474573ab426ba11a30351c78f36c81da19f462",
+    "sha256": "99f00e16aeec601374277492565a1abbbd4b5c62e350b7f69763dd2519f71e72",
     "declaredCommandCount": 27,
     "declaredOutputCount": 76,
     "declaredStaticWriteOutputCount": 69
@@ -3006,6 +3006,16 @@
         "tsx",
         "./scripts/check-rust-omena-query-public-surface.ts",
         "--write"
+      ],
+      "alternateWriteCommands": [
+        [
+          "node",
+          "--import",
+          "tsx",
+          "./scripts/check-rust-omena-query-public-surface.ts",
+          "--all-features",
+          "--write"
+        ]
       ],
       "inputPaths": [
         "packages/check-orchestrator/src/evidence/scan-surface-manifest.ts",

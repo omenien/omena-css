@@ -621,6 +621,7 @@ mod sif_delta_seeding {
         )
         .ok()?;
         Some(OmenaQueryExternalSifInputV0 {
+            admitted_resolution_edges: Vec::new(),
             canonical_url: url.to_string(),
             sif,
         })

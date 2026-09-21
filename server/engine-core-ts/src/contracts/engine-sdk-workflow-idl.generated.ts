@@ -78,6 +78,9 @@ export type OmenaGuaranteeKindV0Json =
   | "notClaimedExactTraversal";
 
 export interface OmenaSdkWorkflowSurfaceV0Json {
+  readonly boundRequest: OmenaWorkspaceBoundRequestV1Json;
+  readonly boundResponse: OmenaWorkspaceBoundResponseV1Json;
+  readonly boundHandshake: OmenaWorkspaceBoundHandshakeV1Json;
   readonly errorEnvelope: OmenaSdkErrorEnvelopeV0Json;
   readonly cliResponseEnvelope: OmenaCliResponseEnvelopeV0Json;
   readonly snapshotRequest: OmenaSdkSnapshotRequestV0Json;
@@ -85,6 +88,7 @@ export interface OmenaSdkWorkflowSurfaceV0Json {
   readonly queryRequest: OmenaSdkQueryRequestV0Json;
   readonly queryResponse: OmenaSdkQueryResponseV0Json;
   readonly diagnosticsRequest: OmenaSdkDiagnosticsRequestV0Json;
+  readonly sourceDiagnosticsRequest: OmenaSdkSourceDiagnosticsRequestV0Json;
   readonly diagnosticsResponse: OmenaSdkDiagnosticsResponseV0Json;
   readonly diagnosticsDebugReport: OmenaSdkDiagnosticsDebugReportV0Json;
   readonly buildRequest: OmenaSdkBuildRequestV0Json;
@@ -99,6 +103,121 @@ export interface OmenaSdkWorkflowSurfaceV0Json {
   readonly bundlerHostResolveModuleRequest: OmenaBundlerHostResolveModuleRequestV0Json;
   readonly bundlerHostResolveModuleResponse: OmenaBundlerHostResolveModuleResponseV0Json;
   readonly bundlerHostBundleAdmission: OmenaBundlerHostBundleAdmissionV0Json;
+}
+export interface OmenaWorkspaceBoundRequestV1Json {
+  readonly contractVersion: "1";
+  readonly snapshotBinding: OmenaWorkspaceSnapshotBindingV0Json;
+  readonly request: unknown;
+}
+export interface OmenaWorkspaceSnapshotBindingV0Json {
+  readonly workspaceRoot: string;
+  readonly snapshotId: OmenaWorkspaceSnapshotIdV0Json;
+  readonly inputCommitment: string;
+}
+export interface OmenaWorkspaceSnapshotIdV0Json {
+  readonly value: number;
+}
+export interface OmenaWorkspaceBoundResponseV1Json {
+  readonly contractVersion: "1";
+  readonly snapshotBinding: OmenaWorkspaceSnapshotBindingV0Json;
+  readonly response: unknown;
+}
+export interface OmenaWorkspaceBoundHandshakeV1Json {
+  readonly contractVersion: "1";
+  readonly snapshotBinding: OmenaWorkspaceSnapshotBindingV0Json;
+  readonly snapshotInputs: OmenaWorkspaceSnapshotTransferV0Json;
+  readonly request: OmenaWorkspaceSessionHandshakeRequestV0Json;
+}
+export interface OmenaWorkspaceSnapshotTransferV0Json {
+  readonly sources: readonly OmenaWorkspaceSnapshotSourceV0Json[];
+  readonly packageManifests: readonly EngineNapiStylePackageManifestV0Json[];
+  readonly resolutionInputs: OmenaWorkspaceResolutionInputsV0Json;
+  readonly settings: OmenaWorkspaceSnapshotSettingsV0Json;
+  readonly sourceCorpusComplete: boolean;
+}
+export interface OmenaWorkspaceSnapshotSourceV0Json {
+  readonly sourcePath: string;
+  readonly sourceSource: string;
+  readonly languageId: string;
+  readonly providerInputs?: OmenaWorkspaceSourceProviderInputsV0Json;
+}
+export interface OmenaWorkspaceSourceProviderInputsV0Json {
+  readonly providerId: "tsgo";
+  readonly sourceDigest: string;
+  readonly entries: readonly OmenaWorkspaceProviderResultV0Json[];
+  readonly spanEntries: readonly OmenaWorkspaceProviderSpanResultV0Json[];
+  readonly unavailable: readonly OmenaWorkspaceProviderUnavailableV0Json[];
+}
+export interface OmenaWorkspaceProviderResultV0Json {
+  readonly filePath: string;
+  readonly expressionId: string;
+  readonly byteSpan: OmenaWorkspaceProviderSpanV0Json;
+  readonly resolvedType: OmenaWorkspaceProviderResolvedTypeV0Json;
+}
+export interface OmenaWorkspaceProviderSpanV0Json {
+  readonly start: number;
+  readonly end: number;
+}
+export interface OmenaWorkspaceProviderResolvedTypeV0Json {
+  readonly kind: string;
+  readonly values: readonly string[];
+}
+export interface OmenaWorkspaceProviderSpanResultV0Json {
+  readonly filePath: string;
+  readonly expressionId: string;
+  readonly byteSpan: OmenaWorkspaceProviderSpanV0Json;
+  readonly outcome: string;
+  readonly reason: string;
+  readonly spanExact: boolean;
+  readonly nonNullishMemberCount: number;
+  readonly resolvedMemberCount: number;
+  readonly resolvedType: OmenaWorkspaceProviderResolvedTypeV0Json;
+}
+export interface OmenaWorkspaceProviderUnavailableV0Json {
+  readonly expressionId: string;
+  readonly byteSpan: OmenaWorkspaceProviderSpanV0Json;
+  readonly reason: string;
+}
+export interface OmenaWorkspaceResolutionInputsV0Json {
+  readonly packageManifests: readonly EngineNapiStylePackageManifestV0Json[];
+  readonly tsconfigPathMappings: readonly OmenaWorkspaceTsconfigPathMappingV0Json[];
+  readonly bundlerPathMappings: readonly OmenaWorkspaceBundlerPathMappingV0Json[];
+  readonly diskStylePathIdentities?: readonly OmenaWorkspaceDiskStyleIdentityV0Json[];
+  readonly externalSifCacheFingerprint?: string;
+}
+export interface OmenaWorkspaceTsconfigPathMappingV0Json {
+  readonly basePath: string;
+  readonly pattern: string;
+  readonly targetPatterns: readonly string[];
+}
+export interface OmenaWorkspaceBundlerPathMappingV0Json {
+  readonly pattern: string;
+  readonly targetPath: string;
+}
+export interface OmenaWorkspaceDiskStyleIdentityV0Json {
+  readonly stylePath: string;
+  readonly metadataIdentity: string;
+}
+export interface OmenaWorkspaceSnapshotSettingsV0Json {
+  readonly diagnosticSeverity: number;
+  readonly deepAnalysis: boolean;
+  readonly definition: boolean;
+  readonly hover: boolean;
+  readonly completion: boolean;
+  readonly references: boolean;
+  readonly rename: boolean;
+  readonly configContentDigest?: string;
+}
+export interface OmenaWorkspaceSessionHandshakeRequestV0Json {
+  readonly protocolVersion: "0";
+  readonly workspaceRoot: string;
+  readonly configContentDigest?: string;
+  readonly styleSources: readonly EngineNapiStyleSourceInputV0Json[];
+  readonly limits: OmenaWorkspaceSessionLimitsV0Json;
+}
+export interface OmenaWorkspaceSessionLimitsV0Json {
+  readonly deadlineMs: number;
+  readonly maxResponseBytes: number;
 }
 export interface OmenaSdkErrorEnvelopeV0Json {
   readonly error: OmenaErrorV0Json;
@@ -132,9 +251,6 @@ export interface OmenaSdkSnapshotResponseV0Json {
   readonly partition: OmenaSdkResponsePartitionV0Json;
   readonly workspaceRoot: string;
 }
-export interface OmenaWorkspaceSnapshotIdV0Json {
-  readonly value: number;
-}
 export interface OmenaSdkQueryRequestV0Json {
   readonly snapshotId: OmenaWorkspaceSnapshotIdV0Json;
   readonly queryKind: string;
@@ -149,6 +265,10 @@ export interface OmenaSdkDiagnosticsRequestV0Json {
   readonly snapshotId: OmenaWorkspaceSnapshotIdV0Json;
   readonly stylePath: string;
   readonly styleSource: string;
+}
+export interface OmenaSdkSourceDiagnosticsRequestV0Json {
+  readonly snapshotId: OmenaWorkspaceSnapshotIdV0Json;
+  readonly sourcePath: string;
 }
 export interface OmenaSdkDiagnosticsResponseV0Json {
   readonly snapshotId: OmenaWorkspaceSnapshotIdV0Json;
@@ -211,17 +331,6 @@ export interface OmenaSdkExplainResponseV0Json {
   readonly snapshotId: OmenaWorkspaceSnapshotIdV0Json;
   readonly partition: OmenaSdkResponsePartitionV0Json;
   readonly report: unknown;
-}
-export interface OmenaWorkspaceSessionHandshakeRequestV0Json {
-  readonly protocolVersion: "0";
-  readonly workspaceRoot: string;
-  readonly configContentDigest?: string;
-  readonly styleSources: readonly EngineNapiStyleSourceInputV0Json[];
-  readonly limits: OmenaWorkspaceSessionLimitsV0Json;
-}
-export interface OmenaWorkspaceSessionLimitsV0Json {
-  readonly deadlineMs: number;
-  readonly maxResponseBytes: number;
 }
 export interface OmenaWorkspaceSessionHandshakeResponseV0Json {
   readonly protocolVersion: "0";

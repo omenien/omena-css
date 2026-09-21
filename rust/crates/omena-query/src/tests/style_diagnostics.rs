@@ -3147,6 +3147,7 @@ fn style_diagnostics_auto_external_mode_classifies_partial_sif_edges_independent
     )
     .map_err(|_| "sif fixture")?;
     let external_sifs = vec![OmenaQueryExternalSifInputV0 {
+        admitted_resolution_edges: Vec::new(),
         canonical_url: "https://cdn.example/tokens.scss".to_string(),
         sif,
     }];
@@ -3226,6 +3227,7 @@ fn style_diagnostics_external_sif_mode_resolves_symbols_from_sif_artifact()
     )
     .map_err(|_| "sif fixture")?;
     let external_sifs = vec![OmenaQueryExternalSifInputV0 {
+        admitted_resolution_edges: Vec::new(),
         canonical_url: "https://cdn.example/tokens.scss".to_string(),
         sif,
     }];
@@ -3287,6 +3289,7 @@ fn style_diagnostics_external_sif_mode_resolves_bare_canonical_url_sif() -> Resu
     )
     .map_err(|_| "bare canonical-url sif fixture")?;
     let external_sifs = vec![OmenaQueryExternalSifInputV0 {
+        admitted_resolution_edges: Vec::new(),
         canonical_url: "design-system/tokens".to_string(),
         sif,
     }];
@@ -3353,6 +3356,7 @@ fn style_diagnostics_external_sif_mode_resolves_bundler_alias_canonical_url_sif(
     )
     .map_err(|_| "bundler alias canonical-url sif fixture")?;
     let external_sifs = vec![OmenaQueryExternalSifInputV0 {
+        admitted_resolution_edges: Vec::new(),
         canonical_url: "/workspace/vendor/tokens.scss".to_string(),
         sif,
     }];
@@ -3450,10 +3454,12 @@ fn style_diagnostics_external_sif_mode_flattens_forwarded_sif_exports() -> Resul
     .map_err(|_| "forwarded sif fixture")?;
     let external_sifs = vec![
         OmenaQueryExternalSifInputV0 {
+            admitted_resolution_edges: Vec::new(),
             canonical_url: "design-system/index".to_string(),
             sif: root_sif,
         },
         OmenaQueryExternalSifInputV0 {
+            admitted_resolution_edges: Vec::new(),
             canonical_url: "design-system/tokens".to_string(),
             sif: tokens_sif,
         },
@@ -3527,6 +3533,7 @@ fn style_diagnostics_external_sif_mode_resolves_symbols_from_file_uri_sif()
     )
     .map_err(|_| "sif fixture")?;
     let external_sifs = vec![OmenaQueryExternalSifInputV0 {
+        admitted_resolution_edges: Vec::new(),
         canonical_url: "file:///workspace/vendor/tokens.scss".to_string(),
         sif,
     }];
@@ -3644,6 +3651,7 @@ fn style_diagnostics_external_sif_mode_classifies_partial_boundary() -> Result<(
     )
     .map_err(|_| "sif fixture")?;
     let external_sifs = vec![OmenaQueryExternalSifInputV0 {
+        admitted_resolution_edges: Vec::new(),
         canonical_url: "https://cdn.example/tokens.scss".to_string(),
         sif,
     }];
@@ -3863,10 +3871,12 @@ fn style_diagnostics_external_sif_mode_classifies_stale_boundary() -> Result<(),
     .map_err(|_| "dependency sif fixture")?;
     let external_sifs = vec![
         OmenaQueryExternalSifInputV0 {
+            admitted_resolution_edges: Vec::new(),
             canonical_url: "https://cdn.example/tokens.scss".to_string(),
             sif: root_sif,
         },
         OmenaQueryExternalSifInputV0 {
+            admitted_resolution_edges: Vec::new(),
             canonical_url: "https://cdn.example/_base.scss".to_string(),
             sif: dependency_sif,
         },

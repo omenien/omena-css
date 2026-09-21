@@ -51,6 +51,80 @@ impl ExpectedContentDigestV0 {
     }
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct WorkspaceSnapshotCommitGuardV0 {
+    owner: omena_query::OmenaWorkspaceSnapshotReaderV0,
+    binding: omena_query::OmenaWorkspaceSnapshotBindingV0,
+    expected: Vec<ExpectedContentDigestV0>,
+}
+
+impl WorkspaceSnapshotCommitGuardV0 {
+    pub(crate) fn from_view(
+        view: &omena_query::OmenaWorkspaceSnapshotReadViewV0<'_>,
+        destination_owner: &omena_query::OmenaWorkspaceSnapshotReaderV0,
+    ) -> Result<Self, WorkspaceEditTransactionErrorV0> {
+        if !view
+            .owner()
+            .is_some_and(|owner| owner.is_same_owner(destination_owner))
+        {
+            return Err(snapshot_stale(view.binding(), "wrong destination owner"));
+        }
+        destination_owner
+            .with_current_write_binding(view.binding(), || ())
+            .map_err(|error| snapshot_stale(view.binding(), &error.to_string()))?;
+        Ok(Self {
+            owner: destination_owner.clone(),
+            binding: view.binding().clone(),
+            expected: Vec::new(),
+        })
+    }
+
+    pub(crate) fn expect_view_bytes(
+        &mut self,
+        path: &Path,
+        document_path: &str,
+        view: &omena_query::OmenaWorkspaceSnapshotReadViewV0<'_>,
+    ) -> Result<ExpectedContentDigestV0, WorkspaceEditTransactionErrorV0> {
+        let destination = crate::paths::cli_file_uri_to_path(document_path)
+            .unwrap_or_else(|| PathBuf::from(document_path));
+        if destination != path
+            || view.binding() != &self.binding
+            || !view
+                .owner()
+                .is_some_and(|owner| owner.is_same_owner(&self.owner))
+        {
+            return Err(snapshot_stale(
+                &self.binding,
+                "digest provenance does not match this destination owner and path",
+            ));
+        }
+        let bytes = view.document_bytes(document_path).ok_or_else(|| {
+            snapshot_stale(
+                &self.binding,
+                "destination bytes are absent from admitted read view",
+            )
+        })?;
+        let expected = ExpectedContentDigestV0::from_bytes(path, bytes);
+        self.expected.push(expected.clone());
+        Ok(expected)
+    }
+}
+
+fn snapshot_stale(
+    binding: &omena_query::OmenaWorkspaceSnapshotBindingV0,
+    actual: &str,
+) -> WorkspaceEditTransactionErrorV0 {
+    WorkspaceEditTransactionErrorV0::StaleInput {
+        path: binding.workspace_root().to_string(),
+        expected_digest: format!(
+            "snapshot:{}:{}",
+            binding.snapshot_id().value,
+            binding.input_commitment().as_str()
+        ),
+        actual_digest: actual.to_string(),
+    }
+}
+
 type PostconditionCheck = Box<dyn Fn(&Path, &[u8]) -> Result<(), String> + Send + Sync + 'static>;
 
 pub(crate) struct WorkspaceEditPostconditionV0 {
@@ -179,6 +253,7 @@ impl FileEditV0 {
 }
 
 pub(crate) struct WorkspaceEditTransaction {
+    snapshot_guard: Option<WorkspaceSnapshotCommitGuardV0>,
     pub(crate) revision: Option<OmenaWorkspaceSnapshotIdV0>,
     pub(crate) expected_digests: Vec<ExpectedContentDigestV0>,
     pub(crate) edits: Vec<FileEditV0>,
@@ -195,6 +270,7 @@ impl WorkspaceEditTransaction {
         safety_class: WorkspaceEditSafetyClassV0,
     ) -> Self {
         Self {
+            snapshot_guard: None,
             revision,
             expected_digests: Vec::new(),
             edits: Vec::new(),
@@ -204,6 +280,35 @@ impl WorkspaceEditTransaction {
             #[cfg(test)]
             staging_directory: None,
         }
+    }
+
+    pub(crate) fn from_snapshot(
+        view: &omena_query::OmenaWorkspaceSnapshotReadViewV0<'_>,
+        destination_owner: &omena_query::OmenaWorkspaceSnapshotReaderV0,
+        safety_class: WorkspaceEditSafetyClassV0,
+    ) -> Result<Self, WorkspaceEditTransactionErrorV0> {
+        let guard = WorkspaceSnapshotCommitGuardV0::from_view(view, destination_owner)?;
+        Ok(Self::new(Some(view.binding().snapshot_id()), safety_class).with_snapshot_guard(guard))
+    }
+
+    pub(crate) fn with_snapshot_guard(mut self, guard: WorkspaceSnapshotCommitGuardV0) -> Self {
+        self.snapshot_guard = Some(guard);
+        self
+    }
+
+    pub(crate) fn expect_snapshot_bytes(
+        mut self,
+        path: &Path,
+        document_path: &str,
+        view: &omena_query::OmenaWorkspaceSnapshotReadViewV0<'_>,
+    ) -> Result<Self, WorkspaceEditTransactionErrorV0> {
+        let guard = self
+            .snapshot_guard
+            .as_mut()
+            .ok_or_else(|| snapshot_stale(view.binding(), "snapshot guard is required"))?;
+        let expected = guard.expect_view_bytes(path, document_path, view)?;
+        self.expected_digests.push(expected);
+        Ok(self)
     }
 
     pub(crate) fn expect(mut self, expected: ExpectedContentDigestV0) -> Self {
@@ -217,6 +322,18 @@ impl WorkspaceEditTransaction {
     }
 
     pub(crate) fn commit(
+        self,
+    ) -> Result<WorkspaceEditTransactionReportV0, WorkspaceEditTransactionErrorV0> {
+        if let Some(guard) = self.snapshot_guard.clone() {
+            return guard
+                .owner
+                .with_current_write_binding(&guard.binding, || self.commit_guarded())
+                .map_err(|error| snapshot_stale(&guard.binding, &error.to_string()))?;
+        }
+        self.commit_guarded()
+    }
+
+    fn commit_guarded(
         self,
     ) -> Result<WorkspaceEditTransactionReportV0, WorkspaceEditTransactionErrorV0> {
         self.validate_shape()?;
@@ -284,6 +401,19 @@ impl WorkspaceEditTransaction {
     }
 
     fn validate_shape(&self) -> Result<(), WorkspaceEditTransactionErrorV0> {
+        if let Some(guard) = &self.snapshot_guard {
+            if self.revision != Some(guard.binding.snapshot_id())
+                || self
+                    .expected_digests
+                    .iter()
+                    .any(|expected| !guard.expected.contains(expected))
+            {
+                return Err(snapshot_stale(
+                    &guard.binding,
+                    "expected digest was not derived from the admitted owner view",
+                ));
+            }
+        }
         if self.edits.is_empty() {
             return Err(WorkspaceEditTransactionErrorV0::EmptyTransaction);
         }
@@ -1033,6 +1163,281 @@ mod tests {
                 FileEditV0::new(path, replacement)
                     .with_postcondition(WorkspaceEditPostconditionV0::byte_identity(replacement)),
             )
+    }
+
+    struct SnapshotFixture {
+        root: String,
+        styles: Vec<omena_query::OmenaQueryStyleSourceInputV0>,
+        settings: omena_query::OmenaWorkspaceSnapshotSettingsV0,
+        resolution: omena_query::OmenaQueryStyleResolutionInputsV0,
+        languages: std::collections::BTreeMap<String, String>,
+        providers:
+            std::collections::BTreeMap<String, omena_query::OmenaWorkspaceSourceProviderInputsV0>,
+        trust: std::collections::BTreeMap<String, omena_query::OmenaQueryExternalSifTrustV1>,
+    }
+
+    impl SnapshotFixture {
+        fn from_destination(path: &Path) -> Result<Self, String> {
+            Ok(Self {
+                root: path
+                    .parent()
+                    .ok_or_else(|| "destination parent missing".to_string())?
+                    .to_string_lossy()
+                    .to_string(),
+                styles: vec![omena_query::OmenaQueryStyleSourceInputV0 {
+                    style_path: path.to_string_lossy().to_string(),
+                    style_source: fs::read_to_string(path).map_err(|e| e.to_string())?,
+                }],
+                settings: Default::default(),
+                resolution: Default::default(),
+                languages: Default::default(),
+                providers: Default::default(),
+                trust: Default::default(),
+            })
+        }
+        fn inputs(&self) -> omena_query::OmenaWorkspaceSnapshotInputsV0<'_> {
+            omena_query::OmenaWorkspaceSnapshotInputsV0 {
+                workspace_root: &self.root,
+                style_sources: &self.styles,
+                source_documents: &[],
+                source_language_ids: &self.languages,
+                source_provider_inputs: &self.providers,
+                package_manifests: &[],
+                external_sifs: &[],
+                external_sif_trust_records: &self.trust,
+                external_sif_resolution_edges: &[],
+                resolution_inputs: &self.resolution,
+                settings: &self.settings,
+                source_corpus_complete: false,
+            }
+        }
+    }
+
+    fn snapshot_revision(value: u64) -> OmenaWorkspaceSnapshotIdV0 {
+        OmenaWorkspaceSnapshotIdV0::from_revision(omena_query::IncrementalRevisionV0 { value })
+    }
+
+    #[test]
+    fn snapshot_metadata_advance_with_identical_disk_bytes_refuses_commit() -> Result<(), String> {
+        let root = fixture_root("snapshot-metadata");
+        fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+        let path = root.join("app.css");
+        fs::write(&path, ".original {}\n").map_err(|e| e.to_string())?;
+        let mut fixture = SnapshotFixture::from_destination(&path)?;
+        let mut owner = omena_query::OmenaWorkspaceSnapshotPublisherV0::default();
+        let before = owner
+            .publish(fixture.inputs(), snapshot_revision(1))
+            .map_err(|e| e.to_string())?;
+        let reader = owner.reader();
+        let view = reader
+            .read_view(&before, fixture.inputs())
+            .map_err(|e| e.to_string())?;
+        let transaction = WorkspaceEditTransaction::from_snapshot(
+            &view,
+            &reader,
+            WorkspaceEditSafetyClassV0::Safe,
+        )
+        .map_err(|e| e.to_string())?
+        .expect_snapshot_bytes(&path, path.to_string_lossy().as_ref(), &view)
+        .map_err(|e| e.to_string())?
+        .edit(FileEditV0::new(&path, b".changed {}\n".to_vec()));
+        owner.begin_mutation(&before).map_err(|e| e.to_string())?;
+        fixture.settings.deep_analysis = true;
+        let current = owner
+            .publish(fixture.inputs(), snapshot_revision(1))
+            .map_err(|e| e.to_string())?;
+        let result = transaction.commit();
+        let disk_after = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        if let Some(receipt) = std::env::var_os("OMENA_SNAPSHOT_MUTATION_RECEIPT") {
+            let receipt = std::path::PathBuf::from(receipt);
+            assert!(
+                receipt.is_absolute(),
+                "mutation receipt requires an explicit absolute path"
+            );
+            let mut file = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(receipt)
+                .map_err(|e| e.to_string())?;
+            let bytes = serde_json::to_vec_pretty(&serde_json::json!({
+                "destination":path, "transactionBinding":before, "currentOwnerBinding":current,
+                "diskBefore":".original {}\n", "diskAfter":disk_after,
+                "isStaleInput":matches!(&result, Err(WorkspaceEditTransactionErrorV0::StaleInput { .. })),
+                "transactionResult":format!("{result:?}"),
+            })).map_err(|e| e.to_string())?;
+            std::io::Write::write_all(&mut file, &bytes).map_err(|e| e.to_string())?;
+        }
+        assert_no_transaction_sidecars(&root)?;
+        fs::remove_dir_all(&root).map_err(|e| e.to_string())?;
+        assert!(matches!(
+            result,
+            Err(WorkspaceEditTransactionErrorV0::StaleInput { .. })
+        ));
+        assert_eq!(disk_after, ".original {}\n");
+        Ok(())
+    }
+
+    #[test]
+    fn equal_portable_binding_from_another_owner_cannot_authorize_destination() -> Result<(), String>
+    {
+        let root = fixture_root("snapshot-other-owner");
+        fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+        let path = root.join("app.css");
+        fs::write(&path, ".original {}\n").map_err(|e| e.to_string())?;
+        let fixture = SnapshotFixture::from_destination(&path)?;
+        let mut first = omena_query::OmenaWorkspaceSnapshotPublisherV0::default();
+        let binding = first
+            .publish(fixture.inputs(), snapshot_revision(1))
+            .map_err(|e| e.to_string())?;
+        let mut other = omena_query::OmenaWorkspaceSnapshotPublisherV0::default();
+        assert_eq!(
+            other
+                .publish(fixture.inputs(), snapshot_revision(1))
+                .map_err(|e| e.to_string())?,
+            binding
+        );
+        let view = first
+            .reader()
+            .read_view(&binding, fixture.inputs())
+            .map_err(|e| e.to_string())?;
+        assert!(matches!(
+            WorkspaceEditTransaction::from_snapshot(
+                &view,
+                &other.reader(),
+                WorkspaceEditSafetyClassV0::Safe
+            ),
+            Err(WorkspaceEditTransactionErrorV0::StaleInput { .. })
+        ));
+        fs::remove_dir_all(root).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    #[test]
+    fn imported_origin_cannot_write_before_or_after_local_mutation() -> Result<(), String> {
+        let root = fixture_root("snapshot-imported");
+        fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+        let path = root.join("app.css");
+        fs::write(&path, ".original {}\n").map_err(|e| e.to_string())?;
+        let mut fixture = SnapshotFixture::from_destination(&path)?;
+        let mut native = omena_query::OmenaWorkspaceSnapshotPublisherV0::default();
+        let binding = native
+            .publish(fixture.inputs(), snapshot_revision(1))
+            .map_err(|e| e.to_string())?;
+        let mut imported = omena_query::OmenaWorkspaceSnapshotPublisherV0::default();
+        imported
+            .import(&binding, fixture.inputs())
+            .map_err(|e| e.to_string())?;
+        let reader = imported.reader();
+        let view = reader
+            .read_view(&binding, fixture.inputs())
+            .map_err(|e| e.to_string())?;
+        assert!(
+            WorkspaceEditTransaction::from_snapshot(
+                &view,
+                &reader,
+                WorkspaceEditSafetyClassV0::Safe
+            )
+            .is_err()
+        );
+        imported
+            .begin_mutation(&binding)
+            .map_err(|e| e.to_string())?;
+        fixture.settings.deep_analysis = true;
+        let changed = imported
+            .publish(fixture.inputs(), snapshot_revision(1))
+            .map_err(|e| e.to_string())?;
+        let view = reader
+            .read_view(&changed, fixture.inputs())
+            .map_err(|e| e.to_string())?;
+        assert!(
+            WorkspaceEditTransaction::from_snapshot(
+                &view,
+                &reader,
+                WorkspaceEditSafetyClassV0::Safe
+            )
+            .is_err()
+        );
+        assert_eq!(
+            fs::read_to_string(&path).map_err(|e| e.to_string())?,
+            ".original {}\n"
+        );
+        fs::remove_dir_all(root).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    #[test]
+    fn native_snapshot_commit_excludes_actual_owner_mutation_through_staging_and_rename()
+    -> Result<(), String> {
+        let root = fixture_root("snapshot-commit-owner");
+        fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+        let path = root.join("app.css");
+        fs::write(&path, ".original {}\n").map_err(|e| e.to_string())?;
+        let mut fixture = SnapshotFixture::from_destination(&path)?;
+        let mut owner = omena_query::OmenaWorkspaceSnapshotPublisherV0::default();
+        let binding = owner
+            .publish(fixture.inputs(), snapshot_revision(1))
+            .map_err(|e| e.to_string())?;
+        let reader = owner.reader();
+        let view = reader
+            .read_view(&binding, fixture.inputs())
+            .map_err(|e| e.to_string())?;
+        let (staged, staging) = mpsc::channel();
+        let barrier = Arc::new(Barrier::new(2));
+        let staged_barrier = barrier.clone();
+        let transaction = WorkspaceEditTransaction::from_snapshot(
+            &view,
+            &reader,
+            WorkspaceEditSafetyClassV0::Safe,
+        )
+        .map_err(|e| e.to_string())?
+        .expect_snapshot_bytes(&path, path.to_string_lossy().as_ref(), &view)
+        .map_err(|e| e.to_string())?
+        .edit(
+            FileEditV0::new(&path, b".changed {}\n".to_vec())
+                .with_postcondition(WorkspaceEditPostconditionV0::text_reparse_for_destination())
+                .with_postcondition(WorkspaceEditPostconditionV0::new(
+                    "snapshotOwnerBarrier",
+                    move |_, _| {
+                        staged.send(()).map_err(|e| e.to_string())?;
+                        staged_barrier.wait();
+                        Ok(())
+                    },
+                )),
+        );
+        let writer = thread::spawn(move || transaction.commit());
+        staging.recv().map_err(|e| e.to_string())?;
+        let (start, started) = mpsc::channel();
+        let (mutate, mutated) = mpsc::channel();
+        let mutation = thread::spawn(move || {
+            start.send(()).map_err(|e| e.to_string())?;
+            owner.begin_mutation(&binding).map_err(|e| e.to_string())?;
+            fixture.styles[0].style_source = ".changed {}\n".to_string();
+            mutate.send(()).map_err(|e| e.to_string())?;
+            owner
+                .publish(fixture.inputs(), snapshot_revision(1))
+                .map_err(|e| e.to_string())
+        });
+        started.recv().map_err(|e| e.to_string())?;
+        assert!(matches!(
+            mutated.recv_timeout(Duration::from_millis(30)),
+            Err(mpsc::RecvTimeoutError::Timeout)
+        ));
+        barrier.wait();
+        writer
+            .join()
+            .map_err(|_| "writer panicked".to_string())?
+            .map_err(|e| e.to_string())?;
+        mutated.recv().map_err(|e| e.to_string())?;
+        mutation
+            .join()
+            .map_err(|_| "mutation panicked".to_string())??;
+        assert_eq!(
+            fs::read_to_string(&path).map_err(|e| e.to_string())?,
+            ".changed {}\n"
+        );
+        assert_no_transaction_sidecars(&root)?;
+        fs::remove_dir_all(root).map_err(|e| e.to_string())?;
+        Ok(())
     }
 
     #[test]

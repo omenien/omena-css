@@ -1115,6 +1115,7 @@ fn serve_connection(mut stream: TcpStream, state: Arc<OmenadState>) {
     };
     let mut reader = BufReader::new(reader_stream);
     let mut handshaken = false;
+    let mut bound_connection = false;
     let mut line = String::new();
     loop {
         if state.shutdown.load(Ordering::Acquire) {
@@ -1142,7 +1143,64 @@ fn serve_connection(mut stream: TcpStream, state: Arc<OmenadState>) {
             return;
         }
         let message = std::mem::take(&mut line);
+        let wire_shape = serde_json::from_str::<serde_json::Value>(&message).ok();
+        let has_bound_version = wire_shape
+            .as_ref()
+            .is_some_and(|value| value.get("contractVersion").is_some());
+        let has_bound_inputs = wire_shape.as_ref().is_some_and(|value| {
+            value.get("snapshotBinding").is_some() || value.get("snapshotInputs").is_some()
+        });
+        // V0 tolerates unrelated extension fields, but a supplied snapshot claim
+        // must never disappear through that permissive decoder.
+        if !bound_connection
+            && ((!handshaken && !has_bound_version && has_bound_inputs)
+                || (handshaken && (has_bound_version || has_bound_inputs)))
+        {
+            if write_wire_value(
+                &mut stream,
+                &error_envelope(daemon_error(
+                    OmenaErrorClassV0::Input,
+                    "snapshot fields require an explicitly negotiated bound session",
+                    "workspace.snapshot-binding-required",
+                    OmenaErrorRecoverabilityV0::UserAction,
+                )),
+            )
+            .is_err()
+                || !handshaken
+            {
+                return;
+            }
+            continue;
+        }
         if !handshaken {
+            if has_bound_version {
+                let result =
+                    serde_json::from_str::<omena_query::OmenaWorkspaceBoundHandshakeV1>(&message)
+                        .map_err(|error| format!("invalid bound handshake: {error}"))
+                        .and_then(|request| negotiate_bound_handshake(&state, request));
+                match result {
+                    Ok(response) => {
+                        if write_wire_value(&mut stream, &response).is_err() {
+                            return;
+                        }
+                        handshaken = true;
+                        bound_connection = true;
+                    }
+                    Err(error) => {
+                        let _ = write_wire_value(
+                            &mut stream,
+                            &error_envelope(daemon_error(
+                                OmenaErrorClassV0::Workspace,
+                                error,
+                                "workspace.snapshot-binding-mismatch",
+                                OmenaErrorRecoverabilityV0::Retry,
+                            )),
+                        );
+                        return;
+                    }
+                }
+                continue;
+            }
             match serde_json::from_str::<OmenaWorkspaceSessionHandshakeRequestV0>(&message)
                 .map_err(|error| format!("invalid omenad handshake: {error}"))
                 .and_then(|request| negotiate_handshake(&state, request))
@@ -1168,6 +1226,39 @@ fn serve_connection(mut stream: TcpStream, state: Arc<OmenadState>) {
             }
             continue;
         }
+        if bound_connection {
+            let response =
+                serde_json::from_str::<omena_query::OmenaWorkspaceBoundRequestV1>(&message)
+                    .map_err(serialization_error)
+                    .and_then(|request| execute_bound_session_request(&state, request));
+            match response {
+                Ok((response, limit)) => {
+                    let encoded = match serde_json::to_vec(&response) {
+                        Ok(bytes) => bytes,
+                        Err(_) => return,
+                    };
+                    if encoded.len() as u64 > limit {
+                        let _ = write_wire_value(
+                            &mut stream,
+                            &error_envelope(daemon_error(
+                                OmenaErrorClassV0::Analysis,
+                                "bound response exceeds the request memory budget",
+                                "daemon.response-budget-exceeded",
+                                OmenaErrorRecoverabilityV0::UserAction,
+                            )),
+                        );
+                    } else if write_wire_bytes(&mut stream, &encoded).is_err() {
+                        return;
+                    }
+                }
+                Err(error) => {
+                    if write_wire_value(&mut stream, &error_envelope(error)).is_err() {
+                        return;
+                    }
+                }
+            }
+            continue;
+        }
         let request = match serde_json::from_str::<OmenaWorkspaceSessionRequestV0>(&message) {
             Ok(request) => request,
             Err(error) => {
@@ -1188,6 +1279,129 @@ fn serve_connection(mut stream: TcpStream, state: Arc<OmenadState>) {
             return;
         }
     }
+}
+
+fn negotiate_bound_handshake(
+    state: &OmenadState,
+    envelope: omena_query::OmenaWorkspaceBoundHandshakeV1,
+) -> Result<omena_query::OmenaWorkspaceBoundResponseV1, String> {
+    if envelope.contract_version != "1" {
+        return Err("unsupported snapshot contract version".to_string());
+    }
+    let request = envelope.request;
+    if request.config_content_digest != envelope.snapshot_inputs.settings.config_content_digest {
+        return Err("handshake config and bound input config differ".to_string());
+    }
+    let mut session = state
+        .session
+        .lock()
+        .map_err(|_| "workspace session lock poisoned".to_string())?;
+    if let Some(current) = session.as_ref() {
+        current
+            .workspace
+            .ensure_snapshot_binding(&envelope.snapshot_binding)
+            .map_err(|error| error.to_string())?;
+        if request.workspace_root != current.workspace_root
+            || request.config_content_digest != current.config_content_digest
+        {
+            return Err("bound reconnect has a different workspace or config".to_string());
+        }
+        // Reconnection also validates the supplied actual corpus, not just an id.
+    }
+    let root = crate::paths::cli_file_uri_to_path(&request.workspace_root)
+        .unwrap_or_else(|| PathBuf::from(&request.workspace_root));
+    let utility = omena_query::load_omena_query_workspace_utility_class_intelligence(&root, None);
+    let workspace = OmenaSdkWorkspaceV0::open_imported_snapshot(
+        OmenaSdkSnapshotRequestV0 {
+            workspace_root: request.workspace_root.clone(),
+        },
+        request.style_sources.clone(),
+        envelope.snapshot_inputs,
+        envelope.snapshot_binding.clone(),
+        &utility,
+    )
+    .map_err(|error| error.to_string())?;
+    let response = negotiate_omena_workspace_session_v0(&request, workspace.snapshot_id())
+        .map_err(|error| error.to_string())?;
+    if session.is_none() {
+        *session = Some(ResidentWorkspaceSession {
+            workspace_root: request.workspace_root,
+            config_content_digest: request.config_content_digest,
+            workspace,
+        });
+    }
+    Ok(omena_query::OmenaWorkspaceBoundResponseV1 {
+        contract_version: "1".to_string(),
+        snapshot_binding: envelope.snapshot_binding,
+        response: serde_json::to_value(response).map_err(|error| error.to_string())?,
+    })
+}
+
+fn execute_bound_session_request(
+    state: &OmenadState,
+    envelope: omena_query::OmenaWorkspaceBoundRequestV1,
+) -> Result<(omena_query::OmenaWorkspaceBoundResponseV1, u64), OmenaError> {
+    if envelope.contract_version != "1" {
+        return Err(daemon_error(
+            OmenaErrorClassV0::Unsupported,
+            "unsupported snapshot contract version",
+            "workspace.snapshot-contract-version",
+            OmenaErrorRecoverabilityV0::UserAction,
+        ));
+    }
+    let request: OmenaWorkspaceSessionRequestV0 =
+        serde_json::from_value(envelope.request).map_err(serialization_error)?;
+    if matches!(
+        request.operation,
+        OmenaWorkspaceSessionOperationV0::Format | OmenaWorkspaceSessionOperationV0::Lint
+    ) || request
+        .payload
+        .as_ref()
+        .is_some_and(|payload| payload.get("cliRequest").is_some())
+    {
+        return Err(daemon_error(
+            OmenaErrorClassV0::Unsupported,
+            "this disk-backed operation has no bound snapshot adapter",
+            "workspace.snapshot-operation-unavailable",
+            OmenaErrorRecoverabilityV0::UserAction,
+        ));
+    }
+    let response = execute_session_request_inner_with_binding(
+        state,
+        &request,
+        Some(&envelope.snapshot_binding),
+    )?;
+    let session = state
+        .session
+        .lock()
+        .map_err(|_| internal_lock_error("workspace session"))?;
+    let current = session
+        .as_ref()
+        .and_then(|session| session.workspace.snapshot_binding())
+        .ok_or_else(|| {
+            daemon_error(
+                OmenaErrorClassV0::Workspace,
+                "bound session is unavailable",
+                "workspace.snapshot-binding-required",
+                OmenaErrorRecoverabilityV0::Retry,
+            )
+        })?;
+    if current.snapshot_id() != response.snapshot_id {
+        return Err(daemon_error(
+            OmenaErrorClassV0::Workspace,
+            "snapshot changed before response publication",
+            "workspace.snapshot-mismatch",
+            OmenaErrorRecoverabilityV0::Retry,
+        ));
+    }
+    Ok((
+        omena_query::OmenaWorkspaceBoundResponseV1 {
+            contract_version: "1".to_string(),
+            snapshot_binding: current.clone(),
+            response: serde_json::to_value(response).map_err(serialization_error)?,
+        },
+        request.limits.max_response_bytes,
+    ))
 }
 
 fn negotiate_handshake(
@@ -1255,6 +1469,34 @@ fn execute_session_request_inner(
     state: &OmenadState,
     request: &OmenaWorkspaceSessionRequestV0,
 ) -> Result<OmenaWorkspaceSessionResponseV0, OmenaError> {
+    execute_session_request_inner_with_binding(state, request, None)
+}
+
+fn execute_session_request_inner_with_binding(
+    state: &OmenadState,
+    request: &OmenaWorkspaceSessionRequestV0,
+    binding: Option<&omena_query::OmenaWorkspaceSnapshotBindingV0>,
+) -> Result<OmenaWorkspaceSessionResponseV0, OmenaError> {
+    {
+        let session = state
+            .session
+            .lock()
+            .map_err(|_| internal_lock_error("workspace session"))?;
+        if let Some(session) = session.as_ref() {
+            match (session.workspace.snapshot_binding(), binding) {
+                (Some(_), Some(binding)) => session.workspace.ensure_snapshot_binding(binding)?,
+                (Some(_), None) | (None, Some(_)) => {
+                    return Err(daemon_error(
+                        OmenaErrorClassV0::Workspace,
+                        "bound and legacy session requests cannot be mixed",
+                        "workspace.snapshot-binding-required",
+                        OmenaErrorRecoverabilityV0::Retry,
+                    ));
+                }
+                (None, None) => {}
+            }
+        }
+    }
     if request.protocol_version != OMENA_WORKSPACE_SESSION_PROTOCOL_VERSION_V0 {
         return Err(daemon_error(
             OmenaErrorClassV0::Unsupported,
@@ -1312,6 +1554,9 @@ fn execute_session_request_inner(
             OmenaErrorRecoverabilityV0::Retry,
         )
     })?;
+    if let Some(binding) = binding {
+        session.workspace.ensure_snapshot_binding(binding)?;
+    }
     if request.snapshot_id != session.workspace.snapshot_id() {
         return Err(daemon_error(
             OmenaErrorClassV0::Workspace,
@@ -1416,6 +1661,19 @@ fn execute_read_operation(
 ) -> Result<serde_json::Value, OmenaError> {
     match request.operation {
         OmenaWorkspaceSessionOperationV0::Diagnostics => {
+            if request
+                .payload
+                .as_ref()
+                .is_some_and(|payload| payload.get("sourcePath").is_some())
+            {
+                return serde_json::to_value(workspace.execute_snapshot_source_diagnostics(
+                    parse_payload::<omena_query::OmenaSdkSourceDiagnosticsRequestV0>(
+                        request,
+                        "source diagnostics",
+                    )?,
+                )?)
+                .map_err(serialization_error);
+            }
             serde_json::to_value(workspace.execute_diagnostics(parse_payload::<
                 OmenaSdkDiagnosticsRequestV0,
             >(
@@ -1599,4 +1857,319 @@ fn daemon_error(
             evidence: Vec::new(),
         },
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    fn read_value(reader: &mut BufReader<TcpStream>) -> Result<serde_json::Value, String> {
+        let mut line = String::new();
+        reader.read_line(&mut line).map_err(|e| e.to_string())?;
+        serde_json::from_str(&line).map_err(|e| e.to_string())
+    }
+
+    fn record_tcp_fixture(name: &str, value: &serde_json::Value) -> Result<(), String> {
+        if let Some(directory) = std::env::var_os("OMENA_WORKSPACE_SNAPSHOT_TEST_RECEIPTS") {
+            let file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(std::path::PathBuf::from(directory).join(name))
+                .map_err(|error| error.to_string())?;
+            serde_json::to_writer_pretty(file, value).map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn legacy_tcp_envelopes_refuse_snapshot_fields_without_downgrade() -> Result<(), String> {
+        let clean_handshake = serde_json::json!({
+            "protocolVersion":"0", "workspaceRoot":"file:///snapshot-legacy-tcp",
+            "styleSources":[{"stylePath":"file:///snapshot-legacy-tcp/card.css",
+                "styleSource":".card { color: red; }"}],
+            "limits":{"deadlineMs":30000,"maxResponseBytes":1048576},
+            "unrelatedExtension":"V0 compatibility control",
+        });
+        for field in ["snapshotBinding", "snapshotInputs"] {
+            let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
+            let address = listener.local_addr().map_err(|e| e.to_string())?;
+            let state = Arc::new(OmenadState::new());
+            let server_state = state.clone();
+            let server = thread::spawn(move || {
+                for _ in 0..2 {
+                    let (stream, _) = listener.accept().map_err(|e| e.to_string())?;
+                    serve_connection(stream, server_state.clone());
+                }
+                Ok::<_, String>(())
+            });
+            let mut mixed = clean_handshake.clone();
+            mixed[field] = serde_json::json!({"inputCommitment":"must-not-be-ignored"});
+            let mut client = TcpStream::connect(address).map_err(|e| e.to_string())?;
+            client
+                .set_read_timeout(Some(Duration::from_secs(3)))
+                .map_err(|e| e.to_string())?;
+            let mut reader = BufReader::new(client.try_clone().map_err(|e| e.to_string())?);
+            write_wire_value(&mut client, &mixed)?;
+            let mixed_handshake_response = read_value(&mut reader)?;
+            drop(reader);
+            drop(client);
+            record_tcp_fixture(
+                &format!("mixed-handshake-{field}.json"),
+                &serde_json::json!({
+                    "request":mixed, "response":mixed_handshake_response,
+                }),
+            )?;
+            if mixed_handshake_response["error"]["context"]["code"]
+                != "workspace.snapshot-binding-required"
+            {
+                // Wake the second accept and join before the counterfactual
+                // assertion. An accidentally admitted handshake must not turn
+                // into a later EOF failure or leave a blocked server thread.
+                state.shutdown.store(true, Ordering::Release);
+                drop(TcpStream::connect(address).map_err(|error| error.to_string())?);
+                server
+                    .join()
+                    .map_err(|_| "TCP server panicked".to_string())??;
+                assert_eq!(
+                    mixed_handshake_response["error"]["context"]["code"],
+                    "workspace.snapshot-binding-required",
+                    "actual TCP mixed handshake must refuse: {mixed_handshake_response}"
+                );
+                return Ok(());
+            }
+
+            let mut client = TcpStream::connect(address).map_err(|e| e.to_string())?;
+            client
+                .set_read_timeout(Some(Duration::from_secs(3)))
+                .map_err(|e| e.to_string())?;
+            let mut reader = BufReader::new(client.try_clone().map_err(|e| e.to_string())?);
+            write_wire_value(&mut client, &clean_handshake)?;
+            let handshake = read_value(&mut reader)?;
+            let clean_request = serde_json::json!({
+                "protocolVersion":"0", "requestId":"legacy-normal",
+                "snapshotId":handshake["snapshotId"], "operation":"diagnostics",
+                "limits":clean_handshake["limits"],
+                "payload":{"snapshotId":handshake["snapshotId"],
+                    "stylePath":"file:///snapshot-legacy-tcp/card.css", "styleSource":".card { color: red; }"},
+            });
+            write_wire_value(&mut client, &clean_request)?;
+            let normal = read_value(&mut reader)?;
+            let mut mixed_request = clean_request.clone();
+            mixed_request[field] = mixed[field].clone();
+            write_wire_value(&mut client, &mixed_request)?;
+            let refused = read_value(&mut reader)?;
+            let mut unnegotiated_version = clean_request.clone();
+            unnegotiated_version["contractVersion"] = serde_json::json!("1");
+            write_wire_value(&mut client, &unnegotiated_version)?;
+            let version_refused = read_value(&mut reader)?;
+            write_wire_value(&mut client, &clean_request)?;
+            let restored_normal = read_value(&mut reader)?;
+            state.shutdown.store(true, Ordering::Release);
+            drop(reader);
+            drop(client);
+            server
+                .join()
+                .map_err(|_| "TCP server panicked".to_string())??;
+
+            record_tcp_fixture(
+                &format!("legacy-controls-{field}.json"),
+                &serde_json::json!({
+                    "handshakeRequest":clean_handshake, "handshakeResponse":handshake,
+                    "normalRequest":clean_request, "normalResponse":normal,
+                    "mixedRequest":mixed_request, "mixedResponse":refused,
+                    "unnegotiatedRequest":unnegotiated_version, "unnegotiatedResponse":version_refused,
+                    "restoredNormalResponse":restored_normal,
+                }),
+            )?;
+            for response in [mixed_handshake_response, refused, version_refused] {
+                assert_eq!(
+                    response["error"]["context"]["code"], "workspace.snapshot-binding-required",
+                    "{response}"
+                );
+            }
+            assert!(normal.get("error").is_none(), "{normal}");
+            assert_eq!(normal["payload"]["summary"]["classSelectorCount"], 1);
+            assert_eq!(restored_normal, normal);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn bound_source_diagnostics_and_current_owner_mutation_cross_actual_tcp() -> Result<(), String>
+    {
+        let root = "file:///snapshot-tcp-workspace";
+        let styles = vec![OmenaQueryStyleSourceInputV0 {
+            style_path: format!("{root}/card.module.css"),
+            style_source: ".card { color: red; }".to_string(),
+        }];
+        let transfer = omena_query::OmenaWorkspaceSnapshotTransferV0 {
+            sources: vec![omena_query::OmenaWorkspaceSnapshotSourceV0 {
+                source_path: format!("{root}/App.tsx"),
+                source_source: "export const App = () => <div className=\"card\" />;".to_string(),
+                language_id: "typescriptreact".to_string(),
+                provider_inputs: None,
+            }],
+            package_manifests: Vec::new(),
+            resolution_inputs: Default::default(),
+            settings: Default::default(),
+            source_corpus_complete: false,
+        };
+        let utility = omena_query::OmenaQueryUtilityClassIntelligenceReportV0::default();
+        let documents = omena_query::reconstruct_omena_workspace_snapshot_sources_v0(
+            root,
+            &transfer.sources,
+            &styles,
+            &transfer.resolution_inputs,
+            &utility,
+        )
+        .map_err(|e| e.to_string())?;
+        let languages = transfer
+            .sources
+            .iter()
+            .map(|source| (source.source_path.clone(), source.language_id.clone()))
+            .collect();
+        let mut issuer = omena_query::OmenaWorkspaceSnapshotPublisherV0::default();
+        let binding = issuer
+            .publish(
+                omena_query::OmenaWorkspaceSnapshotInputsV0 {
+                    workspace_root: root,
+                    style_sources: &styles,
+                    source_documents: &documents,
+                    source_language_ids: &languages,
+                    source_provider_inputs: &BTreeMap::new(),
+                    package_manifests: &[],
+                    external_sifs: &[],
+                    external_sif_trust_records: &BTreeMap::new(),
+                    external_sif_resolution_edges: &[],
+                    resolution_inputs: &transfer.resolution_inputs,
+                    settings: &transfer.settings,
+                    source_corpus_complete: false,
+                },
+                omena_query::OmenaWorkspaceSnapshotIdV0::from_revision(
+                    omena_query::IncrementalRevisionV0 { value: 7 },
+                ),
+            )
+            .map_err(|e| e.to_string())?;
+        let expected_workspace = OmenaSdkWorkspaceV0::open_imported_snapshot(
+            OmenaSdkSnapshotRequestV0 {
+                workspace_root: root.to_string(),
+            },
+            styles.clone(),
+            transfer.clone(),
+            binding.clone(),
+            &utility,
+        )
+        .map_err(|e| e.to_string())?;
+        let source_request = omena_query::OmenaSdkSourceDiagnosticsRequestV0 {
+            snapshot_id: binding.snapshot_id(),
+            source_path: transfer.sources[0].source_path.clone(),
+        };
+        let expected = serde_json::to_value(
+            expected_workspace
+                .execute_snapshot_source_diagnostics(source_request.clone())
+                .map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
+        let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
+        let address = listener.local_addr().map_err(|e| e.to_string())?;
+        let state = Arc::new(OmenadState::new());
+        let server_state = state.clone();
+        let server = thread::spawn(move || {
+            let (stream, _) = listener.accept().map_err(|e| e.to_string())?;
+            serve_connection(stream, server_state);
+            Ok::<_, String>(())
+        });
+        let mut client = TcpStream::connect(address).map_err(|e| e.to_string())?;
+        client
+            .set_read_timeout(Some(Duration::from_secs(3)))
+            .map_err(|e| e.to_string())?;
+        let mut reader = BufReader::new(client.try_clone().map_err(|e| e.to_string())?);
+        let limits = omena_query::OmenaWorkspaceSessionLimitsV0 {
+            deadline_ms: 30_000,
+            max_response_bytes: 16 * 1024 * 1024,
+        };
+        write_wire_value(
+            &mut client,
+            &omena_query::OmenaWorkspaceBoundHandshakeV1 {
+                contract_version: "1".to_string(),
+                snapshot_binding: binding.clone(),
+                snapshot_inputs: transfer,
+                request: OmenaWorkspaceSessionHandshakeRequestV0 {
+                    protocol_version: "0".to_string(),
+                    workspace_root: root.to_string(),
+                    config_content_digest: None,
+                    style_sources: styles.clone(),
+                    limits: limits.clone(),
+                },
+            },
+        )?;
+        let handshake = read_value(&mut reader)?;
+        assert_eq!(
+            handshake["snapshotBinding"],
+            serde_json::to_value(&binding).map_err(|e| e.to_string())?
+        );
+        let request = OmenaWorkspaceSessionRequestV0 {
+            request_id: "source".to_string(),
+            protocol_version: "0".to_string(),
+            snapshot_id: binding.snapshot_id(),
+            operation: OmenaWorkspaceSessionOperationV0::Diagnostics,
+            limits: limits.clone(),
+            payload: Some(serde_json::to_value(source_request).map_err(|e| e.to_string())?),
+        };
+        // A valid V1 session cannot be downgraded by a later clean V0 shape.
+        write_wire_value(&mut client, &request)?;
+        let legacy_in_bound = read_value(&mut reader)?;
+        assert!(legacy_in_bound.get("error").is_some(), "{legacy_in_bound}");
+        write_wire_value(
+            &mut client,
+            &omena_query::OmenaWorkspaceBoundRequestV1 {
+                contract_version: "1".to_string(),
+                snapshot_binding: binding.clone(),
+                request: serde_json::to_value(&request).map_err(|e| e.to_string())?,
+            },
+        )?;
+        let response = read_value(&mut reader)?;
+        assert_eq!(response["response"]["payload"], expected);
+        let mut replacement = styles;
+        replacement[0].style_source = ".card { color: blue; }".to_string();
+        let mutation = OmenaWorkspaceSessionRequestV0 {
+            request_id: "replace".to_string(),
+            protocol_version: "0".to_string(),
+            snapshot_id: binding.snapshot_id(),
+            operation: OmenaWorkspaceSessionOperationV0::ReplaceStyleSources,
+            limits,
+            payload: Some(serde_json::to_value(replacement).map_err(|e| e.to_string())?),
+        };
+        write_wire_value(
+            &mut client,
+            &omena_query::OmenaWorkspaceBoundRequestV1 {
+                contract_version: "1".to_string(),
+                snapshot_binding: binding.clone(),
+                request: serde_json::to_value(mutation).map_err(|e| e.to_string())?,
+            },
+        )?;
+        let response = read_value(&mut reader)?;
+        assert_eq!(response["snapshotBinding"]["snapshotId"]["value"], 8);
+        write_wire_value(
+            &mut client,
+            &omena_query::OmenaWorkspaceBoundRequestV1 {
+                contract_version: "1".to_string(),
+                snapshot_binding: binding,
+                request: serde_json::to_value(request).map_err(|e| e.to_string())?,
+            },
+        )?;
+        let stale = read_value(&mut reader)?;
+        assert_eq!(
+            stale["error"]["context"]["code"],
+            "workspace.snapshot-mismatch"
+        );
+        state.shutdown.store(true, Ordering::Release);
+        drop(reader);
+        drop(client);
+        server
+            .join()
+            .map_err(|_| "TCP server panicked".to_string())??;
+        Ok(())
+    }
 }

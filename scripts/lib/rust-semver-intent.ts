@@ -173,6 +173,7 @@ export function validateRustSemverIntentRegister(repoRoot: string): {
   const honestyCounts = validateRuntimeHonestyTable(register.intents, honestyTable);
   runRuntimeHonestyTableSelftest();
   runReleaseLifecycleSelftest();
+  runFieldDiagnosticSelftest();
 
   return {
     intentCount: register.intents.length,
@@ -493,15 +494,39 @@ export function runDeclaredRustSemverCheck(
   });
   const output = `${patchCheck.stdout ?? ""}${patchCheck.stderr ?? ""}`;
   process.stdout.write(output);
+  return validateDeclaredRustSemverOutput({
+    repoRoot: options.repoRoot,
+    crate: options.crate,
+    allFeatures: options.allFeatures,
+    output,
+    status: patchCheck.status,
+  });
+}
+
+/** Validates captured tool output with the same policy used by the live check. */
+export function validateDeclaredRustSemverOutput(options: {
+  readonly repoRoot: string;
+  readonly crate: string;
+  readonly allFeatures: boolean;
+  readonly output: string;
+  readonly status: number | null;
+}): DeclaredRustSemverCheckResult {
+  const register = readRegister(options.repoRoot);
+  const intent = register.intents.find((candidate) => candidate.crate === options.crate);
+  assert.ok(intent, `${options.crate} captured diagnostics require a declared intent`);
+  const runtimeValueChanges = intent.expectedRuntimeValueChanges ?? [];
+  const featurePlane = options.allFeatures ? "all-features" : "default-features";
+  const output = options.output;
+  assert.notEqual(options.status, null, `${options.crate} semver process did not complete`);
   if (intent.expectedFailures.length > 0) {
     assert.notEqual(
-      patchCheck.status,
+      options.status,
       0,
       `${options.crate} semver intent is stale because the steady-state patch check passed`,
     );
   } else {
     assert.equal(
-      patchCheck.status,
+      options.status,
       0,
       `${options.crate} runtime-value-only intent has undeclared cargo-semver-checks failures`,
     );
@@ -624,20 +649,7 @@ export function runDeclaredRustSemverCheck(
         expectedWitnesses !== undefined,
         `${options.crate} ${diagnostic.lint} witness prefix requires an expected witness set`,
       );
-      const observedWitnesses = section.body
-        .split("\n")
-        .filter(
-          (line) =>
-            line.startsWith(diagnostic.witnessLinePrefix!) &&
-            (line.includes(", previously in file ") || line.includes(" in file ")),
-        )
-        .map(
-          (line) =>
-            line
-              .slice(diagnostic.witnessLinePrefix!.length)
-              .split(", previously in file ")[0]!
-              .split(" in file ")[0]!,
-        );
+      const observedWitnesses = diagnosticWitnesses(section.body, diagnostic);
       assert.deepEqual(
         observedWitnesses.toSorted(),
         [...expectedWitnesses].toSorted(),
@@ -656,6 +668,93 @@ export function runDeclaredRustSemverCheck(
     featurePlane,
     declaredWitnessCount,
   };
+}
+
+function diagnosticWitnesses(body: string, diagnostic: ExpectedCargoSemverDiagnostic): string[] {
+  if (
+    diagnostic.lint === "constructible_struct_adds_field" &&
+    diagnostic.witnessLinePrefix === "  field "
+  ) {
+    // Every field-prefixed row must parse; malformed extras cannot disappear.
+    return body
+      .split("\n")
+      .filter((line) => line.startsWith("  field "))
+      .map((line) => {
+        const match =
+          /^  field ([A-Za-z_][A-Za-z0-9_:]*\.[A-Za-z_][A-Za-z0-9_]*) in (.+\.rs):([1-9][0-9]*)$/u.exec(
+            line,
+          );
+        assert.ok(
+          match,
+          `malformed constructible_struct_adds_field witness: ${JSON.stringify(line)}`,
+        );
+        return match[1]!;
+      });
+  }
+  // Preserve the inherited grammar, including the broad constant prefix.
+  return body
+    .split("\n")
+    .filter(
+      (line) =>
+        line.startsWith(diagnostic.witnessLinePrefix!) &&
+        (line.includes(", previously in file ") || line.includes(" in file ")),
+    )
+    .map(
+      (line) =>
+        line
+          .slice(diagnostic.witnessLinePrefix!.length)
+          .split(", previously in file ")[0]!
+          .split(" in file ")[0]!,
+    );
+}
+
+function runFieldDiagnosticSelftest(): void {
+  const diagnostic: ExpectedCargoSemverDiagnostic = {
+    lint: "constructible_struct_adds_field",
+    evidenceNeedles: [],
+    witnessLinePrefix: "  field ",
+  };
+  const row = "  field Carrier.context in /portable path/with in name/source.rs:17";
+  assert.deepEqual(diagnosticWitnesses(row, diagnostic), ["Carrier.context"]);
+  assert.deepEqual(diagnosticWitnesses(`${row}\n${row}`, diagnostic), [
+    "Carrier.context",
+    "Carrier.context",
+  ]);
+  const other = "  field Other.admission in C:\\portable path\\source.rs:21";
+  const exact = (body: string) =>
+    assert.deepEqual(diagnosticWitnesses(body, diagnostic).toSorted(), [
+      "Carrier.context",
+      "Other.admission",
+    ]);
+  exact(`${row}\n${other}`);
+  for (const changed of [
+    row,
+    `${row}\n${other}\n${other}`,
+    `${row}\n${other}\n  field Extra.context in extra.rs:2`,
+    `${row}\n${other.replace("Other.admission", "Other.renamed")}`,
+  ])
+    assert.throws(() => exact(changed), /deep-equal/u);
+
+  for (const malformed of [
+    "  field malformed",
+    "  field Carrier.context",
+    "  field Carrier.context in source.rs",
+    "  field Carrier.context in source.ts:17",
+    "  field Carrier.context in source.rs:0",
+    "  field Carrier.context in source.rs:17 trailing",
+    "  field Carrier.context extra in source.rs:17",
+  ]) {
+    assert.throws(() => diagnosticWitnesses(`${row}\n${malformed}`, diagnostic), /malformed/u);
+  }
+  const inherited: ExpectedCargoSemverDiagnostic = {
+    lint: "pub_module_level_const_missing",
+    evidenceNeedles: [],
+    witnessLinePrefix: "  ",
+  };
+  assert.deepEqual(diagnosticWitnesses("  OMENA_VERSION in file src/lib.rs:1", inherited), [
+    "OMENA_VERSION",
+  ]);
+  assert.deepEqual(diagnosticWitnesses(row, { ...diagnostic, lint: "struct_missing" }), []);
 }
 
 interface CargoSemverDiagnosticSection {

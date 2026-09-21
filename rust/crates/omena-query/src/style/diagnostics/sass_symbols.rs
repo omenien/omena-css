@@ -64,10 +64,7 @@ impl omena_semantic::SassModuleVisibleSymbolsResolverV0 for QueryVisibleSassSymb
                 find_omena_query_external_sif_for_edge(query_edge, self.external_sif_context)
             })
             .map(|sif| {
-                collect_sif_exported_sass_symbol_keys(
-                    &sif.sif,
-                    self.external_sif_context.external_sifs,
-                )
+                collect_sif_exported_sass_symbol_keys(sif, self.external_sif_context.external_sifs)
             })
             .unwrap_or_default()
     }

@@ -11,6 +11,7 @@ use crate::{
 };
 
 pub(crate) fn initialize_workspace_folders(state: &mut LspShellState, params: Option<&Value>) {
+    state.invalidate_sdk_snapshots_before_owner_mutation();
     state
         .resolution
         .cache_storage
@@ -47,6 +48,7 @@ pub(crate) fn initialize_workspace_folders(state: &mut LspShellState, params: Op
 }
 
 pub(crate) fn refresh_workspace_resolution_inputs(state: &mut LspShellState) {
+    state.invalidate_sdk_snapshots_before_owner_mutation();
     let configured_package_manifests = state.resolution.package_manifests.clone();
     let workspace_uris = state
         .workspace_runtime_registry
@@ -78,6 +80,7 @@ pub(crate) fn refresh_workspace_resolution_inputs_for_uri(state: &mut LspShellSt
         Some(workspace_uri.as_str()),
         state.resolution.package_manifests.as_slice(),
     );
+    state.invalidate_sdk_snapshots_before_owner_mutation();
     state
         .resolution
         .workspace_style_resolution_inputs
@@ -231,6 +234,7 @@ pub(crate) fn insert_workspace_folder(state: &mut LspShellState, folder: &Value)
     let Some(uri) = folder.get("uri").and_then(Value::as_str) else {
         return;
     };
+    state.invalidate_sdk_snapshots_before_owner_mutation();
     state.workspace_runtime_registry.insert(
         uri.to_string(),
         folder
@@ -242,6 +246,7 @@ pub(crate) fn insert_workspace_folder(state: &mut LspShellState, folder: &Value)
 }
 
 pub(crate) fn refresh_document_workspace_owners(state: &mut LspShellState) {
+    state.invalidate_sdk_snapshots_before_owner_mutation();
     let workspace_runtime_registry = state.workspace_runtime_registry.clone();
     for document in state.documents.values_mut() {
         let document = std::sync::Arc::make_mut(document);

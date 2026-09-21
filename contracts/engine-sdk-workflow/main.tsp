@@ -10,6 +10,103 @@ model OmenaWorkspaceSnapshotIdV0 {
   value: safeint;
 }
 
+model OmenaWorkspaceSnapshotBindingV0 {
+  workspaceRoot: string;
+  snapshotId: OmenaWorkspaceSnapshotIdV0;
+  inputCommitment: string;
+}
+
+model OmenaWorkspaceSnapshotSourceV0 {
+  sourcePath: string;
+  sourceSource: string;
+  languageId: string;
+  providerInputs?: OmenaWorkspaceSourceProviderInputsV0;
+}
+
+model OmenaWorkspaceProviderSpanV0 { start: safeint; end: safeint; }
+model OmenaWorkspaceProviderResolvedTypeV0 { kind: string; values: string[]; }
+model OmenaWorkspaceProviderResultV0 {
+  filePath: string; expressionId: string; byteSpan: OmenaWorkspaceProviderSpanV0;
+  resolvedType: OmenaWorkspaceProviderResolvedTypeV0;
+}
+model OmenaWorkspaceProviderSpanResultV0 {
+  filePath: string; expressionId: string; byteSpan: OmenaWorkspaceProviderSpanV0;
+  outcome: string; reason: string; spanExact: boolean;
+  nonNullishMemberCount: safeint; resolvedMemberCount: safeint;
+  resolvedType: OmenaWorkspaceProviderResolvedTypeV0;
+}
+model OmenaWorkspaceProviderUnavailableV0 {
+  expressionId: string; byteSpan: OmenaWorkspaceProviderSpanV0; reason: string;
+}
+model OmenaWorkspaceSourceProviderInputsV0 {
+  providerId: "tsgo"; sourceDigest: string;
+  entries: OmenaWorkspaceProviderResultV0[];
+  spanEntries: OmenaWorkspaceProviderSpanResultV0[];
+  unavailable: OmenaWorkspaceProviderUnavailableV0[];
+}
+
+model OmenaWorkspaceSnapshotSettingsV0 {
+  diagnosticSeverity: uint8;
+  deepAnalysis: boolean;
+  definition: boolean;
+  hover: boolean;
+  completion: boolean;
+  references: boolean;
+  rename: boolean;
+  configContentDigest?: string;
+}
+
+model OmenaWorkspaceTsconfigPathMappingV0 {
+  basePath: string;
+  pattern: string;
+  targetPatterns: string[];
+}
+
+model OmenaWorkspaceBundlerPathMappingV0 {
+  pattern: string;
+  targetPath: string;
+}
+
+model OmenaWorkspaceDiskStyleIdentityV0 {
+  stylePath: string;
+  metadataIdentity: string;
+}
+
+model OmenaWorkspaceResolutionInputsV0 {
+  packageManifests: Omena.EngineNapi.EngineNapiStylePackageManifestV0[];
+  tsconfigPathMappings: OmenaWorkspaceTsconfigPathMappingV0[];
+  bundlerPathMappings: OmenaWorkspaceBundlerPathMappingV0[];
+  diskStylePathIdentities?: OmenaWorkspaceDiskStyleIdentityV0[];
+  externalSifCacheFingerprint?: string;
+}
+
+model OmenaWorkspaceSnapshotTransferV0 {
+  sources: OmenaWorkspaceSnapshotSourceV0[];
+  packageManifests: Omena.EngineNapi.EngineNapiStylePackageManifestV0[];
+  resolutionInputs: OmenaWorkspaceResolutionInputsV0;
+  settings: OmenaWorkspaceSnapshotSettingsV0;
+  sourceCorpusComplete: boolean;
+}
+
+model OmenaWorkspaceBoundRequestV1 {
+  contractVersion: "1";
+  snapshotBinding: OmenaWorkspaceSnapshotBindingV0;
+  request: unknown;
+}
+
+model OmenaWorkspaceBoundResponseV1 {
+  contractVersion: "1";
+  snapshotBinding: OmenaWorkspaceSnapshotBindingV0;
+  response: unknown;
+}
+
+model OmenaWorkspaceBoundHandshakeV1 {
+  contractVersion: "1";
+  snapshotBinding: OmenaWorkspaceSnapshotBindingV0;
+  snapshotInputs: OmenaWorkspaceSnapshotTransferV0;
+  request: OmenaWorkspaceSessionHandshakeRequestV0;
+}
+
 enum OmenaSdkResponsePartitionV0 {
   public: "public",
   debug: "debug",
@@ -93,6 +190,11 @@ model OmenaSdkDiagnosticsRequestV0 {
   snapshotId: OmenaWorkspaceSnapshotIdV0;
   stylePath: string;
   styleSource: string;
+}
+
+model OmenaSdkSourceDiagnosticsRequestV0 {
+  snapshotId: OmenaWorkspaceSnapshotIdV0;
+  sourcePath: string;
 }
 
 model OmenaSdkDiagnosticsSummaryV0 {
@@ -507,6 +609,9 @@ model OmenaBundlerHostPackageContractV0 {
 }
 
 model OmenaSdkWorkflowSurfaceV0 {
+  boundRequest: OmenaWorkspaceBoundRequestV1;
+  boundResponse: OmenaWorkspaceBoundResponseV1;
+  boundHandshake: OmenaWorkspaceBoundHandshakeV1;
   errorEnvelope: OmenaSdkErrorEnvelopeV0;
   cliResponseEnvelope: OmenaCliResponseEnvelopeV0;
   snapshotRequest: OmenaSdkSnapshotRequestV0;
@@ -514,6 +619,7 @@ model OmenaSdkWorkflowSurfaceV0 {
   queryRequest: OmenaSdkQueryRequestV0;
   queryResponse: OmenaSdkQueryResponseV0;
   diagnosticsRequest: OmenaSdkDiagnosticsRequestV0;
+  sourceDiagnosticsRequest: OmenaSdkSourceDiagnosticsRequestV0;
   diagnosticsResponse: OmenaSdkDiagnosticsResponseV0;
   diagnosticsDebugReport: OmenaSdkDiagnosticsDebugReportV0;
   buildRequest: OmenaSdkBuildRequestV0;

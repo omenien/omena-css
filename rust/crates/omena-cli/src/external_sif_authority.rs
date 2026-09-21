@@ -216,6 +216,7 @@ fn read_explicit_external_sifs(
             let sif = read_omena_sif_json_v1(&sif_json)
                 .map_err(|error| format!("failed to parse SIF {}: {error}", path_string(path)))?;
             Ok(OmenaQueryExternalSifInputV0 {
+                admitted_resolution_edges: Vec::new(),
                 canonical_url: sif.canonical_url.clone(),
                 sif,
             })
@@ -258,6 +259,7 @@ fn read_explicit_lock_external_sifs(
                 ));
             }
             Ok(OmenaQueryExternalSifInputV0 {
+                admitted_resolution_edges: Vec::new(),
                 canonical_url: entry.canonical_url.clone(),
                 sif,
             })

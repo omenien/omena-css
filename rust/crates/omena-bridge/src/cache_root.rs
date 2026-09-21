@@ -110,6 +110,16 @@ pub(crate) fn resolve_omena_cache_roots(
 pub(crate) fn process_external_sif_cache_root(path: &Path) -> Option<OmenaCacheRootsV0> {
     let workspace_root = external_sif_workspace_root(path)?;
     let workspace_identity = workspace_root.to_string_lossy();
+    Some(process_external_sif_cache_root_for_workspace(
+        workspace_root.as_path(),
+        workspace_identity.as_ref(),
+    ))
+}
+
+pub(crate) fn process_external_sif_cache_root_for_workspace(
+    workspace_root: &Path,
+    workspace_identity: &str,
+) -> OmenaCacheRootsV0 {
     let environment_global_cache_dir = std::env::var_os(OMENA_GLOBAL_CACHE_DIR_ENV)
         .filter(|value| !value.is_empty())
         .map(PathBuf::from);
@@ -117,15 +127,15 @@ pub(crate) fn process_external_sif_cache_root(path: &Path) -> Option<OmenaCacheR
         .filter(|value| !value.is_empty())
         .map(PathBuf::from);
     let platform_cache_home = platform_cache_home();
-    Some(resolve_omena_cache_roots(CacheRootResolverInputsV0 {
+    resolve_omena_cache_roots(CacheRootResolverInputsV0 {
         environment_global_cache_dir: environment_global_cache_dir.as_deref(),
         environment_workspace_cache_dir: environment_workspace_cache_dir.as_deref(),
         platform_cache_home: platform_cache_home.as_deref(),
-        workspace_root: Some(workspace_root.as_path()),
-        workspace_identity: Some(workspace_identity.as_ref()),
+        workspace_root: Some(workspace_root),
+        workspace_identity: Some(workspace_identity),
         workspace_opt_in: false,
         ..CacheRootResolverInputsV0::default()
-    }))
+    })
 }
 
 fn platform_cache_home() -> Option<PathBuf> {

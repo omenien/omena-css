@@ -648,6 +648,7 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
             target_style_path,
             style_sources,
             substrate,
+            external_sifs,
         ),
     );
     summary.diagnostics.extend(

@@ -363,6 +363,7 @@ fn apply_tsgo_provider_unavailable_with_cached_legacy(
                     reason,
                 }),
         );
+    refresh_snapshot_provider_unavailable(state, uri);
 }
 
 fn source_type_fact_cache_key(
@@ -1006,6 +1007,97 @@ fn apply_source_type_fact_results_to_document_with_span(
     let source_syntax_index = document.source_syntax_index.clone();
     document.source_selector_candidates =
         source_selector_candidates_from_index(document, &source_syntax_index);
+    record_snapshot_provider_inputs(state, uri, entries, span_entries);
+}
+
+fn record_snapshot_provider_inputs(
+    state: &mut LspShellState,
+    uri: &str,
+    entries: &[TsgoTypeFactResultEntryV0],
+    span_entries: &[TsgoSpanTypeFactResultEntryV0],
+) {
+    use omena_query::{
+        OmenaWorkspaceProviderResolvedTypeV0, OmenaWorkspaceProviderResultV0,
+        OmenaWorkspaceProviderSpanResultV0, OmenaWorkspaceSourceProviderInputsV0,
+    };
+    let Some(document) = state.document(uri) else {
+        return;
+    };
+    let legacy = &document.source_syntax_index.type_fact_targets;
+    let spans = span_source_type_fact_targets(document);
+    let provider = OmenaWorkspaceSourceProviderInputsV0 {
+        provider_id: TSGO_PROVIDER_ID.to_string(),
+        source_digest: omena_query::source_provider_snapshot_digest_v0(&document.text),
+        entries: entries
+            .iter()
+            .filter_map(|entry| {
+                let target = legacy
+                    .iter()
+                    .find(|target| target.expression_id == entry.expression_id)?;
+                Some(OmenaWorkspaceProviderResultV0 {
+                    file_path: entry.file_path.clone(),
+                    expression_id: entry.expression_id.clone(),
+                    byte_span: target.byte_span,
+                    resolved_type: OmenaWorkspaceProviderResolvedTypeV0 {
+                        kind: entry.resolved_type.kind.to_string(),
+                        values: entry.resolved_type.values.clone(),
+                    },
+                })
+            })
+            .collect(),
+        span_entries: span_entries
+            .iter()
+            .filter_map(|entry| {
+                let target = spans
+                    .iter()
+                    .find(|target| target.expression_id == entry.expression_id)?;
+                Some(OmenaWorkspaceProviderSpanResultV0 {
+                    file_path: entry.file_path.clone(),
+                    expression_id: entry.expression_id.clone(),
+                    byte_span: target.byte_span,
+                    outcome: entry.outcome.to_string(),
+                    reason: entry.reason.to_string(),
+                    span_exact: entry.span_exact,
+                    non_nullish_member_count: entry.non_nullish_member_count,
+                    resolved_member_count: entry.resolved_member_count,
+                    resolved_type: OmenaWorkspaceProviderResolvedTypeV0 {
+                        kind: entry.resolved_type.kind.to_string(),
+                        values: entry.resolved_type.values.clone(),
+                    },
+                })
+            })
+            .collect(),
+        unavailable: snapshot_provider_unavailable(document),
+    };
+    state
+        .snapshot_source_provider_inputs
+        .insert(uri.to_string(), provider);
+}
+
+fn snapshot_provider_unavailable(
+    document: &LspTextDocumentState,
+) -> Vec<omena_query::OmenaWorkspaceProviderUnavailableV0> {
+    document
+        .source_syntax_index
+        .type_fact_provider_unavailable
+        .iter()
+        .filter(|fact| fact.provider_id == TSGO_PROVIDER_ID)
+        .map(|fact| omena_query::OmenaWorkspaceProviderUnavailableV0 {
+            expression_id: fact.expression_id.clone(),
+            byte_span: fact.byte_span,
+            reason: fact.reason.to_string(),
+        })
+        .collect()
+}
+
+fn refresh_snapshot_provider_unavailable(state: &mut LspShellState, uri: &str) {
+    let Some(document) = state.document(uri) else {
+        return;
+    };
+    let unavailable = snapshot_provider_unavailable(document);
+    if let Some(provider) = state.snapshot_source_provider_inputs.get_mut(uri) {
+        provider.unavailable = unavailable;
+    }
 }
 
 fn span_type_fact_entry_admissibility(
@@ -1098,6 +1190,7 @@ fn replace_tsgo_provider_unavailable_for_document(
     let source_syntax_index = document.source_syntax_index.clone();
     document.source_selector_candidates =
         source_selector_candidates_from_index(document, &source_syntax_index);
+    record_snapshot_provider_inputs(state, uri, &[], &[]);
 }
 
 fn source_type_fact_tier_attempts_with_unavailable(
@@ -2303,6 +2396,70 @@ mod tests {
         }
     }
 
+    fn assert_bound_provider_round_trip(
+        state: &mut LspShellState,
+        workspace_uri: &str,
+        source_uri: &str,
+    ) -> TestResult {
+        let exported = handle_lsp_message(
+            state,
+            json!({
+                "jsonrpc":"2.0", "id":81, "method":"omena/sdkWorkflow", "params": {
+                    "contractVersion":"1", "workspaceRoot":workspace_uri,
+                    "operation":"exportSnapshot", "request":{"workspaceRoot":workspace_uri},
+                }
+            }),
+        )
+        .ok_or_else(|| std::io::Error::other("bound provider export must respond"))?;
+        assert!(exported.get("error").is_none(), "{exported}");
+        let binding: omena_query::OmenaWorkspaceSnapshotBindingV0 =
+            serde_json::from_value(exported["result"]["snapshotBinding"].clone())?;
+        let transfer: omena_query::OmenaWorkspaceSnapshotTransferV0 =
+            serde_json::from_value(exported["result"]["response"]["snapshotInputs"].clone())?;
+        assert!(transfer.sources.iter().any(|source| {
+            source
+                .provider_inputs
+                .as_ref()
+                .is_some_and(|provider| !provider.span_entries.is_empty())
+        }));
+        let root = crate::protocol::file_uri_to_path(workspace_uri)
+            .ok_or_else(|| std::io::Error::other("fixture must have a native workspace root"))?;
+        let utility =
+            omena_query::load_omena_query_workspace_utility_class_intelligence(&root, None);
+        let imported = omena_query::OmenaSdkWorkspaceV0::open_imported_snapshot(
+            omena_query::OmenaSdkSnapshotRequestV0 {
+                workspace_root: workspace_uri.to_string(),
+            },
+            serde_json::from_value(exported["result"]["response"]["styleSources"].clone())?,
+            transfer,
+            binding.clone(),
+            &utility,
+        )?;
+        assert_eq!(imported.snapshot_binding(), Some(&binding));
+        let request = omena_query::OmenaSdkSourceDiagnosticsRequestV0 {
+            snapshot_id: binding.snapshot_id(),
+            source_path: source_uri.to_string(),
+        };
+        let owner = handle_lsp_message(
+            state,
+            json!({
+                "jsonrpc":"2.0", "id":82, "method":"omena/sdkWorkflow", "params": {
+                    "contractVersion":"1", "workspaceRoot":workspace_uri,
+                    "operation":"sourceDiagnostics", "snapshotBinding":binding, "request":request,
+                }
+            }),
+        )
+        .ok_or_else(|| std::io::Error::other("bound provider diagnostics must respond"))?;
+        assert!(owner.get("error").is_none(), "{owner}");
+        let receiver = imported.execute_snapshot_source_diagnostics(request)?;
+        assert_eq!(
+            serde_json::to_vec(&owner["result"]["response"])?,
+            serde_json::to_vec(&serde_json::to_value(receiver)?)?,
+            "complete diagnostic bytes must survive independent exact-span admission"
+        );
+        Ok(())
+    }
+
     #[test]
     fn exact_span_type_facts_project_only_complete_css_identifier_domains() -> TestResult {
         let workspace_root = std::env::temp_dir().join(format!(
@@ -2492,6 +2649,8 @@ mod tests {
                 })
         );
 
+        assert_bound_provider_round_trip(&mut state, &workspace_uri, &source_uri)?;
+
         let numeric = TsgoSpanTypeFactResultEntryV0::resolved(
             file_path.clone(),
             numeric_target.expression_id.clone(),
@@ -2536,6 +2695,8 @@ mod tests {
                 })
         );
 
+        assert_bound_provider_round_trip(&mut state, &workspace_uri, &source_uri)?;
+
         let refused = TsgoSpanTypeFactResultEntryV0::refused(
             file_path.clone(),
             target.expression_id.clone(),
@@ -2576,6 +2737,50 @@ mod tests {
                         && attempt.reason == Some("nodeSpanMismatch")
                 })
         );
+
+        assert_bound_provider_round_trip(&mut state, &workspace_uri, &source_uri)?;
+
+        let mut inexact = resolved.clone();
+        inexact.span_exact = false;
+        let mut partial = resolved.clone();
+        partial.resolved_member_count = 1;
+        let mut empty = resolved.clone();
+        empty.non_nullish_member_count = 0;
+        empty.resolved_member_count = 0;
+        empty.resolved_type.values.clear();
+        let mut unsafe_domain = resolved.clone();
+        unsafe_domain.resolved_type.values = vec!["a b".to_string(), "secondary".to_string()];
+        for (label, result) in [
+            ("inexact span", inexact),
+            ("partial members", partial),
+            ("empty domain", empty),
+            ("unsafe CSS domain", unsafe_domain),
+        ] {
+            apply_source_type_fact_results_to_document_with_span(
+                &mut state,
+                &source_uri,
+                &[],
+                std::slice::from_ref(&result),
+                std::slice::from_ref(&target),
+            );
+            let document = state
+                .document(&source_uri)
+                .ok_or_else(|| std::io::Error::other("source document should remain open"))?;
+            assert!(
+                !document
+                    .source_syntax_index
+                    .selector_references
+                    .iter()
+                    .any(|reference| reference.surface
+                        == SourceSelectorReferenceSurface::OmenaTsgoTypeFactProjection),
+                "{label} must not retire the lexical prefix through an incomplete projection"
+            );
+            assert_eq!(
+                document.source_syntax_index.selector_references, baseline_references,
+                "{label} must restore every lexical prefix reference"
+            );
+            assert_bound_provider_round_trip(&mut state, &workspace_uri, &source_uri)?;
+        }
 
         let unsafe_value = TsgoSpanTypeFactResultEntryV0::resolved(
             file_path,
@@ -2634,14 +2839,28 @@ mod tests {
 
     #[test]
     fn persisted_source_type_facts_project_without_tsgo_transport() -> TestResult {
-        let workspace_root = std::env::temp_dir().join(format!(
-            "omena-lsp-source-type-fact-cache-{}",
-            std::process::id()
-        ));
+        // An explicit test-only destination lets the process contract probe
+        // rehydrate this real producer's sidecar in a fresh standalone LSP.
+        let retained_root =
+            std::env::var_os("OMENA_SNAPSHOT_PROVIDER_FIXTURE_DIR").map(std::path::PathBuf::from);
+        let workspace_root = retained_root.clone().unwrap_or_else(|| {
+            std::env::temp_dir().join(format!(
+                "omena-lsp-source-type-fact-cache-{}",
+                std::process::id()
+            ))
+        });
+        if retained_root.is_some() {
+            assert!(
+                workspace_root.is_absolute() && !workspace_root.exists(),
+                "retained fixture destination must be an absolute new directory"
+            );
+        }
         let src_dir = workspace_root.join("src");
         let source_path = src_dir.join("App.tsx");
         let style_path = src_dir.join("App.module.scss");
-        let _ = std::fs::remove_dir_all(&workspace_root);
+        if retained_root.is_none() {
+            let _ = std::fs::remove_dir_all(&workspace_root);
+        }
         std::fs::create_dir_all(&src_dir)?;
         std::fs::write(workspace_root.join("tsconfig.json"), "{}")?;
         std::fs::write(
@@ -2825,7 +3044,138 @@ export function Badge({ size }: BadgeProps) {
             "disk-loaded source type facts should repopulate the in-memory cache"
         );
 
-        let _ = std::fs::remove_dir_all(&workspace_root);
+        let exported = handle_lsp_message(&mut state, json!({
+            "jsonrpc":"2.0", "id": 77, "method":"omena/sdkWorkflow", "params": {
+                "contractVersion":"1", "workspaceRoot":workspace_uri, "operation":"exportSnapshot",
+                "request":{"workspaceRoot":workspace_uri},
+            }
+        })).ok_or_else(|| std::io::Error::other("bound export must respond"))?;
+        assert!(
+            exported.get("error").is_none(),
+            "enriched owner snapshot must export through the real LSP workflow: {exported}"
+        );
+        let binding: omena_query::OmenaWorkspaceSnapshotBindingV0 =
+            serde_json::from_value(exported["result"]["snapshotBinding"].clone())?;
+        let transfer: omena_query::OmenaWorkspaceSnapshotTransferV0 =
+            serde_json::from_value(exported["result"]["response"]["snapshotInputs"].clone())?;
+        let styles: Vec<omena_query::OmenaQueryStyleSourceInputV0> =
+            serde_json::from_value(exported["result"]["response"]["styleSources"].clone())?;
+        assert!(
+            transfer
+                .sources
+                .iter()
+                .any(|source| source
+                    .provider_inputs
+                    .as_ref()
+                    .is_some_and(|provider| !provider.entries.is_empty()
+                        && provider
+                            .unavailable
+                            .iter()
+                            .any(|fact| fact.reason == "noTransport")))
+        );
+        let utility = omena_query::load_omena_query_workspace_utility_class_intelligence(
+            &workspace_root,
+            None,
+        );
+        let imported = omena_query::OmenaSdkWorkspaceV0::open_imported_snapshot(
+            omena_query::OmenaSdkSnapshotRequestV0 {
+                workspace_root: workspace_uri.clone(),
+            },
+            styles.clone(),
+            transfer.clone(),
+            binding.clone(),
+            &utility,
+        )?;
+        assert_eq!(imported.snapshot_binding(), Some(&binding));
+        let source_request = omena_query::OmenaSdkSourceDiagnosticsRequestV0 {
+            snapshot_id: binding.snapshot_id(),
+            source_path: source_uri.clone(),
+        };
+        let owner_diagnostics = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc":"2.0", "id":78, "method":"omena/sdkWorkflow", "params": {
+                    "contractVersion":"1", "workspaceRoot":workspace_uri,
+                    "operation":"sourceDiagnostics", "snapshotBinding":binding,
+                    "request":source_request,
+                }
+            }),
+        )
+        .ok_or_else(|| std::io::Error::other("bound diagnostics must respond"))?;
+        assert!(
+            owner_diagnostics.get("error").is_none(),
+            "{owner_diagnostics}"
+        );
+        let receiver_diagnostics = imported.execute_snapshot_source_diagnostics(source_request)?;
+        assert!(
+            receiver_diagnostics.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == "unknownClassValueDomain"
+                    && diagnostic.message.contains("no tsgo provider transport")
+            }),
+            "provider-unavailable facts must affect the actual diagnostic result"
+        );
+        assert_eq!(
+            serde_json::to_vec(&owner_diagnostics["result"]["response"])?,
+            serde_json::to_vec(&serde_json::to_value(receiver_diagnostics)?)?,
+            "complete diagnostics must match after independent provider admission",
+        );
+        let mut mutated_import = imported;
+        let mut replacement_styles = styles.clone();
+        replacement_styles[0].style_source = ".small { color: green; }".to_string();
+        mutated_import.replace_style_sources(replacement_styles)?;
+        let after_mutation = mutated_import.export_snapshot()?;
+        let next_binding = mutated_import
+            .snapshot_binding()
+            .cloned()
+            .ok_or_else(|| std::io::Error::other("mutated import must retain binding"))?;
+        let reconstructed_mutation = omena_query::OmenaSdkWorkspaceV0::open_imported_snapshot(
+            omena_query::OmenaSdkSnapshotRequestV0 {
+                workspace_root: workspace_uri.clone(),
+            },
+            serde_json::from_value(after_mutation["styleSources"].clone())?,
+            serde_json::from_value(after_mutation["snapshotInputs"].clone())?,
+            next_binding.clone(),
+            &utility,
+        )?;
+        assert_eq!(
+            reconstructed_mutation.snapshot_binding(),
+            Some(&next_binding),
+            "a real owner style replacement must republish reproducible provider projections"
+        );
+        let mut tampered = transfer;
+        let provider = tampered
+            .sources
+            .iter_mut()
+            .find_map(|source| source.provider_inputs.as_mut())
+            .ok_or_else(|| std::io::Error::other("provider evidence expected"))?;
+        provider.entries[0].byte_span.start += 1;
+        assert!(
+            omena_query::OmenaSdkWorkspaceV0::open_imported_snapshot(
+                omena_query::OmenaSdkSnapshotRequestV0 {
+                    workspace_root: workspace_uri.clone()
+                },
+                styles,
+                tampered,
+                binding,
+                &utility,
+            )
+            .is_err(),
+            "tampered provider span must fail independent receiver admission"
+        );
+
+        if retained_root.is_some() {
+            std::fs::write(
+                workspace_root.join(".snapshot-provider-reference.json"),
+                serde_json::to_vec_pretty(&json!({
+                    "producer":"persisted-source-type-facts-test",
+                    "export":exported,
+                    "sourceDiagnostics":owner_diagnostics,
+                    "sidecarPath":sidecar_path,
+                }))?,
+            )?;
+        } else {
+            let _ = std::fs::remove_dir_all(&workspace_root);
+        }
         Ok(())
     }
 

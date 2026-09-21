@@ -284,6 +284,23 @@ pub(crate) fn did_change_watched_files(state: &mut LspShellState, params: Option
     else {
         return;
     };
+    // Disk SIF inputs remain independent of an open editor buffer. A watched
+    // mutation must stale work that read that admitted target, even when the
+    // document-index arm below deliberately preserves the editor's text.
+    let admitted_sif_source_changed = changes.iter().any(|change| {
+        change
+            .get("uri")
+            .and_then(Value::as_str)
+            .is_some_and(|uri| {
+                crate::external_sif_loader::external_sif_source_uri_is_dependency(state, uri)
+            })
+    });
+    if admitted_sif_source_changed {
+        state
+            .tide_ledger
+            .advance(&[crate::tide::TideInputKindV0::ExternalSifSource]);
+    }
+    let mut refresh_sifs = admitted_sif_source_changed;
     invalidate_file_uri_identity_cache();
     invalidate_omena_resolver_style_identity_cache();
     #[cfg(feature = "parallel-style-diagnostics")]
@@ -299,38 +316,46 @@ pub(crate) fn did_change_watched_files(state: &mut LspShellState, params: Option
             uri: uri.to_string(),
             change_type,
         });
-        apply_watched_file_change_to_index(state, uri, change_type);
+        refresh_sifs |= apply_watched_file_change_to_index(state, uri, change_type);
+    }
+    if refresh_sifs {
+        refresh_external_sifs_for_state(state);
     }
 }
 
-fn apply_watched_file_change_to_index(state: &mut LspShellState, uri: &str, change_type: u64) {
+fn apply_watched_file_change_to_index(
+    state: &mut LspShellState,
+    uri: &str,
+    change_type: u64,
+) -> bool {
     if !is_style_document_uri(uri) {
         if is_resolution_config_document_uri(uri) {
             refresh_source_indexes_for_resolution_config_change(state, uri);
-            return;
+            return false;
         }
         if state.has_open_document_uri(uri) {
-            return;
+            return false;
         }
         if change_type == 3 {
             state.remove_document_uri(uri);
-            return;
+            return false;
         }
         let _ = reload_indexed_source_document_from_disk(state, uri);
-        return;
+        return false;
     }
     if state.has_open_document_uri(uri) {
-        return;
+        return false;
     }
     if change_type == 3 {
         state.remove_document_uri(uri);
         refresh_source_indexes_for_style_document_change(state, uri);
-        return;
+        return false;
     }
 
     if reload_indexed_style_document_from_disk(state, uri) {
         admit_foreign_style_dependencies_for_style_uri(state, uri);
-        refresh_external_sifs_for_state(state);
         refresh_source_indexes_for_style_document_change(state, uri);
+        return true;
     }
+    false
 }

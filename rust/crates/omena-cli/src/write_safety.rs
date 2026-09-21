@@ -119,6 +119,7 @@ pub(crate) enum SourceWriteErrorV0 {
 }
 
 pub(crate) struct SourceWriteCommitV0 {
+    snapshot_guard: Option<crate::workspace_edit_transaction::WorkspaceSnapshotCommitGuardV0>,
     expected_digest: ExpectedContentDigestV0,
     workspace_revision: Option<OmenaWorkspaceSnapshotIdV0>,
     postconditions: Vec<WorkspaceEditPostconditionV0>,
@@ -131,10 +132,32 @@ impl SourceWriteCommitV0 {
         postconditions: Vec<WorkspaceEditPostconditionV0>,
     ) -> Self {
         Self {
+            snapshot_guard: None,
             expected_digest,
             workspace_revision,
             postconditions,
         }
+    }
+
+    pub(crate) fn from_snapshot(
+        path: &Path,
+        document_path: &str,
+        view: &omena_query::OmenaWorkspaceSnapshotReadViewV0<'_>,
+        destination_owner: &omena_query::OmenaWorkspaceSnapshotReaderV0,
+        postconditions: Vec<WorkspaceEditPostconditionV0>,
+    ) -> Result<Self, WorkspaceEditTransactionErrorV0> {
+        let mut guard =
+            crate::workspace_edit_transaction::WorkspaceSnapshotCommitGuardV0::from_view(
+                view,
+                destination_owner,
+            )?;
+        let expected_digest = guard.expect_view_bytes(path, document_path, view)?;
+        Ok(Self {
+            snapshot_guard: Some(guard),
+            expected_digest,
+            workspace_revision: Some(view.binding().snapshot_id()),
+            postconditions,
+        })
     }
 }
 
@@ -160,6 +183,7 @@ pub(crate) fn apply_write_with_safety(
     evidence: SourceWriteEvidenceV0<'_>,
 ) -> Result<SourceWriteReportV0, SourceWriteErrorV0> {
     let SourceWriteCommitV0 {
+        snapshot_guard,
         expected_digest,
         workspace_revision,
         postconditions,
@@ -170,7 +194,12 @@ pub(crate) fn apply_write_with_safety(
     for postcondition in postconditions {
         edit = edit.with_postcondition(postcondition);
     }
-    WorkspaceEditTransaction::new(workspace_revision, report.safety_class)
+    let transaction = WorkspaceEditTransaction::new(workspace_revision, report.safety_class);
+    let transaction = match snapshot_guard {
+        Some(guard) => transaction.with_snapshot_guard(guard),
+        None => transaction,
+    };
+    transaction
         .expect(expected_digest)
         .edit(edit)
         .commit()

@@ -67,14 +67,17 @@ pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<V
             None
         }
         (Some("workspace/didChangeWorkspaceFolders"), None) => {
+            state.invalidate_sdk_snapshots_before_owner_mutation();
             did_change_workspace_folders(state, message.get("params"), true);
             None
         }
         (Some("workspace/didChangeConfiguration"), None) => {
+            state.invalidate_sdk_snapshots_before_owner_mutation();
             did_change_configuration(state, message.get("params"));
             None
         }
         (Some("workspace/didChangeWatchedFiles"), None) => {
+            state.invalidate_sdk_snapshots_before_owner_mutation();
             did_change_watched_files(state, message.get("params"));
             None
         }

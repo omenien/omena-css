@@ -1537,7 +1537,11 @@ mod tests {
             source.as_bytes(),
         )
         .map_err(|error| error.to_string())?;
-        Ok(OmenaQueryExternalSifInputV0 { canonical_url, sif })
+        Ok(OmenaQueryExternalSifInputV0 {
+            admitted_resolution_edges: Vec::new(),
+            canonical_url,
+            sif,
+        })
     }
 
     #[cfg(feature = "salsa-style-diagnostics")]
@@ -1557,6 +1561,7 @@ mod tests {
             lock_read_count: 0,
             bridge_generation_count: 0,
             trust_records: Vec::new(),
+            resolution_edges: Vec::new(),
         }
     }
 

@@ -17,6 +17,8 @@ use serde::{Deserialize, Serialize};
 
 mod frame_invalidation;
 pub use frame_invalidation::*;
+mod workspace_snapshot;
+pub use workspace_snapshot::{OmenaWorkspaceInputCommitmentV0, OmenaWorkspaceSnapshotBindingV0};
 
 #[cfg(test)]
 use std::cell::RefCell;

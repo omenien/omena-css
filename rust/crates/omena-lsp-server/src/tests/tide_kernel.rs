@@ -44,6 +44,7 @@ const SIF_FOOTPRINT: TideFootprintV0 = TideFootprintV0::of(&[
     TideInputKindV0::LockfileFingerprint,
     TideInputKindV0::PackageManifest,
     TideInputKindV0::ResolutionSettings,
+    TideInputKindV0::ExternalSifSource,
 ]);
 
 #[test]
@@ -58,6 +59,13 @@ fn footprint_validity_ignores_unrelated_input_kinds() {
         ledger.is_current(&stamp),
         "a DocumentText advance must not stale a job that never reads it"
     );
+
+    ledger.advance(&[TideInputKindV0::ExternalSifSource]);
+    assert!(
+        !ledger.is_current(&stamp),
+        "a watched admitted SIF disk mutation must stale its in-flight job"
+    );
+    let stamp = ledger.stamp(SIF_FOOTPRINT);
 
     ledger.advance(&[TideInputKindV0::DocumentSet]);
     assert!(
@@ -74,7 +82,7 @@ fn footprint_validity_matches_model_under_random_advances() {
         let mut stamp = ledger.stamp(SIF_FOOTPRINT);
         let mut model_stale = false;
         for _ in 0..2_000 {
-            let kind = TideInputKindV0::ALL[rng.below(7) as usize];
+            let kind = TideInputKindV0::ALL[rng.below(TideInputKindV0::ALL.len() as u64) as usize];
             ledger.advance(&[kind]);
             if SIF_FOOTPRINT.contains(kind) {
                 model_stale = true;

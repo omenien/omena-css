@@ -23,10 +23,67 @@ pub(in crate::style) struct OmenaQueryExternalSifResolutionContext<'a> {
     pub(in crate::style) external_sifs: &'a [OmenaQueryExternalSifInputV0],
 }
 
+/// The selected admitted edge is retained through forward/dependency traversal;
+/// a canonical SIF URL alone cannot identify a package's physical parent context.
+#[derive(Clone, Copy)]
+pub(super) struct ResolvedExternalSif<'a> {
+    input: &'a OmenaQueryExternalSifInputV0,
+    admission: Option<&'a crate::OmenaQueryExternalSifResolutionEdgeV0>,
+}
+impl std::ops::Deref for ResolvedExternalSif<'_> {
+    type Target = OmenaQueryExternalSifInputV0;
+    fn deref(&self) -> &Self::Target {
+        self.input
+    }
+}
+
+fn find_admitted_sif<'a>(
+    origin: &crate::OmenaQueryExternalSifImportOriginV0,
+    specifier: &str,
+    inputs: &'a [OmenaQueryExternalSifInputV0],
+) -> Option<ResolvedExternalSif<'a>> {
+    let mut found: Option<ResolvedExternalSif<'a>> = None;
+    for input in inputs {
+        for edge in &input.admitted_resolution_edges {
+            if &edge.importer != origin || edge.specifier != specifier {
+                continue;
+            }
+            if edge.sif_canonical_url != input.sif.canonical_url
+                || !omena_sif::compute_omena_sif_artifact_hash_v1(&input.sif)
+                    .is_ok_and(|hash| hash.as_str() == edge.sif_artifact_hash)
+            {
+                return None;
+            }
+            if found.is_some_and(|previous| previous.admission != Some(edge)) {
+                return None;
+            }
+            found = Some(ResolvedExternalSif {
+                input,
+                admission: Some(edge),
+            });
+        }
+    }
+    found
+}
+
+pub(super) fn has_admitted_sif_for_edge(
+    edge: &OmenaQuerySassModuleEdgeResolutionV0,
+    inputs: &[OmenaQueryExternalSifInputV0],
+) -> bool {
+    find_admitted_sif(
+        &crate::OmenaQueryExternalSifImportOriginV0::Document {
+            style_path: edge.from_style_path.clone(),
+        },
+        &edge.source,
+        inputs,
+    )
+    .is_some()
+}
+
 #[derive(Clone, Copy)]
 enum OmenaQueryExternalEdgeClass<'a> {
     SourceAvailable,
-    ExternalWithSif(&'a OmenaQueryExternalSifInputV0),
+    ExternalWithSif(ResolvedExternalSif<'a>),
     ExternalNoSif,
     LocalUnresolved,
 }
@@ -146,7 +203,7 @@ pub(super) fn collect_omena_query_external_top_any_sass_symbol_ranges(
 /// edges have no SIF lattice to inspect.
 fn classify_external_boundary_state(
     edge: &ParsedSassModuleEdgeFact,
-    sif: Option<&OmenaQueryExternalSifInputV0>,
+    sif: Option<ResolvedExternalSif<'_>>,
     target_facts: &omena_parser::ParsedStyleFacts,
     external_sifs: &[OmenaQueryExternalSifInputV0],
 ) -> OmenaResolverBoundaryStateV0 {
@@ -162,7 +219,7 @@ fn classify_external_boundary_state(
     };
 
     if let Some(dependency) = sif.sif.dependencies.iter().find(|dependency| {
-        find_omena_query_external_sif(dependency.canonical_url.as_str(), external_sifs)
+        find_sif_dependency(sif, dependency.canonical_url.as_str(), external_sifs)
             .map(|dependency_sif| {
                 dependency_sif.sif.fingerprints.interface_hash != dependency.interface_hash
             })
@@ -177,7 +234,7 @@ fn classify_external_boundary_state(
         );
     }
 
-    let exported = collect_sif_exported_sass_symbol_keys(&sif.sif, external_sifs);
+    let exported = collect_sif_exported_sass_symbol_keys(sif, external_sifs);
     let mut referenced = 0usize;
     let mut covered = 0usize;
     for symbol in &target_facts.sass_symbols {
@@ -367,7 +424,8 @@ pub(in crate::style) fn promote_sif_backed_external_edges(
 ) {
     for edge in &mut resolution.edges {
         if edge.status == "unresolved"
-            && !sass_module_source_is_workspace_local(edge.source.as_str())
+            && (!sass_module_source_is_workspace_local(edge.source.as_str())
+                || has_admitted_sif_for_edge(edge, external_sif_context.external_sifs))
             && find_omena_query_external_sif_for_edge(edge, external_sif_context).is_some()
         {
             edge.status = "external";
@@ -458,10 +516,27 @@ fn parser_sass_module_edge_kind_label(kind: ParsedSassModuleEdgeFactKind) -> &'s
 pub(super) fn find_omena_query_external_sif_for_edge<'a>(
     edge: &OmenaQuerySassModuleEdgeResolutionV0,
     external_sif_context: OmenaQueryExternalSifResolutionContext<'a>,
-) -> Option<&'a OmenaQueryExternalSifInputV0> {
+) -> Option<ResolvedExternalSif<'a>> {
     let external_sifs = external_sif_context.external_sifs;
+    if external_sifs
+        .iter()
+        .any(|input| !input.admitted_resolution_edges.is_empty())
+    {
+        // An admitted corpus is resolved only through its context map. A missing
+        // or malformed edge must not borrow a context-free legacy alias.
+        return find_admitted_sif(
+            &crate::OmenaQueryExternalSifImportOriginV0::Document {
+                style_path: edge.from_style_path.clone(),
+            },
+            &edge.source,
+            external_sifs,
+        );
+    }
     if let Some(sif) = find_omena_query_external_sif(edge.source.as_str(), external_sifs) {
-        return Some(sif);
+        return Some(ResolvedExternalSif {
+            input: sif,
+            admission: None,
+        });
     }
 
     let resolver_package_manifests = external_sif_context
@@ -482,22 +557,36 @@ pub(super) fn find_omena_query_external_sif_for_edge<'a>(
     )
     .into_iter()
     .find_map(|candidate| find_omena_query_external_sif(candidate.as_str(), external_sifs))
+    .map(|input| ResolvedExternalSif {
+        input,
+        admission: None,
+    })
 }
 
 pub(super) fn collect_sif_exported_sass_symbol_keys(
-    sif: &omena_sif::OmenaSifV1,
+    resolved: ResolvedExternalSif<'_>,
     external_sifs: &[OmenaQueryExternalSifInputV0],
 ) -> BTreeSet<(&'static str, String)> {
     let mut visiting = BTreeSet::new();
-    collect_sif_exported_sass_symbol_keys_inner(sif, external_sifs, &mut visiting)
+    collect_sif_exported_sass_symbol_keys_inner(resolved, external_sifs, &mut visiting)
 }
 
 fn collect_sif_exported_sass_symbol_keys_inner(
-    sif: &omena_sif::OmenaSifV1,
+    resolved: ResolvedExternalSif<'_>,
     external_sifs: &[OmenaQueryExternalSifInputV0],
-    visiting: &mut BTreeSet<String>,
+    visiting: &mut BTreeSet<(String, String)>,
 ) -> BTreeSet<(&'static str, String)> {
-    if !visiting.insert(sif.canonical_url.clone()) {
+    let sif = &resolved.sif;
+    let visit_key = resolved
+        .admission
+        .map(|edge| {
+            (
+                edge.resolved_style_url.clone(),
+                edge.sif_artifact_hash.clone(),
+            )
+        })
+        .unwrap_or_else(|| (sif.canonical_url.clone(), String::new()));
+    if !visiting.insert(visit_key.clone()) {
         return BTreeSet::new();
     }
     let mut exported = BTreeSet::new();
@@ -527,15 +616,12 @@ fn collect_sif_exported_sass_symbol_keys_inner(
     }));
     for forward in &sif.exports.forwards {
         let Some(forwarded_sif) =
-            find_omena_query_external_sif_for_forward(sif, forward, external_sifs)
+            find_sif_dependency(resolved, &forward.canonical_url, external_sifs)
         else {
             continue;
         };
-        let forwarded_exports = collect_sif_exported_sass_symbol_keys_inner(
-            &forwarded_sif.sif,
-            external_sifs,
-            visiting,
-        );
+        let forwarded_exports =
+            collect_sif_exported_sass_symbol_keys_inner(forwarded_sif, external_sifs, visiting);
         for (symbol_kind, name) in forwarded_exports {
             if !sif_forward_visibility_allows(forward, symbol_kind, name.as_str()) {
                 continue;
@@ -546,22 +632,35 @@ fn collect_sif_exported_sass_symbol_keys_inner(
             ));
         }
     }
-    visiting.remove(sif.canonical_url.as_str());
+    visiting.remove(&visit_key);
     exported
 }
 
-fn find_omena_query_external_sif_for_forward<'a>(
-    sif: &omena_sif::OmenaSifV1,
-    forward: &omena_sif::OmenaSifForwardExportV1,
+fn find_sif_dependency<'a>(
+    resolved: ResolvedExternalSif<'_>,
+    specifier: &str,
     external_sifs: &'a [OmenaQueryExternalSifInputV0],
-) -> Option<&'a OmenaQueryExternalSifInputV0> {
-    let candidates = collect_sif_forward_canonical_url_candidates(
-        sif.canonical_url.as_str(),
-        forward.canonical_url.as_str(),
-    );
+) -> Option<ResolvedExternalSif<'a>> {
+    if let Some(edge) = resolved.admission {
+        return find_admitted_sif(
+            &crate::OmenaQueryExternalSifImportOriginV0::Sif {
+                initiating_document: edge.importer.initiating_document().map(ToOwned::to_owned),
+                resolved_style_url: edge.resolved_style_url.clone(),
+                artifact_hash: edge.sif_artifact_hash.clone(),
+            },
+            specifier,
+            external_sifs,
+        );
+    }
+    let candidates =
+        collect_sif_forward_canonical_url_candidates(&resolved.sif.canonical_url, specifier);
     candidates
         .iter()
-        .find_map(|candidate| find_omena_query_external_sif(candidate.as_str(), external_sifs))
+        .find_map(|candidate| find_omena_query_external_sif(candidate, external_sifs))
+        .map(|input| ResolvedExternalSif {
+            input,
+            admission: None,
+        })
 }
 
 fn collect_sif_forward_canonical_url_candidates(

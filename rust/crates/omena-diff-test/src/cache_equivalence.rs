@@ -747,6 +747,7 @@ fn salsa_memo_lifecycle_external_sif_inputs() -> Vec<OmenaQueryExternalSifInputV
         return Vec::new();
     };
     vec![OmenaQueryExternalSifInputV0 {
+        admitted_resolution_edges: Vec::new(),
         canonical_url: sif.canonical_url.clone(),
         sif,
     }]

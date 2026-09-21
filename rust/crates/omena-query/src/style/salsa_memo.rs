@@ -7685,4 +7685,145 @@ $_private-token: changed;
             "defaulted granular fields must fall back to the constructor's legacy values"
         );
     }
+    #[test]
+    fn contextual_sif_mapping_changes_memo_semantics_with_identical_wire_facts()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let styles = vec![OmenaQueryStyleSourceInputV0 {
+            style_path: "file:///memo-context/App.scss".to_string(),
+            style_source: "@use './tokens' as tokens; .card { color: tokens.$brand; }".to_string(),
+        }];
+        let mut sifs = ["$brand: blue;", "$other: green;"]
+            .into_iter()
+            .enumerate()
+            .map(|(index, source)| {
+                let url = format!("file:///memo-target/{index}.scss");
+                OmenaQueryExternalSifInputV0 {
+                    admitted_resolution_edges: Vec::new(),
+                    canonical_url: url.clone(),
+                    sif: omena_sif::generate_static_omena_sif_v1(
+                        omena_sif::OmenaSifStaticGeneratorInputV1 {
+                            canonical_url: &url,
+                            source,
+                            syntax: omena_sif::OmenaSifSourceSyntaxV1::Scss,
+                        },
+                    )
+                    .unwrap(),
+                }
+            })
+            .collect::<Vec<_>>();
+        let edge =
+            |input: &OmenaQueryExternalSifInputV0| crate::OmenaQueryExternalSifResolutionEdgeV0 {
+                importer: crate::OmenaQueryExternalSifImportOriginV0::Document {
+                    style_path: styles[0].style_path.clone(),
+                },
+                specifier: "./tokens".to_string(),
+                resolved_style_url: input.sif.canonical_url.clone(),
+                sif_canonical_url: input.sif.canonical_url.clone(),
+                trust: crate::OmenaQueryExternalSifTrustV1 {
+                    canonical_url: input.sif.canonical_url.clone(),
+                    trust_tier: omena_sif::OmenaSifTrustTierV1::T1,
+                    trust_source: crate::OmenaQueryExternalSifTrustSourceV1::UnsignedLegacy,
+                },
+                sif_artifact_hash: omena_sif::compute_omena_sif_artifact_hash_v1(&input.sif)
+                    .unwrap()
+                    .as_str()
+                    .to_string(),
+            };
+        sifs[0].admitted_resolution_edges = vec![edge(&sifs[0])];
+        let before_wire = serde_json::to_vec(&sifs)?;
+        let resolution = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let before = host
+            .workspace_style_diagnostics_with_selector(
+                &styles[0].style_path,
+                &styles,
+                &[],
+                &[],
+                &sifs,
+                &resolution,
+            )
+            .ok_or("first memo result")?;
+        let before_id = before.snapshot_id();
+        let before_payload = serde_json::to_vec(&before.diagnostics)?;
+        assert!(
+            !before
+                .diagnostics
+                .diagnostics
+                .iter()
+                .any(|d| matches!(d.code, "missing-module" | "missingSassSymbol"))
+        );
+        let unchanged = host
+            .workspace_style_diagnostics_with_selector(
+                &styles[0].style_path,
+                &styles,
+                &[],
+                &[],
+                &sifs,
+                &resolution,
+            )
+            .ok_or("unchanged memo result")?;
+        assert_eq!(before_id, unchanged.snapshot_id());
+        assert_eq!(before_payload, serde_json::to_vec(&unchanged.diagnostics)?);
+        sifs[0].admitted_resolution_edges.clear();
+        sifs[1].admitted_resolution_edges = vec![edge(&sifs[1])];
+        assert_eq!(before_wire, serde_json::to_vec(&sifs)?);
+        let after = host
+            .workspace_style_diagnostics_with_selector(
+                &styles[0].style_path,
+                &styles,
+                &[],
+                &[],
+                &sifs,
+                &resolution,
+            )
+            .ok_or("changed memo result")?;
+        let after_id = after.snapshot_id();
+        let after_payload = serde_json::to_vec(&after.diagnostics)?;
+        let repeated = host
+            .workspace_style_diagnostics_with_selector(
+                &styles[0].style_path,
+                &styles,
+                &[],
+                &[],
+                &sifs,
+                &resolution,
+            )
+            .ok_or("repeated changed memo result")?;
+        let repeated_id = repeated.snapshot_id();
+        let repeated_payload = serde_json::to_vec(&repeated.diagnostics)?;
+        if let Some(directory) = std::env::var_os("OMENA_WORKSPACE_SNAPSHOT_TEST_RECEIPTS") {
+            let file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(std::path::PathBuf::from(directory).join("contextual-memo-repeat.json"))?;
+            serde_json::to_writer_pretty(
+                file,
+                &serde_json::json!({
+                    "beforeRevision":before_id,"afterRevision":after_id,"repeatedRevision":repeated_id,
+                    "beforeFullPayloadBytes":String::from_utf8(before_payload.clone())?,
+                    "afterFullPayloadBytes":String::from_utf8(after_payload.clone())?,
+                    "repeatedFullPayloadBytes":String::from_utf8(repeated_payload.clone())?,
+                    "unchangedSifWireBytes":String::from_utf8(before_wire.clone())?,
+                    "afterAdmissionEdges":sifs.iter().flat_map(|input| &input.admitted_resolution_edges).collect::<Vec<_>>(),
+                }),
+            )?;
+        }
+        assert!(
+            after_id.value > before_id.value,
+            "mapping-only input change must advance the existing query revision"
+        );
+        assert_ne!(
+            before_payload, after_payload,
+            "memoized diagnostics must consume changed effective resolution"
+        );
+        assert_eq!(
+            after_id, repeated_id,
+            "unchanged contextual inputs must reuse the current query revision"
+        );
+        assert_eq!(
+            after_payload, repeated_payload,
+            "unchanged contextual inputs must preserve the complete diagnostics payload"
+        );
+        Ok(())
+    }
 }

@@ -99,7 +99,7 @@ pub struct OmenaBridgeExternalSifCacheContextV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OmenaBridgeExternalSifStorageV0 {
-    workspace_cache_root: PathBuf,
+    workspace_cache_root: Option<PathBuf>,
     workspace_identity: Option<String>,
     recorded_verdict_dir: Option<PathBuf>,
 }
@@ -108,7 +108,7 @@ impl OmenaBridgeExternalSifStorageV0 {
     pub fn from_workspace_cache_root(workspace_cache_root: PathBuf) -> Self {
         Self {
             recorded_verdict_dir: Some(workspace_cache_root.join(OMENA_SIF_SHARD_VERDICT_DIR_V1)),
-            workspace_cache_root,
+            workspace_cache_root: Some(workspace_cache_root),
             workspace_identity: None,
         }
     }
@@ -119,13 +119,51 @@ impl OmenaBridgeExternalSifStorageV0 {
     ) -> Self {
         Self {
             recorded_verdict_dir: Some(workspace_cache_root.join(OMENA_SIF_SHARD_VERDICT_DIR_V1)),
-            workspace_cache_root,
+            workspace_cache_root: Some(workspace_cache_root),
             workspace_identity: Some(workspace_identity.into()),
         }
     }
 
-    pub fn workspace_cache_root(&self) -> &Path {
-        self.workspace_cache_root.as_path()
+    /// The regenerable disk cache may be disabled while trust records remain scoped.
+    pub fn workspace_cache_root(&self) -> Option<&Path> {
+        self.workspace_cache_root.as_deref()
+    }
+
+    pub fn from_optional_workspace_cache_root_and_verdict_dir(
+        workspace_cache_root: Option<PathBuf>,
+        workspace_identity: impl Into<String>,
+        recorded_verdict_dir: PathBuf,
+    ) -> Self {
+        Self {
+            workspace_cache_root,
+            workspace_identity: Some(workspace_identity.into()),
+            recorded_verdict_dir: Some(recorded_verdict_dir),
+        }
+    }
+
+    /// Select local trust from the importing root, independently of cache availability.
+    pub fn for_process_workspace_root(workspace_root: &str) -> Option<Self> {
+        let root_path = if workspace_root.starts_with("file://") {
+            file_uri_to_path(workspace_root)?
+        } else {
+            PathBuf::from(workspace_root)
+        };
+        if !root_path.is_absolute() {
+            return None;
+        }
+        let cache_root = crate::cache_root::process_external_sif_cache_root_for_workspace(
+            root_path.as_path(),
+            workspace_root,
+        )
+        .workspace;
+        Some(Self::from_optional_workspace_cache_root_and_verdict_dir(
+            cache_root,
+            workspace_root,
+            root_path
+                .join(".cache")
+                .join("omena")
+                .join(OMENA_SIF_SHARD_VERDICT_DIR_V1),
+        ))
     }
 
     pub fn with_recorded_verdict_dir(mut self, recorded_verdict_dir: PathBuf) -> Self {
@@ -638,11 +676,9 @@ fn external_sif_cache_dir_for_path(
     cache_storage: Option<&OmenaBridgeExternalSifStorageV0>,
 ) -> Option<PathBuf> {
     if let Some(cache_storage) = cache_storage {
-        return Some(
-            cache_storage
-                .workspace_cache_root()
-                .join(EXTERNAL_SIF_CACHE_DIR),
-        );
+        return cache_storage
+            .workspace_cache_root()
+            .map(|root| root.join(EXTERNAL_SIF_CACHE_DIR));
     }
     crate::cache_root::process_external_sif_cache_root(path)?
         .workspace
@@ -1123,6 +1159,7 @@ fn clear_external_sif_memory_cache_for_storage_for_test(storage: &OmenaBridgeExt
         "{}\0",
         storage
             .workspace_cache_root()
+            .expect("fixture cache storage is configured")
             .join(EXTERNAL_SIF_CACHE_DIR)
             .to_string_lossy()
     );
@@ -1733,6 +1770,59 @@ mod tests {
     use super::*;
 
     #[test]
+    fn snapshot_storage_keeps_importer_verdict_without_regenerable_cache() {
+        let root = Path::new("/workspace/importer");
+        let physical_target = Path::new("/workspace/other/node_modules/tokens/index.scss");
+        let verdict_dir = root
+            .join(".cache/omena")
+            .join(OMENA_SIF_SHARD_VERDICT_DIR_V1);
+        let storage =
+            OmenaBridgeExternalSifStorageV0::from_optional_workspace_cache_root_and_verdict_dir(
+                None,
+                "file:///workspace/importer",
+                verdict_dir.clone(),
+            );
+        assert_eq!(storage.workspace_cache_root(), None);
+        assert_eq!(
+            external_sif_cache_dir_for_path(physical_target, Some(&storage)),
+            None
+        );
+        assert_eq!(
+            external_sif_recorded_verdict_dir_for_path(physical_target, Some(&storage)),
+            Some(verdict_dir)
+        );
+    }
+
+    #[test]
+    fn snapshot_storage_native_and_encoded_uri_roots_keep_actual_verdict_path() {
+        let root = std::fs::canonicalize(std::env::temp_dir())
+            .expect("fixture temporary directory exists")
+            .join("omena storage root");
+        let native = OmenaBridgeExternalSifStorageV0::for_process_workspace_root(
+            root.to_string_lossy().as_ref(),
+        )
+        .expect("absolute native workspace root");
+        let encoded = path_to_file_uri(root.as_path());
+        assert!(encoded.contains("%20"));
+        let uri = OmenaBridgeExternalSifStorageV0::for_process_workspace_root(&encoded)
+            .expect("existing file URI decoder admits the root");
+        let expected = root
+            .join(".cache/omena")
+            .join(OMENA_SIF_SHARD_VERDICT_DIR_V1);
+        assert_eq!(native.recorded_verdict_dir(), Some(expected.as_path()));
+        assert_eq!(uri.recorded_verdict_dir(), native.recorded_verdict_dir());
+        assert!(
+            OmenaBridgeExternalSifStorageV0::for_process_workspace_root(
+                "https://example.invalid/root"
+            )
+            .is_none()
+        );
+        assert!(
+            OmenaBridgeExternalSifStorageV0::for_process_workspace_root("relative/root").is_none()
+        );
+    }
+
+    #[test]
     fn resolves_relative_style_candidates() -> Result<(), Box<dyn std::error::Error>> {
         let root = temp_dir("omena_bridge_style_relative")?;
         let source = root.join("src/App.tsx");
@@ -2209,9 +2299,11 @@ mod tests {
 
         let cache_dir_a = storage_a
             .workspace_cache_root()
+            .expect("fixture cache storage is configured")
             .join(EXTERNAL_SIF_CACHE_DIR);
         let cache_dir_b = storage_b
             .workspace_cache_root()
+            .expect("fixture cache storage is configured")
             .join(EXTERNAL_SIF_CACHE_DIR);
         let shard_files = |dir: &Path| -> Vec<PathBuf> {
             let Ok(entries) = fs::read_dir(dir) else {
@@ -3609,6 +3701,7 @@ mod tests {
         let cache_dir = fixture
             .storage
             .workspace_cache_root()
+            .expect("fixture cache storage is configured")
             .join(EXTERNAL_SIF_CACHE_DIR);
         let shard_path = only_fixture_cache_shard_path(cache_dir.as_path())?;
         fs::write(shard_path, write_omena_canonical_json_bytes_v1(&poisoned)?)?;

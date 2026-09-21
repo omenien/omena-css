@@ -93,7 +93,8 @@ impl OmenaNapiWorkspaceV0 {
         to_json(
             &self
                 .inner
-                .replace_style_resolution_inputs(resolution_inputs),
+                .replace_style_resolution_inputs(resolution_inputs)
+                .map_err(native_error)?,
         )
     }
 
@@ -177,8 +178,9 @@ impl OmenaNapiCachedWorkspaceV0 {
             resolution_inputs_json.as_str(),
             "style resolution inputs",
         )?;
-        let snapshot =
-            lock_workspace(&self.inner)?.replace_style_resolution_inputs(resolution_inputs);
+        let snapshot = lock_workspace(&self.inner)?
+            .replace_style_resolution_inputs(resolution_inputs)
+            .map_err(native_error)?;
         to_json(&snapshot)
     }
 
@@ -411,5 +413,159 @@ mod tests {
         assert_eq!(response.protocol_version, "0");
         assert!(response.class_exports.contains_key("button"));
         Ok(())
+    }
+
+    fn replacement_fixture(bound: bool) -> OmenaSdkWorkspaceV0 {
+        let styles = style_sources(".button { color: red; }");
+        let request = OmenaSdkSnapshotRequestV0 {
+            workspace_root: "file:///napi-replacements".to_string(),
+        };
+        let revision = omena_query::OmenaWorkspaceSnapshotIdV0::from_revision(
+            omena_query::IncrementalRevisionV0 {
+                value: if bound { 4 } else { u64::MAX },
+            },
+        );
+        if !bound {
+            return OmenaSdkWorkspaceV0::open_at_snapshot(request, styles, revision).unwrap();
+        }
+        let resolution = OmenaQueryStyleResolutionInputsV0::default();
+        let settings = omena_query::OmenaWorkspaceSnapshotSettingsV0::default();
+        let mut publisher = omena_query::OmenaWorkspaceSnapshotPublisherV0::default();
+        let binding = publisher
+            .publish(
+                omena_query::OmenaWorkspaceSnapshotInputsV0 {
+                    workspace_root: &request.workspace_root,
+                    style_sources: &styles,
+                    source_documents: &[],
+                    source_language_ids: &BTreeMap::new(),
+                    source_provider_inputs: &BTreeMap::new(),
+                    package_manifests: &[],
+                    external_sifs: &[],
+                    external_sif_trust_records: &BTreeMap::new(),
+                    external_sif_resolution_edges: &[],
+                    resolution_inputs: &resolution,
+                    settings: &settings,
+                    source_corpus_complete: false,
+                },
+                revision,
+            )
+            .unwrap();
+        OmenaSdkWorkspaceV0::open_imported_snapshot(
+            request,
+            styles,
+            omena_query::OmenaWorkspaceSnapshotTransferV0 {
+                sources: Vec::new(),
+                package_manifests: Vec::new(),
+                resolution_inputs: resolution,
+                settings,
+                source_corpus_complete: false,
+            },
+            binding,
+            &omena_query::OmenaQueryUtilityClassIntelligenceReportV0::default(),
+        )
+        .unwrap()
+    }
+
+    fn expected_replacement_error(code: &str) -> serde_json::Value {
+        let message = match code {
+            "workspace.snapshot-revision-exhausted" => {
+                "workspace snapshot revision space is exhausted"
+            }
+            "workspace.snapshot-owner-required" => {
+                "a request clone must submit mutations to its existing workspace owner"
+            }
+            "workspace.snapshot-full-replacement-required" => {
+                "resolver mutation requires replacement of the complete admitted source-fact view"
+            }
+            _ => panic!("unknown fixture error"),
+        };
+        serde_json::json!({"error": {"class": "workspace", "message": message, "context": {
+            "code": code, "severity": "error", "recoverability": "retry"
+        }}})
+    }
+
+    #[test]
+    fn actual_workspace_and_cached_replacement_refusals_preserve_full_native_envelopes() {
+        for bound in [false, true] {
+            let owner = replacement_fixture(bound);
+            // Request clones retain the real reader and deliberately have no publication owner.
+            let mut workspace = OmenaNapiWorkspaceV0 {
+                inner: owner.clone(),
+            };
+            let cached = OmenaNapiCachedWorkspaceV0 {
+                inner: Arc::new(Mutex::new(owner.clone())),
+            };
+            let before: serde_json::Value =
+                serde_json::from_str(&workspace.snapshot_json().unwrap()).unwrap();
+            let binding = owner.snapshot_binding().cloned();
+            let original =
+                serde_json::to_string(&style_sources(".button { color: red; }")).unwrap();
+            let changed =
+                serde_json::to_string(&style_sources(".button { color: blue; }")).unwrap();
+            let resolver = r#"{"externalSifCacheFingerprint":"replacement-fixture"}"#.to_string();
+            let style_code = if bound {
+                "workspace.snapshot-owner-required"
+            } else {
+                "workspace.snapshot-revision-exhausted"
+            };
+            let resolver_code = if bound {
+                "workspace.snapshot-full-replacement-required"
+            } else {
+                "workspace.snapshot-revision-exhausted"
+            };
+            for (error, code) in [
+                (
+                    workspace
+                        .replace_style_sources_json(changed.clone())
+                        .unwrap_err(),
+                    style_code,
+                ),
+                (
+                    cached.replace_style_sources_json(changed).unwrap_err(),
+                    style_code,
+                ),
+                (
+                    workspace
+                        .replace_style_resolution_inputs_json(resolver.clone())
+                        .unwrap_err(),
+                    resolver_code,
+                ),
+                (
+                    cached
+                        .replace_style_resolution_inputs_json(resolver)
+                        .unwrap_err(),
+                    resolver_code,
+                ),
+            ] {
+                assert_eq!(
+                    serde_json::from_str::<serde_json::Value>(&error.reason).unwrap(),
+                    expected_replacement_error(code)
+                );
+            }
+            for payload in [
+                workspace
+                    .replace_style_sources_json(original.clone())
+                    .unwrap(),
+                cached.replace_style_sources_json(original).unwrap(),
+                workspace
+                    .replace_style_resolution_inputs_json("{}".to_string())
+                    .unwrap(),
+                cached
+                    .replace_style_resolution_inputs_json("{}".to_string())
+                    .unwrap(),
+                workspace.snapshot_json().unwrap(),
+                cached.snapshot_json().unwrap(),
+            ] {
+                assert_eq!(
+                    serde_json::from_str::<serde_json::Value>(&payload).unwrap(),
+                    before
+                );
+            }
+            assert_eq!(workspace.inner.snapshot_binding(), binding.as_ref());
+            assert_eq!(
+                lock_workspace(&cached.inner).unwrap().snapshot_binding(),
+                binding.as_ref()
+            );
+        }
     }
 }

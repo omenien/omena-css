@@ -590,6 +590,9 @@ pub struct LspResolutionSettings {
     #[serde(skip)]
     pub(crate) bridge_external_sif_urls: BTreeSet<String>,
     #[serde(skip)]
+    pub(crate) external_sif_resolution_edges:
+        Vec<omena_query::OmenaQueryExternalSifResolutionEdgeV0>,
+    #[serde(skip)]
     pub(crate) cache_storage: crate::cache_root::LspCacheStorageConfigV0,
 }
 
@@ -842,6 +845,10 @@ pub trait LspQueryReadView {
 
 #[derive(Debug, Default)]
 pub struct LspShellState {
+    pub(crate) snapshot_source_provider_inputs:
+        BTreeMap<String, omena_query::OmenaWorkspaceSourceProviderInputsV0>,
+    pub(crate) sdk_snapshot_publishers:
+        RefCell<BTreeMap<String, omena_query::OmenaWorkspaceSnapshotPublisherV0>>,
     pub shutdown_requested: bool,
     pub should_exit: bool,
     pub(crate) features: LspFeatureSettings,
@@ -937,7 +944,14 @@ pub struct LspShellState {
 }
 
 impl LspShellState {
+    pub(crate) fn invalidate_sdk_snapshots_before_owner_mutation(&self) {
+        for publisher in self.sdk_snapshot_publishers.borrow_mut().values_mut() {
+            publisher.invalidate_before_owner_mutation();
+        }
+    }
+
     pub fn configure_standalone_cache_storage(&mut self, cache_dir: Option<PathBuf>) {
+        self.invalidate_sdk_snapshots_before_owner_mutation();
         self.resolution.cache_storage =
             crate::cache_root::LspCacheStorageConfigV0::standalone(cache_dir);
     }
@@ -995,6 +1009,7 @@ impl LspShellState {
     }
 
     pub(crate) fn document_mut(&mut self, uri: &str) -> Option<&mut LspTextDocumentState> {
+        self.invalidate_sdk_snapshots_before_owner_mutation();
         let file_id = self.file_identity.file_id_for_uri(uri)?;
         let document = self.documents.get_mut(&file_id)?;
         if document.origin == LspDocumentOrigin::Foreign {
@@ -1012,6 +1027,13 @@ impl LspShellState {
         self.file_identity.file_id_for_uri(uri)
     }
 
+    /// Lookup only aliases already admitted by this owner. In particular, a
+    /// watched deletion or retarget must not canonicalize its new disk state
+    /// before identifying which previous input became stale.
+    pub(crate) fn known_document_file_id(&self, uri: &str) -> Option<LspFileId> {
+        self.file_identity.ids_by_uri_alias.get(uri).copied()
+    }
+
     #[cfg(test)]
     pub(crate) fn intern_file_uri(&mut self, uri: &str) -> LspFileId {
         self.file_identity.intern_uri(uri).0
@@ -1026,12 +1048,14 @@ impl LspShellState {
     }
 
     pub(crate) fn insert_open_document_uri(&mut self, uri: &str) -> String {
+        self.invalidate_sdk_snapshots_before_owner_mutation();
         let (file_id, storage_uri) = self.file_identity.intern_uri(uri);
         self.open_document_uris.insert(file_id);
         storage_uri
     }
 
     pub(crate) fn remove_open_document_uri(&mut self, uri: &str) {
+        self.invalidate_sdk_snapshots_before_owner_mutation();
         if let Some(file_id) = self.file_identity.file_id_for_uri(uri) {
             self.open_document_uris.remove(&file_id);
         }
@@ -1044,11 +1068,13 @@ impl LspShellState {
     }
 
     pub(crate) fn insert_document(&mut self, uri: &str, document: LspTextDocumentState) {
+        self.invalidate_sdk_snapshots_before_owner_mutation();
         let (file_id, _) = self.file_identity.intern_uri(uri);
         self.documents.insert(file_id, Arc::new(document));
     }
 
     pub(crate) fn remove_document_uri(&mut self, uri: &str) -> Option<LspTextDocumentState> {
+        self.invalidate_sdk_snapshots_before_owner_mutation();
         let file_id = self.file_identity.file_id_for_uri(uri)?;
         let document = self.documents.remove(&file_id).map(Arc::unwrap_or_clone)?;
         let memo = self.style_module_interface_memo.get_mut();

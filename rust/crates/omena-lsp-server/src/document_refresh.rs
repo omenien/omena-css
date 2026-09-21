@@ -247,9 +247,9 @@ pub(crate) fn style_external_dependency_snapshot(
                 .map(String::as_str),
         )
     {
-        if source.starts_with("file://") {
-            bridge_sources.insert(source.to_string());
-        }
+        // Compare authored import/forward topology, including regular relative
+        // imports. An unchanged body does not request bridge regeneration.
+        bridge_sources.insert(source.to_string());
         if let Some(uri) = resolve_lsp_style_uri_for_specifier(state, document, source)
             && is_foreign_style_document_uri(uri.as_str())
         {

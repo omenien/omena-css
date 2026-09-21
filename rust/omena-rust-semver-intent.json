@@ -36,7 +36,9 @@
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
-          "evidenceNeedles": ["field EvidenceAnalysisPrecisionV0.axes"]
+          "evidenceNeedles": [
+            "field EvidenceAnalysisPrecisionV0.axes"
+          ]
         },
         {
           "lint": "method_parameter_count_changed",
@@ -78,7 +80,10 @@
             },
             {
               "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-              "needles": ["#[serde(rename = \"k-cfa\")]", "#[serde(flatten)]"]
+              "needles": [
+                "#[serde(rename = \"k-cfa\")]",
+                "#[serde(flatten)]"
+              ]
             }
           ]
         }
@@ -91,7 +96,9 @@
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
-          "evidenceNeedles": ["field OmenaQueryAnalysisPrecisionV0.axes"]
+          "evidenceNeedles": [
+            "field OmenaQueryAnalysisPrecisionV0.axes"
+          ]
         },
         {
           "lint": "struct_pub_field_missing",
@@ -99,13 +106,7 @@
             "field value_domain of struct OmenaQueryAnalysisPrecisionV0",
             "field flow_sensitivity of struct OmenaQueryAnalysisPrecisionV0",
             "field context_sensitivity of struct OmenaQueryAnalysisPrecisionV0",
-            "field revision_axis of struct OmenaQueryAnalysisPrecisionV0",
-            "field value_domain of struct AnalysisPrecisionV1",
-            "field flow of struct AnalysisPrecisionV1",
-            "field context of struct AnalysisPrecisionV1",
-            "field provider_completeness of struct AnalysisPrecisionV1",
-            "field world_assumption of struct AnalysisPrecisionV1",
-            "field revision of struct AnalysisPrecisionV1"
+            "field revision_axis of struct OmenaQueryAnalysisPrecisionV0"
           ]
         }
       ],
@@ -126,7 +127,9 @@
             },
             {
               "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-              "needles": ["#[serde(rename = \"k-cfa\")]"]
+              "needles": [
+                "#[serde(rename = \"k-cfa\")]"
+              ]
             }
           ]
         }
@@ -148,7 +151,7 @@
     {
       "crate": "omena-lsp-server",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor removes a frame-refresh runtime that was constructed only by an unregistered test and whose parse-reuse claim never reached the product request path.",
+      "reason": "The next pre-1.0 minor removes a frame-refresh runtime that was constructed only by an unregistered test and whose parse-reuse claim never reached the product request path. It also carries external SIF resolution edges in the public refresh result so mapping-only changes can republish diagnostics, and adds ExternalSifSource to the exhaustive Tide input taxonomy so watched changes to admitted local SIF files invalidate dependent work independently of editor buffers.",
       "expectedFailures": [
         {
           "lint": "struct_missing",
@@ -156,17 +159,31 @@
             "struct omena_lsp_server::FrameAwareStyleModuleInputV0, previously in file",
             "struct omena_lsp_server::FrameAwareRefreshRuntimeV0, previously in file"
           ]
+        },
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field LspExternalSifRefreshResultV0.resolution_edges in "
+          ]
+        },
+        {
+          "lint": "enum_variant_added",
+          "evidenceNeedles": [
+            "variant TideInputKindV0:ExternalSifSource in "
+          ]
         }
       ]
     },
     {
       "crate": "omena-query",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor removes a parse-reuse cache surface whose only non-test caller created a fresh cache for every call, narrows 276 query-facade items to crate visibility plus 44 items in the default feature set, and deprecates 115 unused re-exports while retaining two existing deprecations and restoring three published compatibility constants.",
+      "reason": "The next pre-1.0 minor removes a parse-reuse cache surface whose only non-test caller created a fresh cache for every call, narrows 276 query-facade items to crate visibility plus 44 items in the default feature set, and deprecates 115 unused re-exports while retaining two existing deprecations and restoring three published compatibility constants. Workspace snapshot admission also adds two constructible Rust provenance fields and makes SDK resolver replacement fallible; contextual selection, skipped-metadata equality and checked replacement revisions require the explicit migrations recorded below.",
       "expectedFailures": [
         {
           "lint": "enum_missing",
-          "evidenceNeedles": ["enum omena_query::ModelClassV0, previously in file"],
+          "evidenceNeedles": [
+            "enum omena_query::ModelClassV0, previously in file"
+          ],
           "witnessLinePrefix": "  enum omena_query::",
           "expectedWitnessesByFeaturePlane": {
             "defaultFeatures": [
@@ -360,7 +377,9 @@
         },
         {
           "lint": "pub_module_level_const_missing",
-          "evidenceNeedles": ["OMENA_BUNDLER_HOST_PROTOCOL_VERSION_V0 in file"],
+          "evidenceNeedles": [
+            "OMENA_BUNDLER_HOST_PROTOCOL_VERSION_V0 in file"
+          ],
           "witnessLinePrefix": "  ",
           "expectedWitnessesByFeaturePlane": {
             "defaultFeatures": [
@@ -644,6 +663,24 @@
               "SourcePinV0"
             ]
           }
+        },
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field OmenaQueryExternalSifInputV0.admitted_resolution_edges in ",
+            "field OmenaQueryBridgeExternalSifTrustedResolutionV1.resolution_edges in "
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnessesByFeaturePlane": {
+            "defaultFeatures": [
+              "OmenaQueryExternalSifInputV0.admitted_resolution_edges",
+              "OmenaQueryBridgeExternalSifTrustedResolutionV1.resolution_edges"
+            ],
+            "allFeatures": [
+              "OmenaQueryExternalSifInputV0.admitted_resolution_edges",
+              "OmenaQueryBridgeExternalSifTrustedResolutionV1.resolution_edges"
+            ]
+          }
         }
       ],
       "expectedRuntimeValueChanges": [
@@ -700,7 +737,10 @@
             },
             {
               "sourcePath": "rust/crates/omena-query/src/source.rs",
-              "needles": ["usize::from(capture.is_none())", "Some(\"noFlowCapture\")"]
+              "needles": [
+                "usize::from(capture.is_none())",
+                "Some(\"noFlowCapture\")"
+              ]
             }
           ]
         },
@@ -722,6 +762,79 @@
               "needles": [
                 "fn unresolved_cascade_provider_keeps_the_position_gate_unknown()",
                 "assert_eq!(effective, crate::FactPrecision::Unknown)"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "snapshot-contextual-sif-admission-and-legacy-serde-equality",
+          "kind": "selection-outcome-changing",
+          "surface": "admitted external SIF contextual selection and legacy serde/Eq boundary",
+          "reason": "Both public edge vectors participate in Rust equality but are skipped by legacy serialization. Deserializing OmenaQueryExternalSifInputV0 empties or ignores supplied metadata, so a nonempty admitted input loses Eq and can revert the corpus to legacy alias selection. The trusted resolution result is Serialize-only. Any retained admission metadata requires importer/specifier lookup and matching full artifact provenance without a legacy fallback. Rust literals and exhaustive patterns must account for the new fields; admitted callers retain actual bridge edges and verdicts instead of substituting empty legacy metadata.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/types.rs",
+              "needles": [
+                "#[serde(skip)]\n    pub admitted_resolution_edges: Vec<crate::OmenaQueryExternalSifResolutionEdgeV0>"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/source.rs",
+              "needles": [
+                "#[serde(skip)]\n    pub resolution_edges: Vec<OmenaQueryExternalSifResolutionEdgeV0>"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/diagnostics/external_sif.rs",
+              "needles": [
+                "if &edge.importer != origin || edge.specifier != specifier",
+                "previous.admission != Some(edge)",
+                "if external_sifs\n        .iter()\n        .any(|input| !input.admitted_resolution_edges.is_empty())"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/tests/workspace_snapshot_contract.rs",
+              "needles": [
+                "fn admitted_sif_legacy_json_roundtrip_loses_equality_and_contextual_selection()",
+                "assert_ne!(admitted, decoded,",
+                "assert_ne!(before, after);"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "snapshot-sdk-checked-replacement-and-bound-refusal",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaSdkWorkspaceV0 style and resolver replacement response, revision and refusal behavior",
+          "reason": "Resolver replacement now returns Result, requiring external callers to handle OmenaError before reading the snapshot. Both methods reject changed unbound inputs at the maximum revision before mutation instead of saturating; unchanged no-ops remain Ok even at MAX. Bound resolver changes require a complete admitted replacement view before overflow is considered. Bound style changes require the current owner and reconstructed admitted inputs; a stale style no-op still fails its binding check, while a resolver no-op returns the unchanged clone snapshot. Existing JS wrappers preserve success payloads and map reachable refusals to complete typed errors without adding public state seeding. At MAX the existing WASM JSON-compatible serializer refuses the successful inner no-op response as sdk.response-serialization because u64 exceeds JS safe integer range; changed inputs reach exhaustion first. Normal-revision JS no-ops remain successful.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/sdk_workspace.rs",
+              "needles": [
+                "pub fn replace_style_sources(",
+                "pub fn replace_style_resolution_inputs(",
+                "checked_add(1)",
+                "\"workspace.snapshot-full-replacement-required\"",
+                "\"workspace.snapshot-revision-exhausted\""
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/tests/workspace_snapshot_contract.rs",
+              "needles": [
+                "fn sdk_exhaustion_refuses_both_changed_replacements_before_mutation_but_allows_noops()",
+                "fn sdk_bound_replacement_refusals_preserve_owner_view_and_stale_reader_semantics()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
+              "needles": [
+                "fn actual_workspace_and_cached_replacement_refusals_preserve_full_native_envelopes()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-wasm/src/sdk_workspace.rs",
+              "needles": [
+                "fn private_replacement_refusal_fixture()"
               ]
             }
           ]

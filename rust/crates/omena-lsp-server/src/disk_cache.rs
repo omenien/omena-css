@@ -176,6 +176,9 @@ struct DiskDiagnosticsCacheEnvironmentInputV1<'a> {
     source_paths: Vec<&'a str>,
     package_manifests: &'a [OmenaQueryStylePackageManifestV0],
     external_sifs: &'a [OmenaQueryExternalSifInputV0],
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    admitted_external_sif_resolution_edges:
+        Vec<&'a omena_query::OmenaQueryExternalSifResolutionEdgeV0>,
     resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
     severity: u8,
     deep_analysis: bool,
@@ -278,6 +281,16 @@ pub(crate) fn disk_diagnostics_cache_wave_plan_v1(
         })
         .cloned()
         .collect::<Vec<_>>();
+    // Import-to-target choices are environmental inputs even when both target
+    // file contents are recorded corpus members. Legacy SIF JSON omits this
+    // locally admitted metadata, so commit it explicitly in the cache trace.
+    let admitted_external_sif_resolution_edges = components
+        .external_sifs
+        .iter()
+        .flat_map(|input| &input.admitted_resolution_edges)
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
     let input = DiskDiagnosticsCacheEnvironmentInputV1 {
         cache_schema_version: DISK_DIAGNOSTICS_CACHE_SCHEMA_VERSION_V1,
         crate_version: env!("CARGO_PKG_VERSION"),
@@ -286,6 +299,7 @@ pub(crate) fn disk_diagnostics_cache_wave_plan_v1(
         source_paths,
         package_manifests: components.package_manifests,
         external_sifs: environmental_external_sifs.as_slice(),
+        admitted_external_sif_resolution_edges,
         resolution_inputs: &resolution_inputs,
         severity: components.severity,
         deep_analysis: components.deep_analysis,
@@ -1319,6 +1333,7 @@ mod tests {
         )
         .ok()?;
         Some(OmenaQueryExternalSifInputV0 {
+            admitted_resolution_edges: Vec::new(),
             canonical_url: "https://cdn.example/tokens.scss".to_string(),
             sif,
         })
@@ -1495,6 +1510,7 @@ mod tests {
             )
             .ok()?;
             Some(OmenaQueryExternalSifInputV0 {
+                admitted_resolution_edges: Vec::new(),
                 canonical_url: FIXTURE_DEP.to_string(),
                 sif,
             })
@@ -2078,5 +2094,67 @@ mod tests {
                 "/omena-disk-cache-first-root/.cache/omena/diagnostics-cache-v1",
             )),
         );
+    }
+    #[test]
+    fn admitted_context_mapping_changes_disk_trace_for_equal_member_sif_payloads()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut fixture = TraceFixture::base();
+        for path in [FIXTURE_DEP, FIXTURE_UNRELATED] {
+            fixture.external_sifs.push(OmenaQueryExternalSifInputV0 {
+                admitted_resolution_edges: Vec::new(),
+                canonical_url: path.to_string(),
+                sif: omena_sif::generate_static_omena_sif_v1(
+                    omena_sif::OmenaSifStaticGeneratorInputV1 {
+                        canonical_url: path,
+                        source: "$brand: red;",
+                        syntax: omena_sif::OmenaSifSourceSyntaxV1::Scss,
+                    },
+                )?,
+            });
+        }
+        let edge = |input: &OmenaQueryExternalSifInputV0| {
+            omena_query::OmenaQueryExternalSifResolutionEdgeV0 {
+                importer: omena_query::OmenaQueryExternalSifImportOriginV0::Document {
+                    style_path: FIXTURE_TARGET.to_string(),
+                },
+                specifier: "./tokens".to_string(),
+                resolved_style_url: input.sif.canonical_url.clone(),
+                sif_canonical_url: input.sif.canonical_url.clone(),
+                trust: omena_query::OmenaQueryExternalSifTrustV1 {
+                    canonical_url: input.sif.canonical_url.clone(),
+                    trust_tier: omena_sif::OmenaSifTrustTierV1::T1,
+                    trust_source: omena_query::OmenaQueryExternalSifTrustSourceV1::UnsignedLegacy,
+                },
+                sif_artifact_hash: omena_sif::compute_omena_sif_artifact_hash_v1(&input.sif)
+                    .unwrap()
+                    .as_str()
+                    .to_string(),
+            }
+        };
+        fixture.external_sifs[0].admitted_resolution_edges = vec![edge(&fixture.external_sifs[0])];
+        let wire = serde_json::to_vec(&fixture.external_sifs)?;
+        let before = fixture
+            .plan()
+            .ok_or("before trace")?
+            .environment_fingerprint;
+        assert_eq!(
+            before,
+            fixture
+                .plan()
+                .ok_or("unchanged trace")?
+                .environment_fingerprint
+        );
+        fixture.external_sifs[0].admitted_resolution_edges.clear();
+        fixture.external_sifs[1].admitted_resolution_edges = vec![edge(&fixture.external_sifs[1])];
+        assert_eq!(wire, serde_json::to_vec(&fixture.external_sifs)?);
+        assert_ne!(
+            before,
+            fixture
+                .plan()
+                .ok_or("changed trace")?
+                .environment_fingerprint,
+            "corpus member filtering must not erase effective import mapping"
+        );
+        Ok(())
     }
 }

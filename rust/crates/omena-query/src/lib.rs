@@ -294,7 +294,8 @@ pub use omena_query_core::{
     IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
     OmenaIncrementalDatabaseV0, OmenaQueryAnalysisPrecisionV0,
     OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryExpressionDomainIncrementalFlowAnalysisV0,
-    OmenaQueryExpressionDomainSelectorProjectionV0, OmenaWorkspaceSnapshotIdV0, PositionV2,
+    OmenaQueryExpressionDomainSelectorProjectionV0, OmenaWorkspaceInputCommitmentV0,
+    OmenaWorkspaceSnapshotBindingV0, OmenaWorkspaceSnapshotIdV0, PositionV2,
     ProviderCompletenessV1, RangeV2, RevisionIdentityV1, SourceAnalysisInputV2, SourceDocumentV2,
     StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2, StyleSelectorV2, TypeFactEntryV2,
     ValueDomainPrecisionV1, WorldAssumptionV1, snapshot_from_graph_input,
@@ -515,11 +516,25 @@ mod sdk_error;
 mod sdk_workflow_contract_idl_generated;
 mod sdk_workspace;
 mod source;
+mod source_provider_snapshot;
 mod style;
 #[cfg(test)]
 mod tests;
 mod types;
 mod workspace_session;
+mod workspace_snapshot;
+pub use source_provider_snapshot::{
+    OmenaWorkspaceProviderResolvedTypeV0, OmenaWorkspaceProviderResultV0,
+    OmenaWorkspaceProviderSpanResultV0, OmenaWorkspaceProviderUnavailableV0,
+    OmenaWorkspaceSourceProviderInputsV0, replay_omena_workspace_source_provider_v0,
+    source_provider_snapshot_digest_v0,
+};
+pub use workspace_snapshot::{
+    OmenaWorkspaceSnapshotInputsV0, OmenaWorkspaceSnapshotPublisherV0,
+    OmenaWorkspaceSnapshotReadViewV0, OmenaWorkspaceSnapshotReaderV0,
+    OmenaWorkspaceSnapshotSettingsV0, reconstruct_omena_workspace_snapshot_sources_v0,
+    select_omena_workspace_snapshot_external_sifs_v0,
+};
 
 #[allow(unused_imports)]
 pub(crate) use bundler_host::OMENA_BUNDLER_HOST_PROTOCOL_VERSION_V0;
@@ -547,14 +562,16 @@ pub use sdk_workflow_contract_idl_generated::{
     OmenaCliResponseEnvelopeV0, OmenaErrorClassV0, OmenaErrorContextV0, OmenaErrorRecoverabilityV0,
     OmenaErrorSeverityV0, OmenaSdkBuildRequestV0, OmenaSdkDiagnosticsRequestV0,
     OmenaSdkErrorEnvelopeV0, OmenaSdkExplainRequestV0, OmenaSdkQueryRequestV0,
-    OmenaSdkSnapshotRequestV0, OmenaWorkspaceSessionHandshakeRequestV0,
-    OmenaWorkspaceSessionHandshakeResponseV0, OmenaWorkspaceSessionLimitsV0,
-    OmenaWorkspaceSessionOperationV0, OmenaWorkspaceSessionRequestV0,
-    OmenaWorkspaceSessionResponseV0,
+    OmenaSdkSnapshotRequestV0, OmenaSdkSourceDiagnosticsRequestV0,
+    OmenaWorkspaceSessionHandshakeRequestV0, OmenaWorkspaceSessionHandshakeResponseV0,
+    OmenaWorkspaceSessionLimitsV0, OmenaWorkspaceSessionOperationV0,
+    OmenaWorkspaceSessionRequestV0, OmenaWorkspaceSessionResponseV0,
 };
 pub use sdk_workflow_contract_idl_generated::{
     OmenaSdkBuildVerificationProfileV0, OmenaSdkBuildVerificationReasonV0,
     OmenaSdkExplainPositionV0, OmenaSdkResponsePartitionV0, OmenaSdkSnapshotResponseV0,
+    OmenaWorkspaceBoundHandshakeV1, OmenaWorkspaceBoundRequestV1, OmenaWorkspaceBoundResponseV1,
+    OmenaWorkspaceSnapshotSourceV0, OmenaWorkspaceSnapshotTransferV0,
 };
 pub use sdk_workspace::OmenaSdkWorkspaceV0;
 pub use workspace_session::{
@@ -614,7 +631,8 @@ pub(crate) use source::{
     resolve_omena_query_style_uri_for_specifier,
 };
 pub use source::{
-    OmenaQueryBridgeExternalSifTrustedResolutionV1, OmenaQueryExternalSifTrustSourceV1,
+    OmenaQueryBridgeExternalSifTrustedResolutionV1, OmenaQueryExternalSifImportOriginV0,
+    OmenaQueryExternalSifResolutionEdgeV0, OmenaQueryExternalSifTrustSourceV1,
     OmenaQueryExternalSifTrustV1, OmenaQueryStyleModuleDiskCandidateIdentityV0,
     OmenaQueryStyleResolutionInputsV0, OmenaQueryTsconfigPathMappingV0,
     canonicalize_omena_query_source_selector_references,

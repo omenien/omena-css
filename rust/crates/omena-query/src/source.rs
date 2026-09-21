@@ -148,14 +148,14 @@ pub struct OmenaQueryBridgeExternalSifResolutionV0 {
     pub generation_count: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum OmenaQueryExternalSifTrustSourceV1 {
     RecordedVerdict,
     UnsignedLegacy,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryExternalSifTrustV1 {
     pub canonical_url: String,
@@ -163,9 +163,51 @@ pub struct OmenaQueryExternalSifTrustV1 {
     pub trust_source: OmenaQueryExternalSifTrustSourceV1,
 }
 
+/// Provenance of the existing bridge admission, never a transported trust claim.
+/// Disk SIFs and editor buffers at the same URI can contain different imports.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum OmenaQueryExternalSifImportOriginV0 {
+    Document {
+        style_path: String,
+    },
+    Sif {
+        initiating_document: Option<String>,
+        resolved_style_url: String,
+        artifact_hash: String,
+    },
+}
+
+impl OmenaQueryExternalSifImportOriginV0 {
+    pub(crate) fn initiating_document(&self) -> Option<&str> {
+        match self {
+            Self::Document { style_path } => Some(style_path),
+            Self::Sif {
+                initiating_document,
+                ..
+            } => initiating_document.as_deref(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryExternalSifResolutionEdgeV0 {
+    pub importer: OmenaQueryExternalSifImportOriginV0,
+    pub specifier: String,
+    pub resolved_style_url: String,
+    pub sif_canonical_url: String,
+    /// Existing canonical SIF artifact digest; this does not issue identity.
+    pub sif_artifact_hash: String,
+    /// The verdict actually produced for this artifact in this admission context.
+    pub trust: OmenaQueryExternalSifTrustV1,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryBridgeExternalSifTrustedResolutionV1 {
+    #[serde(skip)]
+    pub resolution_edges: Vec<OmenaQueryExternalSifResolutionEdgeV0>,
     pub resolution: OmenaQueryBridgeExternalSifResolutionV0,
     pub trust_records: Vec<OmenaQueryExternalSifTrustV1>,
 }
@@ -231,16 +273,29 @@ fn resolve_omena_query_bridge_external_sifs_for_style_sources_with_optional_cach
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     cache_storage: Option<&omena_bridge::OmenaBridgeExternalSifStorageV0>,
 ) -> OmenaQueryBridgeExternalSifTrustedResolutionV1 {
-    let seeds = style_sources
-        .iter()
-        .flat_map(|source| bridge_external_sif_seeds_for_style_source(source, resolution_inputs))
-        .collect::<BTreeSet<_>>();
-    resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_optional_cache_storage(
-        seeds.into_iter(),
+    let mut state = BridgeExternalSifResolutionState::new(
         existing_external_sifs,
         resolution_inputs,
         cache_storage,
-    )
+    );
+    for source in style_sources {
+        for (specifier, resolved_url) in
+            bridge_external_sif_seeds_for_style_source(source, resolution_inputs)
+        {
+            state.enqueue_alias(
+                specifier.clone(),
+                resolved_url,
+                Some((
+                    OmenaQueryExternalSifImportOriginV0::Document {
+                        style_path: source.style_path.clone(),
+                    },
+                    specifier,
+                )),
+            );
+        }
+    }
+    state.resolve_transitive();
+    state.into_resolution()
 }
 
 pub fn resolve_omena_query_bridge_external_sifs_for_seed_pairs(
@@ -311,48 +366,47 @@ fn resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_optional_cache_s
     );
 
     for (verbatim_source, resolved_url) in seeds {
-        state.enqueue_alias(verbatim_source, resolved_url);
+        state.enqueue_alias(verbatim_source, resolved_url, None);
     }
-
-    while let Some(sif) = state.worklist.pop_front() {
-        let base_file_uri = sif.canonical_url.clone();
-        for forward in &sif.exports.forwards {
-            let specifier = forward.canonical_url.as_str();
-            if !bridge_external_sif_specifier_is_readable(specifier) {
-                continue;
-            }
-            let Some(child_url) =
-                resolve_omena_query_style_uri_for_specifier_with_resolution_inputs(
-                    base_file_uri.as_str(),
-                    None,
-                    specifier,
-                    state.resolution_inputs,
-                )
-                .filter(|uri| uri.starts_with("file://"))
-            else {
-                continue;
-            };
-            let alias_key = if specifier.starts_with('.') || specifier.starts_with("file://") {
-                child_url.clone()
-            } else {
-                specifier.to_string()
-            };
-            state.enqueue_alias(alias_key, child_url);
-        }
-    }
+    state.resolve_transitive();
 
     state.into_resolution()
+}
+
+#[derive(Clone)]
+enum BridgeReusableSif {
+    Supplied(omena_sif::OmenaSifV1),
+    Admitted(omena_bridge::OmenaBridgeExternalSifWithTrustV1),
+}
+
+fn query_trust_from_bridge(
+    result: &omena_bridge::OmenaBridgeExternalSifWithTrustV1,
+) -> OmenaQueryExternalSifTrustV1 {
+    OmenaQueryExternalSifTrustV1 {
+        canonical_url: result.sif.canonical_url.clone(),
+        trust_tier: result.trust_envelope.trust_tier,
+        trust_source: match result.trust_source {
+            omena_bridge::OmenaBridgeExternalSifTrustSourceV1::RecordedVerdict => {
+                OmenaQueryExternalSifTrustSourceV1::RecordedVerdict
+            }
+            omena_bridge::OmenaBridgeExternalSifTrustSourceV1::UnsignedLegacy => {
+                OmenaQueryExternalSifTrustSourceV1::UnsignedLegacy
+            }
+        },
+    }
 }
 
 struct BridgeExternalSifResolutionState<'a> {
     resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
     cache_storage: Option<&'a omena_bridge::OmenaBridgeExternalSifStorageV0>,
     emitted_keys: BTreeSet<String>,
-    generated_by_resolved_url: BTreeMap<String, omena_sif::OmenaSifV1>,
+    generated_by_resolved_url: BTreeMap<(String, Option<String>), BridgeReusableSif>,
     bridge_urls: BTreeSet<String>,
     external_sifs: Vec<OmenaQueryExternalSifInputV0>,
     trust_records: BTreeMap<String, OmenaQueryExternalSifTrustV1>,
-    worklist: VecDeque<omena_sif::OmenaSifV1>,
+    worklist: VecDeque<(Option<String>, String, omena_sif::OmenaSifV1)>,
+    traversed: BTreeSet<(Option<String>, String, String)>,
+    resolution_edges: BTreeSet<OmenaQueryExternalSifResolutionEdgeV0>,
     generation_count: usize,
 }
 
@@ -371,20 +425,43 @@ impl<'a> BridgeExternalSifResolutionState<'a> {
                 .collect(),
             generated_by_resolved_url: existing_external_sifs
                 .iter()
-                .map(|input| (input.sif.canonical_url.clone(), input.sif.clone()))
+                .filter(|input| input.sif.canonical_url.starts_with("file://"))
+                .map(|input| {
+                    (
+                        (input.sif.canonical_url.clone(), None),
+                        BridgeReusableSif::Supplied(input.sif.clone()),
+                    )
+                })
                 .collect(),
             bridge_urls: BTreeSet::new(),
             external_sifs: Vec::new(),
             trust_records: BTreeMap::new(),
             worklist: VecDeque::new(),
+            traversed: BTreeSet::new(),
+            resolution_edges: BTreeSet::new(),
             generation_count: 0,
         }
     }
 
     fn into_resolution(self) -> OmenaQueryBridgeExternalSifTrustedResolutionV1 {
+        let resolution_edges = self.resolution_edges.into_iter().collect::<Vec<_>>();
+        let mut external_sifs = self.external_sifs;
+        for input in &mut external_sifs {
+            if let Ok(hash) = omena_sif::compute_omena_sif_artifact_hash_v1(&input.sif) {
+                input.admitted_resolution_edges = resolution_edges
+                    .iter()
+                    .filter(|edge| {
+                        edge.sif_canonical_url == input.sif.canonical_url
+                            && edge.sif_artifact_hash == hash.as_str()
+                    })
+                    .cloned()
+                    .collect();
+            }
+        }
         OmenaQueryBridgeExternalSifTrustedResolutionV1 {
+            resolution_edges,
             resolution: OmenaQueryBridgeExternalSifResolutionV0 {
-                external_sifs: self.external_sifs,
+                external_sifs,
                 bridge_urls: self.bridge_urls.into_iter().collect(),
                 generation_count: self.generation_count,
             },
@@ -392,24 +469,136 @@ impl<'a> BridgeExternalSifResolutionState<'a> {
         }
     }
 
-    fn enqueue_alias(&mut self, alias_key: String, resolved_url: String) {
-        if self.emitted_keys.contains(alias_key.as_str()) {
-            return;
+    fn resolve_transitive(&mut self) {
+        while let Some((initiating_document, backing_url, sif)) = self.worklist.pop_front() {
+            let Ok(artifact_hash) = omena_sif::compute_omena_sif_artifact_hash_v1(&sif) else {
+                continue;
+            };
+            let artifact_hash = artifact_hash.as_str().to_string();
+            if !self.traversed.insert((
+                initiating_document.clone(),
+                backing_url.clone(),
+                artifact_hash.clone(),
+            )) {
+                continue;
+            }
+            let origin = OmenaQueryExternalSifImportOriginV0::Sif {
+                initiating_document,
+                resolved_style_url: backing_url.clone(),
+                artifact_hash,
+            };
+            for specifier in sif
+                .exports
+                .forwards
+                .iter()
+                .map(|entry| &entry.canonical_url)
+                .chain(sif.dependencies.iter().map(|entry| &entry.canonical_url))
+            {
+                if !bridge_external_sif_specifier_is_readable(specifier) {
+                    continue;
+                }
+                let child_url = if specifier.starts_with("file://") {
+                    specifier.clone()
+                } else {
+                    let Some(child_url) =
+                        resolve_omena_query_style_uri_for_specifier_with_resolution_inputs(
+                            &backing_url,
+                            None,
+                            specifier,
+                            self.resolution_inputs,
+                        )
+                        .filter(|uri| uri.starts_with("file://"))
+                    else {
+                        continue;
+                    };
+                    child_url
+                };
+                let alias_key = if specifier.starts_with('.') || specifier.starts_with("file://") {
+                    child_url.clone()
+                } else {
+                    specifier.clone()
+                };
+                self.enqueue_alias(
+                    alias_key,
+                    child_url,
+                    Some((origin.clone(), specifier.clone())),
+                );
+            }
         }
+    }
+
+    fn record_target(
+        &mut self,
+        resolved_url: &str,
+        sif: &omena_sif::OmenaSifV1,
+        trust: Option<OmenaQueryExternalSifTrustV1>,
+        origin: Option<(OmenaQueryExternalSifImportOriginV0, String)>,
+    ) {
+        // For native SIFs this URL is returned by the actual bridge read after
+        // URI decoding/path normalization. Package canonical overrides retain
+        // the resolver-confirmed physical entry separately.
+        let resolved_url = if sif.canonical_url.starts_with("file://") {
+            sif.canonical_url.as_str()
+        } else {
+            resolved_url
+        };
+        let initiating_document = origin
+            .as_ref()
+            .and_then(|(origin, _)| origin.initiating_document())
+            .map(ToOwned::to_owned);
+        if let (Some((importer, specifier)), Some(trust)) = (origin, trust) {
+            if let Ok(hash) = omena_sif::compute_omena_sif_artifact_hash_v1(sif) {
+                self.resolution_edges
+                    .insert(OmenaQueryExternalSifResolutionEdgeV0 {
+                        importer,
+                        specifier,
+                        resolved_style_url: resolved_url.to_string(),
+                        sif_canonical_url: sif.canonical_url.clone(),
+                        sif_artifact_hash: hash.as_str().to_string(),
+                        trust,
+                    });
+            }
+        }
+        self.worklist
+            .push_back((initiating_document, resolved_url.to_string(), sif.clone()));
+    }
+
+    fn enqueue_alias(
+        &mut self,
+        alias_key: String,
+        resolved_url: String,
+        origin: Option<(OmenaQueryExternalSifImportOriginV0, String)>,
+    ) {
         self.bridge_urls.insert(alias_key.clone());
         self.bridge_urls.insert(resolved_url.clone());
-        if let Some(sif) = self
-            .generated_by_resolved_url
-            .get(resolved_url.as_str())
-            .cloned()
-        {
-            self.emitted_keys.insert(alias_key.clone());
-            self.emitted_keys.insert(sif.canonical_url.clone());
-            self.external_sifs.push(OmenaQueryExternalSifInputV0 {
-                canonical_url: alias_key,
-                sif,
-            });
-            return;
+        // The package override changes actual SIF bytes, so it is part of this
+        // invocation's reuse key. The underlying bridge cache remains the owner.
+        let target_key = (
+            resolved_url.clone(),
+            alias_key.starts_with("pkg:").then(|| alias_key.clone()),
+        );
+        if let Some(cached) = self.generated_by_resolved_url.get(&target_key).cloned() {
+            let reusable = match cached {
+                BridgeReusableSif::Admitted(result) => {
+                    let trust = query_trust_from_bridge(&result);
+                    Some((result.sif, Some(trust)))
+                }
+                BridgeReusableSif::Supplied(sif) if origin.is_none() => Some((sif, None)),
+                // A supplied legacy artifact has no current-context verdict.
+                // Contextual admission must obtain the actual bridge result.
+                BridgeReusableSif::Supplied(_) => None,
+            };
+            if let Some((sif, trust)) = reusable {
+                self.record_target(&resolved_url, &sif, trust, origin);
+                if self.emitted_keys.insert(alias_key.clone()) {
+                    self.external_sifs.push(OmenaQueryExternalSifInputV0 {
+                        admitted_resolution_edges: Vec::new(),
+                        canonical_url: alias_key,
+                        sif,
+                    });
+                }
+                return;
+            }
         }
         let cache_context = omena_bridge::OmenaBridgeExternalSifCacheContextV0 {
             freshness_fingerprint: self
@@ -434,31 +623,19 @@ impl<'a> BridgeExternalSifResolutionState<'a> {
         let Ok(result) = result else {
             return;
         };
-        let sif = result.sif;
-        let trust_source = match result.trust_source {
-            omena_bridge::OmenaBridgeExternalSifTrustSourceV1::RecordedVerdict => {
-                OmenaQueryExternalSifTrustSourceV1::RecordedVerdict
-            }
-            omena_bridge::OmenaBridgeExternalSifTrustSourceV1::UnsignedLegacy => {
-                OmenaQueryExternalSifTrustSourceV1::UnsignedLegacy
-            }
-        };
-        self.trust_records.insert(
-            sif.canonical_url.clone(),
-            OmenaQueryExternalSifTrustV1 {
-                canonical_url: sif.canonical_url.clone(),
-                trust_tier: result.trust_envelope.trust_tier,
-                trust_source,
-            },
-        );
+        let trust = query_trust_from_bridge(&result);
+        let sif = result.sif.clone();
+        self.trust_records
+            .insert(sif.canonical_url.clone(), trust.clone());
         self.generation_count = self.generation_count.saturating_add(1);
         self.generated_by_resolved_url
-            .insert(sif.canonical_url.clone(), sif.clone());
+            .insert(target_key, BridgeReusableSif::Admitted(result));
         self.emitted_keys.insert(alias_key.clone());
         self.emitted_keys.insert(sif.canonical_url.clone());
         self.bridge_urls.insert(sif.canonical_url.clone());
-        self.worklist.push_back(sif.clone());
+        self.record_target(&resolved_url, &sif, Some(trust), origin);
         self.external_sifs.push(OmenaQueryExternalSifInputV0 {
+            admitted_resolution_edges: Vec::new(),
             canonical_url: alias_key,
             sif,
         });
@@ -490,6 +667,8 @@ fn bridge_external_sif_seeds_for_style_source(
                 return None;
             }
             let resolved_url = if specifier.starts_with("file://") {
+                // File URLs are admitted by the existing bridge's URI decoder
+                // and path normalization, not the specifier-routing candidate API.
                 specifier.to_string()
             } else {
                 resolve_omena_query_style_uri_for_specifier_with_resolution_inputs(
@@ -506,7 +685,7 @@ fn bridge_external_sif_seeds_for_style_source(
         .collect()
 }
 
-fn bridge_external_sif_specifier_is_readable(specifier: &str) -> bool {
+pub(crate) fn bridge_external_sif_specifier_is_readable(specifier: &str) -> bool {
     !specifier.starts_with("sass:")
         && !specifier.starts_with("http://")
         && !specifier.starts_with("https://")

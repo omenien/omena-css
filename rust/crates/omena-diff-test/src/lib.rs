@@ -5712,6 +5712,7 @@ fn soundiness_sif_input(
         source_bytes.as_bytes(),
     )?;
     Ok(OmenaQueryExternalSifInputV0 {
+        admitted_resolution_edges: Vec::new(),
         canonical_url: canonical_url.to_string(),
         sif,
     })

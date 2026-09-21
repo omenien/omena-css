@@ -18,6 +18,12 @@ struct OmenaCliSdkTransportRequestV0 {
     operation: String,
     #[serde(default)]
     request: serde_json::Value,
+    #[serde(default)]
+    contract_version: Option<String>,
+    #[serde(default)]
+    snapshot_binding: Option<omena_query::OmenaWorkspaceSnapshotBindingV0>,
+    #[serde(default)]
+    snapshot_inputs: Option<omena_query::OmenaWorkspaceSnapshotTransferV0>,
 }
 
 pub(crate) fn sdk_request(request_json: PathBuf) -> Result<(), String> {
@@ -56,16 +62,50 @@ pub(crate) fn sdk_request(request_json: PathBuf) -> Result<(), String> {
 fn execute_transport_request(
     transport: OmenaCliSdkTransportRequestV0,
 ) -> Result<serde_json::Value, OmenaError> {
-    let workspace = OmenaSdkWorkspaceV0::open(
-        OmenaSdkSnapshotRequestV0 {
-            workspace_root: transport.workspace_root,
-        },
-        transport.style_sources,
-    )?;
-    match transport.operation.as_str() {
+    if transport.contract_version.is_none()
+        && (transport.snapshot_binding.is_some() || transport.snapshot_inputs.is_some())
+    {
+        return Err(binding_required());
+    }
+    let workspace = match transport.contract_version.as_deref() {
+        None => OmenaSdkWorkspaceV0::open(
+            OmenaSdkSnapshotRequestV0 {
+                workspace_root: transport.workspace_root,
+            },
+            transport.style_sources,
+        )?,
+        Some("1") => {
+            let binding = transport.snapshot_binding.ok_or_else(binding_required)?;
+            let inputs = transport.snapshot_inputs.ok_or_else(binding_required)?;
+            let root_path = crate::paths::cli_file_uri_to_path(&transport.workspace_root)
+                .unwrap_or_else(|| PathBuf::from(&transport.workspace_root));
+            let utility = omena_query::load_omena_query_workspace_utility_class_intelligence(
+                &root_path, None,
+            );
+            OmenaSdkWorkspaceV0::open_imported_snapshot(
+                OmenaSdkSnapshotRequestV0 {
+                    workspace_root: transport.workspace_root,
+                },
+                transport.style_sources,
+                inputs,
+                binding,
+                &utility,
+            )?
+        }
+        Some(_) => return Err(binding_required()),
+    };
+    let binding = workspace.snapshot_binding().cloned();
+    let response = match transport.operation.as_str() {
         "snapshot" => response_value(workspace.snapshot()),
+        "exportSnapshot" => workspace.export_snapshot(),
         "query" => workspace
             .execute_query(parse_request(transport.request, "query")?)
+            .and_then(response_value),
+        "sourceDiagnostics" => workspace
+            .execute_snapshot_source_diagnostics(parse_request(
+                transport.request,
+                "source diagnostics",
+            )?)
             .and_then(response_value),
         "diagnostics" => workspace
             .execute_diagnostics(parse_request::<OmenaSdkDiagnosticsRequestV0>(
@@ -95,7 +135,28 @@ fn execute_transport_request(
                 evidence: Vec::new(),
             },
         )),
+    }?;
+    match binding {
+        Some(snapshot_binding) => response_value(omena_query::OmenaWorkspaceBoundResponseV1 {
+            contract_version: "1".to_string(),
+            snapshot_binding,
+            response,
+        }),
+        None => Ok(response),
     }
+}
+
+fn binding_required() -> OmenaError {
+    OmenaError::new(
+        OmenaErrorClassV0::Workspace,
+        "snapshot contract version 1 requires a complete binding and actual transfer inputs",
+        OmenaErrorContextV0 {
+            code: "workspace.snapshot-binding-required".to_string(),
+            severity: OmenaErrorSeverityV0::Error,
+            recoverability: OmenaErrorRecoverabilityV0::Retry,
+            evidence: Vec::new(),
+        },
+    )
 }
 
 fn response_value<T: serde::Serialize>(response: T) -> Result<serde_json::Value, OmenaError> {
@@ -148,6 +209,9 @@ mod tests {
                 style_path: "src/card.module.css".to_string(),
                 style_source: ".card { color: red; }".to_string(),
             }],
+            contract_version: None,
+            snapshot_binding: None,
+            snapshot_inputs: None,
             operation: operation.to_string(),
             request,
         }

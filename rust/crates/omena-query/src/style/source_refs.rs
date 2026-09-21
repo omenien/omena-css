@@ -1272,7 +1272,7 @@ fn summarize_omena_query_domain_class_reference_diagnostics(
     diagnostics
 }
 
-pub(super) fn summarize_omena_query_style_selector_definitions(
+pub(crate) fn summarize_omena_query_style_selector_definitions(
     style_sources: &[OmenaQueryStyleSourceInputV0],
 ) -> Vec<OmenaQueryStyleSelectorDefinitionV0> {
     let mut definitions = Vec::new();

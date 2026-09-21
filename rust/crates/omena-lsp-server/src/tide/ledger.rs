@@ -25,9 +25,12 @@ pub enum TideInputKindV0 {
     /// the structural fix for the config-staleness bug (rfcs#111 §2).
     DiagnosticSettings = 5,
     WorkspaceFolders = 6,
+    /// A watched mutation of an already-admitted local SIF source on disk.
+    /// This is independent of the open editor buffer and corpus membership.
+    ExternalSifSource = 7,
 }
 
-pub const TIDE_INPUT_KIND_COUNT: usize = 7;
+pub const TIDE_INPUT_KIND_COUNT: usize = 8;
 
 // The footprint bitset is a u8: adding a ninth input kind must widen it,
 // not silently shift out of range.
@@ -42,6 +45,7 @@ impl TideInputKindV0 {
         TideInputKindV0::ResolutionSettings,
         TideInputKindV0::DiagnosticSettings,
         TideInputKindV0::WorkspaceFolders,
+        TideInputKindV0::ExternalSifSource,
     ];
 
     pub(crate) const fn wire_name(self) -> &'static str {
@@ -53,6 +57,7 @@ impl TideInputKindV0 {
             Self::ResolutionSettings => "resolutionSettings",
             Self::DiagnosticSettings => "diagnosticSettings",
             Self::WorkspaceFolders => "workspaceFolders",
+            Self::ExternalSifSource => "externalSifSource",
         }
     }
 }

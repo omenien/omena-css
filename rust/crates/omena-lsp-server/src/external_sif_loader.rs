@@ -8,8 +8,6 @@ use omena_query::{
     OmenaQueryBridgeExternalSifTrustedResolutionV1, OmenaQueryExternalSifInputV0,
     OmenaQueryExternalSifStorageV0, OmenaQueryExternalSifTrustV1,
     OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
-    resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage_and_trust,
-    resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_trust,
     resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage_and_trust,
     resolve_omena_query_bridge_external_sifs_for_style_sources_with_trust,
 };
@@ -56,6 +54,7 @@ pub struct LspExternalSifRefreshResultV0 {
     pub lock_read_count: usize,
     pub bridge_generation_count: usize,
     pub trust_records: Vec<OmenaQueryExternalSifTrustV1>,
+    pub resolution_edges: Vec<omena_query::OmenaQueryExternalSifResolutionEdgeV0>,
 }
 
 /// The SIF job's declared input footprint (rfcs#111 §4.1). DocumentText is
@@ -68,7 +67,32 @@ pub(crate) const EXTERNAL_SIF_FOOTPRINT: TideFootprintV0 = TideFootprintV0::of(&
     TideInputKindV0::LockfileFingerprint,
     TideInputKindV0::PackageManifest,
     TideInputKindV0::ResolutionSettings,
+    TideInputKindV0::ExternalSifSource,
 ]);
+
+pub(crate) fn external_sif_source_uri_is_dependency(state: &LspShellState, uri: &str) -> bool {
+    let file_id = state.known_document_file_id(uri);
+    state
+        .resolution
+        .external_sifs
+        .iter()
+        .map(|input| input.sif.canonical_url.as_str())
+        .chain(
+            state
+                .resolution
+                .bridge_external_sif_urls
+                .iter()
+                .map(String::as_str)
+                .filter(|target| target.starts_with("file://")),
+        )
+        .any(|target| {
+            // The existing bridge target set also records attempted reads and
+            // file URLs behind package-canonical SIFs. These are invalidation
+            // dependencies only; matching them never admits SIF/trust claims.
+            target == uri
+                || file_id.is_some_and(|id| state.known_document_file_id(target) == Some(id))
+        })
+}
 
 /// SettleGated lanes flush on frontier passage alone: the courtesy layer is
 /// pinned open, so the aging bound is never consulted.
@@ -101,9 +125,12 @@ fn refresh_external_sifs_for_state_immediate(state: &mut LspShellState) {
     let trust_records = external_sif_trust_record_map(bridge_result.trust_records);
     if state.resolution.external_sifs != external_sifs
         || state.resolution.external_sif_trust_records != trust_records
+        || state.resolution.external_sif_resolution_edges != bridge_result.resolution_edges
     {
+        state.invalidate_sdk_snapshots_before_owner_mutation();
         state.resolution.external_sifs = external_sifs;
         state.resolution.external_sif_trust_records = trust_records;
+        state.resolution.external_sif_resolution_edges = bridge_result.resolution_edges;
         invalidate_external_sif_dependents(state);
     }
     state.resolution.bridge_external_sif_urls =
@@ -158,102 +185,10 @@ pub(crate) fn refresh_external_sifs_for_bridge_source_delta(
     if previous_sources == next_sources {
         return;
     }
-    if previous_sources
-        .iter()
-        .chain(next_sources.iter())
-        .any(|source| !source.starts_with("file://"))
-    {
-        refresh_external_sifs_for_state(state);
-        return;
-    }
-
-    let active_bridge_sources = active_bridge_sources_from_documents(state);
-    let mut changed = false;
-    let mut remove_urls = BTreeSet::new();
-    for source in previous_sources.difference(&next_sources) {
-        if active_bridge_sources.contains(source) {
-            continue;
-        }
-        collect_bridge_sif_urls_for_sources(
-            state,
-            std::iter::once(source.as_str()),
-            &BTreeSet::new(),
-        )
-        .into_iter()
-        .for_each(|url| {
-            remove_urls.insert(url);
-        });
-    }
-
-    if !remove_urls.is_empty() {
-        let before_len = state.resolution.external_sifs.len();
-        state.resolution.external_sifs.retain(|input| {
-            !state
-                .resolution
-                .bridge_external_sif_urls
-                .contains(input.canonical_url.as_str())
-                || !remove_urls.contains(input.canonical_url.as_str())
-        });
-        state
-            .resolution
-            .bridge_external_sif_urls
-            .retain(|url| !remove_urls.contains(url.as_str()));
-        changed |= before_len != state.resolution.external_sifs.len();
-        let live_canonical_urls = state
-            .resolution
-            .external_sifs
-            .iter()
-            .map(|input| input.sif.canonical_url.clone())
-            .collect::<BTreeSet<_>>();
-        let before_trust_len = state.resolution.external_sif_trust_records.len();
-        state
-            .resolution
-            .external_sif_trust_records
-            .retain(|url, _| live_canonical_urls.contains(url));
-        changed |= before_trust_len != state.resolution.external_sif_trust_records.len();
-    }
-
-    let mut covered = covered_external_sif_urls(state.resolution.external_sifs.as_slice());
-    for source in next_sources.difference(&previous_sources) {
-        if state
-            .resolution
-            .bridge_external_sif_urls
-            .contains(source.as_str())
-        {
-            continue;
-        }
-        let bridge_result = resolve_bridge_external_sifs_for_sources(
-            state,
-            std::iter::once(source.as_str()),
-            &covered,
-        );
-        let before_len = state.resolution.external_sifs.len();
-        extend_unique_external_sifs(
-            &mut state.resolution.external_sifs,
-            &mut covered,
-            bridge_result.resolution.external_sifs,
-        );
-        state
-            .resolution
-            .bridge_external_sif_urls
-            .extend(bridge_result.resolution.bridge_urls);
-        changed |= before_len != state.resolution.external_sifs.len();
-        for trust_record in bridge_result.trust_records {
-            changed |= state
-                .resolution
-                .external_sif_trust_records
-                .insert(trust_record.canonical_url.clone(), trust_record.clone())
-                .as_ref()
-                != Some(&trust_record);
-        }
-        state.external_sif_bridge_generation_count = state
-            .external_sif_bridge_generation_count
-            .saturating_add(bridge_result.resolution.generation_count);
-    }
-
-    if changed {
-        invalidate_external_sif_dependents(state);
-    }
+    // A changed import topology requires the same contextual document admission
+    // as a full refresh. Updating context-free URL aliases cannot retain which
+    // importer selected a reused target. Equal topology still cuts off above.
+    refresh_external_sifs_for_state_immediate(state);
 }
 
 pub(crate) fn bridge_sources_for_style_uris(
@@ -395,6 +330,7 @@ pub fn collect_deferred_external_sif_refresh_with_cache_storage(
         lock_read_count: 0,
         bridge_generation_count: bridge_result.resolution.generation_count,
         trust_records: bridge_result.trust_records,
+        resolution_edges: bridge_result.resolution_edges,
     }
 }
 
@@ -419,7 +355,8 @@ pub fn apply_deferred_external_sif_refresh_result(
         .saturating_add(result.bridge_generation_count);
     let trust_records = external_sif_trust_record_map(result.trust_records);
     let changed = state.resolution.external_sifs != result.external_sifs
-        || state.resolution.external_sif_trust_records != trust_records;
+        || state.resolution.external_sif_trust_records != trust_records
+        || state.resolution.external_sif_resolution_edges != result.resolution_edges;
     crate::loop_trace!(
         "sif-apply gen={} changed={} sifs {}->{}",
         result.generation,
@@ -428,13 +365,20 @@ pub fn apply_deferred_external_sif_refresh_result(
         result.external_sifs.len()
     );
     if changed {
+        state.invalidate_sdk_snapshots_before_owner_mutation();
         // Cone seeding (rfcs#111 demand lattice): the republish owed by a
         // SIF delta is the set of files that import a CHANGED fact, not the
         // workspace. Computed BEFORE the swap so the old set is diffable.
-        let demand =
+        let mut demand =
             republish_demand_for_external_sif_delta(state, result.external_sifs.as_slice());
+        use crate::tide::TideDemandJoinV0;
+        demand.join(republish_demand_for_external_sif_resolution_delta(
+            state,
+            &result.resolution_edges,
+        ));
         state.resolution.external_sifs = result.external_sifs;
         state.resolution.external_sif_trust_records = trust_records;
+        state.resolution.external_sif_resolution_edges = result.resolution_edges;
         invalidate_external_sif_dependents(state);
         // Output cutoff (rfcs#111 §4.1): only a CHANGED SIF set owes the
         // workspace republish; an Eq result blocks downstream entirely.
@@ -448,6 +392,33 @@ pub fn apply_deferred_external_sif_refresh_result(
     state.resolution.bridge_external_sif_urls = result.bridge_external_sif_urls;
     state.tide_sif_lane.tide_completed(result.generation);
     changed
+}
+
+/// Mapping-only changes owe diagnostics even if the unordered SIF set is equal.
+/// Document origins have existing owner IDs; unattributable transitive contexts
+/// conservatively use the existing All demand, never a new identity issuer.
+fn republish_demand_for_external_sif_resolution_delta(
+    state: &LspShellState,
+    next: &[omena_query::OmenaQueryExternalSifResolutionEdgeV0],
+) -> TideRepublishDemandV0 {
+    use omena_query::OmenaQueryExternalSifImportOriginV0 as Origin;
+    let previous = state
+        .resolution
+        .external_sif_resolution_edges
+        .iter()
+        .collect::<BTreeSet<_>>();
+    let next = next.iter().collect::<BTreeSet<_>>();
+    let mut seeds = BTreeSet::new();
+    for edge in previous.symmetric_difference(&next) {
+        let Origin::Document { style_path } = &edge.importer else {
+            return TideRepublishDemandV0::All;
+        };
+        let Some(id) = state.known_document_file_id(style_path) else {
+            return TideRepublishDemandV0::All;
+        };
+        seeds.insert(id);
+    }
+    TideRepublishDemandV0::cone(seeds)
 }
 
 /// The republish demand a SIF delta deposits: `Cone(importers of every
@@ -578,19 +549,6 @@ fn discover_omena_lockfile_for_workspace_root(root: &Path) -> Option<PathBuf> {
     None
 }
 
-fn extend_unique_external_sifs(
-    output: &mut Vec<OmenaQueryExternalSifInputV0>,
-    covered: &mut BTreeSet<String>,
-    candidates: Vec<OmenaQueryExternalSifInputV0>,
-) {
-    for candidate in candidates {
-        if covered.insert(candidate.canonical_url.clone()) {
-            covered.insert(candidate.sif.canonical_url.clone());
-            output.push(candidate);
-        }
-    }
-}
-
 pub(crate) fn external_sif_trust_record_map(
     records: Vec<OmenaQueryExternalSifTrustV1>,
 ) -> BTreeMap<String, OmenaQueryExternalSifTrustV1> {
@@ -608,18 +566,10 @@ fn deduplicate_external_sif_trust_records(records: &mut Vec<OmenaQueryExternalSi
 
 fn resolve_in_process_external_sifs_for_lsp(
     state: &LspShellState,
-    existing_covered: &BTreeSet<String>,
+    _existing_covered: &BTreeSet<String>,
 ) -> OmenaQueryBridgeExternalSifTrustedResolutionV1 {
-    let mut existing_inputs = state
-        .resolution
-        .external_sifs
-        .iter()
-        .filter(|input| {
-            existing_covered.contains(input.canonical_url.as_str())
-                || existing_covered.contains(input.sif.canonical_url.as_str())
-        })
-        .cloned()
-        .collect::<Vec<_>>();
+    // Raw import aliases belong to their originating document. Reusing another
+    // document's alias can suppress admission of a different resolved target.
     let mut combined = OmenaQueryBridgeExternalSifTrustedResolutionV1::default();
     let mut bridge_urls = BTreeSet::new();
 
@@ -641,14 +591,14 @@ fn resolve_in_process_external_sifs_for_lsp(
         let result = if let Some(cache_storage) = cache_storage.as_ref() {
             resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage_and_trust(
                 std::slice::from_ref(&source),
-                existing_inputs.as_slice(),
+                &[],
                 &resolution_inputs,
                 cache_storage,
             )
         } else {
             resolve_omena_query_bridge_external_sifs_for_style_sources_with_trust(
                 std::slice::from_ref(&source),
-                existing_inputs.as_slice(),
+                &[],
                 &resolution_inputs,
             )
         };
@@ -658,20 +608,22 @@ fn resolve_in_process_external_sifs_for_lsp(
             .saturating_add(result.resolution.generation_count);
         bridge_urls.extend(result.resolution.bridge_urls);
         combined.trust_records.extend(result.trust_records);
+        combined.resolution_edges.extend(result.resolution_edges);
         for external_sif in result.resolution.external_sifs {
-            existing_inputs.push(external_sif.clone());
             combined.resolution.external_sifs.push(external_sif);
         }
     }
 
     combined.resolution.bridge_urls = bridge_urls.into_iter().collect();
     deduplicate_external_sif_trust_records(&mut combined.trust_records);
+    combined.resolution_edges.sort();
+    combined.resolution_edges.dedup();
     combined
 }
 
 fn resolve_external_sifs_for_refresh_documents(
     documents: &[LspExternalSifRefreshDocumentV0],
-    existing_external_sifs: &[OmenaQueryExternalSifInputV0],
+    _existing_external_sifs: &[OmenaQueryExternalSifInputV0],
     package_manifests: &[omena_query::OmenaQueryStylePackageManifestV0],
     resolution_inputs_by_workspace_uri: &std::collections::BTreeMap<
         String,
@@ -679,7 +631,6 @@ fn resolve_external_sifs_for_refresh_documents(
     >,
     cache_storage: Option<&LspExternalSifRefreshCacheStorageV0>,
 ) -> OmenaQueryBridgeExternalSifTrustedResolutionV1 {
-    let mut existing_inputs = existing_external_sifs.to_vec();
     let mut combined = OmenaQueryBridgeExternalSifTrustedResolutionV1::default();
     let mut bridge_urls = BTreeSet::new();
 
@@ -707,14 +658,14 @@ fn resolve_external_sifs_for_refresh_documents(
         let result = if let Some(document_cache_storage) = document_cache_storage {
             resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage_and_trust(
                 std::slice::from_ref(&source),
-                existing_inputs.as_slice(),
+                &[],
                 &resolution_inputs,
                 document_cache_storage,
             )
         } else {
             resolve_omena_query_bridge_external_sifs_for_style_sources_with_trust(
                 std::slice::from_ref(&source),
-                existing_inputs.as_slice(),
+                &[],
                 &resolution_inputs,
             )
         };
@@ -724,71 +675,32 @@ fn resolve_external_sifs_for_refresh_documents(
             .saturating_add(result.resolution.generation_count);
         bridge_urls.extend(result.resolution.bridge_urls);
         combined.trust_records.extend(result.trust_records);
+        combined.resolution_edges.extend(result.resolution_edges);
         for external_sif in result.resolution.external_sifs {
-            existing_inputs.push(external_sif.clone());
             combined.resolution.external_sifs.push(external_sif);
         }
     }
 
     combined.resolution.bridge_urls = bridge_urls.into_iter().collect();
     deduplicate_external_sif_trust_records(&mut combined.trust_records);
+    combined.resolution_edges.sort();
+    combined.resolution_edges.dedup();
     combined
 }
 
-fn resolve_bridge_external_sifs_for_sources<'a>(
-    state: &LspShellState,
-    sources: impl Iterator<Item = &'a str>,
-    existing_covered: &BTreeSet<String>,
-) -> OmenaQueryBridgeExternalSifTrustedResolutionV1 {
-    let mut combined = OmenaQueryBridgeExternalSifTrustedResolutionV1::default();
-    let mut covered = existing_covered.clone();
-    let mut bridge_urls = BTreeSet::new();
-    for source in sources
-        .filter(|source| source.starts_with("file://") && !existing_covered.contains(*source))
-    {
-        let owner = state.workspace_runtime_registry.resolve_owner_uri(source);
-        let cache_storage = bridge_cache_storage_for_document(state, owner.as_deref(), source);
-        let result = if let Some(cache_storage) = cache_storage.as_ref() {
-            resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage_and_trust(
-                std::iter::once((source.to_string(), source.to_string())),
-                &[],
-                &OmenaQueryStyleResolutionInputsV0::default(),
-                cache_storage,
-            )
-        } else {
-            resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_trust(
-                std::iter::once((source.to_string(), source.to_string())),
-                &[],
-                &OmenaQueryStyleResolutionInputsV0::default(),
-            )
-        };
-        combined.resolution.generation_count = combined
-            .resolution
-            .generation_count
-            .saturating_add(result.resolution.generation_count);
-        bridge_urls.extend(result.resolution.bridge_urls);
-        combined.trust_records.extend(result.trust_records);
-        extend_unique_external_sifs(
-            &mut combined.resolution.external_sifs,
-            &mut covered,
-            result.resolution.external_sifs,
-        );
-    }
-    combined.resolution.bridge_urls = bridge_urls.into_iter().collect();
-    deduplicate_external_sif_trust_records(&mut combined.trust_records);
-    combined
-}
-
-fn collect_bridge_sif_urls_for_sources<'a>(
-    state: &LspShellState,
-    sources: impl Iterator<Item = &'a str>,
-    existing_covered: &BTreeSet<String>,
-) -> BTreeSet<String> {
-    resolve_bridge_external_sifs_for_sources(state, sources, existing_covered)
-        .resolution
-        .bridge_urls
-        .into_iter()
-        .collect()
+fn bridge_storage_for_resolved_workspace_root(
+    workspace_cache_root: Option<PathBuf>,
+    workspace_identity: &str,
+    workspace_root: &Path,
+) -> OmenaQueryExternalSifStorageV0 {
+    OmenaQueryExternalSifStorageV0::from_optional_workspace_cache_root_and_verdict_dir(
+        workspace_cache_root,
+        workspace_identity,
+        workspace_root
+            .join(".cache")
+            .join("omena")
+            .join(OMENA_SIF_SHARD_VERDICT_DIR_V1),
+    )
 }
 
 fn bridge_cache_storage_for_workspace_uri(
@@ -801,19 +713,12 @@ fn bridge_cache_storage_for_workspace_uri(
         &state.resolution.cache_storage,
         workspace_folder_uri,
         workspace_root.as_path(),
-    )?;
-    Some(
-        OmenaQueryExternalSifStorageV0::from_workspace_cache_root_and_identity(
-            workspace_cache_root,
-            workspace_folder_uri,
-        )
-        .with_recorded_verdict_dir(
-            workspace_root
-                .join(".cache")
-                .join("omena")
-                .join(OMENA_SIF_SHARD_VERDICT_DIR_V1),
-        ),
-    )
+    );
+    Some(bridge_storage_for_resolved_workspace_root(
+        workspace_cache_root,
+        workspace_folder_uri,
+        workspace_root.as_path(),
+    ))
 }
 
 pub(crate) fn bridge_cache_storage_for_document(
@@ -831,19 +736,12 @@ pub(crate) fn bridge_cache_storage_for_document(
         &state.resolution.cache_storage,
         workspace_identity.as_ref(),
         document_root,
-    )?;
-    Some(
-        OmenaQueryExternalSifStorageV0::from_workspace_cache_root_and_identity(
-            workspace_cache_root,
-            workspace_identity,
-        )
-        .with_recorded_verdict_dir(
-            document_root
-                .join(".cache")
-                .join("omena")
-                .join(OMENA_SIF_SHARD_VERDICT_DIR_V1),
-        ),
-    )
+    );
+    Some(bridge_storage_for_resolved_workspace_root(
+        workspace_cache_root,
+        workspace_identity.as_ref(),
+        document_root,
+    ))
 }
 
 fn resolution_inputs_for_document(
@@ -862,14 +760,6 @@ fn resolution_inputs_for_document(
             package_manifests: state.resolution.package_manifests.clone(),
             ..OmenaQueryStyleResolutionInputsV0::default()
         })
-}
-
-fn active_bridge_sources_from_documents(state: &LspShellState) -> BTreeSet<String> {
-    let mut sources = BTreeSet::new();
-    for document in state.documents.values() {
-        collect_bridge_sources_from_style_document(document, &mut sources);
-    }
-    sources
 }
 
 fn collect_bridge_sources_from_style_document(
@@ -896,16 +786,48 @@ fn collect_bridge_sources_from_style_document(
     }
 }
 
-fn covered_external_sif_urls(inputs: &[OmenaQueryExternalSifInputV0]) -> BTreeSet<String> {
-    inputs
-        .iter()
-        .flat_map(|input| [input.canonical_url.clone(), input.sif.canonical_url.clone()])
-        .collect()
-}
-
 fn invalidate_external_sif_dependents(state: &mut LspShellState) {
     *state.workspace_occurrence_index_memo_lock() = None;
     if let Ok(mut memo) = state.cascade_narrowing_substrate_memo.lock() {
         *memo = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bridge_storage_retains_importing_root_verdict_when_cache_is_unavailable() {
+        let first = Path::new("/workspace/a");
+        let second = Path::new("/workspace/b");
+        for (identity, root) in [
+            ("file:///workspace/a", first),
+            ("file:///workspace/b", second),
+        ] {
+            let expected_verdict = root
+                .join(".cache/omena")
+                .join(OMENA_SIF_SHARD_VERDICT_DIR_V1);
+            let disabled = bridge_storage_for_resolved_workspace_root(None, identity, root);
+            assert_eq!(disabled.workspace_cache_root(), None);
+            assert_eq!(
+                disabled.recorded_verdict_dir(),
+                Some(expected_verdict.as_path())
+            );
+            let configured_cache = PathBuf::from("/configured/editor/cache");
+            let enabled = bridge_storage_for_resolved_workspace_root(
+                Some(configured_cache.clone()),
+                identity,
+                root,
+            );
+            assert_eq!(
+                enabled.workspace_cache_root(),
+                Some(configured_cache.as_path())
+            );
+            assert_eq!(
+                enabled.recorded_verdict_dir(),
+                disabled.recorded_verdict_dir()
+            );
+        }
     }
 }

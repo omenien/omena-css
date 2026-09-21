@@ -16,7 +16,8 @@ use crate::{
     OmenaSdkDiagnosticsRequestV0, OmenaSdkDiagnosticsResponseV0, OmenaSdkExplainRequestV0,
     OmenaSdkExplainResponseV0, OmenaSdkQueryRequestV0, OmenaSdkQueryResponseV0,
     OmenaSdkResponsePartitionV0, OmenaSdkSnapshotRequestV0, OmenaSdkSnapshotResponseV0,
-    OmenaWorkspaceSnapshotIdV0, ParserPositionV0, attach_omena_query_consumer_build_source_map_v3,
+    OmenaSdkSourceDiagnosticsRequestV0, OmenaWorkspaceSnapshotIdV0, ParserPositionV0,
+    attach_omena_query_consumer_build_source_map_v3,
     execute_omena_query_consumer_build_style_source_with_context_and_options,
     execute_omena_sdk_diagnostics_workflow, explain_omena_query,
     read_omena_query_cascade_at_position, resolve_omena_bundler_host_module_v0,
@@ -31,6 +32,61 @@ pub struct OmenaSdkWorkspaceV0 {
     style_sources: BTreeMap<String, String>,
     style_resolution_inputs: OmenaQueryStyleResolutionInputsV0,
     revision: IncrementalRevisionV0,
+    bound_snapshot: Option<BoundWorkspaceSnapshot>,
+}
+
+#[derive(Debug)]
+struct BoundWorkspaceSnapshot {
+    binding: crate::OmenaWorkspaceSnapshotBindingV0,
+    reader: crate::OmenaWorkspaceSnapshotReaderV0,
+    owner: Option<crate::OmenaWorkspaceSnapshotPublisherV0>,
+    imported_utility: Option<std::sync::Arc<crate::OmenaQueryUtilityClassIntelligenceReportV0>>,
+    styles: Vec<OmenaQueryStyleSourceInputV0>,
+    sources: Vec<crate::OmenaQuerySourceDocumentInputV0>,
+    languages: BTreeMap<String, String>,
+    providers: BTreeMap<String, crate::OmenaWorkspaceSourceProviderInputsV0>,
+    transfer: crate::OmenaWorkspaceSnapshotTransferV0,
+    external_sifs: Vec<crate::OmenaQueryExternalSifInputV0>,
+    trust_records: BTreeMap<String, crate::OmenaQueryExternalSifTrustV1>,
+    resolution_edges: Vec<crate::OmenaQueryExternalSifResolutionEdgeV0>,
+}
+
+impl Clone for BoundWorkspaceSnapshot {
+    fn clone(&self) -> Self {
+        Self {
+            binding: self.binding.clone(),
+            reader: self.reader.clone(),
+            owner: None,
+            imported_utility: self.imported_utility.clone(),
+            styles: self.styles.clone(),
+            sources: self.sources.clone(),
+            languages: self.languages.clone(),
+            providers: self.providers.clone(),
+            transfer: self.transfer.clone(),
+            external_sifs: self.external_sifs.clone(),
+            trust_records: self.trust_records.clone(),
+            resolution_edges: self.resolution_edges.clone(),
+        }
+    }
+}
+
+impl BoundWorkspaceSnapshot {
+    fn inputs<'a>(&'a self, root: &'a str) -> crate::OmenaWorkspaceSnapshotInputsV0<'a> {
+        crate::OmenaWorkspaceSnapshotInputsV0 {
+            workspace_root: root,
+            style_sources: &self.styles,
+            source_documents: &self.sources,
+            source_language_ids: &self.languages,
+            source_provider_inputs: &self.providers,
+            package_manifests: &self.transfer.package_manifests,
+            external_sifs: &self.external_sifs,
+            external_sif_trust_records: &self.trust_records,
+            external_sif_resolution_edges: &self.resolution_edges,
+            resolution_inputs: &self.transfer.resolution_inputs,
+            settings: &self.transfer.settings,
+            source_corpus_complete: self.transfer.source_corpus_complete,
+        }
+    }
 }
 
 impl OmenaSdkWorkspaceV0 {
@@ -105,7 +161,195 @@ impl OmenaSdkWorkspaceV0 {
             style_sources: sources,
             style_resolution_inputs,
             revision: snapshot_id.revision(),
+            bound_snapshot: None,
         })
+    }
+
+    /// Import an explicit binding after reconstructing source facts from actual
+    /// receiver-owned text. External trust claims are not a wire input: receivers
+    /// independently regenerate local bridge facts through the existing trust path.
+    pub fn open_imported_snapshot(
+        request: OmenaSdkSnapshotRequestV0,
+        styles: Vec<OmenaQueryStyleSourceInputV0>,
+        transfer: crate::OmenaWorkspaceSnapshotTransferV0,
+        binding: crate::OmenaWorkspaceSnapshotBindingV0,
+        utility: &crate::OmenaQueryUtilityClassIntelligenceReportV0,
+    ) -> Result<Self, OmenaError> {
+        let sources = crate::reconstruct_omena_workspace_snapshot_sources_v0(
+            &request.workspace_root,
+            &transfer.sources,
+            &styles,
+            &transfer.resolution_inputs,
+            utility,
+        )?;
+        let mut owner = crate::OmenaWorkspaceSnapshotPublisherV0::default();
+        let languages = transfer
+            .sources
+            .iter()
+            .map(|source| (source.source_path.clone(), source.language_id.clone()))
+            .collect();
+        let providers = transfer
+            .sources
+            .iter()
+            .filter_map(|source| {
+                source
+                    .provider_inputs
+                    .clone()
+                    .map(|provider| (source.source_path.clone(), provider))
+            })
+            .collect();
+        let mut styles = styles;
+        styles.sort_by(|left, right| left.style_path.cmp(&right.style_path));
+        let (external_sifs, trust_records, resolution_edges) = admit_snapshot_external_sifs(
+            &request.workspace_root,
+            &styles,
+            &transfer.resolution_inputs,
+        )?;
+        owner.import(
+            &binding,
+            crate::OmenaWorkspaceSnapshotInputsV0 {
+                workspace_root: &request.workspace_root,
+                style_sources: &styles,
+                source_documents: &sources,
+                source_language_ids: &languages,
+                source_provider_inputs: &providers,
+                package_manifests: &transfer.package_manifests,
+                external_sifs: &external_sifs,
+                external_sif_trust_records: &trust_records,
+                external_sif_resolution_edges: &resolution_edges,
+                resolution_inputs: &transfer.resolution_inputs,
+                settings: &transfer.settings,
+                source_corpus_complete: transfer.source_corpus_complete,
+            },
+        )?;
+        let mut workspace = Self::open_owned_snapshot(
+            request,
+            styles,
+            transfer,
+            sources,
+            external_sifs,
+            trust_records,
+            resolution_edges,
+            binding,
+            owner.reader(),
+        )?;
+        if let Some(bound) = &mut workspace.bound_snapshot {
+            bound.owner = Some(owner);
+            bound.imported_utility = Some(std::sync::Arc::new(utility.clone()));
+        }
+        Ok(workspace)
+    }
+
+    /// Attach the existing owner's admitted input view. The publisher validates
+    /// every family; this does not create or replace LSP committed/editor state.
+    pub fn open_owned_snapshot(
+        request: OmenaSdkSnapshotRequestV0,
+        mut styles: Vec<OmenaQueryStyleSourceInputV0>,
+        transfer: crate::OmenaWorkspaceSnapshotTransferV0,
+        sources: Vec<crate::OmenaQuerySourceDocumentInputV0>,
+        external_sifs: Vec<crate::OmenaQueryExternalSifInputV0>,
+        trust_records: BTreeMap<String, crate::OmenaQueryExternalSifTrustV1>,
+        resolution_edges: Vec<crate::OmenaQueryExternalSifResolutionEdgeV0>,
+        binding: crate::OmenaWorkspaceSnapshotBindingV0,
+        reader: crate::OmenaWorkspaceSnapshotReaderV0,
+    ) -> Result<Self, OmenaError> {
+        styles.sort_by(|left, right| left.style_path.cmp(&right.style_path));
+        let mut workspace = Self::open_at_snapshot_with_resolution_inputs(
+            request,
+            styles.clone(),
+            binding.snapshot_id(),
+            transfer.resolution_inputs.clone(),
+        )?;
+        let bound = BoundWorkspaceSnapshot {
+            binding,
+            reader,
+            owner: None,
+            imported_utility: None,
+            styles,
+            sources,
+            languages: transfer
+                .sources
+                .iter()
+                .map(|source| (source.source_path.clone(), source.language_id.clone()))
+                .collect(),
+            providers: transfer
+                .sources
+                .iter()
+                .filter_map(|source| {
+                    source
+                        .provider_inputs
+                        .clone()
+                        .map(|provider| (source.source_path.clone(), provider))
+                })
+                .collect(),
+            transfer,
+            external_sifs,
+            trust_records,
+            resolution_edges,
+        };
+        bound
+            .reader
+            .read_view(&bound.binding, bound.inputs(&workspace.workspace_root))?;
+        workspace.bound_snapshot = Some(bound);
+        Ok(workspace)
+    }
+
+    pub fn snapshot_binding(&self) -> Option<&crate::OmenaWorkspaceSnapshotBindingV0> {
+        self.bound_snapshot.as_ref().map(|bound| &bound.binding)
+    }
+
+    pub fn export_snapshot(&self) -> Result<serde_json::Value, OmenaError> {
+        let bound = self.bound_snapshot.as_ref().ok_or_else(|| {
+            sdk_error(
+                OmenaErrorClassV0::Workspace,
+                "snapshot export requires an admitted owner view",
+                "workspace.snapshot-binding-required",
+                OmenaErrorRecoverabilityV0::Retry,
+            )
+        })?;
+        bound.reader.with_current_binding(&bound.binding, || serde_json::json!({
+            "snapshot": self.snapshot(), "styleSources": bound.styles, "snapshotInputs": bound.transfer,
+        }))
+    }
+
+    pub fn snapshot_read_view(
+        &self,
+    ) -> Result<crate::OmenaWorkspaceSnapshotReadViewV0<'_>, OmenaError> {
+        let bound = self.bound_snapshot.as_ref().ok_or_else(|| {
+            sdk_error(
+                OmenaErrorClassV0::Workspace,
+                "workspace has no admitted bound snapshot",
+                "workspace.snapshot-binding-required",
+                OmenaErrorRecoverabilityV0::Retry,
+            )
+        })?;
+        bound
+            .reader
+            .read_view(&bound.binding, bound.inputs(&self.workspace_root))
+    }
+
+    pub fn ensure_snapshot_binding(
+        &self,
+        binding: &crate::OmenaWorkspaceSnapshotBindingV0,
+    ) -> Result<(), OmenaError> {
+        let bound = self.bound_snapshot.as_ref().ok_or_else(|| {
+            sdk_error(
+                OmenaErrorClassV0::Workspace,
+                "a bound request requires an imported or owner snapshot",
+                "workspace.snapshot-binding-required",
+                OmenaErrorRecoverabilityV0::Retry,
+            )
+        })?;
+        bound.reader.with_current_binding(binding, || ())?;
+        if &bound.binding != binding {
+            return Err(sdk_error(
+                OmenaErrorClassV0::Workspace,
+                "request binding differs from this snapshot view",
+                "workspace.snapshot-mismatch",
+                OmenaErrorRecoverabilityV0::Retry,
+            ));
+        }
+        Ok(())
     }
 
     pub fn snapshot_id(&self) -> OmenaWorkspaceSnapshotIdV0 {
@@ -124,6 +368,9 @@ impl OmenaSdkWorkspaceV0 {
         &mut self,
         style_sources: impl IntoIterator<Item = OmenaQueryStyleSourceInputV0>,
     ) -> Result<OmenaSdkSnapshotResponseV0, OmenaError> {
+        if let Some(bound) = &self.bound_snapshot {
+            bound.reader.with_current_binding(&bound.binding, || ())?;
+        }
         let mut replacement = BTreeMap::new();
         for source in style_sources {
             let style_path = normalize_style_path(source.style_path.as_str());
@@ -140,8 +387,81 @@ impl OmenaSdkWorkspaceV0 {
             }
         }
         if replacement != self.style_sources {
-            self.style_sources = replacement;
-            self.revision.value = self.revision.value.saturating_add(1);
+            let next = self
+                .revision
+                .value
+                .checked_add(1)
+                .ok_or_else(snapshot_revision_exhausted)?;
+            if let Some(bound) = &mut self.bound_snapshot {
+                bound.reader.with_current_binding(&bound.binding, || ())?;
+                if bound.owner.is_none() {
+                    return Err(sdk_error(
+                        OmenaErrorClassV0::Workspace,
+                        "a request clone must submit mutations to its existing workspace owner",
+                        "workspace.snapshot-owner-required",
+                        OmenaErrorRecoverabilityV0::Retry,
+                    ));
+                }
+                let next_styles = replacement
+                    .iter()
+                    .map(|(path, source)| OmenaQueryStyleSourceInputV0 {
+                        style_path: path.clone(),
+                        style_source: source.clone(),
+                    })
+                    .collect::<Vec<_>>();
+                let utility = bound.imported_utility.as_deref().ok_or_else(|| {
+                    sdk_error(
+                        OmenaErrorClassV0::Workspace,
+                        "source replacement requires the owner's admitted utility inputs",
+                        "workspace.snapshot-full-replacement-required",
+                        OmenaErrorRecoverabilityV0::Retry,
+                    )
+                })?;
+                // Resolve imports and provider projections against the replacement
+                // styles before changing any current owner inputs or publication.
+                let next_sources = crate::reconstruct_omena_workspace_snapshot_sources_v0(
+                    &self.workspace_root,
+                    &bound.transfer.sources,
+                    &next_styles,
+                    &bound.transfer.resolution_inputs,
+                    utility,
+                )?;
+                let (next_sifs, next_trust, next_edges) = admit_snapshot_external_sifs(
+                    &self.workspace_root,
+                    &next_styles,
+                    &bound.transfer.resolution_inputs,
+                )?;
+                let mut owner = bound.owner.take().ok_or_else(|| {
+                    sdk_error(
+                        OmenaErrorClassV0::Workspace,
+                        "a request clone must submit mutations to its existing workspace owner",
+                        "workspace.snapshot-owner-required",
+                        OmenaErrorRecoverabilityV0::Retry,
+                    )
+                })?;
+                let result = (|| {
+                    owner.begin_mutation(&bound.binding)?;
+                    bound.styles = next_styles;
+                    bound.sources = next_sources;
+                    bound.external_sifs = next_sifs;
+                    bound.trust_records = next_trust;
+                    bound.resolution_edges = next_edges;
+                    self.style_sources = replacement;
+                    bound.binding = owner.publish(
+                        bound.inputs(&self.workspace_root),
+                        OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 {
+                            value: next,
+                        }),
+                    )?;
+                    self.revision = bound.binding.snapshot_id().revision();
+                    Ok(())
+                })();
+                bound.owner = Some(owner);
+                result?;
+            } else {
+                self.style_sources = replacement;
+                self.revision.value = next;
+            }
         }
         Ok(self.snapshot())
     }
@@ -149,12 +469,25 @@ impl OmenaSdkWorkspaceV0 {
     pub fn replace_style_resolution_inputs(
         &mut self,
         style_resolution_inputs: OmenaQueryStyleResolutionInputsV0,
-    ) -> OmenaSdkSnapshotResponseV0 {
+    ) -> Result<OmenaSdkSnapshotResponseV0, OmenaError> {
         if style_resolution_inputs != self.style_resolution_inputs {
+            if self.bound_snapshot.is_some() {
+                return Err(sdk_error(
+                    OmenaErrorClassV0::Workspace,
+                    "resolver mutation requires replacement of the complete admitted source-fact view",
+                    "workspace.snapshot-full-replacement-required",
+                    OmenaErrorRecoverabilityV0::Retry,
+                ));
+            }
+            let next = self
+                .revision
+                .value
+                .checked_add(1)
+                .ok_or_else(snapshot_revision_exhausted)?;
             self.style_resolution_inputs = style_resolution_inputs;
-            self.revision.value = self.revision.value.saturating_add(1);
+            self.revision.value = next;
         }
-        self.snapshot()
+        Ok(self.snapshot())
     }
 
     pub fn execute_query(
@@ -237,6 +570,52 @@ impl OmenaSdkWorkspaceV0 {
         .map_err(serialize_error)
     }
 
+    pub fn execute_snapshot_source_diagnostics(
+        &self,
+        request: OmenaSdkSourceDiagnosticsRequestV0,
+    ) -> Result<OmenaQuerySourceDiagnosticsForFileV0, OmenaError> {
+        self.ensure_snapshot(request.snapshot_id, "source diagnostics")?;
+        let bound = self.bound_snapshot.as_ref().ok_or_else(|| {
+            sdk_error(
+                OmenaErrorClassV0::Workspace,
+                "source snapshot diagnostics require admitted source facts",
+                "workspace.snapshot-binding-required",
+                OmenaErrorRecoverabilityV0::Retry,
+            )
+        })?;
+        let document = bound
+            .sources
+            .iter()
+            .find(|source| source.source_path == request.source_path)
+            .ok_or_else(|| {
+                sdk_error(
+                    OmenaErrorClassV0::Workspace,
+                    "source document is absent from the snapshot",
+                    "workspace.source-not-found",
+                    OmenaErrorRecoverabilityV0::Retry,
+                )
+            })?;
+        let index = document.source_syntax_index.as_ref().ok_or_else(|| {
+            sdk_error(
+                OmenaErrorClassV0::Workspace,
+                "source facts have not been admitted",
+                "workspace.source-provider-admission",
+                OmenaErrorRecoverabilityV0::Retry,
+            )
+        })?;
+        let definitions =
+            crate::style::summarize_omena_query_style_selector_definitions(&bound.styles);
+        Ok(if bound.transfer.settings.deep_analysis {
+            crate::summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index_and_definitions(
+                &document.source_path, &document.source_source, index, &definitions, &bound.styles,
+            )
+        } else {
+            crate::summarize_omena_query_source_baseline_diagnostics_for_workspace_file_with_source_syntax_index_and_definitions(
+                &document.source_path, &document.source_source, index, &definitions, &bound.styles,
+            )
+        })
+    }
+
     pub fn execute_source_diagnostics(
         &self,
         snapshot_id: OmenaWorkspaceSnapshotIdV0,
@@ -245,6 +624,23 @@ impl OmenaSdkWorkspaceV0 {
         package_manifests: &[OmenaQueryStylePackageManifestV0],
     ) -> Result<OmenaQuerySourceDiagnosticsForFileV0, OmenaError> {
         self.ensure_snapshot(snapshot_id, "source diagnostics")?;
+        if let Some(bound) = &self.bound_snapshot {
+            if !bound.sources.iter().any(|document| {
+                document.source_path == source_path && document.source_source == source
+            }) || bound.transfer.package_manifests != package_manifests
+            {
+                return Err(sdk_error(
+                    OmenaErrorClassV0::Workspace,
+                    "source diagnostics inputs differ from the bound snapshot",
+                    "workspace.source-input-mismatch",
+                    OmenaErrorRecoverabilityV0::Retry,
+                ));
+            }
+            return self.execute_snapshot_source_diagnostics(OmenaSdkSourceDiagnosticsRequestV0 {
+                snapshot_id,
+                source_path: source_path.to_string(),
+            });
+        }
         let style_sources = self.style_source_inputs();
         Ok(
             summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs(
@@ -264,6 +660,18 @@ impl OmenaSdkWorkspaceV0 {
         package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
     ) -> Result<OmenaBundlerHostResolveModuleResponseV0, OmenaError> {
         self.ensure_snapshot(snapshot_id, "bundler resolve")?;
+        if self
+            .bound_snapshot
+            .as_ref()
+            .is_some_and(|bound| bound.transfer.package_manifests != package_manifests)
+        {
+            return Err(sdk_error(
+                OmenaErrorClassV0::Workspace,
+                "bundler manifests differ from the bound snapshot",
+                "workspace.manifest-input-mismatch",
+                OmenaErrorRecoverabilityV0::Retry,
+            ));
+        }
         Ok(resolve_omena_bundler_host_module_v0(
             OmenaBundlerHostResolveModuleRequestV0 {
                 snapshot_id: self.snapshot_id(),
@@ -376,6 +784,9 @@ impl OmenaSdkWorkspaceV0 {
         requested: OmenaWorkspaceSnapshotIdV0,
         operation: &str,
     ) -> Result<(), OmenaError> {
+        if let Some(bound) = &self.bound_snapshot {
+            bound.reader.with_current_binding(&bound.binding, || ())?;
+        }
         if requested == self.snapshot_id() {
             return Ok(());
         }
@@ -551,5 +962,61 @@ fn sdk_error(
             recoverability,
             evidence: Vec::new(),
         },
+    )
+}
+
+fn admit_snapshot_external_sifs(
+    workspace_root: &str,
+    styles: &[OmenaQueryStyleSourceInputV0],
+    resolution: &OmenaQueryStyleResolutionInputsV0,
+) -> Result<
+    (
+        Vec<crate::OmenaQueryExternalSifInputV0>,
+        BTreeMap<String, crate::OmenaQueryExternalSifTrustV1>,
+        Vec<crate::OmenaQueryExternalSifResolutionEdgeV0>,
+    ),
+    OmenaError,
+> {
+    // Independently admit each document's resolved targets, as the LSP owner
+    // does. Another document's equal raw alias cannot suppress this admission.
+    // The bridge reads actual sources and supplies trust on import/mutation;
+    // transported lock/trust assertions never enter this path.
+    let storage = crate::OmenaQueryExternalSifStorageV0::for_process_workspace_root(workspace_root);
+    let mut external_sifs = Vec::new();
+    let mut trust_records = BTreeMap::new();
+    let mut resolution_edges = Vec::new();
+    for style in styles {
+        let admitted = match storage.as_ref() {
+            Some(storage) => crate::resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage_and_trust(
+                std::slice::from_ref(style), &[], resolution, storage,
+            ),
+            None => crate::resolve_omena_query_bridge_external_sifs_for_style_sources_with_trust(
+                std::slice::from_ref(style), &[], resolution,
+            ),
+        };
+        resolution_edges.extend(admitted.resolution_edges);
+        external_sifs.extend(admitted.resolution.external_sifs);
+        trust_records.extend(
+            admitted
+                .trust_records
+                .into_iter()
+                .map(|record| (record.canonical_url.clone(), record)),
+        );
+    }
+    crate::select_omena_workspace_snapshot_external_sifs_v0(
+        styles,
+        resolution,
+        &external_sifs,
+        &trust_records,
+        &resolution_edges,
+    )
+}
+
+fn snapshot_revision_exhausted() -> OmenaError {
+    sdk_error(
+        OmenaErrorClassV0::Workspace,
+        "workspace snapshot revision space is exhausted",
+        "workspace.snapshot-revision-exhausted",
+        OmenaErrorRecoverabilityV0::Retry,
     )
 }

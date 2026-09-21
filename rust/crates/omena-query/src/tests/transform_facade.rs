@@ -1836,6 +1836,7 @@ fn bundle_evidence_consumes_sif_hashes_and_precision_deterministically() -> Resu
     )
     .map_err(|error| error.to_string())?;
     let external_sifs = vec![OmenaQueryExternalSifInputV0 {
+        admitted_resolution_edges: Vec::new(),
         canonical_url: "src/app.css".to_string(),
         sif,
     }];

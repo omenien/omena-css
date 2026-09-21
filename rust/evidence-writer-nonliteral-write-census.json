@@ -2021,7 +2021,7 @@
     {
       "fingerprint": "bccce75498bce0ce82f50825593344a55fe23f48543d49045b174dbfa2ded84b",
       "writerScript": "scripts/check-rust-omena-sdk-workflow-parity.ts",
-      "line": 164,
+      "line": 195,
       "writeApi": "writeFileSync",
       "writeExpression": "matrixPath",
       "disposition": "unswept-registry-writer"
@@ -2029,7 +2029,7 @@
     {
       "fingerprint": "4784111a1b0936cc6303d3d282d47494a4a29264f105b6393a2e3fcebe121072",
       "writerScript": "scripts/check-rust-omena-sdk-workflow-parity.ts",
-      "line": 254,
+      "line": 285,
       "writeApi": "copyFileSync",
       "writeExpression": "path.join(targetDir, \"release\", libraryName)",
       "disposition": "unswept-registry-writer"
@@ -2037,7 +2037,7 @@
     {
       "fingerprint": "2b5db4685f33baa345f6a34f62715ca61f7642ce5ba4d84f5593047065b937c3",
       "writerScript": "scripts/check-rust-omena-sdk-workflow-parity.ts",
-      "line": 274,
+      "line": 305,
       "writeApi": "writeFileSync",
       "writeExpression": "inputPath",
       "disposition": "unswept-registry-writer"
@@ -2045,7 +2045,7 @@
     {
       "fingerprint": "770f925690f6627e3bc4d2110af4b4c59f56282b034cacbebd77e5064a11a15e",
       "writerScript": "scripts/check-rust-omena-sdk-workflow-parity.ts",
-      "line": 357,
+      "line": 431,
       "writeApi": "writeFileSync",
       "writeExpression": "requestPath",
       "disposition": "unswept-registry-writer"
@@ -2445,7 +2445,7 @@
     {
       "fingerprint": "67291b8761e102c2fc9937fac4c9e9803796f56558ffc0845919c42096858018",
       "writerScript": "scripts/generate-engine-v2-contract-idl.ts",
-      "line": 121,
+      "line": 124,
       "writeApi": "writeFileSync",
       "writeExpression": "absolutePath",
       "disposition": "declared-writer-sweep"
@@ -2453,7 +2453,7 @@
     {
       "fingerprint": "90a96dd86165c81bbdee8e27bd350928c0d8f90845b4e8969cf2868109a47d06",
       "writerScript": "scripts/generate-engine-v2-contract-idl.ts",
-      "line": 334,
+      "line": 337,
       "writeApi": "writeFileSync",
       "writeExpression": "tempFile",
       "disposition": "declared-writer-sweep"

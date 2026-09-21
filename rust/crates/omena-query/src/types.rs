@@ -1851,6 +1851,10 @@ pub struct OmenaQueryStyleSourceInputV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryExternalSifInputV0 {
+    /// Existing local admission provenance. Wire inputs cannot supply this;
+    /// imported snapshots reconstruct it independently before binding.
+    #[serde(skip)]
+    pub admitted_resolution_edges: Vec<crate::OmenaQueryExternalSifResolutionEdgeV0>,
     pub canonical_url: String,
     pub sif: OmenaSifV1,
 }
