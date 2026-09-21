@@ -381,7 +381,7 @@
     {
       "fingerprint": "3a62841878de2c034d4e6753615156b3d0ea151b60e998fce81d993afd1627d8",
       "writerScript": "scripts/check-docs-reference-surface.ts",
-      "line": 858,
+      "line": 860,
       "writeApi": "writeFileSync",
       "writeExpression": "absolutePath",
       "disposition": "declared-writer-sweep"
@@ -389,7 +389,7 @@
     {
       "fingerprint": "f73d97ea20bee22995a683180e8b9e7e849446bf8b831203a35d5834e1a21788",
       "writerScript": "scripts/check-docs-reference-surface.ts",
-      "line": 1134,
+      "line": 1136,
       "writeApi": "writeFileSync",
       "writeExpression": "path.join(fixtureRoot, \"src/input.css\")",
       "disposition": "declared-writer-sweep"
@@ -397,7 +397,7 @@
     {
       "fingerprint": "b2fa75230c0a6c94aaf8339a9dacee7b56227c5aab6c41636f2b4ef25960d2bb",
       "writerScript": "scripts/check-docs-reference-surface.ts",
-      "line": 1135,
+      "line": 1137,
       "writeApi": "writeFileSync",
       "writeExpression": "path.join(fixtureRoot, \"omena.toml\")",
       "disposition": "declared-writer-sweep"
@@ -405,7 +405,7 @@
     {
       "fingerprint": "2ae2a8e90a62353d0bd7981d01012cdcf07beb80dfb6e333fcdf3f7a37ed6b27",
       "writerScript": "scripts/check-docs-reference-surface.ts",
-      "line": 1182,
+      "line": 1184,
       "writeApi": "writeFileSync",
       "writeExpression": "destination",
       "disposition": "declared-writer-sweep"

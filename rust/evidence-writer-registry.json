@@ -2609,6 +2609,7 @@
       "consumerPaths": [
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/omena-response-surface-split-census.json",
+        "rust/omena-rust-semver-intent.json",
         "scripts/check-engine-v2-contract-idl-decisions.ts",
         "scripts/check-engine-v2-contract-idl-toolchain.ts",
         "scripts/engine-v2-contract-idl-files.ts",
@@ -2654,12 +2655,14 @@
       "consumerPaths": [
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
         "rust/omena-sdk-error-mapping-census.json",
+        "scripts/check-engine-v2-contract-idl-decisions.ts",
         "scripts/check-rust-omena-sdk-error-mapping-census.ts",
         "scripts/check-rust-ranked-set-loss-census.ts",
         "scripts/engine-v2-contract-idl-files.ts",
         "scripts/generate-engine-v2-contract-idl.ts"
       ],
       "consumerGateIds": [
+        "contract/engine-v2-contract-idl-decisions",
         "contract/engine-v2-contract-idl-generated",
         "contract/external-corpus-envelope-contract-idl-generated",
         "rust/omena-cascade/property-metadata",
@@ -3029,12 +3032,14 @@
       "writerGateIds": ["rust/omena-query/public-surface:update"],
       "consumerPaths": [
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
-        "scripts/check-rust-omena-query-public-surface.ts"
+        "scripts/check-rust-omena-query-public-surface.ts",
+        "test/unit/check-orchestrator/evidence-affected.test.ts"
       ],
       "consumerGateIds": [
         "rust/omena-query/public-surface",
         "rust/omena-query/public-surface-all-features",
-        "rust/omena-query/public-surface:update"
+        "rust/omena-query/public-surface:update",
+        "tooling/evidence-affected-map"
       ]
     },
     {
@@ -6208,6 +6213,7 @@
       "writerGateIds": [],
       "consumerPaths": [
         "packages/check-orchestrator/src/evidence/writer-command-authority.ts",
+        "rust/crates/omena-engine-input-producers/src/lib.rs",
         "rust/crates/omena-engine-input-producers/tests/engine_contract_v2_idl_generated.rs"
       ],
       "consumerGateIds": []
