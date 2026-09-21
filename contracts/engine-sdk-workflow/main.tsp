@@ -23,23 +23,39 @@ model OmenaWorkspaceSnapshotSourceV0 {
   providerInputs?: OmenaWorkspaceSourceProviderInputsV0;
 }
 
-model OmenaWorkspaceProviderSpanV0 { start: safeint; end: safeint; }
-model OmenaWorkspaceProviderResolvedTypeV0 { kind: string; values: string[]; }
+model OmenaWorkspaceProviderSpanV0 {
+  start: safeint;
+  end: safeint;
+}
+model OmenaWorkspaceProviderResolvedTypeV0 {
+  kind: string;
+  values: string[];
+}
 model OmenaWorkspaceProviderResultV0 {
-  filePath: string; expressionId: string; byteSpan: OmenaWorkspaceProviderSpanV0;
+  filePath: string;
+  expressionId: string;
+  byteSpan: OmenaWorkspaceProviderSpanV0;
   resolvedType: OmenaWorkspaceProviderResolvedTypeV0;
 }
 model OmenaWorkspaceProviderSpanResultV0 {
-  filePath: string; expressionId: string; byteSpan: OmenaWorkspaceProviderSpanV0;
-  outcome: string; reason: string; spanExact: boolean;
-  nonNullishMemberCount: safeint; resolvedMemberCount: safeint;
+  filePath: string;
+  expressionId: string;
+  byteSpan: OmenaWorkspaceProviderSpanV0;
+  outcome: string;
+  reason: string;
+  spanExact: boolean;
+  nonNullishMemberCount: safeint;
+  resolvedMemberCount: safeint;
   resolvedType: OmenaWorkspaceProviderResolvedTypeV0;
 }
 model OmenaWorkspaceProviderUnavailableV0 {
-  expressionId: string; byteSpan: OmenaWorkspaceProviderSpanV0; reason: string;
+  expressionId: string;
+  byteSpan: OmenaWorkspaceProviderSpanV0;
+  reason: string;
 }
 model OmenaWorkspaceSourceProviderInputsV0 {
-  providerId: "tsgo"; sourceDigest: string;
+  providerId: "tsgo";
+  sourceDigest: string;
   entries: OmenaWorkspaceProviderResultV0[];
   spanEntries: OmenaWorkspaceProviderSpanResultV0[];
   unavailable: OmenaWorkspaceProviderUnavailableV0[];
@@ -174,10 +190,14 @@ model OmenaSdkSnapshotResponseV0 {
   workspaceRoot: string;
 }
 
+model OmenaSdkStyleQueryInputV0 {
+  stylePath: string;
+}
+
 model OmenaSdkQueryRequestV0 {
   snapshotId: OmenaWorkspaceSnapshotIdV0;
   queryKind: string;
-  input?: Omena.EngineNapi.EngineNapiEngineInputV2;
+  input?: OmenaSdkStyleQueryInputV0;
 }
 
 model OmenaSdkQueryResponseV0 {

@@ -776,7 +776,7 @@
               "sourcePath": "rust/crates/omena-query/tests/workspace_snapshot_contract.rs",
               "needles": [
                 "fn admitted_sif_legacy_json_roundtrip_loses_equality_and_contextual_selection()",
-                "assert_ne!(admitted, decoded,",
+                "assert_ne!(\n        admitted, decoded,",
                 "assert_ne!(before, after);"
               ]
             }
@@ -812,8 +812,42 @@
               ]
             },
             {
-              "sourcePath": "rust/crates/omena-wasm/src/sdk_workspace.rs",
+              "sourcePath": "rust/crates/omena-wasm/src/sdk_workspace_test_fixture.rs",
               "needles": ["fn private_replacement_refusal_fixture()"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-engine-input-producers",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor replaces opaque EngineInput document/binding payloads and selector composition JSON values with IDL-generated Rust types. Rust callers constructing these fields must migrate to typed values; valid existing corpus inputs retain their engine outputs. cargo-semver-checks currently reports no diagnostic for this field-type migration, which is not a claim of constructor compatibility.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "engine-input-typed-document-admission",
+          "kind": "selection-outcome-changing",
+          "surface": "EngineInputV2 source/style documents, binding graph and nested selector compositions",
+          "reason": "Malformed nested payloads previously ignored or dynamically filtered are rejected during typed wire deserialization. Required nullable binding declaration IDs accept explicit null but reject missing fields. Optional HIR metadata retains omission; valid corpus output bytes are preserved.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-engine-input-producers/src/engine_contract_v2_idl_generated.rs",
+              "struct": "SourceAnalysisInputV2Json",
+              "needles": ["pub document: EngineSourceDocumentV2Json"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-engine-input-producers/src/engine_contract_v2_idl_generated.rs",
+              "struct": "StyleAnalysisInputV2Json",
+              "needles": ["pub document: EngineStyleDocumentV2Json"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-engine-input-producers/src/lib.rs",
+              "needles": [
+                "pub composes: Option<Vec<engine_contract_v2_idl_generated::EngineComposesRefV2Json>>",
+                "fn typed_documents_preserve_full_hir_and_binding_payload()",
+                "fn typed_documents_reject_malformed_nested_contract_fields()"
+              ]
             }
           ]
         }

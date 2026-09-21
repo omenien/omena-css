@@ -242,7 +242,7 @@
     {
       "familyId": "f03",
       "sourcePath": "rust/crates/omena-query/tests/snapshots/public-api-all-features.txt",
-      "line": 1514,
+      "line": 1515,
       "lineSha256": "82c9a82639f1b25f791853417cf5ba84f9043929fc87bdbde186102e6acadeca",
       "occurrenceInLine": 0,
       "justification": "The generated all-features public-surface snapshot quotes the deprecated compatibility identifier verbatim; it pins the declared compatibility surface without asserting the superseded data-flow construction."
@@ -250,7 +250,7 @@
     {
       "familyId": "f03",
       "sourcePath": "rust/crates/omena-query/tests/snapshots/public-api-all-features.txt",
-      "line": 1776,
+      "line": 1777,
       "lineSha256": "d4099588b9a88ecc5d51309093dcc17f8adddc8bcd73a7685bd2caf4e1365f1b",
       "occurrenceInLine": 0,
       "justification": "The generated all-features public-surface snapshot quotes the deprecated compatibility identifier verbatim; it pins the declared compatibility surface without asserting the superseded data-flow construction."
@@ -290,7 +290,7 @@
     {
       "familyId": "f04",
       "sourcePath": "rust/crates/omena-query/tests/snapshots/public-api-all-features.txt",
-      "line": 1548,
+      "line": 1549,
       "lineSha256": "d4b30b95ffcee6c99406b7415d2b10da4009bc6a5748914f39e0884d1e0eb23b",
       "occurrenceInLine": 0,
       "justification": "The generated all-features public-surface snapshot quotes a deprecated compatibility identifier verbatim; it pins the declared compatibility surface without asserting the superseded categorical construction."
@@ -298,7 +298,7 @@
     {
       "familyId": "f04",
       "sourcePath": "rust/crates/omena-query/tests/snapshots/public-api-all-features.txt",
-      "line": 1549,
+      "line": 1550,
       "lineSha256": "f3e2f5e0713f5c71c27ed34af38bf2293f119f2ef4af86120a8ee4399bc7a45b",
       "occurrenceInLine": 0,
       "justification": "The generated all-features public-surface snapshot quotes a deprecated compatibility identifier verbatim; it pins the declared compatibility surface without asserting the superseded categorical construction."
@@ -306,7 +306,7 @@
     {
       "familyId": "f04",
       "sourcePath": "rust/crates/omena-query/tests/snapshots/public-api-all-features.txt",
-      "line": 1550,
+      "line": 1551,
       "lineSha256": "4aa3bbab6e48b857a5b7bd4c13493fd7bc8df3b2ae1dd3deb5d492241b687ac2",
       "occurrenceInLine": 0,
       "justification": "The generated all-features public-surface snapshot quotes a deprecated compatibility identifier verbatim; it pins the declared compatibility surface without asserting the superseded categorical construction."
@@ -314,7 +314,7 @@
     {
       "familyId": "f04",
       "sourcePath": "rust/crates/omena-query/tests/snapshots/public-api-all-features.txt",
-      "line": 1551,
+      "line": 1552,
       "lineSha256": "a54a06db1c120bccdae32201b40c3fddcd6678ce6d6635bef09279e10ea099a3",
       "occurrenceInLine": 0,
       "justification": "The generated all-features public-surface snapshot quotes a deprecated compatibility identifier verbatim; it pins the declared compatibility surface without asserting the superseded categorical construction."

@@ -3,6 +3,8 @@ import type { EngineWorkspaceV1, SourceAnalysisInputV1, StyleAnalysisInputV1 } f
 import type { CheckerReportV1 } from "./checker-v1";
 import type {
   EngineInputV2Json,
+  SourceAnalysisInputV2Json,
+  StyleAnalysisInputV2Json,
   StringConstraintKindV2Json,
   StringTypeFactKindV2Json,
   StringTypeFactsV2Json,
@@ -47,8 +49,8 @@ export type EngineInputV2 = Omit<
 > & {
   readonly version: typeof ENGINE_CONTRACT_VERSION_V2;
   readonly workspace: EngineWorkspaceV1;
-  readonly sources: readonly SourceAnalysisInputV1[];
-  readonly styles: readonly StyleAnalysisInputV1[];
+  readonly sources: readonly (SourceAnalysisInputV1 & SourceAnalysisInputV2Json)[];
+  readonly styles: readonly (StyleAnalysisInputV1 & StyleAnalysisInputV2Json)[];
   readonly typeFacts: TypeFactTableV2;
 };
 

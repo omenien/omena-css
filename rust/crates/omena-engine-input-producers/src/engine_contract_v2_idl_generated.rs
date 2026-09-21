@@ -27,22 +27,487 @@ pub enum ClassnameTransformModeJson {
     DashesOnly,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+fn deserialize_required_nullable<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineAnimationNameRefV2Json {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<EngineRangeV2Json>,
+    pub kind: String,
+    pub name: String,
+    pub property: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineAtRuleContextV2Json {
+    pub name: String,
+    pub params: String,
+    pub range: EngineRangeV2Json,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineBemSuffixV2Json {
+    pub raw_token_range: EngineRangeV2Json,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_resolved_name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineBindingDeclarationV2Json {
+    pub id: String,
+    pub name: String,
+    pub kind: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineBindingGraphV2Json {
+    pub declarations: Vec<EngineBindingDeclarationV2Json>,
+    pub resolutions: Vec<EngineBindingResolutionV2Json>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineBindingResolutionV2Json {
+    pub expression_id: String,
+    #[serde(deserialize_with = "deserialize_required_nullable")]
+    pub declaration_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineClassExpressionV2Json {
+    pub id: String,
+    pub kind: String,
+    pub scss_module_path: String,
+    pub range: EngineRangeV2Json,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub origin: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub class_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub root_binding_decl_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access_path: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_template: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub static_prefix: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_reference: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub root_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path_segments: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binding_decl_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineComposesClassTokenV2Json {
+    pub class_name: String,
+    pub range: EngineRangeV2Json,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineComposesRefV2Json {
+    pub class_names: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<EngineRangeV2Json>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub class_tokens: Option<Vec<EngineComposesClassTokenV2Json>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from_global: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineCustomPropertyContextV2Json {
+    pub container_kind: String,
+    #[serde(deserialize_with = "deserialize_required_nullable")]
+    pub selector_text: Option<String>,
+    #[serde(deserialize_with = "deserialize_required_nullable")]
+    pub at_rule_name: Option<String>,
+    #[serde(deserialize_with = "deserialize_required_nullable")]
+    pub at_rule_params: Option<String>,
+    pub wrapper_at_rules: Vec<EngineAtRuleContextV2Json>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineCustomPropertyDeclV2Json {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<EngineRangeV2Json>,
+    pub kind: String,
+    pub name: String,
+    pub value: String,
+    pub rule_range: EngineRangeV2Json,
+    pub context: EngineCustomPropertyContextV2Json,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineCustomPropertyRefV2Json {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<EngineRangeV2Json>,
+    pub kind: String,
+    pub name: String,
+    pub context: EngineCustomPropertyContextV2Json,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineDomainClassReferenceV2Json {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<EngineRangeV2Json>,
+    pub kind: String,
+    pub plugin_id: String,
+    pub domain: String,
+    pub origin: String,
+    pub match_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub class_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_template: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub static_prefix: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineKeyframesDeclV2Json {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<EngineRangeV2Json>,
+    pub kind: String,
+    pub name: String,
+    pub rule_range: EngineRangeV2Json,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineNodeV2Json {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<EngineRangeV2Json>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnginePositionV2Json {
+    pub line: EngineTextPositionOffsetV2Json,
+    pub character: EngineTextPositionOffsetV2Json,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineRangeV2Json {
+    pub start: EnginePositionV2Json,
+    pub end: EnginePositionV2Json,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineSassForwardMemberV2Json {
+    pub name: String,
+    #[serde(deserialize_with = "deserialize_required_nullable")]
+    pub symbol_kind: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineSassModuleForwardV2Json {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<EngineRangeV2Json>,
+    pub kind: String,
+    pub source: String,
+    pub prefix: String,
+    pub visibility_kind: String,
+    pub visibility_members: Vec<EngineSassForwardMemberV2Json>,
+    pub rule_range: EngineRangeV2Json,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineSassModuleMemberRefV2Json {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<EngineRangeV2Json>,
+    pub kind: String,
+    pub selector_name: String,
+    pub namespace: String,
+    pub symbol_kind: String,
+    pub name: String,
+    pub role: String,
+    pub rule_range: EngineRangeV2Json,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineSassModuleUseV2Json {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<EngineRangeV2Json>,
+    pub kind: String,
+    pub source: String,
+    pub namespace_kind: String,
+    #[serde(deserialize_with = "deserialize_required_nullable")]
+    pub namespace: Option<String>,
+    pub rule_range: EngineRangeV2Json,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineSassSymbolDeclV2Json {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<EngineRangeV2Json>,
+    pub kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub syntax: Option<String>,
+    pub symbol_kind: String,
+    pub name: String,
+    pub rule_range: EngineRangeV2Json,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineSassSymbolV2Json {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<EngineRangeV2Json>,
+    pub kind: String,
+    pub selector_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub syntax: Option<String>,
+    pub symbol_kind: String,
+    pub name: String,
+    pub role: String,
+    pub resolution: String,
+    pub rule_range: EngineRangeV2Json,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineSelectorContextV2Json {
+    pub wrapper_at_rules: Vec<EngineAtRuleContextV2Json>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineSourceDocumentV2Json {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
+    pub class_expressions: Vec<EngineClassExpressionV2Json>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub style_imports: Option<Vec<EngineStyleImportBindingV2Json>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub utility_bindings: Option<Vec<EngineUtilityBindingV2Json>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub domain_class_references: Option<Vec<EngineDomainClassReferenceV2Json>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineStyleDocumentV2Json {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_path: Option<String>,
+    pub selectors: Vec<EngineStyleSelectorV2Json>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keyframes: Option<Vec<EngineKeyframesDeclV2Json>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub animation_name_refs: Option<Vec<EngineAnimationNameRefV2Json>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_decls: Option<Vec<EngineValueDeclV2Json>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_imports: Option<Vec<EngineValueImportV2Json>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_refs: Option<Vec<EngineValueRefV2Json>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_property_decls: Option<Vec<EngineCustomPropertyDeclV2Json>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_property_refs: Option<Vec<EngineCustomPropertyRefV2Json>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sass_symbols: Option<Vec<EngineSassSymbolV2Json>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sass_symbol_decls: Option<Vec<EngineSassSymbolDeclV2Json>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sass_module_uses: Option<Vec<EngineSassModuleUseV2Json>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sass_module_forwards: Option<Vec<EngineSassModuleForwardV2Json>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sass_module_member_refs: Option<Vec<EngineSassModuleMemberRefV2Json>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineStyleImportBindingV2Json {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<EngineRangeV2Json>,
+    pub kind: String,
+    pub local_name: String,
+    pub binding_decl_id: String,
+    pub resolved: EngineStyleImportV2Json,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineStyleImportV2Json {
+    pub kind: String,
+    pub absolute_path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub specifier: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<EngineRangeV2Json>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineStyleSelectorV2Json {
+    pub name: String,
+    pub view_kind: String,
+    pub range: EngineRangeV2Json,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canonical_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nested_safety: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub composes: Option<Vec<EngineComposesRefV2Json>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bem_suffix: Option<EngineBemSuffixV2Json>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub full_selector: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub declarations: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rule_range: Option<EngineRangeV2Json>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub original_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<EngineSelectorContextV2Json>,
+}
+
+pub type EngineTextPositionOffsetV2Json = usize;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineUtilityBindingV2Json {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<EngineRangeV2Json>,
+    pub kind: String,
+    pub local_name: String,
+    pub binding_decl_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub styles_local_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scss_module_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub class_names_import_name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineValueDeclV2Json {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<EngineRangeV2Json>,
+    pub kind: String,
+    pub name: String,
+    pub value: String,
+    pub rule_range: EngineRangeV2Json,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineValueImportV2Json {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<EngineRangeV2Json>,
+    pub kind: String,
+    pub name: String,
+    pub imported_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub imported_name_range: Option<EngineRangeV2Json>,
+    pub from: String,
+    pub rule_range: EngineRangeV2Json,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineValueRefV2Json {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<EngineRangeV2Json>,
+    pub kind: String,
+    pub name: String,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceAnalysisInputV2Json {
     pub file_path: String,
-    pub document: serde_json::Value,
+    pub document: EngineSourceDocumentV2Json,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub binding_graph: Option<serde_json::Value>,
+    pub binding_graph: Option<EngineBindingGraphV2Json>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StyleAnalysisInputV2Json {
     pub file_path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
-    pub document: serde_json::Value,
+    pub document: EngineStyleDocumentV2Json,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

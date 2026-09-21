@@ -1345,6 +1345,7 @@ pub use omena_query::ClassValueFlowAnalysisV0
 pub use omena_query::ClassValueFlowIncrementalAnalysisV0
 pub use omena_query::ContextPrecisionV1
 pub use omena_query::EngineInputV2
+pub use omena_query::EngineInputWireV2
 pub use omena_query::ExpressionDomainCallSiteFlowAnalysisV0
 pub use omena_query::ExpressionDomainControlFlowAnalysisV0
 pub use omena_query::ExpressionDomainFlowAnalysisV0

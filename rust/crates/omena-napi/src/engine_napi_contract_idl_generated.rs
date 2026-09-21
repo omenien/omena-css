@@ -176,15 +176,7 @@ impl EngineNapiConsumerBuildSummaryV0Json {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EngineNapiEngineInputV2Json {
-    pub version: String,
-    pub workspace: serde_json::Value,
-    pub sources: Vec<serde_json::Value>,
-    pub styles: Vec<serde_json::Value>,
-    pub type_facts: Vec<serde_json::Value>,
-}
+pub type EngineNapiEngineInputV2Json = omena_query::EngineInputWireV2;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -9,14 +9,14 @@ use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub use engine_input_producers::{
-    ClassExpressionInputV2, EngineInputV2, ExpressionDomainCallSiteFlowAnalysisV0,
-    ExpressionDomainControlFlowAnalysisV0, ExpressionDomainFlowAnalysisV0,
-    ExpressionDomainProvenanceExplanationsV0, ExpressionDomainReducedProductIterationV0,
-    ExpressionSemanticsCanonicalProducerSignalV0, ExpressionSemanticsQueryFragmentsV0, PositionV2,
-    RangeV2, SelectorUsageCanonicalProducerSignalV0, SelectorUsageQueryFragmentsV0,
-    SourceAnalysisInputV2, SourceDocumentV2, SourceResolutionCanonicalProducerSignalV0,
-    SourceResolutionQueryFragmentsV0, StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2,
-    StyleSelectorV2, TypeFactEntryV2,
+    ClassExpressionInputV2, EngineInputV2, EngineInputWireV2,
+    ExpressionDomainCallSiteFlowAnalysisV0, ExpressionDomainControlFlowAnalysisV0,
+    ExpressionDomainFlowAnalysisV0, ExpressionDomainProvenanceExplanationsV0,
+    ExpressionDomainReducedProductIterationV0, ExpressionSemanticsCanonicalProducerSignalV0,
+    ExpressionSemanticsQueryFragmentsV0, PositionV2, RangeV2,
+    SelectorUsageCanonicalProducerSignalV0, SelectorUsageQueryFragmentsV0, SourceAnalysisInputV2,
+    SourceDocumentV2, SourceResolutionCanonicalProducerSignalV0, SourceResolutionQueryFragmentsV0,
+    StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2, StyleSelectorV2, TypeFactEntryV2,
 };
 use engine_input_producers::{
     collect_expression_domain_flow_graphs,

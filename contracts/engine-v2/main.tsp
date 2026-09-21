@@ -21,16 +21,252 @@ model EngineWorkspaceV1 {
   settingsKey: string;
 }
 
+// Document payloads preserve the fields emitted by the source/style HIR producers.
+// Only fields historically required by the Rust input boundary are mandatory;
+// omitted HIR metadata remains omitted rather than acquiring invented defaults.
+@minValue(0)
+scalar EngineTextPositionOffsetV2 extends safeint;
+model EnginePositionV2 {
+  line: EngineTextPositionOffsetV2;
+  character: EngineTextPositionOffsetV2;
+}
+model EngineRangeV2 {
+  start: EnginePositionV2;
+  end: EnginePositionV2;
+}
+model EngineNodeV2 {
+  id?: string;
+  range?: EngineRangeV2;
+}
+model EngineStyleImportV2 {
+  kind: string;
+  absolutePath: string;
+  specifier?: string;
+  range?: EngineRangeV2;
+}
+model EngineStyleImportBindingV2 extends EngineNodeV2 {
+  kind: string;
+  localName: string;
+  bindingDeclId: string;
+  resolved: EngineStyleImportV2;
+}
+model EngineUtilityBindingV2 extends EngineNodeV2 {
+  kind: string;
+  localName: string;
+  bindingDeclId: string;
+  stylesLocalName?: string;
+  scssModulePath?: string;
+  classNamesImportName?: string;
+}
+model EngineClassExpressionV2 {
+  id: string;
+  kind: string;
+  scssModulePath: string;
+  range: EngineRangeV2;
+  origin?: string;
+  className?: string;
+  rootBindingDeclId?: string;
+  accessPath?: string[];
+  rawTemplate?: string;
+  staticPrefix?: string;
+  rawReference?: string;
+  rootName?: string;
+  pathSegments?: string[];
+  bindingDeclId?: string;
+}
+model EngineDomainClassReferenceV2 extends EngineNodeV2 {
+  kind: string;
+  pluginId: string;
+  domain: string;
+  origin: string;
+  matchKind: string;
+  className?: string;
+  rawTemplate?: string;
+  staticPrefix?: string;
+}
+model EngineSourceDocumentV2 {
+  kind?: string;
+  filePath?: string;
+  language?: string;
+  classExpressions: EngineClassExpressionV2[];
+  styleImports?: EngineStyleImportBindingV2[];
+  utilityBindings?: EngineUtilityBindingV2[];
+  domainClassReferences?: EngineDomainClassReferenceV2[];
+}
+model EngineBindingDeclarationV2 {
+  id: string;
+  name: string;
+  kind: string;
+}
+model EngineBindingResolutionV2 {
+  expressionId: string;
+  declarationId: string | null;
+}
+model EngineBindingGraphV2 {
+  declarations: EngineBindingDeclarationV2[];
+  resolutions: EngineBindingResolutionV2[];
+}
+model EngineComposesClassTokenV2 {
+  className: string;
+  range: EngineRangeV2;
+}
+model EngineComposesRefV2 {
+  classNames: string[];
+  range?: EngineRangeV2;
+  classTokens?: EngineComposesClassTokenV2[];
+  from?: string;
+  fromGlobal?: boolean;
+}
+model EngineBemSuffixV2 {
+  rawTokenRange: EngineRangeV2;
+  rawToken?: string;
+  parentResolvedName?: string;
+}
+model EngineAtRuleContextV2 {
+  name: string;
+  params: string;
+  range: EngineRangeV2;
+}
+model EngineSelectorContextV2 {
+  wrapperAtRules: EngineAtRuleContextV2[];
+}
+model EngineStyleSelectorV2 {
+  name: string;
+  viewKind: string;
+  range: EngineRangeV2;
+  id?: string;
+  kind?: string;
+  canonicalName?: string;
+  nestedSafety?: string;
+  composes?: EngineComposesRefV2[];
+  bemSuffix?: EngineBemSuffixV2;
+  fullSelector?: string;
+  declarations?: string;
+  ruleRange?: EngineRangeV2;
+  originalName?: string;
+  context?: EngineSelectorContextV2;
+}
+model EngineKeyframesDeclV2 extends EngineNodeV2 {
+  kind: string;
+  name: string;
+  ruleRange: EngineRangeV2;
+}
+model EngineAnimationNameRefV2 extends EngineNodeV2 {
+  kind: string;
+  name: string;
+  property: string;
+}
+model EngineValueDeclV2 extends EngineNodeV2 {
+  kind: string;
+  name: string;
+  value: string;
+  ruleRange: EngineRangeV2;
+}
+model EngineValueImportV2 extends EngineNodeV2 {
+  kind: string;
+  name: string;
+  importedName: string;
+  importedNameRange?: EngineRangeV2;
+  from: string;
+  ruleRange: EngineRangeV2;
+}
+model EngineValueRefV2 extends EngineNodeV2 {
+  kind: string;
+  name: string;
+  source: string;
+}
+model EngineCustomPropertyContextV2 {
+  containerKind: string;
+  selectorText: string | null;
+  atRuleName: string | null;
+  atRuleParams: string | null;
+  wrapperAtRules: EngineAtRuleContextV2[];
+}
+model EngineCustomPropertyDeclV2 extends EngineNodeV2 {
+  kind: string;
+  name: string;
+  value: string;
+  ruleRange: EngineRangeV2;
+  context: EngineCustomPropertyContextV2;
+}
+model EngineCustomPropertyRefV2 extends EngineNodeV2 {
+  kind: string;
+  name: string;
+  context: EngineCustomPropertyContextV2;
+}
+model EngineSassSymbolV2 extends EngineNodeV2 {
+  kind: string;
+  selectorName: string;
+  syntax?: string;
+  symbolKind: string;
+  name: string;
+  role: string;
+  resolution: string;
+  ruleRange: EngineRangeV2;
+}
+model EngineSassSymbolDeclV2 extends EngineNodeV2 {
+  kind: string;
+  syntax?: string;
+  symbolKind: string;
+  name: string;
+  ruleRange: EngineRangeV2;
+}
+model EngineSassModuleUseV2 extends EngineNodeV2 {
+  kind: string;
+  source: string;
+  namespaceKind: string;
+  `namespace`: string | null;
+  ruleRange: EngineRangeV2;
+}
+model EngineSassForwardMemberV2 {
+  name: string;
+  symbolKind: string | null;
+}
+model EngineSassModuleForwardV2 extends EngineNodeV2 {
+  kind: string;
+  source: string;
+  prefix: string;
+  visibilityKind: string;
+  visibilityMembers: EngineSassForwardMemberV2[];
+  ruleRange: EngineRangeV2;
+}
+model EngineSassModuleMemberRefV2 extends EngineNodeV2 {
+  kind: string;
+  selectorName: string;
+  `namespace`: string;
+  symbolKind: string;
+  name: string;
+  role: string;
+  ruleRange: EngineRangeV2;
+}
+model EngineStyleDocumentV2 {
+  kind?: string;
+  filePath?: string;
+  selectors: EngineStyleSelectorV2[];
+  keyframes?: EngineKeyframesDeclV2[];
+  animationNameRefs?: EngineAnimationNameRefV2[];
+  valueDecls?: EngineValueDeclV2[];
+  valueImports?: EngineValueImportV2[];
+  valueRefs?: EngineValueRefV2[];
+  customPropertyDecls?: EngineCustomPropertyDeclV2[];
+  customPropertyRefs?: EngineCustomPropertyRefV2[];
+  sassSymbols?: EngineSassSymbolV2[];
+  sassSymbolDecls?: EngineSassSymbolDeclV2[];
+  sassModuleUses?: EngineSassModuleUseV2[];
+  sassModuleForwards?: EngineSassModuleForwardV2[];
+  sassModuleMemberRefs?: EngineSassModuleMemberRefV2[];
+}
+
 model SourceAnalysisInputV2 {
   filePath: string;
-  document: unknown;
-  bindingGraph?: unknown;
+  document: EngineSourceDocumentV2;
+  bindingGraph?: EngineBindingGraphV2;
 }
 
 model StyleAnalysisInputV2 {
   filePath: string;
   source?: string;
-  document: unknown;
+  document: EngineStyleDocumentV2;
 }
 
 enum StringTypeFactKindV2 {

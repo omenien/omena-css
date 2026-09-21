@@ -99,6 +99,38 @@ assertIncludes(
   "pub type StringTypeFactsV2 = engine_contract_v2_idl_generated::StringTypeFactsV2Json;",
 );
 assertIncludes(rustInputPath, rustInput, '#[serde(rename_all = "camelCase")]');
+// Traverse named Rust input types, including aliases and nested HIR fields.
+// Output DTOs in the same generated module may still carry JSON values.
+const inputTypeBodies = new Map<string, string>();
+for (const source of [generatedRustInput, rustInput]) {
+  for (const match of source.matchAll(/pub (?:struct|enum) (\w+) \{([\s\S]*?)^\}/gmu)) {
+    inputTypeBodies.set(match[1]!, match[2]!);
+  }
+  for (const match of source.matchAll(/pub type (\w+)\s*=\s*([^;]+);/gu)) {
+    inputTypeBodies.set(match[1]!, match[2]!);
+  }
+}
+const pendingInputTypes = ["EngineInputV2Json", "EngineInputV2"];
+const visitedInputTypes = new Set<string>();
+while (pendingInputTypes.length > 0) {
+  const name = pendingInputTypes.pop()!;
+  if (visitedInputTypes.has(name)) continue;
+  visitedInputTypes.add(name);
+  const body = inputTypeBodies.get(name);
+  assert.ok(body, `missing EngineInput contract type: ${name}`);
+  assert.doesNotMatch(body, /\bValue\b/u, `${name} must not contain an opaque JSON Value`);
+  for (const token of body.matchAll(/\b[A-Za-z][A-Za-z0-9_]*\b/gu)) {
+    if (inputTypeBodies.has(token[0])) pendingInputTypes.push(token[0]);
+  }
+}
+assert.ok(visitedInputTypes.has("EngineBindingGraphV2Json"));
+assert.ok(visitedInputTypes.has("EngineComposesRefV2Json"));
+assertIncludes(
+  "rust/crates/omena-napi/src/engine_napi_contract_idl_generated.rs",
+  read("rust/crates/omena-napi/src/engine_napi_contract_idl_generated.rs"),
+  "pub type EngineNapiEngineInputV2Json = omena_query::EngineInputWireV2;",
+);
+
 assertIncludes(generatedRustInputPath, generatedRustInput, "pub struct TypeFactEntryV2Json");
 assertIncludes(generatedRustInputPath, generatedRustInput, "pub struct StringTypeFactsV2Json");
 assertIncludes(generatedRustInputPath, generatedRustInput, "pub provenance: Option<String>");
@@ -137,6 +169,8 @@ process.stdout.write(
       product: "engine-v2.contract-idl-decisions",
       decisionDoc: decisionDocPath,
       generatedFileCount: engineV2ContractIdlGeneratedFiles.length,
+      engineInputTypeCount: visitedInputTypes.size,
+      engineInputOpaqueValueCount: 0,
       checkedSurfaces: [
         coreContractPath,
         hostOutputPath,

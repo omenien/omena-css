@@ -290,8 +290,8 @@ pub(crate) use omena_query_core::{
 };
 pub use omena_query_core::{
     AbstractPropertyValueNarrowingV0, AbstractPropertyValueV0, AnalysisPrecisionV1,
-    ClassExpressionInputV2, ContextPrecisionV1, EngineInputV2, FactPrecision, FlowPrecisionV1,
-    IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
+    ClassExpressionInputV2, ContextPrecisionV1, EngineInputV2, EngineInputWireV2, FactPrecision,
+    FlowPrecisionV1, IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
     OmenaIncrementalDatabaseV0, OmenaQueryAnalysisPrecisionV0,
     OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryExpressionDomainIncrementalFlowAnalysisV0,
     OmenaQueryExpressionDomainSelectorProjectionV0, OmenaWorkspaceInputCommitmentV0,

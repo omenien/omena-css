@@ -122,7 +122,22 @@ impl TryFrom<engine_contract_v2_idl_generated::SourceAnalysisInputV2Json>
         value: engine_contract_v2_idl_generated::SourceAnalysisInputV2Json,
     ) -> Result<Self, Self::Error> {
         Ok(Self {
-            document: serde_json::from_value(value.document)?,
+            document: SourceDocumentV2 {
+                class_expressions: value
+                    .document
+                    .class_expressions
+                    .into_iter()
+                    .map(|expression| ClassExpressionInputV2 {
+                        id: expression.id,
+                        kind: expression.kind,
+                        scss_module_path: expression.scss_module_path,
+                        range: expression.range.into(),
+                        class_name: expression.class_name,
+                        root_binding_decl_id: expression.root_binding_decl_id,
+                        access_path: expression.access_path,
+                    })
+                    .collect(),
+            },
         })
     }
 }
@@ -145,6 +160,24 @@ pub struct PositionV2 {
 pub struct RangeV2 {
     pub start: PositionV2,
     pub end: PositionV2,
+}
+
+impl From<engine_contract_v2_idl_generated::EnginePositionV2Json> for PositionV2 {
+    fn from(value: engine_contract_v2_idl_generated::EnginePositionV2Json) -> Self {
+        Self {
+            line: value.line,
+            character: value.character,
+        }
+    }
+}
+
+impl From<engine_contract_v2_idl_generated::EngineRangeV2Json> for RangeV2 {
+    fn from(value: engine_contract_v2_idl_generated::EngineRangeV2Json) -> Self {
+        Self {
+            start: value.start.into(),
+            end: value.end.into(),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -183,7 +216,24 @@ impl TryFrom<engine_contract_v2_idl_generated::StyleAnalysisInputV2Json> for Sty
         Ok(Self {
             file_path: value.file_path,
             source: value.source,
-            document: serde_json::from_value(value.document)?,
+            document: StyleDocumentV2 {
+                selectors: value
+                    .document
+                    .selectors
+                    .into_iter()
+                    .map(|selector| StyleSelectorV2 {
+                        name: selector.name,
+                        view_kind: selector.view_kind,
+                        canonical_name: selector.canonical_name,
+                        range: selector.range.into(),
+                        nested_safety: selector.nested_safety,
+                        composes: selector.composes,
+                        bem_suffix: selector.bem_suffix.map(|suffix| BemSuffixInfoV2 {
+                            raw_token_range: suffix.raw_token_range.into(),
+                        }),
+                    })
+                    .collect(),
+            },
         })
     }
 }
@@ -202,7 +252,7 @@ pub struct StyleSelectorV2 {
     pub canonical_name: Option<String>,
     pub range: RangeV2,
     pub nested_safety: Option<String>,
-    pub composes: Option<Vec<serde_json::Value>>,
+    pub composes: Option<Vec<engine_contract_v2_idl_generated::EngineComposesRefV2Json>>,
     pub bem_suffix: Option<BemSuffixInfoV2>,
 }
 
@@ -1518,5 +1568,52 @@ mod selector_certainty_flow_tests {
         assert_eq!(projection.certainty, "possible");
         assert_eq!(projection.shape_kind, "unknown");
         assert_eq!(projection.shape_label, "unknown");
+    }
+}
+
+#[cfg(test)]
+mod engine_contract_v2_idl_typed_wire_tests {
+    use super::{EngineInputV2, EngineInputWireV2};
+    use serde_json::{Value, json};
+
+    fn fixture() -> serde_json::Result<Value> {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../../test/_fixtures/contract-parity-v2/type-fact-parity-v2.json"
+        ))?;
+        Ok(fixture["input"].clone())
+    }
+
+    #[test]
+    fn typed_documents_preserve_full_hir_and_binding_payload() -> serde_json::Result<()> {
+        let mut input = fixture()?;
+        input["sources"][0]["bindingGraph"] = json!({
+            "declarations": [{"id": "binding", "name": "styles", "kind": "import"}],
+            "resolutions": [{"expressionId": "expression", "declarationId": null}]
+        });
+        let wire: EngineInputWireV2 = serde_json::from_value(input.clone())?;
+        assert_eq!(serde_json::to_value(&wire)?, input);
+        let projected = EngineInputV2::try_from(wire)?;
+        assert!(!projected.sources[0].document.class_expressions.is_empty());
+        assert!(!projected.styles[0].document.selectors.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn typed_documents_reject_malformed_nested_contract_fields() -> serde_json::Result<()> {
+        let original = fixture()?;
+        let mut invalid = original.clone();
+        invalid["styles"][0]["document"]["selectors"][0]["composes"] =
+            json!([{"classNames": [false]}]);
+        assert!(serde_json::from_value::<EngineInputWireV2>(invalid).is_err());
+        let mut invalid = original.clone();
+        invalid["sources"][0]["document"]["classExpressions"][0]["range"]["start"]["line"] =
+            json!(-1);
+        assert!(serde_json::from_value::<EngineInputWireV2>(invalid).is_err());
+        let mut invalid = original;
+        invalid["sources"][0]["bindingGraph"] = json!({
+            "declarations": [], "resolutions": [{"expressionId": "expression"}]
+        });
+        assert!(serde_json::from_value::<EngineInputWireV2>(invalid).is_err());
+        Ok(())
     }
 }

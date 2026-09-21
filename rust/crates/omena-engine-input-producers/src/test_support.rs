@@ -1,4 +1,4 @@
-use serde_json::Value;
+use crate::engine_contract_v2_idl_generated::EngineComposesRefV2Json;
 
 use crate::{
     ClassExpressionInputV2, EngineInputV2, PositionV2, RangeV2, SourceAnalysisInputV2,
@@ -71,7 +71,7 @@ pub fn sample_input() -> EngineInputV2 {
                             },
                         },
                         nested_safety: Some("safe".to_string()),
-                        composes: Some(vec![Value::Null]),
+                        composes: Some(vec![empty_composes_ref()]),
                         bem_suffix: None,
                     }],
                 },
@@ -114,7 +114,7 @@ pub fn sample_input() -> EngineInputV2 {
                                 },
                             },
                             nested_safety: Some("unknown".to_string()),
-                            composes: Some(vec![Value::Null, Value::Null]),
+                            composes: Some(vec![empty_composes_ref(), empty_composes_ref()]),
                             bem_suffix: None,
                         },
                     ],
@@ -159,5 +159,15 @@ pub fn sample_input() -> EngineInputV2 {
                 control_flow_graph: None,
             },
         ],
+    }
+}
+
+fn empty_composes_ref() -> EngineComposesRefV2Json {
+    EngineComposesRefV2Json {
+        class_names: Vec::new(),
+        range: None,
+        class_tokens: None,
+        from: None,
+        from_global: None,
     }
 }

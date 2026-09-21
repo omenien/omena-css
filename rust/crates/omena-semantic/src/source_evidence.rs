@@ -309,17 +309,9 @@ fn summarize_style_module_edge(input: &EngineInputV2) -> StyleModuleEdgeEvidence
             };
             composed_edge_count += composes.len();
             for compose in composes {
-                if compose
-                    .get("fromGlobal")
-                    .and_then(|value| value.as_bool())
-                    .unwrap_or(false)
-                {
+                if compose.from_global.unwrap_or(false) {
                     global_composed_edge_count += 1;
-                } else if compose
-                    .get("from")
-                    .and_then(|value| value.as_str())
-                    .is_some()
-                {
+                } else if compose.from.is_some() {
                     imported_composed_edge_count += 1;
                 }
             }

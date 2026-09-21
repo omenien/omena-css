@@ -416,32 +416,13 @@ fn build_incoming_style_dependencies(
             };
 
             for compose in composes {
-                let Some(class_names) = compose
-                    .get("classNames")
-                    .and_then(|value| value.as_array())
-                    .map(|values| {
-                        values
-                            .iter()
-                            .filter_map(|value| value.as_str().map(ToString::to_string))
-                            .collect::<Vec<_>>()
-                    })
-                else {
-                    continue;
-                };
-                if class_names.is_empty() {
+                let class_names = &compose.class_names;
+                if class_names.is_empty() || compose.from_global.unwrap_or(false) {
                     continue;
                 }
-                if compose
-                    .get("fromGlobal")
-                    .and_then(|value| value.as_bool())
-                    .unwrap_or(false)
-                {
-                    continue;
-                }
-
                 let target_file = compose
-                    .get("from")
-                    .and_then(|value| value.as_str())
+                    .from
+                    .as_ref()
                     .map(|from| normalize_joined_path(&style.file_path, from))
                     .unwrap_or_else(|| style.file_path.clone());
 
@@ -450,11 +431,11 @@ fn build_incoming_style_dependencies(
                 };
 
                 for class_name in class_names {
-                    if !target_names.contains(&class_name) {
+                    if !target_names.contains(class_name) {
                         continue;
                     }
                     incoming
-                        .entry((target_file.clone(), class_name))
+                        .entry((target_file.clone(), class_name.clone()))
                         .or_default()
                         .insert((style.file_path.clone(), incoming_canonical_name.clone()));
                 }
@@ -589,7 +570,6 @@ mod tests {
         summarize_selector_usage_query_fragments_input,
     };
     use crate::{configure_nonconvergent_selector_certainty_fixture, test_support::sample_input};
-    use serde_json::json;
 
     #[test]
     fn summarizes_selector_usage_universe() {
@@ -657,10 +637,15 @@ mod tests {
     #[test]
     fn summarizes_selector_usage_candidates() {
         let mut input = sample_input();
-        input.styles[0].document.selectors[0].composes = Some(vec![json!({
-            "classNames": ["card-header"],
-            "from": "./Card.module.scss"
-        })]);
+        input.styles[0].document.selectors[0].composes = Some(vec![
+            crate::engine_contract_v2_idl_generated::EngineComposesRefV2Json {
+                class_names: vec!["card-header".to_string()],
+                from: Some("./Card.module.scss".to_string()),
+                range: None,
+                class_tokens: None,
+                from_global: None,
+            },
+        ]);
 
         let summary = summarize_selector_usage_candidates_input(&input);
 

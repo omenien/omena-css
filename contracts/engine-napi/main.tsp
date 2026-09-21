@@ -1,4 +1,5 @@
 import "@typespec/json-schema";
+import "../engine-v2/main.tsp";
 
 using TypeSpec.JsonSchema;
 
@@ -138,13 +139,7 @@ model EngineNapiSourceStyleImportResolutionV0 {
   styleUri: string;
 }
 
-model EngineNapiEngineInputV2 {
-  version: string;
-  workspace: unknown;
-  sources: unknown[];
-  styles: unknown[];
-  typeFacts: unknown[];
-}
+model EngineNapiEngineInputV2 extends Omena.EngineV2.EngineInputV2 {}
 
 model EngineNapiConsumerBuildSummaryV0 {
   schemaVersion: string;

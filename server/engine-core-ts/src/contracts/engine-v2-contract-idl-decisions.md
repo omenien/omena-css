@@ -29,9 +29,8 @@ Not owned by the IDL:
 - Runtime-only host dependencies such as `DocumentAnalysisCache`, `TypeResolver`,
   `StyleDocumentHIR` lookup callbacks, environment values, and workspace cache
   objects.
-- The full source/style document HIR shape. Until the parser-owned fact authority
-  is settled, HIR payloads remain opaque passthrough slots at the IDL boundary and
-  are projected by product adapters where needed.
+- Parser algorithms and runtime HIR objects. Their serialized source/style document
+  and binding-graph payloads are owned by the IDL; runtime objects are not relocated.
 
 ## Input Decisions
 
@@ -45,6 +44,20 @@ Not owned by the IDL:
 
 Enforced input invariants:
 
+- Source/style documents, binding graphs, and nested composition references have
+  named IDL models. Rust document structs are rendered from the emitted schema
+  graph; changing a required field therefore changes both Rust and TypeScript
+  contracts and invalidates incompatible producers at compile time.
+- Runtime adapters project typed fields directly, without JSON re-deserialization.
+  The decisions check traverses both wire and runtime input types and requires
+  zero opaque `Value` fields, including indirect aliases. Output JSON is outside
+  that input-only check.
+- Optional HIR metadata preserves omission; required nullable binding resolution
+  IDs preserve explicit null and reject a missing field. Existing sparse input
+  fixtures retain their historically required document fields.
+- NAPI engine input uses the canonical wire type. SDK style queries instead take
+  `{ stylePath }`; they are a separate request surface, not an EngineInput envelope.
+
 - TypeScript requires `workspace`; Rust runtime projection now deserializes
   through the generated `EngineInputV2Json` wire DTO first, so JSON without the
   canonical `workspace` field is rejected before projection.
@@ -57,6 +70,14 @@ Enforced input invariants:
   IDL records the closed value set, while Rust runtime analysis keeps string
   projection fields where existing downstream analysis intentionally remains
   string-indexed.
+
+Rust construction migration targets the declared pre-1.0 minor release: callers
+constructing document, binding-graph, or selector-composition fields must provide
+IDL-generated values instead of `serde_json::Value`. Existing `TryFrom` result
+signatures remain available. Malformed nested payload rejection is intentional;
+valid corpus byte parity does not imply source compatibility for Rust constructors.
+The input-producer semver intent records this even when cargo-semver-checks emits
+no diagnostic for the field-type change.
 
 Canonical decisions:
 
@@ -101,6 +122,14 @@ Enforced output invariants:
 - `server/engine-host-node/src/code-action-query.ts` contains a hand-written
   Rust query JSON DTO for code-action plans. The runtime `CodeActionPlan` union
   is host-internal, but the JSON payload from Rust is a contract surface.
+
+Rust construction migration targets the declared pre-1.0 minor release: callers
+constructing document, binding-graph, or selector-composition fields must provide
+IDL-generated values instead of `serde_json::Value`. Existing `TryFrom` result
+signatures remain available. Malformed nested payload rejection is intentional;
+valid corpus byte parity does not imply source compatibility for Rust constructors.
+The input-producer semver intent records this even when cargo-semver-checks emits
+no diagnostic for the field-type change.
 
 Canonical decisions:
 
