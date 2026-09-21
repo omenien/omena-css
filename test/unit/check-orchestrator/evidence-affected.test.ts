@@ -1926,8 +1926,8 @@ describe("writer registry portability", () => {
   it("path-binds the current witness corpus including the two-literal query ternary", () => {
     const repoRoot = path.resolve(import.meta.dirname, "../../..");
     const coverage = assertEvidenceWriterDeclarationWriteWitnessCoverage(repoRoot);
-    expect(coverage.witnessedOutputs).toHaveLength(26);
-    expect(coverage.staticallyBoundWitnessOutputs).toHaveLength(7);
+    expect(coverage.witnessedOutputs).toHaveLength(27);
+    expect(coverage.staticallyBoundWitnessOutputs).toHaveLength(8);
     expect(coverage.unresolvedWitnessOutputs).toHaveLength(19);
     expect(
       coverage.staticallyBoundWitnessOutputs.length + coverage.unresolvedWitnessOutputs.length,
@@ -1936,6 +1936,7 @@ describe("writer registry portability", () => {
       expect.arrayContaining([
         "query-public-surface:rust/crates/omena-query/tests/snapshots/public-api.txt",
         "query-public-surface-all-features:rust/crates/omena-query/tests/snapshots/public-api-all-features.txt",
+        "query-public-surface-all-features:rust/crates/omena-query/tests/snapshots/wildcard-reexport-baseline.json",
       ]),
     );
     expect(coverage.unresolvedWitnessOutputs).toEqual([
@@ -2883,6 +2884,7 @@ describe("digest-pinned writer wrapper", () => {
     try {
       syncEvidenceWriterRuntimeModules(fixture.repoRoot, fixture.worktree);
       const candidateModules = [
+        "scripts/check-docs-reference-surface.ts",
         "packages/check-orchestrator/src/cli/main.ts",
         "packages/check-orchestrator/src/evidence/writer-runner.ts",
       ];

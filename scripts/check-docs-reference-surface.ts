@@ -460,7 +460,9 @@ function deriveSdkWorkflowMatrix(): SdkWorkflowMatrix {
   const contract = read("contracts/engine-sdk-workflow/main.tsp");
   const workflows = [...contract.matchAll(/model OmenaSdk([A-Z][A-Za-z0-9]+)RequestV0\s*\{/gu)]
     .map((match) => toCamelCase(match[1]))
-    .filter((workflow) => workflow !== "errorEnvelope");
+    // sourceDiagnostics is the source-bound extension; its transport goldens are
+    // checked separately and do not extend the four-host H1 parity claim.
+    .filter((workflow) => workflow !== "errorEnvelope" && workflow !== "sourceDiagnostics");
   const matrix = readJson<SdkWorkflowMatrix>("rust/omena-sdk-workflow-parity-matrix.json");
   assert.deepEqual(
     matrix.workflows,
