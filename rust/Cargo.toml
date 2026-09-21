@@ -112,6 +112,11 @@ split-debuginfo = "packed"
 [profile.dev.package."*"]
 debug = false
 
+# Rust 1.96's implicit debuginfo stripping can misalign Mach-O LINKEDIT and
+# make the native addon unloadable on macOS 27 (rust-lang/rust#157750).
+[profile.release.package.omena-napi]
+strip = "none"
+
 [workspace.lints.rust]
 unsafe_code = "deny"
 

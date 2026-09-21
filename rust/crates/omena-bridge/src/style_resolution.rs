@@ -1154,6 +1154,10 @@ fn external_sif_cache_kill_switch_engaged() -> bool {
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::expect_used,
+    reason = "Cache cleanup is scoped to an explicitly configured test storage"
+)]
 fn clear_external_sif_memory_cache_for_storage_for_test(storage: &OmenaBridgeExternalSifStorageV0) {
     let namespace = format!(
         "{}\0",
@@ -1765,6 +1769,10 @@ fn normalize_path_lexical(path: PathBuf) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::expect_used,
+        reason = "Storage fixtures require their declared native paths and cache roots"
+    )]
     use std::{fs, time::SystemTime};
 
     use super::*;

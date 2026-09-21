@@ -1,3 +1,10 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "Snapshot fixtures fail immediately on an unexpected success, refusal, or stale read"
+)]
+
 use std::collections::BTreeMap;
 
 use omena_query::{

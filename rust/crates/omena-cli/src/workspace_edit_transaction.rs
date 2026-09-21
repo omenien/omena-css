@@ -282,6 +282,7 @@ impl WorkspaceEditTransaction {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn from_snapshot(
         view: &omena_query::OmenaWorkspaceSnapshotReadViewV0<'_>,
         destination_owner: &omena_query::OmenaWorkspaceSnapshotReaderV0,
@@ -296,6 +297,7 @@ impl WorkspaceEditTransaction {
         self
     }
 
+    #[cfg(test)]
     pub(crate) fn expect_snapshot_bytes(
         mut self,
         path: &Path,
@@ -401,18 +403,17 @@ impl WorkspaceEditTransaction {
     }
 
     fn validate_shape(&self) -> Result<(), WorkspaceEditTransactionErrorV0> {
-        if let Some(guard) = &self.snapshot_guard {
-            if self.revision != Some(guard.binding.snapshot_id())
+        if let Some(guard) = &self.snapshot_guard
+            && (self.revision != Some(guard.binding.snapshot_id())
                 || self
                     .expected_digests
                     .iter()
-                    .any(|expected| !guard.expected.contains(expected))
-            {
-                return Err(snapshot_stale(
-                    &guard.binding,
-                    "expected digest was not derived from the admitted owner view",
-                ));
-            }
+                    .any(|expected| !guard.expected.contains(expected)))
+        {
+            return Err(snapshot_stale(
+                &guard.binding,
+                "expected digest was not derived from the admitted owner view",
+            ));
         }
         if self.edits.is_empty() {
             return Err(WorkspaceEditTransactionErrorV0::EmptyTransaction);

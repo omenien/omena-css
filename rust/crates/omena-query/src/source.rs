@@ -375,8 +375,8 @@ fn resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_optional_cache_s
 
 #[derive(Clone)]
 enum BridgeReusableSif {
-    Supplied(omena_sif::OmenaSifV1),
-    Admitted(omena_bridge::OmenaBridgeExternalSifWithTrustV1),
+    Supplied(Box<omena_sif::OmenaSifV1>),
+    Admitted(Box<omena_bridge::OmenaBridgeExternalSifWithTrustV1>),
 }
 
 fn query_trust_from_bridge(
@@ -429,7 +429,7 @@ impl<'a> BridgeExternalSifResolutionState<'a> {
                 .map(|input| {
                     (
                         (input.sif.canonical_url.clone(), None),
-                        BridgeReusableSif::Supplied(input.sif.clone()),
+                        BridgeReusableSif::Supplied(Box::new(input.sif.clone())),
                     )
                 })
                 .collect(),
@@ -546,18 +546,18 @@ impl<'a> BridgeExternalSifResolutionState<'a> {
             .as_ref()
             .and_then(|(origin, _)| origin.initiating_document())
             .map(ToOwned::to_owned);
-        if let (Some((importer, specifier)), Some(trust)) = (origin, trust) {
-            if let Ok(hash) = omena_sif::compute_omena_sif_artifact_hash_v1(sif) {
-                self.resolution_edges
-                    .insert(OmenaQueryExternalSifResolutionEdgeV0 {
-                        importer,
-                        specifier,
-                        resolved_style_url: resolved_url.to_string(),
-                        sif_canonical_url: sif.canonical_url.clone(),
-                        sif_artifact_hash: hash.as_str().to_string(),
-                        trust,
-                    });
-            }
+        if let (Some((importer, specifier)), Some(trust)) = (origin, trust)
+            && let Ok(hash) = omena_sif::compute_omena_sif_artifact_hash_v1(sif)
+        {
+            self.resolution_edges
+                .insert(OmenaQueryExternalSifResolutionEdgeV0 {
+                    importer,
+                    specifier,
+                    resolved_style_url: resolved_url.to_string(),
+                    sif_canonical_url: sif.canonical_url.clone(),
+                    sif_artifact_hash: hash.as_str().to_string(),
+                    trust,
+                });
         }
         self.worklist
             .push_back((initiating_document, resolved_url.to_string(), sif.clone()));
@@ -583,7 +583,7 @@ impl<'a> BridgeExternalSifResolutionState<'a> {
                     let trust = query_trust_from_bridge(&result);
                     Some((result.sif, Some(trust)))
                 }
-                BridgeReusableSif::Supplied(sif) if origin.is_none() => Some((sif, None)),
+                BridgeReusableSif::Supplied(sif) if origin.is_none() => Some((*sif, None)),
                 // A supplied legacy artifact has no current-context verdict.
                 // Contextual admission must obtain the actual bridge result.
                 BridgeReusableSif::Supplied(_) => None,
@@ -629,7 +629,7 @@ impl<'a> BridgeExternalSifResolutionState<'a> {
             .insert(sif.canonical_url.clone(), trust.clone());
         self.generation_count = self.generation_count.saturating_add(1);
         self.generated_by_resolved_url
-            .insert(target_key, BridgeReusableSif::Admitted(result));
+            .insert(target_key, BridgeReusableSif::Admitted(Box::new(result)));
         self.emitted_keys.insert(alias_key.clone());
         self.emitted_keys.insert(sif.canonical_url.clone());
         self.bridge_urls.insert(sif.canonical_url.clone());

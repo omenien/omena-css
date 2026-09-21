@@ -1152,10 +1152,12 @@ fn serve_connection(mut stream: TcpStream, state: Arc<OmenadState>) {
         });
         // V0 tolerates unrelated extension fields, but a supplied snapshot claim
         // must never disappear through that permissive decoder.
-        if !bound_connection
-            && ((!handshaken && !has_bound_version && has_bound_inputs)
-                || (handshaken && (has_bound_version || has_bound_inputs)))
-        {
+        let unnegotiated_snapshot_claim = if handshaken {
+            has_bound_version || has_bound_inputs
+        } else {
+            !has_bound_version && has_bound_inputs
+        };
+        if !bound_connection && unnegotiated_snapshot_claim {
             if write_wire_value(
                 &mut stream,
                 &error_envelope(daemon_error(
@@ -2100,7 +2102,7 @@ mod tests {
                     workspace_root: root.to_string(),
                     config_content_digest: None,
                     style_sources: styles.clone(),
-                    limits: limits.clone(),
+                    limits,
                 },
             },
         )?;
@@ -2114,7 +2116,7 @@ mod tests {
             protocol_version: "0".to_string(),
             snapshot_id: binding.snapshot_id(),
             operation: OmenaWorkspaceSessionOperationV0::Diagnostics,
-            limits: limits.clone(),
+            limits,
             payload: Some(serde_json::to_value(source_request).map_err(|e| e.to_string())?),
         };
         // A valid V1 session cannot be downgraded by a later clean V0 shape.

@@ -348,6 +348,12 @@ pub(crate) fn native_error(error: OmenaError) -> napi::Error {
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::panic,
+        reason = "Unexpected fixture failures must abort these adapter contract tests"
+    )]
+
     use super::*;
 
     fn style_sources(source: &str) -> Vec<OmenaQueryStyleSourceInputV0> {

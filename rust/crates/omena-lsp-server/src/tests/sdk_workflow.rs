@@ -1,3 +1,8 @@
+#![allow(
+    clippy::expect_used,
+    reason = "Contract fixtures assert exact success and refusal outcomes"
+)]
+
 use super::*;
 
 const WORKSPACE_ROOT: &str = "file:///workspace-a";

@@ -2096,6 +2096,10 @@ mod tests {
         );
     }
     #[test]
+    #[expect(
+        clippy::unwrap_used,
+        reason = "The fixture hashes a successfully generated static SIF"
+    )]
     fn admitted_context_mapping_changes_disk_trace_for_equal_member_sif_payloads()
     -> Result<(), Box<dyn std::error::Error>> {
         let mut fixture = TraceFixture::base();

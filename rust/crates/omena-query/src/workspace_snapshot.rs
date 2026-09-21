@@ -46,6 +46,10 @@ impl Default for OmenaWorkspaceSnapshotSettingsV0 {
 
 /// Project already-admitted contextual edges and full target facts onto this
 /// root's document corpus. Export performs no filesystem/resolver confirmation.
+#[expect(
+    clippy::type_complexity,
+    reason = "The public projection returns the three separately typed admission families without changing the SDK contract"
+)]
 pub fn select_omena_workspace_snapshot_external_sifs_v0(
     styles: &[OmenaQueryStyleSourceInputV0],
     _resolution: &OmenaQueryStyleResolutionInputsV0,

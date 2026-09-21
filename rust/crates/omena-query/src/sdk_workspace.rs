@@ -242,6 +242,10 @@ impl OmenaSdkWorkspaceV0 {
 
     /// Attach the existing owner's admitted input view. The publisher validates
     /// every family; this does not create or replace LSP committed/editor state.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "The SDK admission API keeps each independently admitted input family explicit"
+    )]
     pub fn open_owned_snapshot(
         request: OmenaSdkSnapshotRequestV0,
         mut styles: Vec<OmenaQueryStyleSourceInputV0>,
@@ -965,18 +969,17 @@ fn sdk_error(
     )
 }
 
+type SnapshotExternalSifAdmission = (
+    Vec<crate::OmenaQueryExternalSifInputV0>,
+    BTreeMap<String, crate::OmenaQueryExternalSifTrustV1>,
+    Vec<crate::OmenaQueryExternalSifResolutionEdgeV0>,
+);
+
 fn admit_snapshot_external_sifs(
     workspace_root: &str,
     styles: &[OmenaQueryStyleSourceInputV0],
     resolution: &OmenaQueryStyleResolutionInputsV0,
-) -> Result<
-    (
-        Vec<crate::OmenaQueryExternalSifInputV0>,
-        BTreeMap<String, crate::OmenaQueryExternalSifTrustV1>,
-        Vec<crate::OmenaQueryExternalSifResolutionEdgeV0>,
-    ),
-    OmenaError,
-> {
+) -> Result<SnapshotExternalSifAdmission, OmenaError> {
     // Independently admit each document's resolved targets, as the LSP owner
     // does. Another document's equal raw alias cannot suppress this admission.
     // The bridge reads actual sources and supplies trust on import/mutation;

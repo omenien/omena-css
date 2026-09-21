@@ -534,7 +534,7 @@
       "exportKind": "method",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
-      "line": 100,
+      "line": 101,
       "signature": "pub fn query_json(&self, request_json: String) -> napi::Result<String>"
     },
     {
@@ -545,7 +545,7 @@
       "exportKind": "method",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
-      "line": 106,
+      "line": 107,
       "signature": "pub fn diagnostics_json(&self, request_json: String) -> napi::Result<String>"
     },
     {
@@ -556,7 +556,7 @@
       "exportKind": "method",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
-      "line": 120,
+      "line": 121,
       "signature": "pub fn build_json(&self, request_json: String) -> napi::Result<String>"
     },
     {
@@ -567,7 +567,7 @@
       "exportKind": "method",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
-      "line": 126,
+      "line": 127,
       "signature": "pub fn explain_json(&self, request_json: String) -> napi::Result<String>"
     },
     {
@@ -578,7 +578,7 @@
       "exportKind": "constructor",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
-      "line": 136,
+      "line": 137,
       "signature": "pub fn new( workspace_root: String, config_content_digest: String, style_sources_json: String, ) -> napi::Result<Self>"
     },
     {
@@ -589,7 +589,7 @@
       "exportKind": "method",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
-      "line": 154,
+      "line": 155,
       "signature": "pub fn snapshot_json(&self) -> napi::Result<String>"
     },
     {
@@ -600,7 +600,7 @@
       "exportKind": "method",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
-      "line": 159,
+      "line": 160,
       "signature": "pub fn replace_style_sources_json(&self, style_sources_json: String) -> napi::Result<String>"
     },
     {
@@ -611,7 +611,7 @@
       "exportKind": "method",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
-      "line": 171,
+      "line": 172,
       "signature": "pub fn replace_style_resolution_inputs_json( &self, resolution_inputs_json: String, ) -> napi::Result<String>"
     },
     {
@@ -622,7 +622,7 @@
       "exportKind": "method",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
-      "line": 185,
+      "line": 187,
       "signature": "pub fn source_diagnostics_json( &self, source_path: String, source: String, package_manifests_json: String, ) -> napi::Result<String>"
     },
     {
@@ -633,7 +633,7 @@
       "exportKind": "method",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
-      "line": 208,
+      "line": 210,
       "signature": "pub fn resolve_css_module_json( &self, style_path: String, package_manifests_json: String, ) -> napi::Result<String>"
     },
     {
@@ -644,7 +644,7 @@
       "exportKind": "function",
       "boundaryClass": "json-string",
       "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
-      "line": 226,
+      "line": 228,
       "signature": "pub fn workspace_session_cache_report_json() -> napi::Result<String>"
     },
     {
@@ -1172,7 +1172,7 @@
       "exportKind": "method",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/sdk_workspace.rs",
-      "line": 65,
+      "line": 66,
       "signature": "pub fn query(&self, request: JsValue) -> Result<JsValue, JsValue>"
     },
     {
@@ -1183,7 +1183,7 @@
       "exportKind": "method",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/sdk_workspace.rs",
-      "line": 71,
+      "line": 72,
       "signature": "pub fn diagnostics(&self, request: JsValue) -> Result<JsValue, JsValue>"
     },
     {
@@ -1194,7 +1194,7 @@
       "exportKind": "method",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/sdk_workspace.rs",
-      "line": 82,
+      "line": 83,
       "signature": "pub fn build(&self, request: JsValue) -> Result<JsValue, JsValue>"
     },
     {
@@ -1205,7 +1205,7 @@
       "exportKind": "method",
       "boundaryClass": "jsvalue-any",
       "sourcePath": "rust/crates/omena-wasm/src/sdk_workspace.rs",
-      "line": 88,
+      "line": 89,
       "signature": "pub fn explain(&self, request: JsValue) -> Result<JsValue, JsValue>"
     }
   ]

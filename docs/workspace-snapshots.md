@@ -1,3 +1,13 @@
+---
+title: Workspace snapshot bindings
+description: Fixed inputs, owner identity, transfer integrity, and stale-write protection for bound workspace requests.
+kind: explanation
+status: preview
+products: [sdk, napi, wasm, cli, lsp]
+owner: sdk
+sourceOfTruth: hybrid
+---
+
 # Workspace snapshot bindings
 
 A bound workspace request carries the complete `OmenaWorkspaceSnapshotBindingV0`:

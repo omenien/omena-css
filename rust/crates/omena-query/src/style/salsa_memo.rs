@@ -7686,6 +7686,10 @@ $_private-token: changed;
         );
     }
     #[test]
+    #[expect(
+        clippy::unwrap_used,
+        reason = "Static SIF fixture generation and hashing must succeed before comparing memo behavior"
+    )]
     fn contextual_sif_mapping_changes_memo_semantics_with_identical_wire_facts()
     -> Result<(), Box<dyn std::error::Error>> {
         let styles = vec![OmenaQueryStyleSourceInputV0 {

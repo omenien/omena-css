@@ -968,12 +968,13 @@ fn exercise_contextual_package_trust(
         }
         assert_eq!(
             selector
-                .expect_err("root selector must reject conflicting actual admissions")
+                .err()
+                .ok_or("root selector must reject conflicting actual admissions")?
                 .context
                 .code,
             "workspace.snapshot-sif-admission"
         );
-        assert_eq!(direct.expect_err("direct borrowed inputs must not choose the last verdict for an ambiguous actual context").context.code, "workspace.snapshot-sif-admission");
+        assert_eq!(direct.err().ok_or("direct borrowed inputs must not choose the last verdict for an ambiguous actual context")?.context.code, "workspace.snapshot-sif-admission");
     }
     Ok(())
 }

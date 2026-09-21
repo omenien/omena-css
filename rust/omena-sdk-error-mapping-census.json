@@ -15,16 +15,16 @@
     "rust/crates/omena-lsp-server/src/sdk_workflow.rs"
   ],
   "summary": {
-    "siteCount": 65,
+    "siteCount": 66,
     "surfaceCounts": {
       "napi": 29,
       "wasm": 26,
-      "cli": 7,
+      "cli": 8,
       "lsp": 3
     },
     "classCounts": {
       "input": 31,
-      "workspace": 2,
+      "workspace": 3,
       "resolution": 0,
       "analysis": 4,
       "transform": 10,
@@ -316,7 +316,7 @@
       "emitter": "typed-sdk-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
-      "line": 297,
+      "line": 299,
       "source": "native_error(OmenaError::new(",
       "errorClass": "internal"
     },
@@ -327,7 +327,7 @@
       "emitter": "typed-sdk-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
-      "line": 311,
+      "line": 313,
       "source": "native_error(OmenaError::new(",
       "errorClass": "input"
     },
@@ -338,7 +338,7 @@
       "emitter": "typed-sdk-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
-      "line": 326,
+      "line": 328,
       "source": "native_error(OmenaError::new(",
       "errorClass": "internal"
     },
@@ -349,7 +349,7 @@
       "emitter": "typed-sdk-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
-      "line": 344,
+      "line": 346,
       "source": "napi::Error::from_reason(reason)",
       "errorClass": "unknown"
     },
@@ -613,7 +613,7 @@
       "emitter": "typed-sdk-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-wasm/src/sdk_workspace.rs",
-      "line": 97,
+      "line": 98,
       "source": "browser_error(OmenaError::new(",
       "errorClass": "input"
     },
@@ -624,7 +624,7 @@
       "emitter": "typed-sdk-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-wasm/src/sdk_workspace.rs",
-      "line": 114,
+      "line": 115,
       "source": "browser_error(OmenaError::new(",
       "errorClass": "internal"
     },
@@ -635,7 +635,7 @@
       "emitter": "typed-sdk-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-wasm/src/sdk_workspace.rs",
-      "line": 130,
+      "line": 131,
       "source": ".unwrap_or_else(|_| JsValue::from_str(\"SDK error serialization failed\"))",
       "errorClass": "internal"
     },
@@ -668,7 +668,7 @@
       "emitter": "typed-sdk-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-cli/src/sdk.rs",
-      "line": 25,
+      "line": 31,
       "source": "encode_error(OmenaError::new(",
       "errorClass": "input"
     },
@@ -679,7 +679,7 @@
       "emitter": "typed-sdk-error",
       "ordinal": 2,
       "sourcePath": "rust/crates/omena-cli/src/sdk.rs",
-      "line": 38,
+      "line": 44,
       "source": "encode_error(OmenaError::new(",
       "errorClass": "input"
     },
@@ -690,9 +690,20 @@
       "emitter": "typed-sdk-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-cli/src/sdk.rs",
-      "line": 88,
+      "line": 128,
       "source": "_ => Err(OmenaError::new(",
       "errorClass": "unsupported"
+    },
+    {
+      "siteId": "cli:binding_required:typed-sdk-error:1",
+      "surface": "cli",
+      "method": "binding_required",
+      "emitter": "typed-sdk-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-cli/src/sdk.rs",
+      "line": 150,
+      "source": "OmenaError::new(",
+      "errorClass": "workspace"
     },
     {
       "siteId": "cli:response_value:typed-sdk-error:1",
@@ -701,7 +712,7 @@
       "emitter": "typed-sdk-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-cli/src/sdk.rs",
-      "line": 103,
+      "line": 164,
       "source": "OmenaError::new(",
       "errorClass": "internal"
     },
@@ -712,7 +723,7 @@
       "emitter": "typed-sdk-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-cli/src/sdk.rs",
-      "line": 121,
+      "line": 182,
       "source": "OmenaError::new(",
       "errorClass": "input"
     },
@@ -745,7 +756,7 @@
       "emitter": "typed-sdk-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-lsp-server/src/sdk_workflow.rs",
-      "line": 136,
+      "line": 335,
       "source": "OmenaError::new(",
       "errorClass": "unknown"
     }

@@ -366,6 +366,92 @@ mod tests {
     }
 
     #[test]
+    fn snapshot_source_write_commits_only_while_its_owner_is_current() -> Result<(), String> {
+        for stale in [false, true] {
+            let path = fixture_path(if stale {
+                "snapshot-stale"
+            } else {
+                "snapshot-current"
+            });
+            let original = ".original {}\n";
+            let replacement = b".changed {}\n";
+            fs::write(&path, original).map_err(|error| error.to_string())?;
+            let document_path = path.to_string_lossy().into_owned();
+            let inputs = omena_query::OmenaWorkspaceSnapshotInputsV0 {
+                workspace_root: "source-write-contract",
+                style_sources: &[omena_query::OmenaQueryStyleSourceInputV0 {
+                    style_path: document_path.clone(),
+                    style_source: original.to_string(),
+                }],
+                source_documents: &[],
+                source_language_ids: &Default::default(),
+                source_provider_inputs: &Default::default(),
+                package_manifests: &[],
+                external_sifs: &[],
+                external_sif_trust_records: &Default::default(),
+                external_sif_resolution_edges: &[],
+                resolution_inputs: &Default::default(),
+                settings: &Default::default(),
+                source_corpus_complete: false,
+            };
+            let mut owner = omena_query::OmenaWorkspaceSnapshotPublisherV0::default();
+            let binding = owner
+                .publish(
+                    inputs,
+                    OmenaWorkspaceSnapshotIdV0::from_revision(omena_query::IncrementalRevisionV0 {
+                        value: 1,
+                    }),
+                )
+                .map_err(|error| error.to_string())?;
+            let reader = owner.reader();
+            let view = reader
+                .read_view(&binding, inputs)
+                .map_err(|error| error.to_string())?;
+            let commit = SourceWriteCommitV0::from_snapshot(
+                &path,
+                &document_path,
+                &view,
+                &reader,
+                vec![WorkspaceEditPostconditionV0::byte_identity(replacement)],
+            )
+            .map_err(|error| error.to_string())?;
+            if stale {
+                owner
+                    .begin_mutation(&binding)
+                    .map_err(|error| error.to_string())?;
+            }
+            let result = apply_write_with_safety(
+                &path,
+                replacement,
+                commit,
+                &assessment(FixSafetyV0::Safe),
+                SourceWriteModeV0::SafeOnly,
+                SourceWriteEvidenceV0::LintFix,
+            );
+            if stale {
+                assert!(matches!(
+                    result,
+                    Err(SourceWriteErrorV0::Transaction(
+                        WorkspaceEditTransactionErrorV0::StaleInput { .. }
+                    ))
+                ));
+                assert_eq!(
+                    fs::read(&path).map_err(|error| error.to_string())?,
+                    original.as_bytes()
+                );
+            } else {
+                assert!(result.map_err(|error| error.to_string())?.wrote);
+                assert_eq!(
+                    fs::read(&path).map_err(|error| error.to_string())?,
+                    replacement
+                );
+            }
+            fs::remove_file(path).map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    }
+
+    #[test]
     fn safe_writes_and_conservative_requires_opt_in() -> Result<(), String> {
         let safe_path = fixture_path("safe");
         let report = apply_test_write(

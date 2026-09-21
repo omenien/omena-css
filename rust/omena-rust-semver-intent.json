@@ -36,9 +36,7 @@
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
-          "evidenceNeedles": [
-            "field EvidenceAnalysisPrecisionV0.axes"
-          ]
+          "evidenceNeedles": ["field EvidenceAnalysisPrecisionV0.axes"]
         },
         {
           "lint": "method_parameter_count_changed",
@@ -80,10 +78,7 @@
             },
             {
               "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-              "needles": [
-                "#[serde(rename = \"k-cfa\")]",
-                "#[serde(flatten)]"
-              ]
+              "needles": ["#[serde(rename = \"k-cfa\")]", "#[serde(flatten)]"]
             }
           ]
         }
@@ -96,9 +91,7 @@
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
-          "evidenceNeedles": [
-            "field OmenaQueryAnalysisPrecisionV0.axes"
-          ]
+          "evidenceNeedles": ["field OmenaQueryAnalysisPrecisionV0.axes"]
         },
         {
           "lint": "struct_pub_field_missing",
@@ -127,9 +120,7 @@
             },
             {
               "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-              "needles": [
-                "#[serde(rename = \"k-cfa\")]"
-              ]
+              "needles": ["#[serde(rename = \"k-cfa\")]"]
             }
           ]
         }
@@ -162,15 +153,11 @@
         },
         {
           "lint": "constructible_struct_adds_field",
-          "evidenceNeedles": [
-            "field LspExternalSifRefreshResultV0.resolution_edges in "
-          ]
+          "evidenceNeedles": ["field LspExternalSifRefreshResultV0.resolution_edges in "]
         },
         {
           "lint": "enum_variant_added",
-          "evidenceNeedles": [
-            "variant TideInputKindV0:ExternalSifSource in "
-          ]
+          "evidenceNeedles": ["variant TideInputKindV0:ExternalSifSource in "]
         }
       ]
     },
@@ -181,9 +168,7 @@
       "expectedFailures": [
         {
           "lint": "enum_missing",
-          "evidenceNeedles": [
-            "enum omena_query::ModelClassV0, previously in file"
-          ],
+          "evidenceNeedles": ["enum omena_query::ModelClassV0, previously in file"],
           "witnessLinePrefix": "  enum omena_query::",
           "expectedWitnessesByFeaturePlane": {
             "defaultFeatures": [
@@ -377,9 +362,7 @@
         },
         {
           "lint": "pub_module_level_const_missing",
-          "evidenceNeedles": [
-            "OMENA_BUNDLER_HOST_PROTOCOL_VERSION_V0 in file"
-          ],
+          "evidenceNeedles": ["OMENA_BUNDLER_HOST_PROTOCOL_VERSION_V0 in file"],
           "witnessLinePrefix": "  ",
           "expectedWitnessesByFeaturePlane": {
             "defaultFeatures": [
@@ -737,10 +720,7 @@
             },
             {
               "sourcePath": "rust/crates/omena-query/src/source.rs",
-              "needles": [
-                "usize::from(capture.is_none())",
-                "Some(\"noFlowCapture\")"
-              ]
+              "needles": ["usize::from(capture.is_none())", "Some(\"noFlowCapture\")"]
             }
           ]
         },
@@ -833,9 +813,7 @@
             },
             {
               "sourcePath": "rust/crates/omena-wasm/src/sdk_workspace.rs",
-              "needles": [
-                "fn private_replacement_refusal_fixture()"
-              ]
+              "needles": ["fn private_replacement_refusal_fixture()"]
             }
           ]
         }
