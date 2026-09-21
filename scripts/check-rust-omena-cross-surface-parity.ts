@@ -1,5 +1,5 @@
 import { resolveScanSurfaceForScanner } from "../packages/check-orchestrator/src/evidence/scan-surface-manifest";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { strict as assert } from "node:assert";
 import fs from "node:fs";
@@ -26,6 +26,11 @@ interface FixtureOutput {
   readonly outputs: Readonly<Record<Surface, unknown>>;
 }
 
+interface SourceDiagnosticsGolden {
+  readonly workflow: "sourceDiagnostics";
+  readonly outputs: { readonly cli: unknown; readonly lsp: unknown };
+}
+
 interface ParityBaseline {
   readonly schemaVersion: "0";
   readonly product: "omena-sdk.cross-surface-parity";
@@ -47,6 +52,7 @@ interface ParityBaseline {
     readonly description: string;
   }[];
   readonly goldens: readonly FixtureOutput[];
+  readonly sourceDiagnosticsGolden: SourceDiagnosticsGolden;
 }
 
 interface ProgramApiResidualLedger {
@@ -85,120 +91,148 @@ const writeMode = process.argv.includes("--write");
 const fullMode = writeMode || process.argv.includes("--full");
 const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "omena-cross-surface-parity-"));
 const workspaceDir = path.join(workDir, "workspace");
-const targetDir = path.join(repoRoot, "rust/target/cross-surface-parity");
+const targetDir = process.env.CARGO_TARGET_DIR
+  ? path.resolve(repoRoot, process.env.CARGO_TARGET_DIR)
+  : path.join(repoRoot, "rust/target/cross-surface-parity");
 const fixtures = loadFixtures();
 
-assert.ok(fixtures.length >= 3, "cross-surface parity requires at least three fixtures");
-assert.deepEqual(
-  new Set(fixtures.map((fixture) => path.extname(fixture.logicalPath))),
-  new Set([".css", ".scss", ".less"]),
-  "cross-surface parity fixtures must cover CSS, SCSS, and Less",
-);
+void main().catch((error: unknown) => {
+  console.error(error);
+  process.exitCode = 1;
+});
 
-materializeCliWorkspace(fixtures);
-const cliBinary = buildCli();
-const cliOutputs = runCliFixtures(cliBinary, fixtures);
-const outputBySurface: Partial<Record<Surface, readonly unknown[]>> = { cli: cliOutputs };
-let fullModulePaths: { readonly napi: string; readonly wasm: string } | null = null;
+async function main(): Promise<void> {
+  assert.ok(fixtures.length >= 3, "cross-surface parity requires at least three fixtures");
+  assert.deepEqual(
+    new Set(fixtures.map((fixture) => path.extname(fixture.logicalPath))),
+    new Set([".css", ".scss", ".less"]),
+    "cross-surface parity fixtures must cover CSS, SCSS, and Less",
+  );
 
-if (fullMode) {
-  const napiModule = buildNapiModule();
-  const wasmModule = buildWasmModule();
-  fullModulePaths = { napi: napiModule, wasm: wasmModule };
-  outputBySurface.napi = runNodeSurface("napi", napiModule, fixtures);
-  outputBySurface.wasm = runNodeSurface("wasm", wasmModule, fixtures);
-}
+  materializeCliWorkspace(fixtures);
+  const cliBinary = buildCli();
+  const cliOutputs = runCliFixtures(cliBinary, fixtures);
+  const sourceDiagnosticsGolden = await runBoundSourceDiagnostics(cliBinary);
+  const outputBySurface: Partial<Record<Surface, readonly unknown[]>> = { cli: cliOutputs };
+  let fullModulePaths: { readonly napi: string; readonly wasm: string } | null = null;
 
-if (writeMode) {
-  const baseline = buildBaseline(requireAllSurfaces(outputBySurface));
-  fs.writeFileSync(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
-  process.stdout.write(`Wrote ${path.relative(repoRoot, baselinePath)}\n`);
-  process.exit(0);
-}
-
-let baseline = JSON.parse(fs.readFileSync(baselinePath, "utf8")) as ParityBaseline;
-if (process.env.OMENA_CROSS_SURFACE_PARITY_TEST_DROP_DIVERGENCE === "1") {
-  baseline = { ...baseline, knownDivergences: [] };
-}
-if (process.env.OMENA_CROSS_SURFACE_PARITY_TEST_ADD_UNCOVERED_SURFACE === "1") {
-  baseline = {
-    ...baseline,
-    coverage: {
-      ...baseline.coverage,
-      uncoveredSurfaces: [...baseline.coverage.uncoveredSurfaces, "unregistered-surface"],
-    },
-  };
-}
-assertBaselineContract(baseline);
-let residualLedger = JSON.parse(
-  fs.readFileSync(residualLedgerPath, "utf8"),
-) as ProgramApiResidualLedger;
-if (process.env.OMENA_SDK_RESIDUAL_LEDGER_TEST_DROP_OWNER === "1") {
-  residualLedger = {
-    ...residualLedger,
-    entries: residualLedger.entries.map((entry, index) =>
-      index === 0 ? { ...entry, owner: "" } : entry,
-    ),
-  };
-}
-if (process.env.OMENA_SDK_RESIDUAL_LEDGER_TEST_REOPEN_ENTRY === "1") {
-  residualLedger = {
-    ...residualLedger,
-    entries: residualLedger.entries.map((entry, index) =>
-      index === 0 ? { ...entry, status: "open" } : entry,
-    ),
-  };
-}
-if (process.env.OMENA_SDK_RESIDUAL_LEDGER_TEST_DROP_ENTRY === "1") {
-  residualLedger = { ...residualLedger, entries: residualLedger.entries.slice(1) };
-}
-assertResidualLedgerContract(residualLedger, baseline);
-assert.deepEqual(
-  baseline.fixtures,
-  fixtures.map(({ source: _source, ...fixture }) => fixture),
-  "cross-surface parity fixture corpus drifted",
-);
-
-const baselineByFixture = new Map(baseline.goldens.map((golden) => [golden.fixtureId, golden]));
-for (const [surface, outputs] of Object.entries(outputBySurface) as [
-  Surface,
-  readonly unknown[],
-][]) {
-  for (let index = 0; index < fixtures.length; index += 1) {
-    const fixture = fixtures[index];
-    const golden = baselineByFixture.get(fixture.id);
-    assert.ok(golden, `missing golden for ${fixture.id}`);
-    assert.deepEqual(
-      canonicalize(outputs[index]),
-      canonicalize(golden.outputs[surface]),
-      `${surface} output drifted for ${fixture.id}`,
-    );
+  if (fullMode) {
+    const napiModule = buildNapiModule();
+    const wasmModule = buildWasmModule();
+    fullModulePaths = { napi: napiModule, wasm: wasmModule };
+    outputBySurface.napi = runNodeSurface("napi", napiModule, fixtures);
+    outputBySurface.wasm = runNodeSurface("wasm", wasmModule, fixtures);
   }
-}
 
-if (fullMode) {
-  const all = requireAllSurfaces(outputBySurface);
-  for (let index = 0; index < fixtures.length; index += 1) {
-    const expected = canonicalize(all.cli[index]);
-    assert.deepEqual(
-      canonicalize(all.napi[index]),
-      expected,
-      `NAPI parity failed for ${fixtures[index].id}`,
-    );
-    assert.deepEqual(
-      canonicalize(all.wasm[index]),
-      expected,
-      `WASM parity failed for ${fixtures[index].id}`,
-    );
+  if (writeMode) {
+    const baseline = buildBaseline(requireAllSurfaces(outputBySurface), sourceDiagnosticsGolden);
+    assertBaselineContract(baseline);
+    for (const golden of baseline.goldens) {
+      assert.deepEqual(
+        golden.outputs.napi,
+        golden.outputs.cli,
+        `${golden.fixtureId}: NAPI capture diverged`,
+      );
+      assert.deepEqual(
+        golden.outputs.wasm,
+        golden.outputs.cli,
+        `${golden.fixtureId}: WASM capture diverged`,
+      );
+    }
+    fs.writeFileSync(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
+    process.stdout.write(`Wrote ${path.relative(repoRoot, baselinePath)}\n`);
+    process.exit(0);
   }
-  assert.ok(fullModulePaths, "full parity requires built NAPI and WASM modules");
-  assertLinkedEmissionSurfaceEquivalence(cliBinary, fullModulePaths);
-  assertAdapterRealDigestModeSeam(fullModulePaths.napi);
-}
 
-process.stdout.write(
-  `Omena cross-surface parity OK: mode=${fullMode ? "full" : "cli-smoke"} fixtures=${fixtures.length}\n`,
-);
+  let baseline = JSON.parse(fs.readFileSync(baselinePath, "utf8")) as ParityBaseline;
+  if (process.env.OMENA_CROSS_SURFACE_PARITY_TEST_DROP_DIVERGENCE === "1") {
+    baseline = { ...baseline, knownDivergences: [] };
+  }
+  if (process.env.OMENA_CROSS_SURFACE_PARITY_TEST_ADD_UNCOVERED_SURFACE === "1") {
+    baseline = {
+      ...baseline,
+      coverage: {
+        ...baseline.coverage,
+        uncoveredSurfaces: [...baseline.coverage.uncoveredSurfaces, "unregistered-surface"],
+      },
+    };
+  }
+  assertBaselineContract(baseline);
+  assert.deepEqual(
+    canonicalize(sourceDiagnosticsGolden),
+    canonicalize(baseline.sourceDiagnosticsGolden),
+    "bound source diagnostics drifted from the captured CLI/LSP payloads",
+  );
+  let residualLedger = JSON.parse(
+    fs.readFileSync(residualLedgerPath, "utf8"),
+  ) as ProgramApiResidualLedger;
+  if (process.env.OMENA_SDK_RESIDUAL_LEDGER_TEST_DROP_OWNER === "1") {
+    residualLedger = {
+      ...residualLedger,
+      entries: residualLedger.entries.map((entry, index) =>
+        index === 0 ? { ...entry, owner: "" } : entry,
+      ),
+    };
+  }
+  if (process.env.OMENA_SDK_RESIDUAL_LEDGER_TEST_REOPEN_ENTRY === "1") {
+    residualLedger = {
+      ...residualLedger,
+      entries: residualLedger.entries.map((entry, index) =>
+        index === 0 ? { ...entry, status: "open" } : entry,
+      ),
+    };
+  }
+  if (process.env.OMENA_SDK_RESIDUAL_LEDGER_TEST_DROP_ENTRY === "1") {
+    residualLedger = { ...residualLedger, entries: residualLedger.entries.slice(1) };
+  }
+  assertResidualLedgerContract(residualLedger, baseline);
+  assert.deepEqual(
+    baseline.fixtures,
+    fixtures.map(({ source: _source, ...fixture }) => fixture),
+    "cross-surface parity fixture corpus drifted",
+  );
+
+  const baselineByFixture = new Map(baseline.goldens.map((golden) => [golden.fixtureId, golden]));
+  for (const [surface, outputs] of Object.entries(outputBySurface) as [
+    Surface,
+    readonly unknown[],
+  ][]) {
+    for (let index = 0; index < fixtures.length; index += 1) {
+      const fixture = fixtures[index];
+      const golden = baselineByFixture.get(fixture.id);
+      assert.ok(golden, `missing golden for ${fixture.id}`);
+      assert.deepEqual(
+        canonicalize(outputs[index]),
+        canonicalize(golden.outputs[surface]),
+        `${surface} output drifted for ${fixture.id}`,
+      );
+    }
+  }
+
+  if (fullMode) {
+    const all = requireAllSurfaces(outputBySurface);
+    for (let index = 0; index < fixtures.length; index += 1) {
+      const expected = canonicalize(all.cli[index]);
+      assert.deepEqual(
+        canonicalize(all.napi[index]),
+        expected,
+        `NAPI parity failed for ${fixtures[index].id}`,
+      );
+      assert.deepEqual(
+        canonicalize(all.wasm[index]),
+        expected,
+        `WASM parity failed for ${fixtures[index].id}`,
+      );
+    }
+    assert.ok(fullModulePaths, "full parity requires built NAPI and WASM modules");
+    assertLinkedEmissionSurfaceEquivalence(cliBinary, fullModulePaths);
+    assertAdapterRealDigestModeSeam(fullModulePaths.napi);
+  }
+
+  process.stdout.write(
+    `Omena cross-surface parity OK: mode=${fullMode ? "full" : "cli-smoke"} fixtures=${fixtures.length} sourceDiagnostics=cli,lsp evidence=${workDir}\n`,
+  );
+}
 
 function loadFixtures(): Fixture[] {
   if (process.env.OMENA_CROSS_SURFACE_PARITY_TEST_EMPTY_CORPUS === "1") return [];
@@ -228,16 +262,24 @@ function materializeCliWorkspace(entries: readonly Fixture[]): void {
 }
 
 function buildCli(): string {
-  run("cargo", [
-    "build",
-    "--manifest-path",
-    "rust/Cargo.toml",
-    "-p",
-    "omena-cli",
-    "--bin",
-    "omena",
-  ]);
-  return path.join(repoRoot, "rust/target/debug/omena");
+  run(
+    "cargo",
+    [
+      "build",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "omena-cli",
+      "-p",
+      "omena-lsp-server",
+      "--bin",
+      "omena",
+      "--bin",
+      "omena-lsp-server",
+    ],
+    rustBuildEnv(),
+  );
+  return path.join(targetDir, "debug/omena");
 }
 
 function buildNapiModule(): string {
@@ -260,15 +302,11 @@ function buildNapiModule(): string {
 
 function buildWasmModule(): string {
   const outputDir = path.join(workDir, "wasm");
-  run("wasm-pack", [
-    "build",
-    "rust/crates/omena-wasm",
-    "--target",
-    "nodejs",
-    "--release",
-    "--out-dir",
-    outputDir,
-  ]);
+  run(
+    "wasm-pack",
+    ["build", "rust/crates/omena-wasm", "--target", "nodejs", "--release", "--out-dir", outputDir],
+    rustBuildEnv(),
+  );
   return path.join(outputDir, "omena_wasm.js");
 }
 
@@ -302,13 +340,17 @@ function unwrapCliResponseEnvelope(value: unknown): unknown {
   return envelope.payload;
 }
 
+function writeFixtureInput(inputPath: string, input: unknown): void {
+  fs.writeFileSync(inputPath, JSON.stringify(input));
+}
+
 function runNodeSurface(
   surface: "napi" | "wasm",
   modulePath: string,
   entries: readonly Fixture[],
 ): readonly unknown[] {
   const inputPath = path.join(workDir, `${surface}-input.json`);
-  fs.writeFileSync(inputPath, JSON.stringify(entries));
+  writeFixtureInput(inputPath, entries);
   const script =
     surface === "napi"
       ? `const fs=require("fs");const m=require(process.argv[1]);const f=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));process.stdout.write(JSON.stringify(f.map(x=>JSON.parse(m.checkStyleSourceJson(x.source,x.logicalPath)))));`
@@ -320,6 +362,185 @@ function runNodeSurface(
       maxBuffer: 16 * 1024 * 1024,
     }),
   ) as readonly unknown[];
+}
+
+// This request requires admitted source facts. Exercise its actual bound contract;
+// legacy NAPI/WASM text helpers do not establish coverage of this workflow.
+async function runBoundSourceDiagnostics(cliBinary: string): Promise<SourceDiagnosticsGolden> {
+  const root = "file:///virtual/omena-bound-source-parity";
+  const stylePath = `${root}/card.module.css`;
+  const sourcePath = `${root}/App.tsx`;
+  const source =
+    'import styles from "./card.module.css";\nexport const App = () => <div className={styles.absent} />;\n';
+  const child = spawn(path.join(targetDir, "debug/omena-lsp-server"), [], {
+    cwd: repoRoot,
+    env: { ...process.env, OMENA_LSP_DISK_CACHE: "off" },
+    stdio: "pipe",
+  });
+  const pending = new Map<number, { resolve(value: any): void; reject(error: Error): void }>();
+  let buffer = Buffer.alloc(0);
+  let nextId = 1;
+  let stderr = "";
+  child.stderr.on("data", (data) => {
+    stderr += data;
+  });
+  const rejectPending = (error: Error) => {
+    for (const waiter of pending.values()) waiter.reject(error);
+    pending.clear();
+  };
+  child.on("error", rejectPending);
+  child.stdin.on("error", rejectPending);
+  const exit = new Promise<{ code: number | null; signal: string | null }>((resolve) => {
+    child.on("exit", (code, signal) => {
+      rejectPending(new Error(`source parity LSP exited ${code}/${signal}: ${stderr}`));
+      resolve({ code, signal });
+    });
+  });
+  child.stdout.on("data", (data: Buffer) => {
+    buffer = Buffer.concat([buffer, data]);
+    try {
+      while (true) {
+        const end = buffer.indexOf("\r\n\r\n");
+        if (end < 0) return;
+        const match = /Content-Length:\s*(\d+)/iu.exec(buffer.subarray(0, end).toString());
+        assert.ok(match, "LSP frame requires byte length");
+        const length = Number(match[1]);
+        if (buffer.length < end + 4 + length) return;
+        const body = buffer.subarray(end + 4, end + 4 + length).toString();
+        buffer = buffer.subarray(end + 4 + length);
+        process.stdout.write(`source-lsp-response ${body}\n`);
+        const message = JSON.parse(body);
+        pending.get(message.id)?.resolve(message);
+        pending.delete(message.id);
+      }
+    } catch (error) {
+      rejectPending(error as Error);
+    }
+  });
+  const send = (message: unknown) => {
+    const body = JSON.stringify(message);
+    process.stdout.write(`source-lsp-request ${body}\n`);
+    child.stdin.write(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`);
+  };
+  const request = (method: string, params: unknown): Promise<any> => {
+    const id = nextId++;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        reject(new Error(`LSP ${method} timed out`));
+      }, 30_000);
+      pending.set(id, {
+        resolve(value) {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        reject(error) {
+          clearTimeout(timer);
+          reject(error);
+        },
+      });
+      send({ jsonrpc: "2.0", id, method, params });
+    });
+  };
+  try {
+    const initialized = await request("initialize", {
+      rootUri: root,
+      workspaceFolders: [{ uri: root, name: "bound-source-parity" }],
+      capabilities: {},
+    });
+    assert.ok(initialized.result, JSON.stringify(initialized));
+    send({ jsonrpc: "2.0", method: "initialized", params: {} });
+    for (const document of [
+      { uri: stylePath, languageId: "css", text: ".card { color: red; }\n" },
+      { uri: sourcePath, languageId: "typescriptreact", text: source },
+    ])
+      send({
+        jsonrpc: "2.0",
+        method: "textDocument/didOpen",
+        params: { textDocument: { ...document, version: 1 } },
+      });
+    const workflow = (operation: string, payload: unknown, snapshotBinding?: unknown) =>
+      request("omena/sdkWorkflow", {
+        contractVersion: "1",
+        workspaceRoot: root,
+        operation,
+        request: payload,
+        snapshotBinding,
+      });
+    const exported = await workflow("exportSnapshot", { workspaceRoot: root });
+    assert.ok(exported.result, JSON.stringify(exported));
+    const { snapshotBinding, response: inputs } = exported.result;
+    assert.equal(inputs.snapshotInputs.sources.length, 1, "source-bearing admission is required");
+    assert.equal(inputs.snapshotInputs.sources[0].sourceSource, source);
+    const payload = { snapshotId: snapshotBinding.snapshotId, sourcePath };
+    const lsp = await workflow("sourceDiagnostics", payload, snapshotBinding);
+    assert.ok(lsp.result, JSON.stringify(lsp));
+    assert.deepEqual(lsp.result.snapshotBinding, snapshotBinding);
+    const transport = {
+      contractVersion: "1",
+      workspaceRoot: root,
+      snapshotBinding,
+      styleSources: inputs.styleSources,
+      snapshotInputs: inputs.snapshotInputs,
+      operation: "sourceDiagnostics",
+      request: payload,
+    };
+    const invokeCli = (input: unknown, label: string) => {
+      const inputPath = path.join(workDir, `source-cli-${label}.json`);
+      writeFixtureInput(inputPath, input);
+      const result = spawnSync(cliBinary, ["sdk", inputPath], {
+        cwd: repoRoot,
+        encoding: "utf8",
+        timeout: 30_000,
+        maxBuffer: 16 * 1024 * 1024,
+      });
+      process.stdout.write(
+        `${JSON.stringify({ sourceCli: label, input, exit: result.status, stdout: result.stdout, stderr: result.stderr })}\n`,
+      );
+      assert.ifError(result.error);
+      return result;
+    };
+    const cli = invokeCli(transport, "admitted");
+    assert.equal(cli.status, 0, cli.stderr);
+    const envelope = JSON.parse(cli.stdout);
+    assert.equal(envelope.product, "omena-cli.sdk-workflow");
+    assert.deepEqual(envelope.payload, lsp.result, "complete bound CLI/LSP payloads differ");
+    // A shared empty-result bug must not pass the differential oracle.
+    assert.ok(
+      lsp.result.response.diagnostics.some(
+        (diagnostic: any) =>
+          diagnostic.code === "missingStaticClass" &&
+          diagnostic.createSelector?.selectorName === "absent",
+      ),
+      "missing selector diagnostic is required",
+    );
+    const tampered = structuredClone(transport);
+    tampered.snapshotInputs.sources[0].sourceSource += "\n// changed after publication";
+    const refusal = invokeCli(tampered, "tampered");
+    assert.equal(refusal.status, 1, refusal.stderr);
+    const error = JSON.parse(refusal.stderr).error;
+    assert.equal(error.context.code, "workspace.source-provider-admission");
+    if (process.env.OMENA_CROSS_SURFACE_PARITY_TEST_SOURCE_DRIFT === "1") {
+      envelope.payload.response = {};
+    }
+    const outputs = { cli: envelope.payload.response, lsp: lsp.result.response };
+    assert.deepEqual(outputs.cli, outputs.lsp, "source diagnostics parity failed");
+    const shutdown = await request("shutdown", null);
+    assert.equal(shutdown.result, null);
+    send({ jsonrpc: "2.0", method: "exit" });
+    child.stdin.end();
+    const timer = setTimeout(() => child.kill("SIGKILL"), 5_000);
+    const terminal = await exit;
+    clearTimeout(timer);
+    assert.deepEqual(terminal, { code: 0, signal: null }, stderr);
+    return {
+      workflow: "sourceDiagnostics",
+      outputs: canonicalize(outputs) as SourceDiagnosticsGolden["outputs"],
+    };
+  } finally {
+    if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
+    process.stderr.write(stderr);
+  }
 }
 
 interface LinkedEmissionSurfaceOutput {
@@ -612,7 +833,10 @@ const input = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
   );
 }
 
-function buildBaseline(outputs: Record<Surface, readonly unknown[]>): ParityBaseline {
+function buildBaseline(
+  outputs: Record<Surface, readonly unknown[]>,
+  sourceDiagnosticsGolden: SourceDiagnosticsGolden,
+): ParityBaseline {
   const captureCommit = output("git", ["rev-parse", "HEAD"]).trim();
   const goldens = fixtures.map((fixture, index) => ({
     fixtureId: fixture.id,
@@ -622,7 +846,7 @@ function buildBaseline(outputs: Record<Surface, readonly unknown[]>): ParityBase
       cli: canonicalize(outputs.cli[index]),
     },
   }));
-  const coverage = deriveCoverage(goldens);
+  const coverage = deriveCoverage(goldens, sourceDiagnosticsGolden);
   return {
     schemaVersion: "0",
     product: "omena-sdk.cross-surface-parity",
@@ -630,18 +854,23 @@ function buildBaseline(outputs: Record<Surface, readonly unknown[]>): ParityBase
     fixtures: fixtures.map(({ source: _source, ...fixture }) => fixture),
     coverage: {
       ...coverage,
-      uncoveredCountCeiling: coverage.uncoveredSurfaces.length + coverage.uncoveredWorkflows.length,
+      uncoveredCountCeiling: Math.min(
+        (JSON.parse(fs.readFileSync(baselinePath, "utf8")) as ParityBaseline).coverage
+          .uncoveredCountCeiling,
+        coverage.uncoveredSurfaces.length + coverage.uncoveredWorkflows.length,
+      ),
     },
     knownDivergences: expectedKnownDivergences(),
     transferredErrorPaths: expectedTransferredErrorPaths(),
     goldens,
+    sourceDiagnosticsGolden,
   };
 }
 
 function assertBaselineContract(baseline: ParityBaseline): void {
   assert.equal(baseline.schemaVersion, "0");
   assert.equal(baseline.product, "omena-sdk.cross-surface-parity");
-  const derivedCoverage = deriveCoverage(baseline.goldens);
+  const derivedCoverage = deriveCoverage(baseline.goldens, baseline.sourceDiagnosticsGolden);
   assert.deepEqual(
     {
       coveredSurfaces: baseline.coverage.coveredSurfaces,
@@ -792,6 +1021,7 @@ function assertCompletionEvidence(reference: string, residualId: string): void {
 
 function deriveCoverage(
   goldens: readonly FixtureOutput[],
+  sourceGolden: SourceDiagnosticsGolden,
 ): Omit<ParityBaseline["coverage"], "uncoveredCountCeiling"> {
   assert.ok(goldens.length > 0, "coverage derivation requires golden outputs");
   const coveredSurfaces = Object.keys(goldens[0].outputs).toSorted();
@@ -813,7 +1043,11 @@ function deriveCoverage(
   ]
     .map((match) => lowerFirst(match[1]))
     .toSorted();
+  assert.equal(sourceGolden.workflow, "sourceDiagnostics");
+  assert.deepEqual(Object.keys(sourceGolden.outputs).toSorted(), ["cli", "lsp"]);
+  assert.deepEqual(sourceGolden.outputs.cli, sourceGolden.outputs.lsp);
   const coveredWorkflows = [
+    sourceGolden.workflow,
     ...new Set(
       goldens.flatMap((golden) =>
         Object.values(golden.outputs).flatMap((surfaceOutput) => {

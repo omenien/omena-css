@@ -1261,7 +1261,7 @@
     {
       "fingerprint": "fdfe6ea21fd2acb5583196234bc4f4f90bf909bab33f4af00ecde710ff381886",
       "writerScript": "scripts/check-rust-omena-cross-surface-parity.ts",
-      "line": 114,
+      "line": 142,
       "writeApi": "writeFileSync",
       "writeExpression": "baselinePath",
       "disposition": "unswept-registry-writer"
@@ -1269,7 +1269,7 @@
     {
       "fingerprint": "18aef34eb701d42e54b794c069c276449f0ab1b92cbfc352ecffd574fa4a29a6",
       "writerScript": "scripts/check-rust-omena-cross-surface-parity.ts",
-      "line": 226,
+      "line": 260,
       "writeApi": "writeFileSync",
       "writeExpression": "target",
       "disposition": "unswept-registry-writer"
@@ -1277,7 +1277,7 @@
     {
       "fingerprint": "f7c90376dbaf4effe96baf4cd79355881626e1c0402b46092ee7fcfb330daeb4",
       "writerScript": "scripts/check-rust-omena-cross-surface-parity.ts",
-      "line": 257,
+      "line": 299,
       "writeApi": "copyFileSync",
       "writeExpression": "source",
       "disposition": "unswept-registry-writer"
@@ -1285,7 +1285,7 @@
     {
       "fingerprint": "c985992e0ed2a1b7ff2817393413bef6549cff6ffe450b1997292fdbace1bfdb",
       "writerScript": "scripts/check-rust-omena-cross-surface-parity.ts",
-      "line": 311,
+      "line": 344,
       "writeApi": "writeFileSync",
       "writeExpression": "inputPath",
       "disposition": "unswept-registry-writer"
@@ -1293,7 +1293,7 @@
     {
       "fingerprint": "40c23cdb9ef6b478393b36b667f1b459ee45a2d6436737959153e670de6a7546",
       "writerScript": "scripts/check-rust-omena-cross-surface-parity.ts",
-      "line": 382,
+      "line": 603,
       "writeApi": "writeFileSync",
       "writeExpression": "stylePath",
       "disposition": "unswept-registry-writer"
@@ -1301,7 +1301,7 @@
     {
       "fingerprint": "92109ff62f4e2b83638b47984c3d4364ecda99c7dfadff246ec7eb3b585f8bbc",
       "writerScript": "scripts/check-rust-omena-cross-surface-parity.ts",
-      "line": 390,
+      "line": 611,
       "writeApi": "writeFileSync",
       "writeExpression": "inputPath",
       "disposition": "unswept-registry-writer"
@@ -1309,7 +1309,7 @@
     {
       "fingerprint": "0cd6a571c31b78797d8da9ffea6575956070fd27a957b0a21e31a488bfb2087a",
       "writerScript": "scripts/check-rust-omena-cross-surface-parity.ts",
-      "line": 542,
+      "line": 763,
       "writeApi": "writeFileSync",
       "writeExpression": "entryPath",
       "disposition": "unswept-registry-writer"
@@ -1317,7 +1317,7 @@
     {
       "fingerprint": "a01110d49f24d836cacaf971015e38d53679b919cb3cf34be8b73b57c831d7ba",
       "writerScript": "scripts/check-rust-omena-cross-surface-parity.ts",
-      "line": 543,
+      "line": 764,
       "writeApi": "writeFileSync",
       "writeExpression": "dependencyPath",
       "disposition": "unswept-registry-writer"
@@ -1325,7 +1325,7 @@
     {
       "fingerprint": "5e0b3096efcdda88ed52af1bb075400f500fd48d85e101a5769eddfc36941094",
       "writerScript": "scripts/check-rust-omena-cross-surface-parity.ts",
-      "line": 545,
+      "line": 766,
       "writeApi": "writeFileSync",
       "writeExpression": "inputPath",
       "disposition": "unswept-registry-writer"

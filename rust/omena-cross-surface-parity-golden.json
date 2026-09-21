@@ -1,7 +1,7 @@
 {
   "schemaVersion": "0",
   "product": "omena-sdk.cross-surface-parity",
-  "captureCommit": "f38bfcd06e161eb282ee941ac94671496a09f667",
+  "captureCommit": "d6c0d8779c5fb40aa1e30a0acb34ad0517bca256",
   "fixtures": [
     {
       "id": "basic.module",
@@ -24,7 +24,7 @@
   ],
   "coverage": {
     "coveredSurfaces": ["cli", "napi", "wasm"],
-    "coveredWorkflows": ["diagnostics"],
+    "coveredWorkflows": ["diagnostics", "sourceDiagnostics"],
     "uncoveredSurfaces": ["lsp"],
     "uncoveredWorkflows": ["build", "explain", "query", "snapshot"],
     "uncoveredCountCeiling": 5
@@ -201,5 +201,192 @@
         }
       }
     }
-  ]
+  ],
+  "sourceDiagnosticsGolden": {
+    "workflow": "sourceDiagnostics",
+    "outputs": {
+      "cli": {
+        "diagnosticCount": 2,
+        "diagnostics": [
+          {
+            "code": "unknownClassValueDomain",
+            "createSelector": null,
+            "message": "CSS Module class value domain is unknown because tsgo could not find a project for this source. Dynamic class values in this file (1 site) are not checked until the provider is available.",
+            "precision": {
+              "contextSensitivity": "perTypeFactTarget",
+              "flowSensitivity": "typeOracleProviderUnavailable",
+              "product": "omena-query.analysis-precision",
+              "providerCompleteness": "unresolved",
+              "revisionAxis": "OmenaQuerySourceDiagnosticsForFileV0.input",
+              "valueDomain": "unknown",
+              "worldAssumption": "open"
+            },
+            "provenance": [
+              "omena-query.source-syntax-index",
+              "omena-tsgo-client.provider-capabilities",
+              "tsgo-provider.unavailable->unknown-precision"
+            ],
+            "range": {
+              "end": {
+                "character": 54,
+                "line": 1
+              },
+              "start": {
+                "character": 41,
+                "line": 1
+              }
+            },
+            "severity": "warning"
+          },
+          {
+            "code": "missingStaticClass",
+            "createSelector": {
+              "newText": "\n\n.absent {\n}\n",
+              "range": {
+                "end": {
+                  "character": 0,
+                  "line": 1
+                },
+                "start": {
+                  "character": 0,
+                  "line": 1
+                }
+              },
+              "selectorName": "absent",
+              "uri": "file:///virtual/omena-bound-source-parity/card.module.css"
+            },
+            "message": "Class '.absent' not found in target CSS Module.",
+            "precision": {
+              "contextSensitivity": "perSourceReference",
+              "flowSensitivity": "sourceSelectorReference",
+              "product": "omena-query.analysis-precision",
+              "providerCompleteness": "unresolved",
+              "revisionAxis": "OmenaQuerySourceDiagnosticsForFileV0.input",
+              "valueDomain": "classValueResolution",
+              "worldAssumption": "open"
+            },
+            "provenance": [
+              "omena-query.source-syntax-index",
+              "omena-query.style-selector-definitions",
+              "omena-query-checker-orchestrator.product-diagnostic-gate",
+              "omena-checker.rule-registry"
+            ],
+            "range": {
+              "end": {
+                "character": 54,
+                "line": 1
+              },
+              "start": {
+                "character": 48,
+                "line": 1
+              }
+            },
+            "severity": "warning"
+          }
+        ],
+        "fileKind": "source",
+        "fileUri": "file:///virtual/omena-bound-source-parity/App.tsx",
+        "product": "omena-query.diagnostics-for-file",
+        "readySurfaces": [
+          "sourceIndexedSyntaxDiagnostics",
+          "sourceMissingSelectorDiagnostics",
+          "sourceBaselineDiagnostics",
+          "crossLanguageDiagnostics",
+          "checkerProductDiagnosticGate"
+        ],
+        "schemaVersion": "0"
+      },
+      "lsp": {
+        "diagnosticCount": 2,
+        "diagnostics": [
+          {
+            "code": "unknownClassValueDomain",
+            "createSelector": null,
+            "message": "CSS Module class value domain is unknown because tsgo could not find a project for this source. Dynamic class values in this file (1 site) are not checked until the provider is available.",
+            "precision": {
+              "contextSensitivity": "perTypeFactTarget",
+              "flowSensitivity": "typeOracleProviderUnavailable",
+              "product": "omena-query.analysis-precision",
+              "providerCompleteness": "unresolved",
+              "revisionAxis": "OmenaQuerySourceDiagnosticsForFileV0.input",
+              "valueDomain": "unknown",
+              "worldAssumption": "open"
+            },
+            "provenance": [
+              "omena-query.source-syntax-index",
+              "omena-tsgo-client.provider-capabilities",
+              "tsgo-provider.unavailable->unknown-precision"
+            ],
+            "range": {
+              "end": {
+                "character": 54,
+                "line": 1
+              },
+              "start": {
+                "character": 41,
+                "line": 1
+              }
+            },
+            "severity": "warning"
+          },
+          {
+            "code": "missingStaticClass",
+            "createSelector": {
+              "newText": "\n\n.absent {\n}\n",
+              "range": {
+                "end": {
+                  "character": 0,
+                  "line": 1
+                },
+                "start": {
+                  "character": 0,
+                  "line": 1
+                }
+              },
+              "selectorName": "absent",
+              "uri": "file:///virtual/omena-bound-source-parity/card.module.css"
+            },
+            "message": "Class '.absent' not found in target CSS Module.",
+            "precision": {
+              "contextSensitivity": "perSourceReference",
+              "flowSensitivity": "sourceSelectorReference",
+              "product": "omena-query.analysis-precision",
+              "providerCompleteness": "unresolved",
+              "revisionAxis": "OmenaQuerySourceDiagnosticsForFileV0.input",
+              "valueDomain": "classValueResolution",
+              "worldAssumption": "open"
+            },
+            "provenance": [
+              "omena-query.source-syntax-index",
+              "omena-query.style-selector-definitions",
+              "omena-query-checker-orchestrator.product-diagnostic-gate",
+              "omena-checker.rule-registry"
+            ],
+            "range": {
+              "end": {
+                "character": 54,
+                "line": 1
+              },
+              "start": {
+                "character": 48,
+                "line": 1
+              }
+            },
+            "severity": "warning"
+          }
+        ],
+        "fileKind": "source",
+        "fileUri": "file:///virtual/omena-bound-source-parity/App.tsx",
+        "product": "omena-query.diagnostics-for-file",
+        "readySurfaces": [
+          "sourceIndexedSyntaxDiagnostics",
+          "sourceMissingSelectorDiagnostics",
+          "sourceBaselineDiagnostics",
+          "crossLanguageDiagnostics",
+          "checkerProductDiagnosticGate"
+        ],
+        "schemaVersion": "0"
+      }
+    }
+  }
 }
