@@ -16,6 +16,33 @@ describe("check orchestrator CLI command helpers", () => {
     });
   });
 
+  it.each([
+    ["darwin", "/opt/homebrew/bin/pnpm"],
+    ["linux", "/opt/pnpm/pnpm"],
+    ["win32", "C:/Program Files/pnpm/pnpm.exe"],
+  ] as const)("executes standalone pnpm directly on %s", (platform, cliPath) => {
+    expect(
+      pnpmRunCommand("omena-check", ["inventory", "--check"], {
+        env: { npm_execpath: cliPath },
+        platform,
+        nodeExecutable: "/node",
+      }),
+    ).toEqual({
+      executable: cliPath,
+      args: ["run", "omena-check", "--", "inventory", "--check"],
+      display: ["pnpm", "run", "omena-check", "--", "inventory", "--check"],
+    });
+  });
+
+  it("keeps Windows command shims on the command-shell fallback", () => {
+    expect(
+      pnpmRunCommand("test:protocol", [], {
+        env: { npm_execpath: "C:/pnpm/pnpm.cmd" },
+        platform: "win32",
+      }).executable,
+    ).toBe("cmd.exe");
+  });
+
   it("falls back to cmd.exe on Windows instead of spawning a .cmd shim directly", () => {
     expect(
       pnpmRunCommand("test:protocol", [], {

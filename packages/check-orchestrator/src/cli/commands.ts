@@ -21,10 +21,14 @@ export function pnpmRunCommand(
   const pnpmArgs = ["run", scriptName, ...(extraArgs.length > 0 ? ["--", ...extraArgs] : [])];
   const display = ["pnpm", ...pnpmArgs];
 
-  if (env.npm_execpath) {
+  const cliPath = env.npm_execpath;
+  const windowsShim = platform === "win32" && /\.(?:cmd|bat)$/iu.test(cliPath ?? "");
+  if (cliPath && !windowsShim) {
+    // Standalone pnpm distributions are native executables, not Node scripts.
+    const nodeScript = /\.(?:cjs|mjs|js)$/iu.test(cliPath);
     return {
-      executable: nodeExecutable,
-      args: [env.npm_execpath, ...pnpmArgs],
+      executable: nodeScript ? nodeExecutable : cliPath,
+      args: nodeScript ? [cliPath, ...pnpmArgs] : pnpmArgs,
       display,
     };
   }
