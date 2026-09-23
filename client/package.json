@@ -8,6 +8,6 @@
   },
   "dependencies": {
     "@omena/shared": "workspace:*",
-    "vscode-languageclient": "^10.1.0"
+    "vscode-languageclient": "^10.1.1"
   }
 }
