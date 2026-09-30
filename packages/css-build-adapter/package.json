@@ -14,7 +14,7 @@
     "source-map-js": "^1.2.1"
   },
   "optionalDependencies": {
-    "@omena/napi": "^0.2.1",
-    "@omena/wasm": "^0.3.0"
+    "@omena/napi": "^0.5.0",
+    "@omena/wasm": "^0.5.0"
   }
 }
