@@ -62,7 +62,7 @@ jobs:
           OMENA_PROPERTY_METADATA_LOOKUP_PROBE: ${{ inputs.property-metadata-lookup-probe || 'indexed' }}
       - name: Require z5 perf gate baseline
         run: test -s rust/crates/omena-benchmarks/baselines/z5-perf-gate-baseline-v0.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: z5-instruction-count-advisory
           path: |
@@ -71,7 +71,7 @@ jobs:
             rust/target/iai/omena-benchmarks/z5_instruction_count_advisory/**/*.out
             rust/target/iai/omena-benchmarks/reachability_bitset_decision/**/*.out
           if-no-files-found: error
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: z5-perf-gate-baseline
           path: |
@@ -111,7 +111,7 @@ jobs:
           OMENA_PARSER_EDIT_EXECUTION_ENVIRONMENT: github-actions:ubuntu-latest:x64
       - name: Require parser edit slope artifact
         run: test -s benchmark-artifacts/parser-edit-slope-report-v0.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: parser-edit-slope
           path: benchmark-artifacts/parser-edit-slope-report-v0.json
@@ -147,7 +147,7 @@ jobs:
         run: pnpm omena-check run rust/omena-diff-test-wpt-perf-record
       - name: Require WPT case-count artifact
         run: test -s benchmark-artifacts/wpt-case-count-measurement.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: wpt-case-count-measurement
           path: benchmark-artifacts/wpt-case-count-measurement.json

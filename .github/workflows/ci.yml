@@ -46,7 +46,7 @@ jobs:
       - run: pnpm omena-check run rust/release-semver-intent-contract --summary
       - id: closure-fast-shards
         run: echo "matrix=$(pnpm --silent omena-check shards rust/closure-fast --json)" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: preflight-summary
@@ -76,7 +76,7 @@ jobs:
       - run: pnpm omena-check bundle docs/contracts --summary
       - run: pnpm omena-check run docs/site --summary
       - run: pnpm omena-check run docs/smoke --summary
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: verify-core-summary
@@ -106,13 +106,13 @@ jobs:
       - run: pnpm omena-check run contract/type-fact-backend-parity --summary
       - run: pnpm omena-check run test/test --summary
       - run: pnpm omena-check run release/check/packaged-omena-napi-crossplatform --summary
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: omena-napi-linux-x64
           path: rust/crates/omena-napi/pkg/
           retention-days: 1
           if-no-files-found: error
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: verify-native-linux-summary
@@ -137,13 +137,13 @@ jobs:
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run core/build --summary
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: build-output
           path: dist/
           retention-days: 1
           if-no-files-found: error
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: build-output-summary
@@ -174,7 +174,7 @@ jobs:
       - run: pnpm omena-check run core/build/omena-napi --summary
       - run: pnpm omena-check run test/protocol --summary
       - run: pnpm omena-check run release/check/packaged-omena-napi-crossplatform --summary
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: protocol-matrix-summary-${{ matrix.os }}
@@ -213,7 +213,7 @@ jobs:
       - run: pnpm omena-check run rust/fs-capability-ban --summary
       - run: pnpm omena-check run rust/fs-acquisition-census --summary
       - run: pnpm omena-check run rust/precision-exercise --summary
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: rust-static-summary
@@ -244,7 +244,7 @@ jobs:
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check bundle rust/contracts --summary --shard=${{ matrix.contracts-shard }}
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: rust-contracts-summary-${{ matrix.contracts-shard }}
@@ -276,7 +276,7 @@ jobs:
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run rust/product-test-coverage-classguard --summary
       - run: pnpm omena-check run rust/product-test-execution --summary -- ${{ matrix.product-shard }}
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: rust-product-test-crates-summary-${{ matrix.product-shard }}
@@ -322,7 +322,7 @@ jobs:
         with:
           tool: cargo-public-api@0.52.0,cargo-semver-checks@0.48.0
       - run: pnpm omena-check bundle rust/product-test-contracts --summary --shard=${{ matrix.contract-shard }}
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: rust-product-test-contracts-summary-${{ matrix.contract-shard }}
@@ -370,7 +370,7 @@ jobs:
       - run: pnpm omena-check run rust/z5-perf-per-file-invariant --summary
       - run: pnpm omena-check run rust/bundler-productization-benchmark --summary
       - run: pnpm omena-check run rust/omena-reactive/performance --summary
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: benchmark-contracts-summary
@@ -405,7 +405,7 @@ jobs:
       - run: pnpm omena-check run rust/z5-perf-baseline --summary
       - run: pnpm omena-check run rust/z5-perf-warmup-wave-count --summary
       - run: pnpm omena-check run rust/z5-perf-no-regression --summary
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: benchmark-instructions-summary
@@ -442,7 +442,7 @@ jobs:
           valgrind --version
       - run: pnpm omena-check run rust/z5-perf-complexity-slope --summary
       - run: pnpm omena-check run rust/demand-sliced-monotone-fact-propagation-relocation-gate-bound --summary
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: benchmark-complexity-summary
@@ -502,7 +502,7 @@ jobs:
           echo "CHROME_BIN=${chrome}" >> "$GITHUB_ENV"
           "${chrome}" --version
       - run: pnpm omena-check run plugin/consumers --summary
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: plugin-consumers-summary
@@ -543,7 +543,7 @@ jobs:
         env:
           CLOSURE_FAST_SHARD: ${{ matrix.shard }}
         run: pnpm omena-check run rust/closure-fast --summary --shard="$CLOSURE_FAST_SHARD"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: closure-fast-summary-${{ matrix.shard }}
@@ -566,7 +566,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - run: pnpm omena-check run rust/omena-identifier-authority-matrix --summary
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: rust-identifier-authority-matrix-summary
@@ -596,7 +596,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - run: pnpm omena-check run rust/omena-identifier-authority-mutations --summary
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: rust-identifier-authority-mutations-summary-${{ matrix.partition }}
@@ -621,13 +621,13 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: build-output
           path: dist/
       - run: node ./scripts/restore-native-binary-permissions.mjs
       - run: xvfb-run -a pnpm omena-check run test/extension-host --summary
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: extension-host-smoke-summary
@@ -653,11 +653,11 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: build-output
           path: dist/
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: engine-shadow-runner-*
           path: .runner-artifacts
@@ -677,12 +677,12 @@ jobs:
             echo "::error::VSIX exceeds 128 MB budget ($SIZE bytes)"
             exit 1
           fi
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: vsix
           path: "*.vsix"
           if-no-files-found: error
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: package-summary
