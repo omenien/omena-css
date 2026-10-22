@@ -12,11 +12,11 @@ import {
   SearchDialogOverlay,
   type SearchItemType,
   type SharedProps,
-  useSearchList,
+  useSearch,
 } from "fumadocs-ui/components/dialog/search";
 import { useDocsSearch } from "fumadocs-core/search/client";
 import { oramaStaticClient } from "fumadocs-core/search/client/orama-static";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { withBasePath } from "@/lib/site";
 
 export function OmenaSearchDialog(props: SharedProps) {
@@ -87,7 +87,8 @@ function DocumentationSearchResult({
   onClick: () => void;
   onActiveDescendantChange: (id: string) => void;
 }) {
-  const { active } = useSearchList();
+  const { subscribeActive, getActive } = useSearch();
+  const active = useSyncExternalStore(subscribeActive, getActive, getActive);
   const id = `documentation-search-${encodeURIComponent(item.id).replaceAll("%", "-")}`;
 
   useEffect(() => {
