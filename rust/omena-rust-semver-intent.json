@@ -852,6 +852,71 @@
           ]
         }
       ]
+    },
+    {
+      "crate": "omena-transform-cst",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "Retire the expired semantic-string node-key compatibility API and migrate all consumers to exact u64 identities. Affected wire payloads explicitly advance to schema 1 and serialize keys as lossless decimal strings; consumers must rebuild old identity caches. Publish only in the declared pre-1.0 breaking minor release.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "stable-node-key-u64-schema-migration",
+          "kind": "wire-order-changing",
+          "surface": "StableTransformIr schema1 and retired StableNodeKeyV0 Rust API",
+          "reason": "Semantic-text key values become deterministic u64 identities encoded as decimal JSON strings. Numeric-key maps may order nodes differently; source-order identity ordinals and semantic matching remain unchanged.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
+              "needles": [
+                "pub struct StableNodeKeyU64V0(pub u64);",
+                "serializer.collect_str(&self.0)",
+                "STABLE_TRANSFORM_IR_SCHEMA_VERSION_V0: &str = \"1\""
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-transform-passes",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "Retire the expired semantic-string node-key compatibility API and migrate all consumers to exact u64 identities. Affected wire payloads explicitly advance to schema 1 and serialize keys as lossless decimal strings; consumers must rebuild old identity caches. Publish only in the declared pre-1.0 breaking minor release.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "stable-node-key-u64-schema-migration",
+          "kind": "wire-order-changing",
+          "surface": "TransformExecutionSummary schema1 mutation-span nodeKey decimal identity",
+          "reason": "Semantic-text key values become deterministic u64 identities encoded as decimal JSON strings. Numeric-key maps may order nodes differently; source-order identity ordinals and semantic matching remain unchanged.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/runtime/executor.rs",
+              "needles": ["schema_version: \"1\"", "node.additive_node_key_u64()"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-scss-eval",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "Retire the expired semantic-string node-key compatibility API and migrate all consumers to exact u64 identities. Affected wire payloads explicitly advance to schema 1 and serialize keys as lossless decimal strings; consumers must rebuild old identity caches. Publish only in the declared pre-1.0 breaking minor release.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "stable-node-key-u64-schema-migration",
+          "kind": "wire-order-changing",
+          "surface": "SCSS control-flow schema1 keys and numeric identity collections",
+          "reason": "Semantic-text key values become deterministic u64 identities encoded as decimal JSON strings. Numeric-key maps may order nodes differently; source-order identity ordinals and semantic matching remain unchanged.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-scss-eval/src/control_flow/model.rs",
+              "needles": ["pub node_key: StableNodeKeyU64V0"],
+              "struct": "OmenaScssEvalControlFlowBlockV0"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

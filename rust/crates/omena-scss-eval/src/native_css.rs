@@ -991,12 +991,7 @@ fn native_css_branch_truthiness_by_start(
         .blocks
         .iter()
         .filter(|block| block.block.at_rule_name.eq_ignore_ascii_case(at_rule_name))
-        .map(|block| {
-            (
-                block.node_key.as_str().to_string(),
-                block.block.source_span_start,
-            )
-        })
+        .map(|block| (block.node_key.as_u64(), block.block.source_span_start))
         .collect::<BTreeMap<_, _>>();
 
     analysis
@@ -1009,7 +1004,7 @@ fn native_css_branch_truthiness_by_start(
                 _ => return None,
             };
             source_start_by_when_node_key
-                .get(block.node_key.as_str())
+                .get(&block.node_key.as_u64())
                 .copied()
                 .map(|source_span_start| (source_span_start, truthy))
         })

@@ -148,7 +148,7 @@ pub(super) fn analyze_scss_control_flow_values_with_truthiness_consumer(
             let transfer_value_kind = transfer_value.as_ref().map(abstract_css_value_kind);
             let transfer_truthiness = node.transfer.transfer_truthiness(truthiness_consumer);
             OmenaScssEvalControlFlowValueBlockV0 {
-                node_key: node.block.node_key.clone(),
+                node_key: node.block.node_key,
                 kind: node.block.kind,
                 transfer_kind: node.transfer.kind_label(),
                 transfer_value,
@@ -157,7 +157,7 @@ pub(super) fn analyze_scss_control_flow_values_with_truthiness_consumer(
                 predecessor_node_keys: node
                     .predecessor_indices
                     .iter()
-                    .filter_map(|index| nodes.get(*index).map(|node| node.block.node_key.clone()))
+                    .filter_map(|index| nodes.get(*index).map(|node| node.block.node_key))
                     .collect(),
                 loop_carried_bindings: node.transfer.loop_carried_bindings(),
                 loop_carried_binding_values: node.transfer.loop_carried_binding_values(),
@@ -169,7 +169,7 @@ pub(super) fn analyze_scss_control_flow_values_with_truthiness_consumer(
         })
         .collect::<Vec<_>>();
     Some(OmenaScssEvalControlFlowValueAnalysisV0 {
-        schema_version: "0",
+        schema_version: "1",
         product: "omena-scss-eval.control-flow-value-analysis",
         mode: "oracleOnly",
         dialect: dialect_label(dialect),
@@ -239,7 +239,7 @@ pub(crate) fn summarize_scss_control_flow_propagation_depth_witness()
         .count();
 
     OmenaScssEvalControlFlowPropagationDepthWitnessV0 {
-        schema_version: "0",
+        schema_version: "1",
         product: "omena-scss-eval.control-flow-propagation-depth-witness",
         mode: "oracleOnly",
         value_type: "AbstractCssValueV0",
@@ -306,7 +306,7 @@ pub(crate) fn summarize_scss_control_flow_ascending_chain_witness()
         .count();
 
     OmenaScssEvalControlFlowAscendingChainWitnessV0 {
-        schema_version: "0",
+        schema_version: "1",
         product: "omena-scss-eval.control-flow-ascending-chain-witness",
         mode: "oracleOnly",
         value_type: "AbstractClassValueV0",

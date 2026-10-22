@@ -87,7 +87,7 @@ fn summarize_scss_control_flow_ir_from_blocks(
     let back_edge_count = blocks.iter().filter(|block| block.has_back_edge).count();
     let edge_count = blocks.iter().map(|block| block.successor_count).sum();
     Some(OmenaScssEvalControlFlowIrSummaryV0 {
-        schema_version: "0",
+        schema_version: "1",
         product: "omena-scss-eval.control-flow-ir",
         mode: "oracleOnly",
         dialect: dialect_label(dialect),
@@ -287,7 +287,7 @@ fn summarize_scss_call_return_ir_from_nodes(
     let max_stack_depth_observed = max_call_stack_depth_observed(&nodes, &edges);
 
     Some(OmenaScssEvalCallReturnIrSummaryV0 {
-        schema_version: "0",
+        schema_version: "1",
         product: "omena-scss-eval.call-return-ir",
         mode: "oracleOnly",
         dialect: dialect_label(dialect),

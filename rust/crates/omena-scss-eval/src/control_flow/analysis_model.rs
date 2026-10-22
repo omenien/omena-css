@@ -47,8 +47,8 @@ pub(super) enum ScssLoopReturnResolution {
 
 pub(super) struct ScssCallReturnResolutionContext<'a> {
     pub(super) nodes: &'a [OmenaScssEvalCallReturnNodeV0],
-    pub(super) call_graph: &'a BTreeMap<String, Vec<String>>,
-    pub(super) active_stack: &'a [String],
+    pub(super) call_graph: &'a BTreeMap<u64, Vec<u64>>,
+    pub(super) active_stack: &'a [u64],
     pub(super) global_variable_declarations: &'a [ScssGlobalVariableDeclaration],
 }
 

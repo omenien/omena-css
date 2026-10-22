@@ -23,7 +23,7 @@ pub(super) fn stamp_containing_declarations_scanner_oracle(
             let body_end = call_return_declaration_body_end_scanner_oracle(tokens, node)
                 .unwrap_or(next_declaration_start)
                 .min(next_declaration_start);
-            (node.node_key.clone(), node.source_span_start, body_end)
+            (node.node_key, node.source_span_start, body_end)
         })
         .collect::<Vec<_>>();
 
@@ -37,7 +37,7 @@ pub(super) fn stamp_containing_declarations_scanner_oracle(
             .find(|(_, start, end)| {
                 node.source_span_start >= *start && node.source_span_start < *end
             })
-            .map(|(node_key, _, _)| node_key.clone());
+            .map(|(node_key, _, _)| *node_key);
     }
 }
 

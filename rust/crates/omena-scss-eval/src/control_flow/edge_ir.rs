@@ -39,7 +39,7 @@ pub fn build_scss_control_flow_graph(
         .enumerate()
         .map(|(index, block)| OmenaScssEvalControlFlowGraphBlockV0 {
             id: OmenaScssEvalControlFlowBlockIdV0(index as u32),
-            node_key: block.node_key.clone(),
+            node_key: block.node_key,
             block: block.clone(),
         })
         .collect::<Vec<_>>();
@@ -60,7 +60,7 @@ pub fn build_scss_control_flow_graph(
         .count();
 
     Some(OmenaScssEvalControlFlowGraphV0 {
-        schema_version: "0",
+        schema_version: "1",
         product: "omena-scss-eval.control-flow-edge-ir",
         mode: "oracleOnly",
         dialect: dialect_label(dialect),

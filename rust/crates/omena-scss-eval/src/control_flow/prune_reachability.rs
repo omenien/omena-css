@@ -52,7 +52,7 @@ pub(crate) fn summarize_scss_control_flow_prune_reachability_with_initial_bindin
 
     if graph.blocks.is_empty() {
         return Some(OmenaScssEvalControlFlowPruneReachabilityV0 {
-            schema_version: "0",
+            schema_version: "1",
             product: "omena-scss-eval.control-flow-prune-reachability",
             mode: "oracleOnlyPrunedReachability",
             dialect: dialect_label(dialect),
@@ -106,7 +106,7 @@ pub(crate) fn summarize_scss_control_flow_prune_reachability_with_initial_bindin
         || reachable_block_ids != sorted_block_ids(&original_reachable_block_ids);
 
     Some(OmenaScssEvalControlFlowPruneReachabilityV0 {
-        schema_version: "0",
+        schema_version: "1",
         product: "omena-scss-eval.control-flow-prune-reachability",
         mode: "oracleOnlyPrunedReachability",
         dialect: dialect_label(dialect),
@@ -139,7 +139,7 @@ fn control_flow_truthiness_by_block_id(
     let block_id_by_node_key = graph
         .blocks
         .iter()
-        .map(|block| (block.node_key.as_str().to_string(), block.id))
+        .map(|block| (block.node_key.as_u64(), block.id))
         .collect::<BTreeMap<_, _>>();
 
     Some(
@@ -153,7 +153,7 @@ fn control_flow_truthiness_by_block_id(
                     _ => return None,
                 };
                 block_id_by_node_key
-                    .get(block.node_key.as_str())
+                    .get(&block.node_key.as_u64())
                     .copied()
                     .map(|block_id| (block_id, truthy))
             })

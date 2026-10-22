@@ -86,36 +86,37 @@ pub(super) fn max_call_stack_depth_observed(
 pub(super) fn declaration_call_graph(
     nodes: &[OmenaScssEvalCallReturnNodeV0],
     edges: &[OmenaScssEvalCallReturnEdgeV0],
-) -> BTreeMap<String, Vec<String>> {
+) -> BTreeMap<u64, Vec<u64>> {
     let containing_declarations = nodes
         .iter()
         .filter_map(|node| {
             Some((
-                node.node_key.0.clone(),
-                node.containing_declaration_node_key.as_ref()?.0.clone(),
+                node.node_key.as_u64(),
+                node.containing_declaration_node_key.as_ref()?.as_u64(),
             ))
         })
         .collect::<BTreeMap<_, _>>();
-    let mut graph = BTreeMap::<String, Vec<String>>::new();
+    let mut graph = BTreeMap::<u64, Vec<u64>>::new();
     for edge in edges {
         if !matches!(edge.kind, "mixinCall" | "functionCall") {
             continue;
         }
-        let Some(source_declaration) = containing_declarations.get(&edge.source_node_key.0) else {
+        let Some(source_declaration) = containing_declarations.get(&edge.source_node_key.as_u64())
+        else {
             continue;
         };
         graph
-            .entry(source_declaration.clone())
+            .entry(*source_declaration)
             .or_default()
-            .push(edge.target_node_key.0.clone());
+            .push(edge.target_node_key.as_u64());
     }
     graph
 }
 
 pub(super) fn call_stack_depth_from(
-    node_key: &str,
-    graph: &BTreeMap<String, Vec<String>>,
-    stack: &mut Vec<String>,
+    node_key: &u64,
+    graph: &BTreeMap<u64, Vec<u64>>,
+    stack: &mut Vec<u64>,
 ) -> usize {
     if stack.iter().any(|entry| entry == node_key) {
         return SCSS_CALL_RETURN_RECURSION_LIMIT;
@@ -123,7 +124,7 @@ pub(super) fn call_stack_depth_from(
     if stack.len() >= SCSS_CALL_RETURN_RECURSION_LIMIT {
         return SCSS_CALL_RETURN_RECURSION_LIMIT;
     }
-    stack.push(node_key.to_string());
+    stack.push(*node_key);
     let depth = graph
         .get(node_key)
         .into_iter()

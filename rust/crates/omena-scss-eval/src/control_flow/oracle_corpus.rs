@@ -200,7 +200,7 @@ pub fn summarize_scss_control_flow_oracle_corpus() -> OmenaScssEvalControlFlowOr
     let typed_value_lattice_witness = summarize_typed_value_lattice_witness();
 
     OmenaScssEvalControlFlowOracleCorpusReportV0 {
-        schema_version: "0",
+        schema_version: "1",
         product: "omena-scss-eval.control-flow-oracle-corpus",
         mode: "oracleOnly",
         value_type: "AbstractCssValueV0",
@@ -698,7 +698,7 @@ mod tests {
     fn control_flow_oracle_corpus_reports_u3_surfaces() {
         let report = summarize_scss_control_flow_oracle_corpus();
 
-        assert_eq!(report.schema_version, "0");
+        assert_eq!(report.schema_version, "1");
         assert_eq!(report.product, "omena-scss-eval.control-flow-oracle-corpus");
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");

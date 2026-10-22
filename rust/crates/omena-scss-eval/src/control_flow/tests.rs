@@ -25,12 +25,29 @@ fn scss_control_flow_ir_summarizes_branch_and_loop_blocks() {
     assert_eq!(report.branch_block_count, 2);
     assert_eq!(report.loop_block_count, 3);
     assert_eq!(report.back_edge_count, 3);
-    assert!(report.blocks.iter().any(|block| {
-        block
-            .node_key
-            .as_str()
-            .starts_with("scss-control:branchIf@")
-    }));
+    let branch = report.blocks.iter().find(|block| block.kind == "branchIf");
+    assert!(branch.is_some());
+    let Some(branch) = branch else {
+        return;
+    };
+    assert_eq!(
+        branch.node_key,
+        super::blocks::scss_eval_stable_node_key(
+            "scss-control",
+            "branchIf",
+            branch.source_span_start,
+            branch.source_span_end,
+        ),
+    );
+    assert_eq!(
+        report
+            .blocks
+            .iter()
+            .map(|block| block.node_key.as_u64())
+            .collect::<BTreeSet<_>>()
+            .len(),
+        report.blocks.len(),
+    );
 }
 
 #[test]
@@ -271,9 +288,9 @@ fn scss_control_flow_edge_ir_reencodes_linear_predecessors_with_per_region_cfg()
     let block_key_by_id = graph
         .blocks
         .iter()
-        .map(|block| (block.id.0, block.node_key.as_str().to_string()))
+        .map(|block| (block.id.0, block.node_key.as_u64()))
         .collect::<BTreeMap<_, _>>();
-    let mut graph_predecessors = BTreeMap::<String, Vec<String>>::new();
+    let mut graph_predecessors = BTreeMap::<u64, Vec<u64>>::new();
     for edge in graph
         .edges
         .iter()
@@ -301,18 +318,18 @@ fn scss_control_flow_edge_ir_reencodes_linear_predecessors_with_per_region_cfg()
         let mut expected = block
             .predecessor_node_keys
             .iter()
-            .map(|key| key.as_str().to_string())
+            .map(|key| key.as_u64())
             .collect::<Vec<_>>();
         expected.sort();
         let actual = graph_predecessors
-            .get(block.node_key.as_str())
+            .get(&block.node_key.as_u64())
             .cloned()
             .unwrap_or_default();
         assert_eq!(
             actual,
             expected,
             "predecessors for {}",
-            block.node_key.as_str()
+            block.node_key.as_u64()
         );
     }
 }
@@ -1708,11 +1725,28 @@ fn call_return_ir_summarizes_mixin_and_function_edges() {
             .any(|edge| edge.kind == "functionReturn")
     );
     assert_eq!(report.recursive_edge_count, 0);
-    assert!(
+    assert_eq!(
         report
             .nodes
             .iter()
-            .all(|node| node.node_key.as_str().contains('@'))
+            .map(|node| node.node_key.as_u64())
+            .collect::<BTreeSet<_>>()
+            .len(),
+        report.nodes.len(),
+    );
+    assert_eq!(
+        report
+            .nodes
+            .iter()
+            .map(|node| node.node_key)
+            .collect::<Vec<_>>(),
+        summarize_scss_call_return_ir(source, StyleDialect::Scss)
+            .map(|repeated| repeated
+                .nodes
+                .iter()
+                .map(|node| node.node_key)
+                .collect::<Vec<_>>())
+            .unwrap_or_default(),
     );
 }
 

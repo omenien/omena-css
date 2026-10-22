@@ -14,16 +14,6 @@
       "on_expiry": "Remove this whitelist after the legacy style parser oracle role is retired."
     },
     {
-      "id": "stable-node-key-string-arm",
-      "mechanism": "stable-node-key-string-arm",
-      "kind": "dual-arm-oracle",
-      "introduced_in": "2026-07-07",
-      "expiry": {
-        "after_reference_date": "2026-10-01"
-      },
-      "on_expiry": "Remove the string-key compatibility arm or renew it with a reviewed migration decision."
-    },
-    {
       "id": "transform-ir-span-shim",
       "mechanism": "transform-ir-span-replacement-shim",
       "kind": "span-shim",
@@ -106,11 +96,6 @@
       "client": "windows-required-promotion-window",
       "accepted_kinds": ["compat-window"],
       "authority": "client-owned platform promotion gate"
-    },
-    {
-      "client": "stable-node-key-string-arm",
-      "accepted_kinds": ["dual-arm-oracle"],
-      "authority": "client-owned equivalence oracle"
     },
     {
       "client": "transform-ir-span-shim",

@@ -179,16 +179,26 @@ assert.ok(
   staticIfNodeKey,
   "static native CSS if() must be present in the unified control-flow edge IR",
 );
+assert.match(staticIfNodeKey, /^[0-9]+$/);
 assert.ok(
   nativeControlFlow.valueAnalysis?.blocks.some(
     (block) => block.nodeKey === staticIfNodeKey && block.transferTruthiness === "truthy",
   ),
   "static native CSS if() supports() must surface truthiness through value analysis",
 );
+const staticWhenNodeKey = nativeControlFlow.controlFlowIr?.blocks.find(
+  (block) =>
+    block.atRuleName === "@when" &&
+    block.kind === "branchIf" &&
+    block.sourceSpanStart === nativeSource.indexOf("@when"),
+)?.nodeKey;
+assert.equal(typeof staticWhenNodeKey, "string");
+assert.ok(staticWhenNodeKey);
+assert.match(staticWhenNodeKey, /^[0-9]+$/);
+assert.notEqual(staticWhenNodeKey, staticIfNodeKey);
 assert.ok(
   nativeControlFlow.valueAnalysis?.blocks.some(
-    (block) =>
-      block.nodeKey.includes("scss-control:branchIf@") && block.transferTruthiness === "truthy",
+    (block) => block.nodeKey === staticWhenNodeKey && block.transferTruthiness === "truthy",
   ),
   "static native CSS @when supports() must surface truthiness through value analysis",
 );

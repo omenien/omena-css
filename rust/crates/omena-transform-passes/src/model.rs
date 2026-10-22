@@ -24,7 +24,7 @@ use omena_incremental::{IncrementalComputationPlanV0, IncrementalSnapshotV0};
 use omena_parser::ModuleInstanceKeyV0;
 use omena_syntax::ident::AuthoredPropertyTextV0;
 use omena_transform_cst::{
-    StableNodeKeyV0, TransformBuildProfileV0, TransformDagEdgeV0, TransformPassContractV0,
+    StableNodeKeyU64V0, TransformBuildProfileV0, TransformDagEdgeV0, TransformPassContractV0,
     TransformPassDescriptorV0, TransformPassKind, TransformStrictPolicyDescriptorV0,
     strict_policy_descriptor_for_profile,
 };
@@ -1155,7 +1155,7 @@ pub struct TransformProvenanceMutationSpanV0 {
     pub generated_span_start: usize,
     pub generated_span_end: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub node_key: Option<StableNodeKeyV0>,
+    pub node_key: Option<StableNodeKeyU64V0>,
 }
 
 /// Counts incremental lex-splice outcomes inside a transform execution.

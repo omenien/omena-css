@@ -3006,7 +3006,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     });
 
     TransformExecutionSummaryV0 {
-        schema_version: "0",
+        schema_version: "1",
         product: "omena-transform-passes.execution",
         input_byte_len: source.len(),
         output_byte_len,
@@ -4190,7 +4190,7 @@ fn innermost_stable_node_key_for_span(
     original_start: usize,
     original_end: usize,
     stable_ir_nodes: &[StableTransformIrNodeV0],
-) -> Option<omena_transform_cst::StableNodeKeyV0> {
+) -> Option<omena_transform_cst::StableNodeKeyU64V0> {
     stable_ir_nodes
         .iter()
         .filter(|node| {
@@ -4206,7 +4206,7 @@ fn innermost_stable_node_key_for_span(
                 node.source_span_end.saturating_sub(node.source_span_start),
             )
         })
-        .and_then(|node| node.additive_node_key().cloned())
+        .and_then(|node| node.additive_node_key_u64())
 }
 
 #[cfg(test)]
