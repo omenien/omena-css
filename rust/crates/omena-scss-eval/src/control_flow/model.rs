@@ -1,5 +1,5 @@
 use omena_abstract_value::{AbstractClassValueV0, AbstractCssValueV0};
-use omena_transform_cst::StableNodeKeyV0;
+use omena_transform_cst::StableNodeKeyU64V0;
 use serde::Serialize;
 
 /// Block summary for the per-region SCSS control-flow surface.
@@ -24,7 +24,7 @@ pub struct OmenaScssEvalControlFlowIrSummaryV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaScssEvalControlFlowBlockV0 {
-    pub node_key: StableNodeKeyV0,
+    pub node_key: StableNodeKeyU64V0,
     pub kind: &'static str,
     pub at_rule_name: String,
     pub header_text: String,
@@ -66,7 +66,7 @@ pub struct OmenaScssEvalControlFlowGraphV0 {
 #[serde(rename_all = "camelCase")]
 pub struct OmenaScssEvalControlFlowGraphBlockV0 {
     pub id: OmenaScssEvalControlFlowBlockIdV0,
-    pub node_key: StableNodeKeyV0,
+    pub node_key: StableNodeKeyU64V0,
     pub block: OmenaScssEvalControlFlowBlockV0,
 }
 
@@ -206,13 +206,13 @@ pub struct OmenaScssEvalTypedValueKindCountV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaScssEvalControlFlowValueBlockV0 {
-    pub node_key: StableNodeKeyV0,
+    pub node_key: StableNodeKeyU64V0,
     pub kind: &'static str,
     pub transfer_kind: &'static str,
     pub transfer_value: Option<AbstractCssValueV0>,
     pub transfer_value_kind: Option<&'static str>,
     pub transfer_truthiness: Option<&'static str>,
-    pub predecessor_node_keys: Vec<StableNodeKeyV0>,
+    pub predecessor_node_keys: Vec<StableNodeKeyU64V0>,
     pub loop_carried_bindings: Vec<String>,
     pub loop_carried_binding_values: Vec<OmenaScssEvalControlFlowBindingValueV0>,
     pub input_value: AbstractCssValueV0,
@@ -273,7 +273,7 @@ pub struct OmenaScssEvalCallReturnIrSummaryV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaScssEvalCallReturnNodeV0 {
-    pub node_key: StableNodeKeyV0,
+    pub node_key: StableNodeKeyU64V0,
     pub kind: &'static str,
     pub symbol_kind: &'static str,
     pub role: &'static str,
@@ -298,7 +298,7 @@ pub struct OmenaScssEvalCallReturnNodeV0 {
     pub return_negated_condition_texts: Vec<String>,
     pub source_span_start: usize,
     pub source_span_end: usize,
-    pub containing_declaration_node_key: Option<StableNodeKeyV0>,
+    pub containing_declaration_node_key: Option<StableNodeKeyU64V0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -335,8 +335,8 @@ pub struct OmenaScssEvalCallLocalBindingV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaScssEvalCallReturnEdgeV0 {
-    pub source_node_key: StableNodeKeyV0,
-    pub target_node_key: StableNodeKeyV0,
+    pub source_node_key: StableNodeKeyU64V0,
+    pub target_node_key: StableNodeKeyU64V0,
     pub kind: &'static str,
     pub recursive: bool,
     pub capped_by_recursion_cap: bool,

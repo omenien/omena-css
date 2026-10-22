@@ -163,7 +163,7 @@ function assertContractText(): void {
     "ModuleIdV0",
     "ModuleInstanceKeyV0",
     "LspFileId",
-    "StableNodeKeyV0",
+    "StableNodeKeyU64V0",
     "OmenaWorkspaceSnapshotIdV0",
     "STYLE_IDENTITY_CACHE_VERSION",
     "CANONICALIZE_PATH_CACHE_VERSION",

@@ -73,13 +73,7 @@ fn prose_obligation_family_stamp(provenance: &[String]) -> FamilyStampV0 {
     };
     FamilyStampV0::prose_obligation_discharged(&prose_provenance)
 }
-pub const STABLE_NODE_KEY_STRING_ARM_EXPIRY_UTC_DATE_V0: &str = "2026-10-01";
-pub const STABLE_NODE_KEY_TYPE_LABEL_V0: &str = "StableNodeKeyV0";
-
-#[cfg(stable_node_key_string_arm_expired)]
-compile_error!(
-    "StableNodeKeyV0 string arm has passed its expiry date; migrate consumers to StableNodeKeyU64V0 or extend the expiry with a tracked decision."
-);
+pub const STABLE_NODE_KEY_TYPE_LABEL_V0: &str = "StableNodeKeyU64V0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -688,21 +682,30 @@ impl StableTransformIrNodeKindV0 {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-#[serde(transparent)]
-pub struct StableNodeKeyV0(pub String);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StableNodeKeyU64V0(pub u64);
 
-impl StableNodeKeyV0 {
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
+impl Serialize for StableNodeKeyU64V0 {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        // Native JSON consumers must retain all 64 bits, including values above 2^53.
+        serializer.collect_str(&self.0)
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-#[serde(transparent)]
-pub struct StableNodeKeyU64V0(pub u64);
-
 impl StableNodeKeyU64V0 {
+    /// Deterministic content identity, distinguished by source-order ordinal.
+    pub fn from_semantic_key_and_ordinal(semantic_key: &str, ordinal: usize) -> Self {
+        let mut hash = StableNodeKeyFnv64::new();
+        hash.piece("omena-transform-cst.stable-node-key");
+        hash.piece(semantic_key);
+        hash.piece("#");
+        hash.piece(&ordinal.to_string());
+        Self(hash.finish())
+    }
+
     pub const fn as_u64(self) -> u64 {
         self.0
     }
@@ -722,21 +725,11 @@ impl StableNodeKeySeedV0 {
         }
     }
 
-    fn materialize(&self) -> StableNodeKeyV0 {
+    fn materialize_u64(&self) -> StableNodeKeyU64V0 {
         STABLE_NODE_KEY_STAMP_COUNT.with(|count| {
             *count.borrow_mut() += 1;
         });
-        StableNodeKeyV0(format!("{}#{}", self.semantic_key, self.ordinal))
-    }
-
-    fn materialize_u64(&self) -> StableNodeKeyU64V0 {
-        let mut hash = StableNodeKeyFnv64::new();
-        hash.piece("omena-transform-cst.stable-node-key");
-        hash.piece(&self.semantic_key);
-        hash.piece("#");
-        let ordinal = self.ordinal.to_string();
-        hash.piece(&ordinal);
-        StableNodeKeyU64V0(hash.finish())
+        StableNodeKeyU64V0::from_semantic_key_and_ordinal(&self.semantic_key, self.ordinal)
     }
 }
 
@@ -765,7 +758,6 @@ impl StableNodeKeyFnv64 {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StableTransformIrNodeV0 {
     pub node_id: String,
-    node_key: OnceLock<StableNodeKeyV0>,
     node_key_u64: OnceLock<StableNodeKeyU64V0>,
     node_key_seed: Option<StableNodeKeySeedV0>,
     pub kind: StableTransformIrNodeKindV0,
@@ -782,14 +774,6 @@ impl StableTransformIrNodeV0 {
         self.node_id.as_str()
     }
 
-    pub fn additive_node_key(&self) -> Option<&StableNodeKeyV0> {
-        if let Some(key) = self.node_key.get() {
-            return Some(key);
-        }
-        let seed = self.node_key_seed.as_ref()?;
-        Some(self.node_key.get_or_init(|| seed.materialize()))
-    }
-
     pub fn additive_node_key_u64(&self) -> Option<StableNodeKeyU64V0> {
         if let Some(key) = self.node_key_u64.get() {
             return Some(*key);
@@ -799,14 +783,12 @@ impl StableTransformIrNodeV0 {
     }
 
     fn set_additive_node_key_seed(&mut self, ordinal: usize) {
-        self.node_key = OnceLock::new();
         self.node_key_u64 = OnceLock::new();
         self.node_key_seed = Some(StableNodeKeySeedV0::new(self.semantic_key.clone(), ordinal));
     }
 
     #[doc(hidden)]
     pub fn clear_additive_node_key_for_test(&mut self) {
-        self.node_key = OnceLock::new();
         self.node_key_u64 = OnceLock::new();
         self.node_key_seed = None;
     }
@@ -817,14 +799,10 @@ impl Serialize for StableTransformIrNodeV0 {
     where
         S: serde::Serializer,
     {
-        let node_key = self.additive_node_key();
         let node_key_u64 = self.additive_node_key_u64();
-        let field_count = 8 + usize::from(node_key.is_some()) + usize::from(node_key_u64.is_some());
+        let field_count = 8 + usize::from(node_key_u64.is_some());
         let mut state = serializer.serialize_struct("StableTransformIrNodeV0", field_count)?;
         state.serialize_field("nodeId", &self.node_id)?;
-        if let Some(node_key) = node_key {
-            state.serialize_field("nodeKey", node_key)?;
-        }
         if let Some(node_key_u64) = node_key_u64 {
             state.serialize_field("nodeKeyU64", &node_key_u64)?;
         }
@@ -865,10 +843,10 @@ pub struct StableTransformIrV0 {
     pub provenance_anchors: Vec<TransformCstProvenanceAnchorV0>,
 }
 
-pub const STABLE_TRANSFORM_IR_SCHEMA_VERSION_V0: &str = "0";
+pub const STABLE_TRANSFORM_IR_SCHEMA_VERSION_V0: &str = "1";
 
 pub const STABLE_TRANSFORM_IR_NODE_IDENTITY_POLICY_V0: &str =
-    "schema-v0-node-key-preferred-node-id-fallback";
+    "schema-v1-u64-node-key-preferred-node-id-fallback";
 
 impl StableTransformIrV0 {
     pub fn node_identity_policy(&self) -> &'static str {
@@ -881,9 +859,9 @@ impl StableTransformIrV0 {
 
     pub fn identity_key_for_node<'a>(&self, node: &'a StableTransformIrNodeV0) -> Cow<'a, str> {
         if self.schema_version == STABLE_TRANSFORM_IR_SCHEMA_VERSION_V0
-            && let Some(node_key) = node.additive_node_key()
+            && let Some(node_key) = node.additive_node_key_u64()
         {
-            return Cow::Borrowed(node_key.as_str());
+            return Cow::Owned(node_key.as_u64().to_string());
         }
         Cow::Borrowed(node.positional_node_id())
     }
@@ -1462,7 +1440,7 @@ pub fn build_stable_transform_ir_from_source(
     let contains_bogus_or_trivia = parser_error_count > 0;
 
     StableTransformIrV0 {
-        schema_version: "0",
+        schema_version: STABLE_TRANSFORM_IR_SCHEMA_VERSION_V0,
         product: "omena-transform-cst.stable-ir",
         dialect: transform_cst_style_dialect_label(dialect),
         source_byte_len: source.len(),
@@ -1850,7 +1828,6 @@ fn push_ir_node_with_semantic_label(
     let kind_id = kind.id();
     nodes.push(StableTransformIrNodeV0 {
         node_id: String::new(),
-        node_key: OnceLock::new(),
         node_key_u64: OnceLock::new(),
         node_key_seed: None,
         kind,
@@ -2729,7 +2706,7 @@ mod tests {
     }
 
     #[test]
-    fn stable_transform_ir_lazily_materializes_source_order_node_keys() {
+    fn stable_transform_ir_lazily_materializes_source_order_u64_node_keys() {
         super::reset_stable_node_key_stamp_count_for_test();
         let ir = build_stable_transform_ir_from_source(
             ".button { color: red; }\n.button { color: blue; }",
@@ -2737,133 +2714,122 @@ mod tests {
             "semantic:duplicate-button",
         );
         assert_eq!(super::stable_node_key_stamp_count_for_test(), 0);
-
-        let button_nodes = ir
+        let nodes = ir
             .nodes
             .iter()
             .filter(|node| {
                 node.kind == StableTransformIrNodeKindV0::ClassSelector && node.label == "button"
             })
             .collect::<Vec<_>>();
-
-        assert_eq!(button_nodes.len(), 2);
-        assert_eq!(button_nodes[0].node_id, "ir:0");
-        assert_eq!(button_nodes[1].node_id, "ir:1");
-        assert_eq!(
-            button_nodes[0].additive_node_key().map(|key| key.as_str()),
-            Some("class-selector:button#0")
-        );
+        assert_eq!(nodes.len(), 2);
+        let first =
+            super::StableNodeKeyU64V0::from_semantic_key_and_ordinal("class-selector:button", 0);
+        let second =
+            super::StableNodeKeyU64V0::from_semantic_key_and_ordinal("class-selector:button", 1);
+        assert_eq!(nodes[0].additive_node_key_u64(), Some(first));
         assert_eq!(super::stable_node_key_stamp_count_for_test(), 1);
-        assert_eq!(
-            button_nodes[0].additive_node_key().map(|key| key.as_str()),
-            Some("class-selector:button#0")
-        );
+        assert_eq!(nodes[0].additive_node_key_u64(), Some(first));
         assert_eq!(super::stable_node_key_stamp_count_for_test(), 1);
-        assert_eq!(
-            button_nodes[1].additive_node_key().map(|key| key.as_str()),
-            Some("class-selector:button#1")
-        );
-        assert!(button_nodes[0].additive_node_key_u64() != button_nodes[1].additive_node_key_u64());
+        assert_eq!(nodes[1].additive_node_key_u64(), Some(second));
+        assert_ne!(first, second);
         assert!(ir.nodes.iter().enumerate().all(|(index, node)| {
-            node.node_id == format!("ir:{index}") && node.additive_node_key().is_some()
+            node.node_id == format!("ir:{index}") && node.additive_node_key_u64().is_some()
         }));
     }
 
     #[test]
-    fn stable_transform_ir_u64_keys_preserve_string_key_equivalence_classes() {
-        let ir = build_stable_transform_ir_from_source(
-            ".button { color: red; }\n.button { color: blue; }\n.card { color: red; }",
-            StyleDialect::Css,
-            "semantic:key-equivalence",
-        );
-        let keyed_nodes = ir
-            .nodes
-            .iter()
-            .map(|node| {
-                (
-                    node.semantic_key.as_str(),
-                    node.additive_node_key()
-                        .map(|key| key.as_str())
-                        .unwrap_or_default(),
-                    node.additive_node_key_u64()
-                        .map(|key| key.as_u64())
-                        .unwrap_or_default(),
-                )
-            })
-            .collect::<Vec<_>>();
-
-        assert!(
-            keyed_nodes
-                .iter()
-                .filter(|(semantic_key, _, _)| *semantic_key == "class-selector:button")
-                .count()
-                >= 2
-        );
-        for (left_index, (_, left_string, left_u64)) in keyed_nodes.iter().enumerate() {
-            for (_, right_string, right_u64) in keyed_nodes.iter().skip(left_index + 1) {
-                assert_eq!(left_string == right_string, left_u64 == right_u64);
-            }
+    fn stable_transform_ir_u64_keys_preserve_source_order_identity() {
+        let source = ".button { color: red; }\n.button { color: blue; }\n.card { color: red; }";
+        let ir = build_stable_transform_ir_from_source(source, StyleDialect::Css, "semantic:key");
+        let rebuilt =
+            build_stable_transform_ir_from_source(source, StyleDialect::Css, "semantic:key");
+        let mut ordinals = std::collections::BTreeMap::<&str, usize>::new();
+        let mut keys = std::collections::BTreeSet::new();
+        for (node, rebuilt_node) in ir.nodes.iter().zip(&rebuilt.nodes) {
+            let ordinal = ordinals.entry(node.semantic_key.as_str()).or_default();
+            let expected = super::StableNodeKeyU64V0::from_semantic_key_and_ordinal(
+                &node.semantic_key,
+                *ordinal,
+            );
+            assert_eq!(node.additive_node_key_u64(), Some(expected));
+            assert_eq!(
+                node.additive_node_key_u64(),
+                rebuilt_node.additive_node_key_u64()
+            );
+            assert!(
+                keys.insert(expected),
+                "distinct source-order identities must remain distinct"
+            );
+            *ordinal += 1;
         }
-        let button_keys = keyed_nodes
-            .iter()
-            .filter(|(semantic_key, _, _)| *semantic_key == "class-selector:button")
-            .map(|(_, string_key, u64_key)| (*string_key, *u64_key))
-            .collect::<Vec<_>>();
-        assert_ne!(button_keys[0].0, button_keys[1].0);
-        assert_ne!(button_keys[0].1, button_keys[1].1);
+        // Lock the existing FNV framing independently from production's helper.
+        assert_eq!(
+            super::StableNodeKeyU64V0::from_semantic_key_and_ordinal("class-selector:button", 0)
+                .as_u64(),
+            9333922602393250068
+        );
     }
 
     #[test]
-    fn stable_transform_ir_identity_reader_prefers_key_with_positional_fallback() {
+    fn stable_transform_ir_identity_reader_prefers_u64_key_with_positional_fallback() {
         let mut ir = build_stable_transform_ir_from_source(
             ".button { color: red; }\n.button { color: blue; }",
             StyleDialect::Css,
             "semantic:duplicate-button",
         );
-
         assert_eq!(
             ir.node_identity_policy(),
             STABLE_TRANSFORM_IR_NODE_IDENTITY_POLICY_V0
         );
-        assert_eq!(
-            ir.identity_key_at(0).as_deref(),
-            Some("class-selector:button#0")
-        );
-        assert_eq!(
-            ir.identity_key_at(1).as_deref(),
-            Some("class-selector:button#1")
-        );
-
+        let first =
+            super::StableNodeKeyU64V0::from_semantic_key_and_ordinal("class-selector:button", 0)
+                .as_u64()
+                .to_string();
+        let second =
+            super::StableNodeKeyU64V0::from_semantic_key_and_ordinal("class-selector:button", 1)
+                .as_u64()
+                .to_string();
+        assert_eq!(ir.identity_key_at(0).as_deref(), Some(first.as_str()));
+        assert_eq!(ir.identity_key_at(1).as_deref(), Some(second.as_str()));
         ir.nodes[0].clear_additive_node_key_for_test();
         assert_eq!(ir.identity_key_at(0).as_deref(), Some("ir:0"));
-        assert_eq!(
-            ir.identity_key_at(1).as_deref(),
-            Some("class-selector:button#1")
-        );
-
+        assert_eq!(ir.identity_key_at(1).as_deref(), Some(second.as_str()));
         ir.schema_version = "future";
         assert_eq!(ir.node_identity_policy(), "legacy-node-id-only");
         assert_eq!(ir.identity_key_at(1).as_deref(), Some("ir:1"));
     }
 
     #[test]
-    fn stable_transform_ir_identity_reader_preserves_serialized_node_shape()
-    -> Result<(), serde_json::Error> {
+    fn stable_transform_ir_serializes_only_numeric_node_key() -> Result<(), serde_json::Error> {
         let mut ir = build_stable_transform_ir_from_source(
             ".button { color: red; }",
             StyleDialect::Css,
             "semantic:button",
         );
-        let with_key_json = serde_json::to_string(&ir.nodes[0])?;
-        assert!(with_key_json.contains("\"nodeId\":\"ir:0\""));
-        assert!(with_key_json.contains("\"nodeKey\":\"class-selector:button#0\""));
-        assert!(with_key_json.contains("\"nodeKeyU64\":"));
-
+        let serialized = serde_json::to_value(&ir.nodes[0])?;
+        assert_eq!(serialized["nodeId"], "ir:0");
+        assert_eq!(
+            serialized["nodeKeyU64"].as_str(),
+            ir.nodes[0]
+                .additive_node_key_u64()
+                .map(|key| key.as_u64().to_string())
+                .as_deref()
+        );
+        assert!(
+            serialized.get("nodeKey").is_none(),
+            "string compatibility field must be absent"
+        );
+        assert_eq!(
+            serde_json::to_string(&super::StableNodeKeyU64V0(u64::MAX))?,
+            "\"18446744073709551615\""
+        );
+        assert_ne!(
+            serde_json::to_value(super::StableNodeKeyU64V0(1 << 53))?,
+            serde_json::to_value(super::StableNodeKeyU64V0((1 << 53) + 1))?
+        );
         ir.nodes[0].clear_additive_node_key_for_test();
-        let fallback_json = serde_json::to_string(&ir.nodes[0])?;
-        assert!(fallback_json.contains("\"nodeId\":\"ir:0\""));
-        assert!(!fallback_json.contains("nodeKey"));
-        assert!(!fallback_json.contains("nodeKeyU64"));
+        let fallback = serde_json::to_value(&ir.nodes[0])?;
+        assert!(fallback.get("nodeKeyU64").is_none());
         assert_eq!(ir.identity_key_at(0).as_deref(), Some("ir:0"));
         Ok(())
     }

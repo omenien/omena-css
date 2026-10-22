@@ -115,11 +115,15 @@ pub(super) fn run_scss_control_flow_fixpoint(
     let flow_nodes = nodes
         .iter()
         .map(|node| BoundedJoinFixpointNodeV0 {
-            id: node.block.node_key.0.clone(),
+            id: node.block.node_key.as_u64().to_string(),
             predecessor_ids: node
                 .predecessor_indices
                 .iter()
-                .filter_map(|index| nodes.get(*index).map(|node| node.block.node_key.0.clone()))
+                .filter_map(|index| {
+                    nodes
+                        .get(*index)
+                        .map(|node| node.block.node_key.as_u64().to_string())
+                })
                 .collect(),
             transfer: node.transfer.clone(),
         })

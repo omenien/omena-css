@@ -18,7 +18,6 @@ const expectedReceiptClients = [
   "obligation-family-carrier-retirement",
   "dialect-seed-dual-arm-date-window",
   "windows-required-promotion-window",
-  "stable-node-key-string-arm",
   "transform-ir-span-shim",
   "z3-discharge-compat-window",
   "napi-json-compat-window",
@@ -165,22 +164,21 @@ function assertLedger(manifest: DebtLedgerManifest, referenceDate: string): void
 
 function assertRegisteredClientExpiries(entries: readonly DebtEntry[]): void {
   const byId = new Map(entries.map((entry) => [entry.id, entry]));
-  const stableNodeKey = byId.get("stable-node-key-string-arm");
   const spanShim = byId.get("transform-ir-span-shim");
   const dialectSeeds = byId.get("dialect-seed-known-failure-review");
-  assert.ok(stableNodeKey, "stable node key build-script expiry must be registered");
   assert.ok(spanShim, "transform IR span shim expiry must be registered");
   assert.ok(dialectSeeds, "dialect seed review date must be registered");
 
-  const stableNodeBuild = readFileSync(
-    path.join(repoRoot, "rust/crates/omena-transform-cst/build.rs"),
+  assert.ok(
+    !byId.has("stable-node-key-string-arm"),
+    "retired string node-key compatibility debt must not be reintroduced",
+  );
+  const stableNodeSource = readFileSync(
+    path.join(repoRoot, "rust/crates/omena-transform-cst/src/lib.rs"),
     "utf8",
   );
-  const unixDay = stableNodeBuild.match(
-    /STABLE_NODE_KEY_STRING_ARM_EXPIRY_UNIX_DAY: u64 = ([\d_]+);/u,
-  );
-  assert.equal(unixDay?.[1]?.replaceAll("_", ""), "20727");
-  assert.equal(stableNodeKey.expiry.after_reference_date, "2026-10-01");
+  assert.ok(!stableNodeSource.includes("pub struct StableNodeKeyV0"));
+  assert.ok(!existsSync(path.join(repoRoot, "rust/crates/omena-transform-cst/build.rs")));
 
   const spanBaseline = readJson<{
     readonly expiry: { readonly notAfterUtcDate: string };

@@ -76,7 +76,7 @@
     "omena-spec-audit": 25,
     "omena-syntax": 41,
     "omena-testkit": 32,
-    "omena-transform-cst": 71,
+    "omena-transform-cst": 70,
     "omena-transform-egg": 35,
     "omena-transform-passes": 261,
     "omena-transform-print": 31,
@@ -10090,19 +10090,19 @@
       "crate": "omena-scss-eval",
       "typeName": "NativeCssElseRuleV0",
       "sourcePath": "rust/crates/omena-scss-eval/src/native_css.rs",
-      "line": 1020
+      "line": 1015
     },
     {
       "crate": "omena-scss-eval",
       "typeName": "NativeCssFunctionBindingV0",
       "sourcePath": "rust/crates/omena-scss-eval/src/native_css.rs",
-      "line": 1585
+      "line": 1580
     },
     {
       "crate": "omena-scss-eval",
       "typeName": "NativeCssFunctionSyntaxGateV0",
       "sourcePath": "rust/crates/omena-scss-eval/src/native_css.rs",
-      "line": 1579
+      "line": 1574
     },
     {
       "crate": "omena-scss-eval",
@@ -12754,7 +12754,7 @@
       "crate": "omena-transform-cst",
       "typeName": "CascadeSafetyWitnessV0",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 556
+      "line": 550
     },
     {
       "crate": "omena-transform-cst",
@@ -12886,7 +12886,7 @@
       "crate": "omena-transform-cst",
       "typeName": "RejectingBackend",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 2249
+      "line": 2226
     },
     {
       "crate": "omena-transform-cst",
@@ -12898,55 +12898,49 @@
       "crate": "omena-transform-cst",
       "typeName": "ResetOrdinalOverrides",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 490
+      "line": 484
     },
     {
       "crate": "omena-transform-cst",
       "typeName": "RewriteCandidateV0",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 946
+      "line": 924
     },
     {
       "crate": "omena-transform-cst",
       "typeName": "StableNodeKeyFnv64",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 743
+      "line": 736
     },
     {
       "crate": "omena-transform-cst",
       "typeName": "StableNodeKeySeedV0",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 712
+      "line": 715
     },
     {
       "crate": "omena-transform-cst",
       "typeName": "StableNodeKeyU64V0",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 703
-    },
-    {
-      "crate": "omena-transform-cst",
-      "typeName": "StableNodeKeyV0",
-      "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 693
+      "line": 686
     },
     {
       "crate": "omena-transform-cst",
       "typeName": "StableTransformIrNodeKindV0",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 633
+      "line": 627
     },
     {
       "crate": "omena-transform-cst",
       "typeName": "StableTransformIrNodeV0",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 766
+      "line": 759
     },
     {
       "crate": "omena-transform-cst",
       "typeName": "StableTransformIrV0",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 854
+      "line": 832
     },
     {
       "crate": "omena-transform-cst",
@@ -12970,25 +12964,25 @@
       "crate": "omena-transform-cst",
       "typeName": "TransformCstArtifactV0",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 900
+      "line": 878
     },
     {
       "crate": "omena-transform-cst",
       "typeName": "TransformCstBoundarySummaryV0",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 604
+      "line": 598
     },
     {
       "crate": "omena-transform-cst",
       "typeName": "TransformCstProvenanceAnchorV0",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 844
+      "line": 822
     },
     {
       "crate": "omena-transform-cst",
       "typeName": "TransformDagEdgeV0",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 596
+      "line": 590
     },
     {
       "crate": "omena-transform-cst",
@@ -13048,7 +13042,7 @@
       "crate": "omena-transform-cst",
       "typeName": "TransformLayer",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 86
+      "line": 80
     },
     {
       "crate": "omena-transform-cst",
@@ -13114,7 +13108,7 @@
       "crate": "omena-transform-cst",
       "typeName": "TransformPassContractV0",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 532
+      "line": 526
     },
     {
       "crate": "omena-transform-cst",
@@ -13126,7 +13120,7 @@
       "crate": "omena-transform-cst",
       "typeName": "TransformPassKind",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 95
+      "line": 89
     },
     {
       "crate": "omena-transform-cst",
@@ -13138,13 +13132,13 @@
       "crate": "omena-transform-cst",
       "typeName": "TransformPassReadModel",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 521
+      "line": 515
     },
     {
       "crate": "omena-transform-cst",
       "typeName": "TransformPassSpecV0",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 915
+      "line": 893
     },
     {
       "crate": "omena-transform-cst",
@@ -13156,19 +13150,19 @@
       "crate": "omena-transform-cst",
       "typeName": "TransformVerificationErrorV0",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 1053
+      "line": 1031
     },
     {
       "crate": "omena-transform-cst",
       "typeName": "VerificationReportV0",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 997
+      "line": 975
     },
     {
       "crate": "omena-transform-cst",
       "typeName": "VerifiedRewriteV0",
       "sourcePath": "rust/crates/omena-transform-cst/src/lib.rs",
-      "line": 1034
+      "line": 1012
     },
     {
       "crate": "omena-transform-egg",

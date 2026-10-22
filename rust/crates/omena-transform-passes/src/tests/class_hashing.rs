@@ -154,7 +154,13 @@ fn execution_runtime_preserves_global_composes_during_css_module_class_hashing()
     if let Some(hash_node) = hash_node {
         assert!(
             hash_node.mutation_spans.iter().any(|span| {
-                span.node_key.as_ref().map(|key| key.as_str()) == Some("class-selector:button#0")
+                span.node_key
+                    == Some(
+                        omena_transform_cst::StableNodeKeyU64V0::from_semantic_key_and_ordinal(
+                            "class-selector:button",
+                            0,
+                        ),
+                    )
             }),
             "{:?}",
             hash_node.mutation_spans

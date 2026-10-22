@@ -1,7 +1,7 @@
 use cstree::syntax::SyntaxNode;
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
-use omena_transform_cst::StableNodeKeyV0;
+use omena_transform_cst::StableNodeKeyU64V0;
 
 use super::model::OmenaScssEvalControlFlowBlockV0;
 
@@ -181,10 +181,11 @@ pub(super) fn scss_eval_stable_node_key(
     kind: &str,
     source_span_start: usize,
     source_span_end: usize,
-) -> StableNodeKeyV0 {
-    StableNodeKeyV0(format!(
-        "{prefix}:{kind}@{source_span_start}..{source_span_end}"
-    ))
+) -> StableNodeKeyU64V0 {
+    StableNodeKeyU64V0::from_semantic_key_and_ordinal(
+        &format!("{prefix}:{kind}@{source_span_start}..{source_span_end}"),
+        0,
+    )
 }
 
 pub(super) fn scss_control_block_kind(kind: SyntaxKind) -> Option<&'static str> {

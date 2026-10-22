@@ -462,12 +462,7 @@ fn static_scss_control_flow_value_truthiness_by_start(
     let source_start_by_node_key = graph
         .blocks
         .iter()
-        .map(|block| {
-            (
-                block.node_key.as_str().to_string(),
-                block.block.source_span_start,
-            )
-        })
+        .map(|block| (block.node_key.as_u64(), block.block.source_span_start))
         .collect::<BTreeMap<_, _>>();
 
     analysis
@@ -480,7 +475,7 @@ fn static_scss_control_flow_value_truthiness_by_start(
                 _ => return None,
             };
             source_start_by_node_key
-                .get(block.node_key.as_str())
+                .get(&block.node_key.as_u64())
                 .copied()
                 .map(|source_span_start| (source_span_start, truthy))
         })

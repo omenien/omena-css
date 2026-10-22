@@ -88,7 +88,7 @@ pub(super) fn build_call_return_edges(
                     node.symbol_kind,
                     canonical_scss_callable_name(node.name.as_deref()?),
                 ),
-                node.node_key.clone(),
+                node.node_key,
             ))
         })
         .collect::<BTreeMap<_, _>>();
@@ -104,8 +104,8 @@ pub(super) fn build_call_return_edges(
                     let recursive =
                         node.containing_declaration_node_key.as_ref() == Some(target_node_key);
                     edges.push(OmenaScssEvalCallReturnEdgeV0 {
-                        source_node_key: node.node_key.clone(),
-                        target_node_key: target_node_key.clone(),
+                        source_node_key: node.node_key,
+                        target_node_key: *target_node_key,
                         kind: if node.kind == "mixinInclude" {
                             "mixinCall"
                         } else {
@@ -117,7 +117,7 @@ pub(super) fn build_call_return_edges(
                 }
             }
             "functionReturn" => {
-                if let Some(target_node_key) = node.containing_declaration_node_key.clone()
+                if let Some(target_node_key) = node.containing_declaration_node_key
                     && nodes.iter().any(|candidate| {
                         candidate.node_key == target_node_key
                             && candidate.kind == "functionDeclaration"
@@ -125,7 +125,7 @@ pub(super) fn build_call_return_edges(
                 {
                     edges.push(OmenaScssEvalCallReturnEdgeV0 {
                         source_node_key: target_node_key,
-                        target_node_key: node.node_key.clone(),
+                        target_node_key: node.node_key,
                         kind: "functionReturn",
                         recursive: false,
                         capped_by_recursion_cap: false,
@@ -172,7 +172,7 @@ pub(super) fn stamp_call_resolved_return_values(
 
 fn call_resolved_return_value_for_edge(
     nodes: &[OmenaScssEvalCallReturnNodeV0],
-    call_graph: &BTreeMap<String, Vec<String>>,
+    call_graph: &BTreeMap<u64, Vec<u64>>,
     edge: &OmenaScssEvalCallReturnEdgeV0,
     global_variable_declarations: &[ScssGlobalVariableDeclaration],
 ) -> Option<AbstractCssValueV0> {
@@ -200,10 +200,10 @@ fn call_resolved_return_value_for_edge(
 
 fn call_resolved_return_value_for_call(
     nodes: &[OmenaScssEvalCallReturnNodeV0],
-    call_graph: &BTreeMap<String, Vec<String>>,
+    call_graph: &BTreeMap<u64, Vec<u64>>,
     declaration_node: &OmenaScssEvalCallReturnNodeV0,
     argument_values: &[OmenaScssEvalCallArgumentValueV0],
-    active_stack: &[String],
+    active_stack: &[u64],
     global_variable_declarations: &[ScssGlobalVariableDeclaration],
 ) -> Option<AbstractCssValueV0> {
     if declaration_node.kind != "functionDeclaration" {
@@ -211,17 +211,20 @@ fn call_resolved_return_value_for_call(
     }
     if active_stack
         .iter()
-        .any(|entry| entry == declaration_node.node_key.as_str())
+        .any(|entry| entry == &declaration_node.node_key.as_u64())
     {
         return Some(AbstractCssValueV0::Top);
     }
-    if call_stack_depth_from(&declaration_node.node_key.0, call_graph, &mut Vec::new())
-        >= SCSS_CALL_RETURN_RECURSION_LIMIT
+    if call_stack_depth_from(
+        &declaration_node.node_key.as_u64(),
+        call_graph,
+        &mut Vec::new(),
+    ) >= SCSS_CALL_RETURN_RECURSION_LIMIT
     {
         return Some(AbstractCssValueV0::Top);
     }
     let mut next_stack = active_stack.to_vec();
-    next_stack.push(declaration_node.node_key.0.clone());
+    next_stack.push(declaration_node.node_key.as_u64());
     let context = ScssCallReturnResolutionContext {
         nodes,
         call_graph,
