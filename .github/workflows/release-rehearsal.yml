@@ -32,7 +32,7 @@ jobs:
       - uses: ./.github/actions/setup-rust-pinned
         with:
           targets: wasm32-unknown-unknown
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # immutable revision; upstream v1 is a moving tag
         with:
           toolchain: nightly
       - uses: ./.github/actions/cache-rust
