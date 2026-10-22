@@ -19,9 +19,9 @@ overrides:
   vite@>=8.0.0 <8.0.16: 8.2.2
 
 patchedDependencies:
-  '@tanstack/start-static-server-functions@1.167.32':
-    hash: d8792d72db71d697b9c99baf991adbc68cd114358597b86d9c088f7f2a4b83f1
-    path: patches/@tanstack__start-static-server-functions@1.167.32.patch
+  '@tanstack/start-static-server-functions@1.167.40':
+    hash: 92da309da33317470b543163aedfe461d20afb438b4d2b3c796f3b1060698342
+    path: patches/@tanstack__start-static-server-functions@1.167.40.patch
 
 importers:
 
@@ -49,8 +49,8 @@ importers:
         specifier: 26.3.0
         version: 26.3.0
       '@types/vscode':
-        specifier: ~1.140.0
-        version: 1.140.0
+        specifier: ~1.125.0
+        version: 1.125.0
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260707.2
         version: 7.0.0-dev.20260707.2
@@ -143,7 +143,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@26.3.0)(@vitest/browser-preview@4.1.11)(@vitest/coverage-v8@4.1.11)(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1))
+        version: 4.1.11(@types/node@26.3.0)(@vitest/browser-preview@4.1.11)(@vitest/coverage-v8@4.1.11(@vitest/browser@4.1.11)(vitest@4.1.11))(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1))
       vscode-jsonrpc:
         specifier: ^9.0.3
         version: 9.0.3
@@ -169,8 +169,8 @@ importers:
         specifier: 1.168.61
         version: 1.168.61(crossws@0.4.10(srvx@0.12.7))(esbuild@0.28.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(rolldown@1.2.13)(vite@8.3.4(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1))
       '@tanstack/start-static-server-functions':
-        specifier: 1.167.32
-        version: 1.167.32(patch_hash=d8792d72db71d697b9c99baf991adbc68cd114358597b86d9c088f7f2a4b83f1)(@tanstack/react-start@1.168.61(crossws@0.4.10(srvx@0.12.7))(esbuild@0.28.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(rolldown@1.2.13)(vite@8.3.4(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1)))
+        specifier: 1.167.40
+        version: 1.167.40(patch_hash=92da309da33317470b543163aedfe461d20afb438b4d2b3c796f3b1060698342)(@tanstack/react-start@1.168.61(crossws@0.4.10(srvx@0.12.7))(esbuild@0.28.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(rolldown@1.2.13)(vite@8.3.4(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1)))
       fumadocs-core:
         specifier: 16.17.1
         version: 16.17.1(@mdx-js/mdx@3.1.1)(@tanstack/react-router@1.170.42(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.55.0(@types/react@19.3.0)(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.6)
@@ -308,8 +308,8 @@ importers:
   packages/oxlint-plugin:
     dependencies:
       oxlint:
-        specifier: 1.79.0
-        version: 1.79.0(oxlint-tsgolint@7.0.2001)(vite-plus@0.3.0(@types/node@26.3.0)(@vitest/coverage-v8@4.1.11(@vitest/browser@4.1.11)(vitest@4.1.11))(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(typescript@7.0.2)(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1))(yaml@2.9.1))
+        specifier: 1.87.0
+        version: 1.87.0(vite-plus@0.3.0(@types/node@26.3.0)(@vitest/coverage-v8@4.1.11(@vitest/browser@4.1.11)(vitest@4.1.11))(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(typescript@7.0.2)(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1))(yaml@2.9.1))
 
   packages/postcss-plugin:
     dependencies:
@@ -3302,10 +3302,6 @@ packages:
     peerDependencies:
       vite: 8.2.2
 
-  '@tanstack/history@1.162.1':
-    resolution: {integrity: sha512-DR9t6lfLVdrjgCwpglrR9DR7Ok8/HlXjcOE+goWXF3zyuLUO/ug7vMbSFxTqrQTtbRghJfyhmIZ0S6LhPIy44w==}
-    engines: {node: '>=20.19'}
-
   '@tanstack/history@1.162.5':
     resolution: {integrity: sha512-w1+YvwmTkwt5n8yUqEH3IWZ9DsmorCZW/EQ3KYHnqEgIkOZpH54NvW6/Epq3Dzb8H0ifIeYX8PExvrNLIH5FIA==}
     engines: {node: '>=20.19'}
@@ -3371,10 +3367,6 @@ packages:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
-  '@tanstack/router-core@1.171.27':
-    resolution: {integrity: sha512-wDwSLvoLwIaNcnx9UNcN9Mb7Y8QwCYq1U1RQZwyN186gnkIoIYI2SOxy8VqH1vFigbkHkk4FmwMAQlghPgDK2g==}
-    engines: {node: '>=20.19'}
-
   '@tanstack/router-core@1.171.35':
     resolution: {integrity: sha512-fNKsx/rrxppFNmCQ9mPwg4OCb1O3qfLPVrE9FVyyWyRPQk0f0NK5bdJUzTYZQ+T/Ajfllr3SEx9pntM45F5amQ==}
     engines: {node: '>=20.19'}
@@ -3408,10 +3400,6 @@ packages:
     resolution: {integrity: sha512-Icb0xGuG1+54IV0WMLRcc3ErTx2HeJWyPG661FkQ8UT6guoBq1FJjFRqlG/JS0xi4mFFkBhvwO7tbLa32f3yxA==}
     engines: {node: '>=20.19'}
 
-  '@tanstack/start-client-core@1.170.27':
-    resolution: {integrity: sha512-Ro6ZSM0NgYKDMxM0e8qyU4mBfnld2Zb74BA/9f4i35C0Y3IAA8Zxs/DIPfOo9VRYWp5c5n5Q8dRBn2qn0vtPhQ==}
-    engines: {node: '>=22.12.0'}
-
   '@tanstack/start-client-core@1.170.35':
     resolution: {integrity: sha512-eX20qrqsOjU1C0plX4qJ/2Wiaz2ipQHkvAfbUJFIk+3SxaP9iCiDwML+BDifaupM3ic+6svy0s1iIFrm8dC9bg==}
     engines: {node: '>=22.12.0'}
@@ -3436,21 +3424,17 @@ packages:
     resolution: {integrity: sha512-bhHY30/0e8wsyCzTkb9suK3uLSyUunYxV4TZJZYs1kdCk511KwA1YLvDrNbzychY2ANEm1Y3R0bNFmk/dEqi2Q==}
     engines: {node: '>=22.12.0'}
 
-  '@tanstack/start-static-server-functions@1.167.32':
-    resolution: {integrity: sha512-muLNmHyR4F9XYGrnYeXWCnyZSNHBsx4tMCxIIOExhrXUHEH8sScatAMyvTsrm7VFLIoUc61jQdvl2vm4lTxEsg==}
+  '@tanstack/start-static-server-functions@1.167.40':
+    resolution: {integrity: sha512-ZOQGMSR6I46MUHVoeWWdPNU9+RJA3OdH5uyARa99NqgfHh4I/ePH93e4iGaHEfKBVxjVl9gA1fIzQh4Hpe82Vg==}
     engines: {node: '>=22.12.0'}
     peerDependencies:
-      '@tanstack/react-start': ^1.168.49
-      '@tanstack/solid-start': ^1.168.47
+      '@tanstack/react-start': ^1.168.61
+      '@tanstack/solid-start': ^1.168.58
     peerDependenciesMeta:
       '@tanstack/react-start':
         optional: true
       '@tanstack/solid-start':
         optional: true
-
-  '@tanstack/start-storage-context@1.167.29':
-    resolution: {integrity: sha512-8qfprC5774XMRDQlMogkfiGpFLiBf0xDG4bMFUbfkSzpCAQwpLbgGY4Zwft22O9rKYq2vUXusKAdVjvJTUEquQ==}
-    engines: {node: '>=22.12.0'}
 
   '@tanstack/start-storage-context@1.167.37':
     resolution: {integrity: sha512-79OkFNSUoLSQGB4Yz6/bF2aZcRX86438S/v+Ui5hdyviGmwgNYnZKMsKCK0q9bW3UPBQEAfhYX5trSqYTdXJSg==}
@@ -3553,8 +3537,8 @@ packages:
   '@types/unist@3.0.3':
     resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==}
 
-  '@types/vscode@1.140.0':
-    resolution: {integrity: sha512-KAB5RBZIgnUhpp4mKsVJPPHLOQKu6WtGy2xpfWjaajEXO4xIIC+UESAXLiQ9ewx6QD1uBmvC/S8BJzkbvv4bRA==}
+  '@types/vscode@1.125.0':
+    resolution: {integrity: sha512-0icm/ZQAaism87P0ekHqi4/Ju9du+Tm0RUW+y7vqRsxY2cY0FNRX1nAnaW7nT6npPt2tfHiheZ55Zm9UhqonFA==}
 
   '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260707.2':
     resolution: {integrity: sha512-wny2pgKjGbiZtnOIHVa3tXC1UfDqxNEFzyPGmiqybedG8hipG2Nfp0l5UxbaKCjkLacUpH/W5bP2hBOMVhCOzg==}
@@ -6969,10 +6953,6 @@ packages:
     peerDependencies:
       seroval: ^1.0
 
-  seroval@1.6.2:
-    resolution: {integrity: sha512-mPT+SD2TrlB6wvte1KkYOYUkubaTbd6pZ/6Kk3C9nxzrHmCZyhxOO7XGAeL7f+yLKZglzGtM9odUVvg/EhO+vQ==}
-    engines: {node: '>=10'}
-
   seroval@1.6.9:
     resolution: {integrity: sha512-UeEzHwAK+yl0YLbsvROV1t5yMYEwZZ0CfKYxDvUgS2fO9Vxdf8djqVIB+OuVpuawRNPqw68LE1Du/GMsW2ZPqA==}
     engines: {node: '>=10'}
@@ -10257,8 +10237,6 @@ snapshots:
       tailwindcss: 4.3.3
       vite: 8.3.4(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1)
 
-  '@tanstack/history@1.162.1': {}
-
   '@tanstack/history@1.162.5': {}
 
   '@tanstack/react-router@1.170.42(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
@@ -10350,13 +10328,6 @@ snapshots:
       react-dom: 19.3.0(react@19.3.0)
       use-sync-external-store: 1.7.0(react@19.3.0)
 
-  '@tanstack/router-core@1.171.27':
-    dependencies:
-      '@tanstack/history': 1.162.1
-      cookie-es: 3.1.1
-      seroval: 1.6.9
-      seroval-plugins: 1.6.9(seroval@1.6.9)
-
   '@tanstack/router-core@1.171.35':
     dependencies:
       '@tanstack/history': 1.162.5
@@ -10413,13 +10384,6 @@ snapshots:
       tinyglobby: 0.2.17
     transitivePeerDependencies:
       - supports-color
-
-  '@tanstack/start-client-core@1.170.27':
-    dependencies:
-      '@tanstack/router-core': 1.171.27
-      '@tanstack/start-fn-stubs': 1.162.0
-      '@tanstack/start-storage-context': 1.167.29
-      seroval: 1.6.2
 
   '@tanstack/start-client-core@1.170.35':
     dependencies:
@@ -10481,16 +10445,12 @@ snapshots:
     transitivePeerDependencies:
       - crossws
 
-  '@tanstack/start-static-server-functions@1.167.32(patch_hash=d8792d72db71d697b9c99baf991adbc68cd114358597b86d9c088f7f2a4b83f1)(@tanstack/react-start@1.168.61(crossws@0.4.10(srvx@0.12.7))(esbuild@0.28.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(rolldown@1.2.13)(vite@8.3.4(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1)))':
+  '@tanstack/start-static-server-functions@1.167.40(patch_hash=92da309da33317470b543163aedfe461d20afb438b4d2b3c796f3b1060698342)(@tanstack/react-start@1.168.61(crossws@0.4.10(srvx@0.12.7))(esbuild@0.28.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(rolldown@1.2.13)(vite@8.3.4(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1)))':
     dependencies:
-      '@tanstack/start-client-core': 1.170.27
-      seroval: 1.6.2
+      '@tanstack/start-client-core': 1.170.35
+      seroval: 1.6.9
     optionalDependencies:
       '@tanstack/react-start': 1.168.61(crossws@0.4.10(srvx@0.12.7))(esbuild@0.28.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(rolldown@1.2.13)(vite@8.3.4(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1))
-
-  '@tanstack/start-storage-context@1.167.29':
-    dependencies:
-      '@tanstack/router-core': 1.171.27
 
   '@tanstack/start-storage-context@1.167.37':
     dependencies:
@@ -10606,7 +10566,7 @@ snapshots:
 
   '@types/unist@3.0.3': {}
 
-  '@types/vscode@1.140.0': {}
+  '@types/vscode@1.125.0': {}
 
   '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260707.2':
     optional: true
@@ -10753,7 +10713,7 @@ snapshots:
       '@testing-library/dom': 10.4.1
       '@testing-library/user-event': 14.6.4(@testing-library/dom@10.4.1)
       '@vitest/browser': 4.1.11(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)
-      vitest: 4.1.11(@types/node@26.3.0)(@vitest/browser-preview@4.1.11)(@vitest/coverage-v8@4.1.11(@vitest/browser@4.1.11)(vitest@4.1.11))(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1))
+      vitest: 4.1.11(@types/node@26.3.0)(@vitest/browser-preview@4.1.11)(@vitest/coverage-v8@4.1.11)(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1))
     transitivePeerDependencies:
       - bufferutil
       - msw
@@ -10782,7 +10742,7 @@ snapshots:
       pngjs: 7.0.0
       sirv: 3.0.2
       tinyrainbow: 3.1.1
-      vitest: 4.1.11(@types/node@26.3.0)(@vitest/browser-preview@4.1.11)(@vitest/coverage-v8@4.1.11(@vitest/browser@4.1.11)(vitest@4.1.11))(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1))
+      vitest: 4.1.11(@types/node@26.3.0)(@vitest/browser-preview@4.1.11)(@vitest/coverage-v8@4.1.11)(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1))
       ws: 8.21.3
     transitivePeerDependencies:
       - bufferutil
@@ -10820,9 +10780,9 @@ snapshots:
       obug: 2.1.4
       std-env: 4.2.0
       tinyrainbow: 3.1.1
-      vitest: 4.1.11(@types/node@26.3.0)(@vitest/browser-preview@4.1.11)(@vitest/coverage-v8@4.1.11(@vitest/browser@4.1.11)(vitest@4.1.11))(vite@8.3.4(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1))
+      vitest: 4.1.11(@types/node@26.3.0)(@vitest/browser-preview@4.1.11)(@vitest/coverage-v8@4.1.11)(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1))
     optionalDependencies:
-      '@vitest/browser': 4.1.11(vite@8.3.4(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)
+      '@vitest/browser': 4.1.11(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)
 
   '@vitest/expect@4.1.11':
     dependencies:
@@ -13802,6 +13762,7 @@ snapshots:
       '@oxlint/binding-win32-x64-msvc': 1.79.0
       oxlint-tsgolint: 7.0.2001
       vite-plus: 0.3.0(@types/node@26.3.0)(@vitest/coverage-v8@4.1.11(@vitest/browser@4.1.11)(vitest@4.1.11))(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(typescript@7.0.2)(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1))(yaml@2.9.1)
+    optional: true
 
   oxlint@1.79.0(oxlint-tsgolint@7.0.2001)(vite-plus@0.3.0(@types/node@26.3.0)(@vitest/coverage-v8@4.1.11(@vitest/browser@4.1.11)(vitest@4.1.11))(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(typescript@7.0.2)(vite@8.3.4(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1))(yaml@2.9.1)):
     optionalDependencies:
@@ -13851,6 +13812,29 @@ snapshots:
       oxlint-tsgolint: 7.0.2001
       vite-plus: 0.3.0(@types/node@26.3.0)(@vitest/coverage-v8@4.1.11)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(typescript@6.0.3)(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1))(yaml@2.9.1)
     optional: true
+
+  oxlint@1.87.0(vite-plus@0.3.0(@types/node@26.3.0)(@vitest/coverage-v8@4.1.11(@vitest/browser@4.1.11)(vitest@4.1.11))(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(typescript@7.0.2)(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1))(yaml@2.9.1)):
+    optionalDependencies:
+      '@oxlint/binding-android-arm-eabi': 1.87.0
+      '@oxlint/binding-android-arm64': 1.87.0
+      '@oxlint/binding-darwin-arm64': 1.87.0
+      '@oxlint/binding-darwin-x64': 1.87.0
+      '@oxlint/binding-freebsd-x64': 1.87.0
+      '@oxlint/binding-linux-arm-gnueabihf': 1.87.0
+      '@oxlint/binding-linux-arm-musleabihf': 1.87.0
+      '@oxlint/binding-linux-arm64-gnu': 1.87.0
+      '@oxlint/binding-linux-arm64-musl': 1.87.0
+      '@oxlint/binding-linux-ppc64-gnu': 1.87.0
+      '@oxlint/binding-linux-riscv64-gnu': 1.87.0
+      '@oxlint/binding-linux-riscv64-musl': 1.87.0
+      '@oxlint/binding-linux-s390x-gnu': 1.87.0
+      '@oxlint/binding-linux-x64-gnu': 1.87.0
+      '@oxlint/binding-linux-x64-musl': 1.87.0
+      '@oxlint/binding-openharmony-arm64': 1.87.0
+      '@oxlint/binding-win32-arm64-msvc': 1.87.0
+      '@oxlint/binding-win32-ia32-msvc': 1.87.0
+      '@oxlint/binding-win32-x64-msvc': 1.87.0
+      vite-plus: 0.3.0(@types/node@26.3.0)(@vitest/coverage-v8@4.1.11(@vitest/browser@4.1.11)(vitest@4.1.11))(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(typescript@7.0.2)(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1))(yaml@2.9.1)
 
   oxlint@1.87.0(vite-plus@0.3.0(@types/node@26.3.0)(@vitest/coverage-v8@4.1.11)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(typescript@6.0.3)(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1))(yaml@2.9.1)):
     optionalDependencies:
@@ -14373,8 +14357,6 @@ snapshots:
   seroval-plugins@1.6.9(seroval@1.6.9):
     dependencies:
       seroval: 1.6.9
-
-  seroval@1.6.2: {}
 
   seroval@1.6.9: {}
 
@@ -15227,7 +15209,6 @@ snapshots:
       '@vitest/coverage-v8': 4.1.11(@vitest/browser@4.1.11)(vitest@4.1.11)
     transitivePeerDependencies:
       - msw
-    optional: true
 
   vitest@4.1.11(@types/node@26.3.0)(@vitest/browser-preview@4.1.11)(@vitest/coverage-v8@4.1.11(@vitest/browser@4.1.11)(vitest@4.1.11))(vite@8.3.4(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass@1.105.1)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:

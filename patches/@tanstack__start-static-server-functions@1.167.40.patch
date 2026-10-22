@@ -1,0 +1,33 @@
+diff --git a/dist/esm/staticFunctionMiddleware.js b/dist/esm/staticFunctionMiddleware.js
+--- a/dist/esm/staticFunctionMiddleware.js
++++ b/dist/esm/staticFunctionMiddleware.js
+@@ -26,0 +27,3 @@
++var getStaticCachePath = async (opts) => {
++	return `/__tsr/staticServerFnCache/${await sha1Hash(`${opts.functionId}__${opts.hash}`)}.json`;
++};
+@@ -28 +31,4 @@
+-	return `/__tsr/staticServerFnCache/${await sha1Hash(`${opts.functionId}__${opts.hash}`)}.json`;
++	const cachePath = await getStaticCachePath(opts);
++	const routerBasePath = process.env.TSS_ROUTER_BASEPATH;
++	if (!routerBasePath || routerBasePath === "/") return cachePath;
++	return `/${routerBasePath.replace(/^\/+|\/+$/g, "")}${cachePath}`;
+@@ -38 +44 @@
+-	const url = await getStaticCacheUrl({
++	const url = await getStaticCachePath({
+diff --git a/src/staticFunctionMiddleware.ts b/src/staticFunctionMiddleware.ts
+--- a/src/staticFunctionMiddleware.ts
++++ b/src/staticFunctionMiddleware.ts
+@@ -45 +45 @@
+-const getStaticCacheUrl = async (opts: {
++const getStaticCachePath = async (opts: {
+@@ -50,0 +51,7 @@
++}
++
++const getStaticCacheUrl = async (opts: { functionId: string; hash: string }) => {
++  const cachePath = await getStaticCachePath(opts)
++  const routerBasePath = process.env.TSS_ROUTER_BASEPATH
++  if (!routerBasePath || routerBasePath === '/') return cachePath
++  return `/${routerBasePath.replace(/^\/+|\/+$/g, '')}${cachePath}`
+@@ -84 +91 @@
+-  const url = await getStaticCacheUrl({ functionId, hash })
++  const url = await getStaticCachePath({ functionId, hash })
