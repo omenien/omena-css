@@ -5,7 +5,7 @@
     "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
     "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
     "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-    "solverVersion": "z3-crate-0.20.2-gh-release"
+    "solverVersion": "z3-crate-0.21.0-gh-release"
   },
   "coverage": [
     {
@@ -74,7 +74,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -103,7 +103,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -132,7 +132,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -161,7 +161,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -191,7 +191,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -222,7 +222,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -253,7 +253,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -283,7 +283,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -312,7 +312,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -341,7 +341,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -371,7 +371,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -402,7 +402,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -433,7 +433,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -462,7 +462,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -493,7 +493,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -522,7 +522,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -551,7 +551,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -580,7 +580,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -609,7 +609,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -640,7 +640,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -669,7 +669,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -699,7 +699,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -729,7 +729,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -758,7 +758,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -787,7 +787,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -818,7 +818,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -847,7 +847,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -875,7 +875,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -905,7 +905,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -934,7 +934,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -965,7 +965,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -996,7 +996,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1027,7 +1027,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1056,7 +1056,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1085,7 +1085,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1114,7 +1114,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1143,7 +1143,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1172,7 +1172,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1201,7 +1201,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1232,7 +1232,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1263,7 +1263,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1292,7 +1292,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1321,7 +1321,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1352,7 +1352,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1383,7 +1383,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1412,7 +1412,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1441,7 +1441,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1472,7 +1472,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1501,7 +1501,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1530,7 +1530,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1560,7 +1560,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1590,7 +1590,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1619,7 +1619,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1648,7 +1648,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1674,7 +1674,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1703,7 +1703,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1734,7 +1734,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1765,7 +1765,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1795,7 +1795,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1826,7 +1826,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1857,7 +1857,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1888,7 +1888,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1918,7 +1918,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1947,7 +1947,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -1978,7 +1978,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2007,7 +2007,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2036,7 +2036,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2066,7 +2066,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2095,7 +2095,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2126,7 +2126,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2157,7 +2157,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2186,7 +2186,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2212,7 +2212,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2241,7 +2241,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2270,7 +2270,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2299,7 +2299,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2328,7 +2328,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2357,7 +2357,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2386,7 +2386,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2417,7 +2417,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2447,7 +2447,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2476,7 +2476,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2505,7 +2505,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2534,7 +2534,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2564,7 +2564,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2593,7 +2593,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2623,7 +2623,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2652,7 +2652,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2681,7 +2681,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2711,7 +2711,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2742,7 +2742,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2771,7 +2771,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2802,7 +2802,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2833,7 +2833,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2864,7 +2864,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2893,7 +2893,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2922,7 +2922,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2953,7 +2953,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -2984,7 +2984,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3013,7 +3013,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3042,7 +3042,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3071,7 +3071,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3100,7 +3100,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3129,7 +3129,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3158,7 +3158,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3189,7 +3189,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3218,7 +3218,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3247,7 +3247,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3278,7 +3278,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3307,7 +3307,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3337,7 +3337,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3366,7 +3366,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3395,7 +3395,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3426,7 +3426,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3455,7 +3455,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3484,7 +3484,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3515,7 +3515,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3545,7 +3545,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3576,7 +3576,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3607,7 +3607,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3637,7 +3637,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3667,7 +3667,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3697,7 +3697,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3726,7 +3726,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3755,7 +3755,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3784,7 +3784,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3815,7 +3815,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3844,7 +3844,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3875,7 +3875,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3906,7 +3906,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3935,7 +3935,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3966,7 +3966,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -3995,7 +3995,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4026,7 +4026,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4054,7 +4054,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4085,7 +4085,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4116,7 +4116,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4147,7 +4147,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4175,7 +4175,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4204,7 +4204,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4234,7 +4234,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4263,7 +4263,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4292,7 +4292,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4320,7 +4320,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4351,7 +4351,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4381,7 +4381,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4409,7 +4409,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4439,7 +4439,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4468,7 +4468,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4497,7 +4497,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4526,7 +4526,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4557,7 +4557,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4588,7 +4588,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4617,7 +4617,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4648,7 +4648,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4679,7 +4679,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4708,7 +4708,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4737,7 +4737,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4768,7 +4768,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4798,7 +4798,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4827,7 +4827,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4856,7 +4856,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4885,7 +4885,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4914,7 +4914,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4943,7 +4943,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -4973,7 +4973,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5004,7 +5004,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5033,7 +5033,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5059,7 +5059,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5089,7 +5089,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5118,7 +5118,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5147,7 +5147,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5176,7 +5176,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5205,7 +5205,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5236,7 +5236,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5265,7 +5265,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5296,7 +5296,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5326,7 +5326,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5355,7 +5355,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5384,7 +5384,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5415,7 +5415,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5444,7 +5444,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5473,7 +5473,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5502,7 +5502,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5533,7 +5533,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5563,7 +5563,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5593,7 +5593,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5624,7 +5624,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5654,7 +5654,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5685,7 +5685,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5716,7 +5716,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5747,7 +5747,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5776,7 +5776,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5805,7 +5805,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5834,7 +5834,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5862,7 +5862,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5892,7 +5892,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5922,7 +5922,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5952,7 +5952,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -5983,7 +5983,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6014,7 +6014,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6045,7 +6045,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6076,7 +6076,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6105,7 +6105,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6135,7 +6135,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6164,7 +6164,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6195,7 +6195,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6224,7 +6224,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6253,7 +6253,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6282,7 +6282,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6311,7 +6311,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6340,7 +6340,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6371,7 +6371,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6402,7 +6402,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6431,7 +6431,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6462,7 +6462,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6491,7 +6491,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6522,7 +6522,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6553,7 +6553,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6582,7 +6582,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6611,7 +6611,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6642,7 +6642,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6673,7 +6673,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6702,7 +6702,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6730,7 +6730,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6759,7 +6759,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6789,7 +6789,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6819,7 +6819,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6848,7 +6848,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6877,7 +6877,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6906,7 +6906,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6935,7 +6935,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6964,7 +6964,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -6993,7 +6993,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7022,7 +7022,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7051,7 +7051,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7080,7 +7080,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7111,7 +7111,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7142,7 +7142,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7171,7 +7171,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7200,7 +7200,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7229,7 +7229,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7260,7 +7260,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7291,7 +7291,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7319,7 +7319,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7349,7 +7349,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7378,7 +7378,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7407,7 +7407,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7436,7 +7436,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7466,7 +7466,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7495,7 +7495,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7524,7 +7524,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7554,7 +7554,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7583,7 +7583,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7614,7 +7614,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7644,7 +7644,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7673,7 +7673,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7703,7 +7703,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7733,7 +7733,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7762,7 +7762,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7791,7 +7791,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7820,7 +7820,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7849,7 +7849,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7878,7 +7878,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7907,7 +7907,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7936,7 +7936,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7965,7 +7965,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -7992,7 +7992,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8021,7 +8021,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8051,7 +8051,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8082,7 +8082,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8113,7 +8113,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8142,7 +8142,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8173,7 +8173,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8202,7 +8202,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8233,7 +8233,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8264,7 +8264,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8295,7 +8295,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8326,7 +8326,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8355,7 +8355,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8385,7 +8385,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8416,7 +8416,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8446,7 +8446,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8477,7 +8477,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8506,7 +8506,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8536,7 +8536,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8567,7 +8567,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8598,7 +8598,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8629,7 +8629,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8658,7 +8658,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8687,7 +8687,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8712,7 +8712,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8743,7 +8743,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8773,7 +8773,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8802,7 +8802,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8831,7 +8831,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8860,7 +8860,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8889,7 +8889,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8918,7 +8918,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8949,7 +8949,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -8978,7 +8978,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9009,7 +9009,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9040,7 +9040,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9069,7 +9069,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9100,7 +9100,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9129,7 +9129,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9158,7 +9158,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9187,7 +9187,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9218,7 +9218,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9247,7 +9247,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9278,7 +9278,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9307,7 +9307,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9338,7 +9338,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9367,7 +9367,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9396,7 +9396,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9424,7 +9424,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9453,7 +9453,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9482,7 +9482,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9511,7 +9511,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9542,7 +9542,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9573,7 +9573,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9602,7 +9602,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9633,7 +9633,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9664,7 +9664,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9693,7 +9693,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9724,7 +9724,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9755,7 +9755,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9784,7 +9784,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9815,7 +9815,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9844,7 +9844,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9874,7 +9874,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9905,7 +9905,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9935,7 +9935,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9964,7 +9964,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -9994,7 +9994,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10023,7 +10023,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10052,7 +10052,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10083,7 +10083,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10112,7 +10112,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10142,7 +10142,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10173,7 +10173,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10204,7 +10204,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10233,7 +10233,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10262,7 +10262,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10291,7 +10291,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10321,7 +10321,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10352,7 +10352,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10382,7 +10382,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10411,7 +10411,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10441,7 +10441,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10472,7 +10472,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10502,7 +10502,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10531,7 +10531,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10562,7 +10562,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10593,7 +10593,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10622,7 +10622,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10652,7 +10652,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10681,7 +10681,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     },
     {
@@ -10712,7 +10712,7 @@
         "theorySignatureHash": "af0723fe418abe97660ae5c057cd8c7dbd3202d4deae9060afeedf7b69dc055b",
         "specDigest": "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb",
         "encoderContentHash": "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136",
-        "solverVersion": "z3-crate-0.20.2-gh-release"
+        "solverVersion": "z3-crate-0.21.0-gh-release"
       }
     }
   ]
