@@ -15,7 +15,7 @@ const DISCHARGE_LEDGER_SPEC_DIGEST_V1: &str =
     "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb";
 const DISCHARGE_LEDGER_ENCODER_CONTENT_HASH_V1: &str =
     "63d63882e0885e98c183ed9f5e72d7fdedf7404fd2ca0dbf807ba8b742e66136";
-const DISCHARGE_LEDGER_SOLVER_VERSION_V1: &str = "z3-crate-0.20.2-gh-release";
+const DISCHARGE_LEDGER_SOLVER_VERSION_V1: &str = "z3-crate-0.21.0-gh-release";
 
 static DISCHARGE_LEDGER_INDEX_V1: OnceLock<
     Result<DischargeLedgerIndexV1, DischargeLedgerIndexErrorV0>,
