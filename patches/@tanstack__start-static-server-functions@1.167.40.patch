@@ -1,26 +1,45 @@
 diff --git a/dist/esm/staticFunctionMiddleware.js b/dist/esm/staticFunctionMiddleware.js
 --- a/dist/esm/staticFunctionMiddleware.js
 +++ b/dist/esm/staticFunctionMiddleware.js
-@@ -26,0 +27,3 @@
+@@ -24,8 +24,14 @@
+ 	const hashBuffer = await crypto.subtle.digest("SHA-1", msgBuffer);
+ 	return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
+ }
 +var getStaticCachePath = async (opts) => {
 +	return `/__tsr/staticServerFnCache/${await sha1Hash(`${opts.functionId}__${opts.hash}`)}.json`;
 +};
-@@ -28 +31,4 @@
+ var getStaticCacheUrl = async (opts) => {
 -	return `/__tsr/staticServerFnCache/${await sha1Hash(`${opts.functionId}__${opts.hash}`)}.json`;
 +	const cachePath = await getStaticCachePath(opts);
 +	const routerBasePath = process.env.TSS_ROUTER_BASEPATH;
 +	if (!routerBasePath || routerBasePath === "/") return cachePath;
 +	return `/${routerBasePath.replace(/^\/+|\/+$/g, "")}${cachePath}`;
-@@ -38 +44 @@
+ };
+ var jsonToFilenameSafeString = (json) => {
+ 	const sortedKeysReplacer = (key, value) => value && typeof value === "object" && !Array.isArray(value) ? Object.keys(value).sort().reduce((acc, curr) => {
+@@ -35,7 +41,7 @@
+ 	return JSON.stringify(json ?? "", sortedKeysReplacer).replace(/[/\\?%*:|"<>]/g, "-").replace(/\s+/g, "_");
+ };
+ async function addItemToCache({ functionId, data, response }) {
 -	const url = await getStaticCacheUrl({
 +	const url = await getStaticCachePath({
+ 		functionId,
+ 		hash: jsonToFilenameSafeString(data)
+ 	});
 diff --git a/src/staticFunctionMiddleware.ts b/src/staticFunctionMiddleware.ts
 --- a/src/staticFunctionMiddleware.ts
 +++ b/src/staticFunctionMiddleware.ts
-@@ -45 +45 @@
+@@ -42,12 +42,19 @@
+   return hashHex
+ }
+ 
 -const getStaticCacheUrl = async (opts: {
 +const getStaticCachePath = async (opts: {
-@@ -50,0 +51,7 @@
+   functionId: string
+   hash: string
+ }) => {
+   const filename = await sha1Hash(`${opts.functionId}__${opts.hash}`)
+   return `/__tsr/staticServerFnCache/${filename}.json`
 +}
 +
 +const getStaticCacheUrl = async (opts: { functionId: string; hash: string }) => {
@@ -28,6 +47,15 @@ diff --git a/src/staticFunctionMiddleware.ts b/src/staticFunctionMiddleware.ts
 +  const routerBasePath = process.env.TSS_ROUTER_BASEPATH
 +  if (!routerBasePath || routerBasePath === '/') return cachePath
 +  return `/${routerBasePath.replace(/^\/+|\/+$/g, '')}${cachePath}`
-@@ -84 +91 @@
+ }
+ 
+ const jsonToFilenameSafeString = (json: any) => {
+@@ -81,7 +88,7 @@
+   response: StaticCachedResult
+ }): Promise<void> {
+   const hash = jsonToFilenameSafeString(data)
 -  const url = await getStaticCacheUrl({ functionId, hash })
 +  const url = await getStaticCachePath({ functionId, hash })
+   const clientUrl = process.env.TSS_CLIENT_OUTPUT_DIR!
+   const filePath = path.join(clientUrl, url)
+ 
